@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Calendar, Search, X, ChevronDown } from "lucide-react";
+import { Calendar, Search, X, ChevronDown, Check } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -14,6 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 
 interface EventSelectProps {
@@ -39,11 +40,11 @@ function EventItems({ events, checkedClass }: { events: Event[]; checkedClass: s
             <TooltipTrigger asChild>
               <div>
                 {index > 0 && (
-                  <div className="mx-2 h-px bg-gray-100 dark:bg-gray-800" />
+                  <div className="mx-2 h-px bg-muted" />
                 )}
                 <SelectItem
                   value={event.id}
-                  className={`py-2.5 px-3 pl-8 text-[14px] rounded-md cursor-pointer ${checkedClass} data-[state=checked]:font-semibold focus:bg-gray-50 dark:focus:bg-gray-800`}
+                  className={`py-2.5 px-3 pl-8 text-sm rounded-md cursor-pointer ${checkedClass} data-[state=checked]:font-semibold focus:bg-surface-muted `}
                 >
                   <span className="break-words">{event.name}</span>
                 </SelectItem>
@@ -67,13 +68,13 @@ export function EventSelect({ value, onValueChange, events, className }: EventSe
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
-        className={`h-11 min-w-[280px] px-3.5 text-[15px] rounded-lg border-gray-300 dark:border-gray-600 shadow-sm hover:border-gray-400 dark:hover:border-gray-500 transition-colors ${className ?? ""}`}
+        className={`h-11 min-w-[280px] px-3.5 text-base rounded-lg border-slate-300 shadow-1 hover:border-slate-400 transition-colors ${className ?? ""}`}
       >
-        <Calendar className="w-4.5 h-4.5 text-gray-400 dark:text-gray-500 mr-2.5 shrink-0" />
+        <Calendar className="w-4.5 h-4.5 text-muted-foreground mr-2.5 shrink-0" aria-hidden="true" />
         <SelectValue placeholder="Selecionar evento" />
       </SelectTrigger>
-      <SelectContent className="rounded-lg shadow-lg border-gray-200 dark:border-gray-700">
-        <EventItems events={sorted} checkedClass="data-[state=checked]:bg-blue-50 dark:data-[state=checked]:bg-blue-950/30 data-[state=checked]:text-blue-700 dark:data-[state=checked]:text-blue-300" />
+      <SelectContent className="rounded-lg shadow-2 border-border">
+        <EventItems events={sorted} checkedClass="data-[state=checked]:bg-brand-soft dark:data-[state=checked]:bg-primary-hover/30 data-[state=checked]:text-primary dark:data-[state=checked]:text-primary/70" />
       </SelectContent>
     </Select>
   );
@@ -86,11 +87,25 @@ function fmtEventDate(start?: string, end?: string) {
   return `${day}/${m}/${y}`;
 }
 
+/**
+ * Seletor de evento com busca — porta de entrada do Financeiro (Planejado,
+ * Realizado, Notas Fiscais).
+ *
+ * Reescrito em 23/09 (code review): a escolha era só `onMouseDown`, então não
+ * existia por teclado; o foco era invisível (`outline: none` sem substituto) e
+ * o realce vinha de JS mexendo em `style` a cada `mouseenter`. Agora é um
+ * combobox de verdade: setas percorrem a lista, Enter escolhe, Esc fecha, o
+ * item ativo é anunciado por `aria-activedescendant`, o foco volta ao botão
+ * que abriu e as cores são tokens do tema.
+ */
 export function EventSearchSelect({ value, onValueChange, events, className }: EventSelectProps) {
   const sorted = useSortedEvents(events);
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listId = useId();
 
   const selectedEvent = useMemo(() => events?.find(e => e.id === value), [events, value]);
 
@@ -100,196 +115,188 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
     return sorted.filter(e => e.name.toLowerCase().includes(q));
   }, [sorted, search]);
 
+  const optionId = (index: number) => `${listId}-opt-${index}`;
+
+  // Ao abrir ou mudar a busca, o item ativo volta para o selecionado (se
+  // visível) ou para o primeiro — nunca fica apontando para fora da lista.
+  useEffect(() => {
+    if (!isOpen) return;
+    const idx = filtered.findIndex(e => e.id === value);
+    setActiveIndex(idx >= 0 ? idx : 0);
+  }, [isOpen, filtered, value]);
+
+  // Item ativo sempre à vista quando se navega pelas setas.
+  useEffect(() => {
+    if (!isOpen) return;
+    document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: "nearest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, isOpen]);
+
   function handleOpen() {
     setIsOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 60);
+    // O portal monta no próximo ciclo; o foco só pode ir depois disso.
+    setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     setIsOpen(false);
     setSearch("");
-  }
+    // Devolve o foco a quem abriu — sem isso o teclado "caía" no <body>.
+    setTimeout(() => triggerRef.current?.focus(), 0);
+  }, []);
 
   function handleSelect(eventId: string) {
     onValueChange(eventId);
     handleClose();
   }
 
-  function handleClear(e: React.MouseEvent) {
-    e.stopPropagation();
+  function handleClear() {
     onValueChange("");
+  }
+
+  function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (filtered.length) setActiveIndex(i => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (filtered.length) setActiveIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIndex(Math.max(filtered.length - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const alvo = filtered[activeIndex];
+      if (alvo) handleSelect(alvo.id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleClose();
+    }
   }
 
   useEffect(() => {
     if (!isOpen) return;
+    // Esc fecha mesmo com o foco fora do campo (ex.: depois de clicar na lista).
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") handleClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [isOpen]);
+  }, [isOpen, handleClose]);
 
-  // Command palette portal — renders at document.body, always centered, never clipped
+  const activeId = filtered.length ? optionId(activeIndex) : undefined;
+
+  // Paleta em portal no <body>: sempre centralizada, nunca cortada por
+  // `overflow` de quem a usa.
   const palette = isOpen && createPortal(
     <div
       id="event-command-palette"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 99999,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(15, 23, 42, 0.32)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-      }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm"
       onMouseDown={e => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      {/* Modal */}
       <div
-        style={{
-          width: 'min(560px, 92vw)',
-          maxHeight: '80vh',
-          display: 'flex', flexDirection: 'column',
-          background: 'rgba(255, 255, 255, 0.97)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(226, 232, 240, 0.6)',
-          borderRadius: 18,
-          boxShadow: '0 32px 80px rgba(0,0,0,0.22), 0 8px 24px rgba(0,51,204,0.08)',
-          overflow: 'hidden',
-          animation: 'cmdPaletteIn 0.18s cubic-bezier(0.34,1.56,0.64,1)',
-        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Buscar evento"
+        className="flex w-full max-w-[560px] max-h-[80vh] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-3 animate-in fade-in-0 zoom-in-95 duration-150"
         onMouseDown={e => e.stopPropagation()}
       >
-        {/* Search header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '16px 20px',
-          borderBottom: '1px solid #F1F5F9',
-        }}>
-          <Search style={{ width: 18, height: 18, color: '#0033CC', flexShrink: 0 }} />
+        {/* Campo de busca: o anel de foco vai no contêiner (focus-within) —
+            o input em si não tem borda para não duplicar o traço. */}
+        <div className="flex items-center gap-3 border-b border-border px-5 py-4 ring-inset ring-ring/40 focus-within:ring-2">
+          <Search className="h-[18px] w-[18px] shrink-0 text-primary" aria-hidden="true" />
           <input
             ref={inputRef}
+            role="combobox"
+            aria-expanded={true}
+            aria-controls={listId}
+            aria-activedescendant={activeId}
+            aria-autocomplete="list"
+            aria-label="Buscar evento"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onKeyDown={onInputKeyDown}
             placeholder="Buscar evento..."
-            style={{
-              flex: 1, fontSize: 15, fontWeight: 500,
-              outline: 'none', border: 'none', background: 'transparent',
-              color: '#0F172A', caretColor: '#0033CC',
-            }}
+            className="flex-1 min-w-0 border-0 bg-transparent text-base font-medium text-foreground caret-primary outline-none placeholder:text-muted-foreground"
           />
           {search ? (
             <button
-              onMouseDown={e => { e.preventDefault(); setSearch(""); }}
-              style={{
-                background: '#F1F5F9', border: 'none', cursor: 'pointer',
-                padding: '4px', borderRadius: 6, color: '#94A3B8',
-                display: 'flex', alignItems: 'center',
-              }}
+              type="button"
+              onClick={() => { setSearch(""); inputRef.current?.focus(); }}
+              aria-label="Limpar busca"
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <X style={{ width: 13, height: 13 }} />
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           ) : (
-            <kbd style={{
-              fontSize: 11, color: '#94A3B8', background: '#F8FAFC',
-              border: '1px solid #E2E8F0', borderRadius: 5,
-              padding: '2px 6px', fontFamily: 'inherit',
-            }}>ESC</kbd>
+            <kbd className="rounded border border-border bg-background px-1.5 py-0.5 text-2xs text-muted-foreground" aria-hidden="true">ESC</kbd>
           )}
         </div>
 
-        {/* Event count badge */}
         {!search && (
-          <div style={{
-            padding: '8px 20px 4px',
-            fontSize: 11, fontWeight: 600, color: '#94A3B8',
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-          }}>
-            {sorted.length} evento{sorted.length !== 1 ? 's' : ''}
+          <div className="px-5 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {sorted.length} evento{sorted.length !== 1 ? "s" : ""}
           </div>
         )}
 
-        {/* List */}
-        <div className="event-search-list" style={{ overflowY: 'auto', padding: '4px 10px 12px', flex: 1 }}>
+        {/* Lista: `role=listbox` + `role=option`; o item ativo do teclado e o
+            selecionado são coisas diferentes (aria-selected = selecionado). */}
+        <div
+          id={listId}
+          role="listbox"
+          aria-label="Eventos"
+          className="event-search-list flex-1 overflow-y-auto px-2.5 pb-3 pt-1"
+        >
           {filtered.length === 0 ? (
-            <div style={{
-              padding: '32px 16px', textAlign: 'center',
-              color: '#94A3B8', fontSize: 14,
-            }}>
-              <Search style={{ width: 28, height: 28, color: '#CBD5E1', marginBottom: 8 }} />
+            <div role="status" className="px-4 py-8 text-center text-sm text-muted-foreground">
+              <Search className="mx-auto mb-2 h-7 w-7 opacity-50" aria-hidden="true" />
               <div>Nenhum evento encontrado</div>
-              <div style={{ fontSize: 12, marginTop: 4, color: '#CBD5E1' }}>Tente outro termo de busca</div>
+              <div className="mt-1 text-xs opacity-80">Tente outro termo de busca</div>
             </div>
           ) : (
-            filtered.map((event) => {
+            filtered.map((event, index) => {
               const isSelected = event.id === value;
+              const isActive = index === activeIndex;
               return (
                 <button
                   key={event.id}
-                  onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 13,
-                    width: '100%', padding: '11px 12px',
-                    border: 'none', borderRadius: 12, marginBottom: 3,
-                    cursor: 'pointer', textAlign: 'left', outline: 'none',
-                    background: isSelected
-                      ? 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)'
-                      : 'transparent',
-                    transition: 'all 0.12s ease',
-                  }}
-                  onMouseEnter={e => {
-                    if (!isSelected) {
-                      (e.currentTarget as HTMLElement).style.background = '#F0F7FF';
-                      (e.currentTarget as HTMLElement).style.transform = 'translateX(3px)';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!isSelected) {
-                      (e.currentTarget as HTMLElement).style.background = 'transparent';
-                      (e.currentTarget as HTMLElement).style.transform = 'translateX(0)';
-                    }
-                  }}
+                  id={optionId(index)}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  tabIndex={-1}
+                  onClick={() => handleSelect(event.id)}
+                  onMouseMove={() => { if (!isActive) setActiveIndex(index); }}
+                  className={cn(
+                    "mb-0.5 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors outline-none",
+                    isSelected ? "bg-brand-soft" : isActive ? "bg-accent" : "hover:bg-accent",
+                    isActive && "ring-2 ring-inset ring-ring/40",
+                  )}
                 >
-                  {/* Icon */}
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-                    background: isSelected
-                      ? 'linear-gradient(135deg, #0033CC, #0044FF)'
-                      : '#F1F5F9',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: isSelected ? '0 3px 10px rgba(0,51,204,0.28)' : 'none',
-                    transition: 'all 0.12s ease',
-                  }}>
-                    <Calendar style={{ width: 15, height: 15, color: isSelected ? '#fff' : '#94A3B8' }} />
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                      isSelected ? "bg-primary text-primary-foreground shadow-1" : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <Calendar className="h-[15px] w-[15px]" aria-hidden="true" />
                   </div>
-
-                  {/* Text */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 14, fontWeight: 600,
-                      color: isSelected ? '#0033CC' : '#0F172A',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      letterSpacing: '-0.01em',
-                    }}>
+                  <div className="min-w-0 flex-1">
+                    <div className={cn("truncate text-sm font-semibold tracking-tight", isSelected ? "text-primary" : "text-foreground")}>
                       {event.name}
                     </div>
                     {(event.startDate || event.endDate) && (
-                      <div style={{ fontSize: 12, color: isSelected ? '#5580FF' : '#94A3B8', marginTop: 2 }}>
+                      <div className={cn("mt-0.5 text-xs", isSelected ? "text-primary/80" : "text-muted-foreground")}>
                         {fmtEventDate(event.startDate, event.endDate)}
                       </div>
                     )}
                   </div>
-
-                  {/* Check */}
                   {isSelected && (
-                    <div style={{
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: '#0033CC', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 2px 8px rgba(0,51,204,0.35)',
-                    }}>
-                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                        <path d="M2 5.5l2.5 2.5L9 3" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
                     </div>
                   )}
                 </button>
@@ -303,39 +310,41 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
   );
 
   return (
-    <div style={{ position: 'relative', minWidth: 280 }} className={className}>
-      {/* Trigger */}
+    <div className={cn("relative min-w-[280px]", className)}>
+      {/* Botão que abre a paleta. O "limpar" NÃO fica dentro dele (botão dentro
+          de botão é HTML inválido e confunde leitor de tela): é irmão, posicionado
+          por cima da borda direita. */}
       <button
+        ref={triggerRef}
+        type="button"
         onClick={handleOpen}
-        className="hover:scale-[1.015] active:scale-[0.985]"
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 14px',
-          width: '100%',
-          border: isOpen ? '1.5px solid #0033CC' : '1px solid #CBD5E1',
-          borderRadius: 9, background: '#fff', cursor: 'pointer', fontSize: 14,
-          color: selectedEvent ? '#1E293B' : '#94A3B8',
-          boxShadow: isOpen
-            ? '0 0 0 3px rgba(0,51,204,0.10), 0 2px 8px rgba(0,51,204,0.08)'
-            : '0 1px 3px rgba(0,0,0,0.06)',
-          transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s cubic-bezier(0.4,0,0.2,1)',
-        }}
-      >
-        <Search style={{ width: 14, height: 14, color: isOpen ? '#0033CC' : '#94A3B8', flexShrink: 0 }} />
-        <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: selectedEvent ? 500 : 400 }}>
-          {selectedEvent ? selectedEvent.name : 'Selecionar evento'}
-        </span>
-        {selectedEvent ? (
-          <button
-            onMouseDown={e => { e.preventDefault(); }}
-            onClick={handleClear}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94A3B8', display: 'flex', alignItems: 'center', flexShrink: 0 }}
-          >
-            <X style={{ width: 14, height: 14 }} />
-          </button>
-        ) : (
-          <ChevronDown style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={selectedEvent ? `Evento: ${selectedEvent.name}. Trocar evento` : "Selecionar evento"}
+        className={cn(
+          "flex h-11 w-full items-center gap-2 rounded-lg border bg-card px-3.5 text-sm shadow-1 transition-[border-color,box-shadow,transform]",
+          "hover:scale-[1.015] active:scale-[0.985]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          isOpen ? "border-primary ring-2 ring-primary/10" : "border-input",
+          selectedEvent ? "pr-9 font-medium text-foreground" : "text-muted-foreground",
         )}
+      >
+        <Search className={cn("h-3.5 w-3.5 shrink-0", isOpen ? "text-primary" : "text-muted-foreground")} aria-hidden="true" />
+        <span className="flex-1 truncate text-left">
+          {selectedEvent ? selectedEvent.name : "Selecionar evento"}
+        </span>
+        {!selectedEvent && <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
       </button>
+      {selectedEvent && (
+        <button
+          type="button"
+          onClick={handleClear}
+          aria-label="Limpar evento selecionado"
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
 
       {palette}
     </div>
@@ -352,19 +361,19 @@ export function EventSelectCTA({
 
   const colorMap = {
     blue: {
-      border: "border-blue-300 dark:border-blue-700 hover:border-blue-400",
-      icon: "text-blue-500",
-      checked: "data-[state=checked]:bg-blue-50 dark:data-[state=checked]:bg-blue-950/30 data-[state=checked]:text-blue-700 dark:data-[state=checked]:text-blue-300",
+      border: "border-primary/40 hover:border-primary",
+      icon: "text-primary",
+      checked: "data-[state=checked]:bg-brand-soft dark:data-[state=checked]:bg-primary-hover/30 data-[state=checked]:text-primary dark:data-[state=checked]:text-primary/70",
     },
     purple: {
-      border: "border-purple-300 dark:border-purple-700 hover:border-purple-400",
-      icon: "text-purple-500",
-      checked: "data-[state=checked]:bg-purple-50 dark:data-[state=checked]:bg-purple-950/30 data-[state=checked]:text-purple-700 dark:data-[state=checked]:text-purple-300",
+      border: "border-primary/40 hover:border-primary",
+      icon: "text-primary",
+      checked: "data-[state=checked]:bg-brand-soft dark:data-[state=checked]:bg-primary-hover/30 data-[state=checked]:text-primary dark:data-[state=checked]:text-primary/70",
     },
     emerald: {
-      border: "border-emerald-300 dark:border-emerald-700 hover:border-emerald-400",
-      icon: "text-emerald-500",
-      checked: "data-[state=checked]:bg-emerald-50 dark:data-[state=checked]:bg-emerald-950/30 data-[state=checked]:text-emerald-700 dark:data-[state=checked]:text-emerald-300",
+      border: "border-success/25 hover:border-success-strong",
+      icon: "text-success-strong",
+      checked: "data-[state=checked]:bg-success-soft dark:data-[state=checked]:bg-success/30 data-[state=checked]:text-success dark:data-[state=checked]:text-success-soft",
     },
   };
 
@@ -373,12 +382,12 @@ export function EventSelectCTA({
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
-        className={`w-72 h-11 px-3.5 text-[15px] mx-auto bg-white dark:bg-gray-800 ${colors.border} rounded-lg shadow-sm transition-colors`}
+        className={`w-72 h-11 px-3.5 text-base mx-auto bg-card ${colors.border} rounded-lg shadow-1 transition-colors`}
       >
-        <Calendar className={`w-4.5 h-4.5 ${colors.icon} mr-2.5 shrink-0`} />
+        <Calendar className={`w-4.5 h-4.5 ${colors.icon} mr-2.5 shrink-0`} aria-hidden="true" />
         <SelectValue placeholder="Selecionar evento" />
       </SelectTrigger>
-      <SelectContent className="rounded-lg shadow-lg border-gray-200 dark:border-gray-700">
+      <SelectContent className="rounded-lg shadow-2 border-border">
         <EventItems events={sorted} checkedClass={`${colors.checked}`} />
       </SelectContent>
     </Select>

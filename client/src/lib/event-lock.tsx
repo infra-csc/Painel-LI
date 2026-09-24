@@ -118,7 +118,7 @@ export function PastEventBanner(
   if (!show) return null;
   return (
     <div
-      className={`flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-800 ${className}`}
+      className={`flex items-center gap-2 rounded-xl border border-warning/25 bg-warning-soft px-3 py-2 text-xs font-medium text-warning ${className}`}
       role="status"
       data-testid="banner-evento-encerrado"
     >

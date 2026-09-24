@@ -3,92 +3,93 @@
  * ("Grupo / Subgrupo / Tela") na barra do topo e do grupo "Telas" da paleta ⌘K.
  *
  * Espelha ORDERED_ROUTES de App.tsx (mesma ordem, mesma permissão) e acrescenta
- * o Espelho Operacional, que é rota real (`canAccessScreen3`) mas não entra no
+ * o Espelho operacional, que é rota real (`canAccessScreen3`) mas não entra no
  * redirecionamento inicial. NADA aqui inventa permissão: quem filtra é sempre
  * `hasPermission` de `@/lib/role-utils`.
+ *
+ * Nomenclatura (23/09): rótulos em CAIXA DE FRASE ("Validação de escala"),
+ * mantendo só nomes próprios em maiúscula (Flash, RH). A MESMA string deve
+ * aparecer no menu, na trilha do topo e no título da aba (`usePageTitle`).
+ *
+ * Ícones (23/09): lucide, como o resto do app — Material Symbols saiu do menu.
+ * Sem "arco-íris" por grupo: ícone inativo em `text-muted-foreground`, item
+ * ativo em `bg-brand-soft text-primary`.
  */
 import type { User } from "@shared/schema";
+import type { LucideIcon } from "lucide-react";
+import {
+  UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
+  UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
+  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye,
+} from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
 export interface NavTab {
   id: string;
   path: string;
   label: string;
-  /** Nome do ícone Material Symbols. */
-  icon: string;
+  /** Componente lucide (renderizado por quem desenha: menu, topo, paleta). */
+  icon: LucideIcon;
   permission: keyof RolePermissions;
 }
 
 export interface NavGroup {
   title: string;
-  /** Cor do ícone do grupo (ajuda a se localizar no menu). */
-  iconClass: string;
   ids: string[];
   /**
-   * Subconjunto contíguo com rótulo e COR próprios (ex.: as 4 telas do fluxo da
-   * Escala). A cor separada existe para o módulo novo não se confundir com o
-   * fluxo antigo do mesmo grupo.
+   * Subconjunto contíguo com rótulo próprio (ex.: as 4 telas do fluxo da
+   * Escala). Só o rótulo separa o módulo novo do fluxo antigo do mesmo grupo.
    */
   subgroup?: {
     label: string;
-    /** Cor dos ÍCONES das telas do subgrupo. */
-    iconClass: string;
-    /** Cor do sub-rótulo — o mesmo matiz, um tom mais fechado para o texto miúdo. */
-    labelClass: string;
     ids: string[];
   };
 }
 
 export const ALL_TABS: NavTab[] = [
-  { id: "user-registration",  path: "/user-registration",  label: "Cadastro de Usuários", icon: "person_add",             permission: "canCreateUsers" },
-  { id: "events",             path: "/events",             label: "Eventos",              icon: "event",                  permission: "canAccessCadastros" },
-  { id: "calendar",           path: "/calendar",           label: "Calendário",           icon: "calendar_month",         permission: "canAccessCalendar" },
-  { id: "functions",          path: "/functions",          label: "Funções",              icon: "work",                   permission: "canAccessCadastros" },
-  { id: "collaborators",      path: "/collaborators",      label: "Colaboradores",        icon: "badge",                  permission: "canAccessCollaborators" },
-  { id: "scaling-suggestion", path: "/scaling-suggestion", label: "Sugestão de Escala",   icon: "playlist_add",           permission: "canAccessScalingSuggestion" },
-  { id: "scaling-validation", path: "/scaling-validation", label: "Validação de Escala",  icon: "fact_check",             permission: "canAccessScalingValidation" },
-  { id: "scaling-approval",   path: "/scaling-approval",   label: "Aprovação de Escala",  icon: "approval",               permission: "canAccessScalingApproval" },
-  { id: "scaling-event-view", path: "/scaling-event-view", label: "Histórico da Escala",  icon: "history",                permission: "canAccessScalingEventView" },
-  { id: "team-inclusion",     path: "/team-inclusion",     label: "Inclusão de Equipe",   icon: "group_add",              permission: "canAccessScreen1" },
-  { id: "scaling",            path: "/scaling",            label: "Escalação",            icon: "assignment_ind",         permission: "canAccessScreen2" },
-  { id: "tickets",            path: "/tickets",            label: "Passagens",            icon: "confirmation_number",    permission: "canAccessScreen3" },
-  { id: "accommodations",     path: "/accommodations",     label: "Hospedagem",           icon: "bed",                    permission: "canAccessScreen3" },
-  { id: "operational-mirror", path: "/operational-mirror", label: "Espelho Operacional",  icon: "table_view",             permission: "canAccessScreen3" },
-  { id: "baggage-control",    path: "/baggage-control",    label: "Controle de Bagagem",  icon: "luggage",                permission: "canAccessBaggage" },
-  { id: "budget-planned",     path: "/budget-planned",     label: "Planejado",            icon: "pending_actions",        permission: "canAccessFinanceiro" },
-  { id: "budget-actual",      path: "/budget-actual",      label: "Realizado",            icon: "account_balance_wallet", permission: "canAccessFinanceiro" },
-  { id: "budget-comparison",  path: "/budget-comparison",  label: "Comparativo",          icon: "query_stats",            permission: "canAccessScreen5" },
-  { id: "rh-control",         path: "/rh-control",         label: "Controle RH",          icon: "groups",                 permission: "canAccessScreen5" },
-  { id: "invoices",           path: "/invoices",           label: "Notas Fiscais",        icon: "receipt_long",           permission: "canAccessFinanceiro" },
-  { id: "flash-account",      path: "/flash-account",      label: "Conta Corrente Flash", icon: "savings",                permission: "canAccessFinanceiro" },
-  { id: "calculation-rules",  path: "/calculation-rules",  label: "Regras de Cálculo",    icon: "calculate",              permission: "canAccessFinanceiro" },
-  { id: "system-settings",    path: "/system-settings",    label: "Valores Padrão",       icon: "settings_suggest",       permission: "canAccessFinanceiro" },
-  { id: "consultation",       path: "/consultation",       label: "Log de auditoria",     icon: "manage_search",          permission: "canAccessScreen6" },
-  { id: "admin-users",        path: "/admin-users",        label: "Usuários",             icon: "manage_accounts",        permission: "canAccessAdminUsers" },
-  { id: "simulation",         path: "/simulation",         label: "Ver como usuário",     icon: "visibility",             permission: "canAccessSimulation" },
+  { id: "user-registration",  path: "/user-registration",  label: "Cadastro de usuários", icon: UserPlus,          permission: "canCreateUsers" },
+  { id: "events",             path: "/events",             label: "Eventos",              icon: CalendarDays,      permission: "canAccessCadastros" },
+  { id: "calendar",           path: "/calendar",           label: "Calendário",           icon: Calendar,          permission: "canAccessCalendar" },
+  { id: "functions",          path: "/functions",          label: "Funções",              icon: Briefcase,         permission: "canAccessCadastros" },
+  { id: "collaborators",      path: "/collaborators",      label: "Colaboradores",        icon: IdCard,            permission: "canAccessCollaborators" },
+  { id: "scaling-suggestion", path: "/scaling-suggestion", label: "Sugestão de escala",   icon: ListPlus,          permission: "canAccessScalingSuggestion" },
+  { id: "scaling-validation", path: "/scaling-validation", label: "Validação de escala",  icon: ClipboardCheck,    permission: "canAccessScalingValidation" },
+  { id: "scaling-approval",   path: "/scaling-approval",   label: "Aprovação de escala",  icon: Stamp,             permission: "canAccessScalingApproval" },
+  { id: "scaling-event-view", path: "/scaling-event-view", label: "Histórico da escala",  icon: History,           permission: "canAccessScalingEventView" },
+  { id: "team-inclusion",     path: "/team-inclusion",     label: "Inclusão de equipe",   icon: UserRoundPlus,     permission: "canAccessScreen1" },
+  { id: "scaling",            path: "/scaling",            label: "Escalação",            icon: ClipboardList,     permission: "canAccessScreen2" },
+  { id: "tickets",            path: "/tickets",            label: "Passagens",            icon: Ticket,            permission: "canAccessScreen3" },
+  { id: "accommodations",     path: "/accommodations",     label: "Hospedagem",           icon: BedDouble,         permission: "canAccessScreen3" },
+  { id: "operational-mirror", path: "/operational-mirror", label: "Espelho operacional",  icon: Table2,            permission: "canAccessScreen3" },
+  { id: "baggage-control",    path: "/baggage-control",    label: "Controle de bagagem",  icon: Luggage,           permission: "canAccessBaggage" },
+  { id: "budget-planned",     path: "/budget-planned",     label: "Planejado",            icon: CalendarClock,     permission: "canAccessFinanceiro" },
+  { id: "budget-actual",      path: "/budget-actual",      label: "Realizado",            icon: Wallet,            permission: "canAccessFinanceiro" },
+  { id: "budget-comparison",  path: "/budget-comparison",  label: "Comparativo",          icon: ChartColumn,       permission: "canAccessScreen5" },
+  { id: "rh-control",         path: "/rh-control",         label: "Controle RH",          icon: Users,             permission: "canAccessScreen5" },
+  { id: "invoices",           path: "/invoices",           label: "Notas fiscais",        icon: Receipt,           permission: "canAccessFinanceiro" },
+  { id: "flash-account",      path: "/flash-account",      label: "Conta corrente Flash", icon: PiggyBank,         permission: "canAccessFinanceiro" },
+  { id: "calculation-rules",  path: "/calculation-rules",  label: "Regras de cálculo",    icon: Calculator,        permission: "canAccessFinanceiro" },
+  { id: "system-settings",    path: "/system-settings",    label: "Valores padrão",       icon: SlidersHorizontal, permission: "canAccessFinanceiro" },
+  { id: "consultation",       path: "/consultation",       label: "Log de auditoria",     icon: FileSearch,        permission: "canAccessScreen6" },
+  { id: "admin-users",        path: "/admin-users",        label: "Usuários",             icon: UserCog,           permission: "canAccessAdminUsers" },
+  { id: "simulation",         path: "/simulation",         label: "Ver como usuário",     icon: Eye,               permission: "canAccessSimulation" },
 ];
 
-/** Cor por GRUPO (semântica: ajuda a se localizar). O item ativo usa sempre o azul de marca. */
 export const MENU_GROUPS: NavGroup[] = [
-  { title: "Cadastros", iconClass: "text-primary", ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
+  { title: "Cadastros", ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   {
     title: "Operacional",
-    iconClass: "text-orange-500",
     // Módulo de Escala na ordem do fluxo: Sugestão → Validação → Aprovação → Histórico
     ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"],
-    // Ciano: o fluxo da Escala é um módulo à parte do operacional antigo
-    // (Inclusão, Escalação, Passagens…), e a cor diz isso sem caixa nem borda.
+    // O fluxo da Escala é um módulo à parte do operacional antigo (Inclusão,
+    // Escalação, Passagens…): o sub-rótulo e o separador fino dizem isso.
     subgroup: {
       label: "Escala",
-      iconClass: "text-cyan-600",
-      // cyan-800 cheio: em 10px, o cyan-700 a 80% dava 3,66:1 sobre branco —
-      // abaixo do mínimo de 4,5:1 para texto pequeno.
-      labelClass: "text-cyan-800",
       ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"],
     },
   },
-  { title: "Financeiro", iconClass: "text-emerald-600", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
-  { title: "Gestão", iconClass: "text-violet-600", ids: ["consultation", "admin-users", "simulation"] },
+  { title: "Financeiro", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
+  { title: "Gestão", ids: ["consultation", "admin-users", "simulation"] },
 ];
 
 const TAB_BY_ID = new Map(ALL_TABS.map((t) => [t.id, t]));
@@ -122,14 +123,6 @@ export function visibleGroups(user: User | null): ResolvedGroup[] {
   })).filter((g) => g.items.length > 0);
 }
 
-/**
- * Cor do ícone de UMA tela no menu: a do subgrupo, quando ela pertence a um;
- * senão a do grupo. O item ATIVO ignora isto e usa sempre o azul de marca.
- */
-export function iconClassFor(group: NavGroup, tabId: string): string {
-  return group.subgroup?.ids.includes(tabId) ? group.subgroup.iconClass : group.iconClass;
-}
-
 /** Grupo (e subgrupo) a que uma tela pertence — base da trilha do topo. */
 export function groupOf(tabId: string): { group: NavGroup; subLabel?: string } | undefined {
   for (const group of MENU_GROUPS) {
@@ -144,8 +137,7 @@ export interface Breadcrumb {
   /** "Operacional / Escala" (sem a tela atual) — pode ser vazio. */
   trail: string[];
   label: string;
-  icon: string;
-  iconClass: string;
+  icon: LucideIcon;
 }
 
 /** Trilha "Grupo / Subgrupo / Tela atual" derivada da rota. */
@@ -157,8 +149,6 @@ export function breadcrumbFor(path: string): Breadcrumb | null {
     trail: found ? [found.group.title, ...(found.subLabel ? [found.subLabel] : [])] : [],
     label: tab.label,
     icon: tab.icon,
-    // Mesma cor que a tela tem no menu (o subgrupo Escala manda na sua).
-    iconClass: found ? iconClassFor(found.group, tab.id) : "text-primary",
   };
 }
 

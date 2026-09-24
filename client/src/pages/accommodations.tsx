@@ -1,20 +1,20 @@
 import { useState, useCallback, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCheck, ListChecks } from "lucide-react";
+import { AlertCircle, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { useEventLock, PastEventBanner } from "@/lib/event-lock";
 import { hasRoleIn } from "@shared/roles";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
+import { aplicarStatusDaVagaNoCache } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
-import type { TeamInclusion } from "@shared/schema";
+import type { Accommodation, TeamInclusion } from "@shared/schema";
 import type { OpcaoDeFiltro } from "@/components/common/filter-popover";
+import { usePageTitle } from "@/components/common/use-page-title";
 import AccommodationModal from "@/components/accommodations/accommodation-modal";
 import AccommodationsTable from "@/components/accommodations/accommodations-table";
 import AccommodationsFilterBar from "@/components/accommodations/accommodations-filter-bar";
@@ -31,17 +31,13 @@ import {
 import {
   DEFAULT_FILTERS,
   type AccommodationDraft, type AccommodationFilters, type AccommodationPayload, type AccSortConfig, type AccSortField,
-  type ApiError, type BatchDraft,
+  type BatchDraft,
 } from "@/components/accommodations/types";
 import { isCheckOutAfterCheckIn, isPostPurchaseStatus, toDateInput, toTitleCase } from "@/components/accommodations/utils";
 
-interface SuccessInfo {
-  message: string;
-  inclusionNumber: number | null;
-  eventName: string;
-  collaboratorName: string;
-  functionName: string;
-}
+
+/** `POST/PATCH /api/accommodations` devolvem a hospedagem + o status resultante da vaga (24/09). */
+type HospedagemComStatusDaVaga = Accommodation & { inclusionStatus?: string };
 
 /** Como a lista está ordenada agora, em palavras, para o rodapé. */
 const NOME_DA_ORDEM: Record<string, string> = {
@@ -50,6 +46,7 @@ const NOME_DA_ORDEM: Record<string, string> = {
 };
 
 export default function Accommodations() {
+  usePageTitle("Hospedagem");
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -60,8 +57,6 @@ export default function Accommodations() {
   const [sortConfig, setSortConfig] = useState<AccSortConfig | null>({ field: "id", direction: "desc" });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successInfo, setSuccessInfo] = useState<SuccessInfo | null>(null);
   const [batchDraft, setBatchDraft] = useState<BatchDraft>({});
   const [selectedForBatch, setSelectedForBatch] = useState<string[]>([]);
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
@@ -80,7 +75,7 @@ export default function Accommodations() {
   // outros três; o hook devolve a lista sem ele para os contadores da fila
   // poderem contar todos os blocos ao mesmo tempo.
   const {
-    teamInclusions, events, functions, collaborators, tickets, users,
+    events, functions, collaborators, users,
     isLoading, loadError,
     accommodationMap, eventById, functionById, collaboratorById,
     pendingSwapByInclusion, approvedSwapInclusionIds, filteredData, selectableInclusionIds,
@@ -196,46 +191,34 @@ export default function Accommodations() {
   };
   const closeModal = () => setShowModal(false);
 
-  // ── Registro de UMA hospedagem: cria o registro e avança o status da inclusão.
-  // Compartilhado pelo modal (via mutation) e pelo lote (chamada direta).
+  // ── Registro de UMA hospedagem. Compartilhado pelo modal (via mutation) e
+  // pelo lote (chamada direta). O status da vaga (hospedagem_comprada /
+  // hospedagem_passagem_comprada) é DERIVADO pelo servidor (24/09) e volta em
+  // `inclusionStatus` — o segundo PATCH de status não existe mais.
   const registerAccommodation = async (payload: AccommodationPayload) => {
-    const created = await apiRequest("POST", "/api/accommodations", payload);
-
-    const inclusion = teamInclusions?.find((inc) => inc.id === payload.teamInclusionId);
-    const ticket = tickets?.find((t) => t.teamInclusionId === payload.teamInclusionId);
-    const ticketPurchased = !!ticket && !!(ticket.purchaseDate || ticket.actualDepartureDate);
-    // Precisa de passagem E já comprada → ambos comprados; senão só hospedagem.
-    const newStatus = inclusion?.needsTicket && ticketPurchased ? "hospedagem_passagem_comprada" : "hospedagem_comprada";
-
-    try {
-      await apiRequest("PATCH", `/api/team-inclusions/${payload.teamInclusionId}`, { status: newStatus, phase: "hospedagem", updatedBy: user?.id });
-    } catch (err) {
-      // A hospedagem JÁ foi criada: o toast genérico fazia o usuário tentar de novo e duplicar.
-      const e = err as ApiError;
-      e.body = {
-        message: e?.body?.message
-          ? `Hospedagem registrada, mas o status da inclusão não foi atualizado: ${e.body.message}`
-          : "Hospedagem registrada, mas não foi possível atualizar o status da inclusão.",
-      };
-      throw e;
-    }
+    const created = (await (await apiRequest("POST", "/api/accommodations", payload)).json()) as HospedagemComStatusDaVaga;
+    aplicarStatusDaVagaNoCache(queryClient, payload.teamInclusionId, created?.inclusionStatus);
     return created;
   };
 
   const createMutation = useMutation({
     mutationFn: registerAccommodation,
-    // onSettled: mesmo quando o PATCH de status falha a hospedagem já existe.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: (error: ApiError) => toast({ variant: "destructive", title: "Erro", description: error?.body?.message || "Erro ao registrar hospedagem" }),
+    onError: (error: unknown) => toast({ variant: "destructive", title: "Não foi possível registrar a hospedagem", description: apiErrorMessage(error, "Tente de novo em instantes.") }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: AccommodationPayload }) => apiRequest("PATCH", `/api/accommodations/${id}`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] }),
-    onError: (error: ApiError) => toast({ variant: "destructive", title: "Erro", description: error?.body?.message || "Erro ao atualizar hospedagem" }),
+    mutationFn: async ({ id, data }: { id: string; data: AccommodationPayload }) =>
+      (await (await apiRequest("PATCH", `/api/accommodations/${id}`, data)).json()) as HospedagemComStatusDaVaga,
+    onSuccess: (updated, vars) => {
+      aplicarStatusDaVagaNoCache(queryClient, vars.data.teamInclusionId, updated?.inclusionStatus);
+      queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: (error: unknown) => toast({ variant: "destructive", title: "Não foi possível atualizar a hospedagem", description: apiErrorMessage(error, "Tente de novo em instantes.") }),
   });
 
   const handleModalSave = async (draft: AccommodationDraft) => {
@@ -258,15 +241,14 @@ export default function Accommodations() {
     else await createMutation.mutateAsync(payload);
 
     const collaborator = selectedInclusion.collaboratorId ? collaboratorById.get(selectedInclusion.collaboratorId) : undefined;
-    setSuccessInfo({
-      message: accommodation ? "Hospedagem atualizada com sucesso!" : "Hospedagem registrada com sucesso!",
+    // Toast de sucesso (23/09) no lugar do modal bloqueante "Sucesso" + OK.
+    toastSucessoDaVaga(accommodation ? "Hospedagem atualizada" : "Hospedagem registrada", {
       inclusionNumber: selectedInclusion.inclusionNumber ?? null,
       eventName: eventById.get(selectedInclusion.eventId)?.name ?? "—",
       collaboratorName: collaborator ? (fixEncoding(collaborator.fullName) || "—") : "—",
       functionName: functionById.get(selectedInclusion.functionId)?.name ?? "—",
     });
     closeModal();
-    setShowSuccessModal(true);
   };
 
   // ── Lote ──
@@ -292,7 +274,7 @@ export default function Accommodations() {
     const err = !batchDraft.hotelName || !batchDraft.hotelLocation
       ? "Preencha os campos obrigatórios: Nome do Hotel e Localização"
       : !isCheckOutAfterCheckIn(batchDraft) ? "O check-out deve ser igual ou posterior ao check-in." : null;
-    if (err) { toast({ title: "Erro", description: err, variant: "destructive" }); return; }
+    if (err) { toast({ title: "Preencha o lote antes de aplicar", description: err, variant: "destructive" }); return; }
 
     setShowBatchConfirm(false);
     setBatchApplying(true);
@@ -320,7 +302,7 @@ export default function Accommodations() {
           successCount++;
           processedIds.push(inclusion.id);
         } catch (error) {
-          errors.push(`#${inclusion.inclusionNumber}: ${(error as ApiError)?.body?.message || "falha ao registrar"}`);
+          errors.push(`#${inclusion.inclusionNumber}: ${apiErrorMessage(error, "falha ao registrar")}`);
         }
       }
       // O resultado vira diálogo: uma lista de falhas dentro de um toast que
@@ -329,7 +311,7 @@ export default function Accommodations() {
       // Tira da fila só o que realmente foi registrado.
       if (processedIds.length > 0) setSelectedForBatch((prev) => prev.filter((id) => !processedIds.includes(id)));
     } catch {
-      toast({ title: "Erro", description: "Erro inesperado ao processar hospedagens em lote", variant: "destructive" });
+      toast({ title: "Falha ao processar o lote de hospedagens", description: "Parte das hospedagens pode ter sido registrada — confira a lista.", variant: "destructive" });
     } finally {
       setBatchApplying(false);
       queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
@@ -351,7 +333,7 @@ export default function Accommodations() {
 
   if (!canView(user, "accommodations")) {
     return (
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+      <div className="bg-card rounded-lg shadow-1 border border-border p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
         <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
@@ -362,14 +344,14 @@ export default function Accommodations() {
   if (loadError) {
     const isAuthError = loadError.status === 401 || loadError.status === 403;
     return (
-      <div className="bg-card rounded-2xl border border-[#FECACA] shadow-sm p-8 text-center" role="alert">
-        <div className="w-14 h-14 rounded-2xl bg-[#FEF2F2] flex items-center justify-center mx-auto mb-4">
-          <AlertCircle className="w-7 h-7 text-[#B91C1C]" aria-hidden="true" />
+      <div className="bg-card rounded-xl border border-danger/30 shadow-1 p-8 text-center" role="alert">
+        <div className="w-14 h-14 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-7 h-7 text-danger" aria-hidden="true" />
         </div>
-        <h3 className="text-[15px] font-bold text-slate-700 mb-1">
+        <h3 className="text-base font-bold text-slate-700 mb-1">
           {isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as hospedagens"}
         </h3>
-        <p className="text-[13px] text-[#64748B] mb-4">
+        <p className="text-sm text-neutral mb-4">
           {isAuthError ? "Entre novamente para continuar. Nenhum dado foi perdido." : (loadError.body?.message || "Verifique sua conexão e tente novamente.")}
         </p>
         <Button variant="outline" className="rounded-lg" onClick={() => {
@@ -403,10 +385,12 @@ export default function Accommodations() {
         Barra de contexto: onde estou, o que estou vendo e a ação primária.
         Substitui o cabeçalho de 76px cujo subtítulo repetia o nome do menu.
       */}
-      <div className="sticky top-0 z-20 h-14 -mx-1 px-1 bg-background/95 backdrop-blur flex items-center gap-3">
-        <h1 className="text-[15px] font-semibold text-slate-900 whitespace-nowrap">Hospedagem</h1>
+      {/* `top` abaixo da barra do topo (23/09): com `top-0` a barra passava por
+          cima do topo e dos menus dele ao rolar. */}
+      <div className="sticky top-[var(--sticky-top)] z-30 h-14 -mx-1 px-1 bg-background/95 backdrop-blur flex items-center gap-3">
+        <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Hospedagem</h1>
         <span className="w-px h-5 bg-border shrink-0" aria-hidden="true" />
-        <p className="text-[12px] text-[#64748B] truncate" data-testid="resumo-do-recorte">
+        <p className="text-xs text-neutral truncate" data-testid="resumo-do-recorte">
           {linhasVisiveis.length} {linhasVisiveis.length === 1 ? "vaga" : "vagas"} em {eventosNoRecorte}{" "}
           {eventosNoRecorte === 1 ? "evento" : "eventos"} · {semReserva} sem reserva
         </p>
@@ -420,7 +404,7 @@ export default function Accommodations() {
             type="button"
             onClick={() => (effectiveSelectedForBatch.length > 0 ? handleApplyToSelected() : toggleAllSelection())}
             disabled={selectableAtivos.size === 0}
-            className="ml-auto shrink-0 h-[34px] px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+            className="ml-auto shrink-0 h-[34px] px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 transition-colors"
             data-testid="button-batch-primary"
           >
             <ListChecks className="w-4 h-4" aria-hidden="true" />
@@ -492,7 +476,7 @@ export default function Accommodations() {
       <BatchResultDialog resultado={batchResult} onClose={() => setBatchResult(null)} />
 
       <AccommodationModal
-        open={showModal} onClose={closeModal} modal={!showSuccessModal}
+        open={showModal} onClose={closeModal}
         inclusion={selectedInclusion} accommodation={selectedAccommodation}
         event={selectedInclusion ? eventById.get(selectedInclusion.eventId) : undefined}
         func={selectedInclusion ? functionById.get(selectedInclusion.functionId) : undefined}
@@ -503,35 +487,6 @@ export default function Accommodations() {
         isSaving={createMutation.isPending || updateMutation.isPending} onSave={handleModalSave}
       />
 
-      {/* Sucesso */}
-      <AlertDialog open={showSuccessModal} onOpenChange={(open) => { if (!open) { setShowSuccessModal(false); setSuccessInfo(null); } }}>
-        <AlertDialogContent className="max-w-[440px]" data-testid="dialog-accommodation-success">
-          <AlertDialogHeader className="items-center text-center">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-1 bg-green-100">
-              <CheckCheck className="w-7 h-7 text-green-600" aria-hidden="true" />
-            </div>
-            <AlertDialogTitle className="text-lg font-bold text-slate-800">Sucesso</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-slate-500 text-center">{successInfo?.message}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex flex-col items-center">
-            {successInfo?.inclusionNumber != null && (
-              <span className="mb-4 px-3 py-0.5 rounded-full text-sm font-bold bg-brand-soft text-primary">#{successInfo.inclusionNumber}</span>
-            )}
-            <div className="w-full border-t border-slate-100 mb-4" />
-            <div className="w-full space-y-2">
-              {[["Evento", successInfo?.eventName], ["Colaborador", successInfo?.collaboratorName], ["Função", successInfo?.functionName]].map(([label, value]) => (
-                <div key={label} className="flex items-start justify-between gap-4 text-sm">
-                  <span className="text-slate-400 font-medium shrink-0">{label}</span>
-                  <span className="text-slate-700 font-semibold text-right">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogAction className="w-full rounded-xl bg-primary hover:bg-primary-hover" data-testid="button-success-ok">OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

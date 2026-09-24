@@ -59,21 +59,21 @@ export function VagaCard({ row, functionName, rotuloLogistica = "Logística", ba
   const temLogistica = !!(row.needsTicket || row.needsAccommodation || row.transportModeIda || row.transportModeVolta || row.flightDepartureDate || row.flightReturnDate);
 
   return (
-    <div className={cn("rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2", className)}>
+    <div className={cn("rounded-xl border border-border bg-card p-3.5 space-y-2", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-primary">
+        <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums text-primary">
           #{row.inclusionNumber}
         </span>
-        <span className="truncate text-sm font-semibold text-slate-800">{functionName ?? "Sem função"}</span>
+        <span className="truncate text-sm font-semibold text-foreground">{functionName ?? "Sem função"}</span>
         {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
       </div>
 
       <p className="text-xs text-slate-600">
         <span className="font-mono tabular-nums text-slate-700">{periodoDaVaga(row)}</span>
-        <span className="text-slate-500" aria-hidden="true"> · </span>
+        <span className="text-muted-foreground" aria-hidden="true"> · </span>
         {formatDiarias(dias.length || row.dailyRates || 0)}
       </p>
-      {nota ? <p className="text-[11px] text-slate-500">{nota}</p> : null}
+      {nota ? <p className="text-2xs text-muted-foreground">{nota}</p> : null}
 
       {/* Títulos e textos de ausência em slate-500 (04/09): slate-400 sobre
           branco fica abaixo do contraste mínimo para texto; 400 é só para
@@ -87,13 +87,13 @@ export function VagaCard({ row, functionName, rotuloLogistica = "Logística", ba
             <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
           </div>
         ) : (
-          <p className="text-xs italic text-slate-500">Sem passagem e sem hospedagem.</p>
+          <p className="text-xs italic text-muted-foreground">Sem passagem e sem hospedagem.</p>
         )}
       </div>
 
       <div className="space-y-1">
         <p className={SECTION_TITLE}>Observações</p>
-        <p className={cn("text-xs", row.observations ? "text-slate-600" : "italic text-slate-500")}>
+        <p className={cn("text-xs", row.observations ? "text-slate-600" : "italic text-muted-foreground")}>
           {row.observations || "Sem observações."}
         </p>
       </div>
@@ -112,11 +112,11 @@ export function DiariasDerivadas({ dias, id }: { dias: number; id: string }) {
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className="text-xs text-slate-600">Diárias</Label>
-      <output id={id} className="flex h-9 items-baseline gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3" aria-live="polite">
-        <span className="text-[15px] font-bold tabular-nums text-slate-800">{dias}</span>
-        <span className="text-xs text-slate-500">{dias === 1 ? "diária" : "diárias"}</span>
+      <output id={id} className="flex h-9 items-baseline gap-1.5 rounded-lg border border-border bg-surface-muted px-3" aria-live="polite">
+        <span className="text-base font-bold tabular-nums text-foreground">{dias}</span>
+        <span className="text-xs text-muted-foreground">{dias === 1 ? "diária" : "diárias"}</span>
       </output>
-      <p className="text-[11px] text-slate-500">1 por dia de trabalho — muda ao marcar os dias acima.</p>
+      <p className="text-2xs text-muted-foreground">1 por dia de trabalho — muda ao marcar os dias acima.</p>
     </div>
   );
 }

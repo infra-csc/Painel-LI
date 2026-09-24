@@ -1,0 +1,39 @@
+# CI (23/09). Até aqui nenhuma verificação rodava fora da máquina de quem
+# comita. Os quatro gates que o time já roda à mão antes de cada push:
+# tipos, testes, build e lint (só erros; os avisos do design system são
+# dívida sendo paga aos poucos).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Tipos
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Lint (só erros)
+        run: npm run lint
+      - name: Testes
+        run: npx vitest run
+      # App real (server/app.ts) sobre Postgres embutido (PGlite, WASM): sem
+      # serviço de banco, sem rede. Exercita gate, CSRF, papéis e a máquina de
+      # estados da vaga pelo HTTP, como o client faz.
+      - name: Testes de rota
+        run: npm run test:rotas
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+      - name: Vulnerabilidades críticas
+        run: npm audit --audit-level=critical

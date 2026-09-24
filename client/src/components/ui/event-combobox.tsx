@@ -91,7 +91,7 @@ export default function EventCombobox({
             title={displayValue}
             // Azul da marca (tokens), não `blue-*` cru: o hover/foco precisa ser
             // o MESMO azul dos outros controles da tela.
-            className={cn("w-full h-9 flex items-center justify-between pl-3 pr-9 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-primary/40 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60", className)}
+            className={cn("w-full h-9 flex items-center justify-between pl-3 pr-9 border border-border rounded-lg bg-card text-sm text-slate-700 cursor-pointer hover:border-primary/40 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60", className)}
           >
             <span className="flex-1 text-left truncate text-slate-700">
               {displayValue}
@@ -104,37 +104,37 @@ export default function EventCombobox({
             aria-label="Limpar evento selecionado"
             disabled={disabled}
             onClick={e => { e.stopPropagation(); onValueChange("all"); }}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded disabled:pointer-events-none disabled:opacity-50"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded disabled:pointer-events-none disabled:opacity-50"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         ) : (
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
         )}
       </div>
 
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="p-0 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50"
+        className="p-0 bg-card border border-border rounded-xl shadow-2 overflow-hidden z-50"
         style={{ width: "var(--radix-popover-trigger-width, 240px)", minWidth: 240 }}
       >
         {/* Search field */}
-        <div className="flex items-center gap-2 bg-slate-50 border-b border-slate-100 px-3 py-2.5">
-          <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+        <div className="flex items-center gap-2 bg-surface-muted border-b border-border px-3 py-2.5">
+          <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
           <input
             autoFocus
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar evento..."
-            className="w-full text-[13px] bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
+            className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground text-slate-700"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="text-slate-400 hover:text-slate-600 flex-shrink-0"
+              className="text-muted-foreground hover:text-slate-600 flex-shrink-0"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -145,10 +145,10 @@ export default function EventCombobox({
           {/* "Todos" option */}
           {showAllOption && !search && (
             <div
-              className={`px-3 py-2.5 text-[13px] font-medium border-b border-slate-100 cursor-pointer transition-colors ${
+              className={`px-3 py-2.5 text-sm font-medium border-b border-border cursor-pointer transition-colors ${
                 value === "all"
                   ? "bg-brand-soft text-primary"
-                  : "text-slate-400 hover:bg-brand-soft hover:text-primary"
+                  : "text-muted-foreground hover:bg-brand-soft hover:text-primary"
               }`}
               onClick={() => { onValueChange("all"); close(); }}
             >
@@ -157,7 +157,7 @@ export default function EventCombobox({
           )}
 
           {filtered.length === 0 ? (
-            <div className="px-4 py-4 text-[13px] text-slate-400 text-center">
+            <div className="px-4 py-4 text-sm text-muted-foreground text-center">
               Nenhum evento encontrado.
             </div>
           ) : (
@@ -167,18 +167,18 @@ export default function EventCombobox({
               return (
                 <div
                   key={event.id}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors border-b border-slate-50 last:border-0 ${
+                  className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors border-b border-border last:border-0 ${
                     isSelected
                       ? "bg-brand-soft text-primary"
                       : "text-slate-700 hover:bg-brand-soft hover:text-primary"
                   }`}
                   onClick={() => { onValueChange(event.id); close(); }}
                 >
-                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-primary" : "text-slate-400"}`} />
+                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-[13px] whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
+                    <div className={`text-sm whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
                     {dateLabel && (
-                      <div className={`text-[11px] mt-0.5 ${isSelected ? "text-primary/70" : "text-slate-400"}`}>{dateLabel}</div>
+                      <div className={`text-2xs mt-0.5 ${isSelected ? "text-primary/70" : "text-muted-foreground"}`}>{dateLabel}</div>
                     )}
                   </div>
                   {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}

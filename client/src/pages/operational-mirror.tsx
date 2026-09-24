@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback, useDeferredValue } from "react";
-import { useSearch, Link } from "wouter";
+import { usePageTitle } from "@/components/common/use-page-title";
+import { Link } from "wouter";
+import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
+import { PageHeader } from "@/components/common/page-header";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import EventCombobox from "@/components/ui/event-combobox";
 import { Button } from "@/components/ui/button";
@@ -40,6 +43,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { SeletorDeEvento } from "@/components/operational-mirror-context-bar";
 import { ImportarPlanilha } from "@/components/operational-mirror-import";
 import { ProvedorDeAvisos, useAvisos } from "@/components/operational-mirror-avisos";
+import { cn } from "@/lib/utils";
+import { formatarMoeda } from "@/lib/format";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
   CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, CalendarDays,
@@ -48,10 +53,7 @@ import {
   Lock, ExternalLink, Landmark, Info, FilterX, ArrowLeftRight,
 } from "lucide-react";
 
-function brl(cents: number | null | undefined): string {
-  if (!cents) return "R$ 0,00";
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+const brl = formatarMoeda;
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -117,10 +119,10 @@ function PendencyBadge({ p, withLink = true }: { p: string; withLink?: boolean }
   const link = withLink ? pendencyLink(p) : null;
   return (
     <span className="inline-flex items-center gap-1 w-fit">
-      <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 dark:text-amber-400 w-fit">{p}</Badge>
+      <Badge variant="outline" className="text-2xs border-warning-strong text-warning w-fit">{p}</Badge>
       {link && (
         <Link href={link.href} title={link.label} aria-label={link.label}
-          className="inline-flex items-center gap-0.5 text-[9px] text-primary hover:underline whitespace-nowrap">
+          className="inline-flex items-center gap-0.5 text-2xs text-primary hover:underline whitespace-nowrap">
           <ExternalLink className="h-2.5 w-2.5" /> {link.label}
         </Link>
       )}
@@ -142,10 +144,7 @@ function SituacaoPill({ abertos, pendencies, testId }: { abertos: number; penden
       type="button"
       data-testid={testId}
       aria-label={`${textoDaSituacao(abertos)} — ver detalhes`}
-      className="inline-flex h-[22px] items-center rounded-md px-[7px] text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      style={pronto
-        ? { background: "#f0fdfa", color: "#0f766e" }
-        : { background: "#fef3c7", color: "#92400e" }}
+      className={cn("inline-flex h-[22px] items-center rounded-md px-[7px] text-2xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", pronto ? "bg-info-soft text-info" : "bg-warning-soft text-warning")}
     >
       {textoDaSituacao(abertos)}
     </button>
@@ -155,10 +154,10 @@ function SituacaoPill({ abertos, pendencies, testId }: { abertos: number; penden
     <Popover>
       <PopoverTrigger asChild>{pill}</PopoverTrigger>
       <PopoverContent align="start" className="w-auto max-w-xs p-2">
-        <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">O que falta</p>
+        <p className="text-2xs font-semibold text-muted-foreground mb-1.5">O que falta</p>
         <div className="flex flex-col gap-1">
           {pendencies.length === 0
-            ? <span className="text-[11px] text-muted-foreground">Bloco em uso ainda sem todos os campos ou com sugestão a confirmar.</span>
+            ? <span className="text-2xs text-muted-foreground">Bloco em uso ainda sem todos os campos ou com sugestão a confirmar.</span>
             : pendencies.map((p, i) => <PendencyBadge key={i} p={p} />)}
         </div>
       </PopoverContent>
@@ -238,14 +237,14 @@ function EditableCell({
   function display(): React.ReactNode {
     // Sugestão que ninguém confirmou não é dado: dizer isso evita que o valor
     // calculado seja lido como decisão tomada.
-    if (estado === "a_confirmar") return <span className="text-violet-700 dark:text-violet-300">a confirmar</span>;
+    if (estado === "a_confirmar") return <span className="text-primary">a confirmar</span>;
     if (estado === "nao_usa") return <span className="text-muted-foreground">não usa</span>;
-    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-emerald-700 mx-auto" /> : <span className="text-muted-foreground">·</span>;
+    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-success mx-auto" /> : <span className="text-muted-foreground">·</span>;
     if (value === null || value === undefined || value === "") {
       // "falta preencher" e "não se aplica" tinham o mesmo travessão cinza: a
       // grade não respondia o que ainda precisa ser comprado.
       return estado === "falta"
-        ? <span className="font-medium text-amber-800 dark:text-amber-200">preencher</span>
+        ? <span className="font-medium text-warning">preencher</span>
         : <span className="text-muted-foreground">·</span>;
     }
     if (type === "money") return brl(value as number);
@@ -253,9 +252,9 @@ function EditableCell({
     const s = type === "select" ? (options?.find((o) => o.value === String(value))?.label ?? String(value)) : String(value);
     // As pílulas saíram (31/08): eram 112 numa tela de 14 linhas — OC e
     // conferência em cada linha —, e pílula é destaque. Nada aqui é destaque.
-    if (variant === "mono" || variant === "oc") return <span className="font-mono text-[11px] tracking-tight">{s}</span>;
-    if (variant === "checkin") return <span className="text-[11px] text-emerald-700 dark:text-emerald-300">{s}</span>;
-    if (variant === "room") return <span className="text-[11px]">{s}</span>;
+    if (variant === "mono" || variant === "oc") return <span className="font-mono text-2xs tracking-tight">{s}</span>;
+    if (variant === "checkin") return <span className="text-2xs text-success">{s}</span>;
+    if (variant === "room") return <span className="text-2xs">{s}</span>;
     return s;
   }
   function parseDraft(raw: string): CellValue {
@@ -360,13 +359,13 @@ function EditableCell({
   // colunas, em vez de um mar de células iguais.
   const div = etapa ? `border-l-[3px] ${etapa}` : "";
   const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
-  const ring = state === "saving" ? "bg-blue-50/60 dark:bg-blue-950/30"
-    : state === "saved" ? "bg-green-50/60 dark:bg-green-950/30"
-    : state === "error" ? "ring-1 ring-inset ring-red-400 bg-red-50/60 dark:bg-red-950/30"
+  const ring = state === "saving" ? "bg-brand-soft/60"
+    : state === "saved" ? "bg-success-soft/60"
+    : state === "error" ? "ring-1 ring-inset ring-danger-strong bg-danger-soft/60"
     // O âmbar é o que faz a grade responder "o que falta comprar" de longe.
     // Só aparece quando o campo é obrigatório PARA ESTA PESSOA — pintar todo
     // vazio deixaria a tela amarela e a cor viraria ruído.
-    : estado === "falta" ? "bg-amber-100/70 dark:bg-amber-950/40" : "";
+    : estado === "falta" ? "bg-warning-soft/70" : "";
 
   if (!editMode) {
     return (
@@ -427,13 +426,13 @@ function EditableCell({
         onKeyDown={teclasNaCelula} data-cell-focus tabIndex={-1}
         title={estado === "a_confirmar" && aoConfirmar ? "Sugestão ainda não confirmada — abrir para confirmar" : `Editar ${rotuloCampo(field)}`}
         className={`w-full h-full ${pad} ${onEdit ? "pr-6" : ""} text-xs hover:bg-muted/50 transition-colors whitespace-nowrap ${align !== "left" ? "tabular-nums" : ""} flex items-center gap-1 ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}>
-        {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" />}
-        {state === "saved" && <Check className="h-3 w-3 text-green-600 shrink-0" />}
+        {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
+        {state === "saved" && <Check className="h-3 w-3 text-success shrink-0" />}
         <span className="truncate max-w-[180px]">{display()}</span>
       </button>
       {onEdit && (
         <button type="button" onClick={onEdit} title="Editar em detalhe" aria-label="Editar em detalhe"
-          className="opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded bg-background border shadow-sm hover:bg-muted">
+          className="opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded bg-background border shadow-1 hover:bg-muted">
           <Pencil className="h-3 w-3" />
         </button>
       )}
@@ -452,20 +451,20 @@ function EditableCell({
  * célula está dizendo — âmbar falta, verde salvo, vermelho erro.
  */
 const PONTO_ETAPA = {
-  schedule: "bg-sky-500",
-  ticket: "bg-indigo-500",
-  hotel: "bg-emerald-500",
-  baggage: "bg-amber-500",
-  uber: "bg-fuchsia-500",
-  car: "bg-orange-500",
-  pend: "bg-rose-500",
+  schedule: "bg-info-strong",
+  ticket: "bg-primary",
+  hotel: "bg-success-strong",
+  baggage: "bg-warning-strong",
+  uber: "bg-primary",
+  car: "bg-warning-strong",
+  pend: "bg-danger-strong",
 };
 
 /** Cabeçalho de grupo: fundo neutro, ponto colorido, rótulo legível. */
 function GrupoHead({ ponto, children, ...resto }: { ponto: string; children: React.ReactNode } & React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th {...resto} className="sticky top-0 z-30 h-8 border-b border-r-2 border-r-slate-300 border-border bg-muted px-2 py-0 text-center align-middle leading-none dark:border-r-slate-600">
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+    <th {...resto} className="sticky top-0 z-30 h-8 border-b border-r-2 border-r-slate-300 border-border bg-muted px-2 py-0 text-center align-middle leading-none">
+      <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-slate-700">
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ponto}`} aria-hidden="true" />
         {children}
       </span>
@@ -474,34 +473,34 @@ function GrupoHead({ ponto, children, ...resto }: { ponto: string; children: Rea
 }
 
 const G = {
-  schedule: "bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-900",
-  ticket: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-900",
-  hotel: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-900",
-  baggage: "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-900",
-  uber: "bg-fuchsia-50 dark:bg-fuchsia-950/40 text-fuchsia-800 dark:text-fuchsia-200 border-fuchsia-200 dark:border-fuchsia-900",
-  car: "bg-orange-50 dark:bg-orange-950/40 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-900",
-  pend: "bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-900",
+  schedule: "bg-info-soft text-info border-info/25",
+  ticket: "bg-brand-soft text-primary border-primary/25",
+  hotel: "bg-success-soft text-success border-success/25",
+  baggage: "bg-warning-soft text-warning border-warning/25",
+  uber: "bg-brand-soft text-primary border-primary/25",
+  car: "bg-warning-soft text-warning border-warning/25",
+  pend: "bg-danger-soft text-danger border-danger/25",
 };
 
 /** Barra que abre cada etapa — mesma família de cor do cabeçalho do bloco. */
 const BARRA = {
-  schedule: "border-l-sky-300 dark:border-l-sky-800",
-  ticket: "border-l-indigo-300 dark:border-l-indigo-800",
-  hotel: "border-l-emerald-300 dark:border-l-emerald-800",
-  baggage: "border-l-amber-300 dark:border-l-amber-800",
-  uber: "border-l-fuchsia-300 dark:border-l-fuchsia-800",
-  car: "border-l-orange-300 dark:border-l-orange-800",
-  pend: "border-l-rose-300 dark:border-l-rose-800",
+  schedule: "border-l-info/25",
+  ticket: "border-l-primary/40",
+  hotel: "border-l-success/25",
+  baggage: "border-l-warning/25",
+  uber: "border-l-primary/40",
+  car: "border-l-warning/25",
+  pend: "border-l-danger/25",
 };
 
 type Block = "passagem" | "hospedagem" | "bagagem" | "uber" | "locacao" | "pendencias";
 const ALL_BLOCKS: { key: Block; label: string; colunas: number; ponto: string }[] = [
-  { key: "passagem", label: "Passagem", colunas: 9, ponto: "bg-indigo-500" },
-  { key: "hospedagem", label: "Hospedagem", colunas: 12, ponto: "bg-emerald-500" },
-  { key: "bagagem", label: "Bagagem Extra", colunas: 3, ponto: "bg-amber-500" },
-  { key: "uber", label: "Uber", colunas: 3, ponto: "bg-fuchsia-500" },
-  { key: "locacao", label: "Locação de Carro", colunas: 4, ponto: "bg-orange-500" },
-  { key: "pendencias", label: "Pendências", colunas: 2, ponto: "bg-rose-500" },
+  { key: "passagem", label: "Passagem", colunas: 9, ponto: "bg-primary" },
+  { key: "hospedagem", label: "Hospedagem", colunas: 12, ponto: "bg-success-strong" },
+  { key: "bagagem", label: "Bagagem Extra", colunas: 3, ponto: "bg-warning-strong" },
+  { key: "uber", label: "Uber", colunas: 3, ponto: "bg-primary" },
+  { key: "locacao", label: "Locação de Carro", colunas: 4, ponto: "bg-warning-strong" },
+  { key: "pendencias", label: "Pendências", colunas: 2, ponto: "bg-danger-strong" },
 ];
 
 const VIEWS = [
@@ -531,6 +530,7 @@ function isNarrowViewport(): boolean {
 }
 
 export default function OperationalMirror() {
+  usePageTitle("Espelho Operacional");
   // O provedor precisa envolver a tela para que qualquer parte dela avise.
   return (
     <ProvedorDeAvisos>
@@ -544,9 +544,10 @@ function EspelhoOperacional() {
   const { avisar } = useAvisos();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const search = useSearch();
-  const initialEventId = new URLSearchParams(search).get("eventId") || "";
-  const [eventId, setEventId] = useState(initialEventId);
+  // Evento em foco (23/09): `?eventId=` continua sendo o nome do parâmetro (links do
+  // modal de evento e da Escala já o usam); a memória por usuário é a mesma do
+  // Financeiro e da Escala — abrir o Espelho depois do Planejado já vem no evento.
+  const { eventId, setEventId, sanitize: sanearEventoEmFoco } = useEventoEmFoco({ parametro: "eventId" });
 
   // Espelha requireRoles(LOGISTICA_ROLES) das rotas PATCH/POST do espelho em
   // server/routes.ts — quem não está no grupo só consulta.
@@ -609,6 +610,8 @@ function EspelhoOperacional() {
   }, [eventId]);
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  // Evento em foco que não existe mais (excluído) é descartado assim que a lista chega (23/09).
+  useEffect(() => { if (events?.length) sanearEventoEmFoco(events.map(e => e.id)); }, [events, sanearEventoEmFoco]);
   const mirrorKey = ["/api/events", eventId, "operational-mirror"];
   const { data, isLoading, isError, error } = useQuery<MirrorResponse>({ queryKey: mirrorKey, enabled: !!eventId && eventId !== "all" });
 
@@ -923,8 +926,16 @@ function EspelhoOperacional() {
             evento aparecia duas vezes. Virou UMA faixa, que acompanha a
             rolagem — quem está no fim de 39 colunas continua vendo de que
             evento aquilo é e continua alcançando as ações. */}
-        <header className="sticky top-0 z-50 -mx-6 -mt-6 mb-0 border-b bg-card/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-          <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 py-2 text-sm">
+        {/* Margens pela variável do layout e `top` abaixo da barra do topo
+            (23/09): `-mx-6` fixo estourava em 375px; `top-0`/`z-50` cobria a
+            barra do topo e os menus dela. */}
+        {/* PageHeader `bar` (23/09): o mesmo cabeçalho de Passagens e Bagagem; o seletor
+            de evento e os dados do evento entram como `context`, as ações à direita. */}
+        <PageHeader
+          variant="bar"
+          title="Espelho Operacional"
+          className="text-sm bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+          context={<>
             <SeletorDeEvento
               eventos={(events ?? []).map((e) => ({ id: e.id, name: e.name, startDate: e.startDate, endDate: e.endDate }))}
               valor={eventId}
@@ -955,14 +966,15 @@ function EspelhoOperacional() {
               )}
               </>
             )}
-            <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+          </>}
+          actions={<>
               {canEditMirror && (
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="inline-flex items-center gap-2 h-[34px] px-3 rounded-lg border bg-card">
                         <Switch id="mirror-edit-mode" checked={editModeWanted} onCheckedChange={setEditModeWanted} data-testid="button-edit-mode" />
-                        <Label htmlFor="mirror-edit-mode" className="text-[13px] cursor-pointer flex items-center gap-1.5">
+                        <Label htmlFor="mirror-edit-mode" className="text-sm cursor-pointer flex items-center gap-1.5">
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edição
                         </Label>
                       </div>
@@ -1012,9 +1024,8 @@ function EspelhoOperacional() {
                 <span className="hidden sm:inline">Exportar</span>
                 <span className="hidden xl:inline">&nbsp;planilha</span>
               </Button>
-            </div>
-          </div>
-        </header>
+          </>}
+        />
 
         {!eventId && (
           <div className="rounded-lg border border-dashed bg-muted/20 px-6 py-16 text-center" data-testid="mirror-empty-no-event">
@@ -1063,20 +1074,20 @@ function EspelhoOperacional() {
                 somava campos de blocos que ninguém usa, e fazia o evento
                 parecer mais atrasado do que está. */}
             {resumo.pessoasTravando === 0 ? (
-              <div className="flex flex-wrap items-center gap-2.5 rounded-[14px] border px-4 py-3" style={{ background: "#f0fdfa", borderColor: "rgba(20,184,166,.35)" }} data-testid="mirror-no-pendencies">
-                <CheckCircle2 className="h-[17px] w-[17px] shrink-0" style={{ color: "#0f766e" }} aria-hidden="true" />
-                <span className="text-[13.5px] font-bold" style={{ color: "#0f766e" }}>Nada pendente neste evento</span>
-                <span className="text-[12.5px]" style={{ color: "#0d9488" }}>Todo bloco em uso está preenchido e conferido</span>
+              <div className="flex flex-wrap items-center gap-2.5 rounded-xl border px-4 py-3 bg-info-soft border-info-strong/35" data-testid="mirror-no-pendencies">
+                <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-info" aria-hidden="true" />
+                <span className="text-sm font-bold text-info">Nada pendente neste evento</span>
+                <span className="text-xs text-info">Todo bloco em uso está preenchido e conferido</span>
               </div>
             ) : (
-              <section className="rounded-[14px] border px-4 py-3.5" style={{ background: "#fffbeb", borderColor: "rgba(252,211,77,.75)" }} aria-label="Pendências do evento" data-testid="mirror-pendencias">
+              <section className="rounded-xl border px-4 py-3.5 bg-warning-soft border-warning/75" aria-label="Pendências do evento" data-testid="mirror-pendencias">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 shrink-0 mt-px" style={{ color: "#b45309" }} aria-hidden="true" />
+                  <AlertTriangle className="h-5 w-5 shrink-0 mt-px text-warning" aria-hidden="true" />
                   <div className="min-w-0">
-                    <p className="text-[14px] font-bold" style={{ color: "#78350f" }}>
+                    <p className="text-sm font-bold text-warning">
                       {resumo.pessoasTravando} {resumo.pessoasTravando === 1 ? "pessoa trava" : "pessoas travam"} o fechamento deste evento
                     </p>
-                    <p className="text-[12.5px] mt-0.5" style={{ color: "#92400e" }}>
+                    <p className="text-xs mt-0.5 text-warning">
                       De {rows.length} {rows.length === 1 ? "escalado" : "escalados"}. Contam passagem, hospedagem e Uber, e só para quem usa cada um — bagagem e locação são eventuais.
                     </p>
                   </div>
@@ -1089,10 +1100,7 @@ function EspelhoOperacional() {
                       <button key={c.key} type="button" onClick={() => setChip(active ? null : c.key)} data-testid={`chip-${c.key}`}
                         aria-pressed={active} disabled={count === 0 && !active}
                         title={count === 0 ? `Ninguém em "${c.label}"` : `${c.label}: ${count} ${count === 1 ? "pessoa" : "pessoas"}. Clique para filtrar.`}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                        style={active
-                          ? { background: "#b45309", borderColor: "#b45309", color: "#fff" }
-                          : { background: "transparent", borderColor: "#fcd34d", color: "#92400e" }}>
+                        className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1", active ? "bg-warning border-warning text-primary-foreground" : "bg-transparent border-warning-strong text-warning")}>
                         {c.label}
                         <span className="tabular-nums opacity-80">{count}</span>
                       </button>
@@ -1133,31 +1141,31 @@ function EspelhoOperacional() {
                         : obrigatorio
                           ? `${rb.prontas} de ${rb.emUso} pessoas que usam ${ROTULO_DO_BLOCO[b].toLowerCase()} estão prontas. Clique para filtrar.`
                           : `${rb.emUso} ${rb.emUso === 1 ? "pessoa" : "pessoas"} com ${ROTULO_DO_BLOCO[b].toLowerCase()} lançada. Bloco eventual. Clique para filtrar.`}
-                    className={`rounded-2xl border bg-card px-4 py-3.5 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ativo ? "border-primary bg-brand-soft" : "border-border hover:bg-muted/30"}`}
+                    className={`rounded-xl border bg-card px-4 py-3.5 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ativo ? "border-primary bg-brand-soft" : "border-border hover:bg-muted/30"}`}
                     data-testid={`placar-${b}`}
                   >
-                    <span className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.09em] text-muted-foreground">
+                    <span className="flex items-center gap-1.5 text-2xs font-extrabold uppercase tracking-[0.09em] text-muted-foreground">
                       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ponto}`} aria-hidden="true" />
                       {ROTULO_DO_BLOCO[b]}
                     </span>
                     <span className="mt-1 flex items-baseline gap-1.5">
-                      <span className="text-[27px] font-extrabold tabular-nums leading-none tracking-[-0.03em]">{obrigatorio ? rb.prontas : rb.emUso}</span>
-                      <span className="text-[12.5px] text-muted-foreground">{obrigatorio ? `de ${rb.emUso} que usam` : (rb.emUso === 1 ? "lançamento" : "lançamentos")}</span>
+                      <span className="text-2xl font-extrabold tabular-nums leading-none tracking-[-0.03em]">{obrigatorio ? rb.prontas : rb.emUso}</span>
+                      <span className="text-xs text-muted-foreground">{obrigatorio ? `de ${rb.emUso} que usam` : (rb.emUso === 1 ? "lançamento" : "lançamentos")}</span>
                     </span>
-                    <span className="mt-2 block h-[5px] w-full overflow-hidden rounded-full" style={{ background: obrigatorio ? "#eef1f5" : "transparent" }} aria-hidden="true">
-                      {obrigatorio && <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pct}%`, background: rb.faltam ? "#f59e0b" : "#10b981" }} />}
+                    <span className={cn("mt-2 block h-[5px] w-full overflow-hidden rounded-full", (obrigatorio ? "bg-muted" : "bg-transparent"))} aria-hidden="true">
+                      {obrigatorio && <span className={cn("block h-full rounded-full transition-[width] duration-300", (rb.faltam ? "bg-warning-strong" : "bg-success-strong"))} style={{ width: `${pct}%` }} />}
                     </span>
-                    <span className="mt-1.5 block font-mono text-[12.5px] tabular-nums text-slate-700 dark:text-slate-300">{brl(VALOR_DO_BLOCO[b])}</span>
-                    <span className="mt-0.5 block h-4 text-[11px] font-bold" style={{ color: rb.faltam ? "#b45309" : "#0f766e" }}>
+                    <span className="mt-1.5 block font-mono text-xs tabular-nums text-slate-700">{brl(VALOR_DO_BLOCO[b])}</span>
+                    <span className={cn("mt-0.5 block h-4 text-2xs font-bold", (rb.faltam ? "text-warning" : "text-info"))}>
                       {obrigatorio ? (rb.faltam ? `${rb.faltam} ${rb.faltam === 1 ? "pessoa" : "pessoas"} a completar` : "bloco fechado") : ""}
                     </span>
                   </button>
                 );
               })}
-              <div className="rounded-2xl px-4 py-3.5" style={{ background: "#0f172a" }} data-testid="placar-custo">
-                <p className="text-[11px] font-extrabold uppercase tracking-[0.09em]" style={{ color: "rgba(255,255,255,.55)" }}>Custo do evento</p>
-                <p className="mt-1 text-[25px] font-extrabold tabular-nums leading-none tracking-[-0.03em] text-white" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
-                <p className="mt-2 text-[11px]" style={{ color: "rgba(255,255,255,.55)" }}>
+              <div className="rounded-xl px-4 py-3.5 bg-foreground" data-testid="placar-custo">
+                <p className="text-2xs font-extrabold uppercase tracking-[0.09em] text-white/55">Custo do evento</p>
+                <p className="mt-1 text-2xl font-extrabold tabular-nums leading-none tracking-[-0.03em] text-white" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
+                <p className="mt-2 text-2xs text-white/55">
                   {derivedHotelCount > 0 ? "Hospedagem calculada por diária × noites" : "Soma dos cinco blocos"}
                 </p>
               </div>
@@ -1167,7 +1175,7 @@ function EspelhoOperacional() {
             {/* Antes as abas e a busca sumiam ao rolar a grade e o conteúdo
                 passava POR CIMA do cabeçalho da página. Agora a barra
                 acompanha e tem camada própria. */}
-            <div className="sticky top-14 z-30 -mx-6 px-6 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
+            <div className="sticky top-[calc(var(--sticky-top)+3.5rem)] z-30 -mx-[var(--page-gutter)] px-[var(--page-gutter)] py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-lg border bg-card p-0.5" role="tablist" aria-label="Visões do espelho">
                   {VIEWS.map((v) => {
@@ -1177,12 +1185,12 @@ function EspelhoOperacional() {
                     return (
                       <button key={v.key} onClick={() => setView(v.key)} data-testid={`view-${v.key}`}
                         role="tab" aria-selected={activo}
-                        className={`inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                          activo ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          activo ? "bg-primary text-primary-foreground shadow-1" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
                         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                         <span className="hidden md:inline">{v.label}</span>
                         {count !== undefined && count > 0 && (
-                          <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${activo ? "bg-primary-foreground/20" : "bg-muted-foreground/15"}`}>{count}</span>
+                          <span className={`rounded-full px-1.5 text-2xs tabular-nums ${activo ? "bg-primary-foreground/20" : "bg-muted-foreground/15"}`}>{count}</span>
                         )}
                       </button>
                     );
@@ -1242,7 +1250,7 @@ function EspelhoOperacional() {
                           clique: sem isso, filtrar era às cegas — marcar, ver a
                           lista vazia, desmarcar. */}
                       <div className="space-y-1">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Situação</p>
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">Situação</p>
                         {SITUACOES.map((st) => {
                           const quantas = st.key === "comPendencia" ? resumo.pessoasTravando
                             : st.key === "pronto" ? rows.length - resumo.pessoasTravando
@@ -1250,11 +1258,11 @@ function EspelhoOperacional() {
                           const marcada = situacoes.has(st.key);
                           return (
                             <label key={st.key}
-                              className={`flex h-7 items-center gap-2 rounded px-1 text-[13px] ${quantas === 0 && !marcada ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:bg-muted/60"}`}>
+                              className={`flex h-7 items-center gap-2 rounded px-1 text-sm ${quantas === 0 && !marcada ? "cursor-not-allowed opacity-45" : "cursor-pointer hover:bg-muted/60"}`}>
                               <Checkbox checked={marcada} disabled={quantas === 0 && !marcada}
                                 onCheckedChange={(v) => setSituacoes((s) => { const n = new Set(s); if (v) n.add(st.key); else n.delete(st.key); return n; })} />
                               <span className="truncate">{st.label}</span>
-                              <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{quantas}</span>
+                              <span className="ml-auto text-2xs tabular-nums text-muted-foreground">{quantas}</span>
                             </label>
                           );
                         })}
@@ -1303,7 +1311,7 @@ function EspelhoOperacional() {
                             <Checkbox checked={!hiddenBlocks.has(b.key)} onCheckedChange={(v) => setHiddenBlocks((s) => { const n = new Set(s); if (v) n.delete(b.key); else n.add(b.key); return n; })} />
                             <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${b.ponto}`} aria-hidden="true" />
                             <span className="truncate">{b.label}</span>
-                            <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{b.colunas} colunas</span>
+                            <span className="ml-auto text-2xs tabular-nums text-muted-foreground">{b.colunas} colunas</span>
                           </label>
                         ))}
                       </div>
@@ -1384,7 +1392,7 @@ function EspelhoOperacional() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction
-                className={confirmar?.destrutivo ? "bg-red-600 hover:bg-red-700" : undefined}
+                className={confirmar?.destrutivo ? "bg-danger hover:bg-danger/90" : undefined}
                 onClick={(e) => { e.preventDefault(); confirmar?.acao(); setConfirmar(null); }}
               >
                 {confirmar?.rotulo}
@@ -1501,7 +1509,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
           "Locação" é o custo diário de quem preenche. Cada botão leva o bloco
           para a esquerda da área visível — sem esconder coluna nenhuma. */}
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ir para</span>
+        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">Ir para</span>
         {ALL_BLOCKS.filter((b) => show(b.key)).map((b) => (
           <button
             key={b.key}
@@ -1565,7 +1573,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                         <div className="flex items-center gap-1.5 min-w-0">
                           {/* Dois ou mais blocos abertos: o alerta fica junto do
                               nome, onde o olho passa primeiro. */}
-                          {abertos.length >= 2 && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: "#b45309" }} aria-label={`${abertos.length} blocos abertos`} />}
+                          {abertos.length >= 2 && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={`${abertos.length} blocos abertos`} />}
                           <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[176px] leading-tight">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
                         </div>
                         {/* A segunda linha só existe quando há o que dizer: antes
@@ -1574,7 +1582,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                           const g = r.collaborator.gender && r.collaborator.gender !== "unknown" ? genderLabel[r.collaborator.gender] : null;
                           const uf = r.collaborator.state || null;
                           if (!g && !uf) return null;
-                          return <div className="text-[10px] text-muted-foreground/70 leading-tight">{[g, uf].filter(Boolean).join(" · ")}</div>;
+                          return <div className="text-2xs text-muted-foreground/70 leading-tight">{[g, uf].filter(Boolean).join(" · ")}</div>;
                         })()}
                       </td>
                       <td className={`sticky left-[210px] z-20 bg-card group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
@@ -1640,7 +1648,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
               {rows.length > 0 && (
                 <tfoot className="sticky bottom-0 z-20">
                   <tr className="bg-muted/95 backdrop-blur-sm">
-                    <th colSpan={2} className="sticky left-0 z-30 bg-muted px-2 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-r border-t border-border">
+                    <th colSpan={2} className="sticky left-0 z-30 bg-muted px-2 py-1.5 text-left text-2xs font-bold uppercase tracking-wider text-muted-foreground border-r border-t border-border">
                       Total do evento
                     </th>
                     <TotalVazio n={4} />
@@ -1660,16 +1668,16 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
         {/* Fora da área de rolagem: a legenda do âmbar e os atalhos da grade.
             A navegação por setas existe no código desde sempre e era invisível
             — dizer que ela existe é metade do ganho. */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-card px-3.5 py-2 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-card px-3.5 py-2 text-2xs text-muted-foreground">
           <span className="tabular-nums">
             {rows.length === totalDoEvento ? `${rows.length} ${rows.length === 1 ? "pessoa" : "pessoas"}` : `${rows.length} de ${totalDoEvento} pessoas`} · {colunasVisiveis} colunas
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-amber-100 ring-1 ring-inset ring-amber-300 dark:bg-amber-950/50" aria-hidden="true" />
+            <span className="h-2.5 w-2.5 rounded-sm bg-warning-soft ring-1 ring-inset ring-warning/25" aria-hidden="true" />
             falta preencher
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-inset" style={{ background: "#f5f3ff", boxShadow: "inset 0 0 0 1px #ddd6fe" }} aria-hidden="true" />
+            <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-inset ring-primary/25 bg-brand-soft" aria-hidden="true" />
             a confirmar
           </span>
           {editMode && (
@@ -1688,7 +1696,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
 /** Célula de total: só as colunas de dinheiro somam. */
 function TotalCol({ valor }: { valor: number }) {
   return (
-    <td className="border-r border-t border-border px-2 py-1.5 text-right text-[11px] font-semibold tabular-nums text-foreground whitespace-nowrap">
+    <td className="border-r border-t border-border px-2 py-1.5 text-right text-2xs font-semibold tabular-nums text-foreground whitespace-nowrap">
       {valor > 0 ? brl(valor) : null}
     </td>
   );
@@ -1699,7 +1707,7 @@ function TotalVazio({ n }: { n: number }) {
 }
 /** Tecla de atalho na barra de status. */
 function Tecla({ children }: { children: React.ReactNode }) {
-  return <kbd className="rounded border border-border bg-muted px-1 font-mono text-[10px] leading-4">{children}</kbd>;
+  return <kbd className="rounded border border-border bg-muted px-1 font-mono text-2xs leading-4">{children}</kbd>;
 }
 
 /**
@@ -1713,8 +1721,8 @@ function Progresso({ rotulo, feito, total }: { rotulo: string; feito: number; to
     <span className="inline-flex items-center gap-1.5">
       {rotulo}
       {feito > 0 && (
-        <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums ${
-          completo ? "bg-emerald-600/15 text-emerald-700 dark:text-emerald-300" : "bg-background/70"}`}
+        <span className={`rounded-full px-1.5 py-px text-2xs font-semibold tabular-nums ${
+          completo ? "bg-success/15 text-success " : "bg-background/70"}`}
           title={`${feito} de ${total} ${total === 1 ? "colaborador" : "colaboradores"} com este item preenchido`}>
           {completo ? `${total} ✓` : `${feito}/${total}`}
         </span>
@@ -1754,7 +1762,7 @@ function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage, pendenciaD
   const prontas = rows.filter((r) => pendenciaDe(r).abertos.length === 0).length;
   const custoDoConjunto = rows.reduce((s, r) => s + (r.ticket?.value || 0) + hotelTotalCents(r) + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0), 0);
   return (
-    <div className="rounded-2xl border bg-card overflow-hidden">
+    <div className="rounded-xl border bg-card overflow-hidden">
       <div className="divide-y">
       {rows.map((r) => {
         const t = r.ticket; const a = r.accommodation;
@@ -1778,13 +1786,13 @@ function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage, pendenciaD
           <article key={r.teamInclusionId} className="px-4 py-3.5" data-testid={`collab-card-${r.teamInclusionId}`}>
             <header className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[14.5px] font-bold leading-tight truncate" title={r.collaborator.fullName}>{r.collaborator.fullName}</p>
-                <p className="text-[12px] mt-0.5 truncate text-muted-foreground">
+                <p className="text-sm font-bold leading-tight truncate" title={r.collaborator.fullName}>{r.collaborator.fullName}</p>
+                <p className="text-xs mt-0.5 truncate text-muted-foreground">
                   <span className="capitalize">{r.function.area || r.function.name || "Sem função"}</span>{meta ? ` · ${meta}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <p className="font-mono text-[13.5px] font-bold tabular-nums" title={hotelDerived ? "Inclui hospedagem calculada por diária × noites" : undefined}>{brl(indivTotal)}</p>
+                <p className="font-mono text-sm font-bold tabular-nums" title={hotelDerived ? "Inclui hospedagem calculada por diária × noites" : undefined}>{brl(indivTotal)}</p>
                 {canEdit && (
                   <button type="button" onClick={() => openDrawer(usaPassagem ? "ticket" : "accommodation", r)} aria-label={`Editar ${r.collaborator.fullName}`}
                     className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -1797,28 +1805,28 @@ function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage, pendenciaD
               <Fato rotulo="Período">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</Fato>
               <Fato rotulo="Passagem" onClick={usaPassagem ? edit("ticket", r) : undefined}>
                 {!usaPassagem ? <span className="text-muted-foreground/70">não se aplica</span>
-                  : !t ? <span style={{ color: "#92400e" }}>sem passagem</span>
+                  : !t ? <span className="text-warning">sem passagem</span>
                   : <>
                       {[t.ticketCompany, t.locator].filter(Boolean).join(" · ") || "—"}
-                      {!t.locator && <span style={{ color: "#92400e" }}> · sem localizador</span>}
+                      {!t.locator && <span className="text-warning"> · sem localizador</span>}
                       {t.value ? ` · ${brl(t.value)}` : ""}
                     </>}
               </Fato>
               <Fato rotulo="Hospedagem" onClick={usaHotel ? edit("accommodation", r) : undefined}>
                 {!usaHotel ? <span className="text-muted-foreground/70">não se aplica</span>
-                  : !a?.hotelName ? <span style={{ color: "#92400e" }}>sem hotel</span>
+                  : !a?.hotelName ? <span className="text-warning">sem hotel</span>
                   : [a.hotelName, a.roomType ? (ROOM_TYPE_LABEL[a.roomType] ?? a.roomType) : null, a.nightsCount ? `${a.nightsCount} ${a.nightsCount === 1 ? "noite" : "noites"}` : null].filter(Boolean).join(" · ")}
               </Fato>
               <Fato rotulo="Extras" onClick={edit("extras", r)}>
                 {extras.length ? extras.join(" · ") : <span className="text-muted-foreground/70">sem extras</span>}
               </Fato>
             </div>
-            {r.observations && <p className="mt-2 text-[12px] text-muted-foreground">{r.observations}</p>}
+            {r.observations && <p className="mt-2 text-xs text-muted-foreground">{r.observations}</p>}
           </article>
         );
       })}
       </div>
-      <div className="flex items-center gap-4 border-t bg-muted/30 px-4 py-2.5 text-[12px] text-muted-foreground">
+      <div className="flex items-center gap-4 border-t bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
         <span className="tabular-nums">
           {rows.length === totalDoEvento ? `${rows.length} ${rows.length === 1 ? "pessoa" : "pessoas"}` : `${rows.length} de ${totalDoEvento} pessoas`} · {prontas} {prontas === 1 ? "pronta" : "prontas"}
         </span>
@@ -1832,8 +1840,8 @@ function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage, pendenciaD
 function Fato({ rotulo, children, onClick }: { rotulo: string; children: React.ReactNode; onClick?: () => void }) {
   const corpo = (
     <>
-      <span className="block text-[9.5px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground/80">{rotulo}</span>
-      <span className="block text-[12.5px] font-medium" style={{ lineHeight: 1.45 }}>{children}</span>
+      <span className="block text-2xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground/80">{rotulo}</span>
+      <span className="block text-xs font-medium leading-normal">{children}</span>
     </>
   );
   if (!onClick) return <div className="min-w-0">{corpo}</div>;
@@ -1865,15 +1873,15 @@ function LinhaCusto({ icon, titulo, valor, detalhes = [], vazio, onEdit, derivad
       <span className="flex items-start gap-2.5 min-w-0">
         <span className="mt-0.5 text-muted-foreground shrink-0" aria-hidden="true">{icon}</span>
         <span className="min-w-0">
-          <span className="block text-[13px] font-medium leading-tight">{titulo}</span>
+          <span className="block text-sm font-medium leading-tight">{titulo}</span>
           {semNada ? (
-            <span className="block text-[11px] text-muted-foreground/70 leading-tight mt-0.5">{vazio}</span>
+            <span className="block text-2xs text-muted-foreground/70 leading-tight mt-0.5">{vazio}</span>
           ) : (
-            <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5 truncate">{linhas.join(" · ")}</span>
+            <span className="block text-2xs text-muted-foreground leading-snug mt-0.5 truncate">{linhas.join(" · ")}</span>
           )}
         </span>
       </span>
-      <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${semNada ? "text-muted-foreground" : ""} ${derivado ? "italic" : ""}`}
+      <span className={`shrink-0 text-sm font-semibold tabular-nums ${semNada ? "text-muted-foreground" : ""} ${derivado ? "italic" : ""}`}
         title={derivado ? "Valor derivado: diária × noites (total não informado)" : undefined}>
         {brl(valor)}
       </span>
@@ -1946,20 +1954,20 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
                 <CollapsibleTrigger className="flex items-center gap-2 min-w-0 text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                   <Building2 className="h-4 w-4 text-primary shrink-0" />
-                  <span className="text-[14px] font-bold capitalize truncate">{name}</span>
+                  <span className="text-sm font-bold capitalize truncate">{name}</span>
                 </CollapsibleTrigger>
-                <span className="text-[12px] text-muted-foreground whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {members.length} {members.length === 1 ? "pessoa" : "pessoas"} · {aCompletar ? `${aCompletar} a completar` : "nenhuma pendência"}
                 </span>
                 <div className="hidden md:flex items-center gap-2 min-w-[180px]" title={`${blocosProntos} de ${blocosEmUso} blocos em uso prontos`}>
-                  <span className="h-[5px] flex-1 overflow-hidden rounded-full" style={{ background: "#eef1f5" }} aria-hidden="true">
-                    <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pct}%`, background: blocosProntos < blocosEmUso ? "#f59e0b" : "#10b981" }} />
+                  <span className="h-[5px] flex-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                    <span className={cn("block h-full rounded-full transition-[width] duration-300", (blocosProntos < blocosEmUso ? "bg-warning-strong" : "bg-success-strong"))} style={{ width: `${pct}%` }} />
                   </span>
-                  <span className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap">{blocosProntos} de {blocosEmUso} blocos</span>
+                  <span className="text-2xs tabular-nums text-muted-foreground whitespace-nowrap">{blocosProntos} de {blocosEmUso} blocos</span>
                 </div>
                 <div className="ml-auto flex items-center gap-3">
-                  {dt && <span className="hidden lg:inline text-[12px] text-muted-foreground">Passagem {brl(dt.tickets)} · Hotel {brl(dt.hotel)} · Extras {brl(extrasTotal)}</span>}
-                  <span className="font-mono text-[15px] font-bold tabular-nums">{brl(subtotal)}</span>
+                  {dt && <span className="hidden lg:inline text-xs text-muted-foreground">Passagem {brl(dt.tickets)} · Hotel {brl(dt.hotel)} · Extras {brl(extrasTotal)}</span>}
+                  <span className="font-mono text-base font-bold tabular-nums">{brl(subtotal)}</span>
                   <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => verNaGrade(name)} data-testid={`dept-ver-${name}`}>
                     Ver na grade
                   </Button>
@@ -1971,17 +1979,17 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
                   {members.map((r) => (
                     <div key={r.teamInclusionId} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2.5 text-sm hover:bg-muted/20">
                       <div className="font-medium min-w-[180px] flex items-center gap-2">
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-bold">{r.collaborator.fullName.slice(0, 2).toUpperCase()}</span>
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-2xs font-bold">{r.collaborator.fullName.slice(0, 2).toUpperCase()}</span>
                         {r.collaborator.fullName}
                       </div>
                       <span className="text-xs text-muted-foreground">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</span>
-                      <span className="flex items-center gap-1 text-xs"><Plane className="h-3 w-3 text-indigo-500" /> {brl(r.ticket?.value)}</span>
+                      <span className="flex items-center gap-1 text-xs"><Plane className="h-3 w-3 text-primary" /> {brl(r.ticket?.value)}</span>
                       <span className={`flex items-center gap-1 text-xs ${isHotelTotalDerived(r) ? "italic" : ""}`} title={isHotelTotalDerived(r) ? "Valor derivado: diária × diárias" : undefined}>
-                        <BedDouble className="h-3 w-3 text-emerald-500" /> {brl(hotelTotalCents(r))}
+                        <BedDouble className="h-3 w-3 text-success-strong" /> {brl(hotelTotalCents(r))}
                       </span>
-                      <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-amber-500" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
+                      <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-warning-strong" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
                       {(() => { const n = pendenciaDe(r).abertos.length; return n > 0
-                        ? <span className="ml-auto inline-flex h-[22px] items-center rounded-md px-[7px] text-[11px] font-medium" style={{ background: "#fef3c7", color: "#92400e" }}>{textoDaSituacao(n)}</span>
+                        ? <span className="ml-auto inline-flex h-[22px] items-center rounded-md px-[7px] text-2xs font-medium bg-warning-soft text-warning">{textoDaSituacao(n)}</span>
                         : null; })()}
                       {canEdit && <>
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" /> Passagem</Button>
@@ -1999,7 +2007,7 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
       {/* Rodapé da visão: o mesmo par que fecha Grade e Pessoas — o que está
           na tela e quanto custa. Sem ele, Departamentos era a única visão em
           que o total do recorte não aparecia. */}
-      <div className="flex items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5 text-[12px] text-muted-foreground">
+      <div className="flex items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
         <span className="tabular-nums">
           {groups.length} {groups.length === 1 ? "departamento" : "departamentos"} · {rows.length} {rows.length === 1 ? "pessoa" : "pessoas"}
         </span>
@@ -2078,16 +2086,16 @@ function MoverPara({ pessoa, grupoAtual, destinos, rotuloNovo, onMover, conseque
         onClick={() => setAberto(true)}
         aria-label={`Mover ${pessoa} para outro grupo`}
         title={`Mover ${pessoa} para outro grupo`}
-        className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-input/60 bg-background/60 px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover/linha:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-input/60 bg-background/60 px-1.5 text-2xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover/linha:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-testid={`mover-${grupoAtual}`}
       >
         <ArrowLeftRight className="h-3 w-3" aria-hidden="true" /> Mover
       </button>
       <Dialog open={aberto} onOpenChange={setAberto}>
-        <DialogContent className="max-w-[460px] p-0 gap-0 overflow-hidden rounded-[14px]">
+        <DialogContent className="max-w-[460px] p-0 gap-0 overflow-hidden rounded-xl">
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle className="text-base">Mover {pessoa} para onde?</DialogTitle>
-            {consequencia && <DialogDescription className="text-[13px] leading-normal">{consequencia}</DialogDescription>}
+            {consequencia && <DialogDescription className="text-sm leading-normal">{consequencia}</DialogDescription>}
           </DialogHeader>
           <div className="max-h-[46vh] overflow-y-auto border-t">
             {destinos.map((d) => (
@@ -2098,7 +2106,7 @@ function MoverPara({ pessoa, grupoAtual, destinos, rotuloNovo, onMover, conseque
                 className="flex w-full items-center gap-2 border-b px-5 py-[11px] text-left transition-colors last:border-b-0 hover:bg-muted/60"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium">{d.descricao}</span>
+                  <span className="block truncate text-sm font-medium">{d.descricao}</span>
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               </button>
@@ -2109,7 +2117,7 @@ function MoverPara({ pessoa, grupoAtual, destinos, rotuloNovo, onMover, conseque
               className="flex w-full items-center gap-2 px-5 py-[11px] text-left transition-colors hover:bg-muted/60"
             >
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium">{rotuloNovo}</span>
+                <span className="block text-sm font-medium">{rotuloNovo}</span>
                 <span className="block text-xs text-muted-foreground">Cria um grupo só para esta pessoa.</span>
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -2139,12 +2147,12 @@ function diaSemana(d: string | null | undefined): string {
  * quarto, não a cor em si.
  */
 const FAIXA = [
-  "bg-sky-50/70 dark:bg-sky-950/25",
-  "bg-emerald-50/70 dark:bg-emerald-950/25",
-  "bg-amber-50/70 dark:bg-amber-950/25",
-  "bg-fuchsia-50/70 dark:bg-fuchsia-950/25",
-  "bg-orange-50/70 dark:bg-orange-950/25",
-  "bg-violet-50/70 dark:bg-violet-950/25",
+  "bg-info-soft/70",
+  "bg-success-soft/70",
+  "bg-warning-soft/70",
+  "bg-brand-soft/70",
+  "bg-warning-soft/70",
+  "bg-brand-soft/70",
 ];
 
 function memberInfo(m: GroupMemberLike, collabById: Map<string, MirrorCollaborator>): MemberInfo {
@@ -2187,7 +2195,7 @@ function DataDoOcupante({ valor, propria, canEdit, rotulo, aoSalvar }: {
 }) {
   const iso = valor ? String(valor).slice(0, 10) : "";
   if (!canEdit) {
-    return <span className={`tabular-nums ${propria ? "font-semibold text-violet-700 dark:text-violet-300" : ""}`}>{fmtDate(valor)}</span>;
+    return <span className={`tabular-nums ${propria ? "font-semibold text-primary " : ""}`}>{fmtDate(valor)}</span>;
   }
   return (
     <input
@@ -2197,7 +2205,7 @@ function DataDoOcupante({ valor, propria, canEdit, rotulo, aoSalvar }: {
       title={propria ? "Estadia própria — diferente do período do quarto" : "Segue o período do quarto"}
       onBlur={(e) => { if (e.target.value !== iso) aoSalvar(e.target.value); }}
       className={`h-7 w-[126px] rounded-md border border-transparent bg-transparent px-1 text-xs tabular-nums hover:border-input focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-        propria ? "font-semibold text-violet-700 dark:text-violet-300" : ""}`}
+        propria ? "font-semibold text-primary " : ""}`}
     />
   );
 }
@@ -2287,19 +2295,19 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                       <td className="px-3 py-2 text-center align-middle" rowSpan={membros.length}>
                         <span className="inline-flex items-center gap-1.5 font-semibold uppercase">
                           {membros.length === 1 ? "Single" : membros.length === 2 ? "Duplo" : membros.length === 3 ? "Triplo" : `${membros.length} pessoas`}
-                          <span className="rounded-full bg-background/70 px-1.5 text-[10px] font-normal normal-case tabular-nums text-muted-foreground">
+                          <span className="rounded-full bg-background/70 px-1.5 text-2xs font-normal normal-case tabular-nums text-muted-foreground">
                             {membros.length} {membros.length === 1 ? "pessoa" : "pessoas"}
                           </span>
                         </span>
                         {canEdit && membros.length > 1 && onSeparar && (
                           <button type="button" onClick={() => onSeparar(g.id)}
-                            className="mt-1 block mx-auto text-[11px] text-primary underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                            className="mt-1 block mx-auto text-2xs text-primary underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                             data-testid={`separar-${g.id}`}>
                             Separar em individuais
                           </button>
                         )}
                         {g.notes && (
-                          <span className="block mt-1 text-[10px] font-normal normal-case text-muted-foreground leading-snug max-w-[190px] mx-auto">{g.notes}</span>
+                          <span className="block mt-1 text-2xs font-normal normal-case text-muted-foreground leading-snug max-w-[190px] mx-auto">{g.notes}</span>
                         )}
                       </td>
                     ) : null}
@@ -2307,12 +2315,12 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                       <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
                         {g.confirmed ? (
                           canEdit ? (
-                            <Button size="sm" variant="outline" className="h-7 border-emerald-300 bg-emerald-50 text-xs text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200"
+                            <Button size="sm" variant="outline" className="h-7 border-success/25 bg-success-soft text-xs text-success hover:bg-success-soft"
                               onClick={() => onPatch(g.id, { __reabrir: true })} data-testid={`reabrir-uber-${g.id}`}
                               title="Reabrir o carro para voltar a ser sugestão — confirmado, ele fica de fora do recálculo">
                               <CheckCheck className="h-3 w-3 mr-1" aria-hidden="true" /> Confirmado
                             </Button>
-                          ) : <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
+                          ) : <Badge className="bg-success hover:bg-success/90">Confirmado</Badge>
                         ) : canEdit ? (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
                             {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
@@ -2361,12 +2369,12 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
   return (
     <section className="rounded-lg border bg-card overflow-hidden">
       <header className={`px-4 py-2.5 border-b ${tom}`}>
-        <h3 className="text-[13px] font-semibold flex items-center gap-2">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
           {ida ? <Plane className="h-3.5 w-3.5" aria-hidden="true" /> : <Plane className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />}
           {titulo}
-          <span className="rounded-full bg-background/70 px-1.5 text-[10px] tabular-nums">{grupos.length}</span>
+          <span className="rounded-full bg-background/70 px-1.5 text-2xs tabular-nums">{grupos.length}</span>
         </h3>
-        <p className="text-[11px] text-muted-foreground mt-0.5">{subtitulo}</p>
+        <p className="text-2xs text-muted-foreground mt-0.5">{subtitulo}</p>
       </header>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -2411,7 +2419,7 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
                             onClick={() => onSkipUber(r.teamInclusionId, true)}
                             title="Tirar da roteirização — não entra em carro nenhum e não gera custo"
                             aria-label={`Tirar ${m.name} da roteirização de Uber`}
-                            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             data-testid={`skip-uber-${r.teamInclusionId}`}>
                             <X className="h-3 w-3" aria-hidden="true" />
                           </button>
@@ -2457,7 +2465,7 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
                     {mi === 0 ? (
                       <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
                         {g.confirmed ? (
-                          <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
+                          <Badge className="bg-success hover:bg-success/90">Confirmado</Badge>
                         ) : canEdit ? (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
                             {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
@@ -2493,8 +2501,8 @@ function HorarioDoCarro({ grupo, canEdit, onPatch }: {
   const sugerido = grupo.suggestedTime || null;
   const valor = grupo.time || "";
   const tom = grupo.confirmed
-    ? "text-emerald-700 dark:text-emerald-300"
-    : manual ? "text-violet-700 dark:text-violet-300" : "text-primary";
+    ? "text-success"
+    : manual ? "text-primary" : "text-primary";
   const dica = grupo.confirmed
     ? "Carro confirmado — reabra para ajustar o horário"
     : manual
@@ -2538,12 +2546,12 @@ function HorarioDoCarro({ grupo, canEdit, onPatch }: {
  */
 const COR_DO_CARRO = ["sky", "violet", "amber", "teal", "pink", "lime"] as const;
 const FILETE: Record<string, string> = {
-  sky: "border-l-sky-500", violet: "border-l-violet-500", amber: "border-l-amber-500",
-  teal: "border-l-teal-500", pink: "border-l-pink-500", lime: "border-l-lime-500",
+  sky: "border-l-info-strong", violet: "border-l-primary", amber: "border-l-warning-strong",
+  teal: "border-l-info-strong", pink: "border-l-primary", lime: "border-l-success-strong",
 };
 const TEXTO_CARRO: Record<string, string> = {
-  sky: "text-sky-600", violet: "text-violet-600", amber: "text-amber-600",
-  teal: "text-teal-600", pink: "text-pink-600", lime: "text-lime-600",
+  sky: "text-info", violet: "text-primary", amber: "text-warning",
+  teal: "text-info", pink: "text-primary", lime: "text-success",
 };
 const corDoCarro = (n: number) => COR_DO_CARRO[(n - 1) % COR_DO_CARRO.length];
 
@@ -2640,25 +2648,25 @@ function Roteirizacao({
         <table className="w-full min-w-[1560px] text-xs">
           <thead>
             <tr className="border-b bg-muted/60">
-              <th colSpan={2} className="h-8 border-r-2 border-r-slate-300 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-r-slate-600">
+              <th colSpan={2} className="h-8 border-r-2 border-r-slate-300 px-3 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Pessoa
               </th>
-              <th colSpan={6} className="h-8 border-r-2 border-r-slate-300 px-3 text-left dark:border-r-slate-600">
+              <th colSpan={6} className="h-8 border-r-2 border-r-slate-300 px-3 text-left">
                 <span className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                  <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-slate-700">
                     <Plane className="h-3.5 w-3.5" aria-hidden="true" /> Base × Aeroporto
                   </span>
-                  <span className="text-[11px] font-normal normal-case tracking-normal text-muted-foreground">
+                  <span className="text-2xs font-normal normal-case tracking-normal text-muted-foreground">
                     mesmo dia e aeroporto, voos em até 90 min → mesmo carro · sai 3h antes do voo mais cedo
                   </span>
                 </span>
               </th>
               <th colSpan={7} className="h-8 px-3 text-left">
                 <span className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                  <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-slate-700">
                     <Plane className="h-3.5 w-3.5 rotate-180" aria-hidden="true" /> Aeroporto × Base
                   </span>
-                  <span className="text-[11px] font-normal normal-case tracking-normal text-muted-foreground">
+                  <span className="text-2xs font-normal normal-case tracking-normal text-muted-foreground">
                     busca 15 min depois do último pouso do grupo
                   </span>
                 </span>
@@ -2666,10 +2674,10 @@ function Roteirizacao({
             </tr>
             <tr className="border-b bg-muted/30">
               <ColRot className="min-w-[210px]">Nome</ColRot>
-              <ColRot className="min-w-[120px] border-r-2 border-r-slate-300 dark:border-r-slate-600">Departamento</ColRot>
+              <ColRot className="min-w-[120px] border-r-2 border-r-slate-300">Departamento</ColRot>
               <ColRot>Dia</ColRot><ColRot>Data ida</ColRot><ColRot>Aero</ColRot><ColRot>Voo</ColRot>
               <ColRot>Sair às</ColRot>
-              <ColRot className="min-w-[170px] border-r-2 border-r-slate-300 dark:border-r-slate-600">Titular / situação</ColRot>
+              <ColRot className="min-w-[170px] border-r-2 border-r-slate-300">Titular / situação</ColRot>
               <ColRot>Dia</ColRot><ColRot>Data volta</ColRot><ColRot>Aero</ColRot><ColRot>Voo</ColRot><ColRot>Pouso</ColRot>
               <ColRot>Buscar às</ColRot>
               <ColRot className="min-w-[170px]">Titular / situação</ColRot>
@@ -2688,14 +2696,14 @@ function Roteirizacao({
                         <button type="button" onClick={() => onSkipUber(l.row.teamInclusionId, true)}
                           title="Tirar da roteirização — não entra em carro nenhum e não gera custo"
                           aria-label={`Tirar ${l.row.collaborator.fullName} da roteirização`}
-                          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-amber-700"
+                          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-warning"
                           data-testid={`skip-uber-${l.row.teamInclusionId}`}>
                           <X className="h-3 w-3" aria-hidden="true" />
                         </button>
                       )}
                     </span>
                   </td>
-                  <td className="border-r-2 border-r-slate-300 px-2 py-1.5 capitalize text-muted-foreground dark:border-r-slate-600">
+                  <td className="border-r-2 border-r-slate-300 px-2 py-1.5 capitalize text-muted-foreground">
                     {l.row.function.area || l.row.function.name || "—"}
                   </td>
 
@@ -2740,7 +2748,7 @@ function CelulasDoTrecho({
   pendingId: string | null | undefined;
   collabById: Map<string, MirrorCollaborator>;
 }) {
-  const fim = dir === "ida" ? "border-r-2 border-r-slate-300 dark:border-r-slate-600" : "";
+  const fim = dir === "ida" ? "border-r-2 border-r-slate-300" : "";
   if (!dados.g) {
     // Sem trecho nesta direção: dizer isso é melhor do que seis células vazias.
     return (
@@ -2756,7 +2764,7 @@ function CelulasDoTrecho({
     <>
       <td className={`border-l-[3px] px-2 py-1.5 text-muted-foreground ${FILETE[dados.cor]}`}>{diaSemana(dados.data)}</td>
       <td className="px-2 py-1.5 tabular-nums">{fmtDate(dados.data)}</td>
-      <td className="px-2 py-1.5 font-mono text-[11px] uppercase">{dados.aero || <span className="text-muted-foreground">·</span>}</td>
+      <td className="px-2 py-1.5 font-mono text-2xs uppercase">{dados.aero || <span className="text-muted-foreground">·</span>}</td>
       <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{dados.voo || "·"}</td>
       {dir === "volta" && <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{dados.pouso || "·"}</td>}
       <td className="px-2 py-1.5">
@@ -2766,7 +2774,7 @@ function CelulasDoTrecho({
         <span className="flex flex-wrap items-center gap-1.5">
           {/* "Carro N" em TODA linha: os carros da volta não ficam contíguos,
               porque a tabela é ordenada pela ida. */}
-          <span className={`text-[10px] font-semibold uppercase tracking-wide ${TEXTO_CARRO[dados.cor]}`}>Carro {dados.n}</span>
+          <span className={`text-2xs font-semibold uppercase tracking-wide ${TEXTO_CARRO[dados.cor]}`}>Carro {dados.n}</span>
           {dados.primeira ? (
             <>
               {canEdit ? (
@@ -2774,30 +2782,30 @@ function CelulasDoTrecho({
                   value={g.titularCollaboratorId ?? ""}
                   onChange={(e) => onPatch(g.id, { titularCollaboratorId: e.target.value || null })}
                   aria-label={`Titular do carro ${dados.n} da ${dir}`}
-                  className="h-6 min-w-[110px] max-w-[130px] rounded border bg-background px-1 text-[11px]"
+                  className="h-6 min-w-[110px] max-w-[130px] rounded border bg-background px-1 text-2xs"
                   data-testid={`uber-titular-${g.id}`}>
                   <option value="">Titular…</option>
                   {membros.map((op, k) => <option key={op.id ?? k} value={op.id ?? ""}>{op.name}</option>)}
                 </select>
               ) : (
-                <span className="text-[11px]">{membros.find((op) => op.id === g.titularCollaboratorId)?.name ?? "sem titular"}</span>
+                <span className="text-2xs">{membros.find((op) => op.id === g.titularCollaboratorId)?.name ?? "sem titular"}</span>
               )}
               {g.confirmed ? (
                 canEdit ? (
                   <button type="button" onClick={() => onPatch(g.id, { __reabrir: true })}
                     title="Reabrir — carro confirmado fica de fora do recálculo"
-                    className="inline-flex h-6 items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-1.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                    className="inline-flex h-6 items-center gap-1 rounded border border-success/25 bg-success-soft px-1.5 text-2xs font-medium text-success">
                     <CheckCheck className="h-3 w-3" aria-hidden="true" /> ok
                   </button>
-                ) : <Badge className="h-5 bg-emerald-600 px-1.5 text-[10px] hover:bg-emerald-600">ok</Badge>
+                ) : <Badge className="h-5 bg-success px-1.5 text-2xs hover:bg-success/90">ok</Badge>
               ) : canEdit ? (
                 <button type="button" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id}
                   title="Confirmar o carro — trava o agrupamento e o horário"
-                  className="inline-flex h-6 items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-800 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-200"
+                  className="inline-flex h-6 items-center gap-1 rounded border border-warning/25 bg-warning-soft px-1.5 text-2xs font-medium text-warning disabled:opacity-60"
                   data-testid={`confirm-uber-${g.id}`}>
                   {pendingId === g.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" aria-hidden="true" />} confirmar
                 </button>
-              ) : <span className="text-[11px] text-muted-foreground">sugestão</span>}
+              ) : <span className="text-2xs text-muted-foreground">sugestão</span>}
             </>
           ) : null}
           {canEdit && collabId && (
@@ -2824,19 +2832,19 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
   const foraDaRoteirizacao = rows.filter((r) => r.skipUber || (r.collaborator.id && !emCarro.has(r.collaborator.id)));
 
   const blocoFora = foraDaRoteirizacao.length > 0 ? (
-    <section className="rounded-lg border border-amber-300 bg-amber-50/50 overflow-hidden dark:border-amber-900/60 dark:bg-amber-950/20" data-testid="uber-fora">
-      <header className="px-4 py-2.5 border-b border-amber-200 dark:border-amber-900/60">
-        <h3 className="text-[13px] font-semibold text-amber-900 dark:text-amber-200">Fora da roteirização</h3>
-        <p className="mt-0.5 text-[11px] text-amber-800/80 dark:text-amber-300/80">
+    <section className="rounded-lg border border-warning/25 bg-warning-soft/50 overflow-hidden" data-testid="uber-fora">
+      <header className="px-4 py-2.5 border-b border-warning/25">
+        <h3 className="text-sm font-semibold text-warning">Fora da roteirização</h3>
+        <p className="mt-0.5 text-2xs text-warning/80">
           Quem foi dispensado do Uber e quem ainda não tem voo lançado. Não entram em carro e não geram custo.
         </p>
       </header>
-      <ul className="divide-y divide-amber-200/70 dark:divide-amber-900/50">
+      <ul className="divide-y divide-warning/70">
         {foraDaRoteirizacao.map((r) => (
           <li key={r.teamInclusionId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-xs">
             <span className="font-medium">{r.collaborator.fullName}</span>
             <span className="capitalize text-muted-foreground">{r.function.area || r.function.name || "Sem área"}</span>
-            <span className="text-amber-800 dark:text-amber-300">
+            <span className="text-warning">
               {r.skipUber ? "não vai de Uber" : "sem voo lançado"}
             </span>
             {canEdit && r.skipUber && onSkipUber && (
@@ -2913,8 +2921,8 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
       {internos.length > 0 && (
         <section className="rounded-lg border bg-card overflow-hidden">
           <header className="px-4 py-2.5 border-b bg-muted/40">
-            <h3 className="text-[13px] font-semibold">Uber no evento</h3>
-            <p className="text-[11px] text-muted-foreground">Deslocamentos que não são do aeroporto.</p>
+            <h3 className="text-sm font-semibold">Uber no evento</h3>
+            <p className="text-2xs text-muted-foreground">Deslocamentos que não são do aeroporto.</p>
           </header>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -2942,7 +2950,7 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
                         <td className="px-3 py-2 tabular-nums">{fmtDate(g.date)}</td>
                         {mi === 0 ? (
                           <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
-                            {g.confirmed ? <Badge className="bg-emerald-600 hover:bg-emerald-600">Confirmado</Badge>
+                            {g.confirmed ? <Badge className="bg-success hover:bg-success/90">Confirmado</Badge>
                               : canEdit ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id}>
                                   {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
@@ -3050,9 +3058,9 @@ function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDer
       </div>
 
       {contas.length === 0 && semConta && semConta.total > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-amber-900">
+        <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft/60 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+          <p className="text-xs text-warning">
             <strong>O rateio por conta está vazio.</strong> Defina a conta de cada função em{" "}
             <Link href="/functions" className="underline font-medium">Funções</Link> — é a coluna
             que diz em qual conta o custo do evento entra (cenotécnica, kit e percurso caem em LI,
@@ -3074,10 +3082,10 @@ function CostItem({ icon, label, value }: { icon: React.ReactNode; label: string
   const zerado = !value;
   return (
     <div className="px-4 py-3">
-      <p className={`flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${zerado ? "text-muted-foreground" : "text-muted-foreground"}`}>
+      <p className={`flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wider ${zerado ? "text-muted-foreground" : "text-muted-foreground"}`}>
         <span aria-hidden="true">{icon}</span>{label}
       </p>
-      <p className={`mt-1 text-[15px] font-semibold tabular-nums ${zerado ? "text-muted-foreground" : "text-foreground"}`}>
+      <p className={`mt-1 text-base font-semibold tabular-nums ${zerado ? "text-muted-foreground" : "text-foreground"}`}>
         {brl(value)}
       </p>
     </div>
@@ -3086,7 +3094,7 @@ function CostItem({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function TotalLine({ label, value, bold, italic, title, muted }: { label: string; value: string; bold?: boolean; italic?: boolean; title?: string; muted?: boolean }) {
   return (
-    <div className={`flex items-center justify-between ${bold ? "text-[15px] font-semibold" : ""}`}>
+    <div className={`flex items-center justify-between ${bold ? "text-base font-semibold" : ""}`}>
       <span className={bold ? "" : "text-muted-foreground"}>{label}</span>
       <span className={`tabular-nums ${italic ? "italic" : ""} ${muted && !bold ? "text-muted-foreground" : ""}`} title={title}>{value}</span>
     </div>

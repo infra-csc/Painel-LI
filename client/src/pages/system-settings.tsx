@@ -13,6 +13,8 @@ import { parseBrNumber } from "@/lib/utils";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { LoadingState } from "@/components/common/loading-state";
+import { QueryError, useQueriesState } from "@/components/common/query-state";
 import {
   Calculator, Save, DollarSign, Car, Utensils, ShieldAlert, Bike, Hammer,
   Lock, ChevronDown, ChevronUp, Clock, BadgeCheck, ExternalLink,
@@ -285,7 +287,7 @@ type AnyFieldProps = ControllerRenderProps<FormValues, FieldPath<FormValues>>;
 function CurrencyInput({ field, id }: { field: AnyFieldProps; id?: string }) {
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 select-none text-[13px] font-semibold text-gray-400">R$</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 select-none text-sm font-semibold text-muted-foreground">R$</span>
       <input
         type="text"
         inputMode="decimal"
@@ -295,7 +297,7 @@ function CurrencyInput({ field, id }: { field: AnyFieldProps; id?: string }) {
         value={field.value}
         onBlur={field.onBlur}
         onChange={e => field.onChange(normalizeDecimal(e.target.value))}
-        className="h-[38px] w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-2.5 text-sm font-semibold text-gray-800 outline-none transition-colors focus:border-indigo-500 focus:bg-white"
+        className="h-[38px] w-full appearance-none rounded-lg border border-border bg-surface-muted pl-9 pr-2.5 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary focus:bg-card"
       />
     </div>
   );
@@ -314,16 +316,16 @@ function PercentInput({ field, id }: { field: AnyFieldProps; id?: string }) {
         value={field.value}
         onBlur={field.onBlur}
         onChange={e => field.onChange(normalizeDecimal(e.target.value))}
-        className="h-[38px] w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 pl-3 pr-8 text-sm font-semibold text-gray-800 outline-none transition-colors focus:border-indigo-500 focus:bg-white"
+        className="h-[38px] w-full appearance-none rounded-lg border border-border bg-surface-muted pl-3 pr-8 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary focus:bg-card"
       />
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-[13px] font-semibold text-gray-400">%</span>
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-sm font-semibold text-muted-foreground">%</span>
     </div>
   );
 }
 
 // Campo monetário com <label htmlFor> apontando para o input (a11y).
 function MoneyField({
-  control, name, label, labelClass = "text-gray-500",
+  control, name, label, labelClass = "text-muted-foreground",
 }: {
   control: Control<FormValues>;
   name: FieldPath<FormValues>;
@@ -333,7 +335,7 @@ function MoneyField({
   return (
     <FormField control={control} name={name} render={({ field }) => (
       <FormItem>
-        <label htmlFor={name} className={`mb-1 block text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>{label}</label>
+        <label htmlFor={name} className={`mb-1 block text-2xs font-bold uppercase tracking-wider ${labelClass}`}>{label}</label>
         <FormControl><CurrencyInput field={field} id={name} /></FormControl>
         <FormMessage />
       </FormItem>
@@ -342,7 +344,7 @@ function MoneyField({
 }
 
 function PercentField({
-  control, name, label, labelClass = "text-gray-500",
+  control, name, label, labelClass = "text-muted-foreground",
 }: {
   control: Control<FormValues>;
   name: FieldPath<FormValues>;
@@ -352,7 +354,7 @@ function PercentField({
   return (
     <FormField control={control} name={name} render={({ field }) => (
       <FormItem>
-        <label htmlFor={name} className={`mb-1 block text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>{label}</label>
+        <label htmlFor={name} className={`mb-1 block text-2xs font-bold uppercase tracking-wider ${labelClass}`}>{label}</label>
         <FormControl><PercentInput field={field} id={name} /></FormControl>
         <FormMessage />
       </FormItem>
@@ -363,13 +365,13 @@ function PercentField({
 // Cabeçalho padrão dos cards (sem gradiente, seguindo o padrão do app).
 function SectionHeader({ icon: Icon, iconBg, title, subtitle }: { icon: LucideIcon; iconBg: string; title: string; subtitle: string }) {
   return (
-    <div className="flex items-center gap-2.5 border-b border-gray-100 bg-gray-50/60 px-4 py-3.5">
+    <div className="flex items-center gap-2.5 border-b border-border bg-surface-muted/60 px-4 py-3.5">
       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
         <Icon className="h-[18px] w-[18px] text-white" />
       </div>
       <div>
-        <p className="text-[13px] font-bold text-gray-800">{title}</p>
-        <p className="text-[11px] text-gray-400">{subtitle}</p>
+        <p className="text-sm font-bold text-foreground">{title}</p>
+        <p className="text-2xs text-muted-foreground">{subtitle}</p>
       </div>
     </div>
   );
@@ -416,47 +418,22 @@ export default function SystemSettingsPage() {
   // as 5 queries rodarem e entregarem os dados ao navegador
   const allowed = isRhOrAdmin(user);
 
-  const { data: settings } = useQuery<Record<string, number>>({
-    queryKey: ["/api/system-settings"],
-    queryFn: async () => {
-      const res = await fetch("/api/system-settings", { credentials: "include" });
-      return res.json();
-    },
-    enabled: allowed,
-  });
-
-  const { data: allFunctions = [] } = useQuery<FunctionType[]>({
-    queryKey: ["/api/functions"],
-    queryFn: async () => {
-      const res = await fetch("/api/functions", { credentials: "include" });
-      return res.json();
-    },
-    enabled: allowed,
-  });
-
-  const { data: fnCollaboratorTypes = {} } = useQuery<Record<string, string[]>>({
-    queryKey: ["/api/function-collaborator-types"],
-    queryFn: async () => {
-      const res = await fetch("/api/function-collaborator-types", { credentials: "include" });
-      return res.json();
-    },
-    staleTime: 0,
-    enabled: allowed,
-  });
-
-  const { data: allFunctionValues = [] } = useQuery<FunctionValue[]>({
-    queryKey: ["/api/function-values"],
-    queryFn: async () => {
-      const res = await fetch("/api/function-values", { credentials: "include" });
-      return res.json();
-    },
-    enabled: allowed,
-  });
-
-  const { data: paymentCompanies = [] } = useQuery<PaymentCompany[]>({
-    queryKey: ["/api/payment-companies"],
-    enabled: allowed,
-  });
+  // Sem `queryFn` caseiro (23/09): o padrão do queryClient checa `res.ok`,
+  // trata 401 e HTML de servidor desatualizado — os de antes gravavam o corpo
+  // do erro no cache e o formulário aparecia preenchido com lixo.
+  const qSettings = useQuery<Record<string, number>>({ queryKey: ["/api/system-settings"], enabled: allowed });
+  const qFunctions = useQuery<FunctionType[]>({ queryKey: ["/api/functions"], enabled: allowed });
+  const qFnCollaboratorTypes = useQuery<Record<string, string[]>>({ queryKey: ["/api/function-collaborator-types"], staleTime: 0, enabled: allowed });
+  const qFunctionValues = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"], enabled: allowed });
+  const qPaymentCompanies = useQuery<PaymentCompany[]>({ queryKey: ["/api/payment-companies"], enabled: allowed });
+  const settings = qSettings.data;
+  const allFunctions = qFunctions.data ?? [];
+  const fnCollaboratorTypes = qFnCollaboratorTypes.data ?? {};
+  const allFunctionValues = qFunctionValues.data ?? [];
+  const paymentCompanies = qPaymentCompanies.data ?? [];
+  // Erro/carregando das 5 consultas (23/09): o formulário só aparece com os
+  // dados na mão — antes nascia vazio e era preenchido depois.
+  const estado = useQueriesState([qSettings, qFunctions, qFnCollaboratorTypes, qFunctionValues, qPaymentCompanies]);
 
   const createCompanyMutation = useMutation({
     mutationFn: (data: { name: string; cnpj: string }) =>
@@ -893,11 +870,32 @@ export default function SystemSettingsPage() {
     return (
       <div className="p-6">
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
-          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-            <ShieldAlert className="w-8 h-8 text-red-500" />
+          <div className="w-16 h-16 rounded-full bg-danger-soft flex items-center justify-center">
+            <ShieldAlert className="w-8 h-8 text-danger-strong" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Acesso restrito</h2>
-          <p className="text-gray-500 max-w-xs">Apenas administradores e RH podem acessar os valores padrão do sistema.</p>
+          <h2 className="text-xl font-semibold text-foreground">Acesso restrito</h2>
+          <p className="text-muted-foreground max-w-xs">Apenas administradores e RH podem acessar os valores padrão do sistema.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Retorno antecipado seguro: não há hooks abaixo daqui (o gate de permissão
+  // acima já retornava antes destes cálculos).
+  if (estado.isError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-6xl mx-auto p-6">
+          <QueryError error={estado.error} onRetry={estado.retry} title="Não foi possível carregar os valores padrão" />
+        </div>
+      </div>
+    );
+  }
+  if (estado.isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-6xl mx-auto p-6">
+          <LoadingState count={8} label="Carregando valores padrão…" />
         </div>
       </div>
     );
@@ -913,13 +911,13 @@ export default function SystemSettingsPage() {
 
   return (
     <TooltipProvider>
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-surface-muted">
     <div className="max-w-6xl mx-auto p-6 space-y-6">
 
       {/* ── Barra flutuante: ÚNICO ponto de salvamento da página ── */}
       {hasAnyChanges && (
-        <div className="fixed bottom-6 left-1/2 z-50 flex min-w-[340px] -translate-x-1/2 items-center gap-4 rounded-2xl bg-slate-800 py-2.5 pl-5 pr-4 shadow-2xl">
-          <span className="flex-1 text-[13px] text-slate-300">
+        <div className="fixed bottom-6 left-1/2 z-50 flex min-w-[340px] -translate-x-1/2 items-center gap-4 rounded-xl bg-slate-800 py-2.5 pl-5 pr-4 shadow-3">
+          <span className="flex-1 text-sm text-muted-foreground">
             <span className="font-bold text-slate-50">{totalUnsaved}</span>{' '}
             alteraç{totalUnsaved === 1 ? 'ão' : 'ões'} não salva{totalUnsaved === 1 ? '' : 's'}
           </span>
@@ -927,7 +925,7 @@ export default function SystemSettingsPage() {
             type="button"
             onClick={() => handleSaveAll()}
             disabled={isSavingAny || saveMutation.isPending}
-            className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-bold text-white shadow-md transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-600"
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-primary-foreground shadow-2 transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-slate-600"
           >
             <Save className="h-3.5 w-3.5" />
             {(isSavingAny || saveMutation.isPending) ? 'Salvando...' : 'Salvar'}
@@ -935,7 +933,7 @@ export default function SystemSettingsPage() {
           <button
             type="button"
             onClick={() => { form.reset(); resetFunctionValueStates(); }}
-            className="rounded-md p-1.5 text-slate-400 transition-colors hover:text-slate-200"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-slate-200"
             title="Descartar alterações"
             aria-label="Descartar alterações"
           >
@@ -959,12 +957,12 @@ export default function SystemSettingsPage() {
              ════════════════════════════════════════════════════════════════ */}
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-gray-800">Valores aplicados no cálculo</h2>
-              <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">Valores aplicados no cálculo</h2>
+              <span className="rounded-full border border-success/25 bg-success-soft px-2.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-success">
                 Aplicado no cálculo
               </span>
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Estas são as regras e tarifas efetivamente usadas ao calcular o orçamento dos eventos.
             </p>
           </div>
@@ -972,83 +970,83 @@ export default function SystemSettingsPage() {
           <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
 
             {/* Diárias Casa (regra por grupo de função) */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <SectionHeader icon={DollarSign} iconBg="bg-blue-600" title="Diárias Casa (regra por grupo)" subtitle="Três tarifas conforme o grupo de função" />
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+              <SectionHeader icon={DollarSign} iconBg="bg-primary" title="Diárias Casa (regra por grupo)" subtitle="Três tarifas conforme o grupo de função" />
               <div className="p-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <MoneyField control={form.control} name="casa_diaria_dir_prova" label="Dir. de Prova" labelClass="text-blue-700" />
-                  <MoneyField control={form.control} name="casa_diaria_produtor" label="Produtor (produção/ativação/kit/sup ceno)" labelClass="text-blue-700" />
-                  <MoneyField control={form.control} name="casa_diaria_exec_vendas" label="Exec. Vendas O2 Prime" labelClass="text-blue-700" />
+                  <MoneyField control={form.control} name="casa_diaria_dir_prova" label="Dir. de Prova" labelClass="text-primary" />
+                  <MoneyField control={form.control} name="casa_diaria_produtor" label="Produtor (produção/ativação/kit/sup ceno)" labelClass="text-primary" />
+                  <MoneyField control={form.control} name="casa_diaria_exec_vendas" label="Exec. Vendas O2 Prime" labelClass="text-primary" />
                 </div>
-                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                <p className="mb-0 mt-3 text-2xs text-muted-foreground">
                   Tarifas do time da casa por grupo de função (slide). Atendimento tem tarifa própria (Key Account/Exec. de Contas); cenotécnica, percurso e montagem seguem seus regimes específicos.
                 </p>
               </div>
             </div>
 
             {/* Diárias Freela (regra por viagem) */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <SectionHeader icon={DollarSign} iconBg="bg-violet-600" title="Diárias Freela (regra por viagem)" subtitle="Três tarifas conforme a função e se há viagem" />
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+              <SectionHeader icon={DollarSign} iconBg="bg-primary" title="Diárias Freela (regra por viagem)" subtitle="Três tarifas conforme a função e se há viagem" />
               <div className="p-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <MoneyField control={form.control} name="freela_diaria_local" label="Local (sem viagem)" labelClass="text-violet-700" />
-                  <MoneyField control={form.control} name="freela_diaria_viagem" label="Em viagem" labelClass="text-violet-700" />
-                  <MoneyField control={form.control} name="freela_diaria_dir_prova" label="Dir de Prova" labelClass="text-violet-700" />
+                  <MoneyField control={form.control} name="freela_diaria_local" label="Local (sem viagem)" labelClass="text-primary" />
+                  <MoneyField control={form.control} name="freela_diaria_viagem" label="Em viagem" labelClass="text-primary" />
+                  <MoneyField control={form.control} name="freela_diaria_dir_prova" label="Dir de Prova" labelClass="text-primary" />
                 </div>
-                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                <p className="mb-0 mt-3 text-2xs text-muted-foreground">
                   A diária é escolhida automaticamente conforme a função e se a escalação tem passagem. Os valores freela antigos por função deixaram de ser usados no cálculo.
                 </p>
               </div>
             </div>
 
             {/* Atendimento (valores fixos, não dependem de Casa/Freela) */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <SectionHeader icon={Building2} iconBg="bg-indigo-600" title="Atendimento" subtitle="Tarifas fixas de atendimento" />
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+              <SectionHeader icon={Building2} iconBg="bg-primary" title="Atendimento" subtitle="Tarifas fixas de atendimento" />
               <div className="p-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <MoneyField control={form.control} name="atendimento_key_account" label="Key Account" labelClass="text-indigo-700" />
-                  <MoneyField control={form.control} name="atendimento_executivo_contas" label="Executivo de Contas" labelClass="text-indigo-700" />
+                  <MoneyField control={form.control} name="atendimento_key_account" label="Key Account" labelClass="text-primary" />
+                  <MoneyField control={form.control} name="atendimento_executivo_contas" label="Executivo de Contas" labelClass="text-primary" />
                 </div>
               </div>
             </div>
 
             {/* Regra de deflação (diárias) */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <SectionHeader icon={ChevronDown} iconBg="bg-red-500" title="Regra de deflação (diárias)" subtitle="Fatores aplicados à diária conforme o período trabalhado" />
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+              <SectionHeader icon={ChevronDown} iconBg="bg-danger-strong" title="Regra de deflação (diárias)" subtitle="Fatores aplicados à diária conforme o período trabalhado" />
               <div className="p-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <PercentField control={form.control} name="deflacao_fator_ate_4" label="Até 4 dias (%)" labelClass="text-red-700" />
-                  <PercentField control={form.control} name="deflacao_fator_5_8" label="Do 5º ao 8º dia (%)" labelClass="text-red-700" />
-                  <PercentField control={form.control} name="deflacao_fator_9_mais" label="A partir do 9º dia (%)" labelClass="text-red-700" />
+                  <PercentField control={form.control} name="deflacao_fator_ate_4" label="Até 4 dias (%)" labelClass="text-danger" />
+                  <PercentField control={form.control} name="deflacao_fator_5_8" label="Do 5º ao 8º dia (%)" labelClass="text-danger" />
+                  <PercentField control={form.control} name="deflacao_fator_9_mais" label="A partir do 9º dia (%)" labelClass="text-danger" />
                 </div>
-                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                <p className="mb-0 mt-3 text-2xs text-muted-foreground">
                   Percentual da diária pago em cada faixa de dias. Ex.: 100% nos primeiros dias, reduzindo conforme a permanência.
                 </p>
               </div>
             </div>
 
             {/* Alimentação por refeição (regra por voo) */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <SectionHeader icon={Utensils} iconBg="bg-emerald-600" title="Alimentação por refeição (regra por voo)" subtitle="Valores flat por refeição, sem distinção útil/fim de semana" />
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+              <SectionHeader icon={Utensils} iconBg="bg-success" title="Alimentação por refeição (regra por voo)" subtitle="Valores flat por refeição, sem distinção útil/fim de semana" />
               <div className="p-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <MoneyField control={form.control} name="alimentacao_almoco" label="Almoço — Demais" labelClass="text-emerald-700" />
-                  <MoneyField control={form.control} name="alimentacao_jantar" label="Jantar — Demais" labelClass="text-emerald-700" />
-                  <MoneyField control={form.control} name="alimentacao_almoco_ceno" label="Almoço — Cenotécnica" labelClass="text-emerald-700" />
-                  <MoneyField control={form.control} name="alimentacao_jantar_ceno" label="Jantar — Cenotécnica" labelClass="text-emerald-700" />
-                  <MoneyField control={form.control} name="alimentacao_almoco_gestao" label="Almoço — Key Account / Gerente" labelClass="text-emerald-700" />
-                  <MoneyField control={form.control} name="alimentacao_jantar_gestao" label="Jantar — Key Account / Gerente" labelClass="text-emerald-700" />
-                  <MoneyField control={form.control} name="alimentacao_almoco_casa_util" label="Almoço — Casa (CLT) em dia útil" labelClass="text-emerald-700" />
-                  <MoneyField control={form.control} name="alimentacao_almoco_casa_util_ceno" label="Almoço — Cenotécnica de casa em dia útil" labelClass="text-emerald-700" />
+                  <MoneyField control={form.control} name="alimentacao_almoco" label="Almoço — Demais" labelClass="text-success" />
+                  <MoneyField control={form.control} name="alimentacao_jantar" label="Jantar — Demais" labelClass="text-success" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_ceno" label="Almoço — Cenotécnica" labelClass="text-success" />
+                  <MoneyField control={form.control} name="alimentacao_jantar_ceno" label="Jantar — Cenotécnica" labelClass="text-success" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_gestao" label="Almoço — Key Account / Gerente" labelClass="text-success" />
+                  <MoneyField control={form.control} name="alimentacao_jantar_gestao" label="Jantar — Key Account / Gerente" labelClass="text-success" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_casa_util" label="Almoço — Casa (CLT) em dia útil" labelClass="text-success" />
+                  <MoneyField control={form.control} name="alimentacao_almoco_casa_util_ceno" label="Almoço — Cenotécnica de casa em dia útil" labelClass="text-success" />
                 </div>
-                <p className="mb-0 mt-3 text-[11px] text-gray-400">
+                <p className="mb-0 mt-3 text-2xs text-muted-foreground">
                   Valores por refeição usados no cálculo automático de alimentação (regra por horário de voo). Key Account e Gerente usam os valores de "Key Account / Gerente"; Executivo de Contas usa "Demais". Colaborador de casa (CLT) em dia útil recebe só a diferença do almoço (o vale-refeição cobre o resto); jantar e fins de semana usam os valores cheios — para cenotécnica de casa o jantar útil e os fins de semana usam os valores de Cenotécnica. Os campos antigos de alimentação útil/fds continuam valendo apenas para overrides manuais.
                 </p>
               </div>
             </div>
 
             {/* Percurseiro (motoqueiro): pacote fechado por diária */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
               <SectionHeader icon={Bike} iconBg="bg-slate-700" title="Percurseiro (motoqueiro) — pacote por diária" subtitle="Tipo 1 × Tipo 2 · em viagem sempre 2 diárias, local 1 · alimentação e mobilidade já incluídas" />
               <div className="p-4 space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1061,50 +1059,50 @@ export default function SystemSettingsPage() {
                   <MoneyField control={form.control} name="percurseiro_t1_nf" label="NF — Tipo 1 (valor)" labelClass="text-slate-700" />
                   <MoneyField control={form.control} name="percurseiro_t2_nf" label="NF — Tipo 2 (valor)" labelClass="text-slate-700" />
                 </div>
-                <p className="mb-0 text-[11px] text-gray-400">
+                <p className="mb-0 text-2xs text-muted-foreground">
                   Total por diária = motoqueiro + fee + alimentação + transporte + NF (Tipo 1: R$ 1.129,76 · Tipo 2: R$ 1.266,67 nos valores padrão). O valor da NF é editável por tipo porque a tabela de origem não segue uma fórmula única — o percentual acima é só referência. O tipo de cada percurseiro é definido na escalação (ou no Planejado, para os já escalados).
                 </p>
               </div>
             </div>
 
             {/* Mobilidade (Casa e Freela, sem depender do toggle) */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <SectionHeader icon={Car} iconBg="bg-orange-500" title="Mobilidade" subtitle="Ajuda de custo de deslocamento (ida e volta)" />
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+              <SectionHeader icon={Car} iconBg="bg-warning-strong" title="Mobilidade" subtitle="Ajuda de custo de deslocamento (ida e volta)" />
               <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2">
                 <div>
-                  <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                  <p className="mb-2 flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-primary">
                     <Building2 className="h-3 w-3" /> Casa
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <MoneyField control={form.control} name="default_mobility_ida" label="Ida" />
                     <MoneyField control={form.control} name="default_mobility_volta" label="Volta" />
                   </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-2.5">
-                    <span className="text-[11px] text-gray-400">Total mobilidade</span>
-                    <span className="text-sm font-bold text-orange-500">{`R$ ${mobilityTotal.toFixed(2).replace('.', ',')}`}</span>
+                  <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
+                    <span className="text-2xs text-muted-foreground">Total mobilidade</span>
+                    <span className="text-sm font-bold text-warning-strong">{`R$ ${mobilityTotal.toFixed(2).replace('.', ',')}`}</span>
                   </div>
                 </div>
                 <div>
-                  <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-violet-700">
+                  <p className="mb-2 flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-primary">
                     <Users className="h-3 w-3" /> Freela
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <MoneyField control={form.control} name="default_mobility_ida_freela" label="Ida" />
                     <MoneyField control={form.control} name="default_mobility_volta_freela" label="Volta" />
                   </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-2.5">
-                    <span className="text-[11px] text-gray-400">Total mobilidade</span>
-                    <span className="text-sm font-bold text-orange-500">{`R$ ${mobilityTotalFreela.toFixed(2).replace('.', ',')}`}</span>
+                  <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
+                    <span className="text-2xs text-muted-foreground">Total mobilidade</span>
+                    <span className="text-sm font-bold text-warning-strong">{`R$ ${mobilityTotalFreela.toFixed(2).replace('.', ',')}`}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Cenotécnicos Empreita — valor fechado por nº de dias */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm xl:col-span-2">
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1 xl:col-span-2">
               <SectionHeader
                 icon={Hammer}
-                iconBg="bg-amber-600"
+                iconBg="bg-warning"
                 title="Cenotécnicos Empreita — valor fechado por dias"
                 subtitle="Quatro modalidades × 2 a 6 dias · valor fechado, sem deflação"
               />
@@ -1118,12 +1116,12 @@ export default function SystemSettingsPage() {
                   return (
                     <div key={tipo}>
                       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                        <p className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-warning">
                           <Hammer className="h-3 w-3" /> {CENO_FREELA_TIPO_LABELS[tipo]}
                         </p>
-                        <span className="text-[11px] text-gray-400">
+                        <span className="text-2xs text-muted-foreground">
                           Incremento{' '}
-                          <span className="font-semibold text-gray-500">
+                          <span className="font-semibold text-muted-foreground">
                             {Number.isFinite(incremento) ? `R$ ${incremento.toFixed(2).replace('.', ',')}` : '—'}
                           </span>
                           {' '}por dia fora de 2–6
@@ -1136,49 +1134,49 @@ export default function SystemSettingsPage() {
                             control={form.control}
                             name={cenoEmpreitaKey(tipo, dias)}
                             label={`${dias} dias`}
-                            labelClass="text-amber-700"
+                            labelClass="text-warning"
                           />
                         ))}
                       </div>
                     </div>
                   );
                 })}
-                <p className="mb-0 text-[11px] text-gray-400">
-                  Cada valor é <span className="font-semibold text-gray-500">fechado</span> para o total de dias trabalhados — não é diária × dias e <span className="font-semibold text-gray-500">não sofre deflação</span> por período. A modalidade é escolhida na Escalação, por vaga. Fora da faixa de 2 a 6 dias o sistema extrapola pelo incremento da própria linha (mostrado acima de cada modalidade). Cenotécnico de casa (CLT) continua sem diária; alimentação e mobilidade seguem as regras normais e ficam fora do valor fechado.
+                <p className="mb-0 text-2xs text-muted-foreground">
+                  Cada valor é <span className="font-semibold text-muted-foreground">fechado</span> para o total de dias trabalhados — não é diária × dias e <span className="font-semibold text-muted-foreground">não sofre deflação</span> por período. A modalidade é escolhida na Escalação, por vaga. Fora da faixa de 2 a 6 dias o sistema extrapola pelo incremento da própria linha (mostrado acima de cada modalidade). Cenotécnico de casa (CLT) continua sem diária; alimentação e mobilidade seguem as regras normais e ficam fora do valor fechado.
                 </p>
               </div>
             </div>
           </div>
 
           {/* Empresas Pagadoras (aplicadas nas Notas Fiscais) */}
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-2.5 border-b border-gray-200 bg-gray-50 px-5 py-4">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+            <div className="flex items-center justify-between gap-2.5 border-b border-border bg-surface-muted px-5 py-4">
               <div className="flex items-center gap-2.5">
-                <Building2 className="w-4 h-4 text-emerald-600" />
-                <span className="text-sm font-semibold text-gray-700">Empresas Pagadoras</span>
-                <span className="text-xs text-gray-400 font-normal">(usadas nas Notas Fiscais)</span>
+                <Building2 className="w-4 h-4 text-success" />
+                <span className="text-sm font-semibold text-slate-700">Empresas Pagadoras</span>
+                <span className="text-xs text-muted-foreground font-normal">(usadas nas Notas Fiscais)</span>
               </div>
               {!showAddCompany && (
                 <button
                   type="button"
                   onClick={() => setShowAddCompany(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700"
+                  className="flex items-center gap-1.5 rounded-lg border border-success/25 bg-success-soft px-3 py-1.5 text-xs font-semibold text-success transition-colors hover:bg-success-soft hover:text-success"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Adicionar empresa
                 </button>
               )}
             </div>
-            <div className="space-y-4 bg-white p-5">
+            <div className="space-y-4 bg-card p-5">
               {paymentCompanies.length === 0 && !showAddCompany ? (
-                <p className="py-3 text-center text-sm text-gray-400">Nenhuma empresa cadastrada.</p>
+                <p className="py-3 text-center text-sm text-muted-foreground">Nenhuma empresa cadastrada.</p>
               ) : paymentCompanies.length > 0 ? (
-                <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
+                <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
                   {paymentCompanies.map(c => (
-                    <div key={c.id} className="flex items-center justify-between bg-white px-4 py-3 transition-colors hover:bg-gray-50">
+                    <div key={c.id} className="flex items-center justify-between bg-card px-4 py-3 transition-colors hover:bg-surface-muted">
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                        <p className="font-mono text-xs text-gray-400">{c.cnpj}</p>
+                        <p className="text-sm font-semibold text-foreground">{c.name}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{c.cnpj}</p>
                       </div>
                       {/* O DELETE do servidor exige admin — para os demais papéis
                           o botão nem aparece (antes: clique → 403 silencioso) */}
@@ -1187,7 +1185,7 @@ export default function SystemSettingsPage() {
                           type="button"
                           onClick={() => setCompanyToDelete(c)}
                           disabled={deleteCompanyMutation.isPending}
-                          className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          className="rounded-lg p-1.5 text-danger-strong transition-colors hover:bg-danger-soft hover:text-danger"
                           title="Remover empresa"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1200,10 +1198,10 @@ export default function SystemSettingsPage() {
 
               {/* Formulário expansível */}
               {showAddCompany ? (
-                <div className="space-y-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
+                <div className="space-y-3 rounded-xl border border-dashed border-success/25 bg-success-soft/40 p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-emerald-700">Nova empresa</p>
-                    <button type="button" aria-label="Fechar formulário de nova empresa" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-slate-400 hover:text-slate-600">
+                    <p className="text-xs font-semibold text-success">Nova empresa</p>
+                    <button type="button" aria-label="Fechar formulário de nova empresa" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-muted-foreground hover:text-slate-600">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -1216,7 +1214,7 @@ export default function SystemSettingsPage() {
                         value={newCompanyName}
                         onChange={e => setNewCompanyName(e.target.value)}
                         placeholder="Ex.: Produtora Norte Ltda"
-                        className="h-9 rounded-lg border-gray-200 text-sm"
+                        className="h-9 rounded-lg border-border text-sm"
                         autoFocus
                       />
                     </div>
@@ -1231,12 +1229,12 @@ export default function SystemSettingsPage() {
                       size="sm"
                       disabled={!newCompanyName.trim() || !validateCnpj(newCompanyCnpj) || createCompanyMutation.isPending}
                       onClick={() => createCompanyMutation.mutate({ name: newCompanyName.trim(), cnpj: newCompanyCnpj })}
-                      className="h-8 bg-emerald-600 px-4 text-xs text-white hover:bg-emerald-700"
+                      className="h-8 bg-success px-4 text-xs text-white hover:bg-success/90"
                     >
                       <Plus className="w-3.5 h-3.5 mr-1.5" />
                       Cadastrar empresa
                     </Button>
-                    <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-xs text-slate-400 hover:text-slate-600">
+                    <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-xs text-muted-foreground hover:text-slate-600">
                       Cancelar
                     </button>
                   </div>
@@ -1248,46 +1246,46 @@ export default function SystemSettingsPage() {
           {/* ════════════════════════════════════════════════════════════════
               ZONA 2 — VALORES LEGADOS E OVERRIDES (colapsada por padrão)
              ════════════════════════════════════════════════════════════════ */}
-          <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/60">
+          <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen} className="overflow-hidden rounded-xl border border-border bg-surface-muted/60">
             <CollapsibleTrigger asChild>
               <button
                 type="button"
-                className="group flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-100/70"
+                className="group flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/70"
               >
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="text-sm font-bold text-gray-700">Valores legados e overrides</span>
-                  <span className="rounded-full border border-gray-300 bg-gray-200 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600">
+                  <span className="text-sm font-bold text-slate-700">Valores legados e overrides</span>
+                  <span className="rounded-full border border-slate-300 bg-border px-2.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-slate-600">
                     Legado — usado só como fallback/override
                   </span>
                 </div>
-                <ChevronDown className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-data-[state=open]:rotate-180" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="space-y-5 border-t border-gray-200 p-5">
-                <p className="text-xs text-gray-500">
+              <div className="space-y-5 border-t border-border p-5">
+                <p className="text-xs text-muted-foreground">
                   Os valores desta seção <span className="font-semibold">não entram no cálculo automático</span> — servem apenas de fallback quando um orçamento tem valor preenchido manualmente (override) ou quando a função não é coberta pelas regras acima.
                 </p>
 
                 {/* Toggle Casa/Freela — afeta APENAS os valores legados abaixo */}
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-1 rounded-xl bg-slate-200/70 p-1">
+                  <div className="flex items-center gap-1 rounded-xl bg-border/70 p-1">
                     <button
                       type="button"
                       onClick={() => setActiveTab('casa')}
-                      className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-all ${activeTab === 'casa' ? 'bg-white text-blue-800 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
+                      className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${activeTab === 'casa' ? 'bg-card text-primary shadow-1' : 'text-muted-foreground hover:text-muted-foreground'}`}
                     >
                       <Building2 className="h-3.5 w-3.5" /> Casa
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveTab('freela')}
-                      className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-all ${activeTab === 'freela' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
+                      className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${activeTab === 'freela' ? 'bg-card text-primary shadow-1' : 'text-muted-foreground hover:text-muted-foreground'}`}
                     >
                       <Users className="h-3.5 w-3.5" /> Freela
                     </button>
                   </div>
-                  <span className="text-[11px] text-slate-500">
+                  <span className="text-2xs text-muted-foreground">
                     Afeta apenas os valores legados abaixo — as regras aplicadas no cálculo não mudam.
                   </span>
                 </div>
@@ -1295,61 +1293,61 @@ export default function SystemSettingsPage() {
                 <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
 
                   {/* Diárias legadas útil/fds */}
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                  <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
                     <SectionHeader
                       icon={DollarSign}
-                      iconBg={activeTab === 'casa' ? 'bg-blue-500' : 'bg-violet-500'}
+                      iconBg={activeTab === 'casa' ? 'bg-primary' : 'bg-primary'}
                       title={`Diárias ${activeTab === 'casa' ? 'Casa' : 'Freela'} (legado útil/fds)`}
                       subtitle="Valor por dia trabalhado — modelo antigo"
                     />
                     <div className="flex flex-col gap-3.5 p-4">
                       {activeTab === 'casa' ? (<>
-                        <MoneyField control={form.control} name="default_daily_value_weekday" label="Dia Útil" labelClass="text-blue-600" />
-                        <MoneyField control={form.control} name="default_daily_value_weekend" label="Fim de Semana" labelClass="text-orange-500" />
+                        <MoneyField control={form.control} name="default_daily_value_weekday" label="Dia Útil" labelClass="text-primary" />
+                        <MoneyField control={form.control} name="default_daily_value_weekend" label="Fim de Semana" labelClass="text-warning-strong" />
                       </>) : (<>
-                        <MoneyField control={form.control} name="default_daily_value_weekday_freela" label="Dia Útil" labelClass="text-blue-600" />
-                        <MoneyField control={form.control} name="default_daily_value_weekend_freela" label="Fim de Semana" labelClass="text-orange-500" />
+                        <MoneyField control={form.control} name="default_daily_value_weekday_freela" label="Dia Útil" labelClass="text-primary" />
+                        <MoneyField control={form.control} name="default_daily_value_weekend_freela" label="Fim de Semana" labelClass="text-warning-strong" />
                       </>)}
-                      <p className="mb-0 text-[11px] text-gray-400">
+                      <p className="mb-0 text-2xs text-muted-foreground">
                         Onde ainda é usado: apenas como fallback/override manual de diária em orçamentos — o cálculo automático usa as regras de "Diárias Casa/Freela" da seção aplicada.
                       </p>
                     </div>
                   </div>
 
                   {/* Alimentação legada útil/fds */}
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                  <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
                     <SectionHeader
                       icon={Utensils}
-                      iconBg="bg-emerald-500"
+                      iconBg="bg-success-strong"
                       title={`Alimentação ${activeTab === 'casa' ? 'Casa' : 'Freela'} (legado útil/fds)`}
                       subtitle="Almoço e jantar por dia — modelo antigo"
                     />
                     <div className="flex flex-col gap-3.5 p-4">
                       <div>
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-600">Dias Úteis</p>
+                        <p className="mb-2 text-2xs font-bold uppercase tracking-wider text-primary">Dias Úteis</p>
                         <div className="grid grid-cols-2 gap-3">
                           {activeTab === 'casa' ? (<>
-                            <MoneyField control={form.control} name="default_weekday_lunch" label="Almoço" labelClass="text-gray-400" />
-                            <MoneyField control={form.control} name="default_weekday_dinner" label="Jantar" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekday_lunch" label="Almoço" labelClass="text-muted-foreground" />
+                            <MoneyField control={form.control} name="default_weekday_dinner" label="Jantar" labelClass="text-muted-foreground" />
                           </>) : (<>
-                            <MoneyField control={form.control} name="default_weekday_lunch_freela" label="Almoço" labelClass="text-gray-400" />
-                            <MoneyField control={form.control} name="default_weekday_dinner_freela" label="Jantar" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekday_lunch_freela" label="Almoço" labelClass="text-muted-foreground" />
+                            <MoneyField control={form.control} name="default_weekday_dinner_freela" label="Jantar" labelClass="text-muted-foreground" />
                           </>)}
                         </div>
                       </div>
-                      <div className="border-t border-gray-100 pt-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-orange-500">Fim de Semana</p>
+                      <div className="border-t border-border pt-3">
+                        <p className="mb-2 text-2xs font-bold uppercase tracking-wider text-warning-strong">Fim de Semana</p>
                         <div className="grid grid-cols-2 gap-3">
                           {activeTab === 'casa' ? (<>
-                            <MoneyField control={form.control} name="default_weekend_lunch" label="Almoço" labelClass="text-gray-400" />
-                            <MoneyField control={form.control} name="default_weekend_dinner" label="Jantar" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekend_lunch" label="Almoço" labelClass="text-muted-foreground" />
+                            <MoneyField control={form.control} name="default_weekend_dinner" label="Jantar" labelClass="text-muted-foreground" />
                           </>) : (<>
-                            <MoneyField control={form.control} name="default_weekend_lunch_freela" label="Almoço" labelClass="text-gray-400" />
-                            <MoneyField control={form.control} name="default_weekend_dinner_freela" label="Jantar" labelClass="text-gray-400" />
+                            <MoneyField control={form.control} name="default_weekend_lunch_freela" label="Almoço" labelClass="text-muted-foreground" />
+                            <MoneyField control={form.control} name="default_weekend_dinner_freela" label="Jantar" labelClass="text-muted-foreground" />
                           </>)}
                         </div>
                       </div>
-                      <p className="mb-0 text-[11px] text-gray-400">
+                      <p className="mb-0 text-2xs text-muted-foreground">
                         Onde ainda é usado: apenas em overrides manuais de alimentação — o cálculo automático usa "Alimentação por refeição (regra por voo)" da seção aplicada.
                       </p>
                     </div>
@@ -1378,20 +1376,20 @@ export default function SystemSettingsPage() {
                     : regularFns;
 
                   return (
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                    <div className="overflow-hidden rounded-xl border border-border bg-card">
+                      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
-                            <BadgeCheck className="w-4 h-4 text-indigo-500" />
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft">
+                            <BadgeCheck className="w-4 h-4 text-primary" />
                           </div>
                           <div>
-                            <p className="text-sm font-semibold leading-tight text-slate-800">Diária por Função (legado)</p>
-                            <p className="text-[11px] font-light text-slate-400">
+                            <p className="text-sm font-semibold leading-tight text-foreground">Diária por Função (legado)</p>
+                            <p className="text-2xs font-light text-muted-foreground">
                               Onde ainda vale: só para funções fora das regras acima — para o time casa/freela coberto pelas regras, estes valores deixaram de ser usados no cálculo.
                             </p>
                           </div>
                           {dirtyFunctionCount > 0 && (
-                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                            <span className="rounded-full bg-warning-soft px-2 py-0.5 text-2xs font-semibold text-warning">
                               {dirtyFunctionCount} alterada{dirtyFunctionCount > 1 ? 's' : ''}
                             </span>
                           )}
@@ -1399,9 +1397,9 @@ export default function SystemSettingsPage() {
                       </div>
 
                       {allFunctions.length > 0 && (
-                        <div className="border-b border-slate-100 px-5 py-3">
+                        <div className="border-b border-border px-5 py-3">
                           <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                             <input
                               type="text"
                               aria-label="Buscar função"
@@ -1409,7 +1407,7 @@ export default function SystemSettingsPage() {
                               value={functionSearch}
                               onChange={e => setFunctionSearch(e.target.value)}
                               onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-                              className="w-full rounded-full border-none bg-slate-100 py-2 pl-9 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                              className="w-full rounded-full border-none bg-muted py-2 pl-9 pr-4 text-sm text-slate-700 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
                             />
                           </div>
                         </div>
@@ -1418,24 +1416,24 @@ export default function SystemSettingsPage() {
                       {allFunctions.length === 0 ? (
                         <div className="px-6 py-12 text-center">
                           <BadgeCheck className="mx-auto mb-3 h-8 w-8 text-slate-200" />
-                          <p className="mb-1 text-sm font-medium text-slate-500">Nenhuma função cadastrada.</p>
-                          <p className="mb-4 text-xs text-slate-400">Acesse a página de Funções para adicionar.</p>
-                          <Link href="/functions" className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:underline">
+                          <p className="mb-1 text-sm font-medium text-muted-foreground">Nenhuma função cadastrada.</p>
+                          <p className="mb-4 text-xs text-muted-foreground">Acesse a página de Funções para adicionar.</p>
+                          <Link href="/functions" className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
                             Ir para Funções <ExternalLink className="w-3 h-3" />
                           </Link>
                         </div>
                       ) : visibleFns.length === 0 ? (
-                        <div className="px-6 py-8 text-center text-sm text-slate-400">
+                        <div className="px-6 py-8 text-center text-sm text-muted-foreground">
                           Nenhuma função encontrada para "<span className="font-medium">{functionSearch}</span>".
                         </div>
                       ) : (
                         <div className="overflow-x-auto"><div className="min-w-[420px]">
-                          <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Função</span>
-                            <span className="text-right text-[10px] font-bold uppercase tracking-wider text-blue-600">Dia Útil</span>
-                            <span className="text-right text-[10px] font-bold uppercase tracking-wider text-orange-500">Fim de Semana</span>
+                          <div className="grid grid-cols-3 border-b border-border bg-surface-muted px-5 py-2">
+                            <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Função</span>
+                            <span className="text-right text-2xs font-bold uppercase tracking-wider text-primary">Dia Útil</span>
+                            <span className="text-right text-2xs font-bold uppercase tracking-wider text-warning-strong">Fim de Semana</span>
                           </div>
-                          <div className="divide-y divide-slate-100">
+                          <div className="divide-y divide-border">
                             {visibleFns.map((fn) => {
                               const isCoord = fn.responsibleArea === '__system__';
                               const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
@@ -1457,14 +1455,14 @@ export default function SystemSettingsPage() {
                                 const isZero = parseBrNumber(currentVal) === 0;
                                 const hasFallback = isZero && fallbackVal && parseBrNumber(fallbackVal) > 0;
                                 const valueColor = hasCustom
-                                  ? (field === 'we' ? 'text-orange-500' : activeTab === 'casa' ? 'text-indigo-700' : 'text-violet-700')
-                                  : 'text-slate-400';
+                                  ? (field === 'we' ? 'text-warning-strong' : activeTab === 'casa' ? 'text-primary' : 'text-primary')
+                                  : 'text-muted-foreground';
                                 return (
                                   <div
                                     role={isEditing ? undefined : "button"}
                                     tabIndex={isEditing ? -1 : 0}
                                     aria-label={`Editar ${field === 'wd' ? 'dia útil' : 'fim de semana'} de ${toTitleCase(fn.name)}`}
-                                    className="group/cell flex items-center justify-end gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                                    className="group/cell flex items-center justify-end gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                                     onClick={e => { e.stopPropagation(); if (!isEditing) startEditFunction(fn, field); }}
                                     onKeyDown={e => {
                                       if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
@@ -1475,8 +1473,8 @@ export default function SystemSettingsPage() {
                                   >
                                     {isEditing ? (
                                       <div className="flex items-center gap-1">
-                                        <div className="flex items-center gap-0.5 rounded border border-slate-300 bg-white px-1.5 py-0.5 shadow-sm">
-                                          <span className="select-none text-[10px] font-medium text-slate-400">R$</span>
+                                        <div className="flex items-center gap-0.5 rounded border border-slate-300 bg-card px-1.5 py-0.5 shadow-1">
+                                          <span className="select-none text-2xs font-medium text-muted-foreground">R$</span>
                                           <input
                                             ref={editInputRef}
                                             type="text"
@@ -1492,7 +1490,7 @@ export default function SystemSettingsPage() {
                                             className="w-16 border-none bg-transparent text-right font-mono text-sm font-semibold tabular-nums text-slate-700 outline-none focus:outline-none"
                                           />
                                         </div>
-                                        <button type="button" aria-label="Cancelar edição" onClick={cancelEditFunction} className="flex items-center justify-center text-slate-400 opacity-0 transition-opacity hover:text-slate-600 group-hover/cell:opacity-100">
+                                        <button type="button" aria-label="Cancelar edição" onClick={cancelEditFunction} className="flex items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-slate-600 group-hover/cell:opacity-100">
                                           <X className="w-3 h-3" />
                                         </button>
                                       </div>
@@ -1502,7 +1500,7 @@ export default function SystemSettingsPage() {
                                           hasFallback ? (
                                             <Tooltip delayDuration={200}>
                                               <TooltipTrigger asChild>
-                                                <span className="text-sm font-medium tabular-nums text-orange-500">
+                                                <span className="text-sm font-medium tabular-nums text-warning-strong">
                                                   R$ {parseBrNumber(fallbackVal!).toFixed(2).replace('.', ',')}
                                                 </span>
                                               </TooltipTrigger>
@@ -1511,14 +1509,14 @@ export default function SystemSettingsPage() {
                                               </TooltipContent>
                                             </Tooltip>
                                           ) : (
-                                            <span className="text-sm italic text-slate-300">—</span>
+                                            <span className="text-sm italic text-muted-foreground">—</span>
                                           )
                                         ) : (
                                           <span className={`text-sm font-semibold tabular-nums ${valueColor}`}>
                                             {`R$ ${parseBrNumber(currentVal).toFixed(2).replace('.', ',')}`}
                                           </span>
                                         )}
-                                        <Pencil className="h-3 w-3 text-slate-300 opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100" />
+                                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100" />
                                       </div>
                                     )}
                                   </div>
@@ -1529,8 +1527,8 @@ export default function SystemSettingsPage() {
                                 <div
                                   key={fn.id}
                                   className={`group grid min-h-[44px] grid-cols-3 items-center gap-2 px-5 py-1.5 transition-colors
-                                    ${isCoord ? 'bg-blue-50/40' : 'bg-white hover:bg-slate-50/70'}
-                                    ${isDirty ? 'ring-1 ring-inset ring-amber-200' : ''}
+                                    ${isCoord ? 'bg-brand-soft/40' : 'bg-card hover:bg-surface-muted/70'}
+                                    ${isDirty ? 'ring-1 ring-inset ring-warning/25' : ''}
                                   `}
                                 >
                                   {/* Nome + badges */}
@@ -1538,7 +1536,7 @@ export default function SystemSettingsPage() {
                                     {isCoord ? (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <span className="shrink-0 cursor-help rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">Base</span>
+                                          <span className="shrink-0 cursor-help rounded-full bg-brand-soft px-1.5 py-0.5 text-2xs font-semibold text-primary">Base</span>
                                         </TooltipTrigger>
                                         <TooltipContent side="top" className="max-w-[220px] text-center text-xs leading-snug">
                                           Função base: valor usado como referência quando a função do colaborador não possui valor personalizado cadastrado
@@ -1547,10 +1545,10 @@ export default function SystemSettingsPage() {
                                     ) : null}
                                     <span
                                       className={`truncate text-sm font-medium ${
-                                        isCoord ? 'text-blue-700'
-                                        : isDirty ? 'font-semibold text-amber-700'
-                                        : activeTab === 'freela' ? 'text-amber-600'
-                                        : 'text-gray-700'
+                                        isCoord ? 'text-primary'
+                                        : isDirty ? 'font-semibold text-warning'
+                                        : activeTab === 'freela' ? 'text-warning'
+                                        : 'text-slate-700'
                                       }`}
                                     >
                                       {toTitleCase(fn.name)}
@@ -1565,9 +1563,9 @@ export default function SystemSettingsPage() {
                               );
                             })}
                           </div>
-                          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-                            <span className="text-[11px] text-slate-400">{allFunctions.length} {allFunctions.length === 1 ? 'função' : 'funções'} cadastradas</span>
-                            <Link href="/functions" className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-500 hover:text-indigo-700 hover:underline">
+                          <div className="flex items-center justify-between border-t border-border px-5 py-3">
+                            <span className="text-2xs text-muted-foreground">{allFunctions.length} {allFunctions.length === 1 ? 'função' : 'funções'} cadastradas</span>
+                            <Link href="/functions" className="inline-flex items-center gap-1 text-2xs font-medium text-primary hover:text-primary-hover hover:underline">
                               Gerenciar funções <ExternalLink className="w-3 h-3" />
                             </Link>
                           </div>
@@ -1581,14 +1579,14 @@ export default function SystemSettingsPage() {
           </Collapsible>
 
           {/* ── Rodapé informativo (o salvamento acontece na barra flutuante) ── */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 py-4">
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border py-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Lock className="w-4 h-4 flex-shrink-0" />
               <span>Administradores e Financeiro/RH podem alterar estes valores</span>
             </div>
             <div className="flex items-center gap-3">
               {lastSaved && (
-                <span className="hidden text-xs text-gray-400 sm:block">
+                <span className="hidden text-xs text-muted-foreground sm:block">
                   Salvo em {formatDateTime(lastSaved.timestamp)} · <span className="font-medium">{lastSaved.user}</span>
                 </span>
               )}
@@ -1599,7 +1597,7 @@ export default function SystemSettingsPage() {
                 onClick={handleApplyToPending}
                 disabled={isApplyingPending}
                 title="Aplica os valores padrão já salvos a todos os orçamentos planejados ainda não enviados. Ao salvar alterações, isso já é feito automaticamente."
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-semibold text-gray-600 transition-colors hover:border-indigo-500 hover:text-indigo-600 disabled:cursor-not-allowed disabled:text-gray-400"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-300 bg-card px-3.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary-hover disabled:cursor-not-allowed disabled:text-muted-foreground"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isApplyingPending ? 'animate-spin' : ''}`} />
                 {isApplyingPending ? 'Aplicando...' : 'Atualizar Planejado'}
@@ -1611,7 +1609,7 @@ export default function SystemSettingsPage() {
 
       {/* Confirmação de exclusão de empresa pagadora (padrão do app) */}
       <AlertDialog open={!!companyToDelete} onOpenChange={open => { if (!open) setCompanyToDelete(null); }}>
-        <AlertDialogContent className="rounded-2xl">
+        <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Remover empresa pagadora?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1625,7 +1623,7 @@ export default function SystemSettingsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-lg bg-red-600 hover:bg-red-700"
+              className="rounded-lg bg-danger hover:bg-danger/90"
               onClick={() => { if (companyToDelete) deleteCompanyMutation.mutate(companyToDelete.id); setCompanyToDelete(null); }}
             >
               Remover
@@ -1635,54 +1633,54 @@ export default function SystemSettingsPage() {
       </AlertDialog>
 
       {/* ── Histórico deste navegador (localStorage — não compartilhado) ── */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200">
+      <div className="overflow-hidden rounded-xl border border-border">
         {groupedHistory.length === 0 ? (
-          <div className="flex items-center gap-2.5 px-5 py-4 text-sm text-gray-400">
-            <Clock className="w-4 h-4 text-gray-300" />
+          <div className="flex items-center gap-2.5 px-5 py-4 text-sm text-muted-foreground">
+            <Clock className="w-4 h-4 text-muted-foreground" />
             <span>Histórico deste navegador</span>
-            <span className="text-gray-300">·</span>
-            <span className="font-normal text-gray-400">Nenhuma alteração registrada neste navegador</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-normal text-muted-foreground">Nenhuma alteração registrada neste navegador</span>
           </div>
         ) : (
           <>
             <button
               type="button"
               onClick={() => setHistoryOpen(o => !o)}
-              className="flex w-full items-center justify-between bg-gray-50 px-5 py-4 transition-colors hover:bg-gray-100"
+              className="flex w-full items-center justify-between bg-surface-muted px-5 py-4 transition-colors hover:bg-muted"
             >
-              <div className="flex flex-wrap items-center gap-2.5 text-sm font-semibold text-gray-700">
-                <Clock className="w-4 h-4 text-indigo-500" />
+              <div className="flex flex-wrap items-center gap-2.5 text-sm font-semibold text-slate-700">
+                <Clock className="w-4 h-4 text-primary" />
                 Histórico deste navegador
-                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-600">
+                <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-bold text-primary">
                   {groupedHistory.length}
                 </span>
-                <span className="text-[11px] font-normal text-gray-400">
+                <span className="text-2xs font-normal text-muted-foreground">
                   registrado localmente — outros usuários não veem estas entradas
                 </span>
               </div>
-              {historyOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              {historyOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
             </button>
             {historyOpen && (
-              <div className="divide-y divide-gray-100 bg-white">
+              <div className="divide-y divide-border bg-card">
                 {groupedHistory.map((group, gi) => (
                   <div key={gi} className="flex items-start gap-4 px-5 py-4">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-primary-foreground">
                       {getUserInitials(group.user)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-800">{group.user}</span>
-                        <span className="text-xs text-gray-400">{formatDateTime(group.timestamp)}</span>
-                        <span className="text-xs text-gray-400">· alterou:</span>
+                        <span className="text-sm font-semibold text-foreground">{group.user}</span>
+                        <span className="text-xs text-muted-foreground">{formatDateTime(group.timestamp)}</span>
+                        <span className="text-xs text-muted-foreground">· alterou:</span>
                       </div>
                       <div className="space-y-0.5">
                         {group.entries.map((e, ei) => (
-                          <div key={ei} className="flex items-center gap-1.5 text-xs text-gray-600">
-                            <span className="text-gray-300">·</span>
-                            <span className="font-medium text-gray-700">{e.field}:</span>
-                            <span className="text-red-400 line-through">{e.oldValue}</span>
-                            <span className="text-gray-300">→</span>
-                            <span className="font-semibold text-emerald-600">{e.newValue}</span>
+                          <div key={ei} className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <span className="text-muted-foreground">·</span>
+                            <span className="font-medium text-slate-700">{e.field}:</span>
+                            <span className="text-danger-strong line-through">{e.oldValue}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-semibold text-success">{e.newValue}</span>
                           </div>
                         ))}
                       </div>

@@ -26,17 +26,17 @@ export default function AttachmentLightbox({ item, onClose }: { item: LightboxIt
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="!max-w-5xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-[14px] flex flex-col" data-testid="dialog-lightbox">
+      <DialogContent className="!max-w-5xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-xl flex flex-col" data-testid="dialog-lightbox">
         {item && (
           <>
-            <div className="bg-white border-b border-slate-100 px-5 py-3 pr-12 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+            <div className="bg-card border-b border-border px-5 py-3 pr-12 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
               <DialogTitle className="text-sm font-semibold text-slate-700 truncate">Visualizando anexo</DialogTitle>
               <DialogDescription className="sr-only">{item.name}</DialogDescription>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={download}
-                  className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
+                  className="border border-border text-slate-600 hover:bg-surface-muted rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   Baixar
@@ -44,14 +44,14 @@ export default function AttachmentLightbox({ item, onClose }: { item: LightboxIt
                 <button
                   type="button"
                   onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
-                  className="border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
+                  className="border border-primary/25 text-primary bg-brand-soft hover:bg-brand-soft rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
                   Abrir em outra aba
                 </button>
               </div>
             </div>
-            <div className="bg-slate-50 overflow-auto flex items-center justify-center min-h-[60vh] flex-1">
+            <div className="bg-surface-muted overflow-auto flex items-center justify-center min-h-[60vh] flex-1">
               <img src={item.url} alt={`Visualização do anexo ${item.name}`} className="max-w-full object-contain" style={{ maxHeight: "80vh" }} />
             </div>
           </>

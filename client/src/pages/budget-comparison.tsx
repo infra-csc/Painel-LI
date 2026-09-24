@@ -1,5 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { fixEncoding, parseBrNumber } from "@/lib/utils";
+import { useState, useMemo, useEffect, useRef, useDeferredValue } from "react";
+import { cn, fixEncoding, parseBrNumber } from "@/lib/utils";
+import { formatarMoeda, avatarClasses } from "@/lib/format";
+import { agruparPor, chaveComposta } from "@/lib/indices";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,33 +28,26 @@ import type { LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSearchSelect } from "@/components/event-select";
 import { useSearch } from "wouter";
+import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison, BudgetNote, TeamInclusion } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { normalizeRole } from "@shared/roles";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 import { ActivityTimeline, PlannedEditedBadge } from "@/components/activity-timeline";
 import { diasComDiaria } from "@shared/calculation-rules";
+import { EmptyState } from "@/components/common/empty-state";
 
-const AVATAR_COLORS = [
-  'bg-violet-500','bg-blue-500','bg-emerald-500','bg-orange-500',
-  'bg-pink-500','bg-indigo-500','bg-amber-500','bg-teal-500',
-  'bg-cyan-500','bg-rose-500',
-];
-
-function avatarColor(name: string) {
-  const idx = name.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[idx];
-}
+const avatarColor = (name: string) => avatarClasses(name).join(" ");
 
 function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
-// Formatador de moeda criado uma única vez (Intl.NumberFormat é caro de instanciar)
-const brlFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const fmt = (cents: number) => brlFormatter.format(cents / 100);
+// Formatador único de moeda (lib/format) — antes cada tela tinha o seu Intl.
+const fmt = formatarMoeda;
 
 // Parse seguro do JSON de rhAdjustedFields — retorna [] se ausente ou inválido
 function parseAdjustedFields(raw: string | null | undefined): string[] {
@@ -66,7 +61,7 @@ function parseAdjustedFields(raw: string | null | undefined): string[] {
 }
 
 // Classe padrão dos SelectItem (evita repetição da string em cada item)
-const SELECT_ITEM_CLS = "hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium";
+const SELECT_ITEM_CLS = "hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium";
 
 // Forma dos registros de activity log retornados por /api/activity-logs/by-event
 // (estruturalmente compatível com o ActivityLog interno de activity-timeline.tsx)
@@ -98,45 +93,45 @@ function CategoryBlock({ title, icon: Icon, iconColor, bgColor, stripColor, rows
   const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
 
   return (
-    <div className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50">
+    <div className="rounded-xl border border-border overflow-hidden bg-surface-muted/50">
       {/* Category header */}
-      <div className={`flex items-center justify-between px-3 ${bgColor} border-b border-slate-100`} style={{ height: 32 }}>
+      <div className={`flex items-center justify-between px-3 ${bgColor} border-b border-border`} style={{ height: 32 }}>
         <div className="flex items-center gap-1.5">
           <div className={`w-4 h-4 rounded flex items-center justify-center ${stripColor}`}>
             <Icon className="w-2.5 h-2.5 text-white" />
           </div>
-          <span className={`text-[10px] font-bold uppercase tracking-wide ${iconColor}`}>{title}</span>
+          <span className={`text-2xs font-bold uppercase tracking-wide ${iconColor}`}>{title}</span>
           {badge && (
-            <span className="text-[10px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full leading-none">
+            <span className="text-2xs font-medium text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded-full leading-none">
               {badge}
             </span>
           )}
           {hasAnyDiff && (
-            <span className="flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full leading-none">
+            <span className="flex items-center gap-0.5 text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 px-1.5 py-0.5 rounded-full leading-none">
               <AlertTriangle className="w-2 h-2" /> Divergência
             </span>
           )}
         </div>
-        <span className={`text-[12px] font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
+        <span className={`text-xs font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
       </div>
 
       {/* Rows */}
-      <div className="divide-y divide-slate-100 bg-white">
+      <div className="divide-y divide-border bg-card">
         {rows.map((row, i) => {
           const diff  = row.actual - row.planned;
           const isDiff = diff !== 0;
           return (
-            <div key={i} className="grid grid-cols-4 gap-2 px-3 text-[12px] items-center" style={{ height: 32 }}>
-              <span className="text-slate-500 font-medium text-[11px]">{row.label}</span>
-              <span className="text-right tabular-nums text-blue-600 font-medium text-[11px]">{fmtVal(row.planned, row.isQuantity)}</span>
-              <span className={`text-right tabular-nums font-medium text-[11px] ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
+            <div key={i} className="grid grid-cols-4 gap-2 px-3 text-xs items-center" style={{ height: 32 }}>
+              <span className="text-muted-foreground font-medium text-2xs">{row.label}</span>
+              <span className="text-right tabular-nums text-primary font-medium text-2xs">{fmtVal(row.planned, row.isQuantity)}</span>
+              <span className={`text-right tabular-nums font-medium text-2xs ${isDiff ? 'text-primary' : 'text-primary/70'}`}>
                 {fmtVal(row.actual, row.isQuantity)}
               </span>
               <div className="text-right">
                 {diff === 0 ? (
-                  <span className="text-slate-300 tabular-nums text-[11px]">—</span>
+                  <span className="text-muted-foreground tabular-nums text-2xs">—</span>
                 ) : (
-                  <span className={`tabular-nums font-semibold text-[10px] ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                  <span className={`tabular-nums font-semibold text-2xs ${diff > 0 ? 'text-danger-strong' : 'text-success'}`}>
                     {row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}`}
                   </span>
                 )}
@@ -148,15 +143,15 @@ function CategoryBlock({ title, icon: Icon, iconColor, bgColor, stripColor, rows
 
       {/* Subtotal */}
       {currencyRows.length > 0 && (
-        <div className={`grid grid-cols-4 gap-2 px-3 text-[11px] items-center border-t border-slate-100 ${subtotalDiff > 0 ? 'bg-red-50/40' : subtotalDiff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`} style={{ height: 28 }}>
-          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-semibold">Subtotal</span>
-          <span className="text-right tabular-nums text-blue-700 font-semibold">{fmt(subtotalPlanned)}</span>
-          <span className={`text-right tabular-nums font-semibold ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
+        <div className={`grid grid-cols-4 gap-2 px-3 text-2xs items-center border-t border-border ${subtotalDiff > 0 ? 'bg-danger-soft/40' : subtotalDiff < 0 ? 'bg-success-soft/40' : 'bg-surface-muted'}`} style={{ height: 28 }}>
+          <span className="text-muted-foreground uppercase text-2xs tracking-wider font-semibold">Subtotal</span>
+          <span className="text-right tabular-nums text-primary font-semibold">{fmt(subtotalPlanned)}</span>
+          <span className={`text-right tabular-nums font-semibold ${subtotalDiff !== 0 ? 'text-primary' : 'text-primary'}`}>{fmt(subtotalActual)}</span>
           <div className="text-right">
             {subtotalDiff === 0 ? (
-              <span className="text-slate-300 tabular-nums">—</span>
+              <span className="text-muted-foreground tabular-nums">—</span>
             ) : (
-              <span className={`tabular-nums text-[10px] font-semibold ${subtotalDiff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+              <span className={`tabular-nums text-2xs font-semibold ${subtotalDiff > 0 ? 'text-danger-strong' : 'text-success'}`}>
                 {subtotalDiff > 0 ? '+' : '−'}{fmt(Math.abs(subtotalDiff))}
               </span>
             )}
@@ -171,16 +166,16 @@ function CategoryBlock({ title, icon: Icon, iconColor, bgColor, stripColor, rows
 function SubRow({ label, planned, actual, rowIndex }: { label: string; planned: number; actual: number; rowIndex: number }) {
   const d = actual - planned;
   return (
-    <div className={`grid grid-cols-4 gap-4 px-4 py-2 items-center ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}`}>
+    <div className={`grid grid-cols-4 gap-4 px-4 py-2 items-center ${rowIndex % 2 === 0 ? 'bg-card' : 'bg-surface-muted/70'}`}>
       <div className="flex items-center gap-1.5 pl-3">
-        <span className="text-slate-300 text-[10px] select-none">└</span>
-        <span className="text-[10px] text-slate-400">{label}</span>
+        <span className="text-muted-foreground text-2xs select-none">└</span>
+        <span className="text-2xs text-muted-foreground">{label}</span>
       </div>
-      <span className="text-right tabular-nums text-[11px] text-blue-500">{fmt(planned)}</span>
-      <span className={`text-right tabular-nums text-[11px] ${d !== 0 ? 'text-violet-600' : 'text-violet-400'}`}>{fmt(actual)}</span>
+      <span className="text-right tabular-nums text-2xs text-primary">{fmt(planned)}</span>
+      <span className={`text-right tabular-nums text-2xs ${d !== 0 ? 'text-primary' : 'text-primary/70'}`}>{fmt(actual)}</span>
       <div className="text-right">
-        {d === 0 ? <span className="text-slate-300 text-[10px]">—</span> : (
-          <span className={`text-[10px] font-semibold ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+        {d === 0 ? <span className="text-muted-foreground text-2xs">—</span> : (
+          <span className={`text-2xs font-semibold ${d > 0 ? 'text-danger-strong' : 'text-success-strong'}`}>
             {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
           </span>
         )}
@@ -196,25 +191,25 @@ function SectionBlock({ title, icon: Icon, headerBg, iconColor, titleColor, subt
 }) {
   const d = subtotalAct - subtotalPlan;
   return (
-    <div className="rounded-xl overflow-hidden border border-slate-100">
+    <div className="rounded-xl overflow-hidden border border-border">
       <div className={`flex items-center gap-1.5 px-4 py-2 border-b border-white/40 ${headerBg}`}>
         <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
-        <span className={`text-[10px] font-bold tracking-wide ${titleColor}`}>{title}</span>
+        <span className={`text-2xs font-bold tracking-wide ${titleColor}`}>{title}</span>
       </div>
       <div className={`grid grid-cols-4 gap-4 px-4 py-2 ${headerBg}`}>
-        <span className={`text-[10px] font-semibold ${titleColor} opacity-70`}>Total</span>
-        <span className="text-right tabular-nums text-[11px] text-blue-600 font-semibold">{fmt(subtotalPlan)}</span>
-        <span className={`text-right tabular-nums text-[11px] font-semibold ${d !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
+        <span className={`text-2xs font-semibold ${titleColor} opacity-70`}>Total</span>
+        <span className="text-right tabular-nums text-2xs text-primary font-semibold">{fmt(subtotalPlan)}</span>
+        <span className={`text-right tabular-nums text-2xs font-semibold ${d !== 0 ? 'text-primary' : 'text-primary'}`}>{fmt(subtotalAct)}</span>
         <div className="text-right">
           {d === 0
-            ? <span className="text-slate-300 text-[10px]">—</span>
-            : <span className={`text-[11px] font-bold tabular-nums ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+            ? <span className="text-muted-foreground text-2xs">—</span>
+            : <span className={`text-2xs font-bold tabular-nums ${d > 0 ? 'text-danger-strong' : 'text-success-strong'}`}>
                 {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
               </span>
           }
         </div>
       </div>
-      <div className="divide-y divide-slate-50">
+      <div className="divide-y divide-border">
         {children}
       </div>
     </div>
@@ -233,10 +228,8 @@ export default function BudgetComparisonPage() {
   }, [searchString]);
   const [highlightCardId, setHighlightCardId] = useState<string>("");
 
-  const [selectedEventId, setSelectedEventId] = useState<string>(() => {
-    const p = new URLSearchParams(window.location.search);
-    return p.get("event") || "";
-  });
+  // Evento em foco (23/09): compartilhado com Planejado, Realizado, Controle RH e Notas.
+  const { eventId: selectedEventId, setEventId: setSelectedEventId, sanitize: sanearEventoEmFoco } = useEventoEmFoco();
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return' } | null>(null);
   const [actionNote, setActionNote] = useState("");
   const [actionNoteError, setActionNoteError] = useState(false);
@@ -273,59 +266,55 @@ export default function BudgetComparisonPage() {
   const qc = useQueryClient();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  // Evento em foco que não existe mais (excluído) é descartado assim que a lista chega (23/09).
+  useEffect(() => { if (events?.length) sanearEventoEmFoco(events.map(e => e.id)); }, [events, sanearEventoEmFoco]);
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
-  const { data: allTeamInclusions = [] } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
+  // Só as escalações do evento em foco (`?eventId=`, contrato 23/09) — antes
+  // baixava as ~4.500 de todos os eventos para achar o período de cada card.
+  const { data: allTeamInclusions = [] } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions", selectedEventId],
+    queryFn: () => apiRequest("GET", `/api/team-inclusions?eventId=${selectedEventId}`).then(r => r.json()),
+    enabled: !!selectedEventId,
+  });
+  // Escalação por evento+colaborador+função (primeira vence, como o `.find` antigo)
+  const inclusaoPorChave = useMemo(
+    () => agruparPor(allTeamInclusions, t => chaveComposta(t.eventId, t.collaboratorId, t.functionId)),
+    [allTeamInclusions],
+  );
 
-  const { data: comparison, isLoading: isLoadingComparison } = useQuery<BudgetComparison | null>({
+  // Consultas do evento por `apiRequest` (23/09): checa `res.ok`, trata 401 e
+  // HTML de servidor desatualizado. As chaves seguem com o id separado porque
+  // as invalidações do app usam esse formato — por isso o `queryFn` fica.
+  const { data: comparison, isLoading: isLoadingComparison, isError: isErrorComparison, refetch: refetchComparison } = useQuery<BudgetComparison | null>({
     queryKey: ["/api/budget-comparison", selectedEventId],
-    queryFn: async () => {
-      if (!selectedEventId) return null;
-      const res = await fetch(`/api/budget-comparison?eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/budget-comparison?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
 
   const { data: eventNotes = [] } = useQuery<BudgetNote[]>({
     queryKey: ["/api/budget-notes/by-event", "actual", selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/budget-notes/by-event?entityType=actual&eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch event notes");
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/budget-notes/by-event?entityType=actual&eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
 
   const { data: plannedLogs = [] } = useQuery<ActivityLogEntry[]>({
     queryKey: ['/api/activity-logs/by-event', 'budget_planned', selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`, { credentials: 'include' });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    // Lança em erro (23/09) em vez de devolver `[]` — mesma regra do Realizado.
+    queryFn: () => apiRequest("GET", `/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
     staleTime: 60_000,
   });
 
   const { data: budgetPlanned, isLoading: isLoadingPlanned, isError: isErrorPlanned, refetch: refetchPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/budget-planned?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
 
   const { data: budgetActual, isLoading: isLoadingActual, isError: isErrorActual, refetch: refetchActual } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/budget-actual?eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/budget-actual?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
 
@@ -335,7 +324,7 @@ export default function BudgetComparisonPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Comparativo recalculado", className: "bg-emerald-50 border-emerald-200 text-emerald-800" });
+      toast({ title: "Comparativo recalculado", className: "bg-success-soft border-success/25 text-success" });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
     },
     onError: () => {
@@ -355,9 +344,9 @@ export default function BudgetComparisonPage() {
     },
     onSuccess: (data: any, variables) => {
       const labels: Record<string, { title: string; cls: string }> = {
-        aprovado: { title: "Prestação aprovada — análise formal do RH", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
-        rejeitado: { title: "Prestação recusada", cls: "bg-red-50 border-red-200 text-red-800" },
-        devolvido: { title: "Devolvido para ajustes", cls: "bg-amber-50 border-amber-200 text-amber-800" },
+        aprovado: { title: "Prestação aprovada — análise formal do RH", cls: "bg-success-soft border-success/25 text-success" },
+        rejeitado: { title: "Prestação recusada", cls: "bg-danger-soft border-danger/25 text-danger" },
+        devolvido: { title: "Devolvido para ajustes", cls: "bg-warning-soft border-warning/25 text-warning" },
       };
       const info = labels[variables.action];
       // O servidor pula itens que não estão enviados (ex.: filho de divisão
@@ -367,7 +356,7 @@ export default function BudgetComparisonPage() {
         toast({
           title: `${info?.title || "Ação realizada"} — ${skipped} ${skipped === 1 ? "item ficou de fora" : "itens ficaram de fora"}`,
           description: "Itens ainda não enviados para análise não entram na decisão. Peça o envio no Realizado e decida-os depois.",
-          className: "bg-amber-50 border-amber-200 text-amber-800",
+          className: "bg-warning-soft border-warning/25 text-warning",
         });
       } else {
         toast({ title: info?.title || "Ação realizada", className: info?.cls });
@@ -388,7 +377,10 @@ export default function BudgetComparisonPage() {
     },
   });
 
-  const isRhOrAdmin = user?.role === 'admin' || user?.role === 'financial';
+  // `normalizeRole` (23/09): papéis legados ("financeiro", "administrador")
+  // perdiam os botões do RH nesta tela.
+  const papel = normalizeRole(user?.role);
+  const isRhOrAdmin = papel === "admin" || papel === "financial";
 
   // Aprovação do COMPARATIVO (fechamento do evento). Decisão 19/08: é aqui que
   // alimentação e mobilidade de todas as prestações entram na Conta Corrente
@@ -408,7 +400,7 @@ export default function BudgetComparisonPage() {
         toast({
           title: "Comparativo aprovado — Flash NÃO creditado",
           description: "A aprovação foi salva, mas os créditos de alimentação e mobilidade não entraram na Conta Corrente Flash. Avise o RH e aprove novamente para refazer o crédito.",
-          className: "bg-amber-50 border-amber-200 text-amber-800",
+          className: "bg-warning-soft border-warning/25 text-warning",
         });
         return;
       }
@@ -419,7 +411,7 @@ export default function BudgetComparisonPage() {
         description: n > 0
           ? `${n} lançamento${n !== 1 ? 's' : ''} no Flash para ${pessoas} colaborador${pessoas !== 1 ? 'es' : ''} — alimentação ${fmt(fc.alimentacaoCents || 0)} · mobilidade ${fmt(fc.mobilidadeCents || 0)}.`
           : "Nenhum valor de alimentação ou mobilidade a creditar no Flash neste evento.",
-        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        className: "bg-success-soft border-success/25 text-success",
       });
     },
     onError: (err: any) => {
@@ -460,7 +452,7 @@ export default function BudgetComparisonPage() {
         description: mudou > 0
           ? `${fc?.created || 0} criado(s) · ${fc?.updated || 0} atualizado(s) · ${fc?.removed || 0} removido(s) — alimentação ${fmt(fc?.alimentacaoCents || 0)} · mobilidade ${fmt(fc?.mobilidadeCents || 0)}.`
           : "Nenhum lançamento precisou mudar: a Conta Corrente Flash já reflete o Realizado atual.",
-        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        className: "bg-success-soft border-success/25 text-success",
       });
     },
     onError: (err: any) => {
@@ -495,7 +487,7 @@ export default function BudgetComparisonPage() {
         toast({
           title: "Comparativo reaberto — Flash NÃO estornado",
           description: "O comparativo voltou para ajuste, mas os lançamentos automáticos continuam na Conta Corrente Flash. Reabra de novo para tentar o estorno.",
-          className: "bg-amber-50 border-amber-200 text-amber-800",
+          className: "bg-warning-soft border-warning/25 text-warning",
         });
         return;
       }
@@ -505,7 +497,7 @@ export default function BudgetComparisonPage() {
         description: n > 0
           ? `${n} lançamento${n !== 1 ? 's' : ''} automático${n !== 1 ? 's' : ''} removido${n !== 1 ? 's' : ''} da Conta Corrente Flash. Ao aprovar de novo, o crédito é recriado.`
           : "Não havia lançamento automático no Flash para estornar neste evento.",
-        className: "bg-amber-50 border-amber-200 text-amber-800",
+        className: "bg-warning-soft border-warning/25 text-warning",
       });
     },
     onError: (err: any) => {
@@ -526,7 +518,7 @@ export default function BudgetComparisonPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setEditingActual(null);
-      toast({ title: "Realizado atualizado pelo RH", className: "bg-amber-50 border-amber-200 text-amber-800" });
+      toast({ title: "Realizado atualizado pelo RH", className: "bg-warning-soft border-warning/25 text-warning" });
     },
     onError: () => toast({ title: "Erro ao salvar", variant: "destructive" }),
   });
@@ -620,11 +612,22 @@ export default function BudgetComparisonPage() {
     return `${d.getDate()}/${monthNames[d.getMonth()]}`;
   };
 
+  // Índices O(1) para nomes (antes `.find` por linha e por comparador de ordenação)
+  const collaboratorNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    collaborators?.forEach(c => m.set(c.id, fixEncoding(c.fullName) || "-"));
+    return m;
+  }, [collaborators]);
+  const functionNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    functions?.forEach(f => m.set(f.id, f.name));
+    return m;
+  }, [functions]);
   const getCollaboratorName = (id?: string | null) =>
-    id ? fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "-" : "-";
+    id ? collaboratorNameById.get(id) || "-" : "-";
 
   const getFunctionName = (id?: string | null) =>
-    id ? functions?.find(f => f.id === id)?.name || "-" : "-";
+    id ? functionNameById.get(id) || "-" : "-";
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
@@ -772,14 +775,17 @@ export default function BudgetComparisonPage() {
 
   // Limpa a seleção quando busca/filtro mudam — itens selecionados podem sair da
   // lista visível. Ordenar não muda a visibilidade, então sortBy fica de fora.
+  // `useDeferredValue` (23/09): refiltrar a cada tecla travava a digitação
+  // nas listas grandes. O input continua controlado por `searchTerm`.
+  const buscaAplicada = useDeferredValue(searchTerm);
   useEffect(() => {
     setSelectedItems(new Set());
-  }, [searchTerm, filterFunction, filterType, statusFilter]);
+  }, [buscaAplicada, filterFunction, filterType, statusFilter]);
 
   const filteredData = useMemo(() => {
     let data = [...comparisonData];
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    if (buscaAplicada) {
+      const term = buscaAplicada.toLowerCase();
       data = data.filter(r => getCollaboratorName(r.collaboratorId).toLowerCase().includes(term));
     }
     if (filterFunction !== "all") data = data.filter(r => r.functionId === filterFunction);
@@ -792,7 +798,7 @@ export default function BudgetComparisonPage() {
       });
     }
     return data;
-  }, [comparisonData, searchTerm, filterFunction, filterType, statusFilter]);
+  }, [comparisonData, buscaAplicada, filterFunction, filterType, statusFilter]);
 
   const sortedData = useMemo(() => {
     const sorted = [...filteredData];
@@ -886,28 +892,18 @@ export default function BudgetComparisonPage() {
 
       {/* ── No event selected ── */}
       {!selectedEventId && (
-        <div className="rounded-2xl border border-emerald-100 shadow-md">
-          <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-2xl px-8 py-20 flex flex-col items-center justify-center text-center">
-            {/* Ícone flutuante */}
-            <div className="relative w-24 h-24 mx-auto mb-8">
-              <div className="absolute inset-0 rounded-2xl shadow-lg shadow-emerald-200 flex items-center justify-center rotate-3" style={{background:'linear-gradient(135deg,#059669 0%,#10b981 100%)'}}>
-                <BarChart3 className="w-10 h-10 text-white" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center shadow-md">
-                <DollarSign className="w-4 h-4 text-white" />
-              </div>
-            </div>
-
-            <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Selecione um evento</h2>
-            <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
-              Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
-            </p>
-
-            <div className="max-w-sm w-full mx-auto mt-8">
+        <EmptyState
+          live={false}
+          icon={BarChart3}
+          title="Selecione um evento"
+          description="Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento."
+          className="py-20"
+          action={
+            <div className="w-full max-w-sm text-left">
               <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
             </div>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {selectedEventId && selectedEvent && (
@@ -929,7 +925,7 @@ export default function BudgetComparisonPage() {
               { label: "Nota Fiscal", desc: "Liberada no envio do Realizado" },
             ];
             return (
-              <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4">
+              <div className="bg-card border border-border rounded-xl px-5 py-4">
                 <div className="flex items-center justify-between">
                   {steps.map((step, i) => {
                     const isDone = i < currentStep;
@@ -940,23 +936,19 @@ export default function BudgetComparisonPage() {
                         <div className="flex items-center gap-2">
                           <div className="relative flex-shrink-0">
                             {isActive && (
-                              <div className="absolute inset-0 rounded-full opacity-30 animate-ping" style={{background:'#059669'}} />
+                              <div className="absolute inset-0 rounded-full opacity-30 animate-ping bg-success" />
                             )}
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold relative`}
-                              style={{
-                                background: isDone ? '#059669' : isActive ? '#059669' : '#F1F5F9',
-                                color: (isDone || isActive) ? '#fff' : '#94A3B8',
-                              }}>
+                            <div className={cn(`w-7 h-7 rounded-full flex items-center justify-center text-2xs font-bold relative`, (isDone ? "bg-success" : isActive ? "bg-success" : "bg-muted"), ((isDone || isActive) ? "text-white" : "text-muted-foreground"))}>
                               {isDone ? <Check className="w-3.5 h-3.5" /> : (i + 1)}
                             </div>
                           </div>
                           <div className="min-w-0">
-                            <div className="text-[11px] font-semibold leading-tight" style={{color: (isDone || isActive) ? '#059669' : '#94A3B8'}}>{step.label}</div>
-                            <div className="text-[10px] text-slate-400 leading-tight mt-0.5">{step.desc}</div>
+                            <div className={cn("text-2xs font-semibold leading-tight", ((isDone || isActive) ? "text-success" : "text-muted-foreground"))}>{step.label}</div>
+                            <div className="text-2xs text-muted-foreground leading-tight mt-0.5">{step.desc}</div>
                           </div>
                         </div>
                         {!isLast && (
-                          <div className={`flex-1 h-[2px] mx-3 rounded-full`} style={{background: isDone ? '#059669' : '#E2E8F0'}} />
+                          <div className={cn(`flex-1 h-[2px] mx-3 rounded-full`, (isDone ? "bg-success" : "bg-border"))} />
                         )}
                       </div>
                     );
@@ -980,10 +972,10 @@ export default function BudgetComparisonPage() {
             const pendingCount = budgetActual.filter(a => !a.splitParentId && !a.sentForReview && (a.rhStatus || 'pendente') === 'pendente').length;
             type StatusFilterKey = 'para_analise' | 'aprovado' | 'rejeitado' | 'devolvido';
             const chips = [
-              sentCount > 0 && { key: 'para_analise' as StatusFilterKey, icon: Send, count: sentCount, label: `para análise`, bg: 'bg-blue-50', border: 'border-blue-200', iconColor: 'text-blue-500', numColor: 'text-blue-700', textColor: 'text-blue-500/70', ring: 'ring-blue-400' },
-              approvedCount > 0 && { key: 'aprovado' as StatusFilterKey, icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-emerald-50', border: 'border-emerald-200', iconColor: 'text-emerald-500', numColor: 'text-emerald-700', textColor: 'text-emerald-600/70', ring: 'ring-emerald-400' },
-              rejectedCount > 0 && { key: 'rejeitado' as StatusFilterKey, icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-red-50', border: 'border-red-200', iconColor: 'text-red-500', numColor: 'text-red-700', textColor: 'text-red-600/70', ring: 'ring-red-400' },
-              returnedCount > 0 && { key: 'devolvido' as StatusFilterKey, icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-orange-50', border: 'border-orange-200', iconColor: 'text-orange-500', numColor: 'text-orange-700', textColor: 'text-orange-600/70', ring: 'ring-orange-400' },
+              sentCount > 0 && { key: 'para_analise' as StatusFilterKey, icon: Send, count: sentCount, label: `para análise`, bg: 'bg-brand-soft', border: 'border-primary/25', iconColor: 'text-primary', numColor: 'text-primary', textColor: 'text-primary/70', ring: 'ring-ring' },
+              approvedCount > 0 && { key: 'aprovado' as StatusFilterKey, icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-success-soft', border: 'border-success/25', iconColor: 'text-success-strong', numColor: 'text-success', textColor: 'text-success/70', ring: 'ring-success-strong' },
+              rejectedCount > 0 && { key: 'rejeitado' as StatusFilterKey, icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-danger-soft', border: 'border-danger/25', iconColor: 'text-danger-strong', numColor: 'text-danger', textColor: 'text-danger/70', ring: 'ring-danger-strong' },
+              returnedCount > 0 && { key: 'devolvido' as StatusFilterKey, icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-warning-soft', border: 'border-warning/25', iconColor: 'text-warning-strong', numColor: 'text-warning', textColor: 'text-warning/70', ring: 'ring-warning-strong' },
             ].filter(Boolean) as Array<{ key: StatusFilterKey; icon: LucideIcon; count: number; label: string; bg: string; border: string; iconColor: string; numColor: string; textColor: string; ring: string }>;
             return (
               <div className="flex items-center gap-2 flex-wrap">
@@ -993,28 +985,28 @@ export default function BudgetComparisonPage() {
                     type="button"
                     aria-pressed={statusFilter === chip.key}
                     onClick={() => setStatusFilter(prev => prev === chip.key ? null : chip.key)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-shadow cursor-pointer ${chip.bg} ${chip.border} ${statusFilter === chip.key ? `ring-2 ${chip.ring} shadow-sm` : 'hover:shadow-sm'}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-shadow cursor-pointer ${chip.bg} ${chip.border} ${statusFilter === chip.key ? `ring-2 ${chip.ring} shadow-1` : 'hover:shadow-1'}`}
                     title={statusFilter === chip.key ? 'Remover filtro' : 'Filtrar por este status'}
                   >
                     <chip.icon className={`w-3 h-3 ${chip.iconColor}`} />
                     <span className={`text-sm font-bold ${chip.numColor}`}>{chip.count}</span>
-                    <span className={`text-[10px] ${chip.textColor}`}>{chip.label}</span>
+                    <span className={`text-2xs ${chip.textColor}`}>{chip.label}</span>
                   </button>
                 ))}
                 {pendingCount > 0 && (
                   <div
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-warning-soft border border-warning/25"
                     title="Prestações ainda não enviadas pelo responsável — não aparecem na lista abaixo"
                   >
-                    <Clock className="w-3 h-3 text-amber-500" />
-                    <span className="text-sm font-bold text-amber-700">{pendingCount}</span>
-                    <span className="text-[10px] text-amber-600/70">não enviado{pendingCount !== 1 ? 's' : ''}</span>
+                    <Clock className="w-3 h-3 text-warning-strong" />
+                    <span className="text-sm font-bold text-warning">{pendingCount}</span>
+                    <span className="text-2xs text-warning/70">não enviado{pendingCount !== 1 ? 's' : ''}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
-                  <ListChecks className="w-3 h-3 text-slate-400" />
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-muted border border-border">
+                  <ListChecks className="w-3 h-3 text-muted-foreground" />
                   <span className="text-sm font-bold text-slate-600">{totalActualItems}</span>
-                  <span className="text-[10px] text-slate-400">total</span>
+                  <span className="text-2xs text-muted-foreground">total</span>
                 </div>
               </div>
             );
@@ -1023,62 +1015,62 @@ export default function BudgetComparisonPage() {
           {/* ── 3 Metric cards ── */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Planejado */}
-            <div className="rounded-xl border border-blue-100 p-5" style={{background:'#F0F7FF'}}>
+            <div className="rounded-xl border border-primary/25 p-5 bg-brand-soft">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Total Planejado</p>
-                <div className="w-7 h-7 rounded-lg bg-blue-100/60 flex items-center justify-center">
-                  <DollarSign className="w-3.5 h-3.5 text-blue-500" />
+                <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total Planejado</p>
+                <div className="w-7 h-7 rounded-lg bg-brand-soft/60 flex items-center justify-center">
+                  <DollarSign className="w-3.5 h-3.5 text-primary" />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-slate-900 tabular-nums">{fmt(totals.totalPlanned)}</p>
-              <p className="text-[10px] text-slate-400 font-light mt-1.5">Orçamento aprovado para o evento</p>
+              <p className="text-2xl font-bold text-foreground tabular-nums">{fmt(totals.totalPlanned)}</p>
+              <p className="text-2xs text-muted-foreground font-light mt-1.5">Orçamento aprovado para o evento</p>
             </div>
 
             {/* Realizado */}
-            <div className="rounded-xl border border-purple-100 p-5" style={{background:'#F5F3FF'}}>
+            <div className="rounded-xl border border-primary/25 p-5 bg-brand-soft">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Total Realizado</p>
-                <div className="w-7 h-7 rounded-lg bg-violet-100/60 flex items-center justify-center">
-                  <BarChart3 className="w-3.5 h-3.5 text-violet-500" />
+                <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total Realizado</p>
+                <div className="w-7 h-7 rounded-lg bg-brand-soft/60 flex items-center justify-center">
+                  <BarChart3 className="w-3.5 h-3.5 text-primary" />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-slate-900 tabular-nums">{fmt(totals.totalActual)}</p>
-              <p className="text-[10px] text-slate-400 font-light mt-1.5">Valores prestados e enviados</p>
+              <p className="text-2xl font-bold text-foreground tabular-nums">{fmt(totals.totalActual)}</p>
+              <p className="text-2xs text-muted-foreground font-light mt-1.5">Valores prestados e enviados</p>
             </div>
 
             {/* Diferença */}
             <div className={`rounded-xl border p-5 ${
-              totals.difference === 0 ? 'border-slate-100 bg-slate-50' :
-              totals.difference < 0 ? 'border-emerald-100 bg-emerald-50' :
-              'border-red-100'
-            }`} style={totals.difference > 0 ? {background:'#FEF2F2'} : {}}>
+              totals.difference === 0 ? 'border-border bg-surface-muted' :
+              totals.difference < 0 ? 'border-success/25 bg-success-soft' :
+              'border-danger/25 bg-danger-soft'
+            }`}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Diferença</p>
+                <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Diferença</p>
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                  totals.difference === 0 ? 'bg-slate-100/60' :
-                  totals.difference < 0 ? 'bg-emerald-100/60' : 'bg-red-100/60'
+                  totals.difference === 0 ? 'bg-muted/60' :
+                  totals.difference < 0 ? 'bg-success-soft/60' : 'bg-danger-soft/60'
                 }`}>
-                  {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-slate-400" /> :
-                   totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> :
-                   <TrendingUp className="w-3.5 h-3.5 text-red-400" />}
+                  {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-muted-foreground" /> :
+                   totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-success-strong" /> :
+                   <TrendingUp className="w-3.5 h-3.5 text-danger-strong" />}
                 </div>
               </div>
               <p className={`text-2xl font-bold tabular-nums ${
-                totals.difference === 0 ? 'text-slate-400' :
-                totals.difference < 0 ? 'text-emerald-700' : 'text-red-600'
+                totals.difference === 0 ? 'text-muted-foreground' :
+                totals.difference < 0 ? 'text-success' : 'text-danger'
               }`}>
                 {totals.difference > 0 ? '+' : totals.difference < 0 ? '−' : ''}{fmt(Math.abs(totals.difference))}
               </p>
               <div className="flex items-center gap-1.5 mt-1.5">
-                <p className={`text-[10px] font-light ${
-                  totals.difference === 0 ? 'text-slate-400' :
-                  totals.difference < 0 ? 'text-emerald-600' : 'text-red-500'
+                <p className={`text-2xs font-light ${
+                  totals.difference === 0 ? 'text-muted-foreground' :
+                  totals.difference < 0 ? 'text-success' : 'text-danger-strong'
                 }`}>
                   {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia' : 'Acima do planejado'}
                 </p>
                 {totals.totalPlanned > 0 && totals.difference !== 0 && (
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    totals.difference < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                  <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full ${
+                    totals.difference < 0 ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'
                   }`}>
                     {Math.abs(totals.difference / totals.totalPlanned * 100).toFixed(1)}%
                   </span>
@@ -1088,19 +1080,19 @@ export default function BudgetComparisonPage() {
           </div>
 
           {/* ── Info banner ── */}
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-            <Info className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-            <span className="text-[11px] text-slate-500">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-muted border border-border rounded-xl">
+            <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="text-2xs text-muted-foreground">
               Valores referentes apenas às prestações enviadas para revisão pelo responsável de função
             </span>
           </div>
 
           {/* ── RH comment banner ── */}
           {rhComment && (
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex items-start gap-2.5">
-              <MessageSquare className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+            <div className="rounded-xl border border-border bg-card p-3.5 flex items-start gap-2.5">
+              <MessageSquare className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
               <div>
-                <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Comentário do RH</span>
+                <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Comentário do RH</span>
                 <p className="text-sm text-slate-700 mt-0.5">{rhComment}</p>
               </div>
             </div>
@@ -1113,12 +1105,12 @@ export default function BudgetComparisonPage() {
               `allItemsApproved` continua governando só a APROVAÇÃO inicial. */}
           {isRhOrAdmin && comparison && (comparison.status === 'aprovado' || allItemsApproved) && (
             comparison.status === 'aprovado' ? (
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3.5 space-y-3">
+              <div className="rounded-xl border border-success/25 bg-success-soft p-3.5 space-y-3">
                 <div className="flex items-start gap-2.5">
-                  <Wallet className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <Wallet className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="text-[10px] uppercase text-emerald-700 font-bold tracking-wider">Comparativo aprovado</span>
-                    <p className="text-[13px] text-emerald-800 mt-0.5">
+                    <span className="text-2xs uppercase text-success font-bold tracking-wider">Comparativo aprovado</span>
+                    <p className="text-sm text-success mt-0.5">
                       Alimentação e mobilidade das prestações já foram creditadas na Conta Corrente Flash dos colaboradores. A nota fiscal apenas documenta o pagamento — não altera o saldo.
                     </p>
                   </div>
@@ -1126,9 +1118,9 @@ export default function BudgetComparisonPage() {
 
                 {/* Realizado editado depois da aprovação → o Flash ficou defasado */}
                 {realizadoChangedAfterApproval && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2" data-testid="alert-flash-defasado">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <p className="text-[12px] text-amber-800">
+                  <div className="rounded-lg border border-warning/25 bg-warning-soft px-3 py-2.5 flex items-start gap-2" data-testid="alert-flash-defasado">
+                    <AlertTriangle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-warning">
                       <strong>O Realizado mudou depois da aprovação</strong> — os créditos no Flash ainda são os do momento em que o comparativo foi aprovado. Use <strong>Ressincronizar Flash</strong> para alinhar os lançamentos ao Realizado atual.
                     </p>
                   </div>
@@ -1138,7 +1130,7 @@ export default function BudgetComparisonPage() {
                 <div className="flex flex-wrap items-center gap-2 pl-6">
                   <Button
                     variant="outline"
-                    className={`h-8 text-xs px-3 rounded-lg font-semibold border-emerald-200 text-emerald-700 hover:bg-emerald-100 ${realizadoChangedAfterApproval ? 'bg-white ring-2 ring-amber-300' : 'bg-white'}`}
+                    className={`h-8 text-xs px-3 rounded-lg font-semibold border-success/25 text-success hover:bg-success-soft ${realizadoChangedAfterApproval ? 'bg-card ring-2 ring-warning/25' : 'bg-card'}`}
                     onClick={() => resyncFlashMutation.mutate(comparison.id)}
                     disabled={resyncFlashMutation.isPending || reopenComparisonMutation.isPending}
                     data-testid="button-ressincronizar-flash"
@@ -1149,7 +1141,7 @@ export default function BudgetComparisonPage() {
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-8 text-xs px-3 rounded-lg font-semibold bg-white border-amber-200 text-amber-700 hover:bg-amber-50"
+                    className="h-8 text-xs px-3 rounded-lg font-semibold bg-card border-warning/25 text-warning hover:bg-warning-soft"
                     onClick={() => { setReopenReason(""); setReopenReasonError(false); setReopenOpen(true); }}
                     disabled={reopenComparisonMutation.isPending || resyncFlashMutation.isPending}
                     data-testid="button-reabrir-comparativo"
@@ -1161,18 +1153,18 @@ export default function BudgetComparisonPage() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-violet-200 bg-white p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="rounded-xl border border-primary/25 bg-card p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-start gap-2.5">
-                  <Wallet className="w-4 h-4 text-violet-500 mt-0.5 flex-shrink-0" />
+                  <Wallet className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Fechamento do comparativo</span>
-                    <p className="text-[13px] text-slate-700 mt-0.5">
+                    <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Fechamento do comparativo</span>
+                    <p className="text-sm text-slate-700 mt-0.5">
                       Todas as prestações estão aprovadas. Ao aprovar o comparativo, <strong>alimentação e mobilidade</strong> de cada colaborador entram na Conta Corrente Flash (a diária não).
                     </p>
                   </div>
                 </div>
                 <Button
-                  className="h-9 text-sm px-4 rounded-xl font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40"
+                  className="h-9 text-sm px-4 rounded-xl font-bold text-primary-foreground bg-primary hover:bg-primary-hover disabled:opacity-40"
                   onClick={() => approveComparisonMutation.mutate(comparison.id)}
                   disabled={approveComparisonMutation.isPending}
                 >
@@ -1188,13 +1180,13 @@ export default function BudgetComparisonPage() {
             <div className="mb-3 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-slate-800">Detalhamento por Prestação</h2>
-                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{sortedData.length}</span>
+                  <h2 className="text-sm font-black text-foreground">Detalhamento por Prestação</h2>
+                  <span className="text-2xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{sortedData.length}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Button
                     size="sm" variant="ghost"
-                    className="text-xs h-7 gap-1 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                    className="text-xs h-7 gap-1 rounded-lg text-muted-foreground hover:text-slate-700 hover:bg-muted"
                     onClick={() => {
                       // Interseção com os ids visíveis: comparar por size acumulado
                       // travava o botão quando havia ids expandidos fora do filtro
@@ -1209,7 +1201,7 @@ export default function BudgetComparisonPage() {
                   {isRhOrAdmin && (
                     <Button
                       size="sm" variant="ghost"
-                      className="text-xs h-7 gap-1 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                      className="text-xs h-7 gap-1 rounded-lg text-muted-foreground hover:text-slate-700 hover:bg-muted"
                       onClick={() => {
                         const selectableIds = sortedData
                           .filter(row => (row.actual.rhStatus || 'pendente') === 'pendente')
@@ -1227,27 +1219,27 @@ export default function BudgetComparisonPage() {
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[180px]">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                  <Input placeholder="Buscar por nome..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 pl-8 text-xs rounded-xl border-gray-200" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input placeholder="Buscar por nome..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 pl-8 text-xs rounded-xl border-border" />
                 </div>
                 <Select value={filterFunction} onValueChange={setFilterFunction}>
-                  <SelectTrigger className="h-9 text-sm w-auto min-w-[160px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Função" /></SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                  <SelectTrigger className="h-9 text-sm w-auto min-w-[160px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Função" /></SelectTrigger>
+                  <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[180px]">
                     <SelectItem value="all" className={SELECT_ITEM_CLS}>Todas as funções</SelectItem>
                     {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!} className={SELECT_ITEM_CLS}>{getFunctionName(fid)}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="h-9 text-sm w-28 border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[140px]">
+                  <SelectTrigger className="h-9 text-sm w-28 border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                  <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[140px]">
                     <SelectItem value="all" className={SELECT_ITEM_CLS}>Todos</SelectItem>
                     <SelectItem value="casa" className={SELECT_ITEM_CLS}>Casa</SelectItem>
                     <SelectItem value="freela" className={SELECT_ITEM_CLS}>Freela</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
-                  <SelectTrigger className="h-9 text-sm w-auto min-w-[160px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                  <SelectTrigger className="h-9 text-sm w-auto min-w-[160px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[180px]">
                     <SelectItem value="difference" className={SELECT_ITEM_CLS}>Maior diferença</SelectItem>
                     <SelectItem value="total" className={SELECT_ITEM_CLS}>Maior valor</SelectItem>
                   </SelectContent>
@@ -1256,48 +1248,48 @@ export default function BudgetComparisonPage() {
             </div>
 
             {/* Cards */}
-            {(isLoadingPlanned || isLoadingActual) ? (
+            {(isLoadingPlanned || isLoadingActual || isLoadingComparison) ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-slate-400">Carregando prestações...</p>
+                <div className="w-8 h-8 border-2 border-success-strong border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-muted-foreground">Carregando prestações...</p>
               </div>
-            ) : (isErrorPlanned || isErrorActual) ? (
-              <div className="rounded-2xl border-2 border-dashed border-red-200 bg-red-50/50 p-12 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-3">
-                  <AlertCircle className="w-6 h-6 text-red-400" />
+            ) : (isErrorPlanned || isErrorActual || isErrorComparison) ? (
+              <div className="rounded-xl border-2 border-dashed border-danger/25 bg-danger-soft/50 p-12 text-center">
+                <div className="w-12 h-12 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-3">
+                  <AlertCircle className="w-6 h-6 text-danger-strong" />
                 </div>
-                <p className="font-semibold text-red-600">Erro ao carregar as prestações</p>
-                <p className="text-sm text-slate-500 mt-1">Não foi possível carregar os dados do Planejado e do Realizado. Verifique sua conexão e tente novamente.</p>
+                <p className="font-semibold text-danger">Erro ao carregar as prestações</p>
+                <p className="text-sm text-muted-foreground mt-1">Não foi possível carregar os dados do Planejado e do Realizado. Verifique sua conexão e tente novamente.</p>
                 <Button
-                  className="mt-4 h-9 px-5 rounded-xl text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50 shadow-none"
-                  onClick={() => { if (isErrorPlanned) refetchPlanned(); if (isErrorActual) refetchActual(); }}
+                  className="mt-4 h-9 px-5 rounded-xl text-sm font-semibold bg-card border border-danger/25 text-danger hover:bg-danger-soft shadow-none"
+                  onClick={() => { if (isErrorPlanned) refetchPlanned(); if (isErrorActual) refetchActual(); if (isErrorComparison) refetchComparison(); }}
                 >
                   <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Tentar novamente
                 </Button>
               </div>
             ) : sortedData.length === 0 ? (
               (searchTerm || filterFunction !== 'all' || filterType !== 'all' || statusFilter) ? (
-                <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                    <Search className="w-6 h-6 text-slate-300" />
+                <div className="rounded-xl border-2 border-dashed border-border bg-surface-muted p-12 text-center">
+                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
+                    <Search className="w-6 h-6 text-muted-foreground" />
                   </div>
-                  <p className="font-semibold text-slate-500">Nenhuma prestação corresponde aos filtros</p>
-                  <p className="text-sm text-slate-400 mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
+                  <p className="font-semibold text-muted-foreground">Nenhuma prestação corresponde aos filtros</p>
+                  <p className="text-sm text-muted-foreground mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
                   <Button
                     variant="ghost"
-                    className="mt-3 h-8 px-4 rounded-xl text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                    className="mt-3 h-8 px-4 rounded-xl text-xs text-muted-foreground hover:text-slate-700 hover:bg-muted"
                     onClick={() => { setSearchTerm(''); setFilterFunction('all'); setFilterType('all'); setStatusFilter(null); }}
                   >
                     Limpar filtros
                   </Button>
                 </div>
               ) : (
-                <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                    <BarChart3 className="w-6 h-6 text-slate-300" />
+                <div className="rounded-xl border-2 border-dashed border-border bg-surface-muted p-12 text-center">
+                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
+                    <BarChart3 className="w-6 h-6 text-muted-foreground" />
                   </div>
-                  <p className="font-semibold text-slate-500">Nenhuma prestação enviada para revisão</p>
-                  <p className="text-sm text-slate-400 mt-1">As prestações aparecerão aqui após serem preenchidas e enviadas no Orçamento Realizado.</p>
+                  <p className="font-semibold text-muted-foreground">Nenhuma prestação enviada para revisão</p>
+                  <p className="text-sm text-muted-foreground mt-1">As prestações aparecerão aqui após serem preenchidas e enviadas no Orçamento Realizado.</p>
                 </div>
               )
             ) : (
@@ -1323,9 +1315,9 @@ export default function BudgetComparisonPage() {
                   const isResubmitted = a.resubmitted;
 
                   const statusStyles: Record<string, { bg: string; border: string; text: string; icon: LucideIcon; label: string; cardBg: string; cardBorder: string }> = {
-                    aprovado: { bg: 'bg-emerald-100', border: 'border-emerald-200', text: 'text-emerald-700', icon: CheckCircle, label: 'Aprovado', cardBg: 'bg-emerald-50/40', cardBorder: 'border-emerald-200' },
-                    rejeitado: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700', icon: XCircle, label: 'Recusado', cardBg: 'bg-red-50/40', cardBorder: 'border-red-200' },
-                    devolvido: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700', icon: RotateCcw, label: 'Devolvido', cardBg: 'bg-orange-50/40', cardBorder: 'border-orange-200' },
+                    aprovado: { bg: 'bg-success-soft', border: 'border-success/25', text: 'text-success', icon: CheckCircle, label: 'Aprovado', cardBg: 'bg-success-soft/40', cardBorder: 'border-success/25' },
+                    rejeitado: { bg: 'bg-danger-soft', border: 'border-danger/25', text: 'text-danger', icon: XCircle, label: 'Recusado', cardBg: 'bg-danger-soft/40', cardBorder: 'border-danger/25' },
+                    devolvido: { bg: 'bg-warning-soft', border: 'border-warning/25', text: 'text-warning', icon: RotateCcw, label: 'Devolvido', cardBg: 'bg-warning-soft/40', cardBorder: 'border-warning/25' },
                   };
                   const decidedStyle = statusStyles[itemRhStatus];
 
@@ -1335,11 +1327,7 @@ export default function BudgetComparisonPage() {
                   const isNotAttended = !!row.planned?.didNotAttend;
 
                   // Period from team inclusion
-                  const cardTi = allTeamInclusions.find(t =>
-                    t.eventId === selectedEventId &&
-                    t.collaboratorId === row.collaboratorId &&
-                    t.functionId === row.functionId
-                  );
+                  const cardTi = inclusaoPorChave.get(chaveComposta(selectedEventId, row.collaboratorId, row.functionId))?.[0];
                   const tiStart = cardTi?.actualStartDate || cardTi?.scheduleStartDate;
                   const tiEnd   = cardTi?.actualEndDate   || cardTi?.scheduleEndDate;
                   const fmtPeriodDate = (d: string) => {
@@ -1353,16 +1341,16 @@ export default function BudgetComparisonPage() {
                       key={a.id}
                       data-card-id={cardKey}
                       className={`rounded-xl border overflow-hidden transition-all duration-200 ${
-                        isNotAttended ? 'bg-slate-50 border-slate-300 border-dashed opacity-75' :
-                        highlightCardId === cardKey ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-100' :
+                        isNotAttended ? 'bg-surface-muted border-slate-300 border-dashed opacity-75' :
+                        highlightCardId === cardKey ? 'ring-2 ring-success-strong shadow-2 ' :
                         isDecided ? `${decidedStyle.cardBg} ${decidedStyle.cardBorder}` :
-                        selectedItems.has(a.id) ? 'bg-white border-emerald-400 ring-1 ring-emerald-300/60 shadow-md shadow-emerald-100/60' :
-                        'bg-white border-slate-200 hover:border-slate-300'
+                        selectedItems.has(a.id) ? 'bg-card border-success-strong ring-1 ring-success/60 shadow-2 ' :
+                        'bg-card border-border hover:border-slate-300'
                       }`}
                     >
                       {/* Status stripe on top */}
                       {isDecided && (
-                        <div className={`h-[2.5px] ${itemRhStatus === 'aprovado' ? 'bg-emerald-400' : itemRhStatus === 'rejeitado' ? 'bg-red-400' : 'bg-orange-400'}`} />
+                        <div className={`h-[2.5px] ${itemRhStatus === 'aprovado' ? 'bg-success-strong' : itemRhStatus === 'rejeitado' ? 'bg-danger-strong' : 'bg-warning-strong'}`} />
                       )}
 
                       {/* Card header row — collapsible. O clique no header expande, mas o
@@ -1383,35 +1371,35 @@ export default function BudgetComparisonPage() {
                                 setSelectedItems(next);
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className="shrink-0 border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                              className="shrink-0 border-slate-300 data-[state=checked]:bg-success data-[state=checked]:border-success"
                             />
                           )}
 
                           {/* Avatar */}
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black flex-shrink-0 ${avatarColor(colName)}`}>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-2xs font-black flex-shrink-0 ${avatarColor(colName)}`}>
                             {initials(colName)}
                           </div>
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
+                              <span className="text-sm font-semibold text-foreground truncate">{colName}</span>
                               {row.isSplit && (
-                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-purple-50 text-[10px] font-semibold text-purple-700 shrink-0">
+                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-brand-soft text-2xs font-semibold text-primary shrink-0">
                                   <GitFork className="w-2.5 h-2.5" /> Dividida
                                 </span>
                               )}
                               {isDecided && decidedStyle && (
-                                <span className={`flex items-center gap-1 text-[10px] font-semibold px-3 py-1 rounded-full ${decidedStyle.bg} ${decidedStyle.text} shrink-0`}>
+                                <span className={`flex items-center gap-1 text-2xs font-semibold px-3 py-1 rounded-full ${decidedStyle.bg} ${decidedStyle.text} shrink-0`}>
                                   <decidedStyle.icon className="w-2.5 h-2.5" /> {decidedStyle.label}
                                 </span>
                               )}
                               {isResubmitted && (
-                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700 shrink-0">
+                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-brand-soft text-2xs font-semibold text-primary shrink-0">
                                   <RotateCcw className="w-2.5 h-2.5" /> Reenviado
                                 </span>
                               )}
                               {isNotAttended && (
-                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500 shrink-0">
+                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-muted text-2xs font-semibold text-muted-foreground shrink-0">
                                   <UserX className="w-2.5 h-2.5" /> Não participou
                                 </span>
                               )}
@@ -1427,40 +1415,40 @@ export default function BudgetComparisonPage() {
                             )}
                             {/* Not-attended reason snippet */}
                             {isNotAttended && row.planned?.didNotAttendReason && (
-                              <p className="text-[10px] italic mt-0.5 text-slate-400 leading-snug max-w-xs truncate">
+                              <p className="text-2xs italic mt-0.5 text-muted-foreground leading-snug max-w-xs truncate">
                                 {row.planned.didNotAttendReason}
                               </p>
                             )}
                             {/* RH comment snippet */}
                             {isDecided && a.rhComment && (itemRhStatus === 'rejeitado' || itemRhStatus === 'devolvido') && (
-                              <p className={`text-[10px] italic mt-0.5 leading-snug max-w-xs truncate ${itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`}>
+                              <p className={`text-2xs italic mt-0.5 leading-snug max-w-xs truncate ${itemRhStatus === 'rejeitado' ? 'text-danger-strong' : 'text-warning-strong'}`}>
                                 "{a.rhComment}"
                               </p>
                             )}
                             <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
-                              <span className="text-[10px] text-slate-400 truncate shrink min-w-0">{getFunctionName(row.functionId)}</span>
-                              <span className="text-slate-300 shrink-0">·</span>
-                              <span className={`text-[10px] font-semibold shrink-0 ${row.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
+                              <span className="text-2xs text-muted-foreground truncate shrink min-w-0">{getFunctionName(row.functionId)}</span>
+                              <span className="text-muted-foreground shrink-0">·</span>
+                              <span className={`text-2xs font-semibold shrink-0 ${row.collaboratorType === 'casa' ? 'text-primary' : 'text-warning-strong'}`}>
                                 {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                               </span>
                               {periodLabel && (
                                 <>
-                                  <span className="text-slate-300 shrink-0">·</span>
-                                  <span className="text-[10px] text-slate-400 shrink-0 tabular-nums">{periodLabel}</span>
+                                  <span className="text-muted-foreground shrink-0">·</span>
+                                  <span className="text-2xs text-muted-foreground shrink-0 tabular-nums">{periodLabel}</span>
                                 </>
                               )}
                               {row.isSplit && (
                                 <>
-                                  <span className="text-slate-300 shrink-0">·</span>
-                                  <span className="text-[10px] text-purple-500 font-medium truncate shrink min-w-0">
+                                  <span className="text-muted-foreground shrink-0">·</span>
+                                  <span className="text-2xs text-primary font-medium truncate shrink min-w-0">
                                     {[a, ...row.splitChildren].map(c => getCollaboratorName(c.collaboratorId)).join(' + ')}
                                   </span>
                                 </>
                               )}
                               {hasDiff && !hasJustification && !row.isSplit && (
                                 <>
-                                  <span className="text-slate-300 shrink-0">·</span>
-                                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-medium shrink-0">
+                                  <span className="text-muted-foreground shrink-0">·</span>
+                                  <span className="flex items-center gap-0.5 text-2xs text-warning-strong font-medium shrink-0">
                                     <AlertTriangle className="w-2.5 h-2.5" /> Sem justificativa
                                   </span>
                                 </>
@@ -1471,26 +1459,26 @@ export default function BudgetComparisonPage() {
 
                         <div className="flex flex-wrap items-center gap-3 shrink-0">
                           {/* Mini values strip */}
-                          <div className="flex items-center divide-x divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
+                          <div className="flex items-center divide-x divide-border border border-border rounded-lg overflow-hidden">
                             {/* Plan. — referência discreta */}
                             <div className="px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28">
-                              <span className="text-[10px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Plan.</span>
-                              <span className="text-sm tabular-nums text-slate-400 font-light">{fmt(plannedTotal)}</span>
+                              <span className="text-2xs uppercase font-medium text-muted-foreground tracking-wider block leading-tight">Plan.</span>
+                              <span className="text-sm tabular-nums text-muted-foreground font-light">{fmt(plannedTotal)}</span>
                             </div>
                             {/* Real. — protagonista */}
-                            <div className="px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28" style={{background:'#F5F3FF'}}>
-                              <span className="text-[10px] uppercase font-medium text-slate-500 tracking-wider block leading-tight">Real.</span>
-                              <span className="text-base tabular-nums text-slate-900 font-bold">{fmt(actualTotal)}</span>
+                            <div className="px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28 bg-brand-soft">
+                              <span className="text-2xs uppercase font-medium text-muted-foreground tracking-wider block leading-tight">Real.</span>
+                              <span className="text-base tabular-nums text-foreground font-bold">{fmt(actualTotal)}</span>
                             </div>
                             {/* Dif. — alerta imediato */}
-                            <div className={`px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28 ${hasDiff ? (diff > 0 ? 'bg-red-50' : 'bg-emerald-50') : ''}`}>
-                              <span className="text-[10px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Dif.</span>
+                            <div className={`px-2 sm:px-3 py-1.5 text-center w-20 sm:w-28 ${hasDiff ? (diff > 0 ? 'bg-danger-soft' : 'bg-success-soft') : ''}`}>
+                              <span className="text-2xs uppercase font-medium text-muted-foreground tracking-wider block leading-tight">Dif.</span>
                               {hasDiff ? (
-                                <span className={`text-sm tabular-nums font-bold ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                <span className={`text-sm tabular-nums font-bold ${diff > 0 ? 'text-danger' : 'text-success'}`}>
                                   {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
                                 </span>
                               ) : (
-                                <span className="text-sm text-slate-300 tabular-nums font-normal">—</span>
+                                <span className="text-sm text-muted-foreground tabular-nums font-normal">—</span>
                               )}
                             </div>
                           </div>
@@ -1502,10 +1490,10 @@ export default function BudgetComparisonPage() {
                                   <button
                                     type="button"
                                     aria-label={`Editar realizado de ${colName} (RH)`}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-amber-50 transition-colors"
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-warning-soft transition-colors"
                                     onClick={(e) => { e.stopPropagation(); openEditModal(a); }}
                                   >
-                                    <Pencil className="w-3.5 h-3.5 text-amber-500" />
+                                    <Pencil className="w-3.5 h-3.5 text-warning-strong" />
                                   </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="left" className="text-xs">Editar realizado (RH)</TooltipContent>
@@ -1516,52 +1504,52 @@ export default function BudgetComparisonPage() {
                             type="button"
                             aria-expanded={isExpanded}
                             aria-label={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${colName}`}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
                             onClick={(e) => { e.stopPropagation(); toggleExpand(a.id); }}
                           >
-                            <ChevronDown className={`w-4 h-4 text-slate-400 hover:text-slate-700 transition-all duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`w-4 h-4 text-muted-foreground hover:text-slate-700 transition-all duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                           </button>
                         </div>
                       </div>
 
                       {/* Expanded body */}
                       {isExpanded && (
-                        <div className="border-t border-slate-100 bg-slate-50">
+                        <div className="border-t border-border bg-surface-muted">
                           <div className="p-6 space-y-4">
 
                             {/* ── Not attended notice ── */}
                             {isNotAttended && (
-                              <div className="flex items-start gap-2.5 bg-slate-100 rounded-xl px-4 py-3 border border-slate-200">
-                                <UserX className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex items-start gap-2.5 bg-muted rounded-xl px-4 py-3 border border-border">
+                                <UserX className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                                 <div>
                                   <p className="text-sm font-semibold text-slate-600">Colaborador não participou do evento</p>
-                                  <p className="text-[11px] text-slate-400 mt-0.5">Planejado, Realizado e Diferença deste colaborador são excluídos dos totais. Os valores abaixo permanecem apenas para referência.</p>
-                                  {row.planned?.didNotAttendReason && <p className="text-[11px] text-slate-500 mt-1 italic">Motivo: {row.planned.didNotAttendReason}</p>}
+                                  <p className="text-2xs text-muted-foreground mt-0.5">Planejado, Realizado e Diferença deste colaborador são excluídos dos totais. Os valores abaixo permanecem apenas para referência.</p>
+                                  {row.planned?.didNotAttendReason && <p className="text-2xs text-muted-foreground mt-1 italic">Motivo: {row.planned.didNotAttendReason}</p>}
                                 </div>
                               </div>
                             )}
 
                             {/* ── Split group sub-rows ── */}
                             {row.isSplit && (
-                              <div className="rounded-xl border border-purple-200 overflow-hidden">
-                                <div className="h-[3px] bg-purple-500" />
-                                <div className="flex items-center gap-1.5 px-3 py-2 bg-purple-50/80 border-b border-purple-100">
-                                  <div className="w-4 h-4 rounded bg-purple-500 flex items-center justify-center">
+                              <div className="rounded-xl border border-primary/25 overflow-hidden">
+                                <div className="h-[3px] bg-primary" />
+                                <div className="flex items-center gap-1.5 px-3 py-2 bg-brand-soft/80 border-b border-primary/25">
+                                  <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
                                     <GitFork className="w-2.5 h-2.5 text-white" />
                                   </div>
-                                  <span className="text-[10px] font-black uppercase tracking-wide text-purple-700">
+                                  <span className="text-2xs font-black uppercase tracking-wide text-primary">
                                     Detalhamento por Colaborador
                                   </span>
                                 </div>
                                 {/* Tabela larga: rola horizontalmente em telas estreitas */}
                                 <div className="overflow-x-auto">
                                 <div className="min-w-[560px]">
-                                <div className="grid grid-cols-6 gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-100">
-                                  <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider col-span-2">Colaborador</span>
-                                  <span className="text-[10px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. prop.</span>
-                                  <span className="text-[10px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
-                                  <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider text-right">Diferença</span>
-                                  <span className="text-[10px] uppercase text-slate-300 font-semibold tracking-wider text-center"></span>
+                                <div className="grid grid-cols-6 gap-2 px-3 py-1.5 bg-surface-muted border-b border-border">
+                                  <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider col-span-2">Colaborador</span>
+                                  <span className="text-2xs uppercase text-primary font-bold tracking-wider text-right">Plan. prop.</span>
+                                  <span className="text-2xs uppercase text-primary font-bold tracking-wider text-right">Realizado</span>
+                                  <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider text-right">Diferença</span>
+                                  <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider text-center"></span>
                                 </div>
                                 {[a, ...row.splitChildren].map((colItem, ci) => {
                                   const isParent = ci === 0;
@@ -1573,30 +1561,30 @@ export default function BudgetComparisonPage() {
                                   const colDiff = colActual - colPlanned;
                                   const colDays = getWorkedDayCount(colItem);
                                   return (
-                                    <div key={ci} className={`grid grid-cols-6 gap-2 px-3 py-2.5 items-center text-[11px] border-b border-slate-50 ${ci % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
+                                    <div key={ci} className={`grid grid-cols-6 gap-2 px-3 py-2.5 items-center text-2xs border-b border-border ${ci % 2 === 1 ? 'bg-surface-muted/50' : 'bg-card'}`}>
                                       <div className="col-span-2 flex items-center gap-2 min-w-0">
-                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-black flex-shrink-0 ${avatarColor(colItemName)}`}>
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-2xs font-black flex-shrink-0 ${avatarColor(colItemName)}`}>
                                           {initials(colItemName)}
                                         </div>
                                         <div className="min-w-0">
-                                          <p className="font-semibold text-slate-700 truncate text-[11px]">{colItemName}</p>
+                                          <p className="font-semibold text-slate-700 truncate text-2xs">{colItemName}</p>
                                           <div className="flex items-center gap-1">
-                                            <span className={`text-[10px] font-bold px-1 py-0 rounded-full ${isParent ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                            <span className={`text-2xs font-bold px-1 py-0 rounded-full ${isParent ? 'bg-brand-soft text-primary' : 'bg-brand-soft text-primary'}`}>
                                               {isParent ? 'Titular' : 'Divisão'}
                                             </span>
                                             {colDays > 0 && (
-                                              <span className="text-[10px] text-slate-400">{colDays}d</span>
+                                              <span className="text-2xs text-muted-foreground">{colDays}d</span>
                                             )}
                                           </div>
                                         </div>
                                       </div>
-                                      <span className="text-right tabular-nums text-blue-600 font-medium">{fmt(colPlanned)}</span>
-                                      <span className="text-right tabular-nums text-violet-600 font-semibold">{fmt(colActual)}</span>
+                                      <span className="text-right tabular-nums text-primary font-medium">{fmt(colPlanned)}</span>
+                                      <span className="text-right tabular-nums text-primary font-semibold">{fmt(colActual)}</span>
                                       <div className="text-right">
                                         {colDiff === 0 ? (
-                                          <span className="text-slate-300 tabular-nums">—</span>
+                                          <span className="text-muted-foreground tabular-nums">—</span>
                                         ) : (
-                                          <span className={`tabular-nums font-bold text-[10px] ${colDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                          <span className={`tabular-nums font-bold text-2xs ${colDiff > 0 ? 'text-danger' : 'text-success'}`}>
                                             {colDiff > 0 ? '+' : '−'}{fmt(Math.abs(colDiff))}
                                           </span>
                                         )}
@@ -1608,7 +1596,7 @@ export default function BudgetComparisonPage() {
                                             e.stopPropagation();
                                             setSplitDetail({ actual: colItem, planned: p, propPlanned: colProp, isParent, allGroupDays });
                                           }}
-                                          className="w-6 h-6 rounded-md flex items-center justify-center bg-slate-100 hover:bg-purple-100 text-slate-400 hover:text-purple-600 transition-colors"
+                                          className="w-6 h-6 rounded-md flex items-center justify-center bg-muted hover:bg-brand-soft text-muted-foreground hover:text-primary-hover transition-colors"
                                           title="Ver detalhes completos"
                                           aria-label={`Ver detalhes completos de ${colItemName}`}
                                         >
@@ -1618,15 +1606,15 @@ export default function BudgetComparisonPage() {
                                     </div>
                                   );
                                 })}
-                                <div className={`grid grid-cols-6 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-slate-100 font-bold ${diff > 0 ? 'bg-red-50/40' : diff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`}>
-                                  <span className="text-slate-500 uppercase text-[10px] tracking-wider col-span-2">Total do Grupo</span>
-                                  <span className="text-right tabular-nums text-blue-700">{fmt(plannedTotal)}</span>
-                                  <span className="text-right tabular-nums text-violet-700">{fmt(actualTotal)}</span>
+                                <div className={`grid grid-cols-6 gap-2 px-3 py-2 text-2xs items-center border-t-2 border-border font-bold ${diff > 0 ? 'bg-danger-soft/40' : diff < 0 ? 'bg-success-soft/40' : 'bg-surface-muted'}`}>
+                                  <span className="text-muted-foreground uppercase text-2xs tracking-wider col-span-2">Total do Grupo</span>
+                                  <span className="text-right tabular-nums text-primary">{fmt(plannedTotal)}</span>
+                                  <span className="text-right tabular-nums text-primary">{fmt(actualTotal)}</span>
                                   <div className="text-right col-span-2">
                                     {diff === 0 ? (
-                                      <span className="text-slate-300 tabular-nums">—</span>
+                                      <span className="text-muted-foreground tabular-nums">—</span>
                                     ) : (
-                                      <span className={`tabular-nums text-[10px] ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                      <span className={`tabular-nums text-2xs ${diff > 0 ? 'text-danger' : 'text-success'}`}>
                                         {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
                                       </span>
                                     )}
@@ -1640,18 +1628,18 @@ export default function BudgetComparisonPage() {
                             {/* ── Detail blocks (only for non-split) ── */}
                             {!row.isSplit && <>
                             {/* Shared column headers — shown once above all sections */}
-                            <div className="grid grid-cols-4 gap-2 px-3 border border-slate-100 rounded-lg bg-slate-50/80" style={{ height: 28 }}>
-                              <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider flex items-center">Item</span>
-                              <span className="text-[10px] uppercase text-primary font-semibold tracking-wider flex items-center justify-end">Planejado</span>
-                              <span className="text-[10px] uppercase text-[#6d28d9] font-semibold tracking-wider flex items-center justify-end">Realizado</span>
-                              <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider flex items-center justify-end">Diferença</span>
+                            <div className="grid grid-cols-4 gap-2 px-3 border border-border rounded-lg bg-surface-muted/80" style={{ height: 28 }}>
+                              <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider flex items-center">Item</span>
+                              <span className="text-2xs uppercase text-primary font-semibold tracking-wider flex items-center justify-end">Planejado</span>
+                              <span className="text-2xs uppercase text-primary font-semibold tracking-wider flex items-center justify-end">Realizado</span>
+                              <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider flex items-center justify-end">Diferença</span>
                             </div>
                             <CategoryBlock
                               title="Diárias"
                               icon={Calendar}
-                              iconColor="text-indigo-700"
-                              bgColor="bg-indigo-50/60"
-                              stripColor="bg-indigo-500"
+                              iconColor="text-primary"
+                              bgColor="bg-brand-soft/60"
+                              stripColor="bg-primary"
                               rows={[
                                 { label: "Qtd. Diárias", planned: p?.dailyQuantity || 0, actual: a.dailyQuantity, isQuantity: true },
                                 { label: "Valor Unitário", planned: p?.dailyValue || 0, actual: a.dailyValue },
@@ -1662,9 +1650,9 @@ export default function BudgetComparisonPage() {
                             <CategoryBlock
                               title="Alimentação"
                               icon={Utensils}
-                              iconColor="text-orange-700"
-                              bgColor="bg-orange-50/60"
-                              stripColor="bg-orange-400"
+                              iconColor="text-warning"
+                              bgColor="bg-warning-soft/60"
+                              stripColor="bg-warning-strong"
                               rows={[
                                 { label: "Almoço (Sem.)", planned: p?.weekdayLunch || 0, actual: a.weekdayLunch },
                                 { label: "Jantar (Sem.)", planned: p?.weekdayDinner || 0, actual: a.weekdayDinner },
@@ -1676,9 +1664,9 @@ export default function BudgetComparisonPage() {
                             <CategoryBlock
                               title="Mobilidade"
                               icon={Car}
-                              iconColor="text-violet-700"
-                              bgColor="bg-violet-50/60"
-                              stripColor="bg-violet-500"
+                              iconColor="text-primary"
+                              bgColor="bg-brand-soft/60"
+                              stripColor="bg-primary"
                               rows={[
                                 { label: "Mobilidade", planned: p?.mobility || 0, actual: a.mobility },
                                 // Translado precisa aparecer aqui: o total do card o inclui,
@@ -1690,30 +1678,30 @@ export default function BudgetComparisonPage() {
 
                             {/* Expanded card footer — compact single row */}
                             <div className={`flex items-center gap-0 rounded-xl border-2 overflow-hidden ${
-                              diff > 0 ? 'border-red-100' : diff < 0 ? 'border-emerald-100' : 'border-slate-100'
+                              diff > 0 ? 'border-danger/25' : diff < 0 ? 'border-success/25' : 'border-border'
                             }`} style={{ height: 44 }}>
-                              <div className="flex-1 flex items-center justify-center gap-2 bg-white border-r border-slate-100 h-full">
-                                <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest">Planejado</span>
-                                <span className="text-[14px] font-semibold text-slate-500 tabular-nums">{fmt(plannedTotal)}</span>
+                              <div className="flex-1 flex items-center justify-center gap-2 bg-card border-r border-border h-full">
+                                <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-widest">Planejado</span>
+                                <span className="text-sm font-semibold text-muted-foreground tabular-nums">{fmt(plannedTotal)}</span>
                               </div>
-                              <div className="flex-1 flex items-center justify-center gap-2 h-full" style={{ background: '#F5F3FF' }}>
-                                <span className="text-[10px] uppercase text-violet-500 font-bold tracking-widest">Realizado</span>
-                                <span className="text-[16px] font-extrabold text-violet-700 tabular-nums">{fmt(actualTotal)}</span>
+                              <div className="flex-1 flex items-center justify-center gap-2 h-full bg-brand-soft">
+                                <span className="text-2xs uppercase text-primary font-bold tracking-widest">Realizado</span>
+                                <span className="text-base font-extrabold text-primary tabular-nums">{fmt(actualTotal)}</span>
                               </div>
                               <div className={`flex-1 flex items-center justify-center gap-2 h-full ${
-                                diff > 0 ? 'bg-red-50' : diff < 0 ? 'bg-emerald-50' : 'bg-slate-50'
+                                diff > 0 ? 'bg-danger-soft' : diff < 0 ? 'bg-success-soft' : 'bg-surface-muted'
                               }`}>
-                                <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest">Diferença</span>
+                                <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-widest">Diferença</span>
                                 {diff === 0 ? (
-                                  <span className="text-[14px] text-slate-300 tabular-nums">—</span>
+                                  <span className="text-sm text-muted-foreground tabular-nums">—</span>
                                 ) : (
                                   <div className="flex items-center gap-1.5">
-                                    <span className={`text-[14px] font-bold tabular-nums ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                    <span className={`text-sm font-bold tabular-nums ${diff > 0 ? 'text-danger' : 'text-success'}`}>
                                       {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
                                     </span>
                                     {plannedTotal > 0 && (
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                        diff > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                                      <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${
+                                        diff > 0 ? 'bg-danger-soft text-danger' : 'bg-success-soft text-success'
                                       }`}>
                                         {Math.abs(diff / plannedTotal * 100).toFixed(1)}%
                                       </span>
@@ -1725,10 +1713,10 @@ export default function BudgetComparisonPage() {
 
                             {/* Justification */}
                             {a.changeReason && (
-                              <div className="p-3 rounded-xl bg-white border border-slate-100 flex items-start gap-2">
-                                <MessageSquare className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                              <div className="p-3 rounded-xl bg-card border border-border flex items-start gap-2">
+                                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Justificativa do Responsável</span>
+                                  <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Justificativa do Responsável</span>
                                   <p className="text-xs text-slate-600 mt-0.5">{a.changeReason}</p>
                                 </div>
                               </div>
@@ -1737,16 +1725,16 @@ export default function BudgetComparisonPage() {
                             {/* RH comment per item */}
                             {a.rhComment && (
                               <div className={`p-3 rounded-xl border flex items-start gap-2 ${
-                                itemRhStatus === 'aprovado' ? 'bg-emerald-50/60 border-emerald-100' :
-                                itemRhStatus === 'rejeitado' ? 'bg-red-50/60 border-red-100' :
-                                'bg-orange-50/60 border-orange-100'
+                                itemRhStatus === 'aprovado' ? 'bg-success-soft/60 border-success/25' :
+                                itemRhStatus === 'rejeitado' ? 'bg-danger-soft/60 border-danger/25' :
+                                'bg-warning-soft/60 border-warning/25'
                               }`}>
-                                <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${itemRhStatus === 'aprovado' ? 'text-emerald-500' : itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`} />
+                                <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${itemRhStatus === 'aprovado' ? 'text-success-strong' : itemRhStatus === 'rejeitado' ? 'text-danger-strong' : 'text-warning-strong'}`} />
                                 <div>
-                                  <span className={`text-[10px] uppercase font-bold tracking-wider ${itemRhStatus === 'aprovado' ? 'text-emerald-500' : itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`}>
+                                  <span className={`text-2xs uppercase font-bold tracking-wider ${itemRhStatus === 'aprovado' ? 'text-success-strong' : itemRhStatus === 'rejeitado' ? 'text-danger-strong' : 'text-warning-strong'}`}>
                                     Comentário do RH
                                   </span>
-                                  <p className={`text-xs mt-0.5 ${itemRhStatus === 'aprovado' ? 'text-emerald-700' : itemRhStatus === 'rejeitado' ? 'text-red-700' : 'text-orange-700'}`}>
+                                  <p className={`text-xs mt-0.5 ${itemRhStatus === 'aprovado' ? 'text-success' : itemRhStatus === 'rejeitado' ? 'text-danger' : 'text-warning'}`}>
                                     {a.rhComment}
                                   </p>
                                 </div>
@@ -1754,22 +1742,22 @@ export default function BudgetComparisonPage() {
                             )}
 
                             {rhComment && !a.rhComment && (
-                              <div className="p-3 rounded-xl bg-orange-50/60 border border-orange-100 flex items-start gap-2">
-                                <MessageSquare className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" />
+                              <div className="p-3 rounded-xl bg-warning-soft/60 border border-warning/25 flex items-start gap-2">
+                                <MessageSquare className="w-3.5 h-3.5 text-warning-strong mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <span className="text-[10px] uppercase text-orange-500 font-bold tracking-wider">Comentário do RH (geral)</span>
-                                  <p className="text-xs text-orange-700 mt-0.5">{rhComment}</p>
+                                  <span className="text-2xs uppercase text-warning-strong font-bold tracking-wider">Comentário do RH (geral)</span>
+                                  <p className="text-xs text-warning mt-0.5">{rhComment}</p>
                                 </div>
                               </div>
                             )}
 
                             {/* ── Observação do ajuste do RH ── */}
                             {a.rhAdjustNote && (
-                              <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-2">
-                                <MessageSquare className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+                              <div className="p-3 rounded-xl bg-warning-soft/80 border border-warning/25 flex items-start gap-2">
+                                <MessageSquare className="w-3.5 h-3.5 text-warning-strong mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <span className="text-[10px] uppercase text-amber-600 font-bold tracking-wider">Observação do Ajuste (RH)</span>
-                                  <p className="text-xs text-amber-800 mt-0.5">{a.rhAdjustNote}</p>
+                                  <span className="text-2xs uppercase text-warning font-bold tracking-wider">Observação do Ajuste (RH)</span>
+                                  <p className="text-xs text-warning mt-0.5">{a.rhAdjustNote}</p>
                                 </div>
                               </div>
                             )}
@@ -1784,11 +1772,11 @@ export default function BudgetComparisonPage() {
                                 .filter(l => l.entity_id === planId && l.action === 'update')
                                 .sort((x, y) => new Date(y.created_at || 0).getTime() - new Date(x.created_at || 0).getTime())[0];
                               return (
-                                <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50">
-                                  <span aria-hidden="true" className="text-amber-500 text-base leading-none shrink-0">⚠️</span>
+                                <div className="flex items-start gap-2 p-3 rounded-xl border border-warning/25 bg-warning-soft">
+                                  <span aria-hidden="true" className="text-warning-strong text-base leading-none shrink-0">⚠️</span>
                                   <div>
-                                    <p className="text-[11px] font-semibold text-amber-800">Orçamento Planejado foi alterado pelo RH</p>
-                                    {last && <p className="text-[10px] text-amber-600 mt-0.5">Última edição por {last.user_name || '?'} — os valores de referência podem ter mudado após o envio.</p>}
+                                    <p className="text-2xs font-semibold text-warning">Orçamento Planejado foi alterado pelo RH</p>
+                                    {last && <p className="text-2xs text-warning mt-0.5">Última edição por {last.user_name || '?'} — os valores de referência podem ter mudado após o envio.</p>}
                                   </div>
                                 </div>
                               );
@@ -1819,17 +1807,17 @@ export default function BudgetComparisonPage() {
 
       {/* ── Fixed RH Decision footer — apenas RH/admin decide ── */}
       {isRhOrAdmin && comparison && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
-        <div className="fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300" style={{ left: sidebarWidth }}>
+        <div className="fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-card/95 backdrop-blur-sm border-t border-border shadow-2 transition-all duration-300" style={{ left: sidebarWidth }}>
           <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-black text-slate-800">Decisão do RH</h3>
-              <p className={`text-xs mt-0.5 transition-colors ${selectedItems.size > 0 ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
+              <h3 className="text-sm font-black text-foreground">Decisão do RH</h3>
+              <p className={`text-xs mt-0.5 transition-colors ${selectedItems.size > 0 ? 'text-success font-medium' : 'text-muted-foreground'}`}>
                 {selectedItems.size > 0
                   ? <>
                       {selectedItems.size} selecionado{selectedItems.size !== 1 ? 's' : ''} para ação
-                      <span className="text-slate-400 font-normal tabular-nums">
+                      <span className="text-muted-foreground font-normal tabular-nums">
                         {' '}· Plan. {fmt(selectedTotals.planned)} · Real. {fmt(selectedTotals.actual)} · Dif.{' '}
-                        <span className={selectedTotals.diff > 0 ? 'text-red-500 font-semibold' : selectedTotals.diff < 0 ? 'text-emerald-600 font-semibold' : ''}>
+                        <span className={selectedTotals.diff > 0 ? 'text-danger-strong font-semibold' : selectedTotals.diff < 0 ? 'text-success font-semibold' : ''}>
                           {selectedTotals.diff > 0 ? '+' : selectedTotals.diff < 0 ? '−' : ''}{fmt(Math.abs(selectedTotals.diff))}
                         </span>
                       </span>
@@ -1844,7 +1832,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-red-50 hover:bg-red-100 text-red-600 border-none shadow-none disabled:opacity-40"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-danger-soft hover:bg-danger-soft text-danger border-none shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'reject' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1860,7 +1848,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 shadow-none disabled:opacity-40"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-warning-soft hover:bg-warning/20 text-warning border border-warning/25 shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1873,7 +1861,7 @@ export default function BudgetComparisonPage() {
                 </Tooltip>
               </TooltipProvider>
               {/* Divider */}
-              <div className="w-px h-6 bg-slate-200 mx-1" />
+              <div className="w-px h-6 bg-border mx-1" />
               {/* Primary approve action */}
               {(() => {
                 const selectedRhAdjustedFields = sortedData
@@ -1888,7 +1876,7 @@ export default function BudgetComparisonPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          className="h-9 text-sm px-5 rounded-xl text-white font-bold bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-40"
+                          className="h-9 text-sm px-5 rounded-xl text-white font-bold bg-success hover:bg-success/90 shadow-2 disabled:opacity-40"
                           onClick={() => {
                             if (hasAdjusted) {
                               setConfirmAdjustOpen(true);
@@ -1918,28 +1906,28 @@ export default function BudgetComparisonPage() {
 
       {/* ── Modal edição do realizado pelo RH ── */}
       <Dialog open={!!editingActual} onOpenChange={(open) => { if (!open) setEditingActual(null); }}>
-        <DialogContent style={{display:'flex', flexDirection:'column', maxHeight:'90vh', maxWidth:'480px'}} className="rounded-2xl p-0 gap-0">
+        <DialogContent style={{ maxHeight:'90vh', maxWidth:'480px' }} className="rounded-xl p-0 gap-0 flex flex-col">
           <DialogTitle className="sr-only">Editar Realizado — ajuste do RH</DialogTitle>
           {editingActual && (
             <>
-              <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0">
+              <div className="px-6 pt-5 pb-4 border-b border-border shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                    <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                  <div className="w-7 h-7 rounded-lg bg-warning-soft flex items-center justify-center shrink-0">
+                    <Pencil className="w-3.5 h-3.5 text-warning" />
                   </div>
                   <div>
-                    <h3 className="text-[15px] font-bold text-slate-900">Editar Realizado</h3>
-                    <p className="text-[11px] text-amber-600 font-medium">Ajuste do RH — ficará registrado no histórico</p>
+                    <h3 className="text-base font-bold text-foreground">Editar Realizado</h3>
+                    <p className="text-2xs text-warning font-medium">Ajuste do RH — ficará registrado no histórico</p>
                   </div>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto min-h-0 px-6 py-4 space-y-4">
                 {/* Diárias */}
-                <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Diárias</span>
+                <div className="rounded-xl border border-primary/25 bg-brand-soft/40 p-4 space-y-3">
+                  <span className="text-2xs font-bold uppercase tracking-widest text-primary">Diárias</span>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] text-slate-500 font-medium block mb-1">Quantidade</label>
+                      <label className="text-2xs text-muted-foreground font-medium block mb-1">Quantidade</label>
                       <Input
                         type="number" min={0}
                         value={editForm.dailyQuantity}
@@ -1948,7 +1936,7 @@ export default function BudgetComparisonPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] text-slate-500 font-medium block mb-1">Valor/dia (R$)</label>
+                      <label className="text-2xs text-muted-foreground font-medium block mb-1">Valor/dia (R$)</label>
                       <Input
                         type="text" inputMode="decimal"
                         value={editForm.dailyValue}
@@ -1960,8 +1948,8 @@ export default function BudgetComparisonPage() {
                   </div>
                 </div>
                 {/* Alimentação */}
-                <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-4 space-y-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-orange-600">Alimentação</span>
+                <div className="rounded-xl border border-warning/25 bg-warning-soft/40 p-4 space-y-3">
+                  <span className="text-2xs font-bold uppercase tracking-widest text-warning">Alimentação</span>
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { key: 'weekdayLunch', label: 'Almoço (Sem.)' },
@@ -1970,7 +1958,7 @@ export default function BudgetComparisonPage() {
                       { key: 'weekendDinner', label: 'Jantar (FdS)' },
                     ].map(({ key, label }) => (
                       <div key={key}>
-                        <label className="text-[11px] text-slate-500 font-medium block mb-1">{label}</label>
+                        <label className="text-2xs text-muted-foreground font-medium block mb-1">{label}</label>
                         <Input
                           type="text" inputMode="decimal"
                           value={editForm[key]}
@@ -1983,10 +1971,10 @@ export default function BudgetComparisonPage() {
                   </div>
                 </div>
                 {/* Mobilidade */}
-                <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-violet-600">Mobilidade</span>
+                <div className="rounded-xl border border-primary/25 bg-brand-soft/40 p-4 space-y-3">
+                  <span className="text-2xs font-bold uppercase tracking-widest text-primary">Mobilidade</span>
                   <div>
-                    <label className="text-[11px] text-slate-500 font-medium block mb-1">Total (R$)</label>
+                    <label className="text-2xs text-muted-foreground font-medium block mb-1">Total (R$)</label>
                     <Input
                       type="text" inputMode="decimal"
                       value={editForm.mobility}
@@ -1997,26 +1985,26 @@ export default function BudgetComparisonPage() {
                   </div>
                 </div>
                 {/* Observação do ajuste */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
+                <div className="rounded-xl border border-border bg-surface-muted/60 p-4 space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Observação do Ajuste</span>
-                    <span className="text-[10px] text-slate-400">(opcional)</span>
+                    <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">Observação do Ajuste</span>
+                    <span className="text-2xs text-muted-foreground">(opcional)</span>
                   </div>
                   <textarea
                     rows={3}
                     placeholder="Descreva o motivo do ajuste nos valores..."
                     value={editForm.rhAdjustNote || ''}
                     onChange={e => setEditForm(f => ({...f, rhAdjustNote: e.target.value}))}
-                    className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400 bg-white placeholder:text-slate-300"
+                    className="w-full text-sm text-slate-700 border border-border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-warning/50 focus:border-warning-strong bg-card placeholder:text-muted-foreground"
                   />
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 shrink-0">
+              <div className="px-6 py-4 border-t border-border flex gap-3 shrink-0">
                 <Button variant="outline" className="flex-1 rounded-xl h-9 text-sm" onClick={() => setEditingActual(null)}>
                   Cancelar
                 </Button>
                 <Button
-                  className="flex-1 rounded-xl h-9 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white"
+                  className="flex-1 rounded-xl h-9 text-sm font-bold bg-warning-strong hover:bg-warning/90 text-white"
                   onClick={saveEditModal}
                   disabled={patchActualMutation.isPending}
                 >
@@ -2030,19 +2018,19 @@ export default function BudgetComparisonPage() {
 
       {/* ── Modal confirmação de aprovação com ajustes ── */}
       <Dialog open={confirmAdjustOpen} onOpenChange={setConfirmAdjustOpen}>
-        <DialogContent className="max-w-sm rounded-2xl p-6 gap-4">
+        <DialogContent className="max-w-sm rounded-xl p-6 gap-4">
           <DialogTitle className="sr-only">Aprovação com ajustes</DialogTitle>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-warning-soft flex items-center justify-center shrink-0">
                 <span className="text-lg">⚠</span>
               </div>
               <div>
-                <h3 className="text-[15px] font-bold text-slate-900">Aprovação com ajustes</h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">Revise antes de confirmar</p>
+                <h3 className="text-base font-bold text-foreground">Aprovação com ajustes</h3>
+                <p className="text-2xs text-muted-foreground mt-0.5">Revise antes de confirmar</p>
               </div>
             </div>
-            <p className="text-[13px] text-slate-600 leading-relaxed">
+            <p className="text-sm text-slate-600 leading-relaxed">
               Você está aprovando itens com valores ajustados pelo RH em relação ao realizado do colaborador.
             </p>
             <div className="flex gap-2 pt-1">
@@ -2054,7 +2042,7 @@ export default function BudgetComparisonPage() {
                 Cancelar
               </Button>
               <Button
-                className="flex-1 rounded-xl h-9 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="flex-1 rounded-xl h-9 text-sm font-bold bg-success hover:bg-success/90 text-white"
                 onClick={() => {
                   setConfirmAdjustOpen(false);
                   setActionModal({ type: 'approve' });
@@ -2069,7 +2057,7 @@ export default function BudgetComparisonPage() {
       </Dialog>
 
       <Dialog open={!!splitDetail} onOpenChange={() => setSplitDetail(null)}>
-        <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden gap-0">
+        <DialogContent className="max-w-xl rounded-xl p-0 overflow-hidden gap-0">
           <DialogTitle className="sr-only">Detalhes da prestação do colaborador na vaga dividida</DialogTitle>
           {splitDetail && (() => {
             const sd = splitDetail;
@@ -2098,29 +2086,29 @@ export default function BudgetComparisonPage() {
             return (
               <>
                 {/* ── Modal header — dark purple gradient ── */}
-                <div className="bg-gradient-to-br from-violet-600 to-purple-700 px-6 py-5">
+                <div className="bg-primary px-6 py-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3.5">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-black shadow-lg ring-2 ring-white/20 ${avatarColor(sdName)}`}>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black shadow-2 ring-2 ring-white/20 ${avatarColor(sdName)}`}>
                         {initials(sdName)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <span className="text-base font-black text-white">{sdName}</span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sd.isParent
-                            ? 'bg-blue-200/30 text-blue-100 ring-1 ring-blue-200/40'
-                            : 'bg-purple-200/30 text-purple-100 ring-1 ring-purple-200/40'}`}>
+                          <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${sd.isParent
+                            ? 'bg-primary/30 text-primary-foreground/80 ring-1 ring-primary/40'
+                            : 'bg-primary/30 text-primary-foreground/80 ring-1 ring-primary/40'}`}>
                             {sd.isParent ? 'Titular' : 'Divisão'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-purple-200">{sdFn}</p>
+                        <p className="text-2xs text-primary-foreground/80">{sdFn}</p>
                       </div>
                     </div>
                     <button
                       type="button"
                       aria-label="Fechar detalhes"
                       onClick={() => setSplitDetail(null)}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-card/10 hover:bg-card/20 text-white/70 hover:text-white transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -2137,30 +2125,30 @@ export default function BudgetComparisonPage() {
                     const joinParts = (...parts: string[]) => parts.filter(Boolean).join(' + ');
                     return (
                       <div className="mt-4 grid grid-cols-2 gap-2">
-                        <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                          <Calendar className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
+                        <div className="bg-card/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Vaga original</p>
-                            <p className="text-[11px] text-white font-medium leading-snug">
+                            <p className="text-2xs uppercase font-bold tracking-wider text-primary-foreground/80 mb-0.5">Vaga original</p>
+                            <p className="text-2xs text-white font-medium leading-snug">
                               {fmtDateShort(allDays[0])} a {fmtDateShort(allDays[allDays.length - 1])}
                             </p>
-                            <p className="text-[10px] text-purple-200">
+                            <p className="text-2xs text-primary-foreground/80">
                               {totalGroupDays} dia{totalGroupDays !== 1 ? 's' : ''}
                               {' · '}{joinParts(wkdayStr(origWkdays), wkndStr(origWknds))}
                             </p>
                           </div>
                         </div>
                         {myDays.length > 0 && (
-                          <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                            <GitFork className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
+                          <div className="bg-card/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                            <GitFork className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" />
                             <div>
-                              <p className="text-[10px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Dias atribuídos</p>
-                              <p className="text-[11px] text-white font-medium leading-snug">
+                              <p className="text-2xs uppercase font-bold tracking-wider text-primary-foreground/80 mb-0.5">Dias atribuídos</p>
+                              <p className="text-2xs text-white font-medium leading-snug">
                                 {myDays.length === 1
                                   ? fmtDate(myDays[0])
                                   : `${fmtDateShort(myDays[0])} a ${fmtDateShort(myDays[myDays.length - 1])}`}
                               </p>
-                              <p className="text-[10px] text-purple-200">
+                              <p className="text-2xs text-primary-foreground/80">
                                 {myDayCount} dia{myDayCount !== 1 ? 's' : ''}
                                 {' · '}{joinParts(wkdayStr(myWkdays), wkndStr(myWknds))}
                               </p>
@@ -2173,21 +2161,21 @@ export default function BudgetComparisonPage() {
                 </div>
 
                 {/* ── Table body ── */}
-                <div className="px-5 py-4 space-y-3 bg-white max-h-[50vh] overflow-y-auto">
-                  <div className="grid grid-cols-4 gap-4 px-4 pb-2 border-b-2 border-slate-100">
-                    <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Item</span>
-                    <span className="text-[10px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
-                    <span className="text-[10px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
-                    <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider text-right">Diferença</span>
+                <div className="px-5 py-4 space-y-3 bg-card max-h-[50vh] overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-4 px-4 pb-2 border-b-2 border-border">
+                    <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Item</span>
+                    <span className="text-2xs uppercase text-primary font-bold tracking-wider text-right">Planejado</span>
+                    <span className="text-2xs uppercase text-primary font-bold tracking-wider text-right">Realizado</span>
+                    <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider text-right">Diferença</span>
                   </div>
 
                   {/* Diárias */}
                   <SectionBlock
                     title="Diárias"
                     icon={Calendar}
-                    headerBg="bg-blue-50/80"
-                    iconColor="text-blue-600"
-                    titleColor="text-blue-700"
+                    headerBg="bg-brand-soft/80"
+                    iconColor="text-primary"
+                    titleColor="text-primary"
                     subtotalPlan={dailyPlan}
                     subtotalAct={dailyAct}
                   >
@@ -2205,9 +2193,9 @@ export default function BudgetComparisonPage() {
                   <SectionBlock
                     title="Alimentação"
                     icon={Utensils}
-                    headerBg="bg-orange-50/80"
-                    iconColor="text-orange-600"
-                    titleColor="text-orange-700"
+                    headerBg="bg-warning-soft/80"
+                    iconColor="text-warning"
+                    titleColor="text-warning"
                     subtotalPlan={mealPlan}
                     subtotalAct={mealAct}
                   >
@@ -2221,9 +2209,9 @@ export default function BudgetComparisonPage() {
                   <SectionBlock
                     title="Mobilidade"
                     icon={Car}
-                    headerBg="bg-violet-50/80"
-                    iconColor="text-violet-600"
-                    titleColor="text-violet-700"
+                    headerBg="bg-brand-soft/80"
+                    iconColor="text-primary"
+                    titleColor="text-primary"
                     subtotalPlan={mobPlan}
                     subtotalAct={mobAct}
                   >
@@ -2244,17 +2232,17 @@ export default function BudgetComparisonPage() {
 
                   {/* Total row */}
                   <div className={`grid grid-cols-4 gap-4 px-4 py-3.5 rounded-xl border-2 font-semibold ${
-                    totalDiff > 0 ? 'bg-red-50 border-red-100'
-                    : totalDiff < 0 ? 'bg-emerald-50 border-emerald-100'
-                    : 'bg-slate-50 border-slate-100'
+                    totalDiff > 0 ? 'bg-danger-soft border-danger/25'
+                    : totalDiff < 0 ? 'bg-success-soft border-success/25'
+                    : 'bg-surface-muted border-border'
                   }`}>
-                    <span className="text-[12px] font-black uppercase tracking-wide text-slate-700">TOTAL</span>
-                    <span className="text-right tabular-nums text-blue-700 text-[13px] font-black">{fmt(totalPlan)}</span>
-                    <span className="text-right tabular-nums text-violet-700 text-[13px] font-black">{fmt(totalAct)}</span>
+                    <span className="text-xs font-black uppercase tracking-wide text-slate-700">TOTAL</span>
+                    <span className="text-right tabular-nums text-primary text-sm font-black">{fmt(totalPlan)}</span>
+                    <span className="text-right tabular-nums text-primary text-sm font-black">{fmt(totalAct)}</span>
                     <div className="text-right">
                       {totalDiff === 0
-                        ? <span className="text-slate-300 tabular-nums text-[13px] font-black">—</span>
-                        : <span className={`tabular-nums text-[13px] font-black ${totalDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        ? <span className="text-muted-foreground tabular-nums text-sm font-black">—</span>
+                        : <span className={`tabular-nums text-sm font-black ${totalDiff > 0 ? 'text-danger' : 'text-success'}`}>
                             {totalDiff > 0 ? '+' : '−'}{fmt(Math.abs(totalDiff))}
                           </span>
                       }
@@ -2263,16 +2251,16 @@ export default function BudgetComparisonPage() {
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="px-5 pb-5 pt-3 bg-white space-y-3 border-t border-slate-100">
+                <div className="px-5 pb-5 pt-3 bg-card space-y-3 border-t border-border">
                   {((!sd.isParent && totalGroupDays > 0) || (sd.isParent && totalGroupDays > 0 && myDayCount < totalGroupDays)) && (
                     <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border ${sd.isParent
-                      ? 'bg-blue-50 border-blue-100' : 'bg-purple-50 border-purple-100'}`}>
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${sd.isParent ? 'bg-blue-100' : 'bg-purple-100'}`}>
-                        <GitFork className={`w-3 h-3 ${sd.isParent ? 'text-blue-500' : 'text-purple-500'}`} />
+                      ? 'bg-brand-soft border-primary/25' : 'bg-brand-soft border-primary/25'}`}>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${sd.isParent ? 'bg-brand-soft' : 'bg-brand-soft'}`}>
+                        <GitFork className={`w-3 h-3 ${sd.isParent ? 'text-primary' : 'text-primary'}`} />
                       </div>
-                      <span className={`text-[11px] font-medium ${sd.isParent ? 'text-blue-700' : 'text-purple-700'}`}>
+                      <span className={`text-2xs font-medium ${sd.isParent ? 'text-primary' : 'text-primary'}`}>
                         {sd.isParent ? 'Titular cobriu' : 'Este colaborador cobriu'} <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
-                        {totalGroupDays > 0 && <span className={`ml-1.5 font-bold text-[10px] px-1.5 py-0.5 rounded-full ${sd.isParent ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                        {totalGroupDays > 0 && <span className={`ml-1.5 font-bold text-2xs px-1.5 py-0.5 rounded-full ${sd.isParent ? 'bg-brand-soft text-primary' : 'bg-brand-soft text-primary'}`}>
                           {Math.round(myDayCount / totalGroupDays * 100)}%
                         </span>}
                       </span>
@@ -2281,8 +2269,7 @@ export default function BudgetComparisonPage() {
                   <div className="flex justify-end">
                     <Button
                       onClick={() => setSplitDetail(null)}
-                      className="h-9 px-6 text-sm rounded-xl text-white"
-                      style={{background: '#6d28d9'}}
+                      className="h-9 px-6 text-sm rounded-xl text-white bg-primary-hover"
                     >
                       Fechar
                     </Button>
@@ -2296,52 +2283,52 @@ export default function BudgetComparisonPage() {
 
       {/* ── Action confirmation modal ── */}
       <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); setActionNoteError(false); }}>
-        <DialogContent className="max-w-md rounded-2xl">
+        <DialogContent className="max-w-md rounded-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               {actionModal?.type === 'approve' && (
-                <><div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-emerald-600" /></div> Aprovar prestação</>
+                <><div className="w-8 h-8 rounded-xl bg-success-soft flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-success" /></div> Aprovar prestação</>
               )}
               {actionModal?.type === 'reject' && (
-                <><div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-red-600" /></div> <span className="text-red-700">Recusar prestação</span></>
+                <><div className="w-8 h-8 rounded-xl bg-danger-soft flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-danger" /></div> <span className="text-danger">Recusar prestação</span></>
               )}
               {actionModal?.type === 'return' && (
-                <><div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0"><RotateCcw className="w-4 h-4 text-amber-600" /></div> <span className="text-amber-700">Devolver para correção</span></>
+                <><div className="w-8 h-8 rounded-xl bg-warning-soft flex items-center justify-center shrink-0"><RotateCcw className="w-4 h-4 text-warning" /></div> <span className="text-warning">Devolver para correção</span></>
               )}
             </DialogTitle>
-            <p className="text-[11px] text-slate-500 mt-1 pl-1 leading-relaxed">
+            <p className="text-2xs text-muted-foreground mt-1 pl-1 leading-relaxed">
               {sortedData.filter(row => selectedItems.has(row.actual.id)).map(row => getCollaboratorName(row.collaboratorId).split(' ')[0]).join(', ')}
             </p>
           </DialogHeader>
           <div className="space-y-4">
             {/* Collaborator chips */}
-            <div className={`rounded-xl p-3 border ${actionModal?.type === 'reject' ? 'bg-red-50/60 border-red-100' : actionModal?.type === 'return' ? 'bg-amber-50/60 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
-              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">
+            <div className={`rounded-xl p-3 border ${actionModal?.type === 'reject' ? 'bg-danger-soft/60 border-danger/25' : actionModal?.type === 'return' ? 'bg-warning-soft/60 border-warning/25' : 'bg-surface-muted border-border'}`}>
+              <p className="text-2xs uppercase tracking-wider text-muted-foreground font-bold mb-2">
                 {selectedItems.size} colaborador{selectedItems.size !== 1 ? 'es' : ''} afetado{selectedItems.size !== 1 ? 's' : ''}
               </p>
               <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
                 {sortedData.filter(row => selectedItems.has(row.actual.id)).map(row => {
                   const n = getCollaboratorName(row.collaboratorId);
                   return (
-                    <div key={row.actual.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-semibold text-white ${avatarColor(n)}`}>
+                    <div key={row.actual.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-2xs font-semibold ${avatarColor(n)}`}>
                       {initials(n)} <span className="opacity-90">{n}</span>
                     </div>
                   );
                 })}
               </div>
               {/* Totais do conjunto selecionado */}
-              <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200/70">
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-border/70">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Planejado</p>
-                  <p className="text-[13px] font-semibold text-blue-700 tabular-nums">{fmt(selectedTotals.planned)}</p>
+                  <p className="text-2xs uppercase tracking-wider text-muted-foreground font-bold">Planejado</p>
+                  <p className="text-sm font-semibold text-primary tabular-nums">{fmt(selectedTotals.planned)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Realizado</p>
-                  <p className="text-[13px] font-semibold text-violet-700 tabular-nums">{fmt(selectedTotals.actual)}</p>
+                  <p className="text-2xs uppercase tracking-wider text-muted-foreground font-bold">Realizado</p>
+                  <p className="text-sm font-semibold text-primary tabular-nums">{fmt(selectedTotals.actual)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Diferença</p>
-                  <p className={`text-[13px] font-semibold tabular-nums ${selectedTotals.diff > 0 ? 'text-red-600' : selectedTotals.diff < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  <p className="text-2xs uppercase tracking-wider text-muted-foreground font-bold">Diferença</p>
+                  <p className={`text-sm font-semibold tabular-nums ${selectedTotals.diff > 0 ? 'text-danger' : selectedTotals.diff < 0 ? 'text-success' : 'text-muted-foreground'}`}>
                     {selectedTotals.diff > 0 ? '+' : selectedTotals.diff < 0 ? '−' : ''}{fmt(Math.abs(selectedTotals.diff))}
                   </p>
                 </div>
@@ -2355,21 +2342,21 @@ export default function BudgetComparisonPage() {
                 {actionModal?.type === 'approve' ? (
                   <>
                     Comentário{' '}
-                    <span className="text-slate-400 font-normal">
+                    <span className="text-muted-foreground font-normal">
                       (opcional{selectedItems.size > 1 ? ` — será aplicado a todos os ${selectedItems.size} colaboradores selecionados` : ''})
                     </span>
                   </>
                 ) : (
                   <>
-                    Observação <span className="text-red-500" aria-hidden="true">*</span>{' '}
-                    <span className="text-slate-400 font-normal">
+                    Observação <span className="text-danger-strong" aria-hidden="true">*</span>{' '}
+                    <span className="text-muted-foreground font-normal">
                       (obrigatória{selectedItems.size > 1 ? ` — será aplicada a todos os ${selectedItems.size} colaboradores selecionados` : ''})
                     </span>
                   </>
                 )}
               </label>
               <Textarea
-                className={`mt-1.5 rounded-xl text-sm resize-none ${actionNoteError && actionModal?.type !== 'approve' && !actionNote.trim() ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                className={`mt-1.5 rounded-xl text-sm resize-none ${actionNoteError && actionModal?.type !== 'approve' && !actionNote.trim() ? 'border-danger-strong focus-visible:ring-danger/25' : ''}`}
                 value={actionNote}
                 onChange={e => { setActionNote(e.target.value); if (e.target.value.trim()) setActionNoteError(false); }}
                 aria-required={actionModal?.type !== 'approve'}
@@ -2384,12 +2371,12 @@ export default function BudgetComparisonPage() {
                 autoFocus={actionModal?.type !== 'approve'}
               />
               {actionNoteError && actionModal?.type !== 'approve' && !actionNote.trim() && (
-                <p className="text-[11px] text-red-600 font-medium mt-1.5">
+                <p className="text-2xs text-danger font-medium mt-1.5">
                   A observação é obrigatória ao {actionModal?.type === 'reject' ? 'recusar' : 'devolver'} — o responsável de função a receberá na tela do Realizado.
                 </p>
               )}
               {actionModal?.type !== 'approve' && actionNote.trim() && (
-                <p className="text-[10px] text-gray-400 mt-1.5 italic">
+                <p className="text-2xs text-muted-foreground mt-1.5 italic">
                   Esta observação ficará visível para o(s) colaborador(es) no card de prestação.
                 </p>
               )}
@@ -2402,10 +2389,10 @@ export default function BudgetComparisonPage() {
               onClick={handleAction}
               disabled={rhActionMutation.isPending}
               className={`rounded-xl ${
-                actionModal?.type === 'approve' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700' :
-                actionModal?.type === 'reject' ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700' :
-                'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
-              } text-white shadow-sm`}
+                actionModal?.type === 'approve' ? 'bg-success hover:bg-success/90' :
+                actionModal?.type === 'reject' ? 'bg-danger hover:bg-danger/90' :
+                'bg-warning hover:bg-warning/90'
+              } text-white shadow-1`}
             >
               {rhActionMutation.isPending ? 'Processando...' :
                actionModal?.type === 'approve' ? 'Confirmar aprovação' :
@@ -2417,16 +2404,16 @@ export default function BudgetComparisonPage() {
 
       {/* ── Reabrir o comparativo aprovado (estorno do Flash) ── */}
       <AlertDialog open={reopenOpen} onOpenChange={(o) => { setReopenOpen(o); if (!o) { setReopenReason(""); setReopenReasonError(false); } }}>
-        <AlertDialogContent className="rounded-2xl">
+        <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2.5 text-base">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                <RotateCcw className="w-4 h-4 text-amber-600" />
+              <div className="w-8 h-8 rounded-xl bg-warning-soft flex items-center justify-center shrink-0">
+                <RotateCcw className="w-4 h-4 text-warning" />
               </div>
-              <span className="text-amber-700">Reabrir o comparativo?</span>
+              <span className="text-warning">Reabrir o comparativo?</span>
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-2.5 text-[13px] text-slate-600">
+              <div className="space-y-2.5 text-sm text-slate-600">
                 <p>
                   O comparativo volta para <strong>devolvido</strong> (em ajuste) e{' '}
                   <strong>todos os lançamentos automáticos do Flash deste evento são REMOVIDOS</strong> —
@@ -2436,7 +2423,7 @@ export default function BudgetComparisonPage() {
                   Os lançamentos são apagados, não debitados: o extrato não fica com um par crédito/débito.
                   Ao aprovar o comparativo de novo, o crédito é recriado com os valores do Realizado daquele momento.
                 </p>
-                <p className="text-slate-500">
+                <p className="text-muted-foreground">
                   Lançamentos <strong>manuais</strong> do Flash não são tocados. As prestações continuam com o
                   status individual que já tinham.
                 </p>
@@ -2445,19 +2432,19 @@ export default function BudgetComparisonPage() {
           </AlertDialogHeader>
 
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Motivo da reabertura <span className="text-red-500">*</span>
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+              Motivo da reabertura <span className="text-danger-strong">*</span>
             </label>
             <Textarea
               value={reopenReason}
               onChange={e => { setReopenReason(e.target.value); if (e.target.value.trim()) setReopenReasonError(false); }}
               rows={3}
-              className={`mt-1.5 rounded-xl text-sm resize-none ${reopenReasonError ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+              className={`mt-1.5 rounded-xl text-sm resize-none ${reopenReasonError ? 'border-danger-strong focus-visible:ring-danger/25' : ''}`}
               placeholder="Ex.: valor de mobilidade do João estava errado — corrigir e aprovar de novo"
               data-testid="input-motivo-reabertura"
             />
             {reopenReasonError && (
-              <p className="text-[11px] text-red-600 font-medium mt-1.5">
+              <p className="text-2xs text-danger font-medium mt-1.5">
                 Descreva o motivo — ele fica registrado no comparativo como motivo da devolução.
               </p>
             )}
@@ -2466,7 +2453,7 @@ export default function BudgetComparisonPage() {
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+              className="rounded-xl bg-warning hover:bg-warning/90 text-white"
               disabled={reopenComparisonMutation.isPending}
               onClick={(e) => {
                 // O motivo é obrigatório (mesma regra da devolução por prestação):

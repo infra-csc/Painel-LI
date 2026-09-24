@@ -1,15 +1,18 @@
 /**
  * Evento "corrente" do módulo Validação de Escala — compartilhado pelas 4 telas
- * (Sugestão, Validação, Aprovação, Histórico). Fonte de verdade:
- *   1. `?eventId=` na URL (deep-link / link cruzado entre telas)
- *   2. último evento usado, em UMA chave de localStorage para o módulo inteiro
- * Ao selecionar, atualiza URL (replace) + localStorage — assim copiar o link
- * sempre carrega o contexto e trocar de tela mantém o evento.
+ * (Sugestão, Validação, Aprovação, Histórico).
+ *
+ * Desde 23/09 é um invólucro de `useEventoEmFoco` (lib/evento-em-foco.tsx): a
+ * memória do evento passou a ser UMA para o sistema inteiro (Escala, Financeiro,
+ * Espelho), por usuário. Aqui só ficam fixados o parâmetro `?eventId=` e o modo
+ * "substituir" (a URL zera os demais parâmetros ao trocar de evento), que é o
+ * comportamento que as telas da Escala sempre tiveram.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useSearch } from "wouter";
+import { CHAVE_LEGADA_ESCALA } from "@/lib/evento-em-foco";
+import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 
-export const SCALING_LAST_EVENT_KEY = "scaling:last-event";
+/** Chave antiga (única para todos os usuários). Mantida só para leitura na migração. */
+export const SCALING_LAST_EVENT_KEY = CHAVE_LEGADA_ESCALA;
 
 export function scalingHref(path: string, eventId?: string | null, extra?: Record<string, string>) {
   const p = new URLSearchParams();
@@ -34,42 +37,12 @@ export function useScalingEvent(
     allEventsDefault?: boolean;
   },
 ) {
-  const searchString = useSearch();
-  const [, setLocation] = useLocation();
-  const urlEventId = useMemo(() => new URLSearchParams(searchString).get("eventId") ?? "", [searchString]);
-  const allEventsDefault = opts?.allEventsDefault ?? false;
-  const [eventId, setEventIdState] = useState<string>(() =>
-    urlEventId
-    || (allEventsDefault || typeof window === "undefined" ? "" : localStorage.getItem(SCALING_LAST_EVENT_KEY) ?? ""),
-  );
-
-  // URL → estado (só quando difere; evita loop)
-  useEffect(() => {
-    if (urlEventId && urlEventId !== eventId) setEventIdState(urlEventId);
-  }, [urlEventId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // estado → localStorage + URL (garante que link copiado carrega o contexto)
-  useEffect(() => {
-    if (!eventId) return;
-    localStorage.setItem(SCALING_LAST_EVENT_KEY, eventId);
-    if (urlEventId !== eventId) {
-      setLocation(scalingHref(basePath, eventId, opts?.extraParams?.()), { replace: true });
-    }
-  }, [eventId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const setEventId = useCallback((id: string) => {
-    setEventIdState(id);
-    if (!id) {
-      localStorage.removeItem(SCALING_LAST_EVENT_KEY);
-      setLocation(basePath, { replace: true });
-    }
-  }, [basePath, setLocation]);
-
-  /** Descarta um evento persistido que não existe mais na lista carregada. */
-  const sanitize = useCallback((existingIds: string[] | undefined) => {
-    if (!existingIds || !eventId) return;
-    if (!existingIds.includes(eventId)) setEventId("");
-  }, [eventId, setEventId]);
-
+  const { eventId, setEventId, sanitize } = useEventoEmFoco({
+    parametro: "eventId",
+    caminho: basePath,
+    semPadrao: opts?.allEventsDefault ?? false,
+    parametrosExtras: opts?.extraParams,
+    modo: "substituir",
+  });
   return { eventId, setEventId, sanitize } as const;
 }

@@ -30,7 +30,7 @@ const orNull = <T,>(v: T | ""): T | null => (v === "" ? null : v);
 // Mesma estrutura do "Reajustar pedido" da Aprovação: cabeçalho fixo, corpo
 // rolável e rodapé preso — o motivo do pedido e os botões nunca somem da vista.
 
-const DIALOG_SHELL = "p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-2xl";
+const DIALOG_SHELL = "p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-xl";
 /**
  * Diálogo LARGO (pedido de ajuste e de inclusão).
  *
@@ -44,9 +44,9 @@ const DIALOG_SHELL_WIDE = `${DIALOG_SHELL} max-w-5xl`;
 const DIALOG_TWO_COLS = "grid gap-4 lg:grid-cols-2 lg:items-start";
 // shrink-0: sem isto o cabeçalho é comprimido pelo corpo num diálogo alto e
 // o título e a descrição se sobrepõem (visto ao vivo em 1568×688).
-const DIALOG_HEADER = "shrink-0 px-6 pt-6 pb-3 border-b border-slate-100 pr-12";
+const DIALOG_HEADER = "shrink-0 px-6 pt-6 pb-3 border-b border-border pr-12";
 const DIALOG_BODY = "flex-1 overflow-y-auto px-6 py-4 space-y-4";
-const DIALOG_STICKY = "shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-3 space-y-2";
+const DIALOG_STICKY = "shrink-0 border-t border-border bg-surface-muted/60 px-6 py-3 space-y-2";
 
 // ── Passos numerados e erro com foco (04/09) ─────────────────────────────────
 // O mesmo desenho dos diálogos de decisão da Aprovação (decision-dialogs.tsx):
@@ -55,18 +55,18 @@ const DIALOG_STICKY = "shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py
 // consequência. Antes o erro aparecia embaixo, no rodapé, e o campo vazio
 // ficava fora da vista num diálogo alto.
 
-const passoCls = "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[11px] font-bold text-white";
+const passoCls = "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-800 text-2xs font-bold text-white";
 
 /** Título de um passo: bolinha numerada + texto (+ asterisco quando obrigatório). */
 function Passo({ n, id, obrigatorio, dica, children }: { n: number; id?: string; obrigatorio?: boolean; dica?: ReactNode; children: ReactNode }) {
   return (
     <div className="space-y-0.5">
-      <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+      <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <span className={passoCls} aria-hidden="true">{n}</span>
         <span className="sr-only">Passo {n}: </span>
-        <span>{children}{obrigatorio && <span className="ml-1 text-red-500" aria-hidden="true">*</span>}</span>
+        <span>{children}{obrigatorio && <span className="ml-1 text-danger-strong" aria-hidden="true">*</span>}</span>
       </h3>
-      {dica && <p className="pl-8 text-[11px] leading-snug text-slate-500">{dica}</p>}
+      {dica && <p className="pl-8 text-2xs leading-snug text-muted-foreground">{dica}</p>}
     </div>
   );
 }
@@ -88,7 +88,7 @@ type CampoErro = "function" | "quantity" | "days" | "travel" | "reason" | "diff"
 interface ErroForm { campo: CampoErro; msg: string }
 
 /** Contorno vermelho em volta de um bloco inteiro (seletor de dias, viagem) — o `aria-invalid` de quem não é um único input. */
-const BLOCO_INVALIDO = "rounded-2xl ring-2 ring-red-300 ring-offset-2";
+const BLOCO_INVALIDO = "rounded-xl ring-2 ring-danger/25 ring-offset-2";
 
 /**
  * Leva o foco (e a rolagem) ao primeiro elemento focável do campo com erro.
@@ -120,15 +120,15 @@ function ReasonField({ id, value, onChange, disabled, placeholder, label = "Moti
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={id} className={passo ? "flex items-center gap-2 text-sm font-semibold text-slate-800" : "text-xs text-slate-600"}>
+      <Label htmlFor={id} className={passo ? "flex items-center gap-2 text-sm font-semibold text-foreground" : "text-xs text-slate-600"}>
         {passo && <span className={passoCls} aria-hidden="true">{passo}</span>}
         {passo && <span className="sr-only">Passo {passo}: </span>}
-        <span>{label} <span className="text-red-500" aria-hidden="true">*</span></span>
+        <span>{label} <span className="text-danger-strong" aria-hidden="true">*</span></span>
       </Label>
       <Textarea id={id} rows={2} maxLength={1000} value={value} disabled={disabled} required aria-required="true"
         aria-invalid={invalido || undefined} aria-describedby={invalido && erroId ? erroId : undefined}
         placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className={cn("rounded-lg text-sm bg-white", invalido && "border-red-400 focus-visible:ring-red-300")} />
+        className={cn("rounded-lg text-sm bg-card", invalido && "border-danger-strong focus-visible:ring-danger/25")} />
     </div>
   );
 }
@@ -186,10 +186,10 @@ export function ApproverCommentBanner({ info }: { info: LastDecisionInfo | null 
   const when = info.at ? formatDateBr(info.at) : "";
   const typeLabel = CHANGE_REQUEST_TYPE_LABELS[info.requestType] ?? info.requestType;
   return (
-    <div role="note" className="rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-1">
-      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">{d.title} · pedido de {typeLabel.toLowerCase()}</p>
-      <p className="text-sm text-slate-800 whitespace-pre-wrap">{info.comment?.trim() ? info.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
-      <p className="text-[11px] text-slate-600">{info.byName ?? "Aprovador"}{when ? ` · ${when}` : ""}</p>
+    <div role="note" className="rounded-xl border border-warning/25 bg-warning-soft px-3 py-2.5 space-y-1">
+      <p className="text-2xs font-bold uppercase tracking-wide text-warning">{d.title} · pedido de {typeLabel.toLowerCase()}</p>
+      <p className="text-sm text-foreground whitespace-pre-wrap">{info.comment?.trim() ? info.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
+      <p className="text-2xs text-slate-600">{info.byName ?? "Aprovador"}{when ? ` · ${when}` : ""}</p>
     </div>
   );
 }
@@ -334,7 +334,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           {vaga && (
             <section className="space-y-1.5" aria-labelledby="adj-vaga-hoje">
               <h3 id="adj-vaga-hoje" className={SECTION_TITLE}>A vaga hoje</h3>
-              <VagaCard row={vaga} functionName={nomeFuncao} className="bg-slate-50/60 p-3" />
+              <VagaCard row={vaga} functionName={nomeFuncao} className="bg-surface-muted/60 p-3" />
             </section>
           )}
           <section className="space-y-2" aria-labelledby="adj-passo-1">
@@ -366,20 +366,20 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           {/* O bloco fica sempre visível: sumir quando nada mudou faz parecer
               que o de/para não existe. Vazio, ele diz o que falta fazer. */}
           <div
-            className={cn("rounded-2xl border p-3", diff.length ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-slate-50/60")}
+            className={cn("rounded-xl border p-3", diff.length ? "border-warning/25 bg-warning-soft/60" : "border-border bg-surface-muted/60")}
             data-testid="adjust-diff"
           >
-            <p className={cn("mb-2 text-[11px] font-bold uppercase tracking-wide", diff.length ? "text-amber-700" : "text-slate-500")}>
+            <p className={cn("mb-2 text-2xs font-bold uppercase tracking-wide", diff.length ? "text-warning" : "text-muted-foreground")}>
               O que muda ({diff.length})
             </p>
             {diff.length === 0 ? (
-              <p className="text-xs text-slate-500">Nada mudou ainda — marque ou desmarque um dia para o aprovador ver o de/para.</p>
+              <p className="text-xs text-muted-foreground">Nada mudou ainda — marque ou desmarque um dia para o aprovador ver o de/para.</p>
             ) : (
               <ul className="space-y-1 text-xs text-slate-700">
                 {diff.map((d) => (
                   <li key={d.field} className="flex flex-wrap gap-x-2">
                     <span className="font-semibold min-w-[150px]">{PROPOSED_FIELD_LABELS[d.field]}</span>
-                    <span className="text-slate-400 line-through">{fmtValue(d.field, d.from)}</span>
+                    <span className="text-muted-foreground line-through">{fmtValue(d.field, d.from)}</span>
                     <span aria-hidden="true">→</span>
                     <span className="font-medium">{fmtValue(d.field, d.to)}</span>
                   </li>
@@ -394,9 +394,9 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
             invalido={error?.campo === "reason"} erroId="adj-erro"
             onChange={(v) => { setReason(v); if (error?.campo === "reason" && v.trim()) setError(null); }}
             placeholder="Explique para o aprovador por que a vaga precisa mudar." />
-          {error && <p id="adj-erro" role="alert" className="text-xs font-medium text-red-700">{error.msg}</p>}
+          {error && <p id="adj-erro" role="alert" className="text-xs font-medium text-danger">{error.msg}</p>}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" className="rounded-lg bg-white" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+            <Button type="button" variant="outline" className="rounded-lg bg-card" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
             {/* O botão diz o que acontece depois: o pedido não muda a vaga, quem decide é o aprovador. */}
             <Button type="button" onClick={submit} disabled={mutation.isPending} className="rounded-lg min-w-[200px] bg-primary hover:bg-primary-hover">
               {mutation.isPending ? "Enviando…" : "Enviar pedido de ajuste · o aprovador decide"}
@@ -466,8 +466,8 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
           {vaga && (
             <>
               <VagaCard row={vaga} functionName={functionName} rotuloLogistica="Logística que deixa de ser necessária" />
-              <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 space-y-1.5" aria-labelledby="del-afeta">
-                <p id="del-afeta" className="text-[11px] font-bold uppercase tracking-wide text-amber-700">O que isso afeta</p>
+              <section className="rounded-xl border border-warning/25 bg-warning-soft/60 p-3 space-y-1.5" aria-labelledby="del-afeta">
+                <p id="del-afeta" className="text-2xs font-bold uppercase tracking-wide text-warning">O que isso afeta</p>
                 <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
                   <li>
                     Saem <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(vaga)}</span>{" "}
@@ -486,7 +486,7 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
               </section>
             </>
           )}
-          <p className="text-xs text-slate-500">Nada é apagado agora: o pedido vai para o aprovador da função com o motivo abaixo.</p>
+          <p className="text-xs text-muted-foreground">Nada é apagado agora: o pedido vai para o aprovador da função com o motivo abaixo.</p>
         </div>
 
         <div className={DIALOG_STICKY}>
@@ -494,10 +494,10 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
             invalido={!!error} erroId="del-erro"
             onChange={(v) => { setReason(v); if (error && v.trim()) setError(null); }}
             placeholder="Ex.: a área reduziu a equipe de campo e esta vaga não será mais ocupada." />
-          <p className="text-[11px] text-slate-500">O aprovador decide com base neste texto — ele vê o motivo antes de aprovar ou negar.</p>
-          {error && <p id="del-erro" role="alert" className="text-xs font-medium text-red-700">{error}</p>}
+          <p className="text-2xs text-muted-foreground">O aprovador decide com base neste texto — ele vê o motivo antes de aprovar ou negar.</p>
+          {error && <p id="del-erro" role="alert" className="text-xs font-medium text-danger">{error}</p>}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" className="rounded-lg bg-white" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+            <Button type="button" variant="outline" className="rounded-lg bg-card" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
             <Button type="button" variant="destructive" className="rounded-lg" onClick={submit} disabled={mutation.isPending}>
               {mutation.isPending ? "Enviando…" : "Pedir exclusão"}
             </Button>
@@ -617,7 +617,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
                 <Label htmlFor="inc-function" className="text-xs text-slate-600">Função</Label>
                 <Select value={functionId} onValueChange={(v) => { setFunctionId(v); if (error?.campo === "function") setError(null); }} disabled={mutation.isPending || sorted.length === 0}>
                   <SelectTrigger id="inc-function" aria-invalid={error?.campo === "function" || undefined} aria-describedby={error?.campo === "function" ? "inc-erro" : undefined}
-                    className={cn("h-9 rounded-lg", error?.campo === "function" && "border-red-400 focus:ring-red-300")}>
+                    className={cn("h-9 rounded-lg", error?.campo === "function" && "border-danger-strong focus:ring-danger/25")}>
                     <SelectValue placeholder={sorted.length === 0 ? "Você não gerencia nenhuma função" : "Selecione a função"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -662,9 +662,9 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
             invalido={error?.campo === "reason"} erroId="inc-erro"
             onChange={(v) => { setReason(v); if (error?.campo === "reason" && v.trim()) setError(null); }}
             placeholder="Por que a escala precisa desta(s) vaga(s) a mais?" />
-          {error && <p id="inc-erro" role="alert" className="text-xs font-medium text-red-700">{error.msg}</p>}
+          {error && <p id="inc-erro" role="alert" className="text-xs font-medium text-danger">{error.msg}</p>}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" className="rounded-lg bg-white" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
+            <Button type="button" variant="outline" className="rounded-lg bg-card" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
             <Button type="button" onClick={submit} disabled={mutation.isPending || !event} className="rounded-lg min-w-[200px] bg-primary hover:bg-primary-hover">
               {mutation.isPending ? "Enviando…" : rotuloEnviar}
             </Button>

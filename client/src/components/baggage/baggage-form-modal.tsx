@@ -12,17 +12,13 @@
  * observações continuam todos aqui, com os mesmos ids, `aria-invalid` e
  * mensagens de erro.
  */
-import { useState } from "react";
 import { AlertCircle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { parseBrNumber, fixEncoding } from "@/lib/utils";
 import {
   AGENCIAS_FIXAS, CIAS_FIXAS, CIA_STYLE, TYPE_LABEL, contarObrigatorios, emptyForm,
@@ -33,9 +29,9 @@ import {
 import { validate, type AgregadoDoColaborador } from "./baggage-logic";
 import { CollaboratorCombobox, EventCombobox } from "./baggage-comboboxes";
 
-const LBL = "text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5";
-const INPUT = "h-9 text-xs rounded-lg border-gray-200";
-const SELECT = "w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-blue-400";
+const LBL = "text-2xs font-bold text-muted-foreground uppercase tracking-widest block mb-1.5";
+const INPUT = "h-9 text-xs rounded-lg border-border";
+const SELECT = "w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary";
 
 export default function BaggageFormModal({
   open, onOpenChange, form, setForm, errors, editing, eventOptions, colaboradoresAtivos,
@@ -58,7 +54,6 @@ export default function BaggageFormModal({
   salvando: boolean;
   onSubmit: () => void;
 }) {
-  const [confirmarDescarte, setConfirmarDescarte] = useState(false);
   const { preenchidos, total } = contarObrigatorios(form);
   const faltam = total - preenchidos;
   /*
@@ -71,7 +66,7 @@ export default function BaggageFormModal({
   const pendenciasReais = Object.keys(validate(form)).length;
 
   const fieldError = (key: string, id: string) =>
-    errors[key] ? <p id={id} className="text-[10px] text-[#B91C1C] mt-1" role="alert">{errors[key]}</p> : null;
+    errors[key] ? <p id={id} className="text-2xs text-danger mt-1" role="alert">{errors[key]}</p> : null;
 
   /*
    * "Sujo" é ter qualquer coisa diferente do formulário em branco. Ao editar,
@@ -82,20 +77,19 @@ export default function BaggageFormModal({
     Object.keys(emptyForm) as (keyof FormState)[]
   ).some(k => form[k] !== emptyForm[k]);
 
-  const tentarFechar = () => {
-    if (sujo) { setConfirmarDescarte(true); return; }
-    onOpenChange(false);
-  };
+  // Diálogo único de descarte (23/09): o mesmo texto de todos os formulários.
+  const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(sujo, { salvando });
+  const tentarFechar = () => pedirParaFechar(() => onOpenChange(false));
 
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => { if (!v) tentarFechar(); }}>
-        <DialogContent className="max-w-[880px] w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0 rounded-2xl overflow-hidden" data-testid="dialog-baggage-form">
+        <DialogContent className="max-w-[880px] w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden" data-testid="dialog-baggage-form">
           <DialogHeader className="shrink-0 px-6 pt-5 pb-3">
-            <DialogTitle className="text-[17px] font-bold text-slate-900">
+            <DialogTitle className="text-lg font-bold text-foreground">
               {editing ? "Editar solicitação de bagagem" : "Nova solicitação de bagagem"}
             </DialogTitle>
-            <DialogDescription className="text-[12px] text-[#64748B]">
+            <DialogDescription className="text-xs text-muted-foreground">
               {editing
                 ? `LOC ${editing.loc} · registrada em ${fmtDate(editing.requestDate)}`
                 : "Bagagem despachada por colaborador e evento."}
@@ -105,7 +99,7 @@ export default function BaggageFormModal({
           {/* Progresso dos obrigatórios — valores reais, não decoração. */}
           <div className="shrink-0 px-6 pb-3 flex items-center gap-3" data-testid="progresso-obrigatorios">
             <div
-              className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden"
+              className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"
               role="progressbar"
               aria-valuenow={preenchidos}
               aria-valuemin={0}
@@ -113,11 +107,11 @@ export default function BaggageFormModal({
               aria-label="Campos obrigatórios preenchidos"
             >
               <div
-                className={`h-full rounded-full transition-[width] duration-200 ${preenchidos === total ? "bg-[#059669]" : "bg-primary"}`}
+                className={`h-full rounded-full transition-[width] duration-200 ${preenchidos === total ? "bg-success" : "bg-primary"}`}
                 style={{ width: `${(preenchidos / total) * 100}%` }}
               />
             </div>
-            <span className="text-[12px] text-[#64748B] tabular-nums whitespace-nowrap">
+            <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
               {preenchidos} de {total} campos obrigatórios
             </span>
           </div>
@@ -159,14 +153,14 @@ export default function BaggageFormModal({
 
             {/* Painel de contexto do colaborador selecionado */}
             {colaboradorSelecionado && (
-              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 border border-gray-100 px-3.5 py-2.5" data-testid="contexto-colaborador">
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-surface-muted border border-border px-3.5 py-2.5" data-testid="contexto-colaborador">
                 <p className="text-xs font-semibold text-slate-700">
                   {toTitleCase(fixEncoding(colaboradorSelecionado.fullName))}
                 </p>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 uppercase tracking-wide">
+                <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary uppercase tracking-wide">
                   {TYPE_LABEL[colaboradorSelecionado.type || ""] || colaboradorSelecionado.type || "—"}
                 </span>
-                <span className="text-[11px] text-[#64748B]">
+                <span className="text-2xs text-muted-foreground">
                   {agregadoDoColaborador
                     ? `${agregadoDoColaborador.totalBags} ${agregadoDoColaborador.totalBags === 1 ? "bagagem registrada" : "bagagens registradas"} no sistema`
                     : "Nenhuma bagagem registrada no sistema"}
@@ -176,7 +170,7 @@ export default function BaggageFormModal({
                     {(Object.keys(agregadoDoColaborador.byCia) as CiaGroup[])
                       .filter(g => agregadoDoColaborador.byCia[g] > 0)
                       .map(g => (
-                        <span key={g} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CIA_STYLE[g].badge}`}>
+                        <span key={g} className={`text-2xs font-bold px-1.5 py-0.5 rounded-full ${CIA_STYLE[g].badge}`}>
                           {g}: {agregadoDoColaborador.byCia[g]}
                         </span>
                       ))}
@@ -239,7 +233,7 @@ export default function BaggageFormModal({
                   className={`${INPUT} font-mono`}
                 />
                 {!errors.value && form.valueText.trim() && /\d/.test(form.valueText) && (
-                  <p className="text-[10px] text-[#64748B] mt-1 font-mono" aria-live="polite">
+                  <p className="text-2xs text-muted-foreground mt-1 font-mono" aria-live="polite">
                     = {formatCurrency(Math.round(parseBrNumber(form.valueText) * 100))}
                   </p>
                 )}
@@ -338,9 +332,9 @@ export default function BaggageFormModal({
               por engano, e sem o aviso só descobre na conferência.
             */}
             {locDuplicado && (
-              <div className="mt-4 rounded-xl bg-[#FEF3C7] px-3.5 py-2.5 flex items-start gap-2" role="status" data-testid="aviso-loc-duplicado">
-                <AlertCircle className="w-4 h-4 text-[#92400E] shrink-0 mt-px" aria-hidden="true" />
-                <p className="text-[12px] text-[#92400E] leading-snug">
+              <div className="mt-4 rounded-xl bg-warning-soft px-3.5 py-2.5 flex items-start gap-2" role="status" data-testid="aviso-loc-duplicado">
+                <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-px" aria-hidden="true" />
+                <p className="text-xs text-warning leading-snug">
                   <span className="font-mono font-semibold">{locDuplicado.loc}</span> já está registrado para{" "}
                   <strong>{getCollabName(locDuplicado.collaboratorId)}</strong>, embarque {fmtDate(locDuplicado.boardingDate)}.
                   Se for bagagem extra do mesmo bilhete, aumente a quantidade em vez de criar outra.
@@ -365,8 +359,8 @@ export default function BaggageFormModal({
             algo está incompleto, mas não o quê — e "nada é salvo até você
             registrar" responde a pergunta que faz a pessoa hesitar em fechar.
           */}
-          <div className="shrink-0 px-6 py-3 border-t border-border bg-[#F8FAFC] flex items-center gap-3 flex-wrap">
-            <p className="text-[12px] text-[#64748B]" data-testid="rodape-obrigatorios">
+          <div className="shrink-0 px-6 py-3 border-t border-border bg-surface-muted flex items-center gap-3 flex-wrap">
+            <p className="text-xs text-muted-foreground" data-testid="rodape-obrigatorios">
               {faltam > 0
                 ? `Faltam ${faltam} ${faltam === 1 ? "campo obrigatório" : "campos obrigatórios"} — nada é salvo até você ${editing ? "salvar" : "registrar"}.`
                 : pendenciasReais > 0
@@ -380,7 +374,7 @@ export default function BaggageFormModal({
               <Button
                 onClick={onSubmit}
                 disabled={salvando}
-                className="h-10 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold"
+                className="h-10 px-4 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold"
                 data-testid="button-submit-baggage"
               >
                 <Save className="w-4 h-4 mr-1.5" aria-hidden="true" />
@@ -391,26 +385,7 @@ export default function BaggageFormModal({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmarDescarte} onOpenChange={setConfirmarDescarte}>
-        <AlertDialogContent className="max-w-[420px] rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você preencheu campos que ainda não foram registrados. Fechar agora perde o que foi digitado.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-keep-editing">Continuar editando</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { setConfirmarDescarte(false); onOpenChange(false); }}
-              className="bg-[#B91C1C] hover:bg-[#991B1B]"
-              data-testid="button-discard-form"
-            >
-              Descartar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {DialogoDescarte}
     </>
   );
 }

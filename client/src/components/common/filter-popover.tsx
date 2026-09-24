@@ -30,7 +30,7 @@ export interface OpcaoDeFiltro {
 }
 
 const GATILHO =
-  "inline-flex w-full items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-[13px] font-medium text-slate-700 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary";
+  "inline-flex w-full items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-sm font-medium text-slate-700 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary";
 
 const Gatilho = forwardRef<HTMLButtonElement, {
   ativo: boolean; texto: string; testid: string;
@@ -44,11 +44,11 @@ const Gatilho = forwardRef<HTMLButtonElement, {
       // escolhido não couber, o title deixa ler o nome inteiro no hover.
       title={texto}
       {...props}
-      className={`${GATILHO} ${ativo ? "border-[rgba(0,51,204,0.35)]" : "border-border"} ${className ?? ""}`}
+      className={`${GATILHO} ${ativo ? "border-primary/40" : "border-border"} ${className ?? ""}`}
     >
       <span className="flex-1 min-w-0 truncate text-left">{texto}</span>
       {/* #64748B: o chevron antigo era #94A3B8, 2,56:1 sobre branco. */}
-      <ChevronDown className="w-4 h-4 shrink-0 text-[#64748B]" aria-hidden="true" />
+      <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </button>
   ),
 );
@@ -59,7 +59,7 @@ function Caixa({ on }: { on: boolean }) {
     <span
       aria-hidden="true"
       className={`inline-flex items-center justify-center w-4 h-4 shrink-0 rounded border ${
-        on ? "bg-primary border-primary text-white" : "bg-card border-slate-300 text-transparent"
+        on ? "bg-primary border-primary text-primary-foreground" : "bg-card border-slate-300 text-transparent"
       }`}
     >
       <Check className="w-3 h-3" strokeWidth={3} />
@@ -96,8 +96,8 @@ function Lista({ opcoes, busca, onBusca, estaMarcada, onEscolher, placeholder, t
 
   return (
     <>
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 bg-background">
-        <Search className="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true" />
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background">
+        <Search className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
           autoFocus
           type="text"
@@ -106,7 +106,7 @@ function Lista({ opcoes, busca, onBusca, estaMarcada, onEscolher, placeholder, t
           placeholder={placeholder}
           aria-label={placeholder}
           data-testid={`${testidPrefixo}-busca`}
-          className="flex-1 min-w-0 h-[26px] bg-transparent text-[13px] text-slate-900 outline-none"
+          className="flex-1 min-w-0 h-[26px] bg-transparent text-sm text-foreground outline-none"
         />
         {rodape}
       </div>
@@ -118,16 +118,16 @@ function Lista({ opcoes, busca, onBusca, estaMarcada, onEscolher, placeholder, t
             role="checkbox"
             aria-checked={estaMarcada(o.id)}
             onClick={() => onEscolher(o.id)}
-            className="flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-[7px] text-[13px] text-slate-700 text-left hover:bg-slate-100"
+            className="flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-md text-sm text-slate-700 text-left hover:bg-muted"
             data-testid={`${testidPrefixo}-opcao-${o.id}`}
           >
             <Caixa on={estaMarcada(o.id)} />
             <span className="flex-1 min-w-0 truncate">{o.nome}</span>
-            <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{o.n}</span>
+            <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">{o.n}</span>
           </button>
         ))}
         {filtradas.length === 0 && (
-          <p className="px-2 py-3.5 text-center text-[12px] text-muted-foreground">Nada com esse nome.</p>
+          <p className="px-2 py-3.5 text-center text-xs text-muted-foreground">Nada com esse nome.</p>
         )}
       </div>
     </>
@@ -177,7 +177,7 @@ export function FiltroDeLista({ valor, onChange, opcoes, testid, larguraPopover 
                 role="radio"
                 aria-checked={marcada}
                 onClick={() => { onChange(o.id); setAberto(false); }}
-                className={`flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-[7px] text-[13px] text-left hover:bg-slate-100 ${
+                className={`flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-md text-sm text-left hover:bg-muted ${
                   marcada ? "text-primary font-medium" : "text-slate-700"
                 }`}
                 data-testid={`${testid}-opcao-${o.id}`}
@@ -185,7 +185,7 @@ export function FiltroDeLista({ valor, onChange, opcoes, testid, larguraPopover 
                 <Caixa on={marcada} />
                 <span className="flex-1 min-w-0 truncate">{o.nome}</span>
                 {typeof n === "number" && (
-                  <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{n}</span>
+                  <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">{n}</span>
                 )}
               </button>
             );
@@ -228,7 +228,7 @@ export function FiltroUnico({ valor, onChange, opcoes, rotuloTodos, placeholderB
             <button
               type="button"
               onClick={() => onChange("all")}
-              className="h-6 px-2 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft shrink-0"
+              className="h-6 px-2 rounded-md text-xs font-medium text-primary hover:bg-brand-soft shrink-0"
               data-testid={`${testid}-limpar`}
             >
               Limpar
@@ -275,7 +275,7 @@ export function FiltroMultiplo({ valores, onChange, opcoes, rotuloTodos, placeho
             <button
               type="button"
               onClick={() => onChange([])}
-              className="h-6 px-2 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft shrink-0"
+              className="h-6 px-2 rounded-md text-xs font-medium text-primary hover:bg-brand-soft shrink-0"
               data-testid={`${testid}-limpar`}
             >
               Limpar

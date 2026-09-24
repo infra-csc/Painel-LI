@@ -92,7 +92,7 @@ type QuickFilter = "pendentes" | "ajuste" | "inclusao" | "exclusao";
  */
 type ApprovalTab = "aprovacao" | "fila" | "paradas" | "decididas";
 
-const TAB_TRIGGER = "h-7 rounded-lg px-3.5 text-[13px] font-medium";
+const TAB_TRIGGER = "h-7 rounded-lg px-3.5 text-sm font-medium";
 
 /**
  * Filtro liga/desliga da barra de abas ("Só as minhas funções" / "Só os que
@@ -108,7 +108,7 @@ function ToggleFilter({ pressed, onPressedChange, label }: { pressed: boolean; o
       onClick={() => onPressedChange(!pressed)}
       className={cn(
         "inline-flex items-center gap-2 h-7 rounded-lg border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        pressed ? "border-primary/30 bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+        pressed ? "border-primary/30 bg-brand-soft text-primary" : "border-border bg-card text-slate-600 hover:border-slate-300",
       )}
     >
       <Icon className="w-3.5 h-3.5" aria-hidden="true" />{label}
@@ -477,7 +477,7 @@ export default function ScalingApprovalPage() {
         <ToastAction
           altText="Abrir próximo pedido pendente"
           onClick={() => openDetail(next)}
-          className="whitespace-nowrap border-slate-200 bg-white hover:bg-brand-soft hover:text-primary"
+          className="whitespace-nowrap border-border bg-card hover:bg-brand-soft hover:text-primary"
         >
           Abrir próximo pendente
         </ToastAction>
@@ -557,7 +557,7 @@ export default function ScalingApprovalPage() {
       Icon: ShieldCheck,
       // Sem contagem de dias no cartão (pedido do dono, 04/09): "parada há N
       // dias" virava alarme vermelho permanente sem mudar a decisão.
-      tom: awaitingMine.length ? "text-sky-700" : "text-slate-800",
+      tom: awaitingMine.length ? "text-info" : "text-foreground",
       contexto: (
         <span>
           <span>validadas pela área, esperando você</span>
@@ -575,7 +575,7 @@ export default function ScalingApprovalPage() {
       titulo: counts.pendentes === 1 ? "pedido na fila" : "pedidos na fila",
       n: counts.pendentes,
       Icon: Inbox,
-      tom: "text-slate-800",
+      tom: "text-foreground",
       contexto: (
         <span>
           {showMineFilter
@@ -591,9 +591,9 @@ export default function ScalingApprovalPage() {
 
   /** Recortes da fila: chips de filtro, não indicadores. */
   const recortes: { key: string; label: string; n: number; ponto: string; active: boolean; onClick: () => void; hint: string }[] = [
-    { key: "ajuste", label: "Ajustes", n: counts.ajuste, ponto: "bg-amber-500", active: activeQuick === "ajuste", onClick: () => applyQuick("ajuste"), hint: "Filtrar por ajustes pendentes" },
-    { key: "inclusao", label: "Inclusões", n: counts.inclusao, ponto: "bg-emerald-500", active: activeQuick === "inclusao", onClick: () => applyQuick("inclusao"), hint: "Filtrar por inclusões pendentes" },
-    { key: "exclusao", label: "Exclusões", n: counts.exclusao, ponto: "bg-red-500", active: activeQuick === "exclusao", onClick: () => applyQuick("exclusao"), hint: "Filtrar por exclusões pendentes" },
+    { key: "ajuste", label: "Ajustes", n: counts.ajuste, ponto: "bg-warning-strong", active: activeQuick === "ajuste", onClick: () => applyQuick("ajuste"), hint: "Filtrar por ajustes pendentes" },
+    { key: "inclusao", label: "Inclusões", n: counts.inclusao, ponto: "bg-success-strong", active: activeQuick === "inclusao", onClick: () => applyQuick("inclusao"), hint: "Filtrar por inclusões pendentes" },
+    { key: "exclusao", label: "Exclusões", n: counts.exclusao, ponto: "bg-danger-strong", active: activeQuick === "exclusao", onClick: () => applyQuick("exclusao"), hint: "Filtrar por exclusões pendentes" },
     // "Posso decidir" saiu daqui (04/09): o mesmo filtro já existe na barra de
     // abas ("Só os que posso decidir") e o tile mostra a contagem — dois
     // controles para o mesmo estado confundiam mais do que ajudavam.
@@ -618,13 +618,13 @@ export default function ScalingApprovalPage() {
       />
 
       {/* Barra de contexto + filtros */}
-      <section className="rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-3" aria-labelledby="apr-filtros">
+      <section className="rounded-xl border border-border bg-card px-4 py-3 space-y-3" aria-labelledby="apr-filtros">
         <h2 id="apr-filtros" className="sr-only">Filtros</h2>
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-2 min-w-0">
             <CalendarDays className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
             {loadingEvents ? (
-              <div className="h-8 w-[280px] max-w-full rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
+              <div className="h-8 w-[280px] max-w-full rounded-lg bg-muted animate-pulse" aria-hidden="true" />
             ) : (
               // Mesma régua da Validação: cresce com o espaço disponível.
               <div className="w-[280px] max-w-full lg:w-auto lg:min-w-[280px] lg:max-w-[440px] lg:flex-1">
@@ -636,7 +636,7 @@ export default function ScalingApprovalPage() {
               tipo, com contagem — eram dois controles para o mesmo filtro. */}
           <Label htmlFor="apr-status" className="sr-only">Status</Label>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <SelectTrigger id="apr-status" className="h-8 min-w-[150px] w-auto rounded-lg text-[13px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="apr-status" className="h-8 min-w-[150px] w-auto rounded-lg text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>Todos os status</SelectItem>
               {CHANGE_REQUEST_STATUS_VALUES.map((s) => <SelectItem key={s} value={s}>{CHANGE_REQUEST_STATUS_LABELS[s]}</SelectItem>)}
@@ -644,12 +644,12 @@ export default function ScalingApprovalPage() {
           </Select>
           <div className="relative flex-1 min-w-[220px]">
             <Label htmlFor="apr-search" className="sr-only">Buscar</Label>
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-            <Input id="apr-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, evento, #ID, solicitante ou motivo" className="h-8 pl-8 rounded-lg bg-slate-50 text-[13px]" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input id="apr-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, evento, #ID, solicitante ou motivo" className="h-8 pl-8 rounded-lg bg-surface-muted text-sm" />
           </div>
         </div>
         {!eventId && isApprover && eventsInSuggestions > 0 && (
-          <p className="-mt-1 text-[11px] text-slate-500">
+          <p className="-mt-1 text-2xs text-muted-foreground">
             Mostrando vagas de {eventsInSuggestions} {eventsInSuggestions === 1 ? "evento" : "eventos"} — escolha um evento acima para filtrar.
             {suggestionsTruncated ? ` Só as ${ALL_EVENTS_ROW_LIMIT} que esperam há mais tempo cabem nesta lista.` : ""}
           </p>
@@ -666,22 +666,22 @@ export default function ScalingApprovalPage() {
               title={c.hint}
               className={cn(
                 "flex flex-1 min-w-[240px] items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                c.active ? "border-primary bg-brand-soft/60 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300",
+                c.active ? "border-primary bg-brand-soft/60 shadow-1" : "border-border bg-card hover:border-slate-300",
               )}
             >
-              <span className={cn("flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg", c.active ? "bg-primary/10" : "bg-slate-100")}>
-                <c.Icon className={cn("h-4 w-4", c.active ? "text-primary" : "text-slate-500")} aria-hidden="true" />
+              <span className={cn("flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg", c.active ? "bg-primary/10" : "bg-muted")}>
+                <c.Icon className={cn("h-4 w-4", c.active ? "text-primary" : "text-muted-foreground")} aria-hidden="true" />
               </span>
               <span className="min-w-0">
                 {(c.key === "aguardando" ? erroVagas : erroFila) ? (
                   <>
-                    <span className="block text-[13px] font-medium text-red-700">Não foi possível carregar</span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500">Abra a aba para tentar de novo</span>
+                    <span className="block text-sm font-medium text-danger">Não foi possível carregar</span>
+                    <span className="mt-0.5 block text-2xs text-muted-foreground">Abra a aba para tentar de novo</span>
                   </>
                 ) : c.key === "pendentes" && forbidden ? (
                   <>
-                    <span className="block text-[13px] font-medium text-slate-600">Nenhum pedido seu por aqui</span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500">Você vê os pedidos que abrir e os das funções que aprova</span>
+                    <span className="block text-sm font-medium text-slate-600">Nenhum pedido seu por aqui</span>
+                    <span className="mt-0.5 block text-2xs text-muted-foreground">Você vê os pedidos que abrir e os das funções que aprova</span>
                   </>
                 ) : (
                   <>
@@ -689,9 +689,9 @@ export default function ScalingApprovalPage() {
                       <span className={cn("text-xl font-bold tabular-nums leading-none", c.tom)}>
                         {(c.loading ?? pendingQuery.isLoading) ? "…" : c.n}
                       </span>
-                      <span className="truncate text-[13px] font-medium text-slate-600">{c.titulo}</span>
+                      <span className="truncate text-sm font-medium text-slate-600">{c.titulo}</span>
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-500">{c.contexto}</span>
+                    <span className="mt-0.5 block truncate text-2xs text-muted-foreground">{c.contexto}</span>
                   </>
                 )}
               </span>
@@ -713,8 +713,8 @@ export default function ScalingApprovalPage() {
               aria-pressed={r.active}
               title={recortesForaDoEscopo ? `${r.hint} (volta a lista para os pendentes)` : r.hint}
               className={cn(
-                "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                r.active ? "border-primary bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                "inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                r.active ? "border-primary bg-brand-soft text-primary" : "border-border bg-card text-slate-600 hover:border-slate-300",
                 // Fora do escopo (outro status escolhido) os chips ficam atenuados: continuam clicáveis, mas dizem que não recortam a lista atual.
                 recortesForaDoEscopo && "opacity-60 hover:opacity-100",
               )}
@@ -729,8 +729,8 @@ export default function ScalingApprovalPage() {
       </section>
 
       {readOnlyMode && !forbidden && (
-        <div role="status" className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-700">
-          <EyeOff className="w-4 h-4 shrink-0 text-slate-500" aria-hidden="true" />
+        <div role="status" className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-2.5 text-xs text-slate-700">
+          <EyeOff className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span><span className="font-semibold">Modo leitura</span> — você acompanha os pedidos, mas não decide. Quem decide é o aprovador de cada função.</span>
         </div>
       )}
@@ -740,7 +740,7 @@ export default function ScalingApprovalPage() {
           {/* Quebra linha em vez de vazar (04/09): com quatro abas o TabsList
               passava de 100% no celular e cortava "Decididas". Abaixo de sm os
               rótulos encurtam — o contexto já está no tile e no cabeçalho. */}
-          <TabsList className="h-auto max-w-full flex-wrap justify-start rounded-xl bg-slate-100 p-[3px]">
+          <TabsList className="h-auto max-w-full flex-wrap justify-start rounded-xl bg-muted p-[3px]">
             {/* Caminho normal do fluxo desde 19/08: validar não aprova — a vaga passa por aqui. */}
             {isApprover && (
               <TabsTrigger value="aprovacao" className={TAB_TRIGGER}>
@@ -787,7 +787,7 @@ export default function ScalingApprovalPage() {
             {/* Única região aria-live da tela — a contagem da aba aberta. Em
                 "Decididas" some: o texto das paradas ali era um rótulo errado. */}
             {contagemDaAba !== null && (
-              <p className="text-xs text-slate-500" aria-live="polite">{contagemDaAba}</p>
+              <p className="text-xs text-muted-foreground" aria-live="polite">{contagemDaAba}</p>
             )}
           </div>
         </div>

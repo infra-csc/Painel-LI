@@ -90,10 +90,10 @@ const JANELA_DIAS = 7;
 
 /** Título dos grupos (Ida / Volta / Precisa de) — o mesmo do resto do módulo. */
 const GROUP_TITLE = cn("flex items-center gap-1.5", SECTION_TITLE);
-const FIELD_LABEL = "text-[11px] font-normal text-slate-500";
-const CONTROL = "h-9 w-full rounded-lg text-xs bg-white";
+const FIELD_LABEL = "text-2xs font-normal text-muted-foreground";
+const CONTROL = "h-9 w-full rounded-lg text-xs bg-card";
 /**
- * Mesma medida do CONTROL, SEM `bg-white`: o `ModeSelect` pinta o próprio fundo
+ * Mesma medida do CONTROL, SEM `bg-card`: o `ModeSelect` pinta o próprio fundo
  * (`bg-brand-soft/60`) quando já tem um modal escolhido, e o branco daqui — que
  * chega depois no twMerge — apagava esse sinal de "preenchido".
  */
@@ -119,7 +119,7 @@ function FieldLabel({ htmlFor, text, date }: { htmlFor: string; text: string; da
   return (
     <Label htmlFor={htmlFor} className={cn(FIELD_LABEL, "flex items-baseline gap-1.5 truncate")}>
       <span className="truncate">{text}</span>
-      {date ? <DayLabel v={date} className="text-[11px] text-slate-500" /> : null}
+      {date ? <DayLabel v={date} className="text-2xs text-muted-foreground" /> : null}
     </Label>
   );
 }
@@ -141,8 +141,8 @@ function TimeField({ id, label, value, disabled, onChange }: { id: string; label
       <Input id={id} type="text" value={value} disabled={disabled} placeholder="ex.: 8-14h, 22h" maxLength={40}
         title={disabled ? undefined : "Opcional — pode ser uma faixa (8-14h) ou uma hora (22h)"}
         aria-invalid={invalido || undefined} aria-describedby={invalido ? `${id}-dica` : undefined}
-        onChange={(e) => onChange(e.target.value)} className={cn(CONTROL, "tabular-nums", invalido && "border-amber-400 focus-visible:ring-amber-300")} />
-      {invalido && <p id={`${id}-dica`} className="text-[11px] text-amber-700">Inclua um número — ex.: 8-14h ou 22h.</p>}
+        onChange={(e) => onChange(e.target.value)} className={cn(CONTROL, "tabular-nums", invalido && "border-warning-strong focus-visible:ring-warning/25")} />
+      {invalido && <p id={`${id}-dica`} className="text-2xs text-warning">Inclua um número — ex.: 8-14h ou 22h.</p>}
     </div>
   );
 }
@@ -160,9 +160,9 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
   const dataMax = eventEndDate ? addDaysYmd(ymd(eventEndDate), JANELA_DIAS) : undefined;
   // Régua de 1px entre ida e volta quando elas ficam lado a lado (só a partir
   // de `lg` — abaixo disso elas empilham e a régua viraria uma linha solta).
-  const regua = emLinha ? "lg:border-l lg:border-slate-100 lg:pl-5" : "";
+  const regua = emLinha ? "lg:border-l lg:border-border lg:pl-5" : "";
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+    <div className="rounded-xl border border-border bg-card p-3 space-y-3">
       {titulo ? <p className={GROUP_TITLE}>{titulo}</p> : null}
       {/* Layout "linha" (04/09): grade de duas colunas a partir de `lg` (ida |
           volta) e "Precisa de" numa faixa própria de largura total embaixo.
@@ -219,7 +219,7 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
       </fieldset>
 
       {/* Faixa própria, largura total, nos dois layouts. */}
-      <fieldset className={cn("min-w-0 space-y-1.5 border-t border-slate-100 pt-3", emLinha && "lg:col-span-2")}>
+      <fieldset className={cn("min-w-0 space-y-1.5 border-t border-border pt-3", emLinha && "lg:col-span-2")}>
         <legend className={GROUP_TITLE}>Precisa de</legend>
         <div className="flex flex-wrap items-center gap-2">
           <label className={cn(NEED_CHIP, value.needsAccommodation ? NEED_ON : NEED_OFF, disabled && "opacity-60 cursor-not-allowed")}>
@@ -239,27 +239,27 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
           aviso" UMA vez, no rodapé do bloco — repetida em cada item ela virava
           o texto mais longo da lista e escondia o aviso em si. */}
       {avisos.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800" role="status" data-testid={`${p}-avisos-viagem`}>
+        <div className="rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-2xs text-warning" role="status" data-testid={`${p}-avisos-viagem`}>
           <ul className="space-y-0.5">
             {avisos.map((a) => (
               <li key={a} className="flex items-start gap-1.5">
-                <TriangleAlert className="mt-px h-3 w-3 shrink-0 text-amber-600" aria-hidden="true" />
+                <TriangleAlert className="mt-px h-3 w-3 shrink-0 text-warning" aria-hidden="true" />
                 <span>{a}</span>
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-amber-700">Só um aviso — dá para enviar assim mesmo.</p>
+          <p className="mt-1 text-warning">Só um aviso — dá para enviar assim mesmo.</p>
         </div>
       )}
 
       {/* A dica segue os toggles: sem passagem e sem hotel, data e horário não
           viram compra nenhuma, e dizer isso evita o preenchimento por hábito. */}
-      <p className="text-[11px] text-slate-500">
+      <p className="text-2xs text-muted-foreground">
         {value.needsTicket || value.needsAccommodation
           ? "Datas e horários são sugestão para Compras — quem compra confirma na tela de Passagens / Hospedagem."
           : "Sem passagem e sem hotel, a vaga nasce direto para escalação — datas e horários ficam apenas como referência."}
       </p>
-      <p className="text-[11px] text-slate-500">
+      <p className="text-2xs text-muted-foreground">
         Horários podem ficar em branco (<span className="tabular-nums">--:--</span>). O <span className="font-medium text-slate-600">desembarque da ida</span> e o{" "}
         <span className="font-medium text-slate-600">embarque da volta</span> são os que a regra de alimentação usa (almoço e jantar do primeiro e do último dia).
       </p>
@@ -269,7 +269,7 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
 
 const NEED_CHIP = "inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors focus-within:ring-2 focus-within:ring-primary/30";
 const NEED_ON = "border-primary/30 bg-brand-soft text-primary";
-const NEED_OFF = "border-slate-200 bg-white text-slate-600 hover:border-primary/30";
+const NEED_OFF = "border-border bg-card text-slate-600 hover:border-primary/30";
 
 /** Erros de consistência dos campos de viagem (vazio = ok). */
 export function validateTravel(v: TravelDraft): string[] {

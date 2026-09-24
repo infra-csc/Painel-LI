@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { LoadingState } from "@/components/common/loading-state";
+import { QueryError } from "@/components/common/query-state";
+import { formatarMoeda } from "@/lib/format";
 import {
   Calculator, Home, Briefcase, Hammer, Bike, Info, UtensilsCrossed, Bus, TrendingDown, Settings,
 } from "lucide-react";
@@ -40,9 +43,7 @@ const FREELA_RATE_KEYS: Record<string, string> = {
   "Dir de Prova": FREELA_SETTING_KEYS.dirProva,
 };
 
-function fmt(cents: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-}
+const fmt = formatarMoeda;
 
 const TABS = [
   { id: "casa", label: "Time da Casa", icon: Home },
@@ -56,7 +57,8 @@ export default function CalculationRulesPage() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("casa");
 
   // Valores vigentes: mesmos settings que o motor de cálculo usa (Valores Padrão)
-  const { data: settings } = useQuery<SystemSettings>({ queryKey: ["/api/system-settings"] });
+  const qSettings = useQuery<SystemSettings>({ queryKey: ["/api/system-settings"] });
+  const settings = qSettings.data;
   const factors = useMemo(() => deflationFactorsFromSettings(settings), [settings]);
 
   const casaRates = useMemo(
@@ -88,21 +90,21 @@ export default function CalculationRulesPage() {
   }, [settings]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6">
+    <div className="min-h-screen bg-surface-muted p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
         <PageHeader
           icon={Calculator}
           title="Regras de Cálculo"
-          subtitle="Tabelas de referência — valores vigentes dos Valores Padrão, base 2026 — para diárias, alimentação e mobilidade, com a régua de deflação por período"
+          subtitle="Valores vigentes (Valores Padrão, base 2026) de diárias, alimentação e mobilidade"
         />
 
         {/* Fonte dos valores aplicados */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
-          <Settings className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-800">
+        <div className="bg-brand-soft border border-primary/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
+          <Settings className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+          <p className="text-xs text-primary">
             Esta página é referência. Os valores aplicados no cálculo vêm dos{" "}
-            <Link href="/system-settings" className="font-bold underline underline-offset-2 hover:text-blue-900">
+            <Link href="/system-settings" className="font-bold underline underline-offset-2 hover:text-primary-hover">
               Valores Padrão
             </Link>
             . As tarifas e fatores abaixo já refletem o valor vigente configurado lá.
@@ -110,7 +112,7 @@ export default function CalculationRulesPage() {
         </div>
 
         {/* Tabs (padrão ARIA completo: id/aria-controls, roving tabindex e setas) */}
-        <div role="tablist" aria-label="Regimes de contratação" className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit flex-wrap">
+        <div role="tablist" aria-label="Regimes de contratação" className="flex gap-1 bg-muted rounded-xl p-1 w-fit flex-wrap">
           {TABS.map((t, idx) => (
             <button
               key={t.id}
@@ -130,7 +132,7 @@ export default function CalculationRulesPage() {
                 document.getElementById(`tab-${TABS[next].id}`)?.focus();
               }}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                tab === t.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                tab === t.id ? "bg-card text-foreground shadow-1" : "text-muted-foreground hover:text-slate-700"
               }`}
             >
               <t.icon className="w-3.5 h-3.5" /> {t.label}
@@ -138,11 +140,22 @@ export default function CalculationRulesPage() {
           ))}
         </div>
 
+        {/* Erro/carregando (23/09): antes as tabelas eram desenhadas com
+            `settings` indefinido — mostravam a constante 2026 como se fosse o
+            valor vigente, inclusive quando a consulta tinha FALHADO. */}
         <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
-          {tab === "casa" && <CasaTab rates={casaRates} food={casaFood} factors={factors} />}
-          {tab === "freela" && <FreelaTab rates={freelaRates} factors={factors} />}
-          {tab === "empreita" && <EmpreitaTab settings={settings} />}
-          {tab === "percurseiro" && <PercurseiroTab settings={settings} />}
+          {qSettings.isError ? (
+            <QueryError error={qSettings.error} onRetry={() => qSettings.refetch()} title="Não foi possível carregar os valores vigentes" />
+          ) : qSettings.isLoading ? (
+            <LoadingState count={6} label="Carregando valores vigentes…" />
+          ) : (
+            <>
+              {tab === "casa" && <CasaTab rates={casaRates} food={casaFood} factors={factors} />}
+              {tab === "freela" && <FreelaTab rates={freelaRates} factors={factors} />}
+              {tab === "empreita" && <EmpreitaTab settings={settings} />}
+              {tab === "percurseiro" && <PercurseiroTab settings={settings} />}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -151,12 +164,12 @@ export default function CalculationRulesPage() {
 
 // ── Blocos reutilizáveis ──────────────────────────────────────────────────────
 
-function Card({ title, icon: Icon, children, accent = "text-slate-500" }: any) {
+function Card({ title, icon: Icon, children, accent = "text-muted-foreground" }: any) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100">
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
         {Icon && <Icon className={`w-4 h-4 ${accent}`} />}
-        <p className="text-[13px] font-bold text-slate-700">{title}</p>
+        <p className="text-sm font-bold text-slate-700">{title}</p>
       </div>
       {children}
     </div>
@@ -167,16 +180,16 @@ function RateTable({ rows, headers }: { rows: ReactNode[][]; headers: string[] }
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[560px] text-xs">
-        <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
+        <thead className="bg-surface-muted text-2xs uppercase tracking-wider text-muted-foreground">
           <tr>
             {headers.map((h, i) => (
               <th key={h} className={`font-bold px-4 py-2.5 ${i === 0 ? "text-left" : "text-right"}`}>{h}</th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-50">
+        <tbody className="divide-y divide-border">
           {rows.map((r, ri) => (
-            <tr key={ri} className="hover:bg-slate-50/60">
+            <tr key={ri} className="hover:bg-surface-muted/60">
               {r.map((cell, ci) => (
                 <td key={ci} className={`px-4 py-2.5 ${ci === 0 ? "text-slate-600 font-medium" : "text-right font-mono font-semibold text-slate-700 whitespace-nowrap"}`}>
                   {cell}
@@ -201,9 +214,9 @@ function deflationTiersDisplay(factors: DeflationFactors) {
 
 function DeflationBanner({ factors }: { factors: DeflationFactors }) {
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
-      <TrendingDown className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-      <div className="text-xs text-amber-800">
+    <div className="bg-warning-soft border border-warning/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
+      <TrendingDown className="w-4 h-4 text-warning-strong shrink-0 mt-0.5" />
+      <div className="text-xs text-warning">
         <p className="font-bold mb-1">Regra de deflação por período (aplicada por dia trabalhado)</p>
         <div className="flex flex-wrap gap-x-5 gap-y-1">
           {deflationTiersDisplay(factors).map(t => (
@@ -212,7 +225,7 @@ function DeflationBanner({ factors }: { factors: DeflationFactors }) {
             </span>
           ))}
         </div>
-        <p className="mt-1 text-amber-600">Fatores vigentes (editáveis no Valores Padrão).</p>
+        <p className="mt-1 text-warning">Fatores vigentes (editáveis no Valores Padrão).</p>
       </div>
     </div>
   );
@@ -228,15 +241,15 @@ function DeflationCalculator({ rates, factors }: { rates: readonly { funcao: str
   const noDeflation = rate.cents * days;
 
   return (
-    <Card title="Calculadora de diárias com deflação" icon={Calculator} accent="text-cyan-600">
+    <Card title="Calculadora de diárias com deflação" icon={Calculator} accent="text-info">
       <div className="p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="md:col-span-2">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Função</label>
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">Função</label>
             <select
               value={funcIdx}
               onChange={e => setFuncIdx(Number(e.target.value))}
-              className="w-full h-9 text-xs rounded-lg border border-gray-200 px-2 bg-white text-slate-700 focus:outline-none focus:border-cyan-400"
+              className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-info-strong"
             >
               {rates.map((r, i) => (
                 <option key={r.funcao} value={i}>{r.funcao} — {fmt(r.cents)}/dia</option>
@@ -244,33 +257,33 @@ function DeflationCalculator({ rates, factors }: { rates: readonly { funcao: str
             </select>
           </div>
           <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Dias de evento</label>
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">Dias de evento</label>
             <input
               type="number" min={1} max={30} value={days}
               onChange={e => setDays(Math.min(30, Math.max(1, Number(e.target.value) || 1)))}
-              className="w-full h-9 text-xs rounded-lg border border-gray-200 px-3 bg-white text-slate-700 font-mono focus:outline-none focus:border-cyan-400"
+              className="w-full h-9 text-xs rounded-lg border border-border px-3 bg-card text-slate-700 font-mono focus:outline-none focus:border-info-strong"
             />
           </div>
         </div>
 
-        <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+        <div className="rounded-xl bg-surface-muted border border-border p-4">
           <div className="space-y-1.5">
             {result.segments.map(s => (
               <div key={s.label} className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">
+                <span className="text-muted-foreground">
                   {s.days} {s.days === 1 ? "dia" : "dias"} × {fmt(s.dailyCents)}
-                  <span className="text-slate-400 ml-1.5">({s.label} — {Math.round(s.factor * 100)}%)</span>
+                  <span className="text-muted-foreground ml-1.5">({s.label} — {Math.round(s.factor * 100)}%)</span>
                 </span>
                 <span className="font-mono font-semibold text-slate-700">{fmt(s.totalCents)}</span>
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
             <span className="text-xs font-bold text-slate-700">Total das diárias</span>
-            <span className="font-mono font-bold text-base text-cyan-700">{fmt(result.totalCents)}</span>
+            <span className="font-mono font-bold text-base text-info">{fmt(result.totalCents)}</span>
           </div>
           {result.totalCents !== noDeflation && (
-            <p className="text-[11px] text-emerald-600 text-right mt-1">
+            <p className="text-2xs text-success text-right mt-1">
               Economia da deflação: {fmt(noDeflation - result.totalCents)}
             </p>
           )}
@@ -282,7 +295,7 @@ function DeflationCalculator({ rates, factors }: { rates: readonly { funcao: str
 
 function MobilityCard() {
   return (
-    <Card title="Ajuda de custo — mobilidade (deslocamento aeroporto, por trecho)" icon={Bus} accent="text-blue-600">
+    <Card title="Ajuda de custo — mobilidade (deslocamento aeroporto, por trecho)" icon={Bus} accent="text-primary">
       <RateTable
         headers={["Situação", "Valor"]}
         rows={MOBILITY_2026.map(m => [m.faixa, fmt(m.cents)])}
@@ -304,17 +317,17 @@ function CasaTab({ rates, food, factors }: TabRatesProps & { food: CasaFood }) {
       <DeflationBanner factors={factors} />
       <DeflationCalculator rates={rates} factors={factors} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="Horas eventos — diárias por função" icon={Home} accent="text-cyan-600">
+        <Card title="Horas eventos — diárias por função" icon={Home} accent="text-info">
           <RateTable
             headers={["Função", "Valor/dia"]}
             rows={rates.map(r => [r.funcao, fmt(r.cents)])}
           />
-          <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
+          <p className="text-2xs text-muted-foreground px-4 py-3 border-t border-border">
             Valor vigente (editável no Valores Padrão).
           </p>
         </Card>
         <div className="space-y-4">
-          <Card title="Alimentação" icon={UtensilsCrossed} accent="text-emerald-600">
+          <Card title="Alimentação" icon={UtensilsCrossed} accent="text-success">
             <RateTable
               headers={["Em jornada externa", "Demais", "Cenotécnica", "Key Account / Gerente"]}
               rows={food.jornadaExterna.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents), fmt(f.gestaoCents)])}
@@ -323,7 +336,7 @@ function CasaTab({ rates, food, factors }: TabRatesProps & { food: CasaFood }) {
               headers={["Em viagem", "Demais", "Cenotécnica", "Key Account / Gerente"]}
               rows={food.emViagem.map(f => [f.refeicao, fmt(f.demaisCents), fmt(f.cenotecnicaCents), fmt(f.gestaoCents)])}
             />
-            <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
+            <p className="text-2xs text-muted-foreground px-4 py-3 border-t border-border">
               Valor vigente (editável no Valores Padrão). Executivo de Contas = Demais (R$ 40); Key Account e Gerente = R$ 44 por refeição.
             </p>
           </Card>
@@ -340,17 +353,17 @@ function FreelaTab({ rates, factors }: TabRatesProps) {
       <DeflationBanner factors={factors} />
       <DeflationCalculator rates={rates} factors={factors} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="Horas eventos — valores de diária" icon={Briefcase} accent="text-cyan-600">
+        <Card title="Horas eventos — valores de diária" icon={Briefcase} accent="text-info">
           <RateTable
             headers={["Função", "Valor/dia"]}
             rows={rates.map(r => [r.funcao, fmt(r.cents)])}
           />
-          <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
+          <p className="text-2xs text-muted-foreground px-4 py-3 border-t border-border">
             Valor vigente (editável no Valores Padrão).
           </p>
         </Card>
         <div className="space-y-4">
-          <Card title="Ajuda de custo — deslocamento em dias adicionais (frilas)" icon={Bus} accent="text-orange-500">
+          <Card title="Ajuda de custo — deslocamento em dias adicionais (frilas)" icon={Bus} accent="text-warning-strong">
             <RateTable
               headers={["Situação", "Valor"]}
               rows={FREELA_EXTRA_DAY_ALLOWANCE.map(a => [a.situacao, fmt(a.cents)])}
@@ -368,8 +381,8 @@ function EmpreitaCell({ cents, padraoCents }: { cents: number; padraoCents: numb
   if (cents === padraoCents) return <>{fmt(cents)}</>;
   return (
     <span className="inline-flex flex-col items-end leading-tight" title={`Padrão do slide: ${fmt(padraoCents)}`}>
-      <span className="text-amber-700">{fmt(cents)}</span>
-      <span className="text-[10px] font-normal text-slate-400 line-through">{fmt(padraoCents)}</span>
+      <span className="text-warning">{fmt(cents)}</span>
+      <span className="text-2xs font-normal text-muted-foreground line-through">{fmt(padraoCents)}</span>
     </span>
   );
 }
@@ -390,14 +403,14 @@ function EmpreitaTab({ settings }: { settings?: SystemSettings }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
-        <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-800">
+      <div className="bg-brand-soft border border-primary/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
+        <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+        <p className="text-xs text-primary">
           Cenotécnicos em regime de <span className="font-bold">empreita</span> recebem <span className="font-bold">valor fechado</span> conforme
           a modalidade e o número de dias — não é diária × dias, e a deflação por período <span className="font-bold">não se aplica</span> (já está embutida na proposta).
         </p>
       </div>
-      <Card title="Valor fechado por modalidade e nº de dias" icon={Hammer} accent="text-cyan-600">
+      <Card title="Valor fechado por modalidade e nº de dias" icon={Hammer} accent="text-info">
         <RateTable
           headers={["Modalidade", ...CENO_EMPREITA_TABLE_DAYS.map(d => `${d} dias`), "Incremento/dia"]}
           rows={linhas.map(l => [
@@ -405,21 +418,21 @@ function EmpreitaTab({ settings }: { settings?: SystemSettings }) {
             ...CENO_EMPREITA_TABLE_DAYS.map(d => (
               <EmpreitaCell key={d} cents={l.row[d]} padraoCents={CENO_EMPREITA_DEFAULTS[l.tipo][d]} />
             )),
-            <span className="text-slate-500">{fmt(l.incremento)}</span>,
+            <span className="text-muted-foreground">{fmt(l.incremento)}</span>,
           ])}
         />
-        <p className="text-[11px] text-slate-400 px-4 py-3 border-t border-gray-50">
+        <p className="text-2xs text-muted-foreground px-4 py-3 border-t border-border">
           Valores vigentes (editáveis no{" "}
           <Link href="/system-settings" className="font-semibold underline underline-offset-2 hover:text-slate-600">
             Valores Padrão
           </Link>
           ).{algumaEditada && (
-            <span className="text-amber-700"> Em âmbar, o valor aplicado hoje; riscado, o valor original do slide.</span>
+            <span className="text-warning"> Em âmbar, o valor aplicado hoje; riscado, o valor original do slide.</span>
           )}
         </p>
       </Card>
-      <Card title="Como a regra é aplicada" icon={Info} accent="text-slate-500">
-        <ul className="px-5 py-4 space-y-2 text-xs text-slate-600 list-disc list-inside marker:text-slate-300">
+      <Card title="Como a regra é aplicada" icon={Info} accent="text-muted-foreground">
+        <ul className="px-5 py-4 space-y-2 text-xs text-slate-600 list-disc list-inside marker:text-muted-foreground">
           <li>
             A <span className="font-semibold">modalidade</span> (Viagem, SP, Local A ou Local B) é escolhida na{" "}
             <span className="font-semibold">Escalação</span>, vaga por vaga — não vem da função nem do evento.
@@ -453,13 +466,13 @@ function PercurseiroTab({ settings }: { settings?: SystemSettings }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
-        <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-800">
+      <div className="bg-brand-soft border border-primary/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
+        <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+        <p className="text-xs text-primary">
           Motoqueiros: pacote <span className="font-bold">fixo por tipo</span> e sempre com emissão de NF. Em <span className="font-bold">viagem</span> (com passagem) são sempre 2 diárias, independente do período; <span className="font-bold">local</span> (SP/Grande SP) é 1 diária. Alimentação e mobilidade já estão dentro do pacote (não entram no Planejado).
         </p>
       </div>
-      <Card title="Motoqueiros em viagem (2 diárias)" icon={Bike} accent="text-cyan-600">
+      <Card title="Motoqueiros em viagem (2 diárias)" icon={Bike} accent="text-info">
         <RateTable
           headers={["Composição", ...tipos.map(t => t.label)]}
           rows={[
@@ -468,9 +481,9 @@ function PercurseiroTab({ settings }: { settings?: SystemSettings }) {
             ["Em viagem (2 diárias)", ...tipos.map(t => fmt(t.d.total * 2))],
           ]}
         />
-        <div className="flex items-start gap-2 px-4 py-3 border-t border-gray-50 bg-amber-50/50">
-          <Info className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-amber-700">
+        <div className="flex items-start gap-2 px-4 py-3 border-t border-border bg-warning-soft/50">
+          <Info className="w-3.5 h-3.5 text-warning-strong shrink-0 mt-0.5" />
+          <p className="text-2xs text-warning">
             Os 16% de NF não são deriváveis das demais parcelas (16% do subtotal daria R$ 153,12) — o valor da NF
             vem da tabela confirmada em 17/08 e é editável nos Valores Padrão, junto com as demais parcelas.
           </p>

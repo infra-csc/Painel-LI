@@ -34,6 +34,7 @@ import {
 } from "@shared/schema";
 import { eq, and, or, sql, isNull, isNotNull, ne, exists, asc, desc, inArray, ilike, gte } from "drizzle-orm";
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
+import { rotuloDoStatus } from "@shared/vaga-status";
 
 /** Papel de um responsável na Validação de Escala (function_managers.role). */
 export type FunctionManagerRole = "validador" | "aprovador";
@@ -75,6 +76,15 @@ export interface TeamInclusionListOptions {
   orderBySuggestionSentAt?: "asc" | "desc";
   /** Teto de linhas, aplicado no banco (LIMIT), não em JS. */
   limit?: number;
+  /** Só vagas neste status (filtro do GET /api/team-inclusions, 23/09). */
+  status?: string;
+  /**
+   * Ordem estável para a listagem operacional (23/09): número da vaga e id.
+   * Sem ORDER BY o Postgres devolve na ordem física, que muda a cada UPDATE —
+   * a grade "embaralhava" depois de salvar. Ignorada quando
+   * `orderBySuggestionSentAt` está presente.
+   */
+  orderByInclusionNumber?: boolean;
   /**
    * Só o que passou pela Validação de Escala: vaga em `phase = 'sugestao'` OU
    * vaga que já virou Inclusão mas nasceu de uma sugestão (`suggestionSentAt`
@@ -107,24 +117,48 @@ export type InsertFlashMovementWithSource = InsertFlashMovement & {
 };
 
 /**
- * Linha bruta de swap_requests (SELECT sr.* + joins) em camelCase.
- * Mantém TAMBÉM as chaves snake_case originais por um ciclo — os clients de
- * scaling/tickets/accommodations ainda leem `team_inclusion_id` etc.
- * TODO: remover snake_case após migração dos clients.
+ * Linha bruta de swap_requests (SELECT sr.* + joins), como o SQL devolve —
+ * snake_case. Até 23/09 cada chave saía DUPLICADA (snake + camel), dobrando o
+ * payload da lista de trocas; o client unificou a leitura em
+ * client/src/lib/swap-types.ts (`normalizeSwap`), que lê snake_case primeiro.
+ * Só as chaves snake ficam; nenhum consumidor lia as camel.
  */
 export function mapSwapRequestRow(row: Record<string, any>): Record<string, any> {
-  const camel: Record<string, any> = {};
-  for (const [k, v] of Object.entries(row)) {
-    const ck = k.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
-    camel[ck] = v;
+  return { ...row };
+}
+
+/**
+ * Opções do UPDATE de vaga (23/09) — as transições passam a ser GUARDADAS:
+ * `expectedStatus` vira `WHERE status = …`; 0 linhas → HttpError 409. Os logs
+ * extras e o registro de auditoria entram na MESMA transação do UPDATE.
+ */
+export interface UpdateTeamInclusionOptions {
+  /** Status que a vaga PRECISA ter para o UPDATE valer (guarda contra corrida). */
+  expectedStatus?: string | readonly string[];
+  /** Mensagem do 409 quando a guarda falha. */
+  conflictMessage?: string;
+  /** Registros extras em team_inclusion_logs (teamInclusionId preenchido aqui). */
+  extraLogs?: Omit<InsertTeamInclusionLog, "teamInclusionId">[];
+  /** Linha de system_logs montada a partir da vaga já atualizada. */
+  auditFor?: (updated: TeamInclusion) => InsertSystemLog | null;
+  /** Vaga excluída (deletedAt) também é recusada — 404 em vez de gravar em cima. */
+  rejectDeleted?: boolean;
+}
+
+/** Erro com status HTTP lançado pelo storage (o tratador global de server/http.ts o traduz). */
+export class StorageHttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "HttpError";
+    this.status = status;
   }
-  // remover snake_case após migração dos clients
-  return { ...row, ...camel };
 }
 
 export interface IStorage {
   // Users
   getUsers(): Promise<User[]>;
+  getUsersByIds(ids: string[]): Promise<User[]>;
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByResetToken(token: string): Promise<User | undefined>;
@@ -174,8 +208,11 @@ export interface IStorage {
   getUserManagedFunctionIds(userId: string, role?: FunctionManagerRole): Promise<string[]>;
 
   // Collaborators
-  getCollaborators(): Promise<Collaborator[]>;
+  /** `eventId` (23/09): só quem tem vaga viva no evento — as telas por evento não precisam do cadastro inteiro. */
+  getCollaborators(eventId?: string): Promise<Collaborator[]>;
   getCollaborator(id: string): Promise<Collaborator | undefined>;
+  /** Duplicidade por documento normalizado (só dígitos/letras, sem pontuação), sem carregar a tabela. */
+  getCollaboratorByDocument(officialDocument: string): Promise<Collaborator | undefined>;
   createCollaborator(collaborator: InsertCollaborator): Promise<Collaborator>;
   updateCollaborator(id: string, collaborator: Partial<InsertCollaborator>): Promise<Collaborator>;
   deleteCollaborator(id: string): Promise<void>;
@@ -189,13 +226,16 @@ export interface IStorage {
   getTeamInclusion(id: string): Promise<TeamInclusion | undefined>;
   /** Vagas por id (inclui deletadas e qualquer phase) — para juntar pedidos às vagas sem carregar a tabela toda. */
   getTeamInclusionsByIds(ids: string[]): Promise<TeamInclusion[]>;
+  /** Vagas VIVAS (deleted_at nulo) de um colaborador — agenda para o conflito de datas. */
+  getTeamInclusionsByCollaborator(collaboratorId: string): Promise<TeamInclusion[]>;
   createTeamInclusion(inclusion: InsertTeamInclusion): Promise<TeamInclusion>;
-  createTeamInclusionsBatch(rows: InsertTeamInclusion[]): Promise<TeamInclusion[]>;
-  updateTeamInclusion(id: string, inclusion: Partial<InsertTeamInclusion>): Promise<TeamInclusion>;
-  deleteTeamInclusion(id: string, userId?: string): Promise<void>;
-  
+  /** `logFor` grava o registro de criação de cada vaga DENTRO da mesma transação. */
+  createTeamInclusionsBatch(rows: InsertTeamInclusion[], logFor?: (created: TeamInclusion) => InsertTeamInclusionLog): Promise<TeamInclusion[]>;
+  updateTeamInclusion(id: string, inclusion: Partial<InsertTeamInclusion>, opts?: UpdateTeamInclusionOptions): Promise<TeamInclusion>;
+
   // Tickets
-  getTickets(): Promise<Ticket[]>;
+  /** `eventId` (23/09): só passagens de vagas do evento. */
+  getTickets(eventId?: string): Promise<Ticket[]>;
   getTicket(id: string): Promise<Ticket | undefined>;
   getTicketsByInclusionId(teamInclusionId: string): Promise<Ticket[]>;
   getAccommodationsByInclusionId(teamInclusionId: string): Promise<Accommodation[]>;
@@ -203,7 +243,8 @@ export interface IStorage {
   updateTicket(id: string, ticket: Partial<InsertTicket>): Promise<Ticket>;
   
   // Accommodations
-  getAccommodations(): Promise<Accommodation[]>;
+  /** `eventId` (23/09): só hospedagens de vagas do evento. */
+  getAccommodations(eventId?: string): Promise<Accommodation[]>;
   getAccommodation(id: string): Promise<Accommodation | undefined>;
   createAccommodation(accommodation: InsertAccommodation): Promise<Accommodation>;
   updateAccommodation(id: string, accommodation: Partial<InsertAccommodation>): Promise<Accommodation>;
@@ -216,17 +257,21 @@ export interface IStorage {
   
   // Comments
   getComments(teamInclusionId: string): Promise<Comment[]>;
-  getAllComments(): Promise<Comment[]>;
+  /** Mais recentes primeiro, ordenados e limitados NO BANCO (23/09). */
+  getAllComments(limit?: number): Promise<Comment[]>;
   createComment(comment: InsertComment): Promise<Comment>;
-  
+
   // System Logs
   getSystemLogs(filters?: { entityType?: string; action?: string; days?: number; search?: string; userId?: string; limit?: number; offset?: number }): Promise<{ logs: SystemLog[]; total: number }>;
   createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
-  
+  /** Auditoria em lote — um INSERT multi-linha (rotas que decidem N registros). */
+  createSystemLogsBatch(logs: InsertSystemLog[]): Promise<void>;
+
   // Team Inclusion Logs
   getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]>;
   getTeamInclusionLogsByInclusionIds(ids: string[], actions?: string[]): Promise<TeamInclusionLog[]>;
   createTeamInclusionLog(log: InsertTeamInclusionLog): Promise<TeamInclusionLog>;
+  createTeamInclusionLogsBatch(logs: InsertTeamInclusionLog[]): Promise<void>;
   
   // Function Values (valores automáticos por função)
   getFunctionValues(functionId: string): Promise<FunctionValue | undefined>;
@@ -295,7 +340,12 @@ export interface IStorage {
    * Cria as vagas sugeridas em lote e (opcionalmente) atualiza as observações
    * do evento, tudo numa única transação.
    */
-  createScalingSuggestionsBatch(rows: InsertTeamInclusion[], eventUpdate?: { eventId: string; observations: string | null }): Promise<TeamInclusion[]>;
+  createScalingSuggestionsBatch(
+    rows: InsertTeamInclusion[],
+    eventUpdate?: { eventId: string; observations: string | null },
+    /** Registro de cada vaga criada, gravado DENTRO da transação (23/09). */
+    logFor?: (created: TeamInclusion) => InsertTeamInclusionLog,
+  ): Promise<TeamInclusion[]>;
   /**
    * Validação em lote (área valida N vagas): UM update com `inArray` + logs numa
    * única transação. Só atualiza vagas ainda em `expected` (phase/status) e não
@@ -352,6 +402,8 @@ export interface IStorage {
         expected?: { phase: string; statuses: readonly string[] };
       } | null;
       inclusionInserts?: InsertTeamInclusion[];
+      /** Registros das vagas criadas, gravados DENTRO da transação (23/09). */
+      logsForCreated?: (created: TeamInclusion[]) => InsertTeamInclusionLog[];
     },
   ): Promise<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null; createdInclusions: TeamInclusion[] }>;
 }
@@ -390,6 +442,12 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
+  async getUsersByIds(ids: string[]): Promise<User[]> {
+    const unique = Array.from(new Set(ids.filter(Boolean)));
+    if (unique.length === 0) return [];
+    return await db.select().from(users).where(inArray(users.id, unique));
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -399,7 +457,10 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     try {
-      const [user] = await db.select().from(users).where(eq(users.email, email));
+      // Sem diferenciar maiúsculas (23/09): o SSO manda o e-mail como o portal
+      // o tem, e o banco pode ter sido cadastrado à mão com outra caixa — a
+      // comparação exata criava uma segunda conta para a mesma pessoa.
+      const [user] = await db.select().from(users).where(sql`lower(${users.email}) = lower(${email})`);
       return user;
     } catch (error) {
       console.error('[Storage] Error in getUserByEmail:', error);
@@ -447,7 +508,9 @@ export class DatabaseStorage implements IStorage {
 
   async getEventsWithInclusions(): Promise<Event[]> {
     // Buscar eventos que têm inclusões usando EXISTS (sem duplicatas por JOIN).
-    // Vagas ainda em Validação de Escala (phase 'sugestao') não contam.
+    // Vagas ainda em Validação de Escala (phase 'sugestao') e vagas EXCLUÍDAS
+    // (soft delete, 23/09) não contam — um evento cujas vagas foram todas
+    // removidas aparecia como modelo de escalação com grade vazia.
     return await db
       .select()
       .from(events)
@@ -460,6 +523,7 @@ export class DatabaseStorage implements IStorage {
               .where(and(
                 eq(teamInclusions.eventId, events.id),
                 ne(teamInclusions.phase, "sugestao"),
+                isNull(teamInclusions.deletedAt),
               ))
           )
         )
@@ -688,20 +752,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Collaborators
-  async getCollaborators(): Promise<Collaborator[]> {
+  async getCollaborators(eventId?: string): Promise<Collaborator[]> {
     // Sem ORDER BY o Postgres devolve na ordem física das linhas, que muda
     // conforme os registros são atualizados — a lista parecia embaralhar
     // sozinha. lower() para "ana" e "Ana" ficarem juntos independentemente da
     // collation do banco.
-    return await db
-      .select()
-      .from(collaborators)
-      .orderBy(asc(sql`lower(${collaborators.fullName})`));
+    const base = db.select().from(collaborators).$dynamic();
+    const q = eventId
+      ? base.where(exists(
+          db.select({ id: teamInclusions.id }).from(teamInclusions).where(and(
+            eq(teamInclusions.collaboratorId, collaborators.id),
+            eq(teamInclusions.eventId, eventId),
+            isNull(teamInclusions.deletedAt),
+          )),
+        ))
+      : base;
+    return await q.orderBy(asc(sql`lower(${collaborators.fullName})`));
   }
 
   async getCollaborator(id: string): Promise<Collaborator | undefined> {
     const [collaborator] = await db.select().from(collaborators).where(eq(collaborators.id, id));
     return collaborator;
+  }
+
+  async getCollaboratorByDocument(officialDocument: string): Promise<Collaborator | undefined> {
+    // Compara só letras e dígitos: "123.456.789-00" e "12345678900" são o
+    // mesmo CPF. Antes a rota carregava a tabela inteira e comparava texto cru.
+    const normalizado = String(officialDocument ?? "").replace(/[^0-9A-Za-z]/g, "").toLowerCase();
+    if (!normalizado) return undefined;
+    const [row] = await db.select().from(collaborators)
+      .where(sql`lower(regexp_replace(${collaborators.officialDocument}, '[^0-9A-Za-z]', '', 'g')) = ${normalizado}`)
+      .limit(1);
+    return row;
   }
 
   async createCollaborator(collaboratorData: InsertCollaborator): Promise<Collaborator> {
@@ -791,7 +873,12 @@ export class DatabaseStorage implements IStorage {
     if (!includeDeleted) conditions.push(isNull(teamInclusions.deletedAt));
     if (phase === "sugestao") conditions.push(eq(teamInclusions.phase, SUGESTAO_PHASE_VALUE));
     else if (phase !== "all") conditions.push(ne(teamInclusions.phase, SUGESTAO_PHASE_VALUE));
+    // Evento EXCLUÍDO (soft delete do evento) não aparece nas listagens
+    // operacionais nem na integração Maratona (23/09). O acesso direto por id
+    // (getTeamInclusion) continua livre para o administrador.
+    conditions.push(or(isNull(events.status), ne(events.status, "excluído"))!);
     if (opts.eventId) conditions.push(eq(teamInclusions.eventId, opts.eventId));
+    if (opts.status) conditions.push(eq(teamInclusions.status, opts.status));
     if (opts.eventIds) {
       // Recorte vazio = nada a devolver (inArray com lista vazia é SQL inválido).
       if (opts.eventIds.length === 0) return [];
@@ -816,9 +903,18 @@ export class DatabaseStorage implements IStorage {
           ? asc(teamInclusions.suggestionSentAt)
           : sql`${teamInclusions.suggestionSentAt} DESC NULLS LAST`,
       );
+    } else if (opts.orderByInclusionNumber) {
+      q = q.orderBy(asc(teamInclusions.inclusionNumber), asc(teamInclusions.id));
     }
     if (opts.limit) q = q.limit(opts.limit);
     return await q;
+  }
+
+  async getTeamInclusionsByCollaborator(collaboratorId: string): Promise<TeamInclusion[]> {
+    // Só vagas vivas: a excluída não ocupa agenda. Quem chama filtra status
+    // (shared/conflito-de-agenda.ts decide o que conta).
+    return await db.select().from(teamInclusions)
+      .where(and(eq(teamInclusions.collaboratorId, collaboratorId), isNull(teamInclusions.deletedAt)));
   }
 
   async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
@@ -840,286 +936,171 @@ export class DatabaseStorage implements IStorage {
   // Criação em lote numa única transação: a grade cria N escalações de uma vez;
   // sem transação, uma falha no meio deixava as anteriores gravadas (escalação
   // parcial). Ou todas entram, ou nenhuma.
-  async createTeamInclusionsBatch(rows: InsertTeamInclusion[]): Promise<TeamInclusion[]> {
+  async createTeamInclusionsBatch(rows: InsertTeamInclusion[], logFor?: (created: TeamInclusion) => InsertTeamInclusionLog): Promise<TeamInclusion[]> {
+    if (rows.length === 0) return [];
     return await db.transaction(async (tx) => {
-      const created: TeamInclusion[] = [];
-      for (const r of rows) {
-        const [row] = await tx.insert(teamInclusions).values(r).returning();
-        created.push(row);
+      // UM INSERT multi-linha (23/09) — antes eram N viagens ao banco. O
+      // RETURNING preserva a ordem dos VALUES no Postgres.
+      const created = await tx.insert(teamInclusions).values(rows).returning();
+      if (logFor && created.length > 0) {
+        await tx.insert(teamInclusionLogs).values(created.map(logFor));
       }
       return created;
     });
   }
 
-  async updateTeamInclusion(id: string, inclusionData: Partial<InsertTeamInclusion>): Promise<TeamInclusion> {
-    // Buscar dados antes da atualização para comparação
-    const [oldInclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
-    if (!oldInclusion) throw new Error("Team inclusion not found");
-    
-    // Atualizar a inclusão
-    const [inclusion] = await db.update(teamInclusions).set(inclusionData).where(eq(teamInclusions.id, id)).returning();
-    
-    // Buscar nome do usuário se disponível
-    let userName = "Sistema";
-    if (inclusionData.updatedBy) {
-      const [user] = await db.select().from(users).where(eq(users.id, inclusionData.updatedBy));
-      if (user) userName = user.name;
-    }
-    
-    // Criar logs para mudanças significativas
-    const logsToCreate: InsertTeamInclusionLog[] = [];
-    
-    // Status change
-    if (inclusionData.status && inclusionData.status !== oldInclusion.status) {
-      const statusLabels: Record<string, string> = {
-        'planejado': 'Aguardando Escalação',
-        'confirmado': 'Confirmado',
-        'reaberto': 'Reaberto',
-        'escalacao': 'Escalado',
-        'aguardando_producao': 'Aguardando Aprovação da Produção',
-        'passagem': 'Aguardando Passagem',
-        'passagem_comprada': 'Passagem Comprada',
-        'hospedagem': 'Aguardando Hospedagem',
-        'hospedagem_comprada': 'Hospedagem Comprada',
-        'hospedagem_passagem_comprada': 'Hospedagem e Passagem Comprada',
-        'aprovacao': 'Aguardando Aprovação',
-        'aprovado': 'Aprovado',
-        'cancelado': 'Cancelado'
+  async updateTeamInclusion(id: string, inclusionData: Partial<InsertTeamInclusion>, opts: UpdateTeamInclusionOptions = {}): Promise<TeamInclusion> {
+    // 23/09: tudo numa transação e com UPDATE GUARDADO. Antes eram até 7
+    // round-trips soltos (SELECT da vaga, UPDATE, SELECT do usuário, 2 SELECTs
+    // de colaborador, INSERT dos logs) e o UPDATE não conferia o estado — duas
+    // confirmações simultâneas gravavam uma por cima da outra.
+    return await db.transaction(async (tx) => {
+      const [oldInclusion] = await tx.select().from(teamInclusions).where(eq(teamInclusions.id, id));
+      if (!oldInclusion) throw new StorageHttpError(404, "Escalação não encontrada");
+      if (opts.rejectDeleted && oldInclusion.deletedAt) throw new StorageHttpError(404, "Vaga excluída");
+
+      const expected = opts.expectedStatus === undefined
+        ? null
+        : Array.isArray(opts.expectedStatus) ? [...opts.expectedStatus] : [String(opts.expectedStatus)];
+      const guard = expected
+        ? and(eq(teamInclusions.id, id), inArray(teamInclusions.status, expected))
+        : eq(teamInclusions.id, id);
+      const [inclusion] = await tx.update(teamInclusions).set(inclusionData).where(guard).returning();
+      if (!inclusion) {
+        throw new StorageHttpError(409, opts.conflictMessage ?? VAGA_STATE_CHANGED_MSG);
+      }
+
+      // Nome de quem alterou e dos colaboradores (antigo/novo) numa só ida.
+      const collabChanged = inclusionData.collaboratorId !== undefined && inclusionData.collaboratorId !== oldInclusion.collaboratorId;
+      const collabIds = collabChanged
+        ? [oldInclusion.collaboratorId, inclusionData.collaboratorId].filter((v): v is string => !!v)
+        : [];
+      const [userRows, collabRows] = await Promise.all([
+        inclusionData.updatedBy
+          ? tx.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, inclusionData.updatedBy))
+          : Promise.resolve([] as { id: string; name: string }[]),
+        collabIds.length > 0
+          ? tx.select({ id: collaborators.id, fullName: collaborators.fullName }).from(collaborators).where(inArray(collaborators.id, collabIds))
+          : Promise.resolve([] as { id: string; fullName: string }[]),
+      ]);
+      const userName = userRows[0]?.name ?? "Sistema";
+      const nomeDoColaborador = (cid: string | null | undefined) =>
+        cid ? (collabRows.find((c) => c.id === cid)?.fullName ?? "Desconhecido") : "Nenhum";
+      const userId = inclusionData.updatedBy || "system";
+
+      const logsToCreate: InsertTeamInclusionLog[] = [];
+      const push = (action: string, details: string, previousValue: string | null, newValue: string | null) =>
+        logsToCreate.push({ teamInclusionId: id, action, details, previousValue, newValue, userId, userName });
+
+      // Status — rótulo único de shared/vaga-status (o mapa local foi apagado)
+      if (inclusionData.status && inclusionData.status !== oldInclusion.status) {
+        push("status_changed",
+          `Status alterado de "${rotuloDoStatus(oldInclusion.status)}" para "${rotuloDoStatus(inclusionData.status)}"`,
+          oldInclusion.status, inclusionData.status);
+      }
+
+      if (collabChanged) {
+        const oldCollabName = nomeDoColaborador(oldInclusion.collaboratorId);
+        const newCollabName = nomeDoColaborador(inclusionData.collaboratorId);
+        push("collaborator_changed", `Colaborador alterado de "${oldCollabName}" para "${newCollabName}"`, oldCollabName, newCollabName);
+      }
+
+      // Normaliza qualquer valor de data (Date, ISO, texto) → "YYYY-MM-DD"
+      const toIsoDate = (d: unknown): string => {
+        if (!d) return "";
+        if (d instanceof Date) return d.toISOString().slice(0, 10);
+        const s = String(d).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+        return s;
       };
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'status_changed',
-        details: `Status alterado de "${statusLabels[oldInclusion.status] || oldInclusion.status}" para "${statusLabels[inclusionData.status] || inclusionData.status}"`,
-        previousValue: oldInclusion.status,
-        newValue: inclusionData.status,
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
-    
-    // Collaborator change
-    if (inclusionData.collaboratorId !== undefined && inclusionData.collaboratorId !== oldInclusion.collaboratorId) {
-      const oldCollabName = oldInclusion.collaboratorId ? 
-        (await db.select().from(collaborators).where(eq(collaborators.id, oldInclusion.collaboratorId)))[0]?.fullName || 'Desconhecido' 
-        : 'Nenhum';
-      const newCollabName = inclusionData.collaboratorId ? 
-        (await db.select().from(collaborators).where(eq(collaborators.id, inclusionData.collaboratorId)))[0]?.fullName || 'Desconhecido' 
-        : 'Nenhum';
-      
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'collaborator_changed',
-        details: `Colaborador alterado de "${oldCollabName}" para "${newCollabName}"`,
-        previousValue: oldCollabName,
-        newValue: newCollabName,
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
-    
-    // Work dates change — only log separately when workDays is NOT also changing
-    // (when workDays changes, the consolidated entry below handles period too)
-    // Normalize any date value (Date object, ISO string, JS date string) → "YYYY-MM-DD"
-    const toIsoDate = (d: unknown): string => {
-      if (!d) return '';
-      if (d instanceof Date) return d.toISOString().slice(0, 10);
-      const s = String(d).trim();
-      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-      const parsed = new Date(s);
-      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
-      return s;
-    };
-
-    const workDaysAlsoChanging = Array.isArray(inclusionData.workDays) && (() => {
-      const oldDays = (oldInclusion.workDays || []).map(toIsoDate).filter(Boolean).sort().join(',');
-      const newDays = inclusionData.workDays!.map(toIsoDate).filter(Boolean).sort().join(',');
-      return oldDays !== newDays;
-    })();
-    if (!workDaysAlsoChanging &&
-        ((inclusionData.scheduleStartDate && inclusionData.scheduleStartDate !== oldInclusion.scheduleStartDate) ||
-         (inclusionData.scheduleEndDate && inclusionData.scheduleEndDate !== oldInclusion.scheduleEndDate))) {
-      const fmtDate = (d: string | null | undefined) => {
-        if (!d) return 'N/A';
-        const [y, m, day] = d.split('-');
-        return `${day}/${m}/${y}`;
+      const fmtDate = (d: unknown): string => {
+        const iso = toIsoDate(d);
+        if (!iso) return "N/A";
+        const parts = iso.split("-");
+        return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
       };
-      const prevPeriod = `${fmtDate(oldInclusion.scheduleStartDate)} a ${fmtDate(oldInclusion.scheduleEndDate)}`;
-      const newPeriod = `${fmtDate(inclusionData.scheduleStartDate || oldInclusion.scheduleStartDate)} a ${fmtDate(inclusionData.scheduleEndDate || oldInclusion.scheduleEndDate)}`;
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'dates_changed',
-        details: `Período: ${prevPeriod} → ${newPeriod}`,
-        previousValue: prevPeriod,
-        newValue: newPeriod,
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
-    
-    // Travel dates change
-    if ((inclusionData.flightDepartureDate && inclusionData.flightDepartureDate !== oldInclusion.flightDepartureDate) ||
-        (inclusionData.flightReturnDate && inclusionData.flightReturnDate !== oldInclusion.flightReturnDate)) {
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'travel_dates_changed',
-        details: `Datas de viagem alteradas`,
-        previousValue: `${oldInclusion.flightDepartureDate || 'N/A'} a ${oldInclusion.flightReturnDate || 'N/A'}`,
-        newValue: `${inclusionData.flightDepartureDate || oldInclusion.flightDepartureDate || 'N/A'} a ${inclusionData.flightReturnDate || oldInclusion.flightReturnDate || 'N/A'}`,
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
-    
-    // Observations change
-    if (inclusionData.observations !== undefined && inclusionData.observations !== oldInclusion.observations) {
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'observations_changed',
-        details: `Observações atualizadas`,
-        previousValue: oldInclusion.observations || '',
-        newValue: inclusionData.observations || '',
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
 
-    // Daily rates (quantidade de diárias) — skip when workDays is also changing (consolidated below)
-    if (!workDaysAlsoChanging && inclusionData.dailyRates !== undefined && inclusionData.dailyRates !== oldInclusion.dailyRates) {
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'daily_rates_changed',
-        details: `Quantidade de diárias alterada de ${oldInclusion.dailyRates ?? 0} para ${inclusionData.dailyRates}`,
-        previousValue: String(oldInclusion.dailyRates ?? 0),
-        newValue: String(inclusionData.dailyRates),
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
-
-    // Daily value (valor da diária em centavos)
-    if (inclusionData.dailyValue !== undefined && inclusionData.dailyValue !== oldInclusion.dailyValue) {
-      const fmtCents = (v: number) => `R$ ${(v / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'daily_value_changed',
-        details: `Valor da diária alterado de ${fmtCents(oldInclusion.dailyValue ?? 0)} para ${fmtCents(inclusionData.dailyValue)}`,
-        previousValue: String(oldInclusion.dailyValue ?? 0),
-        newValue: String(inclusionData.dailyValue),
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
-
-    // Work days (dias específicos de trabalho) — consolidated entry with count and period
-    if (Array.isArray(inclusionData.workDays)) {
       const oldDaysArr = (oldInclusion.workDays || []).map(toIsoDate).filter(Boolean).sort();
-      const newDaysArr = inclusionData.workDays.map(toIsoDate).filter(Boolean).sort();
-      if (oldDaysArr.join(',') !== newDaysArr.join(',')) {
-        const fmtDay = (d: string) => { const parts = toIsoDate(d).split('-'); return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d; };
-        const fmtDate = (d: unknown) => {
-          const iso = toIsoDate(d);
-          if (!iso) return 'N/A';
-          const parts = iso.split('-');
-          return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
-        };
-        const oldCount = oldDaysArr.length;
-        const newCount = newDaysArr.length;
+      const newDaysArr = Array.isArray(inclusionData.workDays) ? inclusionData.workDays.map(toIsoDate).filter(Boolean).sort() : null;
+      const workDaysAlsoChanging = !!newDaysArr && oldDaysArr.join(",") !== newDaysArr.join(",");
 
-        // Period before/after (use selected days' min/max if available, else schedule dates)
+      // Período — só quando os dias NÃO mudam junto (o registro consolidado abaixo já traz o período)
+      if (!workDaysAlsoChanging &&
+          ((inclusionData.scheduleStartDate && inclusionData.scheduleStartDate !== oldInclusion.scheduleStartDate) ||
+           (inclusionData.scheduleEndDate && inclusionData.scheduleEndDate !== oldInclusion.scheduleEndDate))) {
+        const prevPeriod = `${fmtDate(oldInclusion.scheduleStartDate)} a ${fmtDate(oldInclusion.scheduleEndDate)}`;
+        const newPeriod = `${fmtDate(inclusionData.scheduleStartDate || oldInclusion.scheduleStartDate)} a ${fmtDate(inclusionData.scheduleEndDate || oldInclusion.scheduleEndDate)}`;
+        push("dates_changed", `Período: ${prevPeriod} → ${newPeriod}`, prevPeriod, newPeriod);
+      }
+
+      if ((inclusionData.flightDepartureDate && inclusionData.flightDepartureDate !== oldInclusion.flightDepartureDate) ||
+          (inclusionData.flightReturnDate && inclusionData.flightReturnDate !== oldInclusion.flightReturnDate)) {
+        push("travel_dates_changed", "Datas de viagem alteradas",
+          `${oldInclusion.flightDepartureDate || "N/A"} a ${oldInclusion.flightReturnDate || "N/A"}`,
+          `${inclusionData.flightDepartureDate || oldInclusion.flightDepartureDate || "N/A"} a ${inclusionData.flightReturnDate || oldInclusion.flightReturnDate || "N/A"}`);
+      }
+
+      if (inclusionData.observations !== undefined && inclusionData.observations !== oldInclusion.observations) {
+        push("observations_changed", "Observações atualizadas", oldInclusion.observations || "", inclusionData.observations || "");
+      }
+
+      if (!workDaysAlsoChanging && inclusionData.dailyRates !== undefined && inclusionData.dailyRates !== oldInclusion.dailyRates) {
+        push("daily_rates_changed",
+          `Quantidade de diárias alterada de ${oldInclusion.dailyRates ?? 0} para ${inclusionData.dailyRates}`,
+          String(oldInclusion.dailyRates ?? 0), String(inclusionData.dailyRates));
+      }
+
+      if (inclusionData.dailyValue !== undefined && inclusionData.dailyValue !== oldInclusion.dailyValue) {
+        const fmtCents = (v: number) => `R$ ${(v / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        push("daily_value_changed",
+          `Valor da diária alterado de ${fmtCents(oldInclusion.dailyValue ?? 0)} para ${fmtCents(inclusionData.dailyValue)}`,
+          String(oldInclusion.dailyValue ?? 0), String(inclusionData.dailyValue));
+      }
+
+      if (newDaysArr && workDaysAlsoChanging) {
+        const fmtDay = (d: string) => { const parts = toIsoDate(d).split("-"); return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d; };
         const oldPeriodStart = oldDaysArr[0] || toIsoDate(oldInclusion.scheduleStartDate);
         const oldPeriodEnd = oldDaysArr[oldDaysArr.length - 1] || toIsoDate(oldInclusion.scheduleEndDate);
         const newPeriodStart = newDaysArr[0] || toIsoDate(inclusionData.scheduleStartDate) || toIsoDate(oldInclusion.scheduleStartDate);
         const newPeriodEnd = newDaysArr[newDaysArr.length - 1] || toIsoDate(inclusionData.scheduleEndDate) || toIsoDate(oldInclusion.scheduleEndDate);
-
-        const oldDaysLabel = oldDaysArr.length > 0 ? oldDaysArr.map(fmtDay).join(', ') : 'nenhum';
-        const newDaysLabel = newDaysArr.length > 0 ? newDaysArr.map(fmtDay).join(', ') : 'nenhum';
-
         const details = [
-          `${oldCount} dia(s) → ${newCount} dia(s)`,
+          `${oldDaysArr.length} dia(s) → ${newDaysArr.length} dia(s)`,
           `Período: ${fmtDate(oldPeriodStart)} a ${fmtDate(oldPeriodEnd)} → ${fmtDate(newPeriodStart)} a ${fmtDate(newPeriodEnd)}`,
-          `Dias: ${oldDaysLabel} → ${newDaysLabel}`,
-        ].join(' | ');
-
-        logsToCreate.push({
-          teamInclusionId: id,
-          action: 'work_days_changed',
-          details,
-          previousValue: oldDaysArr.join(', ') || 'nenhum',
-          newValue: newDaysArr.join(', ') || 'nenhum',
-          userId: inclusionData.updatedBy || 'system',
-          userName
-        });
+          `Dias: ${oldDaysArr.length > 0 ? oldDaysArr.map(fmtDay).join(", ") : "nenhum"} → ${newDaysArr.length > 0 ? newDaysArr.map(fmtDay).join(", ") : "nenhum"}`,
+        ].join(" | ");
+        push("work_days_changed", details, oldDaysArr.join(", ") || "nenhum", newDaysArr.join(", ") || "nenhum");
       }
-    }
 
-    // City change
-    if (inclusionData.city !== undefined && inclusionData.city !== oldInclusion.city) {
-      logsToCreate.push({
-        teamInclusionId: id,
-        action: 'city_changed',
-        details: `Cidade alterada de "${oldInclusion.city || 'Não informada'}" para "${inclusionData.city || 'Não informada'}"`,
-        previousValue: oldInclusion.city || '',
-        newValue: inclusionData.city || '',
-        userId: inclusionData.updatedBy || 'system',
-        userName
-      });
-    }
-
-    // Salvar todos os logs
-    if (logsToCreate.length > 0) {
-      await db.insert(teamInclusionLogs).values(logsToCreate);
-    }
-    
-    return inclusion;
-  }
-
-  async deleteTeamInclusion(id: string, userId?: string): Promise<void> {
-    // Buscar dados da inclusão antes de excluir para registrar no log
-    const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
-    if (!inclusion) {
-      throw new Error("Team inclusion not found");
-    }
-
-    // Buscar nome do evento e função para o log
-    const [event] = await db.select().from(events).where(eq(events.id, inclusion.eventId));
-    const [func] = await db.select().from(functions).where(eq(functions.id, inclusion.functionId));
-    
-    // Buscar nome do colaborador se houver
-    let collaboratorName = "Não escalado";
-    if (inclusion.collaboratorId) {
-      const [collaborator] = await db.select().from(collaborators).where(eq(collaborators.id, inclusion.collaboratorId));
-      if (collaborator) {
-        collaboratorName = collaborator.fullName;
+      if (inclusionData.city !== undefined && inclusionData.city !== oldInclusion.city) {
+        push("city_changed",
+          `Cidade alterada de "${oldInclusion.city || "Não informada"}" para "${inclusionData.city || "Não informada"}"`,
+          oldInclusion.city || "", inclusionData.city || "");
       }
-    }
 
-    // Buscar nome do usuário que está excluindo
-    let userName = "Sistema";
-    if (userId) {
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (user) userName = user.name;
-    }
+      for (const extra of opts.extraLogs ?? []) logsToCreate.push({ ...extra, teamInclusionId: id });
 
-    // Registrar log de exclusão
-    const details = `Inclusão #${inclusion.inclusionNumber || 'N/A'} excluída - Evento: ${event?.name || 'N/A'}, Função: ${func?.name || 'N/A'}, Colaborador: ${collaboratorName}, Status: ${inclusion.status}`;
-    
-    await db.insert(teamInclusionLogs).values({
-      teamInclusionId: id,
-      action: 'deleted',
-      details,
-      previousValue: JSON.stringify(inclusion), // Salvar dados completos da inclusão
-      newValue: null,
-      userId: userId || 'system',
-      userName
+      // Um único INSERT multi-linha, na mesma transação do UPDATE.
+      if (logsToCreate.length > 0) {
+        await tx.insert(teamInclusionLogs).values(logsToCreate);
+      }
+      const audit = opts.auditFor?.(inclusion);
+      if (audit) await tx.insert(systemLogs).values(audit);
+
+      return inclusion;
     });
-
-    // Excluir a inclusão
-    await db.delete(teamInclusions).where(eq(teamInclusions.id, id));
   }
 
   // Tickets
-  async getTickets(): Promise<Ticket[]> {
-    return await db.select().from(tickets);
+  async getTickets(eventId?: string): Promise<Ticket[]> {
+    if (!eventId) return await db.select().from(tickets);
+    // Só as passagens de vagas do evento — a tela de Passagens por evento não
+    // precisa baixar a tabela inteira (23/09).
+    return await db.select().from(tickets).where(exists(
+      db.select({ id: teamInclusions.id }).from(teamInclusions)
+        .where(and(eq(teamInclusions.id, tickets.teamInclusionId), eq(teamInclusions.eventId, eventId))),
+    ));
   }
 
   async getTicket(id: string): Promise<Ticket | undefined> {
@@ -1153,8 +1134,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Accommodations
-  async getAccommodations(): Promise<Accommodation[]> {
-    return await db.select().from(accommodations);
+  async getAccommodations(eventId?: string): Promise<Accommodation[]> {
+    if (!eventId) return await db.select().from(accommodations);
+    return await db.select().from(accommodations).where(exists(
+      db.select({ id: teamInclusions.id }).from(teamInclusions)
+        .where(and(eq(teamInclusions.id, accommodations.teamInclusionId), eq(teamInclusions.eventId, eventId))),
+    ));
   }
 
   async getAccommodation(id: string): Promise<Accommodation | undefined> {
@@ -1197,11 +1182,12 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(comments).where(eq(comments.teamInclusionId, teamInclusionId));
   }
 
-  async getAllComments(): Promise<Comment[]> {
-    const allComments = await db.select().from(comments);
-    return allComments.sort((a, b) => 
-      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-    );
+  async getAllComments(limit = 500): Promise<Comment[]> {
+    // ORDER BY e LIMIT no banco (23/09): antes a tabela inteira vinha para o
+    // Node e era ordenada em JS a cada abertura da tela.
+    return await db.select().from(comments)
+      .orderBy(sql`${comments.createdAt} DESC NULLS LAST`, desc(comments.id))
+      .limit(Math.max(1, Math.min(limit, 2000)));
   }
 
   async createComment(commentData: InsertComment): Promise<Comment> {
@@ -1263,6 +1249,11 @@ export class DatabaseStorage implements IStorage {
     const [log] = await db.insert(systemLogs).values(logData).returning();
     return log;
   }
+
+  async createSystemLogsBatch(logs: InsertSystemLog[]): Promise<void> {
+    if (logs.length === 0) return;
+    await db.insert(systemLogs).values(logs);
+  }
   
   // Team Inclusion Logs
   async getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]> {
@@ -1303,6 +1294,11 @@ export class DatabaseStorage implements IStorage {
   async createTeamInclusionLog(logData: InsertTeamInclusionLog): Promise<TeamInclusionLog> {
     const [log] = await db.insert(teamInclusionLogs).values(logData).returning();
     return log;
+  }
+
+  async createTeamInclusionLogsBatch(logs: InsertTeamInclusionLog[]): Promise<void> {
+    if (logs.length === 0) return;
+    await db.insert(teamInclusionLogs).values(logs);
   }
 
   // Function Values
@@ -1406,19 +1402,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertSystemSetting(key: string, value: string, updatedBy?: string): Promise<SystemSetting> {
-    const existing = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
-    if (existing.length > 0) {
-      const [updated] = await db.update(systemSettings)
-        .set({ value, updatedAt: new Date(), updatedBy: updatedBy ?? null })
-        .where(eq(systemSettings.key, key))
-        .returning();
-      return updated;
-    } else {
-      const [created] = await db.insert(systemSettings)
-        .values({ key, value, updatedBy: updatedBy ?? null })
-        .returning();
-      return created;
-    }
+    // UPSERT atômico pela unique de `key` (23/09): o SELECT-depois-INSERT
+    // anterior corria com outro salvamento e um dos dois caía em 23505.
+    const [row] = await db.insert(systemSettings)
+      .values({ key, value, updatedBy: updatedBy ?? null })
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: { value, updatedAt: new Date(), updatedBy: updatedBy ?? null },
+      })
+      .returning();
+    return row;
   }
 
   async getInvoices(eventId?: string): Promise<Invoice[]> {
@@ -1579,12 +1572,15 @@ export class DatabaseStorage implements IStorage {
   async createScalingSuggestionsBatch(
     rows: InsertTeamInclusion[],
     eventUpdate?: { eventId: string; observations: string | null },
+    logFor?: (created: TeamInclusion) => InsertTeamInclusionLog,
   ): Promise<TeamInclusion[]> {
     return await db.transaction(async (tx) => {
-      const created: TeamInclusion[] = [];
-      for (const r of rows) {
-        const [row] = await tx.insert(teamInclusions).values(r).returning();
-        created.push(row);
+      // INSERT multi-linha + logs na MESMA transação (23/09): antes eram N
+      // inserts e os logs iam depois, fora dela — uma falha no meio deixava
+      // vaga sem registro de criação.
+      const created = rows.length > 0 ? await tx.insert(teamInclusions).values(rows).returning() : [];
+      if (logFor && created.length > 0) {
+        await tx.insert(teamInclusionLogs).values(created.map(logFor));
       }
       if (eventUpdate) {
         await tx.update(events)
@@ -1821,6 +1817,7 @@ export class DatabaseStorage implements IStorage {
         expected?: { phase: string; statuses: readonly string[] };
       } | null;
       inclusionInserts?: InsertTeamInclusion[];
+      logsForCreated?: (created: TeamInclusion[]) => InsertTeamInclusionLog[];
     } = {},
   ): Promise<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null; createdInclusions: TeamInclusion[] }> {
     return await db.transaction(async (tx) => {
@@ -1853,10 +1850,15 @@ export class DatabaseStorage implements IStorage {
         if (!row) throw new Error(expected ? VAGA_STATE_CHANGED_MSG : "Vaga do pedido não encontrada");
         updatedInclusion = row;
       }
-      const createdInclusions: TeamInclusion[] = [];
-      for (const r of ops.inclusionInserts ?? []) {
-        const [row] = await tx.insert(teamInclusions).values(r).returning();
-        createdInclusions.push(row);
+      // INSERT multi-linha (23/09); o RETURNING preserva a ordem dos VALUES,
+      // então createdInclusions[0] continua sendo a primeira vaga pedida.
+      const inserts = ops.inclusionInserts ?? [];
+      const createdInclusions: TeamInclusion[] = inserts.length > 0
+        ? await tx.insert(teamInclusions).values(inserts).returning()
+        : [];
+      if (ops.logsForCreated && createdInclusions.length > 0) {
+        const logs = ops.logsForCreated(createdInclusions);
+        if (logs.length > 0) await tx.insert(teamInclusionLogs).values(logs);
       }
       const resolvedInclusionId = requestUpdates.resolvedInclusionId
         ?? createdInclusions[0]?.id

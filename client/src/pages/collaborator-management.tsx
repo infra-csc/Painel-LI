@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
   ChevronLeft, ChevronRight, Search, AlertCircle,
-  Loader2, Ban, AlertTriangle, RotateCcw
+  Loader2, Ban, AlertTriangle, RotateCcw, ShieldCheck, Clock, IdCard, Home,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,26 +19,28 @@ import CollaboratorModal, { validateCPF } from "@/components/modals/collaborator
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
-import { hasPermission } from "@/lib/role-utils";
+import { hasPermission, hasRole } from "@/lib/role-utils";
 import { PageHeader } from "@/components/common/page-header";
 import { PageContainer } from "@/components/common/page-container";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingState } from "@/components/common/loading-state";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { campo, useUrlState } from "@/lib/use-url-state";
+import { cn } from "@/lib/utils";
 
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  ["bg-blue-100", "text-blue-700"],
-  ["bg-violet-100", "text-violet-700"],
-  ["bg-emerald-100", "text-emerald-700"],
-  ["bg-orange-100", "text-orange-700"],
-  ["bg-pink-100", "text-pink-700"],
-  ["bg-cyan-100", "text-cyan-700"],
-  ["bg-amber-100", "text-amber-700"],
-  ["bg-rose-100", "text-rose-700"],
-  ["bg-purple-100", "text-purple-700"],
-  ["bg-teal-100", "text-teal-700"],
+  ["bg-brand-soft", "text-primary"],
+  ["bg-brand-soft", "text-primary"],
+  ["bg-success-soft", "text-success"],
+  ["bg-warning-soft", "text-warning"],
+  ["bg-brand-soft", "text-primary"],
+  ["bg-info-soft", "text-info"],
+  ["bg-warning-soft", "text-warning"],
+  ["bg-danger-soft", "text-danger"],
+  ["bg-brand-soft", "text-primary"],
+  ["bg-info-soft", "text-info"],
 ];
 function avatarClasses(name: string) {
   let h = 0;
@@ -58,19 +60,22 @@ function toTitleCase(str: string) {
 const PAGE_SIZE = 25;
 
 const STATUS_CFG: Record<string, { label: string; dotCls: string; badgeCls: string }> = {
-  pendente:  { label: "Pendente",  dotCls: "bg-amber-400",   badgeCls: "bg-amber-50 text-amber-700 border border-amber-200" },
-  aprovado:  { label: "Aprovado",  dotCls: "bg-emerald-500", badgeCls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  rejeitado: { label: "Rejeitado", dotCls: "bg-red-500",     badgeCls: "bg-red-50 text-red-700 border border-red-200" },
-  inativo:   { label: "Inativo",   dotCls: "bg-slate-400",   badgeCls: "bg-slate-100 text-slate-500 border border-slate-200" },
+  pendente:  { label: "Pendente",  dotCls: "bg-warning-strong",   badgeCls: "bg-warning-soft text-warning border border-warning/25" },
+  aprovado:  { label: "Aprovado",  dotCls: "bg-success-strong", badgeCls: "bg-success-soft text-success border border-success/25" },
+  rejeitado: { label: "Rejeitado", dotCls: "bg-danger-strong",     badgeCls: "bg-danger-soft text-danger border border-danger/25" },
+  inativo:   { label: "Inativo",   dotCls: "bg-slate-400",   badgeCls: "bg-muted text-muted-foreground border border-border" },
 };
 
 const TYPE_CFG: Record<string, { label: string; cls: string }> = {
-  freela: { label: "Freela", cls: "bg-blue-50 text-blue-600 border border-blue-200" },
-  casa:   { label: "Casa",   cls: "bg-slate-50 text-slate-600 border border-slate-200" },
-  local:  { label: "Local",  cls: "bg-violet-50 text-violet-600 border border-violet-200" },
+  freela: { label: "Freela", cls: "bg-brand-soft text-primary border border-primary/25" },
+  casa:   { label: "Casa",   cls: "bg-surface-muted text-slate-600 border border-border" },
+  local:  { label: "Local",  cls: "bg-brand-soft text-primary border border-primary/25" },
 };
 
-function formatDocument(doc: string, type: string) {
+// `doc` pode vir ausente: GET /api/collaborators só entrega documento, nascimento,
+// telefone e endereço para admin, Compras e RH (projeção por papel, 23/09).
+function formatDocument(doc: string | null | undefined, type: string | null | undefined) {
+  if (!doc) return "";
   if (type === "cpf") return doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
   return doc;
 }
@@ -85,7 +90,7 @@ function formatDate(dateStr: string) {
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.pendente;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${cfg.badgeCls}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-semibold ${cfg.badgeCls}`}>
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dotCls}`} />
       {cfg.label}
     </span>
@@ -96,7 +101,7 @@ function StatusBadge({ status }: { status: string }) {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
       <p className="text-sm text-slate-700 font-medium">{value}</p>
     </div>
   );
@@ -105,8 +110,20 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // ─── Component ─────────────────────────────────────────────────────────────
 export default function CollaboratorManagement() {
   usePageTitle("Colaboradores");
-  const [filters, setFilters] = useState({ status: "all", type: "all", search: "" });
-  const [page, setPage] = useState(1);
+  // Busca, status, tipo e página na URL (23/09): abrir um colaborador em outra
+  // tela e voltar devolvia a lista zerada e na página 1.
+  const [urlState, setUrlState] = useUrlState({
+    q: campo.texto(""),
+    status: campo.texto("all"),
+    type: campo.texto("all"),
+    pagina: campo.numero(1),
+  });
+  const filters = useMemo(
+    () => ({ status: urlState.status, type: urlState.type, search: urlState.q }),
+    [urlState.status, urlState.type, urlState.q],
+  );
+  const page = urlState.pagina;
+  const setPage = (p: number) => setUrlState({ pagina: p });
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -128,6 +145,10 @@ export default function CollaboratorManagement() {
   // Criar/importar/editar/aprovar: espelha POST/PATCH /api/collaborators
   // (cadastro + área de função). RH só visualiza.
   const canEdit = hasPermission(user, "canEditCollaborators");
+  // Espelha a projeção do GET /api/collaborators: Logística e Área de Função
+  // não recebem documento, nascimento, telefone, endereço nem anexo — a coluna
+  // e as seções correspondentes somem em vez de mostrar "—".
+  const podeVerDadosPessoais = hasRole(user, "admin", "purchasing", "financial");
 
   const { data: collaborators, isLoading, isError, error, refetch } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
 
@@ -201,11 +222,14 @@ export default function CollaboratorManagement() {
           ? (c.status === "inativo" || (c as any).active === false)
           : c.status === filters.status;
       const typeMatch = filters.type === "all" || c.type === filters.type;
+      // Documento ausente para quem não vê dados pessoais (`c.officialDocument.includes`
+      // derrubava a tela inteira com TypeError para production/function_area).
+      const documento = c.officialDocument ?? "";
       const searchMatch = !q
         || c.fullName.toLowerCase().includes(q)
-        || c.officialDocument.includes(q)
+        || documento.includes(q)
         // Busca por documento formatado ("123.456") também precisa casar.
-        || (!!qDigits && c.officialDocument.replace(/\D/g, "").includes(qDigits));
+        || (!!qDigits && documento.replace(/\D/g, "").includes(qDigits));
       return statusMatch && typeMatch && searchMatch;
     });
   }, [collaborators, filters]);
@@ -219,8 +243,8 @@ export default function CollaboratorManagement() {
     [filtered, currentPage],
   );
 
-  const setFilter = (key: string, val: string) => { setFilters(p => ({ ...p, [key]: val })); setPage(1); };
-  const clearFilters = () => { setFilters({ status: "all", type: "all", search: "" }); setPage(1); };
+  const setFilter = (key: string, val: string) => setUrlState({ [key === "search" ? "q" : key]: val, pagina: 1 });
+  const clearFilters = () => setUrlState({ status: "all", type: "all", q: "", pagina: 1 });
   const hasFilters = filters.status !== "all" || filters.type !== "all" || !!filters.search;
 
   const { totalCount, pendingCount, approvedCount, freelaCount, casaCount } = useMemo(() => {
@@ -259,7 +283,9 @@ export default function CollaboratorManagement() {
     const isApprove = approvalAction === "approve";
     // Exige ao menos um documento — mas não obriga CPF: cadastros legados
     // aprovados só com RG continuam aprováveis (exigir CPF travaria todos eles).
-    if (isApprove && !editCpf.trim() && !editRg.trim()) {
+    // Quem não recebe os documentos do servidor aprova sem mexer neles (o
+    // PATCH só leva status/observações e o cadastro mantém o que já tem).
+    if (isApprove && podeVerDadosPessoais && !editCpf.trim() && !editRg.trim()) {
       toast({ title: "Informe CPF ou RG para aprovar.", variant: "destructive" });
       return;
     }
@@ -299,13 +325,13 @@ export default function CollaboratorManagement() {
       : err?.body?.message || "Verifique sua conexão e tente novamente.";
     return (
       /* Antes, uma falha de rede caía no estado vazio e dizia "nenhum colaborador". */
-      <div role="alert" className="bg-card rounded-xl border border-red-200 shadow-sm py-16 px-6 text-center">
-        <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mx-auto mb-3">
-          <AlertCircle className="w-6 h-6 text-red-500" />
+      <div role="alert" className="bg-card rounded-xl border border-danger/25 shadow-1 py-16 px-6 text-center">
+        <div className="w-12 h-12 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-3">
+          <AlertCircle className="w-6 h-6 text-danger-strong" />
         </div>
         <p className="text-sm font-semibold text-slate-700">Não foi possível carregar os colaboradores</p>
-        <p className="text-xs text-slate-500 mt-1 mb-4">{msg}</p>
-        <button onClick={() => refetch()} className="h-9 px-4 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+        <p className="text-xs text-muted-foreground mt-1 mb-4">{msg}</p>
+        <button onClick={() => refetch()} className="h-9 px-4 text-xs font-semibold text-slate-600 border border-border rounded-lg hover:bg-surface-muted transition-colors">
           Tentar novamente
         </button>
       </div>
@@ -325,15 +351,15 @@ export default function CollaboratorManagement() {
             <>
               <button
                 onClick={() => setBulkUploadModal(true)}
-                className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-card"
+                className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-border hover:border-slate-300 hover:bg-surface-muted rounded-lg transition-colors bg-card"
               >
                 <Upload className="w-3.5 h-3.5" /> Importar
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="h-9 px-4 flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg transition-all shadow-sm shadow-primary/30"
+                className="h-9 px-4 flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg transition-all shadow-1"
               >
-                <UserPlus className="w-3.5 h-3.5" /> Novo Colaborador
+                <UserPlus className="w-3.5 h-3.5" aria-hidden="true" /> Novo colaborador
               </button>
             </>
           )}
@@ -342,46 +368,46 @@ export default function CollaboratorManagement() {
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { label: "Total",      value: totalCount,    stripe: "bg-slate-700",   icon: "people",       iconBg: "bg-slate-100", iconTx: "text-slate-600", valTx: "#374151" },
-            { label: "Aprovados",  value: approvedCount, stripe: "bg-emerald-500", icon: "verified_user", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669" },
-            { label: "Pendentes",  value: pendingCount,  stripe: "bg-amber-400",   icon: "pending",      iconBg: "bg-amber-50",  iconTx: "text-amber-500", valTx: "#D97706" },
-            { label: "Freelancers", value: freelaCount,  stripe: "bg-blue-500",    icon: "badge",        iconBg: "bg-blue-50",   iconTx: "text-blue-500",  valTx: "#3B82F6" },
-            { label: "Casa",       value: casaCount,     stripe: "bg-violet-500",  icon: "home",         iconBg: "bg-violet-50", iconTx: "text-violet-600", valTx: "#7C3AED" },
+            { label: "Total",      value: totalCount,    stripe: "bg-slate-700",   icon: Users,          iconBg: "bg-muted", iconTx: "text-slate-600", valTx: "var(--foreground)" },
+            { label: "Aprovados",  value: approvedCount, stripe: "bg-success-strong", icon: ShieldCheck,     iconBg: "bg-success-soft", iconTx: "text-success", valTx: "var(--success)" },
+            { label: "Pendentes",  value: pendingCount,  stripe: "bg-warning-strong",   icon: Clock,          iconBg: "bg-warning-soft",  iconTx: "text-warning-strong", valTx: "var(--warning)" },
+            { label: "Freelancers", value: freelaCount,  stripe: "bg-primary",    icon: IdCard,         iconBg: "bg-brand-soft",   iconTx: "text-primary",  valTx: "var(--primary)" },
+            { label: "Casa",       value: casaCount,     stripe: "bg-primary",  icon: Home,           iconBg: "bg-brand-soft", iconTx: "text-primary", valTx: "var(--primary)" },
           ].map(card => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div key={card.label} className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
               <div className={`h-1 w-full ${card.stripe}`} />
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconTx}`}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16, fontVariationSettings: "'FILL' 1" }}>{card.icon}</span>
+                    <card.icon className="h-4 w-4" aria-hidden="true" />
                   </div>
                 </div>
-                <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">{card.label}</p>
-                <p className="text-[26px] font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
+                <p className="text-2xs font-bold tracking-widest text-muted-foreground uppercase mb-0.5">{card.label}</p>
+                <p className="text-2xl font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
               </div>
             </div>
           ))}
         </div>
 
         {/* ── Main card ── */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
 
           {/* Filter bar */}
-          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2.5 bg-muted/30">
+          <div className="px-5 py-3 border-b border-border flex flex-wrap items-center gap-2.5 bg-muted/30">
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 id="collaborators-search"
                 type="text"
-                aria-label="Buscar por nome ou documento"
-                placeholder="Buscar por nome ou documento..."
+                aria-label={podeVerDadosPessoais ? "Buscar por nome ou documento" : "Buscar por nome"}
+                placeholder={podeVerDadosPessoais ? "Buscar por nome ou documento..." : "Buscar por nome..."}
                 value={filters.search}
                 onChange={e => setFilter("search", e.target.value)}
-                className="w-full h-8 pl-9 pr-8 bg-white border border-gray-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20 transition-all"
+                className="w-full h-8 pl-9 pr-8 bg-card border border-border rounded-lg text-sm text-slate-700 placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20 transition-all"
               />
               {filters.search && (
-                <button onClick={() => setFilter("search", "")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <button onClick={() => setFilter("search", "")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -417,14 +443,14 @@ export default function CollaboratorManagement() {
             {hasFilters && (
               <button
                 onClick={clearFilters}
-                className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-dashed border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors"
+                className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-dashed border-slate-300 rounded-lg hover:bg-surface-muted hover:border-slate-400 transition-colors"
               >
                 <X className="w-3 h-3" /> Limpar
               </button>
             )}
 
             {hasFilters && (
-              <span className="text-[11px] text-slate-400 ml-1">
+              <span className="text-2xs text-muted-foreground ml-1">
                 {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
               </span>
             )}
@@ -447,15 +473,17 @@ export default function CollaboratorManagement() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b-2 border-border bg-muted/40">
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Colaborador</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Documento</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Tipo</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Cidade</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Status</th>
-                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase text-right">Ações</th>
+                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Colaborador</th>
+                    {podeVerDadosPessoais && (
+                      <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Documento</th>
+                    )}
+                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Tipo</th>
+                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Cidade</th>
+                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Status</th>
+                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-border">
                   {paginated.map(c => {
                     const isPending = c.status === "pendente";
                     const isInactive = (c as any).active === false;
@@ -466,7 +494,7 @@ export default function CollaboratorManagement() {
                     return (
                       <tr
                         key={c.id}
-                        className={`group transition-colors ${isInactive ? "bg-slate-50/60 hover:bg-slate-100/60" : isPending ? "hover:bg-amber-50/30" : "hover:bg-brand-soft/30"}`}
+                        className={`group transition-colors ${isInactive ? "bg-surface-muted/60 hover:bg-muted/60" : isPending ? "hover:bg-warning-soft/30" : "hover:bg-brand-soft/30"}`}
                       >
                         {/* Colaborador */}
                         <td className="px-5 py-3.5">
@@ -475,34 +503,36 @@ export default function CollaboratorManagement() {
                               {initials(c.fullName)}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 leading-tight">{displayName}</p>
-                              {c.phone && <p className="text-[11px] text-slate-400 mt-0.5">{c.phone}</p>}
+                              <p className="text-sm font-semibold text-foreground leading-tight">{displayName}</p>
+                              {c.phone && <p className="text-2xs text-muted-foreground mt-0.5">{c.phone}</p>}
                             </div>
                           </div>
                         </td>
 
-                        {/* Documento */}
-                        <td className="px-5 py-3.5">
-                          <div className="font-mono text-[11px] text-slate-500 space-y-0.5">
-                            <div>{formatDocument(c.officialDocument, c.documentType)}</div>
-                            {c.secondaryDocument && (
-                              <div className="text-slate-400">
-                                {(c.secondaryDocumentType || (c.documentType === "cpf" ? "rg" : "cpf")).toUpperCase()}{" "}
-                                {formatDocument(c.secondaryDocument, c.secondaryDocumentType || "")}
-                              </div>
-                            )}
-                          </div>
-                        </td>
+                        {/* Documento — coluna inteira some para quem não recebe dados pessoais */}
+                        {podeVerDadosPessoais && (
+                          <td className="px-5 py-3.5">
+                            <div className="font-mono text-2xs text-muted-foreground space-y-0.5">
+                              <div>{formatDocument(c.officialDocument, c.documentType)}</div>
+                              {c.secondaryDocument && (
+                                <div className="text-muted-foreground">
+                                  {(c.secondaryDocumentType || (c.documentType === "cpf" ? "rg" : "cpf")).toUpperCase()}{" "}
+                                  {formatDocument(c.secondaryDocument, c.secondaryDocumentType || "")}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        )}
 
                         {/* Tipo */}
                         <td className="px-5 py-3.5">
-                          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeCfg.cls}`}>
+                          <span className={`text-2xs font-semibold px-2.5 py-1 rounded-full ${typeCfg.cls}`}>
                             {typeCfg.label}
                           </span>
                         </td>
 
                         {/* Cidade */}
-                        <td className="px-5 py-3.5 text-sm text-slate-500">{c.city || "—"}</td>
+                        <td className="px-5 py-3.5 text-sm text-muted-foreground">{c.city || "—"}</td>
 
                         {/* Status */}
                         <td className="px-5 py-3.5">
@@ -511,7 +541,7 @@ export default function CollaboratorManagement() {
                             {isInactive && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 border border-slate-300 cursor-default">
+                                  <span className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full bg-border text-slate-600 border border-slate-300 cursor-default">
                                     <Ban className="w-3 h-3" /> Inativo
                                   </span>
                                 </TooltipTrigger>
@@ -532,7 +562,7 @@ export default function CollaboratorManagement() {
                               <>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending} aria-label={`Aprovar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-emerald-500 hover:bg-emerald-50 disabled:opacity-40 transition-colors">
+                                    <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending} aria-label={`Aprovar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-success-strong hover:bg-success-soft disabled:opacity-40 transition-colors">
                                       <Check className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -540,7 +570,7 @@ export default function CollaboratorManagement() {
                                 </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => handleReject(c)} disabled={updateMutation.isPending} aria-label={`Rejeitar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors">
+                                    <button onClick={() => handleReject(c)} disabled={updateMutation.isPending} aria-label={`Rejeitar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-danger-strong hover:bg-danger-soft disabled:opacity-40 transition-colors">
                                       <X className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -550,7 +580,7 @@ export default function CollaboratorManagement() {
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button onClick={() => handleView(c)} aria-label={`Ver detalhes de ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors">
+                                <button onClick={() => handleView(c)} aria-label={`Ver detalhes de ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors">
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
                               </TooltipTrigger>
@@ -559,7 +589,7 @@ export default function CollaboratorManagement() {
                             {canEdit && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors">
+                                  <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors">
                                     <Edit className="w-3.5 h-3.5" />
                                   </button>
                                 </TooltipTrigger>
@@ -570,7 +600,7 @@ export default function CollaboratorManagement() {
                               isInactive ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => reactivateMutation.mutate(c.id)} disabled={reactivateMutation.isPending} aria-label={`Reativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40 transition-colors">
+                                    <button onClick={() => reactivateMutation.mutate(c.id)} disabled={reactivateMutation.isPending} aria-label={`Reativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-success-soft hover:text-success disabled:opacity-40 transition-colors">
                                       <RotateCcw className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -579,7 +609,7 @@ export default function CollaboratorManagement() {
                               ) : (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button onClick={() => { setSelectedCollaborator(c); setInactivateReason(""); setShowDeleteModal(true); }} aria-label={`Inativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                                    <button onClick={() => { setSelectedCollaborator(c); setInactivateReason(""); setShowDeleteModal(true); }} aria-label={`Inativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-danger-soft hover:text-danger transition-colors">
                                       <Ban className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
@@ -599,8 +629,8 @@ export default function CollaboratorManagement() {
 
           {/* Pagination Footer */}
           {filtered.length > 0 && (
-            <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-              <p className="text-[11px] text-slate-400 font-medium">
+            <div className="px-5 py-2.5 border-t border-border bg-surface-muted/50 flex items-center justify-between">
+              <p className="text-2xs text-muted-foreground font-medium">
                 Mostrando{" "}
                 <span className="text-slate-600 font-semibold">{Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(currentPage * PAGE_SIZE, filtered.length)}</span>
                 {" "}de{" "}
@@ -612,7 +642,7 @@ export default function CollaboratorManagement() {
                     onClick={() => setPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                     aria-label="Página anterior"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-surface-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
@@ -629,7 +659,7 @@ export default function CollaboratorManagement() {
                           aria-label={`Página ${p}`}
                           aria-current={currentPage === p ? "page" : undefined}
                           className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
-                            currentPage === p ? "bg-primary text-primary-foreground" : "text-slate-500 hover:bg-slate-100"
+                            currentPage === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
                           }`}
                         >
                           {p}
@@ -641,7 +671,7 @@ export default function CollaboratorManagement() {
                     onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
                     aria-label="Próxima página"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-surface-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -653,9 +683,9 @@ export default function CollaboratorManagement() {
 
         {/* ── Details Modal ── */}
         <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-          <DialogContent className="max-w-xl rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+          <DialogContent className="max-w-xl rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
               {selectedCollaborator && (() => {
                 const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
                 return (
@@ -665,15 +695,15 @@ export default function CollaboratorManagement() {
                 );
               })()}
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">Detalhes do Colaborador</h3>
+                <h3 className="text-sm font-bold text-foreground">Detalhes do Colaborador</h3>
                 {selectedCollaborator && (
-                  <p className="text-[11px] text-slate-400 mt-0.5 truncate">{toTitleCase(selectedCollaborator.fullName)}</p>
+                  <p className="text-2xs text-muted-foreground mt-0.5 truncate">{toTitleCase(selectedCollaborator.fullName)}</p>
                 )}
               </div>
               {selectedCollaborator && (
                 <StatusBadge status={selectedCollaborator.status} />
               )}
-              <button onClick={() => setShowDetailsModal(false)} aria-label="Fechar detalhes" className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
+              <button onClick={() => setShowDetailsModal(false)} aria-label="Fechar detalhes" className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -683,37 +713,47 @@ export default function CollaboratorManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <DetailRow label="Nome Completo" value={toTitleCase(selectedCollaborator.fullName)} />
                   <DetailRow label="Tipo de Vínculo" value={toTitleCase(selectedCollaborator.type)} />
-                  <DetailRow label="Data de Nascimento" value={selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : "—"} />
+                  {/* Dados pessoais só para quem os recebe do servidor — para os
+                      demais papéis a linha some (não existe "—" para dado que não veio). */}
+                  {podeVerDadosPessoais && (
+                    <DetailRow label="Data de Nascimento" value={selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : "—"} />
+                  )}
                   <DetailRow label="Cidade" value={selectedCollaborator.city || "—"} />
-                  <DetailRow label="Telefone" value={selectedCollaborator.phone || "—"} />
-                  <DetailRow label="Endereço" value={enderecoEmUmaLinha(selectedCollaborator) || "—"} />
-                  <DetailRow label="CEP" value={selectedCollaborator.addressZip || "—"} />
+                  {podeVerDadosPessoais && (
+                    <>
+                      <DetailRow label="Telefone" value={selectedCollaborator.phone || "—"} />
+                      <DetailRow label="Endereço" value={enderecoEmUmaLinha(selectedCollaborator) || "—"} />
+                      <DetailRow label="CEP" value={selectedCollaborator.addressZip || "—"} />
+                    </>
+                  )}
                   <DetailRow label="Criado por" value={selectedCollaborator.createdByName || "—"} />
                 </div>
 
-                <div className="border-t border-gray-100 pt-4">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documentos</p>
-                  <div className="font-mono text-xs space-y-1 bg-slate-50 rounded-lg px-3 py-2.5 border border-gray-100">
-                    {/* O rótulo seguia fixo em "CPF" mesmo quando o documento principal era RG. */}
-                    <div><span className="text-slate-400">{(selectedCollaborator.documentType || "documento").toUpperCase()} </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span></div>
-                    {selectedCollaborator.secondaryDocument && (
-                      <div><span className="text-slate-400">{(selectedCollaborator.secondaryDocumentType || (selectedCollaborator.documentType === "cpf" ? "rg" : "cpf")).toUpperCase()} </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.secondaryDocument, selectedCollaborator.secondaryDocumentType || "")}</span></div>
-                    )}
+                {podeVerDadosPessoais && (
+                  <div className="border-t border-border pt-4">
+                    <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Documentos</p>
+                    <div className="font-mono text-xs space-y-1 bg-surface-muted rounded-lg px-3 py-2.5 border border-border">
+                      {/* O rótulo seguia fixo em "CPF" mesmo quando o documento principal era RG. */}
+                      <div><span className="text-muted-foreground">{(selectedCollaborator.documentType || "documento").toUpperCase()} </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span></div>
+                      {selectedCollaborator.secondaryDocument && (
+                        <div><span className="text-muted-foreground">{(selectedCollaborator.secondaryDocumentType || (selectedCollaborator.documentType === "cpf" ? "rg" : "cpf")).toUpperCase()} </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.secondaryDocument, selectedCollaborator.secondaryDocumentType || "")}</span></div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {selectedCollaborator.documentAttachmentId && (
-                  <div className="border-t border-gray-100 pt-4">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documento Anexado</p>
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-50 border border-gray-200">
-                      <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                  <div className="border-t border-border pt-4">
+                    <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Documento Anexado</p>
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-muted border border-border">
+                      <FileText className="w-4 h-4 text-primary shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-700 truncate">CPF/RG — {toTitleCase(selectedCollaborator.fullName)}</p>
-                        <p className="text-[10px] text-slate-400">Documento do colaborador</p>
+                        <p className="text-2xs text-muted-foreground">Documento do colaborador</p>
                       </div>
                       <button
                         onClick={() => window.open(`/api/attachments/${selectedCollaborator.documentAttachmentId}/view`, "_blank")}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs text-primary border border-primary/25 rounded-lg hover:bg-brand-soft transition-colors"
                       >
                         <Eye className="w-3 h-3" /> Ver
                       </button>
@@ -722,18 +762,18 @@ export default function CollaboratorManagement() {
                 )}
 
                 {selectedCollaborator.approvalNotes && (
-                  <div className="border-t border-gray-100 pt-4">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observações</p>
-                    <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 border border-gray-100">{selectedCollaborator.approvalNotes}</p>
+                  <div className="border-t border-border pt-4">
+                    <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Observações</p>
+                    <p className="text-xs text-slate-600 bg-surface-muted rounded-lg px-3 py-2 border border-border">{selectedCollaborator.approvalNotes}</p>
                   </div>
                 )}
 
                 {selectedCollaborator.status === "pendente" && canEdit && (
-                  <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
-                    <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+                  <div className="flex gap-2 justify-end pt-2 border-t border-border">
+                    <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-danger border border-danger/25 rounded-lg hover:bg-danger-soft transition-colors">
                       <X className="w-3.5 h-3.5" /> Rejeitar
                     </button>
-                    <button onClick={() => { setShowDetailsModal(false); handleApprove(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm shadow-emerald-200">
+                    <button onClick={() => { setShowDetailsModal(false); handleApprove(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-semibold bg-success hover:bg-success/90 text-white rounded-lg transition-colors shadow-1">
                       <Check className="w-3.5 h-3.5" /> Aprovar
                     </button>
                   </div>
@@ -745,15 +785,11 @@ export default function CollaboratorManagement() {
 
         {/* ── Approval Modal ── */}
         <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
-          <DialogContent className="max-w-md rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+          <DialogContent className="max-w-md rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
               <div
-                className="w-9 h-9 rounded-[9px] flex items-center justify-center shrink-0"
-                style={{
-                  background: approvalAction === "approve" ? "#059669" : "#DC2626",
-                  boxShadow: approvalAction === "approve" ? "0 4px 12px #05966940" : "0 4px 12px #DC262640",
-                }}
+                className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", (approvalAction === "approve" ? "bg-success" : "bg-danger"), (approvalAction === "approve" ? "shadow-2" : "shadow-2"))}
               >
                 {approvalAction === "approve"
                   ? <Check className="w-4 h-4 text-white" strokeWidth={3} />
@@ -761,14 +797,16 @@ export default function CollaboratorManagement() {
                 }
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">
+                <h3 className="text-sm font-bold text-foreground">
                   {approvalAction === "approve" ? "Aprovar Colaborador" : "Rejeitar Colaborador"}
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {approvalAction === "approve" ? "Revise os dados antes de confirmar" : "Informe o motivo da rejeição"}
+                <p className="text-2xs text-muted-foreground mt-0.5">
+                  {approvalAction === "approve"
+                    ? (podeVerDadosPessoais ? "Revise os dados antes de confirmar" : "Confirme a aprovação do cadastro")
+                    : "Informe o motivo da rejeição"}
                 </p>
               </div>
-              <button onClick={() => setShowApprovalModal(false)} disabled={updateMutation.isPending} aria-label="Fechar" className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+              <button onClick={() => setShowApprovalModal(false)} disabled={updateMutation.isPending} aria-label="Fechar" className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted disabled:opacity-40 transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -778,54 +816,52 @@ export default function CollaboratorManagement() {
                 {(() => {
                   const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
                   return (
-                    <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-3 px-3 py-2.5 bg-surface-muted rounded-lg border border-border">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${bg} ${tx}`}>
                         {initials(selectedCollaborator.fullName)}
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-slate-700">{toTitleCase(selectedCollaborator.fullName)}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</p>
+                        {selectedCollaborator.officialDocument && (
+                          <p className="text-2xs text-muted-foreground font-mono">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</p>
+                        )}
                       </div>
                     </div>
                   );
                 })()}
 
-                {approvalAction === "approve" && (
+                {approvalAction === "approve" && podeVerDadosPessoais && (
                   <div className="space-y-3">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Documentos</p>
+                    <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Documentos</p>
                     <div>
-                      <label htmlFor="approval-cpf" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">CPF <span className="text-red-400 normal-case tracking-normal">*</span></label>
+                      <label htmlFor="approval-cpf" className="text-2xs font-bold text-muted-foreground uppercase tracking-wide block mb-1.5">CPF <span className="text-danger-strong normal-case tracking-normal">*</span></label>
                       <input id="approval-cpf" value={editCpf} onChange={e => setEditCpf(e.target.value)} placeholder="000.000.000-00"
-                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
+                        className="w-full h-9 px-3 font-mono text-sm border border-border rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                     </div>
                     <div>
-                      <label htmlFor="approval-rg" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">RG <span className="text-slate-400 font-normal normal-case tracking-normal">(opcional)</span></label>
+                      <label htmlFor="approval-rg" className="text-2xs font-bold text-muted-foreground uppercase tracking-wide block mb-1.5">RG <span className="text-muted-foreground font-normal normal-case tracking-normal">(opcional)</span></label>
                       <input id="approval-rg" value={editRg} onChange={e => setEditRg(e.target.value)} placeholder="00.000.000-0"
-                        className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
+                        className="w-full h-9 px-3 font-mono text-sm border border-border rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label htmlFor="approval-notes" className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
-                    Observações <span className="text-slate-400 font-normal normal-case tracking-normal">{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
+                  <label htmlFor="approval-notes" className="text-2xs font-bold text-muted-foreground uppercase tracking-wide block mb-1.5">
+                    Observações <span className="text-muted-foreground font-normal normal-case tracking-normal">{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
                   </label>
                   <Textarea id="approval-notes" value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
                     placeholder={approvalAction === "approve" ? "Comentários sobre a aprovação..." : "Motivo da rejeição..."}
-                    rows={3} className="text-sm border-gray-200 rounded-lg resize-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
+                    rows={3} className="text-sm border-border rounded-lg resize-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                 </div>
 
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setShowApprovalModal(false)} disabled={updateMutation.isPending}
-                    className="flex-1 h-9 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    className="flex-1 h-9 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-surface-muted transition-colors">
                     Cancelar
                   </button>
                   <button onClick={handleConfirm} disabled={updateMutation.isPending}
-                    className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-sm disabled:opacity-60"
-                    style={{
-                      background: approvalAction === "approve" ? "#059669" : "#DC2626",
-                      boxShadow: approvalAction === "approve" ? "0 2px 8px #05966940" : "0 2px 8px #DC262640",
-                    }}
+                    className={cn("flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-1 disabled:opacity-60", (approvalAction === "approve" ? "bg-success" : "bg-danger"), (approvalAction === "approve" ? "shadow-1" : "shadow-1"))}
                   >
                     {updateMutation.isPending
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -842,36 +878,38 @@ export default function CollaboratorManagement() {
 
         {/* ── Inactivate Confirmation Modal ── */}
         <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!inactivateMutation.isPending) { setShowDeleteModal(open); if (!open) setInactivateReason(""); } }}>
-          <DialogContent className="max-w-[420px] rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+          <DialogContent className="max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
             <div className="px-6 py-6 space-y-4">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                <div className="w-10 h-10 rounded-full bg-danger-soft border border-danger/25 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-danger-strong" />
                 </div>
                 <div>
-                  <h3 className="text-[15px] font-bold text-slate-900 leading-tight mb-1">Inativar colaborador?</h3>
-                  <p className="text-[12.5px] text-slate-500 leading-relaxed">Ele deixará de aparecer nas escalações, mas será mantido no histórico. Você pode reativá-lo depois.</p>
+                  <h3 className="text-base font-bold text-foreground leading-tight mb-1">Inativar colaborador?</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">Ele deixará de aparecer nas escalações, mas será mantido no histórico. Você pode reativá-lo depois.</p>
                 </div>
               </div>
 
               {selectedCollaborator && (() => {
                 const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
                 return (
-                  <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-3 px-3 py-2.5 bg-surface-muted rounded-xl border border-border">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bg} ${tx}`}>
                       {initials(selectedCollaborator.fullName)}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-slate-700 truncate">{toTitleCase(selectedCollaborator.fullName)}</p>
-                      <p className="text-[11px] text-slate-400 font-mono">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</p>
+                      <p className="text-sm font-semibold text-slate-700 truncate">{toTitleCase(selectedCollaborator.fullName)}</p>
+                      {selectedCollaborator.officialDocument && (
+                        <p className="text-2xs text-muted-foreground font-mono">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</p>
+                      )}
                     </div>
                   </div>
                 );
               })()}
 
               <div>
-                <label htmlFor="inactivate-reason" className="block text-[12px] font-semibold text-slate-700 mb-1.5">
-                  Motivo da inativação <span className="text-red-500">*</span>
+                <label htmlFor="inactivate-reason" className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Motivo da inativação <span className="text-danger-strong">*</span>
                 </label>
                 <textarea
                   id="inactivate-reason"
@@ -880,7 +918,7 @@ export default function CollaboratorManagement() {
                   placeholder="Ex.: desligamento, encerramento de contrato..."
                   rows={3}
                   disabled={inactivateMutation.isPending}
-                  className="w-full text-[13px] rounded-lg border border-gray-200 px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300 disabled:opacity-60"
+                  className="w-full text-sm rounded-lg border border-border px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-danger/25 focus:border-danger/25 disabled:opacity-60"
                 />
               </div>
 
@@ -888,15 +926,14 @@ export default function CollaboratorManagement() {
                 <button
                   onClick={() => { setShowDeleteModal(false); setInactivateReason(""); }}
                   disabled={inactivateMutation.isPending}
-                  className="flex-1 h-9 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                  className="flex-1 h-9 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-surface-muted transition-colors disabled:opacity-60"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={() => { if (selectedCollaborator && inactivateReason.trim()) inactivateMutation.mutate({ id: selectedCollaborator.id, reason: inactivateReason.trim() }); }}
                   disabled={inactivateMutation.isPending || !inactivateReason.trim()}
-                  className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ background: "#DC2626", boxShadow: "0 2px 8px #DC262640" }}
+                  className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-1 disabled:opacity-60 disabled:cursor-not-allowed bg-danger shadow-1"
                 >
                   {inactivateMutation.isPending
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />

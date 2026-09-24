@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, type LoginResult } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { AlertTriangle, ExternalLink, Shield, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,22 @@ function isInternalPath(p: string): boolean {
   if (!p.startsWith("/") || p.startsWith("//") || p.startsWith("/\\")) return false;
   if (p.startsWith("/auth") || p.startsWith("/reset-password")) return false;
   return true;
+}
+
+const MSG_CREDENCIAIS = "Credenciais inválidas. Verifique e-mail e senha.";
+
+/** Mensagem para a falha de `login()` (use-auth) conforme o status devolvido. */
+function mensagemDeFalhaDoLogin(res: LoginResult): string {
+  if (res.ok) return "";
+  const status = res.status ?? 0;
+  const message = typeof res.message === "string" && res.message.trim() ? res.message.trim() : "";
+  // 400/401/403 são a resposta esperada para senha errada — a mensagem do
+  // servidor, se vier, é mais precisa (ex.: "conta inativa").
+  if (status === 400 || status === 401 || status === 403) return message || MSG_CREDENCIAIS;
+  if (status === 429) return message || "Muitas tentativas. Aguarde um instante e tente de novo.";
+  if (status >= 500) return message || "O servidor não respondeu. Tente de novo em instantes.";
+  if (status === 0) return message || "Não foi possível falar com o servidor. Verifique sua conexão e tente de novo.";
+  return message || MSG_CREDENCIAIS;
 }
 
 export default function AuthPage() {
@@ -65,14 +81,17 @@ export default function AuthPage() {
   const handleLogin = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      const success = await login(data.email, data.password);
-      if (success) {
+      // `login()` devolve `{ ok, status, message }` (23/09): 429/500/queda de
+      // rede mostram o motivo real em vez de "Credenciais inválidas" — que
+      // mandava a pessoa redigitar uma senha certa.
+      const res = await login(data.email, data.password);
+      if (res.ok) {
         setLocation(returnTo);
       } else {
-        loginForm.setError("password", { message: "Credenciais inválidas. Verifique e-mail e senha." });
+        loginForm.setError("password", { message: mensagemDeFalhaDoLogin(res) });
       }
     } catch {
-      loginForm.setError("password", { message: "Erro interno do servidor." });
+      loginForm.setError("password", { message: "Não foi possível falar com o servidor. Verifique sua conexão e tente de novo." });
     } finally {
       setIsLoading(false);
     }
@@ -83,7 +102,7 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-gradient-to-br from-brand-soft to-secondary">
-      <div className="w-full max-w-[420px] bg-card rounded-[20px] shadow-[0_20px_60px_rgba(0,0,0,0.08)] p-6 sm:p-10">
+      <div className="w-full max-w-[420px] bg-card rounded-xl shadow-3 p-6 sm:p-10">
         {/* Logo + Title */}
         <div className="flex flex-col items-center mb-8">
           <div className="h-10 overflow-hidden flex items-start">
@@ -99,13 +118,13 @@ export default function AuthPage() {
 
         {/* Erro SSO */}
         {ssoError && (
-          <div role="alert" className="flex items-start gap-3 p-3 mb-5 rounded-xl bg-red-50 border border-red-200">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-600" />
+          <div role="alert" className="flex items-start gap-3 p-3 mb-5 rounded-xl bg-danger-soft border border-danger/25">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-danger" />
             <div>
-              <p className="text-sm font-semibold text-red-800">
+              <p className="text-sm font-semibold text-danger">
                 {ssoError === "not_registered" ? "Acesso não autorizado" : "Conta inativa"}
               </p>
-              <p className="text-xs mt-0.5 text-red-700">
+              <p className="text-xs mt-0.5 text-danger">
                 {ssoError === "not_registered"
                   ? "Seu e-mail não está cadastrado no sistema. Solicite acesso ao administrador."
                   : "Sua conta está inativa. Entre em contato com o administrador."}
@@ -115,11 +134,11 @@ export default function AuthPage() {
         )}
 
         {sessaoExpirada && !ssoError && (
-          <div role="status" className="flex items-start gap-3 p-3 mb-5 rounded-xl bg-amber-50 border border-amber-200">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+          <div role="status" className="flex items-start gap-3 p-3 mb-5 rounded-xl bg-warning-soft border border-warning/25">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
             <div>
-              <p className="text-sm font-semibold text-amber-800">Sessão expirada</p>
-              <p className="text-xs mt-0.5 text-amber-700">
+              <p className="text-sm font-semibold text-warning">Sessão expirada</p>
+              <p className="text-xs mt-0.5 text-warning">
                 Sua sessão terminou por inatividade. Entre novamente para continuar de onde parou.
               </p>
             </div>
@@ -129,8 +148,8 @@ export default function AuthPage() {
         {isDev ? (
           /* ── Modo Dev: formulário de login direto ── */
           <>
-            <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-lg bg-yellow-50 border border-amber-200">
-              <span className="text-xs font-semibold text-amber-800">⚙ Modo desenvolvimento — login direto habilitado</span>
+            <div className="flex items-center gap-2 mb-5 px-3 py-2 rounded-lg bg-warning-soft border border-warning/25">
+              <span className="text-xs font-semibold text-warning">⚙ Modo desenvolvimento — login direto habilitado</span>
             </div>
             <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4" noValidate>
               <div className="space-y-1.5">
@@ -187,12 +206,12 @@ export default function AuthPage() {
           </>
         ) : (
           /* ── Produção: acesso exclusivo pelo portal ── */
-          <div className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-2xl bg-brand-soft border border-primary/20">
+          <div className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-xl bg-brand-soft border border-primary/20">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground">
               <Shield className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-[15px] font-semibold text-foreground">Acesso exclusivo pelo Portal</p>
+              <p className="text-base font-semibold text-foreground">Acesso exclusivo pelo Portal</p>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                 O acesso a este sistema é feito apenas pelo Portal Norte. Use o link abaixo para entrar.
               </p>
@@ -210,7 +229,7 @@ export default function AuthPage() {
           <p className="text-xs text-muted-foreground leading-relaxed">
             Problemas para acessar? Entre em contato com o administrador do sistema.
           </p>
-          <p className="text-[11px] text-muted-foreground/60 font-medium">v1.0.0</p>
+          <p className="text-2xs text-muted-foreground/60 font-medium">v1.0.0</p>
         </div>
       </div>
     </div>

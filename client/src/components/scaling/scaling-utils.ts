@@ -4,8 +4,10 @@
  */
 import { parseISO } from "date-fns";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
-import type { TeamInclusion, SwapRequest } from "@shared/schema";
+import type { TeamInclusion } from "@shared/schema";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
+import { ACTIVE_CONFLICT_STATUSES, CONFIRMED_STATUSES } from "@shared/vaga-status";
+import { tipoDeConflitoDeAgenda } from "@shared/conflito-de-agenda";
 
 // Trocas já resolvidas por outra aba (Passagem/Hospedagem) não entram no atalho
 // de "trocas pendentes".
@@ -15,51 +17,19 @@ export const ALREADY_HANDLED_SWAP_STATUSES = new Set([
   "hospedagem_comprada",
 ]);
 
-/** Statuses em que a escalação conta como "escalada" (colaborador confirmado). */
-export const ESCALATED_STATUSES = new Set([
-  "escalado",
-  "aguardando_producao",
-  "passagem",
-  "passagem_comprada",
-  "hospedagem",
-  "hospedagem_comprada",
-  "aprovacao",
-  "aprovado",
-  "concluido",
-]);
-
-/** Statuses ativos para detecção de conflito de datas de um colaborador. */
-export const ACTIVE_CONFLICT_STATUSES = [
-  "escalado",
-  "aguardando_producao",
-  "passagem",
-  "passagem_comprada",
-  "hospedagem",
-  "hospedagem_comprada",
-  "aprovacao",
-  "aprovado",
-];
-
 /**
- * Conflito de agenda entre duas vagas do mesmo colaborador (dono, 18/09: "tem
- * casos com 2 viagens no mesmo dia, horários compatíveis, mas está bloqueando").
- * - "sobreposicao": dividem 2 ou mais dias — a pessoa estaria em dois lugares; bloqueia.
- * - "mesmo_dia": dividem UM dia só (uma termina no dia em que a outra começa, ou as
- *   duas são no mesmo dia) — duas viagens no mesmo dia podem ser compatíveis; vira
- *   aviso para conferir os horários das passagens.
+ * Statuses em que a escalação conta como "escalada" (colaborador confirmado).
+ * Re-export do vocabulário compartilhado (23/09): a lista local não tinha
+ * `hospedagem_passagem_comprada` — uma vaga com tudo comprado não contava
+ * como escalada e passava na confirmação em massa.
  */
-export function tipoDeConflitoDeAgenda(
-  a: { scheduleStartDate?: string | Date | null; scheduleEndDate?: string | Date | null },
-  b: { scheduleStartDate?: string | Date | null; scheduleEndDate?: string | Date | null },
-): "sobreposicao" | "mesmo_dia" | null {
-  const dia = (v: string | Date | null | undefined) => (v instanceof Date ? v.toISOString() : String(v ?? "")).slice(0, 10);
-  const [ai, af, bi, bf] = [dia(a.scheduleStartDate), dia(a.scheduleEndDate), dia(b.scheduleStartDate), dia(b.scheduleEndDate)];
-  if (!ai || !af || !bi || !bf) return null;
-  const inicio = ai > bi ? ai : bi;
-  const fim = af < bf ? af : bf;
-  if (inicio > fim) return null;
-  return inicio === fim ? "mesmo_dia" : "sobreposicao";
-}
+export const ESCALATED_STATUSES: ReadonlySet<string> = CONFIRMED_STATUSES;
+
+/** Statuses ativos para detecção de conflito de datas de um colaborador (shared). */
+export { ACTIVE_CONFLICT_STATUSES };
+
+/** Conflito de agenda entre duas vagas — movida para @shared/conflito-de-agenda (23/09). */
+export { tipoDeConflitoDeAgenda };
 
 // Converte "YYYY-MM-DD" (ou ISO com timestamp) em Date LOCAL de meia-noite.
 // parseISO de um ISO completo devolve UTC e, em Brasília, joga a data um dia
@@ -207,68 +177,11 @@ export const isPdfFile = (name?: string, type?: string): boolean =>
   (name || "").toLowerCase().endsWith(".pdf") || (type || "").includes("pdf");
 
 // ── Troca de colaborador normalizada ────────────────────────────────────────
-// As rotas /api/swap-requests devolvem SQL cru (snake_case); o schema é
-// camelCase. Antes cada uso fazia `(swap as any).requested_by ?? swap.requestedBy`.
-export interface NormalizedSwap {
-  id: string;
-  teamInclusionId: string;
-  requestedBy: string;
-  requestedByName: string | null;
-  currentCollaboratorId: string | null;
-  newCollaboratorId: string | null;
-  currentCollaboratorName: string | null;
-  newCollaboratorName: string | null;
-  reason: string;
-  status: string;
-  reviewComment: string | null;
-  reviewedBy: string | null;
-  reviewedByName: string | null;
-  reviewedAt: string | Date | null;
-  createdAt: string | Date | null;
-  /** De onde o novo colaborador sai (14/09); nulo em pedidos antigos. */
-  newCity: string | null;
-  /** 'substituicao' (troca simples) | 'permuta' (dois escalados trocam de vaga, 14/09). */
-  swapKind: string;
-  /** Permuta: a outra vaga e de onde sai quem vai para ela. */
-  pairedInclusionId: string | null;
-  pairedNewCity: string | null;
-  /** Número/evento da vaga do pedido e da vaga pareada (vêm dos joins da API). */
-  inclusionNumber: number | null;
-  eventName: string | null;
-  pairedInclusionNumber: number | null;
-  pairedEventName: string | null;
-  pairedFunctionName: string | null;
-}
-
-export function normalizeSwap(raw: SwapRequest | Record<string, any>): NormalizedSwap {
-  const s = raw as Record<string, any>;
-  return {
-    id: s.id,
-    teamInclusionId: s.team_inclusion_id ?? s.teamInclusionId ?? "",
-    requestedBy: s.requested_by ?? s.requestedBy ?? "",
-    requestedByName: s.requested_by_name ?? s.requestedByName ?? null,
-    currentCollaboratorId: s.current_collaborator_id ?? s.currentCollaboratorId ?? null,
-    newCollaboratorId: s.new_collaborator_id ?? s.newCollaboratorId ?? null,
-    currentCollaboratorName: s.current_collaborator_name ?? s.currentCollaboratorName ?? null,
-    newCollaboratorName: s.new_collaborator_name ?? s.newCollaboratorName ?? null,
-    reason: s.reason ?? "",
-    status: s.status ?? "pendente",
-    reviewComment: s.review_comment ?? s.reviewComment ?? null,
-    reviewedBy: s.reviewed_by ?? s.reviewedBy ?? null,
-    reviewedByName: s.reviewed_by_name ?? s.reviewedByName ?? null,
-    reviewedAt: s.reviewed_at ?? s.reviewedAt ?? null,
-    createdAt: s.created_at ?? s.createdAt ?? null,
-    newCity: s.new_city ?? s.newCity ?? null,
-    swapKind: s.swap_kind ?? s.swapKind ?? "substituicao",
-    pairedInclusionId: s.paired_inclusion_id ?? s.pairedInclusionId ?? null,
-    pairedNewCity: s.paired_new_city ?? s.pairedNewCity ?? null,
-    inclusionNumber: s.inclusion_number ?? s.inclusionNumber ?? null,
-    eventName: s.event_name ?? s.eventName ?? null,
-    pairedInclusionNumber: s.paired_inclusion_number ?? s.pairedInclusionNumber ?? null,
-    pairedEventName: s.paired_event_name ?? s.pairedEventName ?? null,
-    pairedFunctionName: s.paired_function_name ?? s.pairedFunctionName ?? null,
-  };
-}
+// Tipo e normalizador ÚNICOS do client desde 23/09 (client/src/lib/swap-types.ts):
+// havia dois `NormalizedSwap` (este e o de Hospedagem) com campos diferentes
+// alimentando a MESMA chave de cache. Re-exportados aqui para os imports das
+// telas de Escalação continuarem valendo.
+export { normalizeSwap, type NormalizedSwap } from "@/lib/swap-types";
 
 /** Dados editáveis do modal de detalhes. */
 export interface ModalData {

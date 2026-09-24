@@ -51,7 +51,7 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
   );
   const allEventSelected = eventDays.length > 0 && eventDays.every((d) => selected.has(d));
   const marcarEvento = () => onChange(Array.from(new Set([...value, ...eventDays])).sort());
-  const ATALHO = "inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
+  const ATALHO = "inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-2xs font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
   // Último dia clicado — âncora do shift+clique (seleciona o intervalo inteiro).
   const anchorRef = useRef<string | null>(null);
   const toggle = (d: string, shift: boolean) => {
@@ -70,7 +70,7 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
     onChange(Array.from(next).sort());
   };
 
-  if (days.length === 0) return <p className="text-xs text-slate-500">Sem período para escolher os dias.</p>;
+  if (days.length === 0) return <p className="text-xs text-muted-foreground">Sem período para escolher os dias.</p>;
 
   return (
     <div id={id} role="group" aria-label="Dias de trabalho" className="space-y-1.5">
@@ -80,7 +80,7 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
           type="button" className={ATALHO} disabled={disabled || allEventSelected} onClick={marcarEvento}
           title="Marca todos os dias do período do evento (dias já marcados fora dele continuam)"
         >
-          Todos os dias do evento <span className="tabular-nums text-slate-500">({eventDays.length})</span>
+          Todos os dias do evento <span className="tabular-nums text-muted-foreground">({eventDays.length})</span>
         </button>
         <button type="button" className={ATALHO} disabled={disabled || value.length === 0} onClick={() => onChange([])}>
           Limpar
@@ -105,31 +105,31 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
             onClick={(e) => toggle(d, e.shiftKey)}
             title={titulo}
             className={cn(
-              "relative flex flex-col items-center min-w-[52px] px-2 py-1 rounded-lg border text-[11px] leading-tight transition-colors",
+              "relative flex flex-col items-center min-w-[52px] px-2 py-1 rounded-lg border text-2xs leading-tight transition-colors",
               "focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed",
               // FUNDO só significa "marcado" (regra do dono, 26/08): o fim de
               // semana pintado parecia dia selecionado. Aqui ele aparece só no
               // nome do dia, em laranja.
-              on ? "bg-primary text-white border-primary" : "bg-white text-slate-600 border-slate-200 hover:border-primary/40",
-              !inEvent && !on && "border-dashed text-slate-400",
+              on ? "bg-primary text-primary-foreground border-primary" : "bg-card text-slate-600 border-border hover:border-primary/40",
+              !inEvent && !on && "border-dashed text-muted-foreground",
             )}
           >
             {pedido && (
               <span
                 aria-hidden="true"
-                className={cn("absolute right-1 top-1 h-1.5 w-1.5 rounded-full", on ? "bg-white/90" : "bg-primary")}
+                className={cn("absolute right-1 top-1 h-1.5 w-1.5 rounded-full", on ? "bg-card/90" : "bg-primary")}
               />
             )}
             <span className="font-semibold tabular-nums">{date}</span>
-            <span className={cn("text-[10px]", on ? "text-white/80" : isWeekend ? "text-orange-700" : "text-slate-500")}>{dayName}</span>
+            <span className={cn("text-2xs", on ? "text-white/80" : isWeekend ? "text-warning" : "text-muted-foreground")}>{dayName}</span>
           </button>
         );
       })}
     </div>
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
-      <span>Clique para marcar um dia; <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-mono text-[10px]">Shift</kbd> + clique marca o intervalo.</span>
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
+      <span>Clique para marcar um dia; <kbd className="rounded border border-border bg-surface-muted px-1 font-mono text-2xs">Shift</kbd> + clique marca o intervalo.</span>
       {pedidosSet.size > 0 && (
-        <span className="inline-flex items-center gap-1 text-slate-500">
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
           <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary" /> pedido da área
         </span>
       )}

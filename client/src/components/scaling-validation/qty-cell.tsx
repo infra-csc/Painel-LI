@@ -119,11 +119,11 @@ export const QtyCell = memo(function QtyCell({ value, rowId, date, rowIdx, colId
         onFocus={(e) => e.currentTarget.select()}
         className={cn(
           "h-8 w-12 rounded-lg text-center text-xs font-semibold tabular-nums transition-colors outline-none",
-          "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-slate-300 disabled:opacity-60",
+          "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground disabled:opacity-60",
           value > 0
             ? "bg-brand-soft text-primary border border-primary/30"
-            : "bg-white text-slate-500 border border-slate-200",
-          clamped && "ring-2 ring-amber-400 focus:ring-amber-400 border-amber-400",
+            : "bg-card text-muted-foreground border border-border",
+          clamped && "ring-2 ring-warning-strong focus:ring-warning-strong border-warning-strong",
         )}
       />
       {clamped && <span className="sr-only" role="status">Máximo de {QTY_MAX} por dia</span>}

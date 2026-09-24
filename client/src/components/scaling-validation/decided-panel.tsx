@@ -12,10 +12,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
@@ -171,27 +168,27 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
     <div className="space-y-2">
       {podeLimpar && idsNegadas.length > 0 && (
         <div className="flex flex-wrap items-center justify-end gap-2" data-testid="limpar-negadas">
-          <span className="text-[11px] text-slate-500">Vagas negadas não têm mais ação. Você pode tirá-las desta lista.</span>
-          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg border-red-200 text-red-700 hover:bg-red-50"
+          <span className="text-2xs text-muted-foreground">Vagas negadas não têm mais ação. Você pode tirá-las desta lista.</span>
+          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg border-danger/25 text-danger hover:bg-danger-soft"
             onClick={() => setLimpar(idsNegadas)} disabled={limparMutation.isPending} data-testid="button-limpar-negadas">
             <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Excluir negadas da lista ({idsNegadas.length})
           </Button>
         </div>
       )}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[760px] text-[13px]">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <table className="w-full min-w-[760px] text-sm">
           <caption className="sr-only">Vagas já decididas pelo aprovador</caption>
-          <thead className="bg-slate-50">
+          <thead className="bg-surface-muted">
             <tr>
               {["Vaga", "Evento", "Período / diárias", "Decisão · como · quem", "Quando"].map((h) => (
-                <th key={h} scope="col" className="border-b border-slate-200 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 whitespace-nowrap">{h}</th>
+                <th key={h} scope="col" className="border-b border-border px-3 py-2 text-left text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
               ))}
-              <th scope="col" className={cn(podeLimpar ? "w-20" : "w-10", "border-b border-slate-200 px-2 py-2")}><span className="sr-only">Ações</span></th>
+              <th scope="col" className={cn(podeLimpar ? "w-20" : "w-10", "border-b border-border px-2 py-2")}><span className="sr-only">Ações</span></th>
             </tr>
           </thead>
           <tbody>
             {rows.map(({ row, decisao }) => (
-              <tr key={row.id} className="border-b border-slate-100 last:border-0">
+              <tr key={row.id} className="border-b border-border last:border-0">
                 <td className="px-3 py-2">
                   <button
                     type="button"
@@ -199,45 +196,45 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
                     className="group inline-flex items-center rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`Ver detalhes da vaga #${row.inclusionNumber}`}
                   >
-                    <span className="mr-2 inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-blue-800">#{row.inclusionNumber}</span>
-                    <span className="font-medium text-slate-800 group-hover:text-primary group-hover:underline">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
+                    <span className="mr-2 inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
+                    <span className="font-medium text-foreground group-hover:text-primary group-hover:underline">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
                   </button>
                 </td>
                 <td className="max-w-[260px] whitespace-normal break-words px-3 py-2 text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "Sem evento"}</td>
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums text-slate-700">{periodLabel(row)}</td>
                 <td className="max-w-[420px] px-3 py-2">
                   {decisao === "aprovada" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success-soft px-2 py-0.5 text-2xs font-semibold text-success">
                       <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Aprovada — virou Inclusão
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-danger/25 bg-danger-soft px-2 py-0.5 text-2xs font-semibold text-danger">
                       <XCircle className="h-3 w-3" aria-hidden="true" /> Negada
                     </span>
                   )}
                   {/* Como e por quem (11/09): sem isto toda linha dizia a mesma coisa. */}
                   {row.decisao ? (
-                    <div className="mt-1 space-y-0.5 text-[12px] leading-snug text-slate-600" title={row.decisao.resumo || undefined}>
+                    <div className="mt-1 space-y-0.5 text-xs leading-snug text-slate-600" title={row.decisao.resumo || undefined}>
                       <p className="break-words">
                         {CAMINHO_POR_ACAO[row.decisao.action] ?? row.decisao.resumo}
-                        {row.decisao.byName ? <> · por <span className="font-medium text-slate-800">{row.decisao.byName}</span></> : null}
+                        {row.decisao.byName ? <> · por <span className="font-medium text-foreground">{row.decisao.byName}</span></> : null}
                       </p>
                       {row.decisao.comment && (
-                        <p className="break-words italic text-slate-500">“{row.decisao.comment}”</p>
+                        <p className="break-words italic text-muted-foreground">“{row.decisao.comment}”</p>
                       )}
                     </div>
                   ) : (
-                    <p className="mt-1 text-[12px] text-slate-400">Sem registro de quem decidiu.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Sem registro de quem decidiu.</p>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{formatDateBr(row.decisao?.at ?? row.updatedAt) || "Sem data"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{formatDateBr(row.decisao?.at ?? row.updatedAt) || "Sem data"}</td>
                 <td className="px-2 py-2 text-right whitespace-nowrap">
                   {podeLimpar && decisao === "negada" && (
                     <button
                       type="button"
                       onClick={() => setLimpar([row.id])}
                       disabled={limparMutation.isPending}
-                      className="mr-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      className="mr-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                       aria-label={"Excluir da lista a vaga negada #" + row.inclusionNumber}
                       title="Excluir da lista"
                       data-testid={"decidida-excluir-" + row.id}
@@ -248,7 +245,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
                   <button
                     type="button"
                     onClick={() => setDetailId(row.id)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`Abrir detalhes da vaga #${row.inclusionNumber}`}
                     title="Ver detalhes"
                     data-testid={`decidida-detalhe-${row.id}`}
@@ -261,36 +258,26 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-slate-500">
+      <p className="text-2xs text-muted-foreground">
         {rows.length === MAX_LINHAS ? `Mostrando as ${MAX_LINHAS} decisões mais recentes. ` : ""}
         O detalhe completo — quem validou, pedidos e comentários — está no{" "}
         <Link href={scalingHref("/scaling-event-view", eventId)} className={cn("inline-flex items-center gap-1 font-medium text-primary hover:underline")}>
           Histórico da Escala <ExternalLink className="h-3 w-3" aria-hidden="true" />
         </Link>.
       </p>
-      <AlertDialog open={!!limpar} onOpenChange={(o) => { if (!o && !limparMutation.isPending) setLimpar(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {(limpar?.length ?? 0) === 1 ? "Excluir esta vaga negada da lista?" : "Excluir " + (limpar?.length ?? 0) + " vagas negadas da lista?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Elas saem das Decididas e não voltam para a escala. O registro continua no histórico, com quem negou, quando e o motivo.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={limparMutation.isPending}>Voltar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              disabled={limparMutation.isPending}
-              onClick={(e) => { e.preventDefault(); if (limpar) limparMutation.mutate(limpar); }}
-              data-testid="button-confirmar-limpar-negadas"
-            >
-              {limparMutation.isPending ? "Excluindo…" : "Excluir da lista"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ConfirmDialog único (23/09): destrutivo → foco no Cancelar, spinner em pending. */}
+      <ConfirmDialog
+        open={!!limpar}
+        onOpenChange={(o) => { if (!o) setLimpar(null); }}
+        title={(limpar?.length ?? 0) === 1 ? "Excluir esta vaga negada da lista?" : "Excluir " + (limpar?.length ?? 0) + " vagas negadas da lista?"}
+        description="Elas saem das Decididas e não voltam para a escala. O registro continua no histórico, com quem negou, quando e o motivo."
+        cancelLabel="Voltar"
+        confirmLabel="Excluir da lista"
+        tone="danger"
+        pending={limparMutation.isPending}
+        onConfirm={() => { if (limpar) limparMutation.mutate(limpar); }}
+        confirmTestId="button-confirmar-limpar-negadas"
+      />
       <SuggestionDetailDrawer
         open={!!detailRow}
         onOpenChange={(o) => { if (!o) setDetailId(null); }}

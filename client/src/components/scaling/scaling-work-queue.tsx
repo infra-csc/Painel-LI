@@ -21,11 +21,11 @@ const ICONE: Record<QueueKey, typeof UserPlus> = {
 
 /** Uma cor por significado — a mesma da pílula de situação correspondente. */
 const COR: Record<QueueKey, string> = {
-  trabalho: "#0033CC",
-  escalar: "#D97706",
-  gestor: "#EF4444",
-  troca: "#A855F7",
-  prontas: "#10B981",
+  trabalho: "var(--primary)",
+  escalar: "var(--warning)",
+  gestor: "var(--danger-strong)",
+  troca: "var(--primary)",
+  prontas: "var(--success-strong)",
 };
 
 export default function ScalingWorkQueue({ contagens, total, ativa, onEscolher, mostrarGestor = true, mostrarTrocas = true }: {
@@ -58,12 +58,12 @@ export default function ScalingWorkQueue({ contagens, total, ativa, onEscolher, 
         data-testid="fila-todas"
       >
         <span className="flex items-center gap-[7px]">
-          <Rows3 className="w-[15px] h-[15px] shrink-0 text-slate-500" aria-hidden="true" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate">Todas</span>
+          <Rows3 className="w-[15px] h-[15px] shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate">Todas</span>
         </span>
         <span className="flex items-baseline gap-[7px] mt-1.5">
-          <span className={`text-[20px] font-semibold tabular-nums tracking-[-0.02em] ${total === 0 ? "text-slate-400" : "text-slate-900"}`}>{total}</span>
-          <span className="text-[12px] text-muted-foreground truncate">vagas no recorte</span>
+          <span className={`text-xl font-semibold tabular-nums tracking-[-0.02em] ${total === 0 ? "text-muted-foreground" : "text-foreground"}`}>{total}</span>
+          <span className="text-xs text-muted-foreground truncate">vagas no recorte</span>
         </span>
       </button>
       {blocos.map(({ key, label, sub }) => {
@@ -78,22 +78,22 @@ export default function ScalingWorkQueue({ contagens, total, ativa, onEscolher, 
             // Reclicar o bloco ativo desliga o filtro: uma fila que só liga
             // vira uma armadilha de mão única.
             onClick={() => onEscolher(on ? null : key)}
-            className={`flex-1 min-w-0 text-left px-4 py-[13px] border-l border-slate-100 first:border-l-0 border-b-2 transition-colors ${
+            className={`flex-1 min-w-0 text-left px-4 py-[13px] border-l border-border first:border-l-0 border-b-2 transition-colors ${
               on ? "bg-background border-b-primary" : "border-b-transparent hover:bg-background"
             }`}
             data-testid={`fila-${key}`}
           >
             <span className="flex items-center gap-[7px]">
               <Icone className="w-[15px] h-[15px] shrink-0" style={{ color: COR[key] }} aria-hidden="true" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate">
+              <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate">
                 {label}
               </span>
             </span>
             <span className="flex items-baseline gap-[7px] mt-1.5">
-              <span className={`text-[20px] font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-slate-400" : "text-slate-900"}`}>
+              <span className={`text-xl font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-muted-foreground" : "text-foreground"}`}>
                 {n}
               </span>
-              <span className="text-[12px] text-muted-foreground truncate">{sub}</span>
+              <span className="text-xs text-muted-foreground truncate">{sub}</span>
             </span>
           </button>
         );

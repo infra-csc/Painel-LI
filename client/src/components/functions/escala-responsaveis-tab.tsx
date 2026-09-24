@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, ChevronDown, Loader2, ShieldCheck, UserCheck, Users, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Loader2, ShieldCheck, UserCheck, Users, X, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -13,13 +13,14 @@ import { EmptyState } from "@/components/common/empty-state";
 import { LoadingState } from "@/components/common/loading-state";
 import type { User as UserType } from "@shared/schema";
 import type { FunctionWithManagers } from "@/components/scaling-validation/types";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type ManagerRole = "validador" | "aprovador";
 type Manager = NonNullable<FunctionWithManagers["managers"]>[number];
 /** GET /api/scaling-default-approver — quem decide quando a função não tem aprovador próprio. */
 type DefaultApprover = { userId: string | null; userName: string | null };
 
-const SOFT_INPUT = "w-full text-foreground border-0 rounded-[10px] bg-brand-soft outline-none focus-visible:ring-2 focus-visible:ring-ring/25 placeholder:text-muted-foreground";
+const SOFT_INPUT = "w-full text-foreground border-0 rounded-lg bg-brand-soft outline-none focus-visible:ring-2 focus-visible:ring-ring/25 placeholder:text-muted-foreground";
 
 /** Minúsculas + sem acento — mesmo critério do seed 2026-08-20-escala-responsaveis. */
 function normalize(s: string): string {
@@ -28,13 +29,6 @@ function normalize(s: string): string {
 
 function roleLabel(role: ManagerRole) {
   return role === "aprovador" ? "aprovador" : "validador";
-}
-
-/** Mensagem legível a partir do erro enriquecido pelo apiRequest (.status/.body). */
-function errMsg(err: any, fallback: string) {
-  if (err?.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
-  if (err?.status === 403) return "Você não tem permissão para esta ação.";
-  return err?.body?.message || fallback;
 }
 
 // ─── Chip de responsável (X com confirmação inline) ────────────────────────
@@ -46,28 +40,28 @@ function ManagerChip({ manager, canManage, isRemoving, onRemove }: {
 }) {
   const [confirming, setConfirming] = useState(false);
   const tone = manager.role === "aprovador"
-    ? "bg-violet-50 text-violet-700 border-violet-200"
-    : "bg-slate-100 text-slate-700 border-slate-200";
+    ? "bg-brand-soft text-primary border-primary/25"
+    : "bg-muted text-slate-700 border-border";
 
   return (
-    <span className={cn("inline-flex items-center gap-1 pl-2.5 rounded-full border text-[12px] font-semibold max-w-full", tone, canManage ? "pr-1" : "pr-2.5", "py-[3px]")}>
+    <span className={cn("inline-flex items-center gap-1 pl-2.5 rounded-full border text-xs font-semibold max-w-full", tone, canManage ? "pr-1" : "pr-2.5", "py-[3px]")}>
       <span className="truncate max-w-[160px]">{manager.userName}</span>
       {canManage && (confirming ? (
         <span className="flex items-center gap-0.5 shrink-0">
           <button type="button" disabled={isRemoving}
             onClick={() => { setConfirming(false); onRemove(); }}
-            className="text-[10px] font-bold text-red-600 hover:text-red-700 px-1 rounded hover:bg-red-100 transition-colors">
+            className="text-2xs font-bold text-danger hover:text-danger px-1 rounded hover:bg-danger-soft transition-colors">
             {isRemoving ? "…" : "Sim"}
           </button>
           <button type="button" onClick={() => setConfirming(false)}
-            className="text-[10px] text-slate-400 hover:text-slate-600 px-1 rounded hover:bg-black/5 transition-colors">
+            className="text-2xs text-muted-foreground hover:text-slate-600 px-1 rounded hover:bg-black/5 transition-colors">
             Não
           </button>
         </span>
       ) : (
         <button type="button" onClick={() => setConfirming(true)}
           aria-label={`Remover ${manager.userName} de ${roleLabel(manager.role)}`}
-          className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-current/50 hover:text-red-500 hover:bg-red-50 transition-colors">
+          className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-current/50 hover:text-danger-strong hover:bg-danger-soft transition-colors">
           <X className="w-3 h-3" />
         </button>
       ))}
@@ -95,15 +89,15 @@ function AddManagerButton({ func, role, users, onAdd, onMove, isPending }: {
         <button type="button"
           aria-label={`Adicionar ${roleLabel(role)} a ${func.name}`}
           data-testid={`button-add-${role}-${func.id}`}
-          className="w-6 h-6 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors shrink-0">
-          {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <span className="material-symbols-outlined text-sm leading-none">add</span>}
+          className="w-6 h-6 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0">
+          {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[260px] p-0 rounded-xl" align="start">
         <Command filter={(value, search) => normalize(value).includes(normalize(search)) ? 1 : 0}>
-          <CommandInput placeholder="Buscar usuário..." className="h-9 text-[13px]" />
+          <CommandInput placeholder="Buscar usuário..." className="h-9 text-sm" />
           <CommandList className="max-h-56">
-            <CommandEmpty className="py-4 text-center text-xs text-slate-400">Nenhum usuário encontrado</CommandEmpty>
+            <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">Nenhum usuário encontrado</CommandEmpty>
             <CommandGroup>
               {users.map(u => {
                 const displayName = u.name || u.email;
@@ -116,11 +110,11 @@ function AddManagerButton({ func, role, users, onAdd, onMove, isPending }: {
                       setOpen(false);
                       if (moves) onMove(u.id, otherRole); else onAdd(u.id);
                     }}
-                    className="text-[13px] py-2">
+                    className="text-sm py-2">
                     <div className="flex flex-col min-w-0">
                       <span className="truncate font-medium">{displayName}</span>
                       {moves && (
-                        <span className="text-[10px] text-amber-600">mover de {roleLabel(otherRole)} → {roleLabel(role)}</span>
+                        <span className="text-2xs text-warning">mover de {roleLabel(otherRole)} → {roleLabel(role)}</span>
                       )}
                     </div>
                   </CommandItem>
@@ -201,8 +195,8 @@ function BulkApplyBlock({ functions, users, onDone }: {
     <div className="mx-4 sm:mx-6 mt-4 rounded-xl border border-border bg-muted/30 p-4">
       <div className="flex items-center gap-2 mb-3">
         <Users className="w-4 h-4 text-primary" />
-        <h4 className="text-[13px] font-extrabold text-foreground m-0">Aplicar por área</h4>
-        <span className="text-[11px] text-slate-400">— escolha um usuário, o papel e um grupo de funções pelo nome (ex.: "ceno")</span>
+        <h4 className="text-sm font-extrabold text-foreground m-0">Aplicar por área</h4>
+        <span className="text-2xs text-muted-foreground">— escolha um usuário, o papel e um grupo de funções pelo nome (ex.: "ceno")</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
@@ -210,23 +204,23 @@ function BulkApplyBlock({ functions, users, onDone }: {
         <Popover open={userOpen} onOpenChange={setUserOpen}>
           <PopoverTrigger asChild>
             <button type="button" data-testid="bulk-user-trigger"
-              className={cn(SOFT_INPUT, "h-9 w-auto min-w-[190px] px-3 text-[13px] flex items-center justify-between gap-2 bg-card border border-border")}>
+              className={cn(SOFT_INPUT, "h-9 w-auto min-w-[190px] px-3 text-sm flex items-center justify-between gap-2 bg-card border border-border")}>
               <span className={cn("truncate", !selectedUser && "text-muted-foreground")}>
                 {selectedUser ? (selectedUser.name || selectedUser.email) : "Selecionar usuário..."}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-[260px] p-0 rounded-xl" align="start">
             <Command filter={(value, search) => normalize(value).includes(normalize(search)) ? 1 : 0}>
-              <CommandInput placeholder="Buscar usuário..." className="h-9 text-[13px]" />
+              <CommandInput placeholder="Buscar usuário..." className="h-9 text-sm" />
               <CommandList className="max-h-56">
-                <CommandEmpty className="py-4 text-center text-xs text-slate-400">Nenhum usuário encontrado</CommandEmpty>
+                <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">Nenhum usuário encontrado</CommandEmpty>
                 <CommandGroup>
                   {users.map(u => (
                     <CommandItem key={u.id} value={`${u.name || u.email} ${u.email ?? ""}`}
                       onSelect={() => { setUserId(u.id); setUserOpen(false); }}
-                      className="text-[13px] py-2">
+                      className="text-sm py-2">
                       <span className="truncate">{u.name || u.email}</span>
                       {u.id === userId && <Check className="w-3.5 h-3.5 ml-auto text-primary" />}
                     </CommandItem>
@@ -239,7 +233,7 @@ function BulkApplyBlock({ functions, users, onDone }: {
 
         {/* Papel */}
         <Select value={role} onValueChange={v => setRole(v as ManagerRole)}>
-          <SelectTrigger className="h-9 w-[140px] text-[13px] bg-card border border-border rounded-[10px]" aria-label="Papel" data-testid="bulk-role-trigger">
+          <SelectTrigger className="h-9 w-[140px] text-sm bg-card border border-border rounded-lg" aria-label="Papel" data-testid="bulk-role-trigger">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
@@ -253,12 +247,12 @@ function BulkApplyBlock({ functions, users, onDone }: {
           aria-label="Buscar grupo de funções pelo nome"
           placeholder='Grupo de funções (ex.: "ceno", "kit")'
           data-testid="bulk-function-search"
-          className={cn(SOFT_INPUT, "h-9 flex-1 min-w-[180px] px-3 text-[13px] bg-card border border-border")} />
+          className={cn(SOFT_INPUT, "h-9 flex-1 min-w-[180px] px-3 text-sm bg-card border border-border")} />
 
         <Button type="button" size="sm" onClick={apply}
           disabled={!userId || targets.length === 0 || applying}
           data-testid="bulk-apply-button"
-          className="h-9 px-4 text-[13px] font-bold shadow-md shadow-primary/30 hover:bg-primary-hover">
+          className="h-9 px-4 text-sm font-bold shadow-2 hover:bg-primary-hover">
           {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" strokeWidth={3} />}
           Aplicar{targets.length > 0 ? ` (${targets.length})` : ""}
         </Button>
@@ -266,17 +260,17 @@ function BulkApplyBlock({ functions, users, onDone }: {
 
       {term.trim() && (
         matched.length === 0 ? (
-          <p className="text-[12px] text-slate-400 mt-3 mb-0">Nenhuma função com "{term}" no nome.</p>
+          <p className="text-xs text-muted-foreground mt-3 mb-0">Nenhuma função com "{term}" no nome.</p>
         ) : (
           <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
             {matched.map(f => {
               const checked = !unchecked.has(f.id);
               const already = userId ? (f.managers ?? []).find(m => m.userId === userId) : undefined;
               return (
-                <label key={f.id} className="flex items-center gap-1.5 text-[12px] font-medium text-foreground cursor-pointer select-none">
+                <label key={f.id} className="flex items-center gap-1.5 text-xs font-medium text-foreground cursor-pointer select-none">
                   <Checkbox checked={checked} onCheckedChange={() => toggle(f.id)} aria-label={`Incluir ${f.name}`} className="w-3.5 h-3.5" />
                   <span className="capitalize">{f.name}</span>
-                  {already && <span className="text-[10px] text-slate-400">(já é {roleLabel(already.role)})</span>}
+                  {already && <span className="text-2xs text-muted-foreground">(já é {roleLabel(already.role)})</span>}
                 </label>
               );
             })}
@@ -353,7 +347,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
     mutationFn: async (v: { functionId: string; userId: string; role: ManagerRole }) =>
       (await apiRequest("POST", "/api/scaling-function-managers", { functionId: v.functionId, userId: v.userId, role: v.role })).json(),
     onSuccess: (_d, v) => { invalidate(); toast({ title: v.role === "aprovador" ? "Aprovador adicionado!" : "Validador adicionado!" }); },
-    onError: (err: any) => toast({ title: "Erro ao adicionar responsável", description: errMsg(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao adicionar responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const moveMutation = useMutation({
     mutationFn: async (v: { functionId: string; userId: string; role: ManagerRole }) =>
@@ -362,13 +356,13 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
       (await apiRequest("DELETE", `/api/scaling-function-managers/${v.functionId}/${v.userId}`).then(() =>
         apiRequest("POST", "/api/scaling-function-managers", { functionId: v.functionId, userId: v.userId, role: v.role }))).json(),
     onSuccess: (_d, v) => { invalidate(); toast({ title: "Papel alterado!", description: `Agora é ${roleLabel(v.role)} desta função.` }); },
-    onError: (err: any) => toast({ title: "Erro ao alterar papel", description: errMsg(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao alterar papel", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const removeMutation = useMutation({
     mutationFn: async (v: { functionId: string; userId: string }) =>
       (await apiRequest("DELETE", `/api/scaling-function-managers/${v.functionId}/${v.userId}`)).json(),
     onSuccess: () => { invalidate(); toast({ title: "Responsável removido." }); },
-    onError: (err: any) => toast({ title: "Erro ao remover responsável", description: errMsg(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Erro ao remover responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const cellFor = (func: FunctionWithManagers, role: ManagerRole) => {
@@ -381,9 +375,9 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
           // discreta, sem cor de alerta. O admin segue livre para cadastrar um
           // aprovador específico da função no "+" ao lado.
           ? defaultApproverText && (
-              <span className="text-[11px] text-slate-500">{defaultApproverText}</span>
+              <span className="text-2xs text-muted-foreground">{defaultApproverText}</span>
             )
-          : <span className="text-[11px] italic text-slate-400">Nenhum validador</span>
+          : <span className="text-2xs italic text-muted-foreground">Nenhum validador</span>
         )}
         {managers.map(m => (
           <ManagerChip key={m.userId} manager={m} canManage={canManage}
@@ -401,7 +395,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
   };
 
   return (
-    <div className="bg-card rounded-xl border border-border shadow-[0_20px_40px_rgba(20,27,43,0.03)] overflow-hidden">
+    <div className="bg-card rounded-xl border border-border shadow-3 overflow-hidden">
 
       {/* Sem banner de "sem aprovador": com o aprovador padrão do sistema,
           nenhuma vaga validada fica sem quem decida. Cada função mostra a nota
@@ -415,17 +409,17 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
       {/* Busca */}
       <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-6 py-4 border-b border-border mt-1">
         <div className="relative flex-1 min-w-[200px] max-w-[400px]">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-slate-400 pointer-events-none">search</span>
+          <Search className="h-[18px] w-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
           <input aria-label="Buscar função pelo nome" placeholder="Buscar função pelo nome..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className={cn(SOFT_INPUT, "h-10 text-[13px] pl-10", search ? "pr-9" : "pr-3.5")} />
+            className={cn(SOFT_INPUT, "h-10 text-sm pl-10", search ? "pr-9" : "pr-3.5")} />
           {search && (
-            <button onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-slate-400 hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-muted-foreground hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
           )}
         </div>
-        <div className="flex items-center gap-4 text-[11px] text-slate-400">
+        <div className="flex items-center gap-4 text-2xs text-muted-foreground">
           <span className="flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" /> Validador: valida a escala da área</span>
-          <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-violet-500" /> Aprovador: decide pedidos e aprova vagas</span>
+          <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> Aprovador: decide pedidos e aprova vagas</span>
         </div>
       </div>
 
@@ -438,11 +432,11 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
       {!isLoading && isError && !functions && (
         <div className="px-6 py-14 text-center" role="alert">
           <div className="flex flex-col items-center gap-2.5">
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-50">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-danger-soft">
+              <AlertTriangle className="w-6 h-6 text-danger-strong" />
             </div>
-            <h4 className="text-[15px] font-extrabold text-foreground m-0">Não foi possível carregar as funções</h4>
-            <p className="text-[13px] text-slate-500 m-0 max-w-[320px] leading-normal">{errMsg(error, "Verifique sua conexão e tente novamente.")}</p>
+            <h4 className="text-base font-extrabold text-foreground m-0">Não foi possível carregar as funções</h4>
+            <p className="text-sm text-muted-foreground m-0 max-w-[320px] leading-normal">{apiErrorMessage(error, "Verifique sua conexão e tente novamente.")}</p>
             <Button variant="outline" size="sm" className="mt-1.5" onClick={() => refetch()}>Tentar novamente</Button>
           </div>
         </div>
@@ -465,7 +459,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
             <thead>
               <tr className="bg-muted/40 border-b border-border">
                 {["Função", "Validadores", "Aprovadores"].map(h => (
-                  <th key={h} className="px-4 sm:px-6 py-3.5 text-left text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em]">{h}</th>
+                  <th key={h} className="px-4 sm:px-6 py-3.5 text-left text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -474,7 +468,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
                 <tr key={func.id}
                   className="transition-colors border-b border-border/50 hover:bg-brand-soft/30">
                   <td className="px-4 sm:px-6 py-3.5 align-top">
-                    <span className="text-[14px] font-semibold text-foreground capitalize">{func.name}</span>
+                    <span className="text-sm font-semibold text-foreground capitalize">{func.name}</span>
                   </td>
                   <td className="px-4 sm:px-6 py-3.5 align-top">{cellFor(func, "validador")}</td>
                   <td className="px-4 sm:px-6 py-3.5 align-top">{cellFor(func, "aprovador")}</td>
@@ -487,7 +481,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
 
       {visible.length > 0 && (
         <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-t border-border bg-muted/30">
-          <span className="text-xs text-slate-400 font-medium">
+          <span className="text-xs text-muted-foreground font-medium">
             {search
               ? `Mostrando ${visible.length} de ${allVisible.length} funções`
               : `${allVisible.length} ${allVisible.length === 1 ? "função" : "funções"}${

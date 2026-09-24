@@ -15,6 +15,13 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        // Tons semânticos (23/09) — mesmos tokens do StatusBadge de
+        // components/common; use-os em vez de bg-green-50/text-red-700 soltos.
+        success: "border-transparent bg-success-soft text-success",
+        warning: "border-transparent bg-warning-soft text-warning",
+        info: "border-transparent bg-info-soft text-info",
+        danger: "border-transparent bg-danger-soft text-danger",
+        neutral: "border-transparent bg-neutral-soft text-neutral",
       },
     },
     defaultVariants: {

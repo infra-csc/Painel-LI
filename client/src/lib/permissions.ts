@@ -107,23 +107,10 @@ export function canEdit(user: User | null, feature: string): boolean {
   return hasPermission(user, feature, 'edit');
 }
 
-/**
- * Verifica se o usuário é administrador
- */
-export function isAdmin(user: User | null): boolean {
-  if (!user) return false;
-  const normalizedRole = normalizeRole(user.role);
-  return normalizedRole === 'admin';
-}
-
-/**
- * Verifica se o usuário é RH (Financeiro) ou administrador
- */
-export function isRhOrAdmin(user: User | null): boolean {
-  if (!user) return false;
-  const normalizedRole = normalizeRole(user.role);
-  return normalizedRole === 'admin' || normalizedRole === 'financial';
-}
+// `isAdmin` / `isRhOrAdmin` / `hasRole` moram em role-utils.ts (uma
+// implementação só, 23/09); re-exportados aqui para não quebrar os imports
+// das telas legadas.
+export { isAdmin, isRhOrAdmin, hasRole, normalizeRole } from "./role-utils";
 
 /**
  * Obtém o nível de acesso do usuário para uma funcionalidade

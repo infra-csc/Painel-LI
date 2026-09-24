@@ -53,11 +53,12 @@ import { db } from "./db";
 import { storage, type FunctionManagerRole } from "./storage";
 import {
   budgetNotes,
-  insertTeamInclusionSchema,
+  teamInclusionRowSchema,
   insertScalingChangeRequestSchema,
   type InsertTeamInclusion,
   type TeamInclusion,
   type TeamInclusionLog,
+  type InsertTeamInclusionLog,
   type ScalingChangeRequest,
   type User,
 } from "@shared/schema";
@@ -701,22 +702,28 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           userId: actor.id,
           updatedBy: actor.id,
         };
-        inserts.push(insertTeamInclusionSchema.parse(candidate));
+        // teamInclusionRowSchema (23/09): o schema PÚBLICO omite status/phase e o
+        // .parse() descartava em silêncio — a sugestão nascia planejado/inclusao.
+        inserts.push(teamInclusionRowSchema.parse(candidate));
       }
 
       const eventUpdate = eventObservations !== undefined
         ? { eventId, observations: eventObservations ?? null }
         : undefined;
-      const created = await storage.createScalingSuggestionsBatch(inserts, eventUpdate);
+      // Registro de cada vaga DENTRO da transação (23/09) — antes era um INSERT
+      // por vaga depois do commit, e uma falha no meio deixava vaga sem histórico.
+      const created = await storage.createScalingSuggestionsBatch(inserts, eventUpdate, (c) => ({
+        teamInclusionId: c.id, action: "suggestion_sent",
+        details: "Vaga sugerida pela logística — aguardando validação da área",
+        previousValue: null, newValue: SUGESTAO_STATUS.PENDENTE,
+        userId: actor.id, userName: actor.name ?? "Usuário",
+      }));
 
       await createAuditLog(
         "suggestion_sent", "team_inclusion", created[0]?.id ?? "bulk",
         { count: created.length, eventId, eventName: event.name },
         actor.id, actor.name, undefined, req,
       );
-      for (const c of created) {
-        await inclusionLog(c.id, "suggestion_sent", "Vaga sugerida pela logística — aguardando validação da área", null, SUGESTAO_STATUS.PENDENTE, actor);
-      }
       if (eventUpdate) {
         await createAuditLog("update", "event", eventId, { observations: eventUpdate.observations }, actor.id, actor.name, { observations: event.observations }, req);
       }
@@ -1487,7 +1494,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       : { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE };
     const rows: InsertTeamInclusion[] = [];
     for (let i = 0; i < quantity; i++) {
-      rows.push(insertTeamInclusionSchema.parse({
+      rows.push(teamInclusionRowSchema.parse({
         eventId: request.eventId,
         functionId: request.functionId,
         collaboratorId: null,
@@ -1526,7 +1533,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     } catch { return ""; }
   }
 
-  async function logCreatedFromRequest(created: TeamInclusion[], request: ScalingChangeRequest, actor: User, target: "inclusao" | "sugestao", approverComment?: string | null) {
+  function logsCreatedFromRequest(created: TeamInclusion[], request: ScalingChangeRequest, actor: User, target: "inclusao" | "sugestao", approverComment?: string | null): InsertTeamInclusionLog[] {
     // O detalhe carrega a história inteira (27/08 — "quando volta para o
     // validador tem que ter mais detalhes"): quem pediu e por quê, e o que o
     // aprovador comentou. É o que o drawer da Validação mostra no Histórico.
@@ -1538,9 +1545,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     ];
     if (approverComment?.trim()) partes.push(`Comentário do aprovador: "${approverComment.trim()}"`);
     const detail = partes.join(" — ");
-    for (const c of created) {
-      await inclusionLog(c.id, "created_from_change_request", detail, null, stateLabel(c), actor);
-    }
+    // Devolve as linhas para o storage gravar DENTRO da transação que cria as
+    // vagas (23/09) — antes eram N inserts depois do commit.
+    return created.map((c) => ({
+      teamInclusionId: c.id, action: "created_from_change_request", details: detail,
+      previousValue: null, newValue: stateLabel(c), userId: actor.id, userName: actor.name ?? "Usuário",
+    }));
   }
 
   // PATCH /api/scaling-change-requests/:id/approve — aprovador aceita o pedido
@@ -1569,10 +1579,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       if (request.requestType === "inclusao") {
         // Cria as N vagas + decide o pedido numa única transação (storage).
         const rows = await buildInclusionRowsFromRequest(request, proposed, actor, "inclusao", now);
-        const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, { inclusionInserts: rows });
+        const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
+          inclusionInserts: rows,
+          logsForCreated: (created) => logsCreatedFromRequest(created, request, actor, "inclusao", comment),
+        });
         updatedRequest = result.request;
         inclusionResult = result.createdInclusions;
-        await logCreatedFromRequest(result.createdInclusions, request, actor, "inclusao", comment);
       } else {
         const inclusion = await storage.getTeamInclusion(request.teamInclusionId!);
         if (!inclusion) return res.status(404).json({ message: "Vaga do pedido não encontrada" });
@@ -1701,11 +1713,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const result = await storage.resolveScalingChangeRequest(
           request.id,
           then === "reenviar_validacao" ? { ...requestUpdates, status: CHANGE_REQUEST_STATUS.REENVIADO_VALIDACAO } : requestUpdates,
-          rows.length ? { inclusionInserts: rows } : {},
+          rows.length && target
+            ? { inclusionInserts: rows, logsForCreated: (created) => logsCreatedFromRequest(created, request, actor, target!, comment) }
+            : {},
         );
         updatedRequest = result.request;
         if (target && result.createdInclusions.length) {
-          await logCreatedFromRequest(result.createdInclusions, request, actor, target, comment);
           inclusionResult = result.createdInclusions;
         }
       } else {
@@ -1844,19 +1857,25 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const ids = Array.from(new Set(brutos.map((v) => String(v ?? "")).filter(Boolean)));
       if (ids.length === 0) return res.status(400).json({ message: "Nenhuma vaga informada." });
       if (ids.length > 500) return res.status(400).json({ message: "No máximo 500 vagas por vez." });
-      const ok: string[] = [];
-      const skipped: { id: string; reason: string }[] = [];
       const agora = new Date();
-      for (const id of ids) {
-        const updated = await storage.updateTeamInclusionIfState(
-          id,
-          { deletedAt: agora, deletedBy: actor.id, updatedBy: actor.id } as Partial<InsertTeamInclusion>,
-          { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.NEGADA] },
-        );
-        if (!updated) { skipped.push({ id, reason: "a vaga não está negada ou já foi excluída" }); continue; }
-        ok.push(id);
-        await inclusionLog(id, "deleted", "Vaga negada excluída da lista pelo administrador (limpeza das Decididas)", SUGESTAO_STATUS.NEGADA, null, actor);
-        await createAuditLog("delete", "team_inclusion", id, updated, actor.id, actor.name, undefined, req);
+      // Em lote (23/09): UM UPDATE guardado por phase/status + logs na mesma
+      // transação (validateScalingSuggestionsBatch) — antes eram 3 idas ao banco
+      // por vaga. O que não voltou no RETURNING não estava negado (ou já saiu).
+      const updated = await storage.validateScalingSuggestionsBatch(
+        ids,
+        { deletedAt: agora, deletedBy: actor.id, updatedBy: actor.id } as Partial<InsertTeamInclusion>,
+        { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.NEGADA },
+        (row) => ({
+          teamInclusionId: row.id, action: "deleted",
+          details: "Vaga negada excluída da lista pelo administrador (limpeza das Decididas)",
+          previousValue: SUGESTAO_STATUS.NEGADA, newValue: null, userId: actor.id, userName: actor.name ?? "Usuário",
+        }),
+      );
+      const okSet = new Set(updated.map((u) => u.id));
+      const ok = ids.filter((id) => okSet.has(id));
+      const skipped = ids.filter((id) => !okSet.has(id)).map((id) => ({ id, reason: "a vaga não está negada ou já foi excluída" }));
+      for (const row of updated) {
+        await createAuditLog("delete", "team_inclusion", row.id, row, actor.id, actor.name, undefined, req);
       }
       res.json({ ok, skipped });
     } catch (error) {

@@ -9,6 +9,7 @@ import { SidebarProvider } from "@/contexts/sidebar-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import MainLayout from "@/components/layout/main-layout";
 import { ErrorBoundary } from "@/components/error-boundary";
+import TrocarSenhaObrigatoria from "@/components/ui/trocar-senha-obrigatoria";
 
 // Carregadas de imediato: são o caminho crítico de entrada e são pequenas.
 import AuthPage from "@/pages/auth-page";
@@ -65,7 +66,7 @@ if (typeof window !== "undefined" && localStorage.getItem("theme") === "dark") {
 // só a área de conteúdo mostra o esqueleto.
 function PageFallback() {
   return (
-    <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
+    <div className="bg-card rounded-lg shadow-1 border border-border p-6 animate-pulse">
       <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
       <div className="space-y-3">
         {[...Array(4)].map((_, i) => (
@@ -113,17 +114,17 @@ function HomeRedirect() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-4">
         <div className="text-4xl">🔒</div>
-        <h2 className="text-xl font-semibold text-gray-800">Sem acesso</h2>
-        <p className="text-gray-500 max-w-sm">
+        <h2 className="text-xl font-semibold text-foreground">Sem acesso</h2>
+        <p className="text-muted-foreground max-w-sm">
           Sua conta ainda não possui permissão para acessar nenhuma página.
           Entre em contato com o administrador do sistema.
         </p>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-slate-400">
           {user?.name} ({user?.email}) — {roleLabel}
         </p>
         <button
           onClick={logout}
-          className="mt-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="mt-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary-hover transition-colors"
         >
           Sair
         </button>
@@ -325,6 +326,8 @@ function App() {
           <SidebarProvider>
             <TooltipProvider>
               <Toaster />
+              {/* Senha provisória: o servidor responde 403 para tudo até a troca. */}
+              <TrocarSenhaObrigatoria />
               <Router />
             </TooltipProvider>
           </SidebarProvider>

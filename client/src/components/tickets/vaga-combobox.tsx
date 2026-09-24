@@ -68,26 +68,26 @@ export default function VagaCombobox({
       <button
         type="button"
         onClick={() => { onChange(vaga.id); setAberto(false); setBusca(""); }}
-        className={`w-full text-left px-3 py-2 border-b border-slate-50 last:border-0 transition-colors ${
-          vaga.id === valor ? "bg-blue-50" : "hover:bg-blue-50/60"
+        className={`w-full text-left px-3 py-2 border-b border-border last:border-0 transition-colors ${
+          vaga.id === valor ? "bg-brand-soft" : "hover:bg-brand-soft/60"
         }`}
       >
         <span className="flex items-center gap-2">
-          <span className="text-[12px] font-bold text-slate-400 tabular-nums shrink-0">#{vaga.numero}</span>
-          <span className="text-[13px] text-slate-800 truncate flex-1">{vaga.nome || "Não escalado"}</span>
+          <span className="text-xs font-bold text-muted-foreground tabular-nums shrink-0">#{vaga.numero}</span>
+          <span className="text-sm text-foreground truncate flex-1">{vaga.nome || "Não escalado"}</span>
           {sugerida && (
-            <span className="text-[10px] font-bold text-green-700 bg-green-100 rounded-full px-1.5 py-0.5 shrink-0">
+            <span className="text-2xs font-bold text-success bg-success-soft rounded-full px-1.5 py-0.5 shrink-0">
               provável
             </span>
           )}
           {usada && (
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5 shrink-0">
+            <span className="text-2xs font-bold text-warning bg-warning-soft rounded-full px-1.5 py-0.5 shrink-0">
               já usada
             </span>
           )}
-          {vaga.id === valor && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+          {vaga.id === valor && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
         </span>
-        <span className="block text-[11px] text-slate-400 truncate">
+        <span className="block text-2xs text-muted-foreground truncate">
           {vaga.evento}{vaga.destino ? ` · ${vaga.destino}` : ""}
         </span>
       </button>
@@ -100,42 +100,42 @@ export default function VagaCombobox({
         <button
           type="button"
           disabled={disabled}
-          className="h-8 min-w-[320px] max-w-[460px] flex items-center justify-between gap-2 px-3 border border-slate-200 rounded-lg bg-white text-[12px] text-slate-700 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="h-8 min-w-[320px] max-w-[460px] flex items-center justify-between gap-2 px-3 border border-border rounded-lg bg-card text-xs text-slate-700 hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           data-testid="escolher-vaga"
         >
-          <span className={`truncate ${escolhida ? "" : "text-slate-400"}`}>
+          <span className={`truncate ${escolhida ? "" : "text-muted-foreground"}`}>
             {escolhida ? `#${escolhida.numero} · ${escolhida.nome}` : "Escolha a vaga…"}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" sideOffset={4} className="p-0 w-[460px] bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-[60]">
-        <div className="flex items-center gap-2 bg-slate-50 border-b border-slate-100 px-3 py-2.5">
-          <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+      <PopoverContent align="start" sideOffset={4} className="p-0 w-[460px] bg-card border border-border rounded-xl shadow-2 overflow-hidden z-[60]">
+        <div className="flex items-center gap-2 bg-surface-muted border-b border-border px-3 py-2.5">
+          <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <input
             autoFocus
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome, número da vaga ou evento…"
-            className="w-full text-[13px] bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
+            className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground text-slate-700"
             data-testid="buscar-vaga"
           />
         </div>
 
         <div className="max-h-[300px] overflow-y-auto">
           {total === 0 ? (
-            <p className="px-4 py-6 text-[13px] text-slate-400 text-center">Nenhuma vaga encontrada.</p>
+            <p className="px-4 py-6 text-sm text-muted-foreground text-center">Nenhuma vaga encontrada.</p>
           ) : (
             <>
               {sugestoes.length > 0 && (
                 <>
-                  <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/80">
+                  <p className="px-3 py-1.5 text-2xs font-bold uppercase tracking-wider text-muted-foreground bg-surface-muted/80">
                     Parecidas com {passageiro}
                   </p>
                   {sugestoes.map((v) => <Item key={v.id} vaga={v} sugerida />)}
                   {visiveis.length > 0 && (
-                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/80">
+                    <p className="px-3 py-1.5 text-2xs font-bold uppercase tracking-wider text-muted-foreground bg-surface-muted/80">
                       Demais vagas
                     </p>
                   )}
@@ -143,7 +143,7 @@ export default function VagaCombobox({
               )}
               {visiveis.map((v) => <Item key={v.id} vaga={v} />)}
               {demais.length > visiveis.length && (
-                <p className="px-3 py-2 text-[11px] text-slate-400 text-center border-t border-slate-100">
+                <p className="px-3 py-2 text-2xs text-muted-foreground text-center border-t border-border">
                   Mostrando {sugestoes.length + visiveis.length} de {total} — digite para refinar.
                 </p>
               )}

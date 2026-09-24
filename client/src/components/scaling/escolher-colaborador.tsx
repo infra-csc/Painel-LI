@@ -76,7 +76,7 @@ export default function EscolherColaborador({
 
   if (disabled) {
     return (
-      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-500" role="status">
+      <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs text-muted-foreground" role="status">
         {disabledReason ?? "Não é possível alterar o colaborador desta vaga agora."}
       </p>
     );
@@ -84,8 +84,8 @@ export default function EscolherColaborador({
 
   return (
     <div className="rounded-lg border border-border overflow-hidden" data-testid="escolher-colaborador">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-background px-3 py-2">
-        <Search className="w-3.5 h-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+      <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2">
+        <Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
           autoFocus
           type="text"
@@ -94,13 +94,13 @@ export default function EscolherColaborador({
           placeholder="Buscar colaborador…"
           aria-label="Buscar colaborador"
           data-testid="input-busca-colaborador"
-          className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-400"
+          className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-muted-foreground"
         />
         {onCancelar && (
           <button
             type="button"
             onClick={onCancelar}
-            className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-border hover:text-slate-600"
             title="Cancelar a troca de colaborador"
             aria-label="Cancelar"
             data-testid="button-cancelar-escolha"
@@ -110,7 +110,7 @@ export default function EscolherColaborador({
         )}
       </div>
 
-      <ul className="divide-y divide-slate-50">
+      <ul className="divide-y divide-border">
         {visiveis.map((c) => {
           const { sameEvent, dateOverlap, mesmoDia = [] } = getConflitos(c.id, inclusion);
           const conflito = sameEvent.length > 0 || dateOverlap.length > 0;
@@ -129,10 +129,10 @@ export default function EscolherColaborador({
           if (conflito && onPedirTransferencia) {
             return (
               <li key={c.id}>
-                <div className="flex w-full items-center gap-2.5 bg-[#FFFBEB] px-3 py-2" data-testid={`opcao-colaborador-${c.id}`}>
+                <div className="flex w-full items-center gap-2.5 bg-warning-soft px-3 py-2" data-testid={`opcao-colaborador-${c.id}`}>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] text-[#92400E]">{nome}</span>
-                    <span className="block truncate text-[11px] text-[#B45309]">
+                    <span className="block truncate text-sm text-warning">{nome}</span>
+                    <span className="block truncate text-2xs text-warning">
                       {[c.city, tipo].filter(Boolean).join(" · ")}{ondeConflita ? `${c.city || tipo ? " · " : ""}escalado em ${ondeConflita}` : ""}
                     </span>
                   </span>
@@ -140,7 +140,7 @@ export default function EscolherColaborador({
                     type="button"
                     onClick={() => onPedirTransferencia(c.id)}
                     title={`${nome} já tem escalação no mesmo período${ondeConflita ? ` (${ondeConflita})` : ""}. Peça a transferência para esta vaga.`}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-[#92400E] hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/25 bg-card px-2 py-1 text-2xs font-semibold text-warning hover:bg-warning-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-strong"
                     data-testid={`pedir-transferencia-${c.id}`}
                   >
                     <AlertTriangle className="w-3 h-3" aria-hidden="true" />Pedir transferência
@@ -165,26 +165,26 @@ export default function EscolherColaborador({
                   : `Escalar ${nome} nesta vaga`}
                 data-testid={`opcao-colaborador-${c.id}`}
                 className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                  conflito ? "cursor-not-allowed bg-[#FFFBEB]" : "hover:bg-brand-soft"
+                  conflito ? "cursor-not-allowed bg-warning-soft" : "hover:bg-brand-soft"
                 }`}
               >
                 <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-[13px] ${conflito ? "text-[#92400E]" : "text-slate-900"}`}>{nome}</span>
+                  <span className={`block truncate text-sm ${conflito ? "text-warning" : "text-foreground"}`}>{nome}</span>
                   {(c.city || tipo) && (
-                    <span className={`block truncate text-[11px] ${conflito ? "text-[#B45309]" : "text-muted-foreground"}`}>
+                    <span className={`block truncate text-2xs ${conflito ? "text-warning" : "text-muted-foreground"}`}>
                       {[c.city, tipo].filter(Boolean).join(" · ")}
                     </span>
                   )}
                   {avisoMesmoDia && (
-                    <span className="block truncate text-[11px] text-[#B45309]">também viaja no mesmo dia: {ondeMesmoDia}</span>
+                    <span className="block truncate text-2xs text-warning">também viaja no mesmo dia: {ondeMesmoDia}</span>
                   )}
                 </span>
                 {conflito ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-semibold text-[#92400E]">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-warning-soft px-2 py-0.5 text-2xs font-semibold text-warning">
                     <AlertTriangle className="w-3 h-3" aria-hidden="true" />Conflito
                   </span>
                 ) : avisoMesmoDia ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-semibold text-[#92400E]" data-testid={`aviso-mesmo-dia-${c.id}`}>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-warning-soft px-2 py-0.5 text-2xs font-semibold text-warning" data-testid={`aviso-mesmo-dia-${c.id}`}>
                     <AlertTriangle className="w-3 h-3" aria-hidden="true" />Mesmo dia
                   </span>
                 ) : (
@@ -196,7 +196,7 @@ export default function EscolherColaborador({
         })}
 
         {visiveis.length === 0 && (
-          <li className="px-3 py-4 text-center text-[12px] text-muted-foreground">
+          <li className="px-3 py-4 text-center text-xs text-muted-foreground">
             Nenhum colaborador com esse nome.
           </li>
         )}
@@ -206,7 +206,7 @@ export default function EscolherColaborador({
         <button
           type="button"
           onClick={() => setVerTodos(true)}
-          className="w-full border-t border-slate-100 bg-background px-3 py-2 text-left text-[11px] text-muted-foreground hover:text-primary"
+          className="w-full border-t border-border bg-background px-3 py-2 text-left text-2xs text-muted-foreground hover:text-primary"
           data-testid="button-mais-colaboradores"
         >
           +{restantes} {restantes === 1 ? "colaborador" : "colaboradores"} em ordem alfabética — use a busca

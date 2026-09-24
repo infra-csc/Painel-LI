@@ -6,10 +6,12 @@ import {
   TrendingUp, TrendingDown, ChevronRight, ArrowLeft, CheckCheck, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { fixEncoding, parseBrNumber } from "@/lib/utils";
+import { cn, fixEncoding } from "@/lib/utils";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import type { BudgetActual, Collaborator, TeamInclusion } from "@shared/schema";
 
+import { formatarMoeda } from "@/lib/format";
+import { CurrencyInput } from "@/components/common/currency-input";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getDaysInRange(startDate: string, endDate: string): string[] {
@@ -41,20 +43,7 @@ function formatDate(d: string) {
   });
 }
 
-function fmtR$(cents: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-}
-
-function avatarColor(name: string): string {
-  const colors = [
-    "from-violet-500 to-purple-600", "from-blue-500 to-indigo-600",
-    "from-emerald-500 to-teal-600", "from-rose-500 to-pink-600",
-    "from-amber-500 to-orange-600", "from-cyan-500 to-sky-600",
-  ];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return colors[h % colors.length];
-}
+const fmtR$ = formatarMoeda;
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() || "?";
@@ -66,53 +55,9 @@ function capitalizeName(name: string): string {
 
 function SmLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>
+    <p className="text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]" style={{ margin: "0 0 8px" }}>
       {children}
     </p>
-  );
-}
-
-function ModalCurrencyInput({ value, onChange, disabled, className }: {
-  value: number;
-  onChange: (cents: number) => void;
-  disabled?: boolean;
-  className?: string;
-}) {
-  const [display, setDisplay] = useState(() => (value / 100).toFixed(2).replace(".", ","));
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (document.activeElement !== inputRef.current) {
-      setDisplay((value / 100).toFixed(2).replace(".", ","));
-    }
-  }, [value]);
-
-  return (
-    <Input
-      ref={inputRef}
-      type="text"
-      inputMode="decimal"
-      className={`bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 focus-visible:border-violet-300 transition-colors ${className ?? ''}`}
-      value={display}
-      onChange={e => {
-        const raw = e.target.value;
-        setDisplay(raw);
-        if (raw.trim() === "") return;
-        // parseBrNumber trata "1.500,00" como 1500 (ponto de milhar + vírgula decimal)
-        onChange(Math.round(parseBrNumber(raw) * 100));
-      }}
-      onBlur={() => {
-        if (display.trim() === "") {
-          setDisplay((value / 100).toFixed(2).replace(".", ","));
-          return;
-        }
-        const cents = Math.round(parseBrNumber(display) * 100);
-        onChange(cents);
-        setDisplay((cents / 100).toFixed(2).replace(".", ","));
-      }}
-      onFocus={() => setTimeout(() => inputRef.current?.select(), 0)}
-      disabled={disabled}
-    />
   );
 }
 
@@ -369,20 +314,28 @@ export function SplitVagaModal({
 
   // ── Acessibilidade: Esc fecha, foco preso dentro do modal ─────────────────
   const modalRef = useRef<HTMLDivElement>(null);
+  // "Descartar alterações?" (23/09): Esc, X e Cancelar fechavam e perdiam colaborador,
+  // dias e valores do passo 2 sem perguntar. Sujo = já escolheu algo ou já está no passo 2.
+  const sujo = !!selectedCollabId || selectedDays.size > 0 || step === 2;
+  const { pedirParaFechar, Dialogo: DialogoDescarte, confirmando } = useConfirmarDescarte(sujo, { salvando: isPending });
+  const fechar = () => pedirParaFechar(onClose);
   // Refs para o listener (montado uma única vez) enxergar sempre o estado atual
   // sem re-executar o efeito (o que roubaria o foco a cada re-render do pai)
-  const escStateRef = useRef({ showZeroDayConfirm, collabDropOpen, onClose });
-  escStateRef.current = { showZeroDayConfirm, collabDropOpen, onClose };
+  const escStateRef = useRef({ showZeroDayConfirm, collabDropOpen, confirmando, fechar });
+  escStateRef.current = { showZeroDayConfirm, collabDropOpen, confirmando, fechar };
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     modalRef.current?.focus();
     function handleKeyDown(e: KeyboardEvent) {
+      // Com o "Descartar alterações?" aberto, Esc e Tab são do AlertDialog do Radix
+      // (ele tem o próprio foco preso) — o modal não interfere.
+      if (escStateRef.current.confirmando) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         const cur = escStateRef.current;
         if (cur.showZeroDayConfirm) setShowZeroDayConfirm(false);
         else if (cur.collabDropOpen) setCollabDropOpen(false);
-        else cur.onClose();
+        else cur.fechar();
         return;
       }
       if (e.key === "Tab" && modalRef.current) {
@@ -435,46 +388,43 @@ export function SplitVagaModal({
           aria-modal="true"
           aria-label="Dividir escalação"
           tabIndex={-1}
-          className="bg-white rounded-3xl w-full max-w-[680px] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden outline-none"
-          style={{border:'1px solid rgba(0,0,0,0.06)'}}
+          className="bg-card rounded-xl w-full max-w-[680px] max-h-[92vh] flex flex-col shadow-3 overflow-hidden outline-none border border-black/6"
         >
 
           {/* ── Title header ── */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0" style={{background: '#6d28d9'}}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary-hover">
                 <UserPlus className="w-4.5 h-4.5 text-white" style={{width:18,height:18}} />
               </div>
               <div>
-                <p className="font-bold text-[15px] text-slate-800 leading-tight m-0">Dividir escalação</p>
-                <p className="text-xs text-slate-400 m-0">Atribua dias específicos a outro colaborador</p>
+                <p className="font-bold text-base text-foreground leading-tight m-0">Dividir escalação</p>
+                <p className="text-xs text-muted-foreground m-0">Atribua dias específicos a outro colaborador</p>
               </div>
             </div>
-            <button onClick={onClose} aria-label="Fechar" className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition-colors">
+            <button type="button" onClick={fechar} aria-label="Fechar" className="text-muted-foreground hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-muted transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* ── Step indicator ── */}
-          <div className="flex items-center gap-3 px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex-shrink-0">
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-surface-muted border-b border-border flex-shrink-0">
             {/* Step 1 */}
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-                style={{background: step === 1 ? '#6d28d9' : '#10B981'}}>
+              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-2xs font-bold text-white flex-shrink-0", (step === 1 ? "bg-primary-hover" : "bg-success-strong"))}>
                 {step === 1 ? '1' : '✓'}
               </div>
-              <span className="text-xs font-semibold" style={{color: step === 1 ? '#6d28d9' : '#10B981'}}>
+              <span className={cn("text-xs font-semibold", (step === 1 ? "text-primary" : "text-success-strong"))}>
                 Colaborador & dias
               </span>
             </div>
-            <div className="flex-1 h-px bg-slate-200" />
+            <div className="flex-1 h-px bg-border" />
             {/* Step 2 */}
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
-                style={{background: step === 2 ? '#6d28d9' : '#E2E8F0', color: step === 2 ? '#fff' : '#94A3B8'}}>
+              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-2xs font-bold flex-shrink-0", (step === 2 ? "bg-primary-hover" : "bg-border"), (step === 2 ? "text-white" : "text-muted-foreground"))}>
                 2
               </div>
-              <span className="text-xs font-semibold" style={{color: step === 2 ? '#6d28d9' : '#94A3B8'}}>
+              <span className={cn("text-xs font-semibold", (step === 2 ? "text-primary" : "text-muted-foreground"))}>
                 Valores
               </span>
             </div>
@@ -482,7 +432,7 @@ export function SplitVagaModal({
 
           {/* ══ STEP 1 ══════════════════════════════════════════════════════ */}
           {step === 1 && (
-            <div className="flex flex-col gap-4 flex-1 overflow-y-auto px-6 py-5 bg-slate-50">
+            <div className="flex flex-col gap-4 flex-1 overflow-y-auto px-6 py-5 bg-surface-muted">
 
               {/* ── Context banner "De / Para" ── */}
               {(() => {
@@ -494,33 +444,32 @@ export function SplitVagaModal({
                 const selCount = selectedDays.size;
                 const remCount = totalDays - selCount;
                 return (
-                  <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-[10px] flex-shrink-0 flex items-center justify-center text-white text-[13px] font-bold"
-                      style={{background: '#6d28d9'}}>
+                  <div className="rounded-xl border border-primary/25 bg-brand-soft px-4 py-3 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg flex-shrink-0 flex items-center justify-center text-white text-sm font-bold bg-primary-hover">
                       {fixEncoding(originalCollab?.fullName || "?").charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-semibold text-violet-500 uppercase tracking-wide m-0 mb-0.5">Dividindo escalação de</p>
-                      <p className="text-sm font-semibold text-violet-900 m-0 truncate">{originalName}</p>
+                      <p className="text-2xs font-semibold text-primary uppercase tracking-wide m-0 mb-0.5">Dividindo escalação de</p>
+                      <p className="text-sm font-semibold text-primary m-0 truncate">{originalName}</p>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="text-center pl-3 border-l border-violet-200">
-                        <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wide m-0">Total</p>
-                        <p className="text-xl font-bold text-violet-700 m-0 leading-tight">{totalDays}</p>
-                        <p className="text-[10px] text-violet-400 m-0">{totalDays === 1 ? 'dia' : 'dias'}</p>
+                      <div className="text-center pl-3 border-l border-primary/25">
+                        <p className="text-2xs font-semibold text-primary/70 uppercase tracking-wide m-0">Total</p>
+                        <p className="text-xl font-bold text-primary m-0 leading-tight">{totalDays}</p>
+                        <p className="text-2xs text-primary/70 m-0">{totalDays === 1 ? 'dia' : 'dias'}</p>
                       </div>
                       {selCount > 0 && (
-                        <div className="text-center pl-3 border-l border-violet-200">
-                          <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wide m-0">Para novo</p>
-                          <p className="text-xl font-bold text-violet-600 m-0 leading-tight">{selCount}</p>
-                          <p className="text-[10px] text-violet-400 m-0">{selCount === 1 ? 'dia' : 'dias'}</p>
+                        <div className="text-center pl-3 border-l border-primary/25">
+                          <p className="text-2xs font-semibold text-primary/70 uppercase tracking-wide m-0">Para novo</p>
+                          <p className="text-xl font-bold text-primary m-0 leading-tight">{selCount}</p>
+                          <p className="text-2xs text-primary/70 m-0">{selCount === 1 ? 'dia' : 'dias'}</p>
                         </div>
                       )}
                       {selCount > 0 && (
-                        <div className="text-center pl-3 border-l border-violet-200">
-                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Resta</p>
-                          <p className={`text-xl font-bold m-0 leading-tight ${remCount === 0 ? 'text-red-500' : 'text-slate-500'}`}>{remCount}</p>
-                          <p className="text-[10px] text-slate-400 m-0">{remCount === 1 ? 'dia' : 'dias'}</p>
+                        <div className="text-center pl-3 border-l border-primary/25">
+                          <p className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide m-0">Resta</p>
+                          <p className={`text-xl font-bold m-0 leading-tight ${remCount === 0 ? 'text-danger-strong' : 'text-muted-foreground'}`}>{remCount}</p>
+                          <p className="text-2xs text-muted-foreground m-0">{remCount === 1 ? 'dia' : 'dias'}</p>
                         </div>
                       )}
                     </div>
@@ -529,62 +478,57 @@ export function SplitVagaModal({
               })()}
 
               {/* ── Collaborator picker ── */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Novo colaborador</p>
+              <div className="bg-card rounded-xl border border-border p-4">
+                <p className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Novo colaborador</p>
                 <div ref={dropRef}>
                   <button
                     onClick={openDrop}
-                    className="flex items-center justify-between gap-2 w-full h-11 px-3 rounded-lg bg-white text-left cursor-pointer transition-all"
-                    style={{
-                      border: collabDropOpen ? '1.5px solid #6d28d9' : '1.5px solid #E2E8F0',
-                      boxShadow: collabDropOpen ? '0 0 0 3px rgba(109,40,217,0.1)' : '0 1px 2px rgba(0,0,0,0.05)',
-                    }}
+                    className={cn("flex items-center justify-between gap-2 w-full h-11 px-3 rounded-lg bg-card text-left cursor-pointer transition-all", (collabDropOpen ? "border border-primary ring-[3px] ring-primary/10" : "border border-border shadow-1"))}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {selectedCollab ? (
                         <>
-                          <div className="w-7 h-7 rounded-[8px] flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
-                            style={{background: '#6d28d9'}}>
+                          <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-2xs font-bold text-white bg-primary-hover">
                             {fixEncoding(selectedCollab.fullName || "?").charAt(0).toUpperCase()}
                           </div>
-                          <span className="text-sm font-semibold text-slate-800 truncate">
+                          <span className="text-sm font-semibold text-foreground truncate">
                             {capitalizeName(fixEncoding(selectedCollab.fullName || ""))}
                           </span>
                         </>
                       ) : (
                         <>
-                          <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                          <span className="text-sm text-slate-400">Buscar colaborador...</span>
+                          <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <span className="text-sm text-muted-foreground">Buscar colaborador...</span>
                         </>
                       )}
                     </div>
-                    <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform" style={{transform: collabDropOpen ? 'rotate(180deg)' : 'none'}} />
+                    <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform" style={{transform: collabDropOpen ? 'rotate(180deg)' : 'none'}} />
                   </button>
 
                   {collabDropOpen && dropRect && createPortal(
                     <div
                       id="split-collab-portal"
-                      className="absolute bg-white rounded-xl overflow-hidden"
+                      className="absolute bg-card rounded-xl overflow-hidden border border-border shadow-3"
                       style={{
-                        top: dropRect.top, left: dropRect.left, width: dropRect.width,
+                        top: dropRect.top,
+                        left: dropRect.left,
+                        width: dropRect.width,
                         zIndex: 10000,
-                        border: '1.5px solid #E2E8F0',
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                       }}
                     >
-                      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
-                        <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
+                        <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                         <input
                           ref={inputRef}
                           value={collabSearch}
                           onChange={e => setCollabSearch(e.target.value)}
                           placeholder="Buscar colaborador..."
-                          className="flex-1 border-0 outline-none text-[13px] text-slate-800 bg-transparent"
+                          className="flex-1 border-0 outline-none text-sm text-foreground bg-transparent"
                         />
                       </div>
                       <div className="max-h-[240px] overflow-y-auto">
                         {filteredCollabs.length === 0 ? (
-                          <div className="py-4 text-center text-slate-400 text-[13px]">Nenhum colaborador encontrado</div>
+                          <div className="py-4 text-center text-muted-foreground text-sm">Nenhum colaborador encontrado</div>
                         ) : filteredCollabs.map(c => {
                           const name = capitalizeName(fixEncoding(c.fullName || ""));
                           const isSel = c.id === selectedCollabId;
@@ -593,19 +537,17 @@ export function SplitVagaModal({
                             <button
                               key={c.id}
                               onMouseDown={e => { e.preventDefault(); setSelectedCollabId(c.id); setCollabDropOpen(false); setCollabSearch(""); }}
-                              className="flex items-center gap-2.5 w-full px-3.5 py-2 border-0 border-b border-slate-50 cursor-pointer text-left transition-colors"
-                              style={{background: isSel ? '#EDE9FE' : 'transparent'}}
-                              onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
+                              className={cn("flex items-center gap-2.5 w-full px-3.5 py-2 border-0 border-b border-border cursor-pointer text-left transition-colors", (isSel ? "bg-brand-soft" : "bg-transparent"))}
+                              onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'var(--surface-muted)'; }}
                               onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                             >
-                              <div className="w-7 h-7 rounded-[8px] flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
-                                style={{background: isSel ? '#6d28d9' : '#94A3B8'}}>
+                              <div className={cn("w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-2xs font-bold text-white", (isSel ? "bg-primary-hover" : "bg-neutral"))}>
                                 {ini}
                               </div>
-                              <span className="text-[13px] truncate" style={{fontWeight: isSel ? 600 : 400, color: isSel ? '#6D28D9' : '#334155'}}>
+                              <span className={cn("text-sm truncate", (isSel ? "font-semibold" : "font-normal"), (isSel ? "text-primary" : "text-slate-700"))}>
                                 {name}
                               </span>
-                              {isSel && <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0" style={{color: '#6d28d9'}} />}
+                              {isSel && <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-primary" />}
                             </button>
                           );
                         })}
@@ -618,13 +560,13 @@ export function SplitVagaModal({
 
               {/* ── Day picker — grid calendar ── */}
               {availableDays.length > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <div className="bg-card rounded-xl border border-border p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider m-0">
+                    <p className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider m-0">
                       Selecione os dias do novo colaborador
                     </p>
                     {selectedDays.size > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-2xs font-semibold text-primary bg-brand-soft border border-primary/25 px-2 py-0.5 rounded-full">
                         <Check className="w-3 h-3" />
                         {selectedDays.size} {selectedDays.size === 1 ? 'dia' : 'dias'} selecionado{selectedDays.size !== 1 ? 's' : ''}
                       </span>
@@ -634,16 +576,16 @@ export function SplitVagaModal({
                   {/* Legend */}
                   <div className="flex items-center gap-3 mb-3">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded border-2 border-violet-400 bg-violet-50" />
-                      <span className="text-[10px] text-slate-400">Selecionado</span>
+                      <div className="w-3 h-3 rounded border-2 border-primary bg-brand-soft" />
+                      <span className="text-2xs text-muted-foreground">Selecionado</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded border border-amber-300 bg-amber-50" />
-                      <span className="text-[10px] text-slate-400">Fim de semana</span>
+                      <div className="w-3 h-3 rounded border border-warning/25 bg-warning-soft" />
+                      <span className="text-2xs text-muted-foreground">Fim de semana</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded border border-slate-200 bg-slate-100 opacity-60" />
-                      <span className="text-[10px] text-slate-400">Já atribuído</span>
+                      <div className="w-3 h-3 rounded border border-border bg-muted opacity-60" />
+                      <span className="text-2xs text-muted-foreground">Já atribuído</span>
                     </div>
                   </div>
 
@@ -662,20 +604,20 @@ export function SplitVagaModal({
                       const wdShort = dt.toLocaleDateString('pt-BR', {weekday: 'short'}).replace('.','').toUpperCase().slice(0,3);
                       const moShort = dt.toLocaleDateString('pt-BR', {month: 'short'}).replace('.','').toUpperCase().slice(0,3);
 
-                      let cardBg = '#F8FAFC', cardBorder = '#E2E8F0';
-                      let dayColor = '#475569', wdColor = '#94A3B8';
+                      let cardBg = 'var(--surface-muted)', cardBorder = 'var(--border)';
+                      let dayColor = 'var(--foreground)', wdColor = 'var(--muted-foreground)';
                       if (isTaken) {
-                        cardBg = '#F1F5F9'; cardBorder = '#CBD5E1';
-                        dayColor = '#CBD5E1'; wdColor = '#CBD5E1';
+                        cardBg = 'var(--muted)'; cardBorder = 'var(--border)';
+                        dayColor = 'var(--muted-foreground)'; wdColor = 'var(--muted-foreground)';
                       } else if (isSel && wknd) {
-                        cardBg = '#FFF7ED'; cardBorder = '#F97316';
-                        dayColor = '#C2410C'; wdColor = '#FB923C';
+                        cardBg = 'var(--warning-soft)'; cardBorder = 'var(--warning-strong)';
+                        dayColor = 'var(--warning)'; wdColor = 'var(--warning-strong)';
                       } else if (isSel) {
-                        cardBg = '#EDE9FE'; cardBorder = '#6d28d9';
-                        dayColor = '#5B21B6'; wdColor = '#7C3AED';
+                        cardBg = 'var(--brand-soft)'; cardBorder = 'var(--primary-hover)';
+                        dayColor = 'var(--primary)'; wdColor = 'var(--primary)';
                       } else if (wknd) {
-                        cardBg = '#FFFBEB'; cardBorder = '#FDE68A';
-                        dayColor = '#92400E'; wdColor = '#D97706';
+                        cardBg = 'var(--warning-soft)'; cardBorder = 'var(--warning-strong)';
+                        dayColor = 'var(--warning)'; wdColor = 'var(--warning)';
                       }
 
                       return (
@@ -686,37 +628,33 @@ export function SplitVagaModal({
                           aria-pressed={isSel}
                           aria-label={`${formatDay(day)}${isTaken ? ' — já atribuído' : isSel ? ' — selecionado' : ''}`}
                           title={isTaken ? "Dia já atribuído a outro colaborador desta divisão" : notParent ? "Este dia está fora do período original" : undefined}
-                          className="flex flex-col items-center rounded-xl py-2.5 px-1 transition-all relative"
+                          className={cn("flex flex-col items-center rounded-xl py-2.5 px-1 transition-all relative", (isTaken ? "cursor-not-allowed" : "cursor-pointer"), (isTaken ? "opacity-50" : "opacity-100"), (isSel && !isTaken ? "shadow-1" : "shadow-none"))}
                           style={{
-                            cursor: isTaken ? 'not-allowed' : 'pointer',
                             border: `1.5px solid ${cardBorder}`,
                             background: cardBg,
-                            opacity: isTaken ? 0.5 : 1,
-                            boxShadow: isSel && !isTaken ? '0 2px 8px rgba(109,40,217,0.15)' : 'none',
                           }}
                         >
                           {/* Weekday */}
-                          <span style={{fontSize: 10, fontWeight: 600, color: wdColor, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: '13px'}}>
+                          <span className="text-2xs font-semibold uppercase tracking-[0.06em]" style={{ color: wdColor, lineHeight: '13px' }}>
                             {wdShort}
                           </span>
                           {/* Day number */}
-                          <span style={{fontSize: 18, fontWeight: 600, color: dayColor, lineHeight: '24px', textDecoration: isTaken ? 'line-through' : 'none'}}>
+                          <span className={cn("text-lg font-semibold leading-6", (isTaken ? "line-through" : "no-underline"))} style={{ color: dayColor }}>
                             {dayNum}
                           </span>
                           {/* Month */}
-                          <span style={{fontSize: 10, color: isTaken ? '#CBD5E1' : '#94A3B8', lineHeight: '13px'}}>
+                          <span className={cn("text-2xs", (isTaken ? "text-muted-foreground" : "text-muted-foreground"))} style={{ lineHeight: '13px' }}>
                             {moShort}
                           </span>
                           {/* Check badge */}
                           {isSel && !isTaken && (
-                            <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center"
-                              style={{background: wknd ? '#F97316' : '#6d28d9'}}>
-                              <Check style={{width: 8, height: 8, color: '#fff'}} />
+                            <div className={cn("absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center", (wknd ? "bg-warning-strong" : "bg-primary-hover"))}>
+                              <Check className="text-white" style={{ width: 8, height: 8 }} />
                             </div>
                           )}
                           {/* Out-of-parent warning */}
                           {notParent && !isSel && !isTaken && (
-                            <div className="absolute top-0.5 right-0.5 text-amber-400" style={{fontSize: 10}}>⚠</div>
+                            <div className="absolute top-0.5 right-0.5 text-warning-strong text-2xs">⚠</div>
                           )}
                         </button>
                       );
@@ -725,15 +663,15 @@ export function SplitVagaModal({
 
                   {/* Summary bar */}
                   {selectedDays.size > 0 && (
-                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
-                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background: '#6d28d9'}} />
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
+                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary-hover" />
                       <p className="text-xs text-slate-600 m-0 flex-1">
                         <strong className="text-slate-700">{selectedDays.size}</strong> {selectedDays.size === 1 ? 'dia selecionado' : 'dias selecionados'}
-                        {selWeekdays > 0 && <span className="text-indigo-600"> · {selWeekdays} {selWeekdays === 1 ? 'útil' : 'úteis'}</span>}
-                        {selWeekends > 0 && <span className="text-amber-600"> · {selWeekends} fim{selWeekends > 1 ? 's' : ''} de sem.</span>}
+                        {selWeekdays > 0 && <span className="text-primary"> · {selWeekdays} {selWeekdays === 1 ? 'útil' : 'úteis'}</span>}
+                        {selWeekends > 0 && <span className="text-warning"> · {selWeekends} fim{selWeekends > 1 ? 's' : ''} de sem.</span>}
                       </p>
                       <button
-                        className="text-[11px] text-slate-400 hover:text-red-500 transition-colors border-0 bg-transparent cursor-pointer px-0"
+                        className="text-2xs text-muted-foreground hover:text-danger-strong transition-colors border-0 bg-transparent cursor-pointer px-0"
                         onClick={() => setSelectedDays(new Set())}
                       >
                         Limpar
@@ -741,9 +679,9 @@ export function SplitVagaModal({
                     </div>
                   )}
                   {takenDays.length > 0 && (
-                    <div className="flex gap-2 items-start mt-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                      <Info className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-[11px] text-slate-500 m-0">Dias acinzentados já estão atribuídos a outro colaborador desta divisão.</p>
+                    <div className="flex gap-2 items-start mt-2 px-3 py-2 rounded-lg bg-surface-muted border border-border">
+                      <Info className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                      <p className="text-2xs text-muted-foreground m-0">Dias acinzentados já estão atribuídos a outro colaborador desta divisão.</p>
                     </div>
                   )}
                 </div>
@@ -751,24 +689,23 @@ export function SplitVagaModal({
 
               {/* Validations */}
               {!selectedCollabId && (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-danger-soft border border-danger/25 text-xs text-danger">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Selecione um colaborador para continuar.
                 </div>
               )}
               {selectedCollabId && selectedDays.size === 0 && (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-danger-soft border border-danger/25 text-xs text-danger">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Selecione pelo menos 1 dia para o novo colaborador.
                 </div>
               )}
 
               {/* Footer */}
-              <div className="flex justify-end gap-2.5 pt-1 border-t border-slate-100 flex-shrink-0">
-                <Button variant="ghost" className="h-9 px-4 rounded-xl text-slate-500 hover:text-slate-700" onClick={onClose}>Cancelar</Button>
+              <div className="flex justify-end gap-2.5 pt-1 border-t border-border flex-shrink-0">
+                <Button variant="ghost" className="h-9 px-4 rounded-xl text-muted-foreground hover:text-slate-700" onClick={fechar}>Cancelar</Button>
                 <Button
                   onClick={goToStep2}
                   disabled={!canGoNext}
-                  className="h-9 px-5 rounded-xl text-white font-medium shadow-md flex items-center gap-1.5"
-                  style={{background: canGoNext ? '#6d28d9' : undefined}}
+                  className={cn("h-9 px-5 rounded-xl text-white font-medium shadow-2 flex items-center gap-1.5", (canGoNext ? "bg-primary-hover" : undefined))}
                 >
                   Próximo <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
@@ -785,26 +722,26 @@ export function SplitVagaModal({
             return (
               <>
                 {/* Collaborator header */}
-                <div className="px-5 pt-4 pb-4 flex-shrink-0" style={{background: '#6d28d9'}}>
+                <div className="px-5 pt-4 pb-4 flex-shrink-0 bg-primary-hover">
                   <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-[10px] bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
+                    <div className="w-11 h-11 rounded-lg bg-card/20 border border-white/30 flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-sm font-bold">{initials(collabName)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h2 className="text-sm font-bold text-white truncate leading-tight m-0">{capitalizeName(collabName)}</h2>
-                      <p className="text-[11px] text-violet-200 mt-1 m-0">Preencha os valores para este colaborador</p>
+                      <p className="text-2xs text-primary-foreground/80 mt-1 m-0">Preencha os valores para este colaborador</p>
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         {selWeekdays > 0 && (
-                          <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full font-medium">
+                          <span className="text-2xs bg-card/15 text-white px-2 py-0.5 rounded-full font-medium">
                             {selWeekdays} {selWeekdays === 1 ? 'dia útil' : 'dias úteis'}
                           </span>
                         )}
                         {selWeekends > 0 && (
-                          <span className="text-[10px] bg-amber-400/30 text-amber-100 px-2 py-0.5 rounded-full font-medium">
+                          <span className="text-2xs bg-warning-strong/30 text-warning-soft px-2 py-0.5 rounded-full font-medium">
                             {selWeekends} fim{selWeekends > 1 ? 's' : ''} de semana
                           </span>
                         )}
-                        <span className="text-[10px] bg-white/10 text-white/80 px-2 py-0.5 rounded-full font-medium">
+                        <span className="text-2xs bg-card/10 text-white/80 px-2 py-0.5 rounded-full font-medium">
                           {selectedDays.size} {selectedDays.size === 1 ? 'dia' : 'dias'} total
                         </span>
                       </div>
@@ -813,29 +750,29 @@ export function SplitVagaModal({
                 </div>
 
                 {/* Body */}
-                <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 bg-slate-50">
+                <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 bg-surface-muted">
 
                   {/* Period */}
                   {firstDay && (
-                    <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center justify-between">
+                    <div className="bg-card rounded-xl border border-border px-4 py-2.5 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-xs font-semibold text-slate-600">
                           {firstDay === lastDay ? formatDate(firstDay) : `${formatDate(firstDay)} → ${formatDate(lastDay)}`}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         {selWeekdays > 0 && (
-                          <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                          <span className="text-2xs font-semibold bg-brand-soft text-primary border border-primary/25 px-2 py-0.5 rounded-full">
                             {selWeekdays} {selWeekdays === 1 ? 'dia útil' : 'dias úteis'}
                           </span>
                         )}
                         {selWeekends > 0 && (
-                          <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                          <span className="text-2xs font-semibold bg-warning-soft text-warning border border-warning/25 px-2 py-0.5 rounded-full">
                             {selWeekends} fim{selWeekends > 1 ? 's' : ''} de sem.
                           </span>
                         )}
-                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <span className="text-2xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                           {selectedDays.size}d
                         </span>
                       </div>
@@ -843,81 +780,81 @@ export function SplitVagaModal({
                   )}
 
                   {/* Diárias */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-indigo-500" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50/60 border-b border-indigo-100">
+                  <div className="bg-card rounded-xl border border-border overflow-hidden">
+                    <div className="h-[3px] bg-primary" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-brand-soft/60 border-b border-primary/25">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-indigo-500 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center">
                           <Calendar className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">Diárias</span>
+                        <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
                       </div>
-                      <span className="text-sm font-bold text-indigo-700 tabular-nums">{fmtR$(s2SubDiarias)}</span>
+                      <span className="text-sm font-bold text-primary tabular-nums">{fmtR$(s2SubDiarias)}</span>
                     </div>
                     <div className="p-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                      <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Briefcase className="w-3 h-3 text-indigo-500" />
-                          <span className="text-[11px] font-semibold text-slate-600">Dias Úteis</span>
-                          <span className="text-[10px] text-slate-400 ml-auto">{selWeekdays}d</span>
+                          <Briefcase className="w-3 h-3 text-primary" />
+                          <span className="text-2xs font-semibold text-slate-600">Dias Úteis</span>
+                          <span className="text-2xs text-muted-foreground ml-auto">{selWeekdays}d</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-slate-400">R$</span>
-                          <ModalCurrencyInput
+                          <span className="text-2xs text-muted-foreground">R$</span>
+                          <CurrencyInput
                             className={`h-8 text-sm flex-1 text-center font-semibold ${selWeekdays === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.valorDiariaUtil}
                             onChange={v => setStep2Form(f => ({ ...f, valorDiariaUtil: v }))}
                             disabled={selWeekdays === 0}
                           />
-                          <span className="text-[10px] text-slate-400">/d</span>
+                          <span className="text-2xs text-muted-foreground">/d</span>
                         </div>
-                        <div className="text-[11px] font-bold text-indigo-700 tabular-nums text-center mt-1.5">{fmtR$(s2SubDiariasUtil)}</div>
+                        <div className="text-2xs font-bold text-primary tabular-nums text-center mt-1.5">{fmtR$(s2SubDiariasUtil)}</div>
                       </div>
-                      <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                      <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Sun className="w-3 h-3 text-amber-500" />
-                          <span className="text-[11px] font-semibold text-slate-600">Fim de Semana</span>
-                          <span className="text-[10px] text-slate-400 ml-auto">{selWeekends}d</span>
+                          <Sun className="w-3 h-3 text-warning-strong" />
+                          <span className="text-2xs font-semibold text-slate-600">Fim de Semana</span>
+                          <span className="text-2xs text-muted-foreground ml-auto">{selWeekends}d</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-slate-400">R$</span>
-                          <ModalCurrencyInput
+                          <span className="text-2xs text-muted-foreground">R$</span>
+                          <CurrencyInput
                             className={`h-8 text-sm flex-1 text-center font-semibold ${selWeekends === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.valorDiariaFds}
                             onChange={v => setStep2Form(f => ({ ...f, valorDiariaFds: v }))}
                             disabled={selWeekends === 0}
                           />
-                          <span className="text-[10px] text-slate-400">/d</span>
+                          <span className="text-2xs text-muted-foreground">/d</span>
                         </div>
-                        <div className={`text-[11px] font-bold tabular-nums text-center mt-1.5 ${selWeekends === 0 ? 'text-slate-300' : 'text-indigo-700'}`}>{fmtR$(s2SubDiariasFds)}</div>
+                        <div className={`text-2xs font-bold tabular-nums text-center mt-1.5 ${selWeekends === 0 ? 'text-muted-foreground' : 'text-primary'}`}>{fmtR$(s2SubDiariasFds)}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Mobilidade */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-violet-500" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-violet-50/60 border-b border-violet-100">
+                  <div className="bg-card rounded-xl border border-border overflow-hidden">
+                    <div className="h-[3px] bg-primary" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-brand-soft/60 border-b border-primary/25">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-violet-500 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center">
                           <Car className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide">Mobilidade</span>
+                        <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Mobilidade</span>
                       </div>
-                      <span className="text-sm font-bold text-violet-700 tabular-nums">{fmtR$(step2Form.mobility)}</span>
+                      <span className="text-sm font-bold text-primary tabular-nums">{fmtR$(step2Form.mobility)}</span>
                     </div>
                     <div className="p-4 grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[11px] font-semibold text-slate-500 block mb-1">Total do período (R$)</label>
-                        <ModalCurrencyInput
+                        <label className="text-2xs font-semibold text-muted-foreground block mb-1">Total do período (R$)</label>
+                        <CurrencyInput
                           className="h-9 text-sm"
                           value={step2Form.mobility}
                           onChange={v => setStep2Form(f => ({ ...f, mobility: v }))}
                         />
                       </div>
                       <div>
-                        <label className="text-[11px] font-semibold text-slate-500 block mb-1">Por dia</label>
-                        <div className="h-9 flex items-center px-3 rounded-lg bg-slate-50 border border-slate-100 text-xs text-slate-400 tabular-nums">
+                        <label className="text-2xs font-semibold text-muted-foreground block mb-1">Por dia</label>
+                        <div className="h-9 flex items-center px-3 rounded-lg bg-surface-muted border border-border text-xs text-muted-foreground tabular-nums">
                           {selectedDays.size > 0 ? fmtR$(Math.round(step2Form.mobility / selectedDays.size)) : fmtR$(0)}
                         </div>
                       </div>
@@ -925,46 +862,46 @@ export function SplitVagaModal({
                   </div>
 
                   {/* Alimentação */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-orange-400" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50/60 border-b border-orange-100">
+                  <div className="bg-card rounded-xl border border-border overflow-hidden">
+                    <div className="h-[3px] bg-warning-strong" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-warning-soft/60 border-b border-warning/25">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-orange-400 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-warning-strong flex items-center justify-center">
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
+                        <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
                       </div>
-                      <span className="text-sm font-bold text-orange-700 tabular-nums">{fmtR$(s2TotalAlim)}</span>
+                      <span className="text-sm font-bold text-warning tabular-nums">{fmtR$(s2TotalAlim)}</span>
                     </div>
                     <div className="p-3">
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
                         <div />
                         <div className="text-center">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-2xs font-bold text-primary bg-brand-soft border border-primary/25 px-2 py-0.5 rounded-full">
                             <Briefcase className="w-2.5 h-2.5" /> Dias Úteis
                           </span>
                         </div>
                         <div className="text-center">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-2xs font-bold text-warning bg-warning-soft border border-warning/25 px-2 py-0.5 rounded-full">
                             <Sun className="w-2.5 h-2.5" /> Fins de Sem.
                           </span>
                         </div>
                       </div>
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
                         <div className="flex items-center gap-1">
-                          <Sun className="w-3 h-3 text-amber-400" />
-                          <span className="text-[11px] font-semibold text-slate-600">Almoço</span>
+                          <Sun className="w-3 h-3 text-warning-strong" />
+                          <span className="text-2xs font-semibold text-slate-600">Almoço</span>
                         </div>
-                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
-                          <ModalCurrencyInput
+                        <div className="rounded-lg p-2 border border-border bg-surface-muted/50">
+                          <CurrencyInput
                             className={`h-8 text-xs text-center w-full ${selWeekdays === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekdayLunch}
                             onChange={v => setStep2Form(f => ({ ...f, weekdayLunch: v }))}
                             disabled={selWeekdays === 0}
                           />
                         </div>
-                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
-                          <ModalCurrencyInput
+                        <div className="rounded-lg p-2 border border-border bg-surface-muted/50">
+                          <CurrencyInput
                             className={`h-8 text-xs text-center w-full ${selWeekends === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekendLunch}
                             onChange={v => setStep2Form(f => ({ ...f, weekendLunch: v }))}
@@ -974,19 +911,19 @@ export function SplitVagaModal({
                       </div>
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-3">
                         <div className="flex items-center gap-1">
-                          <Moon className="w-3 h-3 text-indigo-400" />
-                          <span className="text-[11px] font-semibold text-slate-600">Jantar</span>
+                          <Moon className="w-3 h-3 text-primary/70" />
+                          <span className="text-2xs font-semibold text-slate-600">Jantar</span>
                         </div>
-                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
-                          <ModalCurrencyInput
+                        <div className="rounded-lg p-2 border border-border bg-surface-muted/50">
+                          <CurrencyInput
                             className={`h-8 text-xs text-center w-full ${selWeekdays === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekdayDinner}
                             onChange={v => setStep2Form(f => ({ ...f, weekdayDinner: v }))}
                             disabled={selWeekdays === 0}
                           />
                         </div>
-                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
-                          <ModalCurrencyInput
+                        <div className="rounded-lg p-2 border border-border bg-surface-muted/50">
+                          <CurrencyInput
                             className={`h-8 text-xs text-center w-full ${selWeekends === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekendDinner}
                             onChange={v => setStep2Form(f => ({ ...f, weekendDinner: v }))}
@@ -994,18 +931,18 @@ export function SplitVagaModal({
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-slate-100 pt-2">
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase self-center">Subtotal</span>
-                        <div className="text-center"><span className="text-xs font-bold text-indigo-600 tabular-nums">{fmtR$(step2Form.weekdayLunch + step2Form.weekdayDinner)}</span></div>
-                        <div className="text-center"><span className="text-xs font-bold text-amber-600 tabular-nums">{fmtR$(step2Form.weekendLunch + step2Form.weekendDinner)}</span></div>
+                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-border pt-2">
+                        <span className="text-2xs font-semibold text-muted-foreground uppercase self-center">Subtotal</span>
+                        <div className="text-center"><span className="text-xs font-bold text-primary tabular-nums">{fmtR$(step2Form.weekdayLunch + step2Form.weekdayDinner)}</span></div>
+                        <div className="text-center"><span className="text-xs font-bold text-warning tabular-nums">{fmtR$(step2Form.weekendLunch + step2Form.weekendDinner)}</span></div>
                       </div>
                     </div>
                   </div>
 
                   {remainingForParent.length === 0 && (
-                    <div className="flex gap-2 px-3.5 py-3 rounded-xl bg-red-50 border border-red-200 items-start">
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-red-800 m-0">
+                    <div className="flex gap-2 px-3.5 py-3 rounded-xl bg-danger-soft border border-danger/25 items-start">
+                      <AlertTriangle className="w-3.5 h-3.5 text-danger-strong flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-danger m-0">
                         O colaborador original ficará <strong>sem dias atribuídos</strong>. Ao confirmar, o registro original ficará zerado.
                       </p>
                     </div>
@@ -1013,31 +950,31 @@ export function SplitVagaModal({
                 </div>
 
                 {/* Footer */}
-                <div className="bg-white border-t border-slate-100 flex-shrink-0 px-6 py-4 space-y-3">
+                <div className="bg-card border-t border-border flex-shrink-0 px-6 py-4 space-y-3">
                   {/* Summary card */}
-                  <div className="rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="grid grid-cols-3 divide-x divide-slate-200">
+                  <div className="rounded-xl border border-border shadow-1 overflow-hidden">
+                    <div className="grid grid-cols-3 divide-x divide-border">
                       {/* Base honesta: os valores vêm do BudgetActual do titular (realizado),
                           não do planejado do RH — o rótulo antigo "Planejado prop." mentia */}
                       <div
                         className="px-3 py-3 text-center"
                         title={`Proporcional calculado sobre o realizado do titular, não sobre o planejado do RH${proportionalPlannedBreakdown ? ` — ${proportionalPlannedBreakdown}` : ''}`}
                       >
-                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Base do titular (realizado)</div>
+                        <div className="text-2xs uppercase text-muted-foreground font-semibold tracking-widest mb-1">Base do titular (realizado)</div>
                         <div className="text-sm font-bold text-slate-600 tabular-nums">{fmtR$(proportionalPlanned)}</div>
                       </div>
-                      <div className="px-4 py-3 text-center bg-violet-50/60">
-                        <div className="text-[10px] uppercase text-violet-500 font-semibold tracking-widest mb-1">Realizado</div>
-                        <div className="text-sm font-bold text-violet-700 tabular-nums">{fmtR$(s2Realizado)}</div>
+                      <div className="px-4 py-3 text-center bg-brand-soft/60">
+                        <div className="text-2xs uppercase text-primary font-semibold tracking-widest mb-1">Realizado</div>
+                        <div className="text-sm font-bold text-primary tabular-nums">{fmtR$(s2Realizado)}</div>
                       </div>
-                      <div className={`px-4 py-3 text-center ${Math.abs(s2Difference) <= 1 ? 'bg-slate-50/60' : s2Difference < 0 ? 'bg-emerald-50/60' : 'bg-red-50/60'}`}>
-                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-widest mb-1">Diferença</div>
+                      <div className={`px-4 py-3 text-center ${Math.abs(s2Difference) <= 1 ? 'bg-surface-muted/60' : s2Difference < 0 ? 'bg-success-soft/60' : 'bg-danger-soft/60'}`}>
+                        <div className="text-2xs uppercase text-muted-foreground font-semibold tracking-widest mb-1">Diferença</div>
                         {Math.abs(s2Difference) <= 1 ? (
-                          <div className="text-sm font-bold text-slate-300 tabular-nums">—</div>
+                          <div className="text-sm font-bold text-muted-foreground tabular-nums">—</div>
                         ) : (
                           <div className="flex items-center justify-center gap-1">
-                            {s2Difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
-                            <span className={`text-sm font-bold tabular-nums ${s2Difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                            {s2Difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-success-strong" /> : <TrendingUp className="w-3.5 h-3.5 text-danger-strong" />}
+                            <span className={`text-sm font-bold tabular-nums ${s2Difference < 0 ? 'text-success' : 'text-danger'}`}>
                               {s2Difference > 0 ? '+' : '−'}{fmtR$(Math.abs(s2Difference))}
                             </span>
                           </div>
@@ -1047,14 +984,13 @@ export function SplitVagaModal({
                   </div>
                   {/* Action buttons */}
                   <div className="flex items-center justify-between gap-3">
-                    <Button variant="ghost" className="h-9 px-4 text-sm text-slate-500 hover:text-slate-700 rounded-xl flex items-center gap-2" onClick={() => setStep(1)} disabled={isPending}>
+                    <Button variant="ghost" className="h-9 px-4 text-sm text-muted-foreground hover:text-slate-700 rounded-xl flex items-center gap-2" onClick={() => setStep(1)} disabled={isPending}>
                       <ArrowLeft className="w-4 h-4" /> Voltar
                     </Button>
                     <Button
                       onClick={attemptConfirm}
                       disabled={isPending}
-                      className="h-9 px-5 text-sm rounded-xl text-white font-medium shadow-md flex items-center gap-2"
-                      style={{background: '#6d28d9'}}
+                      className="h-9 px-5 text-sm rounded-xl text-white font-medium shadow-2 flex items-center gap-2 bg-primary-hover"
                     >
                       <CheckCheck className="w-4 h-4" />
                       {isPending ? 'Confirmando...' : 'Confirmar divisão'}
@@ -1070,14 +1006,14 @@ export function SplitVagaModal({
       {/* Zero-day confirmation */}
       {showZeroDayConfirm && createPortal(
         <div className="fixed inset-0 z-[10001] bg-black/60 flex items-center justify-center p-6">
-          <div id="split-zeroday-portal" role="alertdialog" aria-modal="true" aria-label="Colaborador original sem dias" className="bg-white rounded-2xl max-w-[420px] w-full p-7 shadow-2xl">
+          <div id="split-zeroday-portal" role="alertdialog" aria-modal="true" aria-label="Colaborador original sem dias" className="bg-card rounded-xl max-w-[420px] w-full p-7 shadow-3">
             <div className="flex gap-3 items-start mb-5">
-              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
+              <div className="w-10 h-10 rounded-xl bg-danger-soft flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger-strong" />
               </div>
               <div>
-                <p className="font-bold text-[15px] text-slate-800 m-0 mb-1.5">Colaborador original sem dias</p>
-                <p className="text-[13px] text-slate-500 m-0 leading-relaxed">
+                <p className="font-bold text-base text-foreground m-0 mb-1.5">Colaborador original sem dias</p>
+                <p className="text-sm text-muted-foreground m-0 leading-relaxed">
                   Todos os dias foram redistribuídos para o novo colaborador. O registro original ficará com <strong>0 dias</strong>. Deseja continuar mesmo assim?
                 </p>
               </div>
@@ -1086,7 +1022,7 @@ export function SplitVagaModal({
               <Button variant="outline" className="rounded-xl" onClick={() => setShowZeroDayConfirm(false)}>Cancelar</Button>
               <Button
                 onClick={() => { setShowZeroDayConfirm(false); doConfirm(); }}
-                className="rounded-xl text-white bg-red-500 hover:bg-red-600"
+                className="rounded-xl text-white bg-danger-strong hover:bg-danger/90"
               >
                 Confirmar mesmo assim
               </Button>
@@ -1095,6 +1031,7 @@ export function SplitVagaModal({
         </div>,
         document.body
       )}
+      {DialogoDescarte}
     </>,
     document.body
   );

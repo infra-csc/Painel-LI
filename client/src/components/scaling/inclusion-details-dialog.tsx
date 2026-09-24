@@ -34,7 +34,7 @@ import {
   CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS, cenoEmpreitaTotalCents, type CenoFreelaTipo, validarEmpreita } from "@shared/cenotecnica-empreita";
 import type { TeamInclusion } from "@shared/schema";
 import { getStatusBadge } from "./scaling-table";
-import ConfirmDialog from "./confirm-dialog";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { SwapStatusCard, RequestSwapButton, SwapRequestDialog } from "./swap-request-panel";
 import { TransferRequestDialog } from "./swap-transferencia";
 import { AdjustRequestPanel, pendingRequestLock, podePedirAjuste, useChangeWindow } from "./adjust-request-panel";
@@ -44,7 +44,9 @@ import { parseDay, isEscalated, isEscalationConfirmed, isCityFromSP, formatDateW
 import { getSaveBlockReason, getConfirmBlockReason, getScalingWarning, isAtendimentoMissing, isPercurseiroMissing } from "./scaling-validation";
 import type { ScalingData, InclusionDetails, ScalingUser } from "./use-scaling-data";
 import type { ScalingMutations } from "./use-scaling-mutations";
+import { cn } from "@/lib/utils";
 
+import { formatarMoeda } from "@/lib/format";
 export type DetailsTab = "resumo" | "passagem" | "hospedagem" | "comentarios";
 
 export interface InclusionDetailsDialogProps {
@@ -75,16 +77,16 @@ export interface InclusionDetailsDialogProps {
 }
 
 const COLLAB_TYPE: Record<string, { label: string; cls: string }> = {
-  casa:   { label: "Casa",   cls: "bg-blue-50 text-blue-700 border-blue-100" },
-  freela: { label: "Freela", cls: "bg-violet-50 text-violet-700 border-violet-100" },
-  local:  { label: "Local",  cls: "bg-orange-50 text-orange-700 border-orange-100" },
+  casa:   { label: "Casa",   cls: "bg-brand-soft text-primary border-primary/25" },
+  freela: { label: "Freela", cls: "bg-brand-soft text-primary border-primary/25" },
+  local:  { label: "Local",  cls: "bg-warning-soft text-warning border-warning/25" },
 };
 
 const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
 // Rótulo de campo: 11px normal. Era 10px `font-black` com tracking de 0.12em —
 // caixa alta esticada e mais pesada que o próprio valor que rotulava.
-const lbl = "text-[11px] text-muted-foreground font-medium mb-1";
-const val = "text-[13px] font-semibold text-slate-700";
+const lbl = "text-2xs text-muted-foreground font-medium mb-1";
+const val = "text-sm font-semibold text-slate-700";
 // A aba só sinaliza o que FALTA. Um "✓" verde em cada etapa pronta enche a
 // barra de ruído para dizer que não há nada a fazer ali.
 const doneBadge = null;
@@ -92,11 +94,11 @@ const pendingBadge = (
   <span
     aria-label="etapa pendente"
     title="Esta etapa ainda está pendente"
-    className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-[#D97706] align-middle"
+    className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-warning-strong align-middle"
   />
 );
 
-const brl = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const brl = formatarMoeda;
 
 /**
  * Dias trabalhados da vaga para a tabela de empreita.
@@ -119,36 +121,36 @@ function EmpreitaCampos({ modalData, setModalData, disabled }: {
   setModalData: React.Dispatch<React.SetStateAction<ModalData>>;
   disabled?: boolean;
 }) {
-  const campo = "w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-60";
-  const rotulo = "text-[11px] font-semibold text-slate-600";
+  const campo = "w-full px-3 py-2 text-sm border border-border rounded-xl bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-60";
+  const rotulo = "text-2xs font-semibold text-slate-600";
   const erro = validarEmpreita({
     empresa: modalData.empreitaEmpresa,
     pessoas: Number(modalData.empreitaPessoas || ""),
     valorCents: Math.round(Number(modalData.empreitaValor || "") * 100),
   });
   return (
-    <div className="space-y-2.5 rounded-xl border border-violet-200 bg-violet-50/40 p-3" data-testid="empreita-campos">
+    <div className="space-y-2.5 rounded-xl border border-primary/25 bg-brand-soft/40 p-3" data-testid="empreita-campos">
       <div className="space-y-1">
-        <label htmlFor="empreita-empresa" className={rotulo}>Empresa <span className="text-red-500">*</span></label>
+        <label htmlFor="empreita-empresa" className={rotulo}>Empresa <span className="text-danger-strong">*</span></label>
         <input id="empreita-empresa" type="text" maxLength={120} value={modalData.empreitaEmpresa} disabled={disabled}
           placeholder="Nome da empresa que fornece a equipe"
           onChange={(e) => setModalData(prev => ({ ...prev, empreitaEmpresa: e.target.value }))} className={campo} data-testid="input-empreita-empresa" />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label htmlFor="empreita-pessoas" className={rotulo}>Pessoas <span className="text-red-500">*</span></label>
+          <label htmlFor="empreita-pessoas" className={rotulo}>Pessoas <span className="text-danger-strong">*</span></label>
           <input id="empreita-pessoas" type="number" min={1} step={1} inputMode="numeric" value={modalData.empreitaPessoas} disabled={disabled}
             onChange={(e) => setModalData(prev => ({ ...prev, empreitaPessoas: e.target.value }))} className={campo} data-testid="input-empreita-pessoas" />
         </div>
         <div className="space-y-1">
-          <label htmlFor="empreita-valor" className={rotulo}>Valor total (R$) <span className="text-red-500">*</span></label>
+          <label htmlFor="empreita-valor" className={rotulo}>Valor total (R$) <span className="text-danger-strong">*</span></label>
           <input id="empreita-valor" type="number" min={0} step={1} inputMode="numeric" value={modalData.empreitaValor} disabled={disabled}
             placeholder="sem centavos"
             onChange={(e) => setModalData(prev => ({ ...prev, empreitaValor: e.target.value }))} className={`${campo} tabular-nums`} data-testid="input-empreita-valor" />
         </div>
       </div>
-      <p className="text-[11px] text-slate-500">Sem passagem e hospedagem — a empresa se vira. O valor entra no Planejado como custo fechado da vaga; a quantidade de pessoas é só informativa.</p>
-      {erro && <p className="text-[11px] text-amber-700" role="status" data-testid="empreita-erro">{erro}</p>}
+      <p className="text-2xs text-muted-foreground">Sem passagem e hospedagem — a empresa se vira. O valor entra no Planejado como custo fechado da vaga; a quantidade de pessoas é só informativa.</p>
+      {erro && <p className="text-2xs text-warning" role="status" data-testid="empreita-erro">{erro}</p>}
     </div>
   );
 }
@@ -174,14 +176,14 @@ function CenoFreelaTipoCard({ inclusion, systemSettings, canEdit, isCasa, mutati
   const algumExtrapolado = CENO_FREELA_TIPOS.some(t => cenoEmpreitaTotalCents(t, dias, systemSettings)?.extrapolado);
   return (
     <div className="mt-5">
-      <div className={`border rounded-2xl overflow-hidden ${atual ? "border-slate-200" : "border-amber-200"}`} data-testid="card-ceno-freela-tipo">
-        <div className={`border-b px-4 py-2.5 flex items-center gap-2 flex-wrap ${atual ? "bg-slate-50 border-slate-100" : "bg-amber-50 border-amber-100"}`}>
-          <Hammer className={`w-4 h-4 ${atual ? "text-slate-400" : "text-amber-500"}`} />
-          <span className={`text-[11px] font-black uppercase tracking-[0.12em] ${atual ? "text-slate-500" : "text-amber-700"}`}>
+      <div className={`border rounded-xl overflow-hidden ${atual ? "border-border" : "border-warning/25"}`} data-testid="card-ceno-freela-tipo">
+        <div className={`border-b px-4 py-2.5 flex items-center gap-2 flex-wrap ${atual ? "bg-surface-muted border-border" : "bg-warning-soft border-warning/25"}`}>
+          <Hammer className={`w-4 h-4 ${atual ? "text-muted-foreground" : "text-warning-strong"}`} />
+          <span className={`text-2xs font-black uppercase tracking-[0.12em] ${atual ? "text-muted-foreground" : "text-warning"}`}>
             Tipo de freela (cenotécnica)
           </span>
           {!atual && (
-            <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold" data-testid="badge-ceno-freela-definir">
+            <span className="px-1.5 py-0.5 rounded-full bg-warning-soft text-warning text-2xs font-semibold" data-testid="badge-ceno-freela-definir">
               definir o tipo
             </span>
           )}
@@ -206,20 +208,20 @@ function CenoFreelaTipoCard({ inclusion, systemSettings, canEdit, isCasa, mutati
                   title={canEdit ? undefined : (disabledReason || "Apenas o responsável pela função pode definir o tipo de freela.")}
                   data-testid={`btn-ceno-freela-${t}`}
                   onClick={() => { if (!ativo) mutation.mutate({ id: inclusion.id, cenoFreelaTipo: t }); }}
-                  className={`px-2 py-2 rounded-xl text-[11px] font-semibold border text-center transition-all disabled:opacity-60 disabled:cursor-not-allowed ${ativo ? "bg-[#2563EB] text-white border-[#2563EB]" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
+                  className={`px-2 py-2 rounded-xl text-2xs font-semibold border text-center transition-all disabled:opacity-60 disabled:cursor-not-allowed ${ativo ? "bg-primary text-primary-foreground border-primary" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
                 >
                   {CENO_FREELA_TIPO_LABELS[t]}
-                  <span className={`block text-[11px] font-bold tabular-nums mt-0.5 ${ativo ? "text-blue-100" : "text-slate-500"}`}>
+                  <span className={`block text-2xs font-bold tabular-nums mt-0.5 ${ativo ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                     {valor ? brl(valor.totalCents) : "—"}
                   </span>
                   {valor?.extrapolado && (
-                    <span className={`block text-[9px] font-medium ${ativo ? "text-blue-100" : "text-amber-600"}`}>extrapolado</span>
+                    <span className={`block text-2xs font-medium ${ativo ? "text-primary-foreground/80" : "text-warning"}`}>extrapolado</span>
                   )}
                 </button>
               );
             })}
           </div>
-          <p className="text-[11px] text-slate-500 leading-snug">
+          <p className="text-2xs text-muted-foreground leading-snug">
             {dias > 0
               ? <>Valor <b>fechado</b> por {dias} {dias === 1 ? "dia" : "dias"} de trabalho — não é diária × dias e não sofre deflação por período.</>
               : <>Sem dias de trabalho na vaga: defina o período ou as diárias para ver o valor fechado.</>}
@@ -228,8 +230,8 @@ function CenoFreelaTipoCard({ inclusion, systemSettings, canEdit, isCasa, mutati
             )}
           </p>
           {isCasa && (
-            <p className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5" data-testid="hint-ceno-casa">
-              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-slate-400" />
+            <p className="text-2xs text-muted-foreground leading-snug flex items-start gap-1.5" data-testid="hint-ceno-casa">
+              <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-muted-foreground" />
               Cenotécnico de casa (CLT) não usa a tabela de empreita — o tipo fica gravado, mas o Planejado não aplica o valor fechado.
             </p>
           )}
@@ -272,16 +274,15 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   // percurseiroDiariaCents / cenoEmpreitaTotalCents caem nos defaults do shared.
   const isPercursoInclusion = !!inclusion && data.isPercursoInclusion(inclusion);
   const isCenoEmpreitaInclusion = !!inclusion && isCenoEmpreitaFunction(data.getFunctionName(inclusion.functionId));
+  // Sem `queryFn` caseiro (23/09): o padrão do queryClient checa `res.ok`,
+  // trata 401 e HTML de servidor desatualizado — o de antes gravava o corpo
+  // do erro no cache como se fossem os valores.
   const { data: systemSettings } = useQuery<Record<string, number>>({
     queryKey: ["/api/system-settings"],
-    queryFn: async () => {
-      const res = await fetch("/api/system-settings", { credentials: "include" });
-      return res.json();
-    },
     enabled: open && (isPercursoInclusion || isCenoEmpreitaInclusion),
     staleTime: 5 * 60 * 1000,
   });
-  const fmtBRL = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtBRL = formatarMoeda;
 
   // A escolha acompanha a vaga: reabre sozinha na que está sem nome e fecha
   // ao navegar para uma que já tem.
@@ -351,9 +352,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   const renderAttachments = (ids: string[] | null | undefined, label: string) => {
     if (!ids || ids.length === 0) {
       return (
-        <div className="flex items-center gap-2.5 py-3 px-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-          <File className="w-4 h-4 text-slate-300" />
-          <span className="text-sm text-slate-400">Nenhum anexo disponível.</span>
+        <div className="flex items-center gap-2.5 py-3 px-4 bg-surface-muted border border-dashed border-border rounded-xl">
+          <File className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Nenhum anexo disponível.</span>
         </div>
       );
     }
@@ -365,18 +366,18 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
             role="button"
             tabIndex={0}
             aria-label={`Abrir ${label} ${index + 1}`}
-            className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+            className="flex items-center gap-3 bg-card border border-border hover:border-primary hover:bg-brand-soft rounded-xl px-4 py-3 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => openAttachment(attachmentId, `${label} ${index + 1}`)}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAttachment(attachmentId, `${label} ${index + 1}`); } }}
           >
-            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-              <FileText className="w-4 h-4 text-[#2563EB]" />
+            <div className="w-8 h-8 rounded-lg bg-brand-soft border border-primary/25 flex items-center justify-center flex-shrink-0">
+              <FileText className="w-4 h-4 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-slate-700">{label} {index + 1}</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Documento anexado · clique para visualizar</div>
+              <div className="text-sm font-semibold text-slate-700">{label} {index + 1}</div>
+              <div className="text-2xs text-muted-foreground mt-0.5">Documento anexado · clique para visualizar</div>
             </div>
-            <Eye className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
+            <Eye className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
           </div>
         ))}
       </div>
@@ -405,16 +406,16 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
       <div>
         <div className={lbl + " mb-2"}>
           {allDays.length} {allDays.length === 1 ? "dia" : "dias"} {usesWorkDays ? "de trabalho" : "no período"}
-          {usesWorkDays && <span className="normal-case tracking-normal font-medium text-slate-400"> · dias específicos</span>}
+          {usesWorkDays && <span className="normal-case tracking-normal font-medium text-muted-foreground"> · dias específicos</span>}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {allDays.map((day, index) => {
             const weekend = isWeekend(day);
             return (
-              <div key={index} className={`flex flex-col items-center rounded-xl border text-center px-2 py-1.5 min-w-[40px] ${weekend ? "bg-orange-50 border-orange-200" : "bg-white border-slate-200"}`}>
-                <div className={`text-[9px] uppercase font-bold ${weekend ? "text-orange-400" : "text-slate-400"}`}>{format(day, "EEE", { locale: ptBR })}</div>
-                <div className={`text-[15px] font-bold leading-tight ${weekend ? "text-orange-600" : "text-slate-700"}`}>{format(day, "dd", { locale: ptBR })}</div>
-                <div className={`text-[8px] ${weekend ? "text-orange-300" : "text-slate-300"}`}>{format(day, "MMM", { locale: ptBR })}</div>
+              <div key={index} className={`flex flex-col items-center rounded-xl border text-center px-2 py-1.5 min-w-[40px] ${weekend ? "bg-warning-soft border-warning/25" : "bg-card border-border"}`}>
+                <div className={`text-2xs uppercase font-bold ${weekend ? "text-warning-strong" : "text-muted-foreground"}`}>{format(day, "EEE", { locale: ptBR })}</div>
+                <div className={`text-base font-bold leading-tight ${weekend ? "text-warning" : "text-slate-700"}`}>{format(day, "dd", { locale: ptBR })}</div>
+                <div className={`text-2xs ${weekend ? "text-warning-soft" : "text-muted-foreground"}`}>{format(day, "MMM", { locale: ptBR })}</div>
               </div>
             );
           })}
@@ -430,19 +431,19 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
     <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
       {/* 980px no lugar de 1180: em duas colunas o conteúdo respira, e a
           terceira coluna do layout antigo só existia porque a largura sobrava. */}
-      <DialogContent ref={contentRef} className="!max-w-[1120px] w-[95vw] max-h-[calc(100dvh-48px)] !rounded-[14px] !flex !flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent ref={contentRef} className="!max-w-[1120px] w-[95vw] max-h-[calc(100dvh-48px)] !rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden">
         {/* ── Cabeçalho ──
             O gradiente e o quadrado azul de 44px com sombra ocupavam a linha
             inteira para dizer "Detalhes da Escalação", que é o que o próprio
             modal já é. O que identifica o registro é o ID, o nome e a
             situação — e é isso que fica. */}
-        <div className="px-6 pt-4 pb-3.5 border-b border-slate-100 shrink-0 flex items-center gap-3 pr-14">
-          <span className="font-mono text-[12px] text-muted-foreground tabular-nums shrink-0">
+        <div className="px-6 pt-4 pb-3.5 border-b border-border shrink-0 flex items-center gap-3 pr-14">
+          <span className="font-mono text-xs text-muted-foreground tabular-nums shrink-0">
             #{inclusion?.inclusionNumber || "—"}
           </span>
           {inclusion && getStatusBadge(inclusion, "sm")}
           <div className="flex-1 min-w-0">
-            <DialogTitle className="text-[17px] font-semibold text-slate-900 leading-tight m-0 p-0 truncate">
+            <DialogTitle className="text-lg font-semibold text-foreground leading-tight m-0 p-0 truncate">
               {inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : (inclusion as any)?.empreitaEmpresa ? `Empreita · ${(inclusion as any).empreitaEmpresa}` : "Vaga sem nome"}
             </DialogTitle>
             <span className="sr-only">Detalhes da escalação</span>
@@ -455,12 +456,12 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                 disabled={!hasPrev}
                 title="Anterior (←)"
                 aria-label="Escalação anterior"
-                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg border border-border bg-card text-muted-foreground hover:bg-surface-muted hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                 data-testid="button-nav-prev"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-[11px] font-semibold text-slate-400 tabular-nums px-1" data-testid="text-nav-position">
+              <span className="text-2xs font-semibold text-muted-foreground tabular-nums px-1" data-testid="text-nav-position">
                 {navIndex + 1} / {navTotal}
               </span>
               <button
@@ -469,7 +470,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                 disabled={!hasNext}
                 title="Próxima (→)"
                 aria-label="Próxima escalação"
-                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg border border-border bg-card text-muted-foreground hover:bg-surface-muted hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                 data-testid="button-nav-next"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -482,7 +483,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
           <>
             {eventLocked && <PastEventBanner show className="mx-6 mt-3" />}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
-              <div className="px-6 border-b border-slate-100 shrink-0">
+              <div className="px-6 border-b border-border shrink-0">
                 <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
                   <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
                   <TabsTrigger value="passagem" className={tabTrigger}>
@@ -496,7 +497,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                   <TabsTrigger value="comentarios" className={tabTrigger}>
                     Histórico
                     {comments && comments.length > 0 && (
-                      <span className="ml-1.5 bg-primary text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{comments.length}</span>
+                      <span className="ml-1.5 bg-primary text-primary-foreground text-2xs font-semibold px-1.5 py-0.5 rounded-full">{comments.length}</span>
                     )}
                   </TabsTrigger>
                 </TabsList>
@@ -510,14 +511,14 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
 
                     {/* Col 1: Informações Básicas */}
                     <div className="space-y-4">
-                      <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
+                      <div className="bg-surface-muted rounded-xl border border-border p-4 space-y-3">
                         <div>
                           <div className={lbl}>Evento</div>
-                          <div className="text-[13px] font-semibold text-primary leading-snug">{getEventName(inclusion.eventId)}</div>
+                          <div className="text-sm font-semibold text-primary leading-snug">{getEventName(inclusion.eventId)}</div>
                         </div>
                         <div>
                           <div className={lbl}>ID</div>
-                          <div className="text-[13px] font-bold text-slate-700 font-mono">#{inclusion.inclusionNumber || "N/A"}</div>
+                          <div className="text-sm font-bold text-slate-700 font-mono">#{inclusion.inclusionNumber || "N/A"}</div>
                         </div>
                         <div>
                           <div className={lbl}>Função</div>
@@ -535,8 +536,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                             // Pedido em análise trava aqui também: a NF entra na
                             // conta do que o aprovador está decidindo.
                             const canToggleNf = canManageFunction(inclusion.functionId) && !eventLocked && !requestLockReason;
-                            const badgeCls = `inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full transition-colors ${emitsNf ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`;
-                            const dot = <span className={`w-1.5 h-1.5 rounded-full ${emitsNf ? "bg-emerald-500" : "bg-slate-400"}`} />;
+                            const badgeCls = `inline-flex items-center gap-1.5 px-2.5 py-1 text-2xs font-bold rounded-full transition-colors ${emitsNf ? "bg-success-soft text-success" : "bg-muted text-muted-foreground"}`;
+                            const dot = <span className={`w-1.5 h-1.5 rounded-full ${emitsNf ? "bg-success-strong" : "bg-slate-400"}`} />;
                             const label = emitsNf ? "Emite NF" : "Não emite NF";
                             if (!canToggleNf) {
                               return (
@@ -546,7 +547,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                       {dot}{label}
                                     </span>
                                   </TooltipTrigger>
-                                  <TooltipContent side="right" className="max-w-[260px] text-[12px]">
+                                  <TooltipContent side="right" className="max-w-[260px] text-xs">
                                     {actionLockReason ?? "Somente o responsável pela função, administradores ou Compras podem alterar se este escalado emite nota fiscal."}
                                   </TooltipContent>
                                 </Tooltip>
@@ -558,7 +559,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 disabled={mutations.toggleEmitsNf.isPending}
                                 onClick={() => mutations.toggleEmitsNf.mutate({ id: inclusion.id, emitsNf: !emitsNf })}
                                 title="Clique para alternar. Define se a tela de Notas Fiscais cobra nota deste escalado."
-                                className={`${badgeCls} disabled:opacity-50 ${emitsNf ? "hover:bg-emerald-200" : "hover:bg-slate-200"}`}
+                                className={`${badgeCls} disabled:opacity-50 ${emitsNf ? "hover:bg-success/20" : "hover:bg-border"}`}
                                 data-testid="button-toggle-emits-nf"
                               >
                                 {dot}{label}
@@ -567,30 +568,30 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           })()}
                         </div>
                         {(inclusion.needsTicket || inclusion.needsAccommodation) && (
-                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border">
                             {inclusion.needsTicket && (
                               selectedTicket ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-primary text-2xs font-bold rounded-lg border border-primary/25">
                                   <Plane style={{ width: 9, height: 9 }} />Passagem registrada
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25">
                                   <Plane style={{ width: 9, height: 9 }} />Passagem pendente
                                 </span>
                               )
                             )}
                             {inclusion.needsAccommodation && (
                               accommodation ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-lg border border-purple-100">🏨 Hospedagem registrada</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-primary text-2xs font-bold rounded-lg border border-primary/25">🏨 Hospedagem registrada</span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">🏨 Hospedagem pendente</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25">🏨 Hospedagem pendente</span>
                               )
                             )}
                           </div>
                         )}
                         {isAdminOrPurchasing && pendingSwap && (
-                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-200">
+                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25">
                               <ArrowLeftRight style={{ width: 9, height: 9 }} />Troca pendente
                             </span>
                           </div>
@@ -600,10 +601,10 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
 
                     {/* Col 2: Colaborador */}
                     <div className="space-y-4">
-                      <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
+                      <div className="bg-surface-muted rounded-xl border border-border p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-1.5">
-                            <span className={lbl} style={{ marginBottom: 0 }}>Colaborador <span className="text-red-400">*</span></span>
+                            <span className={cn(lbl, "mb-0")}>Colaborador <span className="text-danger-strong">*</span></span>
                             {(() => {
                               const ticketPurchased = inclusion.needsTicket ? !!getPurchasedTicket(inclusion.id) : false;
                               const accommodationReserved = inclusion.needsAccommodation ? !!accommodation : false;
@@ -615,18 +616,18 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 : null;
                               return (
                                 <div className="relative group inline-flex items-center">
-                                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-[#2563EB] cursor-help transition-colors" />
-                                  <div className="pointer-events-none absolute left-0 top-6 z-[9999] w-72 bg-slate-800 text-white rounded-xl px-4 py-3 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                                  <div className="pointer-events-none absolute left-0 top-6 z-[9999] w-72 bg-slate-800 text-white rounded-xl px-4 py-3 shadow-3 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <div className="absolute left-3 -top-1.5 border-[6px] border-transparent border-b-slate-800" />
-                                    <div className="text-[12px] font-bold text-white mb-1.5">Troca de colaborador</div>
-                                    <div className="text-[11px] text-slate-300 leading-relaxed">
+                                    <div className="text-xs font-bold text-white mb-1.5">Troca de colaborador</div>
+                                    <div className="text-2xs text-muted-foreground leading-relaxed">
                                       A alteração é liberada enquanto não houver passagem comprada ou hospedagem reservada vinculada a esta escalação.
                                     </div>
                                     {blocked && blockReason && (
-                                      <div className="mt-2 pt-2 border-t border-slate-600 text-[11px] text-amber-300 font-medium">Bloqueio atual: {blockReason}.</div>
+                                      <div className="mt-2 pt-2 border-t border-slate-600 text-2xs text-warning-soft font-medium">Bloqueio atual: {blockReason}.</div>
                                     )}
                                     {blocked && !blockReason && (
-                                      <div className="mt-2 pt-2 border-t border-slate-600 text-[11px] text-amber-300 font-medium">Você não tem permissão para alterar nesta escalação.</div>
+                                      <div className="mt-2 pt-2 border-t border-slate-600 text-2xs text-warning-soft font-medium">Você não tem permissão para alterar nesta escalação.</div>
                                     )}
                                   </div>
                                 </div>
@@ -636,13 +637,13 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           {(() => {
                             const collab = collaborators?.find(c => c.id === (modalData.collaboratorId || inclusion.collaboratorId));
                             if (!collab) return null;
-                            const t = COLLAB_TYPE[collab.type] ?? { label: collab.type ?? "—", cls: "bg-slate-100 text-slate-600 border-slate-200" };
-                            return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 ${t.cls}`}>{t.label}</span>;
+                            const t = COLLAB_TYPE[collab.type] ?? { label: collab.type ?? "—", cls: "bg-muted text-slate-600 border-border" };
+                            return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-2xs font-bold border shrink-0 ${t.cls}`}>{t.label}</span>;
                           })()}
                         </div>
                         {(!canEditCollaborator(inclusion) || isEscalationConfirmed(inclusion)) ? (
                           <div className="space-y-2">
-                            <div className="border border-slate-200 rounded-xl bg-white px-3 py-2.5">
+                            <div className="border border-border rounded-xl bg-card px-3 py-2.5">
                               <div className="text-sm font-medium text-slate-700">
                                 {(inclusion as any).empreitaEmpresa
                                   ? `Empreita · ${(inclusion as any).empreitaEmpresa} · ${(inclusion as any).empreitaPessoas ?? 0} pessoas · ${(Number((inclusion as any).empreitaValor ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}`
@@ -652,11 +653,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 const city = modalData.city || getCollaboratorCity(modalData.collaboratorId);
                                 if (!city) return null;
                                 return (
-                                  <div className="mt-1.5 rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 flex items-center gap-1.5">
-                                    <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                                  <div className="mt-1.5 rounded-lg bg-brand-soft border border-primary/25 px-2 py-1.5 flex items-center gap-1.5">
+                                    <MapPin className="w-3 h-3 text-primary shrink-0" />
                                     <div>
-                                      <div className="text-[9px] font-semibold text-blue-400 uppercase tracking-wide leading-none">Sai de</div>
-                                      <div className="text-[12px] font-bold text-blue-700 leading-tight">{city}</div>
+                                      <div className="text-2xs font-semibold text-primary/70 uppercase tracking-wide leading-none">Sai de</div>
+                                      <div className="text-xs font-bold text-primary leading-tight">{city}</div>
                                     </div>
                                   </div>
                                 );
@@ -680,7 +681,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                             {/* Empreita por empresa (dono, 10/09): só cenotécnica. Em vez de
                                 um nome, a empresa que manda as pessoas. */}
                             {isCenoEmpreitaInclusion && (
-                              <div role="radiogroup" aria-label="Quem preenche a vaga" className="inline-flex rounded-lg border border-border bg-slate-50 p-0.5" data-testid="toggle-empreita">
+                              <div role="radiogroup" aria-label="Quem preenche a vaga" className="inline-flex rounded-lg border border-border bg-surface-muted p-0.5" data-testid="toggle-empreita">
                                 {([["colaborador", "Colaborador"], ["empreita", "Empreita (empresa)"]] as const).map(([k, label]) => {
                                   const on = (k === "empreita") === !!modalData.empreitaModo;
                                   return (
@@ -688,7 +689,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                       key={k} type="button" role="radio" aria-checked={on} disabled={!!requestLockReason}
                                       onClick={() => setModalData(prev => ({ ...prev, empreitaModo: k === "empreita" }))}
                                       data-testid={`toggle-empreita-${k}`}
-                                      className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? "bg-white text-primary shadow-sm" : "text-slate-600 hover:bg-white/60"}`}
+                                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? "bg-card text-primary shadow-1" : "text-slate-600 hover:bg-card/60"}`}
                                     >
                                       {label}
                                     </button>
@@ -699,7 +700,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                             {modalData.empreitaModo ? (
                               <EmpreitaCampos modalData={modalData} setModalData={setModalData} disabled={!!requestLockReason} />
                             ) : (
-                            <div className={!modalData.collaboratorId && !isEscalated(inclusion) ? "rounded-lg ring-1 ring-amber-300" : ""}>
+                            <div className={!modalData.collaboratorId && !isEscalated(inclusion) ? "rounded-lg ring-1 ring-warning/25" : ""}>
                               {escolhendoColaborador ? (
                                 <EscolherColaborador
                                   colaboradores={collaborators}
@@ -727,7 +728,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                       {modalData.collaboratorId ? getCollaboratorName(modalData.collaboratorId) : "Nenhum colaborador escolhido"}
                                     </span>
                                     {modalData.collaboratorId && (modalData.city || getCollaboratorCity(modalData.collaboratorId)) && (
-                                      <span className="block truncate text-[11px] text-muted-foreground">
+                                      <span className="block truncate text-2xs text-muted-foreground">
                                         {modalData.city || getCollaboratorCity(modalData.collaboratorId)}
                                       </span>
                                     )}
@@ -738,7 +739,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                     disabled={!!requestLockReason}
                                     title={requestLockReason ?? "Escolher outro colaborador para esta vaga"}
                                     data-testid="select-collaborator-escalation"
-                                    className="shrink-0 rounded-lg border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-primary hover:border-primary hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="shrink-0 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-primary hover:border-primary hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     {modalData.collaboratorId ? "Trocar" : "Escolher"}
                                   </button>
@@ -747,7 +748,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                             </div>
                             )}
                             {!modalData.empreitaModo && !modalData.collaboratorId && !isEscalated(inclusion) && (
-                              <p className="text-[10px] text-amber-600 flex items-center gap-1" data-testid="hint-collaborator-required">
+                              <p className="text-2xs text-warning flex items-center gap-1" data-testid="hint-collaborator-required">
                                 <AlertCircle className="w-3 h-3 shrink-0" />Obrigatório para confirmar a escalação.
                               </p>
                             )}
@@ -756,9 +757,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                               const missing = isAtendimentoMissing(inclusion, modalData, data);
                               return (
                                 <div className="space-y-1.5">
-                                  <label htmlFor="select-atendimento-tipo" className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                  <label htmlFor="select-atendimento-tipo" className="text-2xs font-semibold text-slate-600 flex items-center gap-1">
                                     <Users className="w-3 h-3" />
-                                    Tipo de atendimento <span className="text-red-500">*</span>
+                                    Tipo de atendimento <span className="text-danger-strong">*</span>
                                   </label>
                                   <select
                                     id="select-atendimento-tipo"
@@ -768,13 +769,13 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                     disabled={!!requestLockReason}
                                     title={requestLockReason ?? undefined}
                                     aria-invalid={missing}
-                                    className={`w-full px-3 py-2 text-[13px] border rounded-xl bg-white focus:outline-none focus:ring-2 focus:border-transparent ${missing ? "border-red-300 focus:ring-red-300" : "border-slate-200 focus:ring-[#2563EB]"}`}
+                                    className={`w-full px-3 py-2 text-sm border rounded-xl bg-card focus:outline-none focus:ring-2 focus:border-transparent ${missing ? "border-danger/25 focus:ring-danger/25" : "border-border focus:ring-ring"}`}
                                   >
                                     <option value="">Selecione...</option>
                                     {ATENDIMENTO_TIPOS.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
                                   </select>
                                   {missing && (
-                                    <p className="text-[10px] text-red-600 flex items-center gap-1" data-testid="hint-atendimento-required">
+                                    <p className="text-2xs text-danger flex items-center gap-1" data-testid="hint-atendimento-required">
                                       <AlertCircle className="w-3 h-3 shrink-0" />Selecione Key Account ou Executivo de Contas.
                                     </p>
                                   )}
@@ -789,16 +790,16 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                               const missing = isPercurseiroMissing(inclusion, modalData, data);
                               return (
                                 <div className="space-y-1.5">
-                                  <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                                  <label className="text-2xs font-semibold text-slate-600 flex items-center gap-1">
                                     <Bike className="w-3 h-3" />
-                                    Tipo do percurseiro <span className="text-red-500">*</span>
+                                    Tipo do percurseiro <span className="text-danger-strong">*</span>
                                   </label>
                                   <div
                                     role="radiogroup"
                                     aria-label="Tipo do percurseiro"
                                     aria-invalid={missing}
                                     data-testid="select-percurseiro-tipo"
-                                    className={`flex gap-1.5 rounded-xl ${missing ? "ring-1 ring-red-300 p-0.5" : ""}`}
+                                    className={`flex gap-1.5 rounded-xl ${missing ? "ring-1 ring-danger/25 p-0.5" : ""}`}
                                   >
                                     {PERCURSEIRO_TIPOS.map((t) => {
                                       const ativo = modalData.percurseiroTipo === t.value;
@@ -811,11 +812,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                           aria-checked={ativo}
                                           data-testid={`btn-percurseiro-${t.value}`}
                                           onClick={() => setModalData(prev => ({ ...prev, percurseiroTipo: t.value }))}
-                                          className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${ativo ? "bg-[#2563EB] text-white border-[#2563EB]" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
+                                          className={`flex-1 px-2 py-1.5 rounded-lg text-2xs font-semibold border transition-all ${ativo ? "bg-primary text-primary-foreground border-primary" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
                                         >
                                           {t.label}
                                           {diaria && (
-                                            <span className={`block text-[10px] font-medium ${ativo ? "text-blue-100" : "text-slate-400"}`}>
+                                            <span className={`block text-2xs font-medium ${ativo ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                                               {fmtBRL(diaria.total)}/diária
                                             </span>
                                           )}
@@ -824,7 +825,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                     })}
                                   </div>
                                   {missing && (
-                                    <p className="text-[10px] text-red-600 flex items-center gap-1" data-testid="hint-percurseiro-required">
+                                    <p className="text-2xs text-danger flex items-center gap-1" data-testid="hint-percurseiro-required">
                                       <AlertCircle className="w-3 h-3 shrink-0" />Defina o tipo do percurseiro (Tipo 1 ou Tipo 2).
                                     </p>
                                   )}
@@ -833,7 +834,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                             })()}
                             {/* Cidade de saída */}
                             <div className="space-y-1.5">
-                              <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                              <label className="text-2xs font-semibold text-slate-600 flex items-center gap-1">
                                 <MapPin className="w-3 h-3" />
                                 Sai de
                               </label>
@@ -843,7 +844,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                   onClick={() => setModalData(prev => ({ ...prev, departureFromSP: true, city: "São Paulo - SP" }))}
                                   disabled={!!requestLockReason}
                                   title={requestLockReason ?? undefined}
-                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${modalData.departureFromSP ? "bg-primary text-white border-primary" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
+                                  className={`flex-1 px-2 py-1.5 rounded-lg text-2xs font-semibold border transition-all ${modalData.departureFromSP ? "bg-primary text-primary-foreground border-primary" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
                                 >
                                   São Paulo - SP
                                 </button>
@@ -852,7 +853,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                   onClick={() => setModalData(prev => ({ ...prev, departureFromSP: false, city: "" }))}
                                   disabled={!!requestLockReason}
                                   title={requestLockReason ?? undefined}
-                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${!modalData.departureFromSP ? "bg-slate-700 text-white border-slate-700" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}
+                                  className={`flex-1 px-2 py-1.5 rounded-lg text-2xs font-semibold border transition-all ${!modalData.departureFromSP ? "bg-slate-700 text-white border-slate-700" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
                                 >
                                   Outra cidade
                                 </button>
@@ -865,7 +866,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                   placeholder="Ex: Rio de Janeiro - RJ"
                                   disabled={!!requestLockReason}
                                   autoFocus
-                                  className="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+                                  className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                                 />
                               )}
                             </div>
@@ -890,9 +891,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                               if (!sameEvent.length && !dateOverlap.length) return null;
                               const conflicts = [...sameEvent, ...dateOverlap].filter((v, i, a) => a.findIndex(x => x.id === v.id) === i);
                               return (
-                                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
-                                  <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-                                  <div className="text-[11px] text-red-700 leading-snug space-y-1">
+                                <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2.5">
+                                  <AlertCircle className="w-3.5 h-3.5 text-danger-strong shrink-0 mt-0.5" />
+                                  <div className="text-2xs text-danger leading-snug space-y-1">
                                     <p className="font-bold">Escalação bloqueada — colaborador já escalado:</p>
                                     {conflicts.map(inc => {
                                       const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString("pt-BR") : "";
@@ -900,16 +901,16 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                       return (
                                         <p key={inc.id}>
                                           <span className="font-semibold">{getEventName(inc.eventId)}</span>
-                                          {startStr && endStr && <span className="text-red-500"> · {startStr} a {endStr}</span>}
+                                          {startStr && endStr && <span className="text-danger-strong"> · {startStr} a {endStr}</span>}
                                         </p>
                                       );
                                     })}
-                                    <p className="text-red-500 mt-0.5">Para trazer esta pessoa, peça a transferência: aprovada por Compras, ela sai da outra vaga e entra nesta.</p>
+                                    <p className="text-danger-strong mt-0.5">Para trazer esta pessoa, peça a transferência: aprovada por Compras, ela sai da outra vaga e entra nesta.</p>
                                     {!inclusion.collaboratorId && !pendingSwap && (
                                       <button
                                         type="button"
                                         onClick={() => setTransferirColaboradorId(modalData.collaboratorId)}
-                                        className="mt-1 inline-flex items-center rounded-md border border-red-300 bg-white px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50"
+                                        className="mt-1 inline-flex items-center rounded-md border border-danger/25 bg-card px-2 py-1 text-2xs font-semibold text-danger hover:bg-danger-soft"
                                         data-testid="button-pedir-transferencia-conflito"
                                       >
                                         Pedir transferência
@@ -925,9 +926,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                               const { mesmoDia } = getCollaboratorConflicts(modalData.collaboratorId, inclusion);
                               if (!mesmoDia?.length) return null;
                               return (
-                                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5" data-testid="aviso-mesmo-dia">
-                                  <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                                  <div className="text-[11px] text-amber-800 leading-snug space-y-1">
+                                <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2.5" data-testid="aviso-mesmo-dia">
+                                  <AlertCircle className="w-3.5 h-3.5 text-warning-strong shrink-0 mt-0.5" />
+                                  <div className="text-2xs text-warning leading-snug space-y-1">
                                     <p className="font-bold">Atenção: também viaja neste mesmo dia</p>
                                     {mesmoDia.map(inc => {
                                       const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString("pt-BR") : "";
@@ -935,11 +936,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                       return (
                                         <p key={inc.id}>
                                           <span className="font-semibold">{getEventName(inc.eventId)}</span>
-                                          {startStr && endStr && <span className="text-amber-700"> · {startStr} a {endStr}</span>}
+                                          {startStr && endStr && <span className="text-warning"> · {startStr} a {endStr}</span>}
                                         </p>
                                       );
                                     })}
-                                    <p className="text-amber-700">Pode escalar normalmente. Confira se os horários das passagens das duas viagens são compatíveis.</p>
+                                    <p className="text-warning">Pode escalar normalmente. Confira se os horários das passagens das duas viagens são compatíveis.</p>
                                   </div>
                                 </div>
                               );
@@ -954,10 +955,10 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
 
                     {/* Col 3: Período de Trabalho */}
                     <div>
-                      <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                        <div className="bg-[#2563EB]/5 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
-                          <CalendarDays className="w-4 h-4 text-[#2563EB]" />
-                          <span className="text-[11px] font-black text-[#2563EB] uppercase tracking-[0.12em]">Período de Trabalho</span>
+                      <div className="border border-border rounded-xl overflow-hidden">
+                        <div className="bg-primary/5 border-b border-border px-4 py-2.5 flex items-center gap-2">
+                          <CalendarDays className="w-4 h-4 text-primary" />
+                          <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de Trabalho</span>
                         </div>
                         <div className="p-4">
                           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -1005,13 +1006,13 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
 
                   {inclusion.observations && (
                     <div className="mt-5">
-                      <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                        <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4 text-slate-400" />
-                          <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Observações</span>
+                      <div className="border border-border rounded-xl overflow-hidden">
+                        <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Observações</span>
                         </div>
                         <div className="px-4 py-3">
-                          <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">{inclusion.observations}</p>
+                          <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{inclusion.observations}</p>
                         </div>
                       </div>
                     </div>
@@ -1029,11 +1030,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                     const visible = allAttachments.slice(0, 3);
                     return (
                       <div className="mt-5">
-                        <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                          <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-slate-400" />
-                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
-                            <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{allAttachments.length}</span>
+                        <div className="border border-border rounded-xl overflow-hidden">
+                          <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Anexos</span>
+                            <span className="bg-border text-slate-600 text-2xs font-bold px-1.5 py-0.5 rounded-full">{allAttachments.length}</span>
                           </div>
                           <div className="p-4 space-y-2">
                             {visible.map(({ id, label }, index) => (
@@ -1042,23 +1043,23 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                                 role="button"
                                 tabIndex={0}
                                 aria-label={`Abrir ${label} · Anexo ${index + 1}`}
-                                className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-3 py-2.5 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                                className="flex items-center gap-3 bg-card border border-border hover:border-primary hover:bg-brand-soft rounded-xl px-3 py-2.5 cursor-pointer transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 onClick={() => openAttachment(id, `${label} · Anexo ${index + 1}`)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAttachment(id, `${label} · Anexo ${index + 1}`); } }}
                               >
-                                <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                                  <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
+                                <div className="w-7 h-7 rounded-lg bg-brand-soft border border-primary/25 flex items-center justify-center flex-shrink-0">
+                                  <FileText className="w-3.5 h-3.5 text-primary" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[12px] font-semibold text-slate-700">{label} · Anexo {index + 1}</div>
-                                  <div className="text-[10px] text-slate-400">Documento anexado</div>
+                                  <div className="text-xs font-semibold text-slate-700">{label} · Anexo {index + 1}</div>
+                                  <div className="text-2xs text-muted-foreground">Documento anexado</div>
                                 </div>
-                                <Eye className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
+                                <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                               </div>
                             ))}
                             {allAttachments.length > 3 && (
                               <button
-                                className="w-full text-center text-[12px] text-[#2563EB] font-semibold py-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="w-full text-center text-xs text-primary font-semibold py-1.5 hover:bg-brand-soft rounded-lg transition-colors"
                                 onClick={() => setActiveTab("passagem")}
                               >
                                 Ver todos os {allAttachments.length} anexos →
@@ -1106,12 +1107,12 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               // aparece quando não há bloqueio, para não competir com ele.
               const warning = inlineReason ? null : getScalingWarning(inclusion, data);
               return (
-                <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-end gap-3 shrink-0 bg-white">
+                <div className="px-4 sm:px-6 py-4 border-t border-border flex flex-wrap items-center justify-end gap-3 shrink-0 bg-card">
                   {inclusion.status === "cancelado" && !eventLocked && hasRoleIn(user?.role, ["admin"]) && (
                     <Button
                       onClick={() => setShowReactivateConfirm(true)}
                       disabled={mutations.reactivate.isPending}
-                      className="mr-auto flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 text-sm font-semibold"
+                      className="mr-auto flex items-center gap-1.5 bg-success hover:bg-success/90 text-white rounded-xl px-4 py-2 text-sm font-semibold"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       Reativar escalação
@@ -1119,7 +1120,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                   )}
                   {inlineReason && (
                     <p
-                      className="mr-auto flex items-center gap-1.5 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 max-w-full sm:max-w-[420px] leading-snug"
+                      className="mr-auto flex items-center gap-1.5 text-xs text-warning bg-warning-soft border border-warning/25 rounded-lg px-3 py-1.5 max-w-full sm:max-w-[420px] leading-snug"
                       role="status"
                       data-testid="text-confirm-block-reason"
                     >
@@ -1129,11 +1130,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                   )}
                   {warning && (
                     <p
-                      className="mr-auto flex items-center gap-1.5 text-[12px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 max-w-full sm:max-w-[420px] leading-snug"
+                      className="mr-auto flex items-center gap-1.5 text-xs text-slate-600 bg-surface-muted border border-border rounded-lg px-3 py-1.5 max-w-full sm:max-w-[420px] leading-snug"
                       role="status"
                       data-testid="text-scaling-warning"
                     >
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                       <span className="min-w-0">{warning}</span>
                     </p>
                   )}
@@ -1145,7 +1146,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                       type="button"
                       variant="outline"
                       onClick={() => setPedirAjusteAberto(true)}
-                      className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-5 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                      className="flex items-center gap-2 rounded-xl border border-warning/25 bg-warning-soft px-5 py-2 text-sm font-semibold text-warning hover:bg-warning-soft"
                       data-testid="button-pedir-ajuste-rodape"
                     >
                       <PencilLine className="w-4 h-4" aria-hidden="true" />
@@ -1155,7 +1156,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                   <Button
                     variant="outline"
                     onClick={() => onOpenChange(false)}
-                    className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium"
+                    className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium"
                   >
                     Fechar
                   </Button>
@@ -1167,7 +1168,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                             variant="secondary"
                             onClick={() => onSave(false)}
                             disabled={isSaving || !!saveReason}
-                            className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium"
+                            className="flex items-center gap-2 border border-primary/25 text-primary bg-brand-soft hover:bg-brand-soft rounded-xl px-5 py-2 text-sm font-medium"
                             data-testid="button-save-scaling"
                           >
                             <Save className="w-4 h-4" />
@@ -1175,7 +1176,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           </Button>
                         </span>
                       </TooltipTrigger>
-                      {saveReason && <TooltipContent side="top" className="max-w-[300px] text-[12px]">{saveReason}</TooltipContent>}
+                      {saveReason && <TooltipContent side="top" className="max-w-[300px] text-xs">{saveReason}</TooltipContent>}
                     </Tooltip>
                   )}
                   {showConfirm && (
@@ -1185,8 +1186,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           <Button
                             onClick={onConfirm}
                             disabled={isSaving || !!confirmReason}
-                            style={{ background: "var(--primary)" }}
-                            className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                            className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground rounded-xl px-6 py-2 h-10 text-sm font-bold transition-colors disabled:opacity-50"
                             data-testid="button-confirm-scaling"
                           >
                             <Check className="w-4 h-4" />
@@ -1194,7 +1194,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           </Button>
                         </span>
                       </TooltipTrigger>
-                      {confirmReason && <TooltipContent side="top" className="max-w-[320px] text-[12px]">{confirmReason}</TooltipContent>}
+                      {confirmReason && <TooltipContent side="top" className="max-w-[320px] text-xs">{confirmReason}</TooltipContent>}
                     </Tooltip>
                   )}
                 </div>
@@ -1237,12 +1237,11 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               open={showReactivateConfirm}
               onOpenChange={setShowReactivateConfirm}
               icon={RotateCcw}
-              tone="emerald"
+              tone="default"
               title="Reativar escalação?"
               description={<>A escalação voltará ao status <span className="font-semibold text-slate-700">Pendente</span> e ficará disponível novamente para edição e confirmação.</>}
               confirmLabel="Sim, reativar"
-              pendingLabel="Reativando..."
-              isPending={mutations.reactivate.isPending}
+              pending={mutations.reactivate.isPending}
               onConfirm={() => mutations.reactivate.mutate(inclusion.id, { onSuccess: () => setShowReactivateConfirm(false) })}
             />
           </>

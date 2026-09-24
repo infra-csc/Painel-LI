@@ -98,7 +98,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-gradient-to-br from-brand-soft to-secondary">
-      <div className="w-full max-w-[420px] bg-card rounded-[20px] shadow-[0_20px_60px_rgba(0,0,0,0.08)] p-6 sm:p-10">
+      <div className="w-full max-w-[420px] bg-card rounded-xl shadow-3 p-6 sm:p-10">
         {/* Logo + Title (mesma casca do login) */}
         <div className="flex flex-col items-center mb-8">
           <div className="h-10 overflow-hidden flex items-start">
@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
         </div>
 
         {done ? (
-          <div role="status" className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-2xl bg-brand-soft border border-primary/20">
+          <div role="status" className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-xl bg-brand-soft border border-primary/20">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground">
               <CheckCircle2 className="w-6 h-6" />
             </div>

@@ -6,6 +6,9 @@ import { useToast } from "@/hooks/use-toast";
 import { normalizeRole } from "@shared/roles";
 import { fixEncoding } from "@/lib/utils";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { PageHeader } from "@/components/common/page-header";
+import { campo, useUrlState } from "@/lib/use-url-state";
+import { guardarEventoEmFoco } from "@/lib/evento-em-foco";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -57,13 +60,45 @@ export default function BaggageControlPage() {
   const role = normalizeRole(user?.role);
   const allowed = role === "admin" || role === "purchasing";
 
-  const [tab, setTab] = useState<TabId>("solicitacoes");
-  const [filtros, setFiltros] = useState<FiltrosDaLista>(FILTROS_VAZIOS);
-  const [ordem, setOrdem] = useState<Ordem>(ORDEM_PADRAO);
+  // Aba, filtros, ordem e buscas na URL (23/09): voltar para a tela devolve o
+  // recorte; o link copiado também. `?event=` é o mesmo nome do Financeiro e, ao
+  // escolher um evento aqui, ele vira o "evento em foco" — mas esta é uma tela
+  // de fila e abre em "todos" (regra do dono, 26/08): o padrão não vem da memória.
+  const [urlState, setUrlState] = useUrlState({
+    aba: campo.opcao<TabId>("solicitacoes"),
+    event: campo.texto(""),
+    colaboradores: campo.lista([]),
+    q: campo.texto(""),
+    cia: campo.texto(""),
+    ordem: campo.opcao<Ordem["campo"]>(ORDEM_PADRAO.campo),
+    desc: campo.booleano(ORDEM_PADRAO.desc),
+    qc: campo.texto(""),
+    qe: campo.texto(""),
+  });
+  const tab: TabId = ABAS.some(a => a.id === urlState.aba) ? urlState.aba : "solicitacoes";
+  const setTab = (t: TabId) => setUrlState({ aba: t });
+  const filtros = useMemo<FiltrosDaLista>(() => ({
+    eventId: urlState.event,
+    collaboratorIds: urlState.colaboradores,
+    search: urlState.q,
+    cia: (["Azul", "Gol", "TAM", "Outros"] as const).find(c => c === urlState.cia) ?? null,
+  }), [urlState.event, urlState.colaboradores, urlState.q, urlState.cia]);
+  const setFiltros = (next: FiltrosDaLista | ((prev: FiltrosDaLista) => FiltrosDaLista)) => {
+    const f = typeof next === "function" ? next(filtros) : next;
+    setUrlState({ event: f.eventId, colaboradores: f.collaboratorIds, q: f.search, cia: f.cia ?? "" });
+    if (f.eventId && f.eventId !== filtros.eventId) guardarEventoEmFoco(user?.id, f.eventId);
+  };
+  const ordem = useMemo<Ordem>(() => ({ campo: urlState.ordem, desc: urlState.desc }), [urlState.ordem, urlState.desc]);
+  const setOrdem = (next: Ordem | ((prev: Ordem) => Ordem)) => {
+    const o = typeof next === "function" ? next(ordem) : next;
+    setUrlState({ ordem: o.campo, desc: o.desc });
+  };
 
   // Buscas das abas 2 e 3
-  const [collabTabSearch, setCollabTabSearch] = useState("");
-  const [eventTabSearch, setEventTabSearch] = useState("");
+  const collabTabSearch = urlState.qc;
+  const setCollabTabSearch = (v: string) => setUrlState({ qc: v });
+  const eventTabSearch = urlState.qe;
+  const setEventTabSearch = (v: string) => setUrlState({ qe: v });
 
   // Formulário — agora em modal, então "aberto" é estado próprio.
   const [formAberto, setFormAberto] = useState(false);
@@ -414,11 +449,11 @@ export default function BaggageControlPage() {
   // ── Bloqueio local (além do ProtectedRoute) ──
   if (!allowed) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] p-6 flex items-center justify-center">
-        <div className="bg-white rounded-2xl border border-gray-100 p-10 max-w-md text-center">
-          <Lock className="w-10 h-10 text-[#CBD5E1] mx-auto mb-3" aria-hidden="true" />
-          <h2 className="text-base font-bold text-slate-800">Sem acesso</h2>
-          <p className="text-[13px] text-[#64748B] mt-2">
+      <div className="min-h-screen bg-surface-muted p-6 flex items-center justify-center">
+        <div className="bg-card rounded-xl border border-border p-10 max-w-md text-center">
+          <Lock className="w-10 h-10 text-muted-foreground/60 mx-auto mb-3" aria-hidden="true" />
+          <h2 className="text-base font-bold text-foreground">Sem acesso</h2>
+          <p className="text-sm text-neutral mt-2">
             O Controle de Bagagem é restrito aos papéis Administrador e Compras/Viagens.
             Se você precisa deste acesso, fale com o administrador do sistema.
           </p>
@@ -449,24 +484,21 @@ export default function BaggageControlPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6">
-      <div className="max-w-6xl mx-auto space-y-4">
-        {/*
-          Barra de contexto: onde estou, o que estou vendo e as ações. Substitui
-          o cabeçalho de página, o card de total no canto e o card solto de abas
-          — três faixas para dizer o que agora cabe em uma.
-        */}
-        <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-[#F8FAFC]/95 backdrop-blur flex items-center gap-3 flex-wrap">
-          <h1 className="text-[15px] font-semibold text-slate-900 whitespace-nowrap">Controle de Bagagem</h1>
-          <span className="w-px h-5 bg-border shrink-0" aria-hidden="true" />
-          <p className="text-[12px] text-[#64748B] truncate" aria-live="polite" data-testid="resumo-do-recorte">
-            {resumoDoTopo}
-          </p>
-
+    <div>
+      {/*
+        Barra de contexto (PageHeader `bar`, 23/09): onde estou, o que estou vendo
+        e as ações — o mesmo cabeçalho de Passagens e do Espelho. Substitui o
+        cabeçalho de página, o card de total no canto e o card solto de abas.
+      */}
+      <PageHeader
+        variant="bar"
+        title="Controle de Bagagem"
+        subtitle={<span data-testid="resumo-do-recorte">{resumoDoTopo}</span>}
+        tabs={
           <div
             role="tablist"
             aria-label="Seções do Controle de Bagagem"
-            className="ml-auto inline-flex items-center gap-0.5 h-[34px] p-0.5 rounded-lg border border-border bg-card shrink-0"
+            className="inline-flex items-center gap-0.5 h-[34px] p-0.5 rounded-lg border border-border bg-card shrink-0"
           >
             {ABAS.map(t => {
               const Icone = t.icon;
@@ -490,8 +522,8 @@ export default function BaggageControlPage() {
                     setTab(ABAS[next].id);
                     document.getElementById(`tab-${ABAS[next].id}`)?.focus();
                   }}
-                  className={`inline-flex items-center gap-1.5 h-[30px] px-2.5 rounded-md text-[12px] font-medium transition-colors ${
-                    on ? "bg-brand-soft text-primary" : "text-[#64748B] hover:bg-slate-50"
+                  className={`inline-flex items-center gap-1.5 h-[30px] px-2.5 rounded-md text-xs font-medium transition-colors ${
+                    on ? "bg-brand-soft text-primary" : "text-neutral hover:bg-surface-muted"
                   }`}
                   data-testid={`tab-${t.id}`}
                 >
@@ -501,14 +533,15 @@ export default function BaggageControlPage() {
               );
             })}
           </div>
-
+        }
+        actions={<>
           <button
             type="button"
             onClick={csvDaVisao}
             disabled={csvVazio}
             title="Exportar a visão atual em CSV"
             aria-label="Exportar a visão atual em CSV"
-            className="h-[34px] px-3 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="h-[34px] px-3 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card text-sm font-medium text-slate-700 hover:bg-surface-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             data-testid="button-csv"
           >
             <Download className="w-4 h-4" aria-hidden="true" /> CSV
@@ -517,13 +550,15 @@ export default function BaggageControlPage() {
           <button
             type="button"
             onClick={abrirNovo}
-            className="h-[34px] px-3.5 shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold transition-colors"
+            className="h-[34px] px-3.5 shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold transition-colors"
             data-testid="button-new-baggage"
           >
             <Plus className="w-4 h-4" aria-hidden="true" /> Nova solicitação
           </button>
-        </div>
+        </>}
+      />
 
+      <div className="max-w-6xl mx-auto space-y-4 pt-5">
         {tab === "solicitacoes" && (
           <div id="panel-solicitacoes" role="tabpanel" aria-labelledby="tab-solicitacoes" className="space-y-4">
             <BaggageWorkQueue
@@ -619,7 +654,7 @@ export default function BaggageControlPage() {
 
         {/* Confirmação de exclusão (soft delete no servidor) */}
         <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
-          <AlertDialogContent className="rounded-2xl">
+          <AlertDialogContent className="rounded-xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir solicitação de bagagem?</AlertDialogTitle>
               <AlertDialogDescription>
@@ -636,7 +671,7 @@ export default function BaggageControlPage() {
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
               <AlertDialogAction
-                className="rounded-lg bg-[#B91C1C] hover:bg-[#991B1B]"
+                className="rounded-lg bg-danger hover:bg-danger/90"
                 onClick={() => {
                   if (deleteTarget) {
                     // Excluir o registro aberto no formulário fecharia o modal

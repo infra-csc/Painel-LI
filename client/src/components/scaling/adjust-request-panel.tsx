@@ -96,9 +96,9 @@ function changeText(diff: InclusionDiffEntry[] | undefined): string {
     .join(" · ");
 }
 
-const CARD = "mt-5 border rounded-2xl overflow-hidden";
+const CARD = "mt-5 border rounded-xl overflow-hidden";
 const HEAD = "border-b px-4 py-2.5 flex items-center gap-2 flex-wrap";
-const HEAD_LABEL = "text-[11px] font-black uppercase tracking-[0.12em]";
+const HEAD_LABEL = "text-2xs font-black uppercase tracking-[0.12em]";
 
 /**
  * O ajuste pode ser pedido agora? Mesma leitura que decide o botão do cartão —
@@ -133,31 +133,31 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
   if (pending) {
     const tipo = CHANGE_REQUEST_TYPE_LABELS[pending.requestType] ?? pending.requestType;
     return (
-      <div className={`${CARD} border-amber-200`} data-testid="card-pedido-ajuste-pendente">
-        <div className={`${HEAD} bg-amber-50 border-amber-100`}>
-          <Clock className="w-4 h-4 text-amber-500" aria-hidden="true" />
-          <span className={`${HEAD_LABEL} text-amber-700`}>Pedido de {tipo.toLowerCase()} em análise</span>
+      <div className={`${CARD} border-warning/25`} data-testid="card-pedido-ajuste-pendente">
+        <div className={`${HEAD} bg-warning-soft border-warning/25`}>
+          <Clock className="w-4 h-4 text-warning-strong" aria-hidden="true" />
+          <span className={`${HEAD_LABEL} text-warning`}>Pedido de {tipo.toLowerCase()} em análise</span>
         </div>
         <div className="px-4 py-3 space-y-2">
           {/* O QUE muda vem primeiro, em de/para — o card mostrava só o motivo
               e não dizia o que o aprovador está decidindo. */}
           {(pending.diff?.length ?? 0) > 0 && (
-            <ul className="space-y-0.5 text-[13px] text-slate-800">
+            <ul className="space-y-0.5 text-sm text-foreground">
               {pending.diff!.map((d) => (
                 <li key={d.field} className="flex flex-wrap items-baseline gap-x-2">
                   <span className="font-semibold">{PROPOSED_FIELD_LABELS[d.field] ?? d.field}</span>
-                  <span className="text-slate-400 line-through">{formatProposedValue(d.field, d.from)}</span>
-                  <span aria-hidden="true" className="text-slate-400">→</span>
+                  <span className="text-muted-foreground line-through">{formatProposedValue(d.field, d.from)}</span>
+                  <span aria-hidden="true" className="text-muted-foreground">→</span>
                   <span className="font-medium">{formatProposedValue(d.field, d.to)}</span>
                 </li>
               ))}
             </ul>
           )}
-          <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Motivo · </span>
+          <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+            <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo · </span>
             {pending.reason?.trim() || "não informado."}
           </p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-2xs text-muted-foreground">
             {pending.requestedByName ?? "Área"}
             {pending.createdAt ? ` · ${formatDateBr(pending.createdAt)}` : ""}
             {" · aguardando o aprovador. A escalação continua como está até a decisão."}
@@ -172,13 +172,13 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
     // status, e um aviso de "ajuste indisponível" só ocuparia espaço.
     if (data.block === "vaga_cancelada" || data.block === "vaga_excluida") return null;
     return (
-      <div className={`${CARD} border-slate-200`} data-testid="card-pedido-ajuste-bloqueado">
-        <div className={`${HEAD} bg-slate-50 border-slate-100`}>
-          <Lock className="w-4 h-4 text-slate-400" aria-hidden="true" />
-          <span className={`${HEAD_LABEL} text-slate-500`}>Ajuste indisponível</span>
+      <div className={`${CARD} border-border`} data-testid="card-pedido-ajuste-bloqueado">
+        <div className={`${HEAD} bg-surface-muted border-border`}>
+          <Lock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          <span className={`${HEAD_LABEL} text-muted-foreground`}>Ajuste indisponível</span>
         </div>
         <div className="px-4 py-3">
-          <p className="text-[13px] text-slate-600 leading-relaxed">{data.message}</p>
+          <p className="text-sm text-slate-600 leading-relaxed">{data.message}</p>
         </div>
       </div>
     );
@@ -186,26 +186,26 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
 
   return (
     <>
-      <div className={`${CARD} border-slate-200`} data-testid="card-pedir-ajuste">
-        <div className={`${HEAD} bg-slate-50 border-slate-100`}>
-          <PencilLine className="w-4 h-4 text-slate-400" aria-hidden="true" />
-          <span className={`${HEAD_LABEL} text-slate-500`}>Precisa mudar algo?</span>
+      <div className={`${CARD} border-border`} data-testid="card-pedir-ajuste">
+        <div className={`${HEAD} bg-surface-muted border-border`}>
+          <PencilLine className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          <span className={`${HEAD_LABEL} text-muted-foreground`}>Precisa mudar algo?</span>
         </div>
         <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[12px] text-slate-600 leading-snug max-w-xl">
+          <p className="text-xs text-slate-600 leading-snug max-w-xl">
             Dias, diárias ou viagem desta vaga podem ser ajustados por pedido ao aprovador
             {data.adminOverride
               ? " — a passagem já foi comprada, e só o administrador consegue abrir este pedido."
               : ", enquanto a passagem não for comprada."}
             {data.ticketInProgress && (
-              <span className="block mt-1 text-amber-700">
+              <span className="block mt-1 text-warning">
                 A logística já está preparando a passagem desta vaga — mudar datas agora significa refazer a cotação.
               </span>
             )}
           </p>
           <Button
             type="button" variant="outline" onClick={() => setOpen(true)}
-            className="rounded-lg bg-white border-slate-200 hover:bg-brand-soft hover:text-primary"
+            className="rounded-lg bg-card border-border hover:bg-brand-soft hover:text-primary"
             data-testid="button-pedir-ajuste-escalacao"
           >
             <PencilLine className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />

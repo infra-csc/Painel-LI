@@ -44,6 +44,31 @@
   --shadow-lg: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 4px 6px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
   --shadow-xl: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 8px 10px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
   --shadow-2xl: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00);
+  /* ── Tokens semânticos (23/09) ─────────────────────────────────────────
+   * Uma cor por SIGNIFICADO, não por tela. A auditoria achou 940 hex soltos e
+   * o mesmo estado com cores diferentes conforme a página ("Escalado" azul num
+   * lugar e verde noutro). Regra: pendente/atenção = warning; ok/concluído =
+   * success; informação neutra = info; bloqueio/erro = danger; neutro = muted.
+   * Os *-soft são o fundo da pílula; a cor cheia é o texto ou o ponto. */
+  --success: hsl(158, 64%, 30%);             /* #0F766E-ish, texto sobre soft */
+  --success-soft: hsl(152, 76%, 95%);        /* #ECFDF5 */
+  --success-strong: hsl(160, 84%, 39%);      /* #10B981 — ponto/ícone */
+  --warning: hsl(26, 90%, 37%);              /* #B45309 */
+  --warning-soft: hsl(48, 96%, 89%);         /* #FEF3C7 */
+  --warning-strong: hsl(32, 95%, 44%);       /* #D97706 */
+  --info: hsl(226, 71%, 40%);                /* #3730A3 */
+  --info-soft: hsl(226, 100%, 97%);          /* #EEF2FF */
+  --info-strong: hsl(239, 84%, 67%);         /* #6366F1 */
+  --danger: hsl(0, 74%, 42%);                /* #B91C1C */
+  --danger-soft: hsl(0, 86%, 97%);           /* #FEF2F2 */
+  --danger-strong: hsl(0, 84%, 60%);         /* #EF4444 */
+  --neutral: hsl(215, 16%, 47%);             /* #64748B */
+  --neutral-soft: hsl(210, 40%, 96%);        /* #F1F5F9 */
+  --surface-muted: hsl(210, 40%, 98%);       /* #F8FAFC — cabeçalho de tabela */
+  /* Elevação: 3 níveis, uma cor de sombra só (substitui as 6 bases de rgba). */
+  --elevation-1: 0 1px 2px hsl(222 47% 11% / 0.06), 0 1px 3px hsl(222 47% 11% / 0.08);
+  --elevation-2: 0 4px 12px hsl(222 47% 11% / 0.10), 0 1px 3px hsl(222 47% 11% / 0.06);
+  --elevation-3: 0 12px 32px hsl(222 47% 11% / 0.16), 0 2px 6px hsl(222 47% 11% / 0.08);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 }
@@ -83,28 +108,10 @@
 }
 
 @layer components {
-  .status-badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
-  }
-  
-  .status-planejado              { @apply bg-orange-50   text-orange-600;  }
-  .status-escalacao              { @apply bg-green-50    text-green-600;   }
-  .status-confirmado             { @apply bg-orange-50   text-orange-600;  }
-  .status-reaberto               { @apply bg-purple-50   text-purple-600;  }
-  .status-passagem               { @apply bg-teal-50     text-teal-600;    }
-  .status-hospedagem             { @apply bg-blue-50     text-blue-500;    }
-  .status-passagem_comprada      { @apply bg-green-50    text-green-600;   }
-  .status-hospedagem_comprada    { @apply bg-green-50    text-green-700;   }
-  .status-hospedagem_passagem_comprada { @apply bg-green-600 text-white;   }
-  .status-aprovacao              { @apply bg-yellow-50   text-yellow-600;  }
-  .status-aprovado               { @apply bg-green-600   text-white;       }
-  .status-rejeitado              { @apply bg-red-50      text-red-600;     }
-  .status-cancelado              { @apply bg-slate-100   text-slate-400;   }
-  .status-escalado               { @apply bg-blue-50     text-blue-600;    }
-  .status-aguardando_producao    { @apply bg-red-50      text-red-700;     }
-  .status-aguardando_passagem    { @apply bg-orange-50   text-orange-600;  }
-  .status-aguardando_hospedagem  { @apply bg-purple-50   text-purple-600;  }
-  
+  /* As classes `.status-*` (pílula por status, uma cor por chave) saíram em
+   * 23/09: a pílula única é o StatusBadge de components/common/status-badge.tsx,
+   * que decide a cor pelo SIGNIFICADO (tokens semânticos acima). */
+
   .workflow-step {
     @apply relative flex items-center justify-center w-10 h-10 rounded-full border-2 bg-card;
   }
@@ -158,9 +165,9 @@
   background: transparent;
 }
 .event-search-list::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: var(--border);
   border-radius: 10px;
 }
 .event-search-list::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: var(--neutral);
 }

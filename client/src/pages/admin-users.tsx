@@ -16,9 +16,10 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import { campo, useUrlState } from "@/lib/use-url-state";
 import UserEditModal from "@/components/modals/user-edit-modal";
 import ResetPasswordModal from "@/components/modals/reset-password-modal";
-import ConfirmModal, { type ConfirmVariant } from "@/components/common/confirm-modal";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import type { User } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 import { hasPermission } from "@/lib/role-utils";
@@ -30,9 +31,9 @@ import { usePageTitle } from "@/components/common/use-page-title";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-orange-500",
-  "bg-pink-500", "bg-cyan-600", "bg-amber-500", "bg-rose-500",
-  "bg-indigo-500", "bg-teal-500",
+  "bg-primary", "bg-primary", "bg-success-strong", "bg-warning-strong",
+  "bg-primary", "bg-info", "bg-warning-strong", "bg-danger-strong",
+  "bg-primary", "bg-info-strong",
 ];
 function avatarColor(name: string) {
   let h = 0;
@@ -49,20 +50,20 @@ function initials(name: string) {
 const PAGE_SIZE = 25;
 
 const ROLE_CFG: Record<string, { label: string; cls: string }> = {
-  admin:         { label: "Administrador", cls: "bg-violet-50 text-violet-700 ring-1 ring-violet-200" },
-  administrador: { label: "Administrador", cls: "bg-violet-50 text-violet-700 ring-1 ring-violet-200" },
-  administrator: { label: "Administrador", cls: "bg-violet-50 text-violet-700 ring-1 ring-violet-200" },
-  production:    { label: "Produção",      cls: "bg-blue-50 text-blue-700 ring-1 ring-blue-200" },
-  function_area: { label: "Área de Função",cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
-  rh:            { label: "RH",            cls: "bg-orange-50 text-orange-700 ring-1 ring-orange-200" },
-  purchasing:    { label: "Compras",       cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200" },
-  financial:     { label: "RH",            cls: "bg-teal-50 text-teal-700 ring-1 ring-teal-200" },
+  admin:         { label: "Administrador", cls: "bg-brand-soft text-primary ring-1 ring-primary/25" },
+  administrador: { label: "Administrador", cls: "bg-brand-soft text-primary ring-1 ring-primary/25" },
+  administrator: { label: "Administrador", cls: "bg-brand-soft text-primary ring-1 ring-primary/25" },
+  production:    { label: "Produção",      cls: "bg-brand-soft text-primary ring-1 ring-primary/25" },
+  function_area: { label: "Área de Função",cls: "bg-success-soft text-success ring-1 ring-success/25" },
+  rh:            { label: "RH",            cls: "bg-warning-soft text-warning ring-1 ring-warning/25" },
+  purchasing:    { label: "Compras",       cls: "bg-warning-soft text-warning ring-1 ring-warning/25" },
+  financial:     { label: "RH",            cls: "bg-info-soft text-info ring-1 ring-info/25" },
 };
 
 function RoleBadge({ role }: { role: string }) {
-  const cfg = ROLE_CFG[normalizeRole(role) ?? role] ?? ROLE_CFG[role] ?? { label: role, cls: "bg-slate-50 text-slate-600 ring-1 ring-slate-200" };
+  const cfg = ROLE_CFG[normalizeRole(role) ?? role] ?? ROLE_CFG[role] ?? { label: role, cls: "bg-surface-muted text-slate-600 ring-1 ring-border" };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${cfg.cls}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium ${cfg.cls}`}>
       {cfg.label}
     </span>
   );
@@ -70,16 +71,16 @@ function RoleBadge({ role }: { role: string }) {
 
 function StatusPill({ status, isActive }: { status: string; isActive: boolean | null }) {
   if (status === "pending") {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">Pendente</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium bg-warning-soft text-warning ring-1 ring-warning/25">Pendente</span>;
   }
   if (status === "approved" && isActive !== false) {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">Ativo</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium bg-success-soft text-success ring-1 ring-success/25">Ativo</span>;
   }
   if (status === "rejected") {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-200">Rejeitado</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium bg-muted text-muted-foreground ring-1 ring-border">Rejeitado</span>;
   }
   // approved + isActive===false → Inativo (gray, NOT red)
-  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-200">Inativo</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium bg-muted text-muted-foreground ring-1 ring-border">Inativo</span>;
 }
 
 // ─── Metric card ─────────────────────────────────────────────────────────────
@@ -89,11 +90,11 @@ function MetricCard({
   return (
     <button
       onClick={onClick}
-      className={`text-left p-4 bg-white rounded-xl border shadow-sm transition-all hover:shadow-md ${
-        active ? "border-primary/40 ring-2 ring-primary/10" : "border-gray-200"
+      className={`text-left p-4 bg-card rounded-xl border shadow-1 transition-all hover:shadow-2 ${
+        active ? "border-primary/40 ring-2 ring-primary/10" : "border-border"
       }`}
     >
-      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
+      <p className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
       <p className={`text-2xl font-bold ${valueColor}`}>{value}</p>
     </button>
   );
@@ -102,14 +103,25 @@ function MetricCard({
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function AdminUsers() {
   usePageTitle("Usuários");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  // Busca, papel, status e página na URL (23/09): aprovar alguém e voltar
+  // devolvia a lista sem o recorte. Os cards de status também são filtros.
+  const [urlState, setUrlState] = useUrlState({
+    q: campo.texto(""),
+    status: campo.texto("all"),
+    role: campo.texto("all"),
+    pagina: campo.numero(1),
+  });
+  const statusFilter = urlState.status;
+  const roleFilter = urlState.role;
+  const searchQuery = urlState.q;
+  const page = urlState.pagina;
+  const setPage = (p: number | ((prev: number) => number)) =>
+    setUrlState(prev => ({ ...prev, pagina: typeof p === "function" ? p(prev.pagina) : p }));
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [resetPwdUser, setResetPwdUser] = useState<User | null>(null);
-  const [page, setPage] = useState(1);
+  // "delete"/"cancel" desfazem algo → tom destrutivo no ConfirmDialog; "confirm" é neutro.
   const [confirmState, setConfirmState] = useState<{
-    open: boolean; variant: ConfirmVariant; title: string; message: string; confirmLabel: string; onConfirm: () => void;
+    open: boolean; variant: "delete" | "cancel" | "confirm"; title: string; message: string; confirmLabel: string; onConfirm: () => void;
   }>({ open: false, variant: 'delete', title: '', message: '', confirmLabel: '', onConfirm: () => {} });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -246,9 +258,9 @@ export default function AdminUsers() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const setFilter = (val: string) => { setStatusFilter(val); setPage(1); };
-  const setRole   = (val: string) => { setRoleFilter(val); setPage(1); };
-  const clearAll  = () => { setSearchQuery(""); setFilter("all"); setRole("all"); };
+  const setFilter = (val: string) => setUrlState({ status: val, pagina: 1 });
+  const setRole   = (val: string) => setUrlState({ role: val, pagina: 1 });
+  const clearAll  = () => setUrlState({ q: "", status: "all", role: "all", pagina: 1 });
 
   // A lista encolhe quando um usuário muda de status; sem isto a página atual
   // podia ficar fora do intervalo e a tabela aparecia vazia com o rodapé cheio.
@@ -271,8 +283,8 @@ export default function AdminUsers() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <h2 className="text-lg font-bold text-slate-800 mb-1">Acesso Negado</h2>
-          <p className="text-sm text-slate-500">Você não tem permissão para acessar esta página.</p>
+          <h2 className="text-lg font-bold text-foreground mb-1">Acesso Negado</h2>
+          <p className="text-sm text-muted-foreground">Você não tem permissão para acessar esta página.</p>
         </div>
       </div>
     );
@@ -282,13 +294,13 @@ export default function AdminUsers() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center max-w-md">
-          <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-slate-800 mb-1">Não foi possível carregar os usuários</h2>
-          <p className="text-sm text-slate-500 mb-4">{errorText(error, "Verifique sua conexão e tente novamente.")}</p>
+          <AlertCircle className="w-10 h-10 text-danger-strong mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-foreground mb-1">Não foi possível carregar os usuários</h2>
+          <p className="text-sm text-muted-foreground mb-4">{errorText(error, "Verifique sua conexão e tente novamente.")}</p>
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-slate-600 hover:border-gray-300 disabled:opacity-50"
+            className="px-4 py-2 text-xs font-semibold rounded-lg border border-border text-slate-600 hover:border-slate-300 disabled:opacity-50"
           >
             {isFetching ? "Tentando..." : "Tentar novamente"}
           </button>
@@ -319,7 +331,7 @@ export default function AdminUsers() {
           actions={canCreate && (
             <button
               onClick={() => setLocation("/user-registration")}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg shadow-sm shadow-primary/30 hover:shadow-md transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg shadow-1 hover:shadow-2 transition-all"
             >
               <UserPlus className="w-3.5 h-3.5" /> Novo Usuário
             </button>
@@ -328,26 +340,26 @@ export default function AdminUsers() {
 
         {/* ── Metric cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <MetricCard label="Total" value={totalCount} valueColor="text-slate-800" active={statusFilter === "all"} onClick={() => setFilter("all")} />
-          <MetricCard label="Pendentes" value={pendingCount} valueColor="text-amber-600" active={statusFilter === "pending"} onClick={() => setFilter("pending")} />
-          <MetricCard label="Aprovados" value={approvedCount} valueColor="text-emerald-600" active={statusFilter === "approved"} onClick={() => setFilter("approved")} />
-          <MetricCard label="Inativos" value={inactiveCount} valueColor="text-slate-400" active={statusFilter === "inactive"} onClick={() => setFilter("inactive")} />
+          <MetricCard label="Total" value={totalCount} valueColor="text-foreground" active={statusFilter === "all"} onClick={() => setFilter("all")} />
+          <MetricCard label="Pendentes" value={pendingCount} valueColor="text-warning" active={statusFilter === "pending"} onClick={() => setFilter("pending")} />
+          <MetricCard label="Aprovados" value={approvedCount} valueColor="text-success" active={statusFilter === "approved"} onClick={() => setFilter("approved")} />
+          <MetricCard label="Inativos" value={inactiveCount} valueColor="text-muted-foreground" active={statusFilter === "inactive"} onClick={() => setFilter("inactive")} />
         </div>
 
         {/* ── Search + Filters ── */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome ou e-mail..."
               aria-label="Buscar usuários por nome ou e-mail"
               value={searchQuery}
-              onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+              onChange={e => setUrlState({ q: e.target.value, pagina: 1 })}
               className="pl-9 h-9 text-sm border-input rounded-lg focus:border-primary focus:ring-1 focus:ring-ring/20"
               data-testid="input-search-users"
             />
             {searchQuery && (
-              <button type="button" aria-label="Limpar busca" onClick={() => { setSearchQuery(""); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <button type="button" aria-label="Limpar busca" onClick={() => setUrlState({ q: "", pagina: 1 })} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
                 <X className="w-3 h-3" />
               </button>
             )}
@@ -370,27 +382,27 @@ export default function AdminUsers() {
 
           {(searchQuery || statusFilter !== "all" || roleFilter !== "all") && (
             <button onClick={clearAll}
-              className="flex items-center gap-1 h-9 px-3 text-xs text-slate-500 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+              className="flex items-center gap-1 h-9 px-3 text-xs text-muted-foreground border border-border rounded-lg hover:border-slate-300 transition-colors">
               <X className="w-3 h-3" /> Limpar
             </button>
           )}
-          <span className="text-xs text-slate-400 ml-auto tabular-nums">
+          <span className="text-xs text-muted-foreground ml-auto tabular-nums">
             {filtered.length} de {users.length} usuários
           </span>
         </div>
 
         {/* ── Table ── */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50/80 border-b border-gray-100">
-                  <th className="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Usuário</th>
-                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">E-mail</th>
-                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Perfil</th>
-                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cadastro</th>
-                  <th className="text-right px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ações</th>
+                <tr className="bg-surface-muted/80 border-b border-border">
+                  <th className="text-left px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Usuário</th>
+                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">E-mail</th>
+                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Perfil</th>
+                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Cadastro</th>
+                  <th className="text-right px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -417,34 +429,34 @@ export default function AdminUsers() {
                     return (
                       <tr
                         key={u.id}
-                        className={`border-b border-gray-50 transition-colors ${
+                        className={`border-b border-border transition-colors ${
                           isPending
-                            ? "bg-amber-50/40 hover:bg-amber-50/70"
+                            ? "bg-warning-soft/40 hover:bg-warning-soft/70"
                             : isEven
-                            ? "bg-slate-50/40 hover:bg-brand-soft/40"
-                            : "bg-white hover:bg-brand-soft/40"
+                            ? "bg-surface-muted/40 hover:bg-brand-soft/40"
+                            : "bg-card hover:bg-brand-soft/40"
                         } ${isInactive ? "opacity-75" : ""}`}
                       >
                         {/* Usuário */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ${col}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-2xs font-bold text-white shrink-0 ${col}`}>
                               {initials(u.name)}
                             </div>
                             <div>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-slate-800 text-sm leading-tight" data-testid={`text-user-name-${u.id}`}>
+                                <span className="font-semibold text-foreground text-sm leading-tight" data-testid={`text-user-name-${u.id}`}>
                                   {u.name}
                                 </span>
                               </div>
-                              {u.area && <p className="text-[11px] text-slate-400 mt-0.5">{u.area}</p>}
+                              {u.area && <p className="text-2xs text-muted-foreground mt-0.5">{u.area}</p>}
                             </div>
                           </div>
                         </td>
 
                         {/* E-mail */}
                         <td className="px-4 py-4">
-                          <span className="font-mono text-xs text-slate-500" data-testid={`text-user-email-${u.id}`}>
+                          <span className="font-mono text-xs text-muted-foreground" data-testid={`text-user-email-${u.id}`}>
                             {u.email}
                           </span>
                         </td>
@@ -460,7 +472,7 @@ export default function AdminUsers() {
                         </td>
 
                         {/* Data de Cadastro */}
-                        <td className="px-4 py-4 text-xs text-slate-400 tabular-nums">
+                        <td className="px-4 py-4 text-xs text-muted-foreground tabular-nums">
                           {u.createdAt ? new Date(u.createdAt).toLocaleDateString("pt-BR") : "—"}
                         </td>
 
@@ -472,7 +484,7 @@ export default function AdminUsers() {
                                 <button
                                   onClick={() => setEditingUser(u)}
                                   aria-label={`Editar usuário ${u.name}`}
-                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-primary hover:bg-brand-soft transition-colors"
+                                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors"
                                   data-testid={`button-edit-${u.id}`}
                                 >
                                   <Edit className="w-3.5 h-3.5" />
@@ -490,7 +502,7 @@ export default function AdminUsers() {
                                       onClick={() => handleApprove(u.id, "approved")}
                                       disabled={approveUserMutation.isPending}
                                       aria-label={`Aprovar usuário ${u.name}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 transition-colors"
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
                                       data-testid={`button-approve-${u.id}`}
                                     >
                                       <CheckCircle className="w-3.5 h-3.5" />
@@ -504,7 +516,7 @@ export default function AdminUsers() {
                                       onClick={() => handleApprove(u.id, "rejected")}
                                       disabled={approveUserMutation.isPending}
                                       aria-label={`Rejeitar usuário ${u.name}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft disabled:opacity-40 transition-colors"
                                       data-testid={`button-reject-${u.id}`}
                                     >
                                       <XCircle className="w-3.5 h-3.5" />
@@ -523,7 +535,7 @@ export default function AdminUsers() {
                                     onClick={() => handleApprove(u.id, "approved")}
                                     disabled={approveUserMutation.isPending}
                                     aria-label={`Reativar usuário ${u.name}`}
-                                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 transition-colors"
+                                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
                                     data-testid={`button-reactivate-${u.id}`}
                                   >
                                     <UserCheck className="w-3.5 h-3.5" />
@@ -543,7 +555,7 @@ export default function AdminUsers() {
                                       onClick={() => handleResetPassword(u)}
                                       disabled={resetPasswordMutation.isPending}
                                       aria-label={`Resetar senha de ${u.name}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-40 transition-colors"
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-warning hover:bg-warning-soft disabled:opacity-40 transition-colors"
                                       data-testid={`button-reset-pwd-${u.id}`}
                                     >
                                       <Key className="w-3.5 h-3.5" />
@@ -560,8 +572,8 @@ export default function AdminUsers() {
                                       aria-label={u.isActive !== false ? `Desativar usuário ${u.name}` : `Reativar usuário ${u.name}`}
                                       className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
                                         u.isActive !== false
-                                          ? "text-slate-400 hover:text-red-600 hover:bg-red-50"
-                                          : "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                                          ? "text-muted-foreground hover:text-danger hover:bg-danger-soft"
+                                          : "text-success bg-success-soft hover:bg-success-soft"
                                       }`}
                                       data-testid={`button-toggle-active-${u.id}`}
                                     >
@@ -587,8 +599,8 @@ export default function AdminUsers() {
                                           : `Dar permissão de aprovar cenotécnica a ${u.name}`}
                                         className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
                                           (u as any).canApproveCenotecnica
-                                            ? "text-violet-600 bg-violet-50 hover:bg-violet-100"
-                                            : "text-slate-400 hover:text-violet-600 hover:bg-violet-50"
+                                            ? "text-primary bg-brand-soft hover:bg-brand-soft"
+                                            : "text-muted-foreground hover:text-primary-hover hover:bg-brand-soft"
                                         }`}
                                         data-testid={`button-toggle-cenotecnica-${u.id}`}
                                       >
@@ -616,8 +628,8 @@ export default function AdminUsers() {
 
           {/* ── Footer / Pagination ── */}
           {filtered.length > 0 && (
-            <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">
-              <p className="text-xs text-slate-400">
+            <div className="px-6 py-3 border-t border-border flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
                 Exibindo{" "}
                 <span className="font-medium text-slate-600">
                   {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)}
@@ -631,16 +643,16 @@ export default function AdminUsers() {
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
                     aria-label="Página anterior"
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-xs text-slate-500 px-2 tabular-nums">{page} / {totalPages}</span>
+                  <span className="text-xs text-muted-foreground px-2 tabular-nums">{page} / {totalPages}</span>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
                     aria-label="Próxima página"
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -667,14 +679,14 @@ export default function AdminUsers() {
         />
       </PageContainer>
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmState.open}
-        variant={confirmState.variant}
+        onOpenChange={(o) => { if (!o) setConfirmState(prev => ({ ...prev, open: false })); }}
         title={confirmState.title}
-        message={confirmState.message}
+        description={confirmState.message}
         confirmLabel={confirmState.confirmLabel}
+        tone={confirmState.variant === "confirm" ? "default" : "danger"}
         onConfirm={confirmState.onConfirm}
-        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
       />
     </TooltipProvider>
   );

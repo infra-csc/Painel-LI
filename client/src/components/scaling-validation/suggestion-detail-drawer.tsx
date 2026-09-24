@@ -179,7 +179,7 @@ function valueText(raw: string | null | undefined): string | null {
 // título era 11px/slate-500 nos cartões vizinhos, e o contraste de 400 sobre
 // branco não passa para texto.
 const SECTION = cn("flex items-center gap-1.5", SECTION_TITLE);
-const CARD = "rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2";
+const CARD = "rounded-xl border border-border bg-card p-3.5 space-y-2";
 
 /** "Qua 20/08 14:32" — dia da semana como no resto do módulo. */
 function fmtDateTime(v: string | Date | null | undefined): string {
@@ -212,9 +212,9 @@ function DayChip({ v }: { v: string }) {
   // Sem fundo pintado no fim de semana: fundo aqui significaria "marcado"
   // (mesma regra do seletor de dias) — o sinal fica no nome do dia.
   return (
-    <span className="flex flex-col items-center min-w-[52px] rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] leading-tight text-slate-600">
+    <span className="flex flex-col items-center min-w-[52px] rounded-lg border border-border bg-card px-2 py-1 text-2xs leading-tight text-slate-600">
       <span className="font-semibold tabular-nums">{h.date}</span>
-      <span className={cn("text-[10px]", h.isWeekend ? "text-orange-700" : "text-slate-500")}>{h.dayName}</span>
+      <span className={cn("text-2xs", h.isWeekend ? "text-warning" : "text-muted-foreground")}>{h.dayName}</span>
     </span>
   );
 }
@@ -339,98 +339,98 @@ export function SuggestionDetailDrawer({
           chips de logística e os dias de trabalho quebravam em duas linhas.
           Com 720px cabem numa linha só, e sobra menos rolagem para conferir. */}
       <DialogContent
-        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-2xl !flex !flex-col p-0 gap-0 overflow-hidden"
+        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden"
         // Sem preventDefault: o foco volta para quem abriu o detalhe, e só
         // depois disso a tela abre o diálogo que estava esperando.
         onCloseAutoFocus={() => onClosed?.()}
       >
         {row ? (
           <>
-            <DialogHeader className="shrink-0 border-b border-slate-100 bg-white px-5 pb-3 pt-5 text-left space-y-2">
+            <DialogHeader className="shrink-0 border-b border-border bg-card px-5 pb-3 pt-5 text-left space-y-2">
               <DialogTitle className="flex items-center gap-2 text-base leading-tight">
-                <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
-                <span className="truncate font-semibold text-slate-900">{functionName ?? "Função"}</span>
+                <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
+                <span className="truncate font-semibold text-foreground">{functionName ?? "Função"}</span>
                 {/* Fila de 14 vagas não pode obrigar a fechar e reabrir. O ‹ ›
                     fica à esquerda do X (pr-8 reserva o lugar dele). */}
                 {canNavigate && (
                   <span className="ml-auto mr-8 flex shrink-0 items-center gap-1.5">
-                    <span className="text-[11px] tabular-nums text-slate-500">{index + 1} de {queue.length}</span>
+                    <span className="text-2xs tabular-nums text-muted-foreground">{index + 1} de {queue.length}</span>
                     <button
                       type="button" onClick={() => prevRow && onNavigate!(prevRow)} disabled={!prevRow}
                       title="Vaga anterior (←)" aria-label="Vaga anterior"
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-surface-muted disabled:opacity-40 disabled:hover:bg-transparent"
                     >
                       <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                     </button>
                     <button
                       type="button" onClick={() => nextRow && onNavigate!(nextRow)} disabled={!nextRow}
                       title="Próxima vaga (→)" aria-label="Próxima vaga"
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-surface-muted disabled:opacity-40 disabled:hover:bg-transparent"
                     >
                       <ChevronRight className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </span>
                 )}
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500">
+              <DialogDescription className="text-xs text-muted-foreground">
                 {event?.name ?? "Evento"}
                 {row.canEdit ? " · você valida esta função" : " · somente leitura"}
               </DialogDescription>
               <StatusCell row={row} approverNames={approverNames} />
             </DialogHeader>
 
-            <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/60">
+            <div className="flex-1 min-h-0 overflow-y-auto bg-surface-muted/60">
               <div className="space-y-3 px-4 py-4">
                 {/* Decisão do aprovador (a vaga voltou) */}
                 {row.lastDecision && decision && (
-                  <section aria-labelledby="det-decisao" className={cn("rounded-2xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[decision.tone])}>
-                    <p id="det-decisao" className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide">
+                  <section aria-labelledby="det-decisao" className={cn("rounded-xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[decision.tone])}>
+                    <p id="det-decisao" className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide">
                       <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {decision.title} · pedido de {(CHANGE_REQUEST_TYPE_LABELS[row.lastDecision.requestType] ?? row.lastDecision.requestType).toLowerCase()}
                     </p>
-                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastDecision.comment?.trim() ? row.lastDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
-                    <p className="text-[11px] text-slate-600">{row.lastDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastDecision.at)}</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{row.lastDecision.comment?.trim() ? row.lastDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
+                    <p className="text-2xs text-slate-600">{row.lastDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastDecision.at)}</p>
                   </section>
                 )}
 
                 {/* Decisão do aprovador sobre a VAGA (devolvida/reprovada/aprovada) */}
                 {row.lastVagaDecision && vagaDecision && (
-                  <section aria-labelledby="det-decisao-vaga" className={cn("rounded-2xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[vagaDecision.tone])}>
-                    <p id="det-decisao-vaga" className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide">
+                  <section aria-labelledby="det-decisao-vaga" className={cn("rounded-xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[vagaDecision.tone])}>
+                    <p id="det-decisao-vaga" className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide">
                       <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {vagaDecision.title}
                     </p>
-                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{row.lastVagaDecision.comment?.trim() ? row.lastVagaDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
-                    <p className="text-[11px] text-slate-600">{row.lastVagaDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastVagaDecision.at)}</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{row.lastVagaDecision.comment?.trim() ? row.lastVagaDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
+                    <p className="text-2xs text-slate-600">{row.lastVagaDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastVagaDecision.at)}</p>
                   </section>
                 )}
 
                 {/* Pedido pendente */}
                 {pending && (
-                  <section aria-labelledby="det-pedido" className="rounded-2xl border border-violet-200 bg-violet-50/60 px-3.5 py-3 space-y-1">
-                    <p id="det-pedido" className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-violet-700">
+                  <section aria-labelledby="det-pedido" className="rounded-xl border border-primary/25 bg-brand-soft/60 px-3.5 py-3 space-y-1">
+                    <p id="det-pedido" className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-primary">
                       <MessageSquareWarning className="w-3.5 h-3.5" aria-hidden="true" /> Pedido de {(CHANGE_REQUEST_TYPE_LABELS[pending.requestType as ChangeRequestType] ?? pending.requestType).toLowerCase()} aguardando o aprovador
                     </p>
-                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{pending.reason}</p>
-                    <p className="text-[11px] text-slate-600">por {pending.requestedByName} · {fmtDateTime(pending.createdAt)}</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{pending.reason}</p>
+                    <p className="text-2xs text-slate-600">por {pending.requestedByName} · {fmtDateTime(pending.createdAt)}</p>
                   </section>
                 )}
 
                 {/* Período e diárias */}
                 <Card id="det-periodo" title="Período e diárias" icon={CalendarDays}>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-800">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
                     {start ? (
                       <span className="font-medium">
                         <DayLabel v={start} />
-                        {end && end !== start && <> <span className="text-slate-300" aria-hidden="true">–</span> <DayLabel v={end} /></>}
+                        {end && end !== start && <> <span className="text-muted-foreground" aria-hidden="true">–</span> <DayLabel v={end} /></>}
                       </span>
                     ) : (
-                      <span className="text-slate-500">Período não definido</span>
+                      <span className="text-muted-foreground">Período não definido</span>
                     )}
-                    <span className="inline-flex items-center rounded-md bg-brand-soft px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
+                    <span className="inline-flex items-center rounded-md bg-brand-soft px-2 py-0.5 text-2xs font-semibold tabular-nums text-primary">
                       {formatDiarias(days.length || row.dailyRates || 0)}
                     </span>
                   </div>
-                  <div className="space-y-1.5 border-t border-slate-100 pt-2">
-                    <p className="text-[11px] text-slate-500">
+                  <div className="space-y-1.5 border-t border-border pt-2">
+                    <p className="text-2xs text-muted-foreground">
                       Dias de trabalho <span className="tabular-nums">({days.length})</span>
                     </p>
                     {days.length ? (
@@ -438,7 +438,7 @@ export function SuggestionDetailDrawer({
                         {days.map((d) => <DayChip key={d} v={d} />)}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-500">Nenhum dia marcado.</p>
+                      <p className="text-xs text-muted-foreground">Nenhum dia marcado.</p>
                     )}
                   </div>
                 </Card>
@@ -456,21 +456,21 @@ export function SuggestionDetailDrawer({
                         {row.needsTicket && <NeedChip kind="passagem" />}
                         {row.needsAccommodation && <NeedChip kind="hotel" />}
                       </div>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-2xs text-muted-foreground">
                         Modal, datas e horários vêm da sugestão da logística — mudar isso é pedido de ajuste.
                       </p>
                     </>
                   ) : (
-                    <p className="text-xs italic text-slate-500">Sem logística — esta vaga não precisa de passagem nem de hospedagem.</p>
+                    <p className="text-xs italic text-muted-foreground">Sem logística — esta vaga não precisa de passagem nem de hospedagem.</p>
                   )}
                 </Card>
 
                 {/* Observações */}
                 <Card id="det-obs" title="Observações da vaga" icon={StickyNote}>
                   {row.observations?.trim() ? (
-                    <p className="whitespace-pre-wrap text-sm text-slate-800">{row.observations}</p>
+                    <p className="whitespace-pre-wrap text-sm text-foreground">{row.observations}</p>
                   ) : (
-                    <p className="text-xs italic text-slate-500">Sem observações — a logística não escreveu nada para esta vaga.</p>
+                    <p className="text-xs italic text-muted-foreground">Sem observações — a logística não escreveu nada para esta vaga.</p>
                   )}
                 </Card>
 
@@ -481,23 +481,23 @@ export function SuggestionDetailDrawer({
                       <Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" />
                     </div>
                   ) : logsQuery.isError ? (
-                    <p className="text-xs text-slate-500">Não foi possível carregar o histórico.</p>
+                    <p className="text-xs text-muted-foreground">Não foi possível carregar o histórico.</p>
                   ) : !logsQuery.data?.length ? (
                     // Sem log gravado, a linha do tempo mostra o único fato que
                     // existe — a vaga sugerida —, descrevendo a própria vaga.
                     // Nunca entradas fixas de devolução/ajuste: afirmariam
                     // evento que não aconteceu.
-                    <ol className="relative ml-1.5 space-y-3 border-l border-slate-200">
+                    <ol className="relative ml-1.5 space-y-3 border-l border-border">
                       <li className="ml-4">
                         <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white bg-slate-300" aria-hidden="true" />
-                        <p className="text-sm text-slate-800">{describeSuggestedVaga(row)}</p>
+                        <p className="text-sm text-foreground">{describeSuggestedVaga(row)}</p>
                         {row.suggestionSentAt && (
-                          <p className="mt-0.5 text-[11px] text-slate-500">{fmtDateTime(row.suggestionSentAt)}</p>
+                          <p className="mt-0.5 text-2xs text-muted-foreground">{fmtDateTime(row.suggestionSentAt)}</p>
                         )}
                       </li>
                     </ol>
                   ) : (
-                    <ol className="relative ml-1.5 space-y-3 border-l border-slate-200">
+                    <ol className="relative ml-1.5 space-y-3 border-l border-border">
                       {logsQuery.data.map((log, i) => {
                         const before = valueText(log.previousValue);
                         const after = valueText(log.newValue);
@@ -508,19 +508,19 @@ export function SuggestionDetailDrawer({
                         return (
                           <li key={log.id} className="ml-4">
                             <span className={cn("absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white", agora ? "bg-primary" : "bg-slate-300")} aria-hidden="true" />
-                            <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-800">
+                            <p className="flex flex-wrap items-center gap-1.5 text-sm text-foreground">
                               {phrase}
-                              {agora && <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">agora</span>}
+                              {agora && <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-primary">agora</span>}
                             </p>
                             {/* Basta um dos dois lados: campo esvaziado tem "de"
                                 sem "para", e guardar tudo pelo "para" fazia o
                                 registro sumir inteiro. */}
                             {(before || after) && (
-                              <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-slate-500">
+                              <p className="mt-0.5 flex flex-wrap items-center gap-1 text-2xs text-muted-foreground">
                                 {before && (
                                   <>
                                     <span className="line-through decoration-slate-300">{before}</span>
-                                    {after && <ArrowRight className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />}
+                                    {after && <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
                                   </>
                                 )}
                                 {after
@@ -528,7 +528,7 @@ export function SuggestionDetailDrawer({
                                   : <span className="italic">(esvaziado)</span>}
                               </p>
                             )}
-                            <p className="mt-0.5 text-[11px] text-slate-500">{log.userName} · {fmtDateTime(log.createdAt)}</p>
+                            <p className="mt-0.5 text-2xs text-muted-foreground">{log.userName} · {fmtDateTime(log.createdAt)}</p>
                           </li>
                         );
                       })}
@@ -539,14 +539,14 @@ export function SuggestionDetailDrawer({
             </div>
 
             {showFooter && (
-              <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+              <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-card px-5 py-3">
                 {ondeEsta && (
-                  <Link href={ondeEsta.href} className="mr-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-primary transition-colors hover:border-primary/30 hover:bg-brand-soft">
+                  <Link href={ondeEsta.href} className="mr-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-primary transition-colors hover:border-primary/30 hover:bg-brand-soft">
                     <ExternalLink className="h-4 w-4" aria-hidden="true" /> {ondeEsta.label}
                   </Link>
                 )}
                 {mayRequest && onDelete && (
-                  <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50" onClick={() => onDelete(row)}>
+                  <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg border-danger/25 text-danger hover:bg-danger-soft" onClick={() => onDelete(row)}>
                     <Trash2 className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir exclusão
                   </Button>
                 )}
@@ -562,7 +562,7 @@ export function SuggestionDetailDrawer({
                     <TooltipTrigger asChild>
                       <Button
                         type="button" size="sm" variant="outline"
-                        className="h-9 rounded-lg border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        className="h-9 rounded-lg border-success/25 bg-success-soft text-success hover:bg-success-soft"
                         onClick={() => onValidateAndNext(row)}
                       >
                         <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar e próxima
@@ -576,7 +576,7 @@ export function SuggestionDetailDrawer({
                 {mayValidate && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" size="sm" className="h-9 rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-700" onClick={() => onValidate!(row)}>
+                      <Button type="button" size="sm" className="h-9 rounded-lg bg-success font-semibold text-white hover:bg-success/90" onClick={() => onValidate!(row)}>
                         <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar vaga
                       </Button>
                     </TooltipTrigger>
@@ -589,7 +589,7 @@ export function SuggestionDetailDrawer({
             )}
           </>
         ) : (
-          <div className="p-5"><DialogTitle className="sr-only">Detalhe da vaga</DialogTitle><DialogDescription className="text-sm text-slate-500">Nenhuma vaga selecionada.</DialogDescription></div>
+          <div className="p-5"><DialogTitle className="sr-only">Detalhe da vaga</DialogTitle><DialogDescription className="text-sm text-muted-foreground">Nenhuma vaga selecionada.</DialogDescription></div>
         )}
       </DialogContent>
     </Dialog>

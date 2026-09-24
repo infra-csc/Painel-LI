@@ -12,9 +12,9 @@ export default function ShortcutsDialog({ open, onOpenChange }: { open: boolean;
         </DialogHeader>
         <ul className="m-0 p-0 list-none flex flex-col gap-1.5">
           {SHORTCUTS.map((s) => (
-            <li key={s.keys} className="flex items-center justify-between gap-3 py-1.5 border-b border-slate-100 last:border-b-0">
-              <span className="text-[13px] text-slate-700">{s.what}</span>
-              <kbd className="shrink-0 border border-border bg-background rounded-md px-2 py-0.5 font-mono text-[11px] text-slate-500">{s.keys}</kbd>
+            <li key={s.keys} className="flex items-center justify-between gap-3 py-1.5 border-b border-border last:border-b-0">
+              <span className="text-sm text-slate-700">{s.what}</span>
+              <kbd className="shrink-0 border border-border bg-background rounded-md px-2 py-0.5 font-mono text-2xs text-muted-foreground">{s.keys}</kbd>
             </li>
           ))}
         </ul>

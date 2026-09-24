@@ -23,8 +23,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { formatDateRange } from "@/lib/dates";
 import { scalingHref } from "@/lib/use-scaling-event";
 import type { Event } from "@shared/schema";
-import { MI } from "./mi";
-import { visibleTabs, groupOf, iconClassFor, SCALING_MODULE_PATHS } from "./nav-items";
+import { Search, CalendarDays } from "lucide-react";
+import { visibleTabs, groupOf, SCALING_MODULE_PATHS } from "./nav-items";
 import { MOD } from "./shortcuts";
 
 export default function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -61,28 +61,28 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-describedby={undefined}
-        className="top-[12vh] translate-y-0 max-w-[560px] w-[calc(100vw-32px)] p-0 gap-0 rounded-2xl overflow-hidden [&>button]:hidden"
+        className="top-[12vh] translate-y-0 max-w-[560px] w-[calc(100vw-32px)] p-0 gap-0 rounded-xl overflow-hidden [&>button]:hidden"
       >
         <DialogTitle className="sr-only">Buscar tela ou evento</DialogTitle>
         <Command shouldFilter className="bg-card">
-          <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100">
-            <MI name="search" size={18} className="text-slate-400" />
+          <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-border">
+            <Search className="w-[18px] h-[18px] text-muted-foreground" aria-hidden="true" />
             <CommandPrimitive.Input
               autoFocus
               value={query}
               onValueChange={setQuery}
               placeholder={eventTarget ? "Buscar tela ou evento" : "Buscar tela"}
-              className="flex-1 h-7 border-0 bg-transparent text-sm text-foreground outline-none placeholder:text-slate-400"
+              className="flex-1 h-7 border-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
-            <kbd className="border border-border bg-background rounded-md px-1.5 py-px font-mono text-[10px] text-slate-400">esc</kbd>
+            <kbd className="border border-border bg-background rounded-md px-1.5 py-px font-mono text-2xs text-muted-foreground">esc</kbd>
           </div>
 
           <CommandList className="max-h-[320px] p-1.5">
-            <CommandEmpty className="py-6 text-center text-xs text-slate-400">
+            <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
               Nada encontrado para “{query.trim()}”.
             </CommandEmpty>
 
-            <CommandGroup heading="Telas" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em]">
+            <CommandGroup heading="Telas" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em]">
               {tabs.map((tab) => {
                 const found = groupOf(tab.id);
                 const hint = found ? [found.group.title, found.subLabel].filter(Boolean).join(" / ") : "";
@@ -91,30 +91,30 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
                     key={tab.id}
                     value={`${tab.label} ${hint}`}
                     onSelect={() => go(tab.path)}
-                    className="gap-2.5 px-2.5 py-2 rounded-lg text-[13px] cursor-pointer"
+                    className="gap-2.5 px-2.5 py-2 rounded-lg text-sm cursor-pointer"
                   >
-                    <span className={found ? iconClassFor(found.group, tab.id) : "text-primary"}>
-                      <MI name={tab.icon} filled size={17} />
+                    <span className="text-muted-foreground">
+                      <tab.icon className="w-[17px] h-[17px]" aria-hidden="true" />
                     </span>
-                    <span className="flex-1 text-slate-900">{tab.label}</span>
-                    {hint && <span className="text-[11px] text-slate-400">{hint}</span>}
+                    <span className="flex-1 text-foreground">{tab.label}</span>
+                    {hint && <span className="text-2xs text-muted-foreground">{hint}</span>}
                   </CommandItem>
                 );
               })}
             </CommandGroup>
 
             {eventTarget && activeEvents.length > 0 && (
-              <CommandGroup heading="Eventos" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em]">
+              <CommandGroup heading="Eventos" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em]">
                 {activeEvents.map((ev) => (
                   <CommandItem
                     key={ev.id}
                     value={`${ev.name} ${ev.location ?? ""}`}
                     onSelect={() => go(scalingHref(eventTarget, ev.id))}
-                    className="gap-2.5 px-2.5 py-2 rounded-lg text-[13px] cursor-pointer"
+                    className="gap-2.5 px-2.5 py-2 rounded-lg text-sm cursor-pointer"
                   >
-                    <span className="text-primary"><MI name="event" filled size={17} /></span>
-                    <span className="flex-1 truncate text-slate-900">{ev.name}</span>
-                    <span className="shrink-0 text-[11px] text-slate-400">
+                    <span className="text-primary"><CalendarDays className="w-[17px] h-[17px]" aria-hidden="true" /></span>
+                    <span className="flex-1 truncate text-foreground">{ev.name}</span>
+                    <span className="shrink-0 text-2xs text-muted-foreground">
                       {formatDateRange(ev.startDate as unknown as string, ev.endDate as unknown as string)}
                     </span>
                   </CommandItem>
@@ -123,7 +123,7 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
             )}
           </CommandList>
 
-          <div className="flex items-center gap-3.5 px-3.5 py-2 border-t border-slate-100 bg-background/60 text-[10px] text-slate-400">
+          <div className="flex items-center gap-3.5 px-3.5 py-2 border-t border-border bg-background/60 text-2xs text-muted-foreground">
             <span>↑↓ navega</span>
             <span>↵ abre</span>
             <span>{MOD}K fecha</span>

@@ -53,12 +53,12 @@ export interface AccommodationsTableProps {
  */
 const LARGURA_MINIMA_DA_TABELA = 1000;
 
-const TH = "px-3.5 py-2.5 text-[11px] font-bold tracking-[0.12em] text-[#64748B] uppercase";
+const TH = "px-3.5 py-2.5 text-2xs font-bold tracking-[0.12em] text-muted-foreground uppercase";
 /** Alvo de 40×40 para a caixa: margem não amplia área de clique, e padding em checkbox nativo não funciona. */
 const ALVO_DA_CAIXA = "inline-flex items-center justify-center w-10 h-10 -m-2 cursor-pointer";
 const CAIXA = "w-4 h-4 cursor-pointer accent-primary";
 /** Pílulas: 22px de altura, 7px de padding lateral, 11px/500 — legíveis e clicáveis. */
-const PILULA = "inline-flex items-center gap-1.5 h-[22px] px-[7px] rounded-md text-[11px] font-medium whitespace-nowrap";
+const PILULA = "inline-flex items-center gap-1.5 h-[22px] px-[7px] rounded-md text-2xs font-medium whitespace-nowrap";
 
 export default function AccommodationsTable({
   rows, accommodationMap, eventById, functionById, collaboratorById, pendingSwapByInclusion, approvedSwapInclusionIds,
@@ -70,7 +70,7 @@ export default function AccommodationsTable({
   const selecionadas = new Set(selectedIds);
 
   return (
-    <div className="bg-card rounded-[14px] border border-border shadow-[0_1px_2px_rgba(15,23,42,.05)] overflow-hidden">
+    <div className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
       {/*
         Abaixo do limiar, cada célula vira uma faixa de largura cheia com o
         próprio rótulo — em CSS, sobre a MESMA árvore de células. Nada é
@@ -89,11 +89,11 @@ export default function AccommodationsTable({
           content: attr(data-rotulo);
           display: block;
           margin-bottom: 2px;
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: .06em;
-          color: #64748B;
+          color: var(--muted-foreground);
         }
         /* A caixa de seleção divide a primeira faixa com o #ID. */
         .hospedagem-cartao td:nth-child(1),
@@ -114,7 +114,7 @@ export default function AccommodationsTable({
 
       <div ref={refLargura} className={`overflow-x-auto ${modoCartao ? "hospedagem-cartao" : ""}`}>
         <table className="w-full text-left border-collapse">
-          <thead className="bg-[#F8FAFC] border-b border-border">
+          <thead className="bg-surface-muted border-b border-border">
             <tr>
               <th className="px-3.5 py-2.5 w-11 text-center">
                 <label className={ALVO_DA_CAIXA} title="Selecionar todas as pendentes">
@@ -129,18 +129,18 @@ export default function AccommodationsTable({
                   />
                 </label>
               </th>
-              <SortableHeader field="id" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-[11px] !tracking-[0.12em] !text-[#64748B] !font-bold">ID</SortableHeader>
-              <SortableHeader field="event" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-[11px] !tracking-[0.12em] !text-[#64748B] !font-bold">Evento</SortableHeader>
-              <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-[11px] !tracking-[0.12em] !text-[#64748B] !font-bold">Colaborador / Função</SortableHeader>
-              <SortableHeader field="date" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-[11px] !tracking-[0.12em] !text-[#64748B] !font-bold w-[112px]">Check-in</SortableHeader>
+              <SortableHeader field="id" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-2xs !tracking-[0.12em] !text-muted-foreground !font-bold">ID</SortableHeader>
+              <SortableHeader field="event" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-2xs !tracking-[0.12em] !text-muted-foreground !font-bold">Evento</SortableHeader>
+              <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-2xs !tracking-[0.12em] !text-muted-foreground !font-bold">Colaborador / Função</SortableHeader>
+              <SortableHeader field="date" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-2xs !tracking-[0.12em] !text-muted-foreground !font-bold w-[112px]">Check-in</SortableHeader>
               <th scope="col" className={`${TH} w-[112px]`}>Check-out</th>
-              <SortableHeader field="hotelName" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-[11px] !tracking-[0.12em] !text-[#64748B] !font-bold w-[190px]">Hotel</SortableHeader>
+              <SortableHeader field="hotelName" sortConfig={sortConfig} onSort={onSort} className="!px-3.5 !py-2.5 !text-2xs !tracking-[0.12em] !text-muted-foreground !font-bold w-[190px]">Hotel</SortableHeader>
               <th scope="col" className={TH}>Situação</th>
               <th scope="col" className={`${TH} text-center w-[72px]`}>Ações</th>
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-border">
             {rows.map((inclusion) => {
               const event = eventById.get(inclusion.eventId);
               const func = functionById.get(inclusion.functionId);
@@ -160,8 +160,8 @@ export default function AccommodationsTable({
               // você e o que espera decisão de troca. Registrada não pinta nada
               // — trabalho feito não precisa chamar atenção.
               const marcador = isSelected ? "border-l-primary"
-                : hasPendingSwap && !isCanceled ? "border-l-[#F59E0B]"
-                : !hasAccommodation && !isCanceled ? "border-l-[#F97316]"
+                : hasPendingSwap && !isCanceled ? "border-l-warning-strong"
+                : !hasAccommodation && !isCanceled ? "border-l-warning-strong"
                 : "border-l-transparent";
 
               return (
@@ -169,8 +169,8 @@ export default function AccommodationsTable({
                   key={inclusion.id}
                   data-testid={`accommodation-row-${inclusion.inclusionNumber}`}
                   className={`transition-colors border-l-[3px] ${marcador} ${
-                    isSelected ? "bg-brand-soft" : "hover:bg-[#F8FAFC]"
-                  } ${isCanceled ? "opacity-60" : ""}`}
+ isSelected ? "bg-brand-soft" : "hover:bg-surface-muted"
+ } ${isCanceled ? "opacity-60" : ""}`}
                 >
                   {/* Seleção */}
                   <td className="px-3.5 py-3 w-11 text-center" data-vazio={canSelect ? "nao" : "sim"}>
@@ -190,27 +190,27 @@ export default function AccommodationsTable({
 
                   {/* ID */}
                   <td className="px-3.5 py-3 w-16">
-                    <span className="inline-block bg-brand-soft text-primary text-[13px] font-semibold rounded-md px-2 py-1 whitespace-nowrap tabular-nums">
+                    <span className="inline-block bg-brand-soft text-primary text-sm font-semibold rounded-md px-2 py-1 whitespace-nowrap tabular-nums">
                       #{inclusion.inclusionNumber || "N/A"}
                     </span>
                   </td>
 
                   {/* Evento */}
                   <td className="px-3.5 py-3 max-w-[200px]" data-testid={`accommodation-event-${inclusion.inclusionNumber}`}>
-                    <p className="text-[14px] font-semibold text-slate-900 truncate" title={nomeDoEvento}>{nomeDoEvento}</p>
+                    <p className="text-sm font-semibold text-foreground truncate" title={nomeDoEvento}>{nomeDoEvento}</p>
                   </td>
 
                   {/* Colaborador / Função */}
                   <td className="px-3.5 py-3" data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-brand-soft text-primary flex items-center justify-center text-[11px] font-bold shrink-0" aria-hidden="true">
+                      <div className="w-9 h-9 rounded-full bg-brand-soft text-primary flex items-center justify-center text-2xs font-bold shrink-0" aria-hidden="true">
                         {collaborator ? initials(displayName) : "?"}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[14px] font-medium text-slate-900 leading-tight truncate" title={displayName || undefined}>
-                          {displayName || <span className="text-[#64748B]">Sem colaborador</span>}
+                        <p className="text-sm font-medium text-foreground leading-tight truncate" title={displayName || undefined}>
+                          {displayName || <span className="text-muted-foreground">Sem colaborador</span>}
                         </p>
-                        <p className="text-[12px] text-[#64748B] mt-0.5 truncate" title={nomeDaFuncao}>{nomeDaFuncao}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate" title={nomeDaFuncao}>{nomeDaFuncao}</p>
                       </div>
                     </div>
                   </td>
@@ -224,13 +224,13 @@ export default function AccommodationsTable({
                   >
                     {accommodation?.checkInDate ? (
                       <div>
-                        <div className="text-[10px] font-bold text-[#15803D] uppercase tracking-[0.06em] mb-0.5 flex items-center gap-0.5">
+                        <div className="text-2xs font-bold text-success uppercase tracking-[0.06em] mb-0.5 flex items-center gap-0.5">
                           <ArrowDown className="w-2.5 h-2.5" aria-hidden="true" /> In
                         </div>
-                        <div className="text-[13px] font-medium text-slate-900 tabular-nums">{formatDate(accommodation.checkInDate)}</div>
-                        {accommodation.checkInTime && <div className="text-[13px] font-bold text-primary mt-0.5 tabular-nums">{accommodation.checkInTime}</div>}
+                        <div className="text-sm font-medium text-foreground tabular-nums">{formatDate(accommodation.checkInDate)}</div>
+                        {accommodation.checkInTime && <div className="text-sm font-bold text-primary mt-0.5 tabular-nums">{accommodation.checkInTime}</div>}
                       </div>
-                    ) : <span className="text-[#94A3B8]">—</span>}
+                    ) : <span className="text-muted-foreground">—</span>}
                   </td>
 
                   {/* Check-out */}
@@ -242,13 +242,13 @@ export default function AccommodationsTable({
                   >
                     {accommodation?.checkOutDate ? (
                       <div>
-                        <div className="text-[10px] font-bold text-[#92400E] uppercase tracking-[0.06em] mb-0.5 flex items-center gap-0.5">
+                        <div className="text-2xs font-bold text-warning uppercase tracking-[0.06em] mb-0.5 flex items-center gap-0.5">
                           <ArrowUp className="w-2.5 h-2.5" aria-hidden="true" /> Out
                         </div>
-                        <div className="text-[13px] font-medium text-slate-900 tabular-nums">{formatDate(accommodation.checkOutDate)}</div>
-                        {accommodation.checkOutTime && <div className="text-[13px] font-bold text-primary mt-0.5 tabular-nums">{accommodation.checkOutTime}</div>}
+                        <div className="text-sm font-medium text-foreground tabular-nums">{formatDate(accommodation.checkOutDate)}</div>
+                        {accommodation.checkOutTime && <div className="text-sm font-bold text-primary mt-0.5 tabular-nums">{accommodation.checkOutTime}</div>}
                       </div>
-                    ) : <span className="text-[#94A3B8]">—</span>}
+                    ) : <span className="text-muted-foreground">—</span>}
                   </td>
 
                   {/* Hotel */}
@@ -257,16 +257,16 @@ export default function AccommodationsTable({
                       <div className="flex items-start gap-2">
                         <BedDouble className="w-4 h-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
                         <div className="min-w-0">
-                          <p className="text-[14px] font-semibold text-slate-900 truncate" title={accommodation.hotelName}>{accommodation.hotelName}</p>
+                          <p className="text-sm font-semibold text-foreground truncate" title={accommodation.hotelName}>{accommodation.hotelName}</p>
                           {accommodation.hotelLocation && (
-                            <p className="text-[12px] text-[#64748B] mt-0.5 truncate" title={accommodation.hotelLocation}>{accommodation.hotelLocation}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate" title={accommodation.hotelLocation}>{accommodation.hotelLocation}</p>
                           )}
                         </div>
                       </div>
                     ) : (
                       // "Não informado" em itálico cinza-claro lia como erro do
                       // sistema; é só trabalho que ainda não foi feito.
-                      <span className="text-[13px] text-[#64748B]">Hotel a definir</span>
+                      <span className="text-sm text-muted-foreground">Hotel a definir</span>
                     )}
                   </td>
 
@@ -274,27 +274,27 @@ export default function AccommodationsTable({
                   <td className="px-3.5 py-3" data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
                     <div className="flex flex-col items-start gap-1">
                       {isCanceled ? (
-                        <span className={`${PILULA} bg-slate-100 text-[#64748B]`}>Cancelado</span>
+                        <span className={`${PILULA} bg-muted text-muted-foreground`}>Cancelado</span>
                       ) : hasAccommodation ? (
-                        <span className={`${PILULA} bg-[#DCFCE7] text-[#15803D]`}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#15803D] shrink-0" aria-hidden="true" />Registrada
+                        <span className={`${PILULA} bg-success-soft text-success`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" aria-hidden="true" />Registrada
                         </span>
                       ) : (
-                        <span className={`${PILULA} bg-[#FEF9C3] text-[#854D0E]`}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#F97316] shrink-0" aria-hidden="true" />Pendente
+                        <span className={`${PILULA} bg-warning-soft text-warning`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0" aria-hidden="true" />Pendente
                         </span>
                       )}
                       {hasPendingSwap && !isCanceled && (
                         <span
-                          className={`${PILULA} bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]`}
+                          className={`${PILULA} bg-warning-soft text-warning border border-warning/25`}
                           data-testid={`badge-swap-pending-${inclusion.inclusionNumber}`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] shrink-0 animate-pulse" aria-hidden="true" />Troca pendente
+                          <span className="w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0 animate-pulse" aria-hidden="true" />Troca pendente
                         </span>
                       )}
                       {hasApprovedSwap && !isCanceled && (
                         <span
-                          className={`${PILULA} bg-[#ECFDF5] text-[#047857]`}
+                          className={`${PILULA} bg-success-soft text-success`}
                           title="Esta vaga teve uma troca de colaborador aprovada — confira a hospedagem"
                           data-testid={`badge-swap-approved-${inclusion.inclusionNumber}`}
                         >
@@ -313,7 +313,7 @@ export default function AccommodationsTable({
                         data-testid={`view-accommodation-${inclusion.inclusionNumber}`}
                         title="Visualizar hospedagem"
                         aria-label={`Visualizar hospedagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
-                        className="w-10 h-10 rounded-full text-[#64748B] hover:bg-brand-soft hover:text-primary inline-flex items-center justify-center transition-colors"
+                        className="w-10 h-10 rounded-full text-muted-foreground hover:bg-brand-soft hover:text-primary inline-flex items-center justify-center transition-colors"
                       >
                         <Eye className="w-4 h-4" aria-hidden="true" />
                       </button>
@@ -338,21 +338,21 @@ export default function AccommodationsTable({
 
         {rows.length === 0 && (
           <div className="m-4 flex flex-col items-center gap-2 text-center py-10 rounded-xl border border-dashed border-border" data-testid="no-accommodations">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
-              <Hotel className="w-6 h-6 text-[#64748B]" aria-hidden="true" />
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
+              <Hotel className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
             </div>
             {hasActiveFilters ? (
               <>
-                <p className="text-[15px] font-semibold text-slate-700">Nenhuma hospedagem neste recorte</p>
-                <p className="text-[13px] text-[#64748B]">Os filtros de agora não devolveram nenhuma vaga. Ajuste ou limpe para ver as demais.</p>
+                <p className="text-base font-semibold text-slate-700">Nenhuma hospedagem neste recorte</p>
+                <p className="text-sm text-muted-foreground">Os filtros de agora não devolveram nenhuma vaga. Ajuste ou limpe para ver as demais.</p>
                 <Button variant="outline" size="sm" className="mt-1 rounded-lg" onClick={onClearFilters} data-testid="button-clear-filters-empty">
                   Limpar filtros
                 </Button>
               </>
             ) : (
               <>
-                <p className="text-[15px] font-semibold text-slate-700">Nenhuma inclusão com hospedagem</p>
-                <p className="text-[13px] text-[#64748B]">Inclusões que precisam de hospedagem aparecem aqui assim que forem escaladas.</p>
+                <p className="text-base font-semibold text-slate-700">Nenhuma inclusão com hospedagem</p>
+                <p className="text-sm text-muted-foreground">Inclusões que precisam de hospedagem aparecem aqui assim que forem escaladas.</p>
               </>
             )}
           </div>
@@ -360,16 +360,16 @@ export default function AccommodationsTable({
       </div>
 
       {/* Rodapé: o que está na tela e o que as duas cores da borda querem dizer. */}
-      <div className="h-10 px-4 bg-[#F8FAFC] border-t border-border flex items-center gap-4 flex-wrap">
-        <p className="text-[12px] text-[#64748B] tabular-nums" data-testid="rodape-contagem">
+      <div className="h-10 px-4 bg-surface-muted border-t border-border flex items-center gap-4 flex-wrap">
+        <p className="text-xs text-muted-foreground tabular-nums" data-testid="rodape-contagem">
           Mostrando {rows.length} de {total} {total === 1 ? "vaga" : "vagas"} · {ordenacao}
         </p>
         <div className="ml-auto flex items-center gap-4">
-          <span className="inline-flex items-center gap-1.5 text-[12px] text-[#64748B]">
-            <span className="w-[3px] h-3.5 rounded-sm bg-[#F97316]" aria-hidden="true" />espera você
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-[3px] h-3.5 rounded-sm bg-warning-strong" aria-hidden="true" />espera você
           </span>
-          <span className="inline-flex items-center gap-1.5 text-[12px] text-[#64748B]">
-            <span className="w-[3px] h-3.5 rounded-sm bg-[#F59E0B]" aria-hidden="true" />troca em análise
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-[3px] h-3.5 rounded-sm bg-warning-strong" aria-hidden="true" />troca em análise
           </span>
         </div>
       </div>

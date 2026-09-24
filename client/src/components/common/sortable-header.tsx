@@ -41,7 +41,7 @@ export default function SortableHeader<F extends string = SortField>({
     <th
       scope="col"
       aria-sort={direction ? ARIA_SORT[direction] : 'none'}
-      className={`group px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] hover:bg-slate-100 transition-colors ${className}`}
+      className={`group px-6 py-5 text-left text-2xs font-black text-muted-foreground uppercase tracking-[0.15em] hover:bg-muted transition-colors ${className}`}
       data-testid={`header-${field}`}
     >
       <button

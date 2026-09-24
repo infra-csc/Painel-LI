@@ -20,18 +20,18 @@ interface ActivityLog {
 }
 
 const ACTION_CONFIG: Record<string, { dotColor: string; bg: string; text: string; Icon: any; label: string }> = {
-  create:      { dotColor: 'bg-blue-500',    bg: 'bg-blue-50',    text: 'text-blue-700',    Icon: Plus,         label: 'Criado' },
-  update:      { dotColor: 'bg-amber-500',   bg: 'bg-amber-50',   text: 'text-amber-700',   Icon: Edit2,        label: 'Atualizado' },
-  edit:        { dotColor: 'bg-amber-500',   bg: 'bg-amber-50',   text: 'text-amber-700',   Icon: Edit2,        label: 'Editado' },
-  delete:      { dotColor: 'bg-red-500',     bg: 'bg-red-50',     text: 'text-red-700',     Icon: Trash2,       label: 'Excluído' },
-  approve:     { dotColor: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', Icon: CheckCircle,  label: 'Aprovado' },
-  aprovado:    { dotColor: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', Icon: CheckCircle,  label: 'Aprovado' },
-  return:      { dotColor: 'bg-orange-500',  bg: 'bg-orange-50',  text: 'text-orange-700',  Icon: RotateCcw,    label: 'Devolvido' },
-  devolvido:   { dotColor: 'bg-orange-500',  bg: 'bg-orange-50',  text: 'text-orange-700',  Icon: RotateCcw,    label: 'Devolvido' },
-  reject:      { dotColor: 'bg-red-500',     bg: 'bg-red-50',     text: 'text-red-700',     Icon: XCircle,      label: 'Recusado' },
-  rejeitado:   { dotColor: 'bg-red-500',     bg: 'bg-red-50',     text: 'text-red-700',     Icon: XCircle,      label: 'Recusado' },
-  send_review: { dotColor: 'bg-violet-500',  bg: 'bg-violet-50',  text: 'text-violet-700',  Icon: Send,         label: 'Enviado para revisão' },
-  note:        { dotColor: 'bg-sky-500',     bg: 'bg-sky-50',     text: 'text-sky-700',     Icon: FileText,     label: 'Observação' },
+  create:      { dotColor: 'bg-primary',    bg: 'bg-brand-soft',    text: 'text-primary',    Icon: Plus,         label: 'Criado' },
+  update:      { dotColor: 'bg-warning-strong',   bg: 'bg-warning-soft',   text: 'text-warning',   Icon: Edit2,        label: 'Atualizado' },
+  edit:        { dotColor: 'bg-warning-strong',   bg: 'bg-warning-soft',   text: 'text-warning',   Icon: Edit2,        label: 'Editado' },
+  delete:      { dotColor: 'bg-danger-strong',     bg: 'bg-danger-soft',     text: 'text-danger',     Icon: Trash2,       label: 'Excluído' },
+  approve:     { dotColor: 'bg-success-strong', bg: 'bg-success-soft', text: 'text-success', Icon: CheckCircle,  label: 'Aprovado' },
+  aprovado:    { dotColor: 'bg-success-strong', bg: 'bg-success-soft', text: 'text-success', Icon: CheckCircle,  label: 'Aprovado' },
+  return:      { dotColor: 'bg-warning-strong',  bg: 'bg-warning-soft',  text: 'text-warning',  Icon: RotateCcw,    label: 'Devolvido' },
+  devolvido:   { dotColor: 'bg-warning-strong',  bg: 'bg-warning-soft',  text: 'text-warning',  Icon: RotateCcw,    label: 'Devolvido' },
+  reject:      { dotColor: 'bg-danger-strong',     bg: 'bg-danger-soft',     text: 'text-danger',     Icon: XCircle,      label: 'Recusado' },
+  rejeitado:   { dotColor: 'bg-danger-strong',     bg: 'bg-danger-soft',     text: 'text-danger',     Icon: XCircle,      label: 'Recusado' },
+  send_review: { dotColor: 'bg-primary',  bg: 'bg-brand-soft',  text: 'text-primary',  Icon: Send,         label: 'Enviado para revisão' },
+  note:        { dotColor: 'bg-info-strong',     bg: 'bg-info-soft',     text: 'text-info',     Icon: FileText,     label: 'Observação' },
 };
 
 const MONETARY_FIELDS = new Set([
@@ -218,39 +218,39 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
   const count = logs.length;
 
   return (
-    <div className="border-t border-slate-100">
+    <div className="border-t border-border">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-surface-muted transition-colors"
       >
         <div className="flex items-center gap-2">
-          <History className="w-4 h-4 text-slate-400" />
-          <span className="text-[13px] font-semibold text-slate-600">Histórico</span>
+          <History className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-semibold text-slate-600">Histórico</span>
           {count > 0 && (
-            <span className="text-[10px] font-bold text-white bg-slate-400 rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
+            <span className="text-2xs font-bold text-white bg-slate-400 rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
               {count}
             </span>
           )}
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
 
       {open && (
         <div className="px-5 pb-4">
           {isLoading && (
-            <div className="flex items-center gap-2 py-4 text-[12px] text-slate-400">
+            <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
               <Clock className="w-3.5 h-3.5 animate-spin" />
               Carregando histórico...
             </div>
           )}
 
           {!isLoading && logs.length === 0 && (
-            <p className="text-[12px] text-slate-400 py-3">Nenhuma alteração registrada.</p>
+            <p className="text-xs text-muted-foreground py-3">Nenhuma alteração registrada.</p>
           )}
 
           {!isLoading && logs.length > 0 && (
             <div className="relative">
-              <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-slate-100" />
+              <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-muted" />
 
               <div className="space-y-4">
                 {logs.map((log) => {
@@ -271,10 +271,10 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
                       <div className="flex-1 min-w-0">
                         {/* Header: badge + data */}
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
+                          <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
                             {cfg.label}
                           </span>
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-2xs text-muted-foreground">
                             {formatDate(log.created_at)}
                           </span>
                         </div>
@@ -282,8 +282,8 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
                         {/* Autor */}
                         {log.user_name && (
                           <div className="flex items-center gap-1 mt-0.5">
-                            <User className="w-2.5 h-2.5 text-slate-400" />
-                            <span className="text-[11px] font-semibold text-slate-600">{log.user_name}</span>
+                            <User className="w-2.5 h-2.5 text-muted-foreground" />
+                            <span className="text-2xs font-semibold text-slate-600">{log.user_name}</span>
                           </div>
                         )}
 
@@ -291,7 +291,7 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
                         {bullets.length > 0 && (
                           <ul className="mt-1.5 space-y-0.5">
                             {bullets.map((b, i) => (
-                              <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-600">
+                              <li key={i} className="flex items-start gap-1.5 text-2xs text-slate-600">
                                 <span className="mt-[3px] w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
                                 {b}
                               </li>
@@ -333,7 +333,7 @@ export function PlannedEditedBadge({
   return (
     <span
       title={title}
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 cursor-help shrink-0"
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-warning-soft text-warning border border-warning/25 cursor-help shrink-0"
     >
       ⚠️ Planejamento Alterado
     </span>

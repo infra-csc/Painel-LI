@@ -6,12 +6,23 @@
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { avisarAgenda, AVISO_LOGISTICA_PARA_REVISAR, semAvisos, useCancelarVaga } from "@/hooks/use-vaga-acoes";
 import type { TeamInclusion } from "@shared/schema";
 import { CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo } from "@shared/cenotecnica-empreita";
 
 export type ScalingSaveAction = "save" | "confirm";
 
-/** Payload do Salvar (PATCH) e do Confirmar (POST /confirm). */
+/** Vaga devolvida por PATCH / POST /confirm — com `avisosDeAgenda` quando há aviso (24/09). */
+export type TeamInclusionComAvisos = TeamInclusion & { avisosDeAgenda?: unknown };
+
+/**
+ * Payload do Salvar (PATCH) e do Confirmar (POST /confirm).
+ *
+ * NUNCA leva status/phase/previousStatus/dailyRates (24/09): o PATCH responde
+ * 400 a status/fase diferentes do atual e `dailyRates` é sempre o tamanho de
+ * `workDays` no servidor. `dailyValue` só entra quando o usuário é RH/admin e
+ * alterou o valor (403 para os demais) — quem monta o payload decide.
+ */
 export interface InclusionSavePayload {
   collaboratorId: string;
   /** Empreita por empresa (10/09) — null limpa. */
@@ -33,8 +44,8 @@ const readErrorMessage = async (err: any): Promise<string | undefined> => {
   return msg?.message;
 };
 
-/** POST /api/team-inclusions/:id/confirm — o servidor decide status/fase. */
-export async function confirmInclusionRequest(id: string, data: Partial<InclusionSavePayload>): Promise<TeamInclusion> {
+/** POST /api/team-inclusions/:id/confirm — o servidor decide status/fase (409 se já confirmada ou com conflito de agenda). */
+export async function confirmInclusionRequest(id: string, data: Partial<InclusionSavePayload>): Promise<TeamInclusionComAvisos> {
   const response = await apiRequest("POST", `/api/team-inclusions/${id}/confirm`, data);
   return response.json();
 }
@@ -80,7 +91,7 @@ export function useScalingMutations(opts: {
         });
         return;
       }
-      toast({ title: "Erro", description: (await readErrorMessage(err)) || "Erro ao criar solicitação", variant: "destructive" });
+      toast({ title: "Não foi possível criar a solicitação", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
 
@@ -94,22 +105,24 @@ export function useScalingMutations(opts: {
       invalidateInclusionSwaps();
     },
     onError: async (err: any) => {
-      toast({ title: "Erro", description: (await readErrorMessage(err)) || "Erro ao cancelar solicitação", variant: "destructive" });
+      toast({ title: "Não foi possível cancelar a solicitação", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
 
   const approveSwap = useMutation({
     mutationFn: async (id: string) => {
       const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
-      return r.json();
+      return r.json() as Promise<{ message?: string; logisticaParaRevisar?: boolean }>;
     },
-    onSuccess: () => {
+    onSuccess: (resposta) => {
       toast({ title: "Troca aprovada", description: "O colaborador e a cidade de saída foram atualizados na escalação." });
+      // Passagem/hospedagem já registradas para o colaborador antigo (24/09).
+      if (resposta?.logisticaParaRevisar) toast({ title: "Compras precisa revisar", description: AVISO_LOGISTICA_PARA_REVISAR });
       invalidateInclusionSwaps();
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
     onError: async (err: any) => {
-      toast({ title: "Erro", description: (await readErrorMessage(err)) || "Erro ao aprovar troca", variant: "destructive" });
+      toast({ title: "Não foi possível aprovar a troca", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
 
@@ -123,7 +136,7 @@ export function useScalingMutations(opts: {
       invalidateInclusionSwaps();
     },
     onError: async (err: any) => {
-      toast({ title: "Erro", description: (await readErrorMessage(err)) || "Erro ao rejeitar troca", variant: "destructive" });
+      toast({ title: "Não foi possível rejeitar a troca", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
 
@@ -144,7 +157,7 @@ export function useScalingMutations(opts: {
       });
     },
     onError: async (err: any) => {
-      toast({ title: "Erro", description: (await readErrorMessage(err)) || "Erro ao atualizar emissão de NF", variant: "destructive" });
+      toast({ title: "Não foi possível atualizar a emissão de NF", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
 
@@ -170,7 +183,7 @@ export function useScalingMutations(opts: {
       // servidor diz qual; só caímos no texto genérico se ela faltar.
       const serverMsg = await readErrorMessage(err);
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível definir o tipo de freela",
         description: err?.status === 401
           ? "Sua sessão expirou. Atualize a página e entre novamente — o tipo não foi salvo."
           : serverMsg
@@ -224,7 +237,7 @@ export function useScalingMutations(opts: {
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
     onError: async (err: any) => {
-      toast({ title: "Erro", description: (await readErrorMessage(err)) || "Erro ao reativar escalação", variant: "destructive" });
+      toast({ title: "Não foi possível reativar a escalação", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
 
@@ -240,12 +253,12 @@ export function useScalingMutations(opts: {
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Comentário adicionado com sucesso" });
+      toast({ variant: "success", title: "Comentário adicionado", description: "Já aparece no histórico da vaga." });
       queryClient.invalidateQueries({ queryKey: ["/api/comments", selectedInclusionId] });
     },
     onError: (err: any) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível adicionar o comentário",
         description: err?.status === 401
           ? "Sua sessão expirou. Atualize a página e entre novamente para comentar."
           : (err?.body?.message || "Erro ao adicionar comentário"),
@@ -254,14 +267,21 @@ export function useScalingMutations(opts: {
     },
   });
 
+  // Cancelar (POST /cancel, 24/09) — toasts e invalidação no hook compartilhado.
+  const cancelInclusion = useCancelarVaga({ onSuccess: closeModal });
+
   // Salvar (PATCH) e Confirmar (POST /confirm) — mesmo pós-processamento
   const saveInclusion = useMutation({
     mutationFn: async ({ id, data, action }: { id: string; data: InclusionSavePayload; action: ScalingSaveAction; thenNext?: boolean }) => {
       if (action === "confirm") return confirmInclusionRequest(id, data);
       const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, data);
-      return response.json() as Promise<TeamInclusion>;
+      return response.json() as Promise<TeamInclusionComAvisos>;
     },
-    onSuccess: (updatedInclusion, vars) => {
+    onSuccess: (resposta, vars) => {
+      // `avisosDeAgenda` (duas viagens no mesmo dia) é aviso, não erro — e não
+      // entra no registro selecionado.
+      const updatedInclusion = semAvisos(resposta) as TeamInclusion;
+      avisarAgenda(toast, resposta.avisosDeAgenda);
       // CRITICAL: refletir os dados frescos do backend no registro selecionado
       setSelectedInclusion(prev => (prev && updatedInclusion.id === prev.id ? updatedInclusion : prev));
       invalidateAndRefetchInclusions();
@@ -269,7 +289,7 @@ export function useScalingMutations(opts: {
     },
     onError: (err: any) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível atualizar a escalação",
         description: err?.status === 401
           ? "Sua sessão expirou. Atualize a página e entre novamente — nada foi salvo."
           : (err?.body?.message || "Erro ao atualizar escalação"),
@@ -280,7 +300,7 @@ export function useScalingMutations(opts: {
 
   return {
     createSwapRequest, cancelSwap, approveSwap, rejectSwap,
-    toggleEmitsNf, setCenoFreelaTipo, rejectProduction, approveProduction, reactivate,
+    toggleEmitsNf, setCenoFreelaTipo, rejectProduction, approveProduction, reactivate, cancelInclusion,
     addComment, saveInclusion,
   };
 }

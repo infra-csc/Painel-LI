@@ -49,7 +49,7 @@ export function DayLabel({ v, className }: { v: string | Date | null | undefined
   if (!h) return null;
   return (
     <span className={cn("whitespace-nowrap", className)}>
-      <span className={cn("font-sans font-normal", h.isWeekend ? "text-orange-600" : "text-slate-400")}>{h.dayName}</span>{" "}
+      <span className={cn("font-sans font-normal", h.isWeekend ? "text-warning" : "text-muted-foreground")}>{h.dayName}</span>{" "}
       <span className="tabular-nums">{h.date}</span>
     </span>
   );
@@ -57,9 +57,9 @@ export function DayLabel({ v, className }: { v: string | Date | null | undefined
 
 // ── Chips ────────────────────────────────────────────────────────────────────
 
-const CHIP_BASE = "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4 whitespace-nowrap";
+const CHIP_BASE = "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-2xs leading-4 whitespace-nowrap";
 /** Chip neutro (data/hora, observação). */
-export const CHIP_NEUTRAL = cn(CHIP_BASE, "border-slate-200 bg-slate-50 text-slate-600");
+export const CHIP_NEUTRAL = cn(CHIP_BASE, "border-border bg-surface-muted text-slate-600");
 /** Chip de destaque — o que a vaga PRECISA (passagem, hotel). */
 export const CHIP_NEED = cn(CHIP_BASE, "border-primary/20 bg-brand-soft font-semibold text-primary");
 
@@ -72,9 +72,9 @@ export const CHIP_NEED = cn(CHIP_BASE, "border-primary/20 bg-brand-soft font-sem
 // diferentes (uma seção pode ganhar ícone/altura própria sem mexer no `<th>`).
 
 /** Título de seção de cartão/drawer/diálogo ("Período e diárias", "Logística"). */
-export const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
+export const SECTION_TITLE = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
 /** `<th>` das tabelas do módulo — o mesmo desenho do quadro "Escala". */
-export const TABLE_TH = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
+export const TABLE_TH = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
 
 const MODE_ICONS: Record<TransportMode, LucideIcon> = {
   aereo: Route, // aéreo nunca usa este mapa: a direção manda (decolar/pousar)
@@ -95,8 +95,8 @@ const DIR_LABEL: Record<LegDirection, string> = { ida: "Ida", volta: "Volta" };
  * fundo colorido brigaria com ele.
  */
 const DIR_ACCENT: Record<LegDirection, { bar: string; icon: string; word: string }> = {
-  ida:   { bar: "border-l-2 border-l-sky-400",    icon: "text-sky-500",    word: "text-sky-800" },
-  volta: { bar: "border-l-2 border-l-indigo-400", icon: "text-indigo-500", word: "text-indigo-800" },
+  ida:   { bar: "border-l-2 border-l-info-strong",    icon: "text-info-strong",    word: "text-info" },
+  volta: { bar: "border-l-2 border-l-primary", icon: "text-primary", word: "text-primary" },
 };
 
 /** O banco guarda o modal como texto livre — só desenha ícone o que for válido. */
@@ -157,13 +157,13 @@ export function LegChip({ dir, mode, date, time, className, compact = false }: L
       <span className={cn("font-semibold", accent.word)}>{DIR_LABEL[dir]}</span>
       {day && (
         <>
-          <span className="text-slate-300" aria-hidden="true">·</span>
+          <span className="text-muted-foreground" aria-hidden="true">·</span>
           {compact ? <span className="tabular-nums">{day.date}</span> : <DayLabel v={date} />}
         </>
       )}
       {hour && !compact && (
         <>
-          <span className="text-slate-300" aria-hidden="true">·</span>
+          <span className="text-muted-foreground" aria-hidden="true">·</span>
           <span className="tabular-nums">{hour}</span>
         </>
       )}

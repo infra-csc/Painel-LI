@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
 import type { Comment, User } from "@shared/schema";
 
 const commentSchema = z.object({
@@ -57,11 +58,8 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
         phase: "escalacao",
       };
 
-      console.log("Sending payload:", payload);
       const response = await apiRequest("POST", "/api/comments", payload);
-      const result = await response.json();
-      console.log("Comment created:", result);
-      return result;
+      return await response.json();
     },
     onSuccess: () => {
       toast({
@@ -71,19 +69,18 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/comments", teamInclusionId] });
     },
-    onError: () => {
+    onError: (err: unknown) => {
       toast({
         title: "Erro",
-        description: "Erro ao adicionar comentário",
+        description: apiErrorMessage(err, "Erro ao adicionar comentário"),
         variant: "destructive",
       });
     },
   });
 
+  // Sem console.log do usuário/payload (23/09): vazava dados do usuário no
+  // console de qualquer máquina.
   const onSubmit = (data: CommentFormData) => {
-    console.log("Form submitted with data:", data);
-    console.log("User:", user);
-    console.log("TeamInclusionId:", teamInclusionId);
     createCommentMutation.mutate(data);
   };
 
@@ -116,12 +113,12 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg w-full p-6 bg-white rounded-2xl shadow-2xl border-0" data-testid="modal-comments">
-        <DialogTitle className="sr-only">Comentários do Registro</DialogTitle>
+      <DialogContent className="max-w-lg w-full p-6 bg-card rounded-xl shadow-3 border-0" data-testid="modal-comments">
+        <DialogTitle className="sr-only">Comentários do registro</DialogTitle>
 
         {/* Header */}
-        <div className="border-b border-slate-100 pb-4 mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-800">Comentários do Registro</h2>
+        <div className="border-b border-border pb-4 mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-foreground">Comentários do registro</h2>
         </div>
 
         {/* Lista de comentários */}
@@ -130,23 +127,23 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="animate-pulse space-y-2">
-                  <div className="h-3 bg-slate-100 rounded w-1/3"></div>
-                  <div className="h-12 bg-slate-100 rounded"></div>
+                  <div className="h-3 bg-muted rounded w-1/3"></div>
+                  <div className="h-12 bg-muted rounded"></div>
                 </div>
               ))}
             </div>
           ) : comments?.length === 0 ? (
-            <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 py-10 text-center text-slate-400 text-sm mb-4">
+            <div className="bg-surface-muted rounded-xl border border-dashed border-border py-10 text-center text-muted-foreground text-sm mb-4">
               Nenhum comentário ainda
             </div>
           ) : (
             comments?.map((comment) => (
-              <div key={comment.id} className="border-l-2 border-blue-200 pl-3 py-1" data-testid={`comment-${comment.id}`}>
+              <div key={comment.id} className="border-l-2 border-primary/25 pl-3 py-1" data-testid={`comment-${comment.id}`}>
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <span className="text-sm font-semibold text-slate-700">{getUserName(comment.userId)}</span>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{getPhaseLabel(comment.phase)}</span>
-                    <span className="text-xs text-slate-400">{formatDate(comment.createdAt || new Date())}</span>
+                    <span className="text-2xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{getPhaseLabel(comment.phase)}</span>
+                    <span className="text-xs text-muted-foreground">{formatDate(comment.createdAt || new Date())}</span>
                   </div>
                 </div>
                 <p className="text-sm text-slate-600">{comment.content}</p>
@@ -166,7 +163,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
                   <FormControl>
                     <Textarea
                       placeholder="Adicionar comentário..."
-                      className="border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-sm p-3 w-full resize-none min-h-[80px] transition-all"
+                      className="border border-border rounded-xl bg-card focus:ring-2 focus:ring-primary/25 focus:border-primary text-sm p-3 w-full resize-none min-h-[80px] transition-all"
                       {...field}
                       data-testid="textarea-comment"
                     />
@@ -178,7 +175,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
               <Button
                 type="submit"
                 disabled={createCommentMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-semibold shadow-sm transition-all"
+                className="bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg px-5 py-2 text-sm font-semibold shadow-1 transition-all"
                 data-testid="button-add-comment"
               >
                 {createCommentMutation.isPending ? "Enviando..." : "Enviar"}

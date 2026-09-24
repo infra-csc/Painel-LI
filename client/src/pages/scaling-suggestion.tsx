@@ -32,7 +32,7 @@ import { SuggestionGrid, LOGISTICS_PANEL_DOM_ID, rowDomId } from "@/components/s
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import { ContextBar } from "@/components/scaling-validation/context-bar";
 import { StateBanner } from "@/components/scaling-validation/state-banner";
-import { ConfirmDialog } from "@/components/scaling-validation/confirm-dialog";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { CopyEventDialog } from "@/components/scaling-validation/copy-event-dialog";
 import {
   addDaysYmd, buildDateList, countOutsidePeriod, decomposeGridRows, detectPasteFormat, emptyGridRow, expandPeriodForDates,
@@ -75,12 +75,12 @@ const LIVE_DEBOUNCE_MS = 800;
 const REVIEW_PREVIEW = 5;
 /** Valor sentinela do Select de mapeamento (Radix não aceita SelectItem com value ""). */
 const SKIP_FUNCTION = "__descartar__";
-const SECTION_TITLE = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
-const HINT = "text-xs text-slate-500";
-const PILL = "inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums";
-const PILL_BRAND = "inline-flex items-center rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-primary tabular-nums";
+const SECTION_TITLE = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
+const HINT = "text-xs text-muted-foreground";
+const PILL = "inline-flex items-center rounded-full border border-border bg-card px-2 py-0.5 text-2xs font-medium text-slate-600 tabular-nums";
+const PILL_BRAND = "inline-flex items-center rounded-full bg-brand-soft px-2 py-0.5 text-2xs font-semibold text-primary tabular-nums";
 const BANNER_LINK = "inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
-const BANNER_DANGER_LINK = "inline-flex items-center gap-1 text-red-700 hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-60";
+const BANNER_DANGER_LINK = "inline-flex items-center gap-1 text-danger hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-strong disabled:opacity-60";
 const EMPTY_PERIOD: Period = { start: "", end: "" };
 /** Espera antes de reanalisar a colagem (o resumo ao vivo não roda a cada tecla). */
 const PASTE_PREVIEW_DEBOUNCE_MS = 200;
@@ -909,7 +909,7 @@ export default function ScalingSuggestionPage() {
   if (!canAccess) {
     return (
       <PageContainer>
-        <div className="bg-card rounded-2xl border border-border p-6">
+        <div className="bg-card rounded-xl border border-border p-6">
           <h3 className="text-lg font-semibold text-foreground mb-2">Acesso negado</h3>
           <p className="text-muted-foreground text-sm">Você não tem permissão para sugerir escala.</p>
         </div>
@@ -933,7 +933,7 @@ export default function ScalingSuggestionPage() {
           title="Não foi possível carregar eventos e funções"
           detail={<>{apiErrorMessage(eventsError, "Verifique sua conexão e tente novamente.")} O rascunho local da grade está intacto — nada se perdeu.</>}
           actions={
-            <Button variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/events"] })}>
+            <Button variant="outline" size="sm" className="rounded-lg h-8 bg-card" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/events"] })}>
               Tentar novamente
             </Button>
           }
@@ -974,7 +974,7 @@ export default function ScalingSuggestionPage() {
               detail={<>{apiErrorMessage(sentQuery.error as ApiError, "Verifique sua conexão.")} O envio fica bloqueado até essa verificação funcionar — enviar às cegas poderia duplicar a escala. O rascunho local está intacto.</>}
               actions={
                 <Button
-                  type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white"
+                  type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-card"
                   disabled={sentQuery.isFetching}
                   onClick={() => sentQuery.refetch()}
                   data-testid="scaling-suggestion-sent-retry"
@@ -990,7 +990,7 @@ export default function ScalingSuggestionPage() {
               title="Não foi possível carregar as funções"
               detail={<>{apiErrorMessage(functionsError as ApiError, "Sem a lista de funções, não dá para adicionar linhas nem colar da planilha.")} O rascunho local está intacto.</>}
               actions={
-                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => refetchFunctions()}>
+                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-card" onClick={() => refetchFunctions()}>
                   Tentar novamente
                 </Button>
               }
@@ -1027,7 +1027,7 @@ export default function ScalingSuggestionPage() {
                       {cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio"}
                     </button>
                   )}
-                  <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-white" onClick={() => setSent(null)}>
+                  <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 bg-card" onClick={() => setSent(null)}>
                     <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Nova sugestão
                   </Button>
                 </>
@@ -1093,7 +1093,7 @@ export default function ScalingSuggestionPage() {
                   <div className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
                     <span className={PILL}>{plural(summary.funcoes, "linha", "linhas")}</span>
                     <span className={PILL}>{summary.pessoasDia} pessoas-dia</span>
-                    <span className={cn(PILL_BRAND, overLimit && "bg-red-50 text-red-700")}>{vagasLabel}</span>
+                    <span className={cn(PILL_BRAND, overLimit && "bg-danger-soft text-danger")}>{vagasLabel}</span>
                   </div>
                 )}
                 <span className="sr-only" aria-live="polite" aria-atomic="true">{liveText}</span>
@@ -1101,16 +1101,16 @@ export default function ScalingSuggestionPage() {
                     em telas estreitas) para um disclosure junto ao título. */}
                 {gridReady && (
                   <details className="relative">
-                    <summary className="inline-flex h-6 cursor-pointer select-none items-center gap-1 rounded-full border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+                    <summary className="inline-flex h-6 cursor-pointer select-none items-center gap-1 rounded-full border border-border bg-card px-2 text-2xs font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
                       <Keyboard className="h-3 w-3" aria-hidden="true" /> Atalhos
                     </summary>
-                    <div className="absolute left-0 top-full z-30 mt-1 w-max rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 shadow-lg">
+                    <div className="absolute left-0 top-full z-30 mt-1 w-max rounded-lg border border-border bg-card px-3 py-2 text-2xs text-slate-600 shadow-2">
                       <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1">
-                        <dt className="font-mono font-semibold text-slate-800">↑ / ↓</dt><dd>+1 / −1 na célula</dd>
-                        <dt className="font-mono font-semibold text-slate-800">← / →</dt><dd>célula ao lado</dd>
-                        <dt className="font-mono font-semibold text-slate-800">Enter</dt><dd>linha de baixo (Shift+Enter sobe)</dd>
-                        <dt className="font-mono font-semibold text-slate-800">Ctrl+↑ / ↓</dt><dd>linha acima / abaixo</dd>
-                        <dt className="font-mono font-semibold text-slate-800">Delete</dt><dd>zera a célula</dd>
+                        <dt className="font-mono font-semibold text-foreground">↑ / ↓</dt><dd>+1 / −1 na célula</dd>
+                        <dt className="font-mono font-semibold text-foreground">← / →</dt><dd>célula ao lado</dd>
+                        <dt className="font-mono font-semibold text-foreground">Enter</dt><dd>linha de baixo (Shift+Enter sobe)</dd>
+                        <dt className="font-mono font-semibold text-foreground">Ctrl+↑ / ↓</dt><dd>linha acima / abaixo</dd>
+                        <dt className="font-mono font-semibold text-foreground">Delete</dt><dd>zera a célula</dd>
                       </dl>
                     </div>
                   </details>
@@ -1141,7 +1141,7 @@ export default function ScalingSuggestionPage() {
                     type="button"
                     disabled={busy}
                     onClick={() => setConfirmClear(true)}
-                    className="w-full text-left sm:w-auto sm:ml-auto sm:text-right rounded text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50"
+                    className="w-full text-left sm:w-auto sm:ml-auto sm:text-right rounded text-xs font-semibold text-muted-foreground transition-colors hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-strong disabled:opacity-50"
                     data-testid="scaling-suggestion-clear"
                   >
                     Limpar grade
@@ -1152,7 +1152,7 @@ export default function ScalingSuggestionPage() {
 
             {/* Erro de período: inline, em vermelho, acima da grade. */}
             {periodError && (
-              <p id="sug-period-error" role="alert" className="flex items-start gap-1.5 text-xs text-red-700">
+              <p id="sug-period-error" role="alert" className="flex items-start gap-1.5 text-xs text-danger">
                 <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden="true" /> {periodError}
               </p>
             )}
@@ -1181,17 +1181,17 @@ export default function ScalingSuggestionPage() {
                 <section
                   aria-label="Pontos a revisar antes de enviar"
                   data-testid="scaling-suggestion-revisao"
-                  className={cn("overflow-hidden rounded-[14px] border", temErro ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60")}
+                  className={cn("overflow-hidden rounded-xl border", temErro ? "border-danger/25 bg-danger-soft/60" : "border-warning/25 bg-warning-soft/60")}
                 >
                   <div className="flex items-start gap-2.5 px-3.5 pt-3 pb-2">
-                    <AlertTriangle className={cn("mt-px h-4 w-4 shrink-0", temErro ? "text-red-600" : "text-amber-600")} aria-hidden="true" />
+                    <AlertTriangle className={cn("mt-px h-4 w-4 shrink-0", temErro ? "text-danger" : "text-warning")} aria-hidden="true" />
                     <div className="min-w-0">
-                      <p className={cn("text-[13.5px] font-bold", temErro ? "text-red-900" : "text-amber-900")}>
+                      <p className={cn("text-sm font-bold", temErro ? "text-danger" : "text-warning")}>
                         {temErro
                           ? `${pendencias.errors.length} ${pendencias.errors.length === 1 ? "linha impede" : "linhas impedem"} o envio`
                           : `${pendencias.warnings.length} ${pendencias.warnings.length === 1 ? "ponto para revisar" : "pontos para revisar"}`}
                       </p>
-                      <p className={cn("text-[12px]", temErro ? "text-red-700" : "text-amber-800")}>
+                      <p className={cn("text-xs", temErro ? "text-danger" : "text-warning")}>
                         {temErro
                           ? pendencias.warnings.length > 0
                             ? `E mais ${plural(pendencias.warnings.length, "aviso", "avisos")} — avisos não travam o envio.`
@@ -1210,17 +1210,17 @@ export default function ScalingSuggestionPage() {
                             type="button"
                             onClick={() => focusRow(item.rowId, "logistica")}
                             aria-label={`${erro ? "Corrigir" : "Revisar"} ${item.funcao}: ${item.problema}`}
-                            className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:bg-white/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+                            className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left transition-colors hover:bg-card/70 focus-visible:outline-none focus-visible:bg-card/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
                           >
-                            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", erro ? "bg-red-500" : "bg-amber-500")} aria-hidden="true" />
+                            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", erro ? "bg-danger-strong" : "bg-warning-strong")} aria-hidden="true" />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[12.5px] font-semibold text-slate-800">{item.funcao}</span>
-                              <span className="block truncate text-[12px] text-slate-600">{item.problema}</span>
+                              <span className="block truncate text-xs font-semibold text-foreground">{item.funcao}</span>
+                              <span className="block truncate text-xs text-slate-600">{item.problema}</span>
                             </span>
-                            <span className={cn("shrink-0 text-[12px] font-semibold", erro ? "text-red-700" : "text-amber-800")}>
+                            <span className={cn("shrink-0 text-xs font-semibold", erro ? "text-danger" : "text-warning")}>
                               {erro ? "Corrigir" : "Revisar"}
                             </span>
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                           </button>
                         </li>
                       );
@@ -1232,7 +1232,7 @@ export default function ScalingSuggestionPage() {
                         type="button"
                         onClick={() => setShowAllReview((v) => !v)}
                         aria-expanded={showAllReview}
-                        className={cn("rounded text-[12px] font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40", temErro ? "text-red-700" : "text-amber-800")}
+                        className={cn("rounded text-xs font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40", temErro ? "text-danger" : "text-warning")}
                       >
                         {showAllReview ? "Ver menos" : `Ver mais ${ocultos}`}
                       </button>
@@ -1244,12 +1244,12 @@ export default function ScalingSuggestionPage() {
 
             {!eventId ? (
               /* Estado vazio com saída: escolher evento ou copiar de um anterior. */
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+              <div className="rounded-xl border border-dashed border-slate-300 bg-card px-6 py-12 text-center">
                 <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-primary" aria-hidden="true">
                   <CalendarDays className="w-5 h-5" />
                 </span>
                 <p className="mt-3 text-sm font-semibold text-slate-700">Escolha o evento para abrir a grade</p>
-                <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
+                <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
                   A grade cobre o período do evento (ajustável em até {PERIOD_MARGIN_DAYS} dias para cada lado) e o rascunho fica salvo neste navegador por 7 dias, separado por evento.
                 </p>
                 {/* Limpou o seletor com a grade montada: ela não sumiu — está guardada no rascunho do evento. */}
@@ -1278,8 +1278,8 @@ export default function ScalingSuggestionPage() {
               </div>
             ) : dates.length === 0 ? (
               /* O motivo já está no alerta inline acima (periodError); aqui só a saída. */
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
-                <p className="text-sm text-slate-500">A grade só abre com um período válido.</p>
+              <div className="rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center">
+                <p className="text-sm text-muted-foreground">A grade só abre com um período válido.</p>
                 {selectedEvent && !readOnly && (
                   <Button type="button" variant="outline" size="sm" className="mt-3 rounded-lg" onClick={applyEventPeriod}>
                     <CalendarDays className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Usar o período do evento
@@ -1292,7 +1292,7 @@ export default function ScalingSuggestionPage() {
                  tela carregando. */
               <div className="space-y-2" aria-disabled={readOnly || undefined}>
                 {readOnly && (
-                  <p className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                     <EyeOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     Grade em modo leitura — os campos não aceitam edição.
                   </p>
@@ -1314,36 +1314,36 @@ export default function ScalingSuggestionPage() {
           {gridReady && !sent && (
             <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pb-3 pt-2 bg-gradient-to-t from-background via-background to-transparent">
               {previewOpen && records.length > 0 && (
-                <div role="region" aria-labelledby="sug-previa" className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
+                <div role="region" aria-labelledby="sug-previa" className="mb-2 overflow-hidden rounded-xl border border-border bg-card shadow-2">
+                  <div className="flex items-center justify-between border-b border-border bg-surface-muted px-4 py-2">
                     <h2 id="sug-previa" className={SECTION_TITLE}>Prévia das vagas que serão criadas</h2>
                     <button type="button" onClick={() => setPreviewOpen(false)} aria-label="Fechar prévia"
-                      className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-border hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       <X className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
                   <div className="max-h-[260px] overflow-y-auto">
                     {previewGroups.map((group, gi) => (
-                      <div key={group.key} className={gi > 0 ? "border-t border-slate-100" : ""}>
-                        <div className="flex items-center justify-between px-4 py-1.5 bg-slate-50/70">
-                          <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                      <div key={group.key} className={gi > 0 ? "border-t border-border" : ""}>
+                        <div className="flex items-center justify-between px-4 py-1.5 bg-surface-muted/70">
+                          <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" aria-hidden="true" />
                             {group.functionName}
                           </span>
-                          <span className="text-xs text-slate-500 tabular-nums">{group.records.length} {group.records.length === 1 ? "vaga" : "vagas"}</span>
+                          <span className="text-xs text-muted-foreground tabular-nums">{group.records.length} {group.records.length === 1 ? "vaga" : "vagas"}</span>
                         </div>
                         {group.records.map((rec, i) => {
                           const ida = rec.transportModeIda ? `Ida ${TRANSPORT_MODE_LABELS[rec.transportModeIda]}${rec.flightDepartureDate ? ` ${formatDayMonthBr(rec.flightDepartureDate)}` : ""}${rec.flightArrivalSuggestedTime ? ` ${rec.flightArrivalSuggestedTime}` : ""}` : "";
                           const volta = rec.transportModeVolta ? `Volta ${TRANSPORT_MODE_LABELS[rec.transportModeVolta]}${rec.flightReturnDate ? ` ${formatDayMonthBr(rec.flightReturnDate)}` : ""}${rec.flightReturnSuggestedTime ? ` ${rec.flightReturnSuggestedTime}` : ""}` : "";
                           const logistica = [ida, volta].filter(Boolean).join(" · ");
                           return (
-                            <div key={`${group.key}-${i}`} className={cn("grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 pl-8 pr-4 py-1.5 text-xs", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
-                              <span className="text-slate-700 font-semibold bg-slate-100 rounded-full px-2 py-0.5 whitespace-nowrap">{formatDiarias(rec.dailyRates)}</span>
+                            <div key={`${group.key}-${i}`} className={cn("grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 pl-8 pr-4 py-1.5 text-xs", i % 2 === 1 ? "bg-surface-muted/40" : "bg-card")}>
+                              <span className="text-slate-700 font-semibold bg-muted rounded-full px-2 py-0.5 whitespace-nowrap">{formatDiarias(rec.dailyRates)}</span>
                               <span className="text-slate-600 font-mono tabular-nums break-words">{rec.workDays.map((d) => formatDayMonthBr(d)).join(", ")}</span>
-                              <span className="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-500 min-w-0">
+                              <span className="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground min-w-0">
                                 {logistica && <span className="break-words">{logistica}</span>}
-                                {rec.needsAccommodation && <span className="text-xs font-semibold uppercase text-slate-600 bg-slate-100 rounded px-1.5 py-0.5">Hotel</span>}
-                                {rec.needsTicket && <span className="text-xs font-semibold uppercase text-slate-600 bg-slate-100 rounded px-1.5 py-0.5">Passagem</span>}
+                                {rec.needsAccommodation && <span className="text-xs font-semibold uppercase text-slate-600 bg-muted rounded px-1.5 py-0.5">Hotel</span>}
+                                {rec.needsTicket && <span className="text-xs font-semibold uppercase text-slate-600 bg-muted rounded px-1.5 py-0.5">Passagem</span>}
                               </span>
                             </div>
                           );
@@ -1358,17 +1358,17 @@ export default function ScalingSuggestionPage() {
                   só ícone, o motivo do bloqueio ganha linha própria e o Enviar
                   ocupa a largura toda — antes os três botões quebravam em
                   escadinha e o Enviar ia parar fora da tela. */}
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-border bg-card/95 backdrop-blur px-4 py-3 shadow-2">
                 <div className="min-w-0">
                   <p className="text-sm text-slate-700">
                     {/* Vermelho a partir de VAGAS_WARN: aviso de que o teto de envio está perto. */}
-                    <span className={cn("font-semibold tabular-nums", overLimit ? "text-red-700" : nearLimit ? "text-red-600" : "text-slate-900")}>{vagasLabel}</span>
-                    {nearLimit && !overLimit && <span className="text-red-600"> (limite {MAX_VAGAS})</span>}
-                    {records.length > 0 && <span className="text-slate-500"> · {summary.pessoasDia} pessoas-dia em {plural(summary.funcoes, "linha", "linhas")}</span>}
+                    <span className={cn("font-semibold tabular-nums", overLimit ? "text-danger" : nearLimit ? "text-danger" : "text-foreground")}>{vagasLabel}</span>
+                    {nearLimit && !overLimit && <span className="text-danger"> (limite {MAX_VAGAS})</span>}
+                    {records.length > 0 && <span className="text-muted-foreground"> · {summary.pessoasDia} pessoas-dia em {plural(summary.funcoes, "linha", "linhas")}</span>}
                   </p>
                   <p className={cn(HINT, "hidden sm:flex items-center gap-1.5 mt-0.5")}>
                     {draftSavedAt
-                      ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+                      ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-strong" aria-hidden="true" />
                       : <Save className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
                     <span>
                       {draftSavedAt ? <>Rascunho salvo <span className="tabular-nums">{draftSavedAt}</span> · </> : "Rascunho salvo "}
@@ -1387,12 +1387,12 @@ export default function ScalingSuggestionPage() {
                     onClick={() => { const alvo = pendencias.errors[0] ?? pendencias.warnings[0]; if (alvo) focusRow(alvo.rowId, "logistica"); }}
                     disabled={!pendencias.errors.length && !pendencias.warnings.length}
                     className={cn(
-                      "order-2 inline-flex h-9 w-full items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-default sm:order-none sm:w-auto sm:max-w-[280px]",
+                      "order-2 inline-flex h-9 w-full items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-default sm:order-none sm:w-auto sm:max-w-[280px]",
                       motivoDoBloqueio.tom === "erro"
-                        ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:ring-red-400"
+                        ? "border-danger/25 bg-danger-soft text-danger hover:bg-danger-soft focus-visible:ring-danger-strong"
                         : motivoDoBloqueio.tom === "aviso"
-                          ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 focus-visible:ring-amber-400"
-                          : "border-slate-200 bg-slate-50 text-slate-600 focus-visible:ring-slate-400",
+                          ? "border-warning/25 bg-warning-soft text-warning hover:bg-warning-soft focus-visible:ring-warning-strong"
+                          : "border-border bg-surface-muted text-slate-600 focus-visible:ring-slate-400",
                     )}
                     data-testid="scaling-suggestion-motivo"
                   >
@@ -1434,12 +1434,12 @@ export default function ScalingSuggestionPage() {
         {/* min-w-0 nos filhos do grid: o rodapé com três botões forçava a
             largura mínima do diálogo além da caixa e o overflow-hidden cortava
             descrição, badge e botão (04/09). */}
-        <DialogContent className="max-w-lg p-0 overflow-hidden w-[calc(100%-2rem)] rounded-2xl sm:w-full [&>*]:min-w-0">
+        <DialogContent className="max-w-lg p-0 overflow-hidden w-[calc(100%-2rem)] rounded-xl sm:w-full [&>*]:min-w-0">
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>Adicionar funções à grade</DialogTitle>
             <DialogDescription>Marque uma ou mais funções. A mesma função pode entrar mais de uma vez (ex.: turmas com dias de viagem diferentes).</DialogDescription>
           </DialogHeader>
-          <Command className="border-t border-slate-100">
+          <Command className="border-t border-border">
             <CommandInput placeholder="Buscar função…" />
             <CommandList className="max-h-[300px]">
               <CommandEmpty>Nenhuma função encontrada.</CommandEmpty>
@@ -1448,20 +1448,20 @@ export default function ScalingSuggestionPage() {
                   const checked = selectedToAdd.has(f.id);
                   return (
                     <CommandItem key={f.id} value={f.name} onSelect={() => toggleToAdd(f.id)} data-checked={checked || undefined} className="gap-2">
-                      <span aria-hidden="true" className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded border", checked ? "bg-primary border-primary text-primary-foreground" : "border-slate-300 bg-white")}>
+                      <span aria-hidden="true" className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded border", checked ? "bg-primary border-primary text-primary-foreground" : "border-slate-300 bg-card")}>
                         {checked && <Check className="h-3 w-3" />}
                       </span>
                       <span className="flex-1 truncate">{f.name}</span>
                       {/* Badge, não texto solto: "na grade" lia como parte do nome da função. */}
-                      {presentFunctionIds.has(f.id) && <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary">já na grade</span>}
-                      {f.responsibleArea && <span className="text-xs text-slate-500 shrink-0">{f.responsibleArea}</span>}
+                      {presentFunctionIds.has(f.id) && <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-2xs font-semibold text-primary">já na grade</span>}
+                      {f.responsibleArea && <span className="text-xs text-muted-foreground shrink-0">{f.responsibleArea}</span>}
                     </CommandItem>
                   );
                 })}
               </CommandGroup>
             </CommandList>
           </Command>
-          <DialogFooter className="flex flex-row flex-wrap items-center justify-end gap-2 px-5 py-3 border-t border-slate-100 sm:justify-between">
+          <DialogFooter className="flex flex-row flex-wrap items-center justify-end gap-2 px-5 py-3 border-t border-border sm:justify-between">
             {/* Com a contagem o botão diz o que vai acontecer; com 0 não há o que adicionar. */}
             <Button type="button" variant="ghost" size="sm" className="rounded-lg" disabled={missingFunctionsCount === 0} onClick={addAllFunctions}>
               Adicionar todas que faltam ({missingFunctionsCount})
@@ -1491,7 +1491,7 @@ export default function ScalingSuggestionPage() {
 
       {/* Colar da planilha: decidir antes de aplicar */}
       <Dialog open={showPaste} onOpenChange={(o) => { if (!o) closePaste(); }}>
-        <DialogContent className="max-w-[680px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-2xl sm:w-full">
+        <DialogContent className="max-w-[680px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-xl sm:w-full">
           <DialogHeader className="px-4 sm:px-5 pt-5 pb-3 pr-12">
             <DialogTitle>Colar da planilha</DialogTitle>
             <DialogDescription>Copie as linhas no Excel e cole aqui — o formato é reconhecido sozinho e nada entra na grade antes do "Aplicar".</DialogDescription>
@@ -1504,19 +1504,19 @@ export default function ScalingSuggestionPage() {
             <Textarea
               id="sug-paste" autoFocus value={pasteText} rows={7} placeholder="Cole aqui (Ctrl+V)"
               onChange={(e) => { setPasteText(e.target.value); askedMappingRef.current = false; }}
-              className="font-mono text-xs rounded-lg min-h-[150px] placeholder:font-sans placeholder:text-sm placeholder:text-slate-400"
+              className="font-mono text-xs rounded-lg min-h-[150px] placeholder:font-sans placeholder:text-sm placeholder:text-muted-foreground"
             />
 
             {/* 2. Resumo ao vivo em chips (nada é aplicado até clicar em "Aplicar"). */}
             {pasteText.trim() !== "" && (
               pasteAnalyzing || !pastePreview ? (
-                <p className="text-xs text-slate-500">Analisando o que você colou…</p>
+                <p className="text-xs text-muted-foreground">Analisando o que você colou…</p>
               ) : (
                 <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className={PILL}>{plural(pastePreview.lines, "linha lida", "linhas lidas")}</span>
-                    <span className={cn(pastePreview.recognized > 0 ? "inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 tabular-nums" : PILL)}>
-                      {pastePreview.recognized > 0 && <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />}
+                    <span className={cn(pastePreview.recognized > 0 ? "inline-flex items-center gap-1 rounded-full border border-success/25 bg-success-soft px-2 py-0.5 text-2xs font-semibold text-success tabular-nums" : PILL)}>
+                      {pastePreview.recognized > 0 && <CheckCircle2 className="w-3 h-3 text-success" aria-hidden="true" />}
                       {plural(pastePreview.recognized, "função reconhecida", "funções reconhecidas")}
                     </span>
                     <span className={PILL}>{plural(pastePreview.mappedDays, "dia mapeado", "dias mapeados")}</span>
@@ -1524,15 +1524,15 @@ export default function ScalingSuggestionPage() {
                       const inline = w.detail && w.detail.length > 0 && w.detail.length <= 3 ? w.detail.join(", ") : "";
                       const title = w.detail && w.detail.length > 3 ? w.detail.join(", ") : undefined;
                       return (
-                        <span key={i} title={title} className="inline-flex max-w-full items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                          <AlertTriangle className="w-3 h-3 shrink-0 text-amber-600" aria-hidden="true" />
+                        <span key={i} title={title} className="inline-flex max-w-full items-center gap-1 rounded-full border border-warning/25 bg-warning-soft px-2 py-0.5 text-2xs font-medium text-warning">
+                          <AlertTriangle className="w-3 h-3 shrink-0 text-warning" aria-hidden="true" />
                           <span className="truncate">{w.text}{inline ? `: ${inline}` : ""}</span>
                         </span>
                       );
                     })}
                   </div>
                   {pastePreview.recognized === 0 && (
-                    <p className="text-xs text-amber-900">
+                    <p className="text-xs text-warning">
                       {pastePreview.problem === "cabecalho-nao-encontrado"
                         ? "Não consegui identificar o cabeçalho — no formato da logística é preciso colar também a linha de cabeçalho (ida, chegada, retorno e as colunas de dia)."
                         : pastePreview.unknownNames.length > 0
@@ -1540,7 +1540,7 @@ export default function ScalingSuggestionPage() {
                           : "Nenhuma linha reconhecida. Confira se as colunas vieram separadas por TAB (copie direto do Excel)."}
                     </p>
                   )}
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-2xs text-muted-foreground">
                     {PASTE_FORMAT_LABELS[pastePreview.format]}{pastePreview.hadHeader ? " · cabeçalho ignorado" : ""}.{" "}
                     <button
                       type="button" onClick={() => setShowPasteHelp(true)}
@@ -1555,20 +1555,20 @@ export default function ScalingSuggestionPage() {
 
             {/* 3. Nomes que o catálogo não reconheceu: apontar a função certa (ou descartar) antes de aplicar */}
             {unknownToMap.length > 0 && (
-              <div ref={pasteUnknownRef} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+              <div ref={pasteUnknownRef} className="rounded-lg border border-warning/25 bg-warning-soft px-3 py-2.5 space-y-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs font-semibold text-amber-900">
+                    <p className="text-xs font-semibold text-warning">
                       {plural(unknownToMap.length, "nome não reconhecido", "nomes não reconhecidos")}
                     </p>
-                    <p className="text-[11px] text-amber-800 mt-0.5">Escolha a função equivalente ou descarte a linha. As escolhas ficam salvas neste navegador.</p>
+                    <p className="text-2xs text-warning mt-0.5">Escolha a função equivalente ou descarte a linha. As escolhas ficam salvas neste navegador.</p>
                   </div>
                   {/* Atalho para quem só quer as linhas conhecidas: decide "descartar" para todas as pendentes de uma vez. */}
                   {pasteUndecided.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setPasteNameMap((prev) => { const next = { ...prev }; for (const n of pasteUndecided) next[functionNameKey(n)] = SKIP_FUNCTION; return next; })}
-                      className="rounded text-[11px] font-semibold text-amber-900 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                      className="rounded text-2xs font-semibold text-warning underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-strong"
                     >
                       Descartar {pasteUndecided.length === 1 ? "a pendente" : `as ${pasteUndecided.length} pendentes`}
                     </button>
@@ -1580,12 +1580,12 @@ export default function ScalingSuggestionPage() {
                     return (
                       <li key={key} className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-slate-700 truncate max-w-[180px]" title={name}>{name}</span>
-                        <span aria-hidden="true" className="text-amber-700 text-xs">→</span>
+                        <span aria-hidden="true" className="text-warning text-xs">→</span>
                         {/* Sem decisão o Select fica VAZIO (placeholder): com "Descartar linha"
                             pré-selecionado, escolher "descartar" não disparava onValueChange
                             e o nome nunca contava como decidido. */}
                         <Select value={pasteNameMap[key] ?? ""} onValueChange={(v) => mapUnknownName(name, v)}>
-                          <SelectTrigger aria-label={`Função para ${name}`} className={cn("h-8 w-[260px] max-w-full text-xs rounded-lg bg-white", !(key in pasteNameMap) && "border-amber-400")}>
+                          <SelectTrigger aria-label={`Função para ${name}`} className={cn("h-8 w-[260px] max-w-full text-xs rounded-lg bg-card", !(key in pasteNameMap) && "border-warning-strong")}>
                             <SelectValue placeholder="Escolher função…" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1604,26 +1604,26 @@ export default function ScalingSuggestionPage() {
                 nomes não reconhecidos — visível e desfazível, porque um mapa antigo
                 errado ("ceno" → "Montagem") mandava em toda colagem sem avisar. */}
             {Object.keys(pasteNameMap).length > 0 && (
-              <details className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" data-testid="mapeamentos-salvos">
+              <details className="rounded-lg border border-border bg-card px-3 py-2 text-xs" data-testid="mapeamentos-salvos">
                 <summary className="cursor-pointer font-semibold text-slate-700">
                   Nomes que você já mapeou ({Object.keys(pasteNameMap).length}) — valem para toda colagem neste navegador
                 </summary>
-                <p className="mt-1 text-[11px] text-slate-500">Se um nome está entrando na função errada, desfaça aqui e escolha de novo.</p>
+                <p className="mt-1 text-2xs text-muted-foreground">Se um nome está entrando na função errada, desfaça aqui e escolha de novo.</p>
                 <ul className="mt-2 space-y-1">
                   {Object.entries(pasteNameMap).map(([key, id]) => (
                     <li key={key} className="flex flex-wrap items-center gap-2" data-testid={`mapeamento-${key}`}>
                       <span className="font-mono text-slate-700">{key}</span>
-                      <span aria-hidden="true" className="text-slate-400">→</span>
-                      <span className={cn("font-medium", id === SKIP_FUNCTION ? "text-slate-500" : "text-slate-800")}>{nomeDoMapeamento(id)}</span>
+                      <span aria-hidden="true" className="text-muted-foreground">→</span>
+                      <span className={cn("font-medium", id === SKIP_FUNCTION ? "text-muted-foreground" : "text-foreground")}>{nomeDoMapeamento(id)}</span>
                       <button type="button" onClick={() => removerMapeamento(key)}
-                        className="ml-auto rounded text-[11px] font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        className="ml-auto rounded text-2xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         Desfazer
                       </button>
                     </li>
                   ))}
                 </ul>
                 <button type="button" onClick={limparMapeamentos}
-                  className="mt-2 rounded text-[11px] font-semibold text-slate-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  className="mt-2 rounded text-2xs font-semibold text-slate-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   Desfazer todos
                 </button>
               </details>
@@ -1631,23 +1631,23 @@ export default function ScalingSuggestionPage() {
 
             {/* 4. Como vai entrar na grade: prévia por função + substituídas × novas */}
             {!pasteAnalyzing && pasteParsed && pasteParsed.rows.length > 0 && (
-              <div className="rounded-lg border border-slate-200 overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border-b border-slate-200 px-3 py-1.5">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Como vai entrar na grade</p>
-                  <p className={cn("text-[11px] tabular-nums", pasteImpact.replaced > 0 ? "font-medium text-amber-800" : "text-slate-500")}>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-surface-muted border-b border-border px-3 py-1.5">
+                  <p className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">Como vai entrar na grade</p>
+                  <p className={cn("text-2xs tabular-nums", pasteImpact.replaced > 0 ? "font-medium text-warning" : "text-muted-foreground")}>
                     {pasteImpact.replaced > 0
                       ? `${plural(pasteImpact.replaced, "linha substituída", "linhas substituídas")}, ${pasteImpact.added} ${pasteImpact.added === 1 ? "nova" : "novas"}`
                       : plural(pasteImpact.added, "linha nova", "linhas novas")}
                   </p>
                 </div>
-                <ul className="max-h-[160px] overflow-y-auto divide-y divide-slate-100">
+                <ul className="max-h-[160px] overflow-y-auto divide-y divide-border">
                   {pasteParsed.rows.map((r) => {
                     const days = dates.filter((d) => (r.quantities[d] || 0) > 0);
                     return (
                       <li key={r.rowId} className="flex items-baseline gap-2 px-3 py-1.5 text-xs">
-                        <span className="w-[150px] shrink-0 truncate font-semibold text-slate-800" title={r.functionName}>
+                        <span className="w-[150px] shrink-0 truncate font-semibold text-foreground" title={r.functionName}>
                           {r.functionName}
-                          {presentFunctionIds.has(r.functionId) && <span className="ml-1 font-normal text-amber-700">(substitui)</span>}
+                          {presentFunctionIds.has(r.functionId) && <span className="ml-1 font-normal text-warning">(substitui)</span>}
                         </span>
                         <span className="min-w-0 truncate font-mono tabular-nums text-slate-600">
                           {days.length > 0 ? days.map((d) => `${formatDayMonthBr(d)}×${r.quantities[d]}`).join(" · ") : "sem quantidades"}
@@ -1663,16 +1663,16 @@ export default function ScalingSuggestionPage() {
             <details
               open={showPasteHelp}
               onToggle={(e) => setShowPasteHelp((e.currentTarget as HTMLDetailsElement).open)}
-              className="rounded-lg border border-slate-200 bg-slate-50/70"
+              className="rounded-lg border border-border bg-surface-muted/70"
             >
-              <summary className="cursor-pointer select-none rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 marker:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+              <summary className="cursor-pointer select-none rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 marker:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                 Formatos aceitos
               </summary>
-              <div className="border-t border-slate-200 px-3 py-2.5 space-y-2.5">
+              <div className="border-t border-border px-3 py-2.5 space-y-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <Label htmlFor="sug-paste-format" className={cn(HINT, "font-medium")}>Formato</Label>
                   <Select value={pasteFormat} onValueChange={(v) => setPasteFormat(v as "auto" | PasteFormat)}>
-                    <SelectTrigger id="sug-paste-format" className="h-8 w-[320px] max-w-full text-xs rounded-lg bg-white"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="sug-paste-format" className="h-8 w-[320px] max-w-full text-xs rounded-lg bg-card"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="auto">Detectar automaticamente</SelectItem>
                       <SelectItem value="logistica">{PASTE_FORMAT_LABELS.logistica}</SelectItem>
@@ -1686,26 +1686,26 @@ export default function ScalingSuggestionPage() {
                 </div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 space-y-1">
+                  <div className="rounded-lg bg-card border border-border px-3 py-2 space-y-1">
                     <p className="font-semibold text-slate-700">Planilha da logística</p>
                     <p className="font-mono text-slate-600 whitespace-nowrap overflow-x-auto">(vazio) | ida | chegada (até…) | retorno | horario do retorno (a partir) | (vazio) | 08/set | 09/set | … | obs</p>
-                    <p className="font-mono text-slate-500 whitespace-nowrap overflow-x-auto">ex.: produção → quarta-feira, 9 de setembro de 2026 → 23h → domingo, 13 de setembro de 2026 → 20h+ → … → 1 → 1</p>
-                    <p className="text-slate-500">
+                    <p className="font-mono text-muted-foreground whitespace-nowrap overflow-x-auto">ex.: produção → quarta-feira, 9 de setembro de 2026 → 23h → domingo, 13 de setembro de 2026 → 20h+ → … → 1 → 1</p>
+                    <p className="text-muted-foreground">
                       As colunas são lidas pelo <strong>cabeçalho</strong> (colunas vazias no meio não atrapalham) e as quantidades pela <strong>data</strong> de cada coluna de dia.
                       A coluna "chegada (até…)" vira o horário de <strong>desembarque da ida</strong> e "horario do retorno (a partir)" o de <strong>embarque da volta</strong> —
                       em "14-18h" e "20h+" vale a primeira hora. Quem tem data de ida ou de volta já vem com <strong>passagem</strong> marcada (as linhas "local" não);
                       hotel e os modais de ida/volta ficam em branco para você preencher na grade.
                     </p>
                   </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
+                  <div className="rounded-lg bg-card border border-border px-3 py-2 space-y-1 overflow-x-auto">
                     <p className="font-semibold text-slate-700">Formato do briefing</p>
                     <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
-                    <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → 1 → 1 → 2</p>
+                    <p className="font-mono text-muted-foreground whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → 1 → 1 → 2</p>
                   </div>
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 space-y-1 overflow-x-auto">
+                  <div className="rounded-lg bg-card border border-border px-3 py-2 space-y-1 overflow-x-auto">
                     <p className="font-semibold text-slate-700">Formato completo</p>
                     <p className="font-mono text-slate-600 whitespace-nowrap">Função | Modal ida | Data ida | Hora desembarque | Modal volta | Data volta | Hora embarque | Hotel | Passagem | Observação | {dates.slice(0, 3).map((d) => formatDayMonthBr(d)).join(" | ")}{dates.length > 3 ? " | …" : ""}</p>
-                    <p className="font-mono text-slate-500 whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → sim → obs → 1 → 1 → 2</p>
+                    <p className="font-mono text-muted-foreground whitespace-nowrap">ex.: Kit → Aéreo → 09/09 → 10:00 → Aéreo → 13/09 → 18:00 → sim → sim → obs → 1 → 1 → 2</p>
                   </div>
                   <p className={HINT}>Colunas separadas por TAB. Funções já na grade são substituídas pelas coladas (sem duplicar).</p>
                 </div>
@@ -1713,7 +1713,7 @@ export default function ScalingSuggestionPage() {
             </details>
           </div>
 
-          <DialogFooter className="px-4 sm:px-5 py-3 border-t border-slate-200 bg-slate-50/60 gap-2">
+          <DialogFooter className="px-4 sm:px-5 py-3 border-t border-border bg-surface-muted/60 gap-2">
             <Button type="button" variant="outline" className="rounded-lg" onClick={closePaste}>Cancelar</Button>
             {/* Com nome sem decisão o botão não aplica: fica "aparentemente desabilitado"
                 (aria-disabled) e o clique leva ao bloco âmbar — um disabled de verdade
@@ -1770,7 +1770,7 @@ export default function ScalingSuggestionPage() {
           também disparava) colava assim mesmo, ignorando dias em silêncio.
           Agora: Voltar (e Esc) não fazem nada; as duas ações são explícitas. */}
       <AlertDialog open={!!pendingPasteDates} onOpenChange={(o) => { if (!o) setPendingPasteDates(null); }}>
-        <AlertDialogContent className="rounded-2xl w-[calc(100%-2rem)] sm:w-full">
+        <AlertDialogContent className="rounded-xl w-[calc(100%-2rem)] sm:w-full">
           <AlertDialogHeader>
             <AlertDialogTitle>
               A planilha tem {plural(pendingPasteDates?.dates.length ?? 0, "dia", "dias")} fora do período da grade
@@ -1801,7 +1801,7 @@ export default function ScalingSuggestionPage() {
             <AlertDialogCancel className="rounded-lg sm:mr-auto">Voltar</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); rejectPasteExpansion(); }}
-              className="rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-border bg-card text-slate-700 hover:bg-surface-muted"
             >
               Colar só os dias da grade
             </AlertDialogAction>
@@ -1822,7 +1822,7 @@ export default function ScalingSuggestionPage() {
         cancelLabel="Manter período"
         onCancel={cancelPendingPeriod}
         confirmLabel="Descartar e aplicar"
-        destructive
+        tone="danger"
         onConfirm={() => pendingPeriod && applyPeriod(pendingPeriod.start, pendingPeriod.end)}
       >
         {pendingPeriod && (
@@ -1839,7 +1839,7 @@ export default function ScalingSuggestionPage() {
         onOpenChange={(o) => { if (!o) setConfirmRemove(null); }}
         title={`Remover a linha ${rowToRemove?.functionName}?`}
         confirmLabel="Remover"
-        destructive
+        tone="danger"
         onConfirm={() => confirmRemove && removeRowNow(confirmRemove)}
       >
         <p>Ela tem quantidades preenchidas — serão descartadas junto com os dados de viagem da linha.</p>
@@ -1868,7 +1868,7 @@ export default function ScalingSuggestionPage() {
         title={`Cancelar o envio e remover ${sentSummary.total} ${sentSummary.total === 1 ? "vaga" : "vagas"} de ${selectedEvent?.name}?`}
         cancelLabel="Voltar"
         confirmLabel={cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio e remover"}
-        destructive
+        tone="danger"
         pending={cancelSendMutation.isPending}
         onConfirm={() => cancelSendMutation.mutate()}
         confirmTestId="scaling-suggestion-cancel-send-confirm"
@@ -1890,7 +1890,7 @@ export default function ScalingSuggestionPage() {
         onOpenChange={(o) => { if (!o) setConfirmClear(false); }}
         title="Limpar a grade?"
         confirmLabel="Limpar"
-        destructive
+        tone="danger"
         onConfirm={clearGrid}
       >
         <p>Todas as linhas, os comentários gerais editados e o rascunho local deste evento serão descartados. Nada é apagado no servidor.</p>

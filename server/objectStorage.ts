@@ -1,12 +1,20 @@
+/**
+ * Object Storage do Replit (bucket privado) — acesso aos anexos.
+ *
+ * Reescrito em 23/09: saiu o esqueleto genérico (ACL "public/private",
+ * caminhos /objects/..., busca em diretórios públicos) que nenhuma rota usava;
+ * ficou o que o app precisa — localizar o objeto de um anexo, subir o arquivo
+ * com os metadados (dono, nome original, tipo) e devolvê-lo ao navegador com
+ * cabeçalhos seguros. A política de quem pode ver e de quais tipos são aceitos
+ * mora em server/objectAcl.ts.
+ */
 import { Storage, File } from "@google-cloud/storage";
-import { Response } from "express";
-import { randomUUID } from "crypto";
+import type { Response } from "express";
 import {
-  ObjectAclPolicy,
-  ObjectPermission,
-  canAccessObject,
-  getObjectAclPolicy,
-  setObjectAclPolicy,
+  gravarMetadadosDoAnexo,
+  lerMetadadosDoAnexo,
+  tipoPeloContentType,
+  type MetadadosDoAnexo,
 } from "./objectAcl";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
@@ -38,29 +46,15 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
-// The object storage service is used to interact with the object storage service.
+/** Formato dos ids gerados em /api/upload: ATT-<timestamp>-<aleatório>. */
+export const ATTACHMENT_ID_RE = /^ATT-[A-Z0-9-]{4,60}$/;
+
+export function novoIdDeAnexo(): string {
+  return `ATT-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`.toUpperCase();
+}
+
 export class ObjectStorageService {
   constructor() {}
-
-  // Gets the public object search paths.
-  getPublicObjectSearchPaths(): Array<string> {
-    const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
-    const paths = Array.from(
-      new Set(
-        pathsStr
-          .split(",")
-          .map((path) => path.trim())
-          .filter((path) => path.length > 0)
-      )
-    );
-    if (paths.length === 0) {
-      throw new Error(
-        "PUBLIC_OBJECT_SEARCH_PATHS not set. Create a bucket in 'Object Storage' " +
-          "tool and set PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths)."
-      );
-    }
-    return paths;
-  }
 
   // Gets the private object directory.
   getPrivateObjectDir(): string {
@@ -74,167 +68,106 @@ export class ObjectStorageService {
     return dir;
   }
 
-  // Search for a public object from the search paths.
-  async searchPublicObject(filePath: string): Promise<File | null> {
-    for (const searchPath of this.getPublicObjectSearchPaths()) {
-      const fullPath = `${searchPath}/${filePath}`;
-
-      // Full path format: /<bucket_name>/<object_name>
-      const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-
-      // Check if file exists
-      const [exists] = await file.exists();
-      if (exists) {
-        return file;
-      }
-    }
-
-    return null;
+  /** Objeto do anexo `id` em <PRIVATE_OBJECT_DIR>/uploads/<id>. */
+  arquivoDoAnexo(id: string): File {
+    if (!ATTACHMENT_ID_RE.test(id)) throw new ObjectNotFoundError();
+    const { bucketName, objectName } = parseObjectPath(`${this.getPrivateObjectDir()}/uploads/${id}`);
+    return objectStorageClient.bucket(bucketName).file(objectName);
   }
 
-  // Downloads an object to the response.
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  /** Metadados do anexo; ObjectNotFoundError quando o objeto não existe. */
+  async metadadosDoAnexo(file: File): Promise<MetadadosDoAnexo> {
     try {
-      // Get file metadata
       const [metadata] = await file.getMetadata();
-      // Get the ACL policy for the object.
-      const aclPolicy = await getObjectAclPolicy(file);
-      const isPublic = aclPolicy?.visibility === "public";
-      // Set appropriate headers
+      return lerMetadadosDoAnexo(metadata);
+    } catch (err: any) {
+      if (err?.code === 404 || err?.code === "404") throw new ObjectNotFoundError();
+      throw err;
+    }
+  }
+
+  /**
+   * Sobe o conteúdo e grava dono/nome/tipo nos metadados. O envio continua
+   * pela URL assinada do sidecar (mecanismo já em produção); o que mudou é
+   * que só o servidor a obtém — o cliente nunca mais recebe uma URL de PUT.
+   */
+  async enviarAnexo(
+    id: string,
+    conteudo: Buffer,
+    contentType: string,
+    meta: { ownerId: string; nomeOriginal: string },
+  ): Promise<void> {
+    const uploadURL = await this.getObjectEntityUploadURL(id);
+    const response = await fetch(uploadURL, {
+      method: "PUT",
+      body: conteudo,
+      headers: { "Content-Type": contentType },
+    });
+    if (!response.ok) {
+      throw new Error(`Falha ao gravar o anexo ${id} no storage (HTTP ${response.status})`);
+    }
+    await gravarMetadadosDoAnexo(this.arquivoDoAnexo(id), { ...meta, contentType });
+  }
+
+  /**
+   * Envia o arquivo ao navegador. Regras (23/09):
+   *  - Content-Type SEMPRE da allowlist; fora dela vira octet-stream + download
+   *    forçado (nunca `inline`), o que cobre SVG/HTML gravados antes da allowlist;
+   *  - `CSP: sandbox; default-src 'none'` + nosniff: mesmo que um PDF/imagem
+   *    carregue script, ele roda sem origem e sem rede;
+   *  - sem cache compartilhado (é documento pessoal).
+   */
+  async downloadObject(
+    file: File,
+    res: Response,
+    opts: { inline: boolean; nomeArquivo: string },
+  ): Promise<void> {
+    try {
+      const meta = await this.metadadosDoAnexo(file);
+      const tipo = tipoPeloContentType(meta.contentType);
+      const contentType = tipo ? tipo.contentType : "application/octet-stream";
+      const inline = opts.inline && !!tipo && tipo.inline;
+      const nome = opts.nomeArquivo.replace(/["\\\r\n]/g, "_");
+
       res.set({
-        "Content-Type": metadata.contentType || "application/octet-stream",
-        "Content-Length": metadata.size,
-        "Cache-Control": `${
-          isPublic ? "public" : "private"
-        }, max-age=${cacheTtlSec}`,
+        "Content-Type": contentType,
+        ...(meta.tamanho != null ? { "Content-Length": String(meta.tamanho) } : {}),
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${nome}"; filename*=UTF-8''${encodeURIComponent(nome)}`,
+        "Content-Security-Policy": "sandbox; default-src 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
       });
 
-      // Stream the file to the response
       const stream = file.createReadStream();
-
       stream.on("error", (err) => {
         console.error("Stream error:", err);
         if (!res.headersSent) {
-          res.status(500).json({ error: "Error streaming file" });
+          res.status(500).json({ message: "Erro ao ler o anexo" });
+        } else {
+          res.destroy();
         }
       });
-
       stream.pipe(res);
     } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        if (!res.headersSent) res.status(404).json({ message: "Arquivo não encontrado" });
+        return;
+      }
       console.error("Error downloading file:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: "Error downloading file" });
+        res.status(500).json({ message: "Erro ao baixar o anexo" });
       }
     }
   }
 
-  // Gets the upload URL for an object entity.
-  async getObjectEntityUploadURL(attachmentId?: string): Promise<string> {
-    const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
-
-    const objectId = attachmentId || randomUUID();
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-
-    // Sign URL for PUT method with TTL
+  // URL assinada de PUT para o objeto do anexo — uso INTERNO (enviarAnexo).
+  async getObjectEntityUploadURL(attachmentId: string): Promise<string> {
+    const { bucketName, objectName } = parseObjectPath(`${this.getPrivateObjectDir()}/uploads/${attachmentId}`);
     return signObjectURL({
       bucketName,
       objectName,
       method: "PUT",
       ttlSec: 900,
-    });
-  }
-
-  // Gets the object entity file from the object path.
-  async getObjectEntityFile(objectPath: string): Promise<File> {
-    if (!objectPath.startsWith("/objects/")) {
-      throw new ObjectNotFoundError();
-    }
-
-    const parts = objectPath.slice(1).split("/");
-    if (parts.length < 2) {
-      throw new ObjectNotFoundError();
-    }
-
-    const entityId = parts.slice(1).join("/");
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) {
-      entityDir = `${entityDir}/`;
-    }
-    const objectEntityPath = `${entityDir}${entityId}`;
-    const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const objectFile = bucket.file(objectName);
-    const [exists] = await objectFile.exists();
-    if (!exists) {
-      throw new ObjectNotFoundError();
-    }
-    return objectFile;
-  }
-
-  normalizeObjectEntityPath(
-    rawPath: string,
-  ): string {
-    if (!rawPath.startsWith("https://storage.googleapis.com/")) {
-      return rawPath;
-    }
-  
-    // Extract the path from the URL by removing query parameters and domain
-    const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
-  
-    let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.endsWith("/")) {
-      objectEntityDir = `${objectEntityDir}/`;
-    }
-  
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
-      return rawObjectPath;
-    }
-  
-    // Extract the entity ID from the path
-    const entityId = rawObjectPath.slice(objectEntityDir.length);
-    return `/objects/${entityId}`;
-  }
-
-  // Tries to set the ACL policy for the object entity and return the normalized path.
-  async trySetObjectEntityAclPolicy(
-    rawPath: string,
-    aclPolicy: ObjectAclPolicy
-  ): Promise<string> {
-    const normalizedPath = this.normalizeObjectEntityPath(rawPath);
-    if (!normalizedPath.startsWith("/")) {
-      return normalizedPath;
-    }
-
-    const objectFile = await this.getObjectEntityFile(normalizedPath);
-    await setObjectAclPolicy(objectFile, aclPolicy);
-    return normalizedPath;
-  }
-
-  // Checks if the user can access the object entity.
-  async canAccessObjectEntity({
-    userId,
-    objectFile,
-    requestedPermission,
-  }: {
-    userId?: string;
-    objectFile: File;
-    requestedPermission?: ObjectPermission;
-  }): Promise<boolean> {
-    return canAccessObject({
-      userId,
-      objectFile,
-      requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
 }

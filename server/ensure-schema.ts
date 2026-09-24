@@ -122,13 +122,69 @@ const PASSOS: Passo[] = [
  * Nunca derruba o servidor: um passo que falhe (permissão, banco em migração)
  * é registrado e a subida continua — o app pode funcionar sem parte disto,
  * mas não pode ficar fora do ar por causa daqui.
+ *
+ * 24/09: `ALTER TABLE … ADD COLUMN IF NOT EXISTS` pega lock ACCESS EXCLUSIVE
+ * ANTES de descobrir que a coluna já existe. Com deploy autoscale, cada
+ * instância nova fazia isso em tabelas quentes (team_inclusions, tickets…) com
+ * tráfego ativo: um SELECT longo na fila e todas as queries seguintes atrás do
+ * ALTER. Agora: (1) consulta o catálogo primeiro e só roda o DDL que falta;
+ * (2) o DDL roda com lock_timeout de 2 s — se a tabela estiver ocupada, desiste
+ * e tenta no próximo boot em vez de travar produção.
  */
+const RE_COLUNA = /ALTER TABLE (\w+) ADD COLUMN IF NOT EXISTS (\w+)/i;
+const RE_TABELA = /CREATE TABLE IF NOT EXISTS (\w+)/i;
+const RE_INDICE = /CREATE INDEX IF NOT EXISTS (\w+)/i;
+
+async function jaExiste(sql: string): Promise<boolean> {
+  const col = sql.match(RE_COLUNA);
+  if (col) {
+    const r = await pool.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2`,
+      [col[1], col[2]],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+  const tab = sql.match(RE_TABELA);
+  if (tab) {
+    const r = await pool.query(
+      `SELECT 1 FROM pg_tables WHERE schemaname = current_schema() AND tablename = $1`,
+      [tab[1]],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+  const idx = sql.match(RE_INDICE);
+  if (idx) {
+    const r = await pool.query(
+      `SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1`,
+      [idx[1]],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+  return false;
+}
+
 export async function garantirEstrutura(): Promise<void> {
+  const faltando: Passo[] = [];
   for (const passo of PASSOS) {
     try {
-      await pool.query(passo.sql);
+      if (!(await jaExiste(passo.sql))) faltando.push(passo);
+    } catch (erro) {
+      console.error(`[estrutura] não consegui checar: ${passo.descricao} —`, erro instanceof Error ? erro.message : erro);
+    }
+  }
+  if (faltando.length === 0) return;
+  console.warn(`[estrutura] ${faltando.length} estrutura(s) ausente(s) — repondo (um db:push antigo apagou?)`);
+  for (const passo of faltando) {
+    const client = await pool.connect();
+    try {
+      await client.query(`SET lock_timeout = '2s'`);
+      await client.query(passo.sql);
+      console.warn(`[estrutura] reposto: ${passo.descricao}`);
     } catch (erro) {
       console.error(`[estrutura] falhou: ${passo.descricao} —`, erro instanceof Error ? erro.message : erro);
+    } finally {
+      client.release();
     }
   }
 }

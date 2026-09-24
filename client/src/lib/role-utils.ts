@@ -7,9 +7,35 @@
  * revisar cada tela.
  */
 import type { User } from "@shared/schema";
-import { normalizeRole } from "@shared/roles";
+import { normalizeRole, type CanonicalRole } from "@shared/roles";
 
 export type UserRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
+
+// ── Helpers de papel (23/09) ────────────────────────────────────────────────
+// `normalizeRole` (@shared/roles) é a ÚNICA tabela de aliases: "administrador",
+// "compras", "financeiro"... viram o papel canônico. As telas comparavam
+// `user.role === "admin"` cru e listas locais de aliases — quem tinha papel
+// legado no banco via os botões sumirem enquanto o servidor (que normaliza)
+// aceitava. Sempre use estes helpers em vez de comparar a string.
+export { normalizeRole };
+
+/** Qualquer objeto com `role` (User do auth, linha de /api/users, sessão simulada). */
+export type ComPapel = { role?: string | null } | null | undefined;
+
+/** O usuário tem um destes papéis (aceitando aliases legados)? */
+export function hasRole(user: ComPapel, ...roles: CanonicalRole[]): boolean {
+  const r = normalizeRole(user?.role);
+  return !!r && roles.includes(r);
+}
+
+export function isAdmin(user: ComPapel): boolean {
+  return hasRole(user, "admin");
+}
+
+/** RH (financial) ou administrador — quem decide no fluxo financeiro. */
+export function isRhOrAdmin(user: ComPapel): boolean {
+  return hasRole(user, "admin", "financial");
+}
 
 /**
  * Flags de permissão do client. Cada uma ESPELHA a regra real de uma rota em

@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getRoleLabel, type UserRole } from "@/lib/role-utils";
+import { PageHeader } from "@/components/common/page-header";
+import { Eye, Lock, Search } from "lucide-react";
 
 /**
  * Módulo "Ver como usuário" (só admin — permissão canAccessSimulation).
@@ -19,11 +21,11 @@ import { getRoleLabel, type UserRole } from "@/lib/role-utils";
  */
 
 const ROLE_BADGE_CLASSES: Record<string, string> = {
-  admin: "bg-violet-100 text-violet-700",
-  production: "bg-orange-100 text-orange-700",
-  function_area: "bg-sky-100 text-sky-700",
-  purchasing: "bg-amber-100 text-amber-700",
-  financial: "bg-emerald-100 text-emerald-700",
+  admin: "bg-brand-soft text-primary",
+  production: "bg-warning-soft text-warning",
+  function_area: "bg-info-soft text-info",
+  purchasing: "bg-warning-soft text-warning",
+  financial: "bg-success-soft text-success",
 };
 
 function initials(name: string) {
@@ -80,23 +82,17 @@ export default function SimulationPage() {
 
   return (
     <div className="max-w-3xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-          <span className="material-symbols-outlined text-violet-600" style={{ fontSize: 28 }} aria-hidden="true">
-            visibility
-          </span>
-          Ver como usuário
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Escolha um usuário para ver o sistema inteiro exatamente como ele vê —
-          menu, telas, permissões e dados.
-        </p>
-      </div>
+      {/* Cabeçalho padrão (23/09): PageHeader no lugar do h1 manual (2xl, violeta);
+          ícones lucide e tokens no lugar de material-symbols com `style`. */}
+      <PageHeader
+        icon={Eye}
+        title="Ver como usuário"
+        subtitle="Veja o sistema como outro usuário vê — menu, telas, permissões e dados"
+        className="mb-6"
+      />
 
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm text-violet-800">
-        <span className="material-symbols-outlined shrink-0" style={{ fontSize: 18, marginTop: 1 }} aria-hidden="true">
-          lock
-        </span>
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-info-strong/30 bg-info-soft px-3 py-2.5 text-sm text-info">
+        <Lock className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
         <p className="m-0">
           A simulação é <b>somente leitura</b> e fica registrada na auditoria.
           Enquanto ela estiver ativa, nenhuma ação pode ser feita em nome do
@@ -104,16 +100,10 @@ export default function SimulationPage() {
         </p>
       </div>
 
-      <div className="bg-card rounded-lg shadow-sm border border-border">
+      <div className="bg-card rounded-lg shadow-1 border border-border">
         <div className="p-4 border-b border-border">
           <div className="relative">
-            <span
-              className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              style={{ fontSize: 18 }}
-              aria-hidden="true"
-            >
-              search
-            </span>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <input
               type="text"
               value={search}
@@ -132,11 +122,11 @@ export default function SimulationPage() {
             ))}
           </div>
         ) : isError ? (
-          <p className="p-6 text-sm text-red-600">
+          <p className="p-6 text-sm text-danger">
             Erro ao carregar os usuários. Recarregue a página e tente de novo.
           </p>
         ) : candidates.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">
+          <p className="p-6 text-sm text-muted-foreground">
             {search.trim()
               ? "Nenhum usuário ativo encontrado para essa busca."
               : "Nenhum outro usuário ativo para simular."}
@@ -145,7 +135,7 @@ export default function SimulationPage() {
           <ul className="divide-y divide-border m-0 p-0 list-none">
             {candidates.map((u) => {
               const roleLabel = getRoleLabel((u.role || "production") as UserRole);
-              const badgeClass = ROLE_BADGE_CLASSES[u.role] ?? "bg-slate-100 text-slate-600";
+              const badgeClass = ROLE_BADGE_CLASSES[u.role] ?? "bg-muted text-slate-600";
               const starting = startingId === u.id;
               return (
                 <li key={u.id} className="flex items-center gap-3 px-4 py-3">
@@ -153,21 +143,19 @@ export default function SimulationPage() {
                     {initials(u.name || u.email || "?")}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="m-0 text-sm font-semibold text-slate-800 truncate">{u.name}</p>
-                    <p className="m-0 text-xs text-slate-400 truncate">{u.email}</p>
+                    <p className="m-0 text-sm font-semibold text-foreground truncate">{u.name}</p>
+                    <p className="m-0 text-xs text-muted-foreground truncate">{u.email}</p>
                   </div>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold ${badgeClass}`}>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-2xs font-semibold ${badgeClass}`}>
                     {roleLabel}
                   </span>
                   <button
                     type="button"
                     onClick={() => iniciar(u)}
                     disabled={startingId !== null}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white transition-colors"
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground transition-colors"
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: 15 }} aria-hidden="true">
-                      visibility
-                    </span>
+                    <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                     {starting ? "Iniciando..." : "Ver como"}
                   </button>
                 </li>

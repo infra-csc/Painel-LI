@@ -6,9 +6,9 @@ import {
   Upload, FileText, Check, X, AlertCircle, Download, Loader2,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useToast } from "@/hooks/use-toast";
 
-const BLUE = "#0033CC";
 
 interface BulkUploadModalProps {
   open: boolean;
@@ -83,13 +83,6 @@ function convertDate(dateStr: string) {
   if (!match) return "";
   const [, day, month, year] = match;
   return `${year}-${month}-${day}`;
-}
-
-/** Mensagem legível a partir do erro enriquecido pelo apiRequest (.status/.body). */
-function errMsg(err: any, fallback: string) {
-  if (err?.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
-  if (err?.status === 403) return "Você não tem permissão para importar colaboradores.";
-  return err?.body?.message || fallback;
 }
 
 export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps) {
@@ -193,7 +186,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       });
     },
     onError: (err: any) => {
-      toast({ title: "Erro na importação", description: errMsg(err, "Ocorreu um erro durante a importação dos colaboradores."), variant: "destructive" });
+      toast({ title: "Erro na importação", description: apiErrorMessage(err, "Ocorreu um erro durante a importação dos colaboradores."), variant: "destructive" });
     },
   });
 
@@ -233,27 +226,26 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
       <DialogContent
-        className="p-0 gap-0 sm:max-w-[820px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden max-h-[90vh] flex flex-col"
+        className="p-0 gap-0 sm:max-w-[820px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden max-h-[90vh] flex flex-col"
         data-testid="modal-bulk-upload"
       >
         {/* Header — mesmo padrão do modal de colaborador */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border shrink-0">
           <div
-            className="w-9 h-9 rounded-[9px] flex items-center justify-center shrink-0"
-            style={{ background: BLUE, boxShadow: `0 4px 12px ${BLUE}40` }}
+            className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-primary shadow-2"
           >
             <Upload className="w-4 h-4 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <DialogTitle className="text-sm font-bold text-slate-800 leading-tight">Importar Colaboradores em Lote</DialogTitle>
-            <DialogDescription className="text-[11px] text-slate-400 mt-0.5 truncate">{subtitle}</DialogDescription>
+            <DialogTitle className="text-sm font-bold text-foreground leading-tight">Importar colaboradores em lote</DialogTitle>
+            <DialogDescription className="text-2xs text-muted-foreground mt-0.5 truncate">{subtitle}</DialogDescription>
           </div>
           <button
             type="button"
             onClick={handleClose}
             aria-label="Fechar"
             disabled={bulkUploadMutation.isPending}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted disabled:opacity-40 transition-colors"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -263,10 +255,10 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
         <div className="overflow-y-auto flex-1 px-5 py-5">
           {step === "upload" && (
             <div className="space-y-4">
-              <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center bg-slate-50/50">
-                <FileText className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center bg-surface-muted/50">
+                <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
                 <p className="text-sm font-semibold text-slate-700 mb-1">Selecione seu arquivo CSV</p>
-                <p className="text-xs text-slate-400 mb-4">O arquivo deve conter as colunas especificadas no modelo</p>
+                <p className="text-xs text-muted-foreground mb-4">O arquivo deve conter as colunas especificadas no modelo</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -279,8 +271,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 h-9 px-4 text-white text-xs font-semibold rounded-lg transition-all"
-                    style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}40` }}
+                    className="flex items-center gap-1.5 h-9 px-4 text-primary-foreground text-xs font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover"
                     data-testid="button-select-csv"
                   >
                     <Upload className="w-3.5 h-3.5" /> Selecionar Arquivo
@@ -288,7 +279,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                   <button
                     type="button"
                     onClick={downloadTemplate}
-                    className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-slate-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-slate-600 border border-border bg-card rounded-lg hover:bg-surface-muted transition-colors"
                     data-testid="button-download-template"
                   >
                     <Download className="w-3.5 h-3.5" /> Baixar Modelo
@@ -296,13 +287,13 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-gray-100 rounded-xl p-4">
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Formato do arquivo CSV</p>
-                <p className="text-xs text-slate-500 mb-2">Colunas, nesta ordem (separador vírgula ou ponto-e-vírgula):</p>
-                <code className="text-[11px] font-mono bg-white border border-gray-200 px-2.5 py-1.5 rounded-lg block text-slate-700">
+              <div className="bg-surface-muted border border-border rounded-xl p-4">
+                <p className="text-2xs font-bold text-muted-foreground uppercase tracking-wide mb-2">Formato do arquivo CSV</p>
+                <p className="text-xs text-muted-foreground mb-2">Colunas, nesta ordem (separador vírgula ou ponto-e-vírgula):</p>
+                <code className="text-2xs font-mono bg-card border border-border px-2.5 py-1.5 rounded-lg block text-slate-700">
                   Nome,Tipo,Documento,Telefone,Cidade,DataNasc
                 </code>
-                <ul className="text-xs text-slate-500 mt-2.5 space-y-1">
+                <ul className="text-xs text-muted-foreground mt-2.5 space-y-1">
                   <li>• <strong className="text-slate-600">Tipo:</strong> CASA, FREELA ou LOCAL (vazio = FREELA)</li>
                   <li>• <strong className="text-slate-600">Documento:</strong> número do RG (tipo RG é automático)</li>
                   <li>• <strong className="text-slate-600">DataNasc:</strong> formato DD/MM/AAAA</li>
@@ -316,20 +307,20 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
           {step === "preview" && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
+                <Badge className="bg-success-soft text-success border border-success/25 hover:bg-success-soft">
                   {validCount} válido{validCount !== 1 ? "s" : ""}
                 </Badge>
                 {invalidCount > 0 && (
-                  <Badge className="bg-red-50 text-red-700 border border-red-200 hover:bg-red-50">
+                  <Badge className="bg-danger-soft text-danger border border-danger/25 hover:bg-danger-soft">
                     {invalidCount} inválido{invalidCount !== 1 ? "s" : ""}
                   </Badge>
                 )}
               </div>
 
-              <div className="max-h-72 overflow-auto border border-gray-200 rounded-xl">
+              <div className="max-h-72 overflow-auto border border-border rounded-xl">
                 <table className="w-full text-xs">
-                  <thead className="bg-slate-50 sticky top-0">
-                    <tr className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                  <thead className="bg-surface-muted sticky top-0">
+                    <tr className="text-2xs font-bold tracking-widest text-muted-foreground uppercase">
                       <th className="px-3 py-2.5 text-left">Status</th>
                       <th className="px-3 py-2.5 text-left">Nome</th>
                       <th className="px-3 py-2.5 text-left">Tipo</th>
@@ -340,21 +331,21 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                       <th className="px-3 py-2.5 text-left">Erros</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-border">
                     {parsedData.map((item, index) => (
-                      <tr key={index} className={item.isValid ? "" : "bg-red-50/40"}>
+                      <tr key={index} className={item.isValid ? "" : "bg-danger-soft/40"}>
                         <td className="px-3 py-2">
                           {item.isValid
-                            ? <Check className="w-3.5 h-3.5 text-emerald-500" aria-label="Válido" />
-                            : <X className="w-3.5 h-3.5 text-red-500" aria-label="Inválido" />}
+                            ? <Check className="w-3.5 h-3.5 text-success-strong" aria-label="Válido" />
+                            : <X className="w-3.5 h-3.5 text-danger-strong" aria-label="Inválido" />}
                         </td>
                         <td className="px-3 py-2 font-medium text-slate-700">{item.fullName}</td>
-                        <td className="px-3 py-2 uppercase text-slate-500">{item.type}</td>
-                        <td className="px-3 py-2 font-mono text-slate-500">{item.document || "—"}</td>
-                        <td className="px-3 py-2 text-slate-500">{item.phone || "—"}</td>
-                        <td className="px-3 py-2 text-slate-500">{item.city || "—"}</td>
-                        <td className="px-3 py-2 text-slate-500">{item.birthDate || "—"}</td>
-                        <td className="px-3 py-2 text-red-600">{item.errors.join(", ")}</td>
+                        <td className="px-3 py-2 uppercase text-muted-foreground">{item.type}</td>
+                        <td className="px-3 py-2 font-mono text-muted-foreground">{item.document || "—"}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{item.phone || "—"}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{item.city || "—"}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{item.birthDate || "—"}</td>
+                        <td className="px-3 py-2 text-danger">{item.errors.join(", ")}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -366,32 +357,32 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
           {step === "result" && uploadResult && (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Check className="w-7 h-7 text-emerald-600" strokeWidth={3} />
+                <div className="w-14 h-14 bg-success-soft rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Check className="w-7 h-7 text-success" strokeWidth={3} />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800 mb-4">Importação concluída</h3>
+                <h3 className="text-sm font-bold text-foreground mb-4">Importação concluída</h3>
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { label: "Processados", value: uploadResult.totalProcessed, cls: "text-slate-700" },
-                    { label: "Importados",  value: uploadResult.successful,     cls: "text-emerald-600" },
-                    { label: "Com erro",    value: uploadResult.failed,         cls: "text-red-600" },
+                    { label: "Importados",  value: uploadResult.successful,     cls: "text-success" },
+                    { label: "Com erro",    value: uploadResult.failed,         cls: "text-danger" },
                   ].map(c => (
-                    <div key={c.label} className="bg-slate-50 border border-gray-100 rounded-xl py-3">
+                    <div key={c.label} className="bg-surface-muted border border-border rounded-xl py-3">
                       <div className={`text-2xl font-bold ${c.cls}`}>{c.value}</div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{c.label}</div>
+                      <div className="text-2xs font-bold uppercase tracking-widest text-muted-foreground mt-0.5">{c.label}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
               {uploadResult.errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <p className="text-xs font-bold text-red-800 mb-2 flex items-center gap-1.5">
+                <div className="bg-danger-soft border border-danger/25 rounded-xl p-4">
+                  <p className="text-xs font-bold text-danger mb-2 flex items-center gap-1.5">
                     <AlertCircle className="w-3.5 h-3.5" /> Linhas com erro
                   </p>
                   <div className="space-y-1 max-h-36 overflow-y-auto">
                     {uploadResult.errors.map((error, index) => (
-                      <div key={index} className="text-xs text-red-700">
+                      <div key={index} className="text-xs text-danger">
                         Linha {error.row} ({error.name}): {error.error}
                       </div>
                     ))}
@@ -403,10 +394,10 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/50 shrink-0 flex items-center justify-end gap-2">
+        <div className="px-5 py-3.5 border-t border-border bg-surface-muted/50 shrink-0 flex items-center justify-end gap-2">
           {step === "upload" && (
             <button type="button" onClick={handleClose}
-              className="h-9 px-4 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+              className="h-9 px-4 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-muted transition-colors">
               Cancelar
             </button>
           )}
@@ -414,15 +405,14 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
             <>
               <button type="button" onClick={() => { setStep("upload"); setParsedData([]); setFile(null); }}
                 disabled={bulkUploadMutation.isPending}
-                className="h-9 px-4 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-60 transition-colors">
+                className="h-9 px-4 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-muted disabled:opacity-60 transition-colors">
                 Voltar
               </button>
               <button
                 type="button"
                 onClick={() => bulkUploadMutation.mutate(parsedData)}
                 disabled={validCount === 0 || bulkUploadMutation.isPending}
-                className="flex items-center gap-1.5 h-9 px-5 text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-60"
-                style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}40` }}
+                className="flex items-center gap-1.5 h-9 px-5 text-primary-foreground text-xs font-semibold rounded-lg transition-all disabled:opacity-60 bg-primary hover:bg-primary-hover"
                 data-testid="button-confirm-upload"
               >
                 {bulkUploadMutation.isPending
@@ -435,8 +425,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
             <button
               type="button"
               onClick={handleClose}
-              className="flex items-center gap-1.5 h-9 px-5 text-white text-xs font-semibold rounded-lg transition-all"
-              style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}40` }}
+              className="flex items-center gap-1.5 h-9 px-5 text-primary-foreground text-xs font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover"
               data-testid="button-close-result"
             >
               Fechar

@@ -6,8 +6,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { AlertCircle, Stamp, FileUp } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { apiRequest } from "@/lib/queryClient";
 import { PastEventBanner } from "@/lib/event-lock";
@@ -36,10 +38,10 @@ import VoucherLoteDialog from "@/components/tickets/voucher-lote-dialog";
 import TicketsTable from "@/components/tickets/tickets-table";
 import TicketModal from "@/components/tickets/ticket-modal";
 import {
-  TicketSuccessDialog, DiscardChangesDialog, ChronologyWarningsDialog, BatchConfirmDialog, BatchResultDialog,
+  DiscardChangesDialog, ChronologyWarningsDialog, BatchConfirmDialog, BatchResultDialog,
 } from "@/components/tickets/ticket-dialogs";
 import type {
-  TicketFilters, TicketFormState, FieldErrorsState, BatchResult, SuccessInfo, FormFieldHelpers, TicketFormHandlers,
+  TicketFilters, TicketFormState, FieldErrorsState, BatchResult, FormFieldHelpers, TicketFormHandlers,
 } from "@/components/tickets/types";
 
 // Chaves preenchidas automaticamente ao abrir o modal — não contam como
@@ -47,6 +49,7 @@ import type {
 const AUTO_FILLED_KEYS = ["transportType", "departureCityDestination", "returnCityOrigin", "departureCityOrigin", "returnCityDestination", "purchaseDate"];
 
 export default function Tickets() {
+  usePageTitle("Passagens");
   const { user } = useAuth();
   const { toast } = useToast();
   const search = useSearch();
@@ -82,8 +85,6 @@ export default function Tickets() {
 
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successInfo, setSuccessInfo] = useState<SuccessInfo | null>(null);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [batchExpanded, setBatchExpanded] = useState(false);
@@ -205,10 +206,10 @@ export default function Tickets() {
   }), []);
 
   const helpers = useMemo<FormFieldHelpers>(() => ({
-    errCls: (scope, field) => (fieldErrors[scope]?.[field] ? " border-red-400 focus-visible:ring-red-300 bg-red-50/40" : ""),
+    errCls: (scope, field) => (fieldErrors[scope]?.[field] ? " border-danger-strong focus-visible:ring-danger/25 bg-danger-soft/40" : ""),
     fieldErrorMsg: (scope, field) => {
       const msg = fieldErrors[scope]?.[field];
-      return msg ? <p className="text-[10px] text-red-500 mt-1 leading-snug" role="alert">{msg}</p> : null;
+      return msg ? <p className="text-2xs text-danger-strong mt-1 leading-snug" role="alert">{msg}</p> : null;
     },
   }), [fieldErrors]);
 
@@ -296,11 +297,11 @@ export default function Tickets() {
     setEditSnapshot(null);
     if (selectedInclusion) clearScope(selectedInclusion.id);
   };
-  const closeSuccessModal = () => {
-    setShowSuccessModal(false);
-    setSuccessInfo(null);
+  // Antes rodava ao fechar o modal "Sucesso" + OK; desde 23/09 o sucesso é um
+  // toast, então a limpeza acontece logo depois de registrar.
+  const aposSucesso = (inclusionId: string) => {
     setEditingTicketId(null);
-    if (selectedInclusion) clearScope(selectedInclusion.id);
+    clearScope(inclusionId);
   };
   const isModalDirty = () => {
     if (!selectedInclusion) return false;
@@ -344,8 +345,7 @@ export default function Tickets() {
     validateTicketForm(inc.id, form, { scheduleStartDate: inc.scheduleStartDate, scheduleEndDate: inc.scheduleEndDate }, async () => {
       try {
         const mode = await upsertTicketForInclusion(inc, form);
-        setSuccessInfo({
-          message: (isEditing || mode === "updated") ? "Passagem atualizada com sucesso!" : "Passagem registrada com sucesso!",
+        toastSucessoDaVaga((isEditing || mode === "updated") ? "Passagem atualizada" : "Passagem registrada", {
           inclusionNumber: inc.inclusionNumber ?? null,
           eventName: getEventName(inc.eventId),
           collaboratorName: inc.collaboratorId ? getCollaboratorName(inc.collaboratorId) : "—",
@@ -353,7 +353,7 @@ export default function Tickets() {
         });
         setEditSnapshot(null);
         setShowModal(false);
-        setShowSuccessModal(true);
+        aposSucesso(inc.id);
       } catch { /* erro já exibido pelo toast da mutation */ }
     });
   };
@@ -458,7 +458,7 @@ export default function Tickets() {
   // ── Guardas de tela ──
   if (!canView(user, "tickets")) {
     return (
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+      <div className="bg-card rounded-lg shadow-1 border border-border p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
         <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
@@ -475,10 +475,10 @@ export default function Tickets() {
   if (data.loadError) {
     const isAuthError = data.loadError.status === 401 || data.loadError.status === 403;
     return (
-      <div className="bg-white rounded-xl border border-red-200 shadow-sm p-8 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-red-400" /></div>
-        <h3 className="text-[15px] font-bold text-slate-700 mb-1">{isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as passagens"}</h3>
-        <p className="text-[13px] text-slate-400 mb-4">
+      <div className="bg-card rounded-xl border border-danger/25 shadow-1 p-8 text-center">
+        <div className="w-14 h-14 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-danger-strong" /></div>
+        <h3 className="text-base font-bold text-slate-700 mb-1">{isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as passagens"}</h3>
+        <p className="text-sm text-muted-foreground mb-4">
           {isAuthError ? "Entre novamente para continuar. Nenhum dado foi perdido." : (data.loadError.body?.message || "Verifique sua conexão e tente novamente.")}
         </p>
         <Button variant="outline" onClick={data.retryLoad} className="rounded-lg">Tentar novamente</Button>
@@ -488,19 +488,22 @@ export default function Tickets() {
 
   return (
     <>
-      <div className="-mx-6 -mt-6">
+      {/* Margens pela variável do layout (23/09): `-mx-6` fixo estourava a
+          largura em 375px (o layout dá 16px ali) e deixava fresta em 1024+. */}
+      <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
         {/* Barra de contexto: 56px no lugar do bloco de ~76px que repetia o que
             o breadcrumb já dizia. O "Total geral" do KPI vira o resumo daqui —
-            nenhum número se perdeu. */}
-        <div className="sticky top-0 z-25 flex items-center gap-4 h-14 px-6 bg-card border-b border-border">
-          <span className="text-[15px] font-semibold text-slate-900 whitespace-nowrap">Passagens</span>
+            nenhum número se perdeu. Fica abaixo da barra do topo (`--sticky-top`)
+            — `z-25` não existe no Tailwind, por isso ela não fixava (23/09). */}
+        <div className="sticky top-[var(--sticky-top)] z-30 flex flex-wrap items-center gap-x-4 gap-y-2 min-h-14 py-2 px-[var(--page-gutter)] bg-card border-b border-border">
+          <span className="text-base font-semibold text-foreground whitespace-nowrap">Passagens</span>
           <div aria-hidden="true" className="w-px h-5 bg-border" />
-          <span className="min-w-0 text-[12px] text-muted-foreground truncate" data-testid="resumo-passagens">{resumoTopo}</span>
+          <span className="min-w-0 text-xs text-muted-foreground truncate" data-testid="resumo-passagens">{resumoTopo}</span>
           {canEdit && (
             <Button
               type="button"
               onClick={() => setVoucherLoteAberto(true)}
-              className="ml-auto shrink-0 h-[34px] rounded-lg bg-primary hover:bg-primary-hover text-white text-[13px] font-medium"
+              className="ml-auto shrink-0 h-[34px] rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-medium"
               data-testid="abrir-voucher-lote"
             >
               <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
@@ -509,7 +512,8 @@ export default function Tickets() {
           )}
         </div>
 
-      <main className="px-6 pt-5 pb-6">
+      {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}
+      <div className="px-[var(--page-gutter)] pt-5 pb-6">
         <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">
         {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
             já terminado e o usuário não é o administrador. */}
@@ -526,18 +530,18 @@ export default function Tickets() {
             painel de aplicar dados. É o aviso de "o bilhete saiu" para várias
             pessoas de uma vez — não preenche nada, só fecha a janela de ajuste. */}
         {podeEmitir && effectiveSelectedTickets.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
-            <Stamp className="w-4 h-4 text-violet-600 shrink-0" aria-hidden="true" />
-            <p className="text-[13px] text-violet-900 mr-auto">
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/25 bg-brand-soft px-4 py-3">
+            <Stamp className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+            <p className="text-sm text-primary mr-auto">
               <strong>{effectiveSelectedTickets.length}</strong>{" "}
               {effectiveSelectedTickets.length === 1 ? "passagem selecionada" : "passagens selecionadas"} — marcar como emitida trava o pedido de ajuste da área.
-              <span className="block text-[11px] text-violet-700/80">Os dados da passagem continuam podendo ser preenchidos depois.</span>
+              <span className="block text-2xs text-primary/80">Os dados da passagem continuam podendo ser preenchidos depois.</span>
             </p>
             <Button
               type="button"
               onClick={marcarSelecionadasEmitidas}
               disabled={emitirMutation.isPending}
-              className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white"
+              className="rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground"
               data-testid="marcar-emitidas-lote"
             >
               <Stamp className="w-4 h-4 mr-1.5" aria-hidden="true" />
@@ -591,7 +595,7 @@ export default function Tickets() {
           />
         </div>
         </div>
-      </main>
+      </div>
       </div>
 
       <TicketModal
@@ -607,7 +611,6 @@ export default function Tickets() {
         onTabChange={setModalActiveTab}
         showCommentsModal={showCommentsModal}
         onShowCommentsModal={setShowCommentsModal}
-        successOpen={showSuccessModal}
         onRequestClose={requestCloseModal}
         onStartEdit={startEdit}
         onCancelEdit={requestCancelEdit}
@@ -615,7 +618,6 @@ export default function Tickets() {
         isSubmitting={isSubmitting}
       />
 
-      <TicketSuccessDialog open={showSuccessModal} info={successInfo} onClose={closeSuccessModal} />
       <DiscardChangesDialog
         open={!!discardTarget}
         backToView={discardTarget === "edit"}

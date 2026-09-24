@@ -63,13 +63,13 @@ interface LogsResponse {
 
 /** Cor e ícone por TIPO de ação — a cor diz o peso do que aconteceu. */
 const TOM: Record<TomDaAcao, { icon: typeof Plus; chip: string; bolinha: string }> = {
-  criar: { icon: Plus, chip: "bg-emerald-50 text-emerald-700", bolinha: "bg-emerald-100 text-emerald-700" },
-  alterar: { icon: Edit, chip: "bg-blue-50 text-blue-700", bolinha: "bg-blue-100 text-blue-700" },
-  excluir: { icon: Trash2, chip: "bg-red-50 text-red-700", bolinha: "bg-red-100 text-red-700" },
-  aprovar: { icon: CheckCircle, chip: "bg-emerald-50 text-emerald-700", bolinha: "bg-emerald-100 text-emerald-700" },
-  recusar: { icon: XCircle, chip: "bg-rose-50 text-rose-700", bolinha: "bg-rose-100 text-rose-700" },
-  enviar: { icon: Send, chip: "bg-amber-50 text-amber-700", bolinha: "bg-amber-100 text-amber-700" },
-  neutro: { icon: Activity, chip: "bg-slate-100 text-slate-600", bolinha: "bg-slate-100 text-slate-600" },
+  criar: { icon: Plus, chip: "bg-success-soft text-success", bolinha: "bg-success-soft text-success" },
+  alterar: { icon: Edit, chip: "bg-brand-soft text-primary", bolinha: "bg-brand-soft text-primary" },
+  excluir: { icon: Trash2, chip: "bg-danger-soft text-danger", bolinha: "bg-danger-soft text-danger" },
+  aprovar: { icon: CheckCircle, chip: "bg-success-soft text-success", bolinha: "bg-success-soft text-success" },
+  recusar: { icon: XCircle, chip: "bg-danger-soft text-danger", bolinha: "bg-danger-soft text-danger" },
+  enviar: { icon: Send, chip: "bg-warning-soft text-warning", bolinha: "bg-warning-soft text-warning" },
+  neutro: { icon: Activity, chip: "bg-muted text-slate-600", bolinha: "bg-muted text-slate-600" },
 };
 
 const PERIODOS: [string, string][] = [["1", "Últimas 24h"], ["7", "Últimos 7 dias"], ["30", "Últimos 30 dias"], ["90", "Últimos 90 dias"], ["365", "Último ano"]];
@@ -108,7 +108,7 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
   const temDetalhe = d.mudancas.length > 0 || d.dados.length > 0;
 
   return (
-    <div className={cn("bg-card border rounded-xl overflow-hidden transition-colors", open ? "border-slate-300 shadow-sm" : "border-slate-200 hover:border-slate-300")}>
+    <div className={cn("bg-card border rounded-xl overflow-hidden transition-colors", open ? "border-slate-300 shadow-1" : "border-border hover:border-slate-300")}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -120,41 +120,41 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
           <Icone className="h-4 w-4" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] leading-snug text-slate-800">
-            <span className="font-semibold text-slate-900">{fixEncoding(log.userName) || "Sistema"}</span>{" "}
+          <span className="block text-sm leading-snug text-foreground">
+            <span className="font-semibold text-foreground">{fixEncoding(log.userName) || "Sistema"}</span>{" "}
             {d.frase}
           </span>
-          <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="mt-1 flex flex-wrap items-center gap-1.5 text-2xs">
             <span className={cn("rounded-full px-2 py-0.5 font-semibold", tom.chip)}>{d.acao}</span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">{d.modulo}</span>
-            {d.contexto.length > 0 && <span className="text-slate-500 break-words">{d.contexto.join(" · ")}</span>}
+            <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-slate-600">{d.modulo}</span>
+            {d.contexto.length > 0 && <span className="text-muted-foreground break-words">{d.contexto.join(" · ")}</span>}
           </span>
-          {d.resumo && <span className="mt-1 block text-[12px] text-slate-500 break-words">{d.resumo}</span>}
+          {d.resumo && <span className="mt-1 block text-xs text-muted-foreground break-words">{d.resumo}</span>}
         </span>
-        <span className="flex shrink-0 items-center gap-2 text-[12px] text-slate-400">
+        <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           <span className="tabular-nums">{horaBr(log.createdAt)}</span>
           {open ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
         </span>
       </button>
 
       {open && (
-        <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+        <div className="space-y-3 border-t border-border px-4 pb-4 pt-3">
           {d.mudancas.length > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full text-[12px]">
-                <thead className="bg-slate-50 text-[11px] text-slate-500">
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-xs">
+                <thead className="bg-surface-muted text-2xs text-muted-foreground">
                   <tr>
                     <th className="px-3 py-1.5 text-left font-semibold">O que mudou</th>
                     <th className="px-3 py-1.5 text-left font-semibold">Antes</th>
                     <th className="px-3 py-1.5 text-left font-semibold">Depois</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border">
                   {d.mudancas.map((m, i) => (
                     <tr key={`${m.campo}-${i}`}>
                       <td className="px-3 py-1.5 font-medium text-slate-700">{m.campo}</td>
-                      <td className="px-3 py-1.5 text-slate-500 break-words">{m.antes}</td>
-                      <td className="px-3 py-1.5 font-semibold text-slate-800 break-words">{m.depois}</td>
+                      <td className="px-3 py-1.5 text-muted-foreground break-words">{m.antes}</td>
+                      <td className="px-3 py-1.5 font-semibold text-foreground break-words">{m.depois}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,14 +162,14 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
             </div>
           )}
           {d.mudancas.length === 0 && d.dados.length > 0 && (
-            <div className="rounded-lg border border-slate-200">
-              <p className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
+            <div className="rounded-lg border border-border">
+              <p className="border-b border-border bg-surface-muted px-3 py-1.5 text-2xs font-semibold text-muted-foreground">
                 {log.action === "delete" ? "Como estava antes de excluir" : "Dados registrados"}
               </p>
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-1 px-3 py-2 text-[12px] sm:grid-cols-2">
+              <dl className="grid grid-cols-1 gap-x-4 gap-y-1 px-3 py-2 text-xs sm:grid-cols-2">
                 {d.dados.map((x, i) => (
                   <div key={`${x.campo}-${i}`} className="flex gap-2 min-w-0">
-                    <dt className="shrink-0 text-slate-500">{x.campo}:</dt>
+                    <dt className="shrink-0 text-muted-foreground">{x.campo}:</dt>
                     <dd className="min-w-0 font-medium text-slate-700 break-words">{x.valor}</dd>
                   </div>
                 ))}
@@ -177,12 +177,12 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
             </div>
           )}
           {!temDetalhe && (
-            <p className="flex items-center gap-1.5 text-[12px] text-slate-500">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5" aria-hidden="true" /> Este registro não guarda detalhes de campos.
             </p>
           )}
-          <details className="text-[11px] text-slate-500">
-            <summary className="cursor-pointer select-none font-medium text-slate-500 hover:text-slate-700">Detalhes técnicos</summary>
+          <details className="text-2xs text-muted-foreground">
+            <summary className="cursor-pointer select-none font-medium text-muted-foreground hover:text-slate-700">Detalhes técnicos</summary>
             <dl className="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2">
               <div><dt className="inline">Registro nº </dt><dd className="inline font-mono">{log.logNumber}</dd></div>
               <div><dt className="inline">Data e hora: </dt><dd className="inline">{new Date(log.createdAt).toLocaleString("pt-BR")}</dd></div>
@@ -315,16 +315,16 @@ export default function SystemLogsPage() {
   if (!hasPermission(user, "canAccessScreen6")) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-          <ShieldAlert className="h-8 w-8 text-red-500" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-danger-soft">
+          <ShieldAlert className="h-8 w-8 text-danger-strong" />
         </div>
-        <h2 className="text-xl font-semibold text-slate-900">Acesso restrito</h2>
-        <p className="max-w-xs text-slate-500">Apenas administradores podem acessar o log de auditoria.</p>
+        <h2 className="text-xl font-semibold text-foreground">Acesso restrito</h2>
+        <p className="max-w-xs text-muted-foreground">Apenas administradores podem acessar o log de auditoria.</p>
       </div>
     );
   }
 
-  const pill = "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium";
+  const pill = "flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium";
 
   return (
     <PageContainer>
@@ -346,10 +346,10 @@ export default function SystemLogsPage() {
       />
 
       {/* Busca + filtros */}
-      <div className="rounded-xl border border-slate-200 bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap gap-3">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por pessoa, evento, nº da vaga, LOC…"
               value={search}
@@ -357,7 +357,7 @@ export default function SystemLogsPage() {
               className="pl-9 pr-8"
             />
             {search && (
-              <button type="button" aria-label="Limpar busca" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <button type="button" aria-label="Limpar busca" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
@@ -365,7 +365,7 @@ export default function SystemLogsPage() {
 
           <Select value={filters.userId} onValueChange={(v) => setFiltro("userId", v)}>
             <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Pessoa"><SelectValue placeholder="Pessoa" /></SelectTrigger>
-            <SelectContent className="max-h-[320px] min-w-[220px] rounded-xl shadow-lg">
+            <SelectContent className="max-h-[320px] min-w-[220px] rounded-xl shadow-2">
               <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todas as pessoas</SelectItem>
               {usuariosOrdenados.map((u) => <SelectItem key={u.id} value={u.id} className={SELECT_ITEM_CLASS}>{u.name}</SelectItem>)}
             </SelectContent>
@@ -373,7 +373,7 @@ export default function SystemLogsPage() {
 
           <Select value={filters.entityType} onValueChange={(v) => setFiltro("entityType", v)}>
             <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Módulo"><SelectValue placeholder="Módulo" /></SelectTrigger>
-            <SelectContent className="max-h-[320px] min-w-[220px] rounded-xl shadow-lg">
+            <SelectContent className="max-h-[320px] min-w-[220px] rounded-xl shadow-2">
               <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todos os módulos</SelectItem>
               {modulosOrdenados.map(([k, m]) => <SelectItem key={k} value={k} className={SELECT_ITEM_CLASS}>{m.rotulo}</SelectItem>)}
             </SelectContent>
@@ -381,7 +381,7 @@ export default function SystemLogsPage() {
 
           <Select value={filters.action} onValueChange={(v) => setFiltro("action", v)}>
             <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Ação"><SelectValue placeholder="Ação" /></SelectTrigger>
-            <SelectContent className="max-h-[320px] min-w-[240px] rounded-xl shadow-lg">
+            <SelectContent className="max-h-[320px] min-w-[240px] rounded-xl shadow-2">
               <SelectItem value="all" className={SELECT_ITEM_CLASS}>Todas as ações</SelectItem>
               {acoesOrdenadas.map(([k, a]) => <SelectItem key={k} value={k} className={SELECT_ITEM_CLASS}>{a.rotulo}</SelectItem>)}
             </SelectContent>
@@ -389,13 +389,13 @@ export default function SystemLogsPage() {
 
           <Select value={filters.days} onValueChange={(v) => setFiltro("days", v)}>
             <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "w-40")} aria-label="Período"><SelectValue /></SelectTrigger>
-            <SelectContent className="min-w-[180px] rounded-xl shadow-lg">
+            <SelectContent className="min-w-[180px] rounded-xl shadow-2">
               {PERIODOS.map(([v, r]) => <SelectItem key={v} value={v} className={SELECT_ITEM_CLASS}>{r}</SelectItem>)}
             </SelectContent>
           </Select>
 
           {hasActiveFilters && (
-            <Button variant="ghost" onClick={clearFilters} className="gap-1.5 text-slate-500 hover:text-slate-700">
+            <Button variant="ghost" onClick={clearFilters} className="gap-1.5 text-muted-foreground hover:text-slate-700">
               <X className="h-4 w-4" /> Limpar
             </Button>
           )}
@@ -405,15 +405,15 @@ export default function SystemLogsPage() {
       {/* Filtros ativos */}
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-medium text-slate-400">Filtros ativos:</span>
+          <span className="text-2xs font-medium text-muted-foreground">Filtros ativos:</span>
           {debouncedSearch && (
-            <span className={cn(pill, "border-indigo-200 bg-indigo-50 text-indigo-700")}>
+            <span className={cn(pill, "border-primary/25 bg-brand-soft text-primary")}>
               <Search className="h-2.5 w-2.5" /> "{debouncedSearch}"
               <button type="button" aria-label="Remover filtro de busca" onClick={clearSearch} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
           )}
           {filters.userId !== "all" && (
-            <span className={cn(pill, "border-violet-200 bg-violet-50 text-violet-700")}>
+            <span className={cn(pill, "border-primary/25 bg-brand-soft text-primary")}>
               <User className="h-2.5 w-2.5" /> {usuariosOrdenados.find((u) => u.id === filters.userId)?.name ?? "Pessoa"}
               <button type="button" aria-label="Remover filtro de pessoa" onClick={() => setFiltro("userId", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
@@ -425,13 +425,13 @@ export default function SystemLogsPage() {
             </span>
           )}
           {filters.action !== "all" && (
-            <span className={cn(pill, "border-purple-200 bg-purple-50 text-purple-700")}>
+            <span className={cn(pill, "border-primary/25 bg-brand-soft text-primary")}>
               {ACOES[filters.action]?.rotulo ?? filters.action}
               <button type="button" aria-label="Remover filtro de ação" onClick={() => setFiltro("action", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
           )}
           {filters.days !== "30" && (
-            <span className={cn(pill, "border-amber-200 bg-amber-50 text-amber-700")}>
+            <span className={cn(pill, "border-warning/25 bg-warning-soft text-warning")}>
               {PERIODOS.find(([v]) => v === filters.days)?.[1]}
               <button type="button" aria-label="Remover filtro de período" onClick={() => setFiltro("days", "30")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
             </span>
@@ -443,8 +443,8 @@ export default function SystemLogsPage() {
       {isLoading ? (
         <LoadingState count={8} label="Carregando registros…" />
       ) : isError ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-red-200 bg-card px-6 py-16 text-center">
-          <ShieldAlert className="h-10 w-10 text-red-400" />
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-danger/25 bg-card px-6 py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-danger-strong" />
           <p className="font-medium text-slate-700">
             {(error as any)?.status === 401
               ? "Sua sessão expirou. Entre novamente para consultar o log."
@@ -452,7 +452,7 @@ export default function SystemLogsPage() {
               ? "Você não tem permissão para consultar o log de auditoria."
               : "Não foi possível carregar os registros."}
           </p>
-          <p className="max-w-md text-sm text-slate-500">
+          <p className="max-w-md text-sm text-muted-foreground">
             {(error as any)?.body?.message || "Verifique sua conexão e tente novamente. Isto não significa que não existam registros."}
           </p>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
@@ -470,8 +470,8 @@ export default function SystemLogsPage() {
         <div className="space-y-5">
           {porDia.map((g) => (
             <section key={g.dia} aria-label={g.dia}>
-              <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-                {g.dia} <span className="font-normal normal-case tracking-normal text-slate-400">· {g.itens.length}</span>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {g.dia} <span className="font-normal normal-case tracking-normal text-muted-foreground">· {g.itens.length}</span>
               </h2>
               <div className="space-y-2">
                 {g.itens.map(({ log, d }) => <LogCard key={log.id} log={log} d={d} />)}
@@ -484,7 +484,7 @@ export default function SystemLogsPage() {
       {/* Paginação */}
       {logsResponse && logsResponse.pagination.pages > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             Página {logsResponse.pagination.page} de {logsResponse.pagination.pages}
           </p>
           <div className="flex flex-wrap items-center gap-1.5">

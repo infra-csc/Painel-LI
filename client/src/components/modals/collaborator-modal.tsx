@@ -2,22 +2,25 @@ import { useForm } from "react-hook-form";
 import { formatarCep } from "@shared/endereco";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
+import { hasRole } from "@/lib/role-utils";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
+import { avisarAgenda } from "@/hooks/use-vaga-acoes";
 import type { Event, Function, Collaborator } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import {
-  X, Check, Phone, MapPin, Calendar, FileText, Home, User, Briefcase, Loader2, UserPlus, Edit
+  X, Check, Phone, MapPin, Calendar, FileText, Home, User, Briefcase, Loader2, UserPlus, Edit, AlertTriangle
 } from "lucide-react";
-
-const BLUE = "#0033CC";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
+import { OptionalMark, RequiredMark } from "@/components/forms/required-mark";
 
 // ─── CPF validation ─────────────────────────────────────────────────────────
 // Exportado para a tela de Colaboradores reutilizar na aprovação (mesma regra).
@@ -36,8 +39,8 @@ export const validateCPF = (cpf: string): boolean => {
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-orange-500",
-  "bg-pink-500", "bg-cyan-600", "bg-amber-500", "bg-rose-500",
+  "bg-primary", "bg-primary", "bg-success-strong", "bg-warning-strong",
+  "bg-primary", "bg-info", "bg-warning-strong", "bg-danger-strong",
 ];
 function avatarColor(name: string) {
   let h = 0;
@@ -54,27 +57,36 @@ function toTitleCase(str: string) {
 }
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
-const collaboratorSchema = z.object({
-  fullName:            z.string().min(1, "Nome completo é obrigatório"),
-  cpf:                 z.string().min(1, "CPF é obrigatório").refine(validateCPF, { message: "CPF inválido" }),
-  rg:                  z.string().optional(),
-  documentAttachmentId:z.string().min(1, "Documento é obrigatório"),
-  birthDate:           z.string().min(1, "Data de nascimento é obrigatória"),
-  type:                z.string().min(1, "Tipo é obrigatório"),
-  phone:               z.string().optional(),
-  city:                z.string().min(1, "Cidade é obrigatória"),
-  // Endereço (22/09) — tudo opcional; CEP, quando preenchido, com 8 números.
-  addressStreet:       z.string().optional(),
-  addressNumber:       z.string().optional(),
-  addressComplement:   z.string().optional(),
-  addressZip:          z.string().optional().refine((v) => !v || formatarCep(v) !== null, { message: "CEP inválido — informe os 8 números" }),
-  actualStartDate:     z.string().optional(),
-  actualEndDate:       z.string().optional(),
-  eventId:             z.string().optional(),
-  functionId:          z.string().optional(),
-});
+// `comDadosPessoais = false` é a EDIÇÃO por quem não recebe documento, nascimento,
+// telefone e endereço do servidor (Logística / Área de Função — projeção do GET
+// /api/collaborators, 23/09): esses campos nem aparecem na tela, então não podem
+// ser obrigatórios — senão o formulário trava num CPF que a pessoa não vê.
+// Cadastro NOVO continua exigindo tudo, para qualquer papel (o servidor exige).
+function criarSchema(comDadosPessoais: boolean) {
+  return z.object({
+    fullName:            z.string().min(1, "Nome completo é obrigatório"),
+    cpf:                 comDadosPessoais
+      ? z.string().min(1, "CPF é obrigatório").refine(validateCPF, { message: "CPF inválido" })
+      : z.string().optional(),
+    rg:                  z.string().optional(),
+    documentAttachmentId: comDadosPessoais ? z.string().min(1, "Documento é obrigatório") : z.string().optional(),
+    birthDate:           comDadosPessoais ? z.string().min(1, "Data de nascimento é obrigatória") : z.string().optional(),
+    type:                z.string().min(1, "Tipo é obrigatório"),
+    phone:               z.string().optional(),
+    city:                z.string().min(1, "Cidade é obrigatória"),
+    // Endereço (22/09) — tudo opcional; CEP, quando preenchido, com 8 números.
+    addressStreet:       z.string().optional(),
+    addressNumber:       z.string().optional(),
+    addressComplement:   z.string().optional(),
+    addressZip:          z.string().optional().refine((v) => !v || formatarCep(v) !== null, { message: "CEP inválido — informe os 8 números" }),
+    actualStartDate:     z.string().optional(),
+    actualEndDate:       z.string().optional(),
+    eventId:             z.string().optional(),
+    functionId:          z.string().optional(),
+  });
+}
 
-type CollaboratorFormData = z.infer<typeof collaboratorSchema>;
+type CollaboratorFormData = z.infer<ReturnType<typeof criarSchema>>;
 
 interface CollaboratorModalProps {
   open: boolean;
@@ -87,10 +99,11 @@ interface CollaboratorModalProps {
   isEdit?: boolean;
 }
 
-const INPUT_CLS = "h-10 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all";
-const LBL = "text-[11px] font-bold text-slate-500 uppercase tracking-wide";
-const REQ = <span className="text-red-400 normal-case tracking-normal font-bold"> *</span>;
-const OPT = <span className="text-slate-400 normal-case tracking-normal font-normal"> (opcional)</span>;
+const INPUT_CLS = "h-10 text-sm border-border rounded-lg focus:border-primary focus:ring-1 focus:ring-ring/20 transition-all";
+const LBL = "text-2xs font-bold text-muted-foreground uppercase tracking-wide";
+// Um padrão só de obrigatório/opcional em todos os formulários (23/09).
+const REQ = <RequiredMark />;
+const OPT = <OptionalMark />;
 
 const TYPE_OPTIONS = [
   { value: "casa",   label: "Casa",   icon: Home },
@@ -110,6 +123,14 @@ export default function CollaboratorModal({
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"], enabled: isEmergency });
   const [documentAttachments, setDocumentAttachments] = useState<string[]>([]);
 
+  // Quem vê dados pessoais (mesma lista do servidor): admin, Compras e RH.
+  const podeVerDadosPessoais = hasRole(user, "admin", "purchasing", "financial");
+  // Na edição, quem não recebeu documento/nascimento/telefone/endereço não pode
+  // vê-los nem reenviá-los — o PATCH sobrescreveria o CPF com "". Cadastro novo
+  // mostra tudo para todos (o servidor exige os campos).
+  const mostrarDadosPessoais = !isEdit || podeVerDadosPessoais;
+  const collaboratorSchema = useMemo(() => criarSchema(mostrarDadosPessoais), [mostrarDadosPessoais]);
+
   const form = useForm<CollaboratorFormData>({
     resolver: zodResolver(collaboratorSchema),
     defaultValues: {
@@ -122,37 +143,59 @@ export default function CollaboratorModal({
 
   useEffect(() => {
     if (open && isEdit && collaborator) {
+      // Os campos pessoais podem nem existir no objeto (projeção por papel):
+      // `?.`/`||` cobrem os dois casos, e sem permissão ficam vazios na tela.
       let cpfValue = "", rgValue = "";
-      if (collaborator.documentType === "cpf") { cpfValue = collaborator.officialDocument || ""; rgValue = collaborator.secondaryDocument || ""; }
-      else if (collaborator.documentType === "rg") { rgValue = collaborator.officialDocument || ""; cpfValue = collaborator.secondaryDocument || ""; }
-      const attachmentIds = collaborator.documentAttachmentId ? [collaborator.documentAttachmentId] : [];
+      if (mostrarDadosPessoais) {
+        if (collaborator.documentType === "cpf") { cpfValue = collaborator.officialDocument || ""; rgValue = collaborator.secondaryDocument || ""; }
+        else if (collaborator.documentType === "rg") { rgValue = collaborator.officialDocument || ""; cpfValue = collaborator.secondaryDocument || ""; }
+      }
+      const attachmentIds = mostrarDadosPessoais && collaborator.documentAttachmentId ? [collaborator.documentAttachmentId] : [];
       setDocumentAttachments(attachmentIds);
-      form.reset({ fullName: collaborator.fullName || "", cpf: cpfValue, rg: rgValue, documentAttachmentId: collaborator.documentAttachmentId || "", birthDate: collaborator.birthDate || "", type: collaborator.type || "", phone: collaborator.phone || "", city: collaborator.city || "", addressStreet: collaborator.addressStreet || "", addressNumber: collaborator.addressNumber || "", addressComplement: collaborator.addressComplement || "", addressZip: collaborator.addressZip || "", actualStartDate: "", actualEndDate: "", eventId: "", functionId: "" });
+      form.reset({
+        fullName: collaborator.fullName || "", cpf: cpfValue, rg: rgValue,
+        documentAttachmentId: attachmentIds[0] || "",
+        birthDate: mostrarDadosPessoais ? (collaborator.birthDate || "") : "",
+        type: collaborator.type || "",
+        phone: mostrarDadosPessoais ? (collaborator.phone || "") : "",
+        city: collaborator.city || "",
+        addressStreet: mostrarDadosPessoais ? (collaborator.addressStreet || "") : "",
+        addressNumber: mostrarDadosPessoais ? (collaborator.addressNumber || "") : "",
+        addressComplement: mostrarDadosPessoais ? (collaborator.addressComplement || "") : "",
+        addressZip: mostrarDadosPessoais ? (collaborator.addressZip || "") : "",
+        actualStartDate: "", actualEndDate: "", eventId: "", functionId: "",
+      });
     } else if (open && !isEdit) {
       setDocumentAttachments([]);
       form.reset({ fullName: "", cpf: "", rg: "", documentAttachmentId: "", birthDate: "", type: "", phone: "", city: "", addressStreet: "", addressNumber: "", addressComplement: "", addressZip: "", actualStartDate: "", actualEndDate: "", eventId: "", functionId: "" });
     }
-  }, [open, isEdit, collaborator, form]);
+  }, [open, isEdit, collaborator, form, mostrarDadosPessoais]);
 
   const collaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
-      const collaboratorData: any = {
+      // Só vai no payload o que está na tela: sem a seção de dados pessoais,
+      // nenhum campo dela é enviado (o PATCH manteria o CPF gravado).
+      const collaboratorData: Record<string, unknown> = {
         fullName: data.fullName,
-        officialDocument: data.cpf,
-        documentType: "cpf",
-        secondaryDocument: data.rg || null,
-        secondaryDocumentType: data.rg ? "rg" : null,
-        documentAttachmentId: data.documentAttachmentId,
-        birthDate: data.birthDate,
         type: data.type,
-        phone: data.phone,
         city: data.city,
-        // Endereço (22/09): o servidor limpa, padroniza o CEP e guarda vazio como null.
-        addressStreet: data.addressStreet ?? "",
-        addressNumber: data.addressNumber ?? "",
-        addressComplement: data.addressComplement ?? "",
-        addressZip: data.addressZip ?? "",
       };
+      if (mostrarDadosPessoais) {
+        Object.assign(collaboratorData, {
+          officialDocument: data.cpf,
+          documentType: "cpf",
+          secondaryDocument: data.rg || null,
+          secondaryDocumentType: data.rg ? "rg" : null,
+          documentAttachmentId: data.documentAttachmentId,
+          birthDate: data.birthDate,
+          phone: data.phone,
+          // Endereço (22/09): o servidor limpa, padroniza o CEP e guarda vazio como null.
+          addressStreet: data.addressStreet ?? "",
+          addressNumber: data.addressNumber ?? "",
+          addressComplement: data.addressComplement ?? "",
+          addressZip: data.addressZip ?? "",
+        });
+      }
 
       // apiRequest já lança em resposta não-ok (com .status e .body no erro).
       const response = isEdit && collaborator
@@ -164,16 +207,20 @@ export default function CollaboratorModal({
       if (isEmergency && data.actualStartDate && data.actualEndDate && data.eventId && data.functionId) {
         const diffMs = Math.abs(new Date(data.actualEndDate).getTime() - new Date(data.actualStartDate).getTime());
         const dailyRates = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
-        await apiRequest("POST", "/api/team-inclusions", {
+        // Status/fase são decididos pelo servidor (24/09): a vaga nasce
+        // planejado/inclusao e o restante do fluxo vem das rotas dedicadas.
+        const vaga = await (await apiRequest("POST", "/api/team-inclusions", {
           eventId: data.eventId, functionId: data.functionId, collaboratorId: result.id,
           area: defaultArea || user?.area || "Emergencial",
           scheduleStartDate: data.actualStartDate, scheduleEndDate: data.actualEndDate,
           actualStartDate: data.actualStartDate, actualEndDate: data.actualEndDate,
           dailyRates, actualDailyRates: dailyRates, dailyValue: 0,
           needsTicket: false, needsAccommodation: false,
-          emergencyRecord: true, status: "hospedagem", phase: "hospedagem",
+          emergencyRecord: true,
           observations: "Colaborador emergencial adicionado durante a hospedagem",
-        });
+        })).json() as { avisosDeAgenda?: unknown };
+        // Duas viagens no mesmo dia: aviso, não erro — a vaga foi criada.
+        avisarAgenda(toast, vaga?.avisosDeAgenda);
       }
 
       return result;
@@ -185,56 +232,76 @@ export default function CollaboratorModal({
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       onClose();
     },
-    onError: (err: any) => {
-      // err.message vem como "400: {...json...}" — o texto legível está em err.body.message.
-      const description =
-        err?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar." :
-        err?.status === 403 ? "Você não tem permissão para salvar colaboradores." :
-        err?.body?.message || "Erro ao salvar colaborador";
-      toast({ title: "Erro", description, variant: "destructive" });
+    onError: (err: unknown) => {
+      // 409 (24/09) = documento já cadastrado: a mensagem do servidor diz de
+      // quem é; 401/403 têm texto próprio em apiErrorMessage.
+      const status = (err as { status?: number } | null)?.status;
+      toast({
+        title: status === 409 ? "Colaborador já cadastrado" : "Erro",
+        description: status === 403 ? "Você não tem permissão para salvar colaboradores." : apiErrorMessage(err, "Erro ao salvar colaborador"),
+        variant: "destructive",
+      });
     },
   });
 
   const onSubmit = (data: CollaboratorFormData) => collaboratorMutation.mutate(data);
-  const handleClose = () => { form.reset(); onClose(); };
+  // "Descartar alterações?" (23/09): Esc e clique fora chamavam `form.reset()` e
+  // jogavam fora o que foi digitado, sem perguntar. `isDirty` cobre também o
+  // anexo (o id do documento é um campo do formulário).
+  const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(form.formState.isDirty, { salvando: collaboratorMutation.isPending });
+  const handleClose = () => pedirParaFechar(() => { form.reset(); onClose(); });
 
   const nameValue = form.watch("fullName");
   const showAvatar = isEdit && collaborator;
 
-  const modalTitle = isEdit ? "Editar Colaborador" : isEmergency ? "Colaborador Emergencial" : "Novo Colaborador";
+  const modalTitle = isEdit ? "Editar colaborador" : isEmergency ? "Colaborador emergencial" : "Novo colaborador";
+
+  // Cidade muda de linha conforme a seção de dados pessoais existe ou não.
+  const cidadeField = (
+    <FormField control={form.control} name="city" render={({ field }) => (
+      <FormItem>
+        <FormLabel className={LBL}>Cidade{REQ}</FormLabel>
+        <FormControl>
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input placeholder="São Paulo – SP" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-city" {...field} />
+          </div>
+        </FormControl>
+        <FormMessage className="text-2xs" />
+      </FormItem>
+    )} />
+  );
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <>
+    <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
       <DialogContent
-        className="p-0 gap-0 sm:max-w-[600px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden max-h-[90vh] flex flex-col"
+        className="p-0 gap-0 sm:max-w-[600px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden max-h-[90vh] flex flex-col"
         data-testid="modal-collaborator"
       >
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
-          <div
-            className="w-9 h-9 rounded-[9px] flex items-center justify-center shrink-0"
-            style={{ background: BLUE, boxShadow: `0 4px 12px ${BLUE}40` }}
-          >
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border shrink-0">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-primary text-primary-foreground shadow-2">
             {isEdit
-              ? <Edit className="w-4 h-4 text-white" />
-              : <UserPlus className="w-4 h-4 text-white" />
+              ? <Edit className="w-4 h-4" aria-hidden="true" />
+              : <UserPlus className="w-4 h-4" aria-hidden="true" />
             }
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-bold text-slate-800">{modalTitle}</h2>
+            <h2 className="text-sm font-bold text-foreground">{modalTitle}</h2>
             {isEdit && collaborator && (
-              <p className="text-[11px] text-slate-400 mt-0.5 truncate">Editando: {toTitleCase(collaborator.fullName)}</p>
+              <p className="text-2xs text-muted-foreground mt-0.5 truncate">Editando: {toTitleCase(collaborator.fullName)}</p>
             )}
             {(eventName || functionName || defaultArea) && (
-              <div className="text-[11px] text-slate-400 mt-0.5 space-x-2 truncate">
+              <div className="text-2xs text-muted-foreground mt-0.5 space-x-2 truncate">
                 {eventName    && <span><span className="font-medium">Evento:</span> {eventName}</span>}
                 {functionName && <span><span className="font-medium">Função:</span> {functionName}</span>}
                 {defaultArea  && <span><span className="font-medium">Área:</span> {defaultArea}</span>}
               </div>
             )}
           </div>
-          <button onClick={handleClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
-            <X className="w-3.5 h-3.5" />
+          <button type="button" onClick={handleClose} aria-label="Fechar" className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors">
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
 
@@ -249,65 +316,65 @@ export default function CollaboratorModal({
               className="space-y-4"
               id="collaborator-form"
             >
-              {/* Row 1: Nome (2/3) + CPF (1/3) */}
+              {/* Row 1: Nome (2/3) + CPF (1/3) — sem dados pessoais, o nome ocupa a linha */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
+                <div className={mostrarDadosPessoais ? "col-span-2" : "col-span-3"}>
                   <FormField control={form.control} name="fullName" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className={LBL}>Nome Completo{REQ}</FormLabel>
+                      <FormLabel className={LBL}>Nome completo{REQ}</FormLabel>
                       <FormControl>
                         <Input placeholder="Nome completo do colaborador" className={INPUT_CLS} data-testid="input-collaborator-name" {...field} />
                       </FormControl>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage className="text-2xs" />
                     </FormItem>
                   )} />
                 </div>
-                <div>
+                {mostrarDadosPessoais && <div>
                   <FormField control={form.control} name="cpf" render={({ field }) => (
                     <FormItem>
                       <FormLabel className={LBL}>CPF{REQ}</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                           <Input placeholder="000.000.000-00" className={`${INPUT_CLS} pl-9 font-mono`} data-testid="input-collaborator-cpf" {...field} />
                         </div>
                       </FormControl>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage className="text-2xs" />
                     </FormItem>
                   )} />
-                </div>
+                </div>}
               </div>
 
-              {/* Row 2: RG (1/3) + Data Nasc (1/3) + Tipo (1/3) */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
+              {/* Row 2: RG (1/3) + Data Nasc (1/3) + Tipo (1/3) — sem dados pessoais: Tipo + Cidade */}
+              <div className={mostrarDadosPessoais ? "grid grid-cols-3 gap-3" : "grid grid-cols-2 gap-3"}>
+                {mostrarDadosPessoais && <div>
                   <FormField control={form.control} name="rg" render={({ field }) => (
                     <FormItem>
                       <FormLabel className={LBL}>RG{OPT}</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                           <Input placeholder="00.000.000-0" className={`${INPUT_CLS} pl-9 font-mono`} data-testid="input-collaborator-rg" {...field} />
                         </div>
                       </FormControl>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage className="text-2xs" />
                     </FormItem>
                   )} />
-                </div>
-                <div>
+                </div>}
+                {mostrarDadosPessoais && <div>
                   <FormField control={form.control} name="birthDate" render={({ field }) => (
                     <FormItem>
                       <FormLabel className={LBL}>Nascimento{REQ}</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                           <Input type="date" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-birth-date" {...field} />
                         </div>
                       </FormControl>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage className="text-2xs" />
                     </FormItem>
                   )} />
-                </div>
+                </div>}
                 <div>
                   <FormField control={form.control} name="type" render={({ field }) => (
                     <FormItem>
@@ -324,7 +391,7 @@ export default function CollaboratorModal({
                             return (
                               <SelectItem key={opt.value} value={opt.value} className="py-2">
                                 <div className="flex items-center gap-2">
-                                  <Icon className="w-3.5 h-3.5 text-slate-400" />
+                                  <Icon className="w-3.5 h-3.5 text-muted-foreground" />
                                   <span>{opt.label}</span>
                                 </div>
                               </SelectItem>
@@ -332,66 +399,56 @@ export default function CollaboratorModal({
                           })}
                         </SelectContent>
                       </Select>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage className="text-2xs" />
                     </FormItem>
                   )} />
                 </div>
+                {!mostrarDadosPessoais && cidadeField}
               </div>
 
-              {/* Row 3: Telefone (1/2) + Cidade (1/2) */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Row 3: Telefone (1/2) + Cidade (1/2) — só com dados pessoais (a cidade já subiu) */}
+              {mostrarDadosPessoais && <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="phone" render={({ field }) => (
                   <FormItem>
                     <FormLabel className={LBL}>Telefone{OPT}</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                         <Input placeholder="(11) 99999-9999" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-phone" {...field} />
                       </div>
                     </FormControl>
-                    <FormMessage className="text-[11px]" />
+                    <FormMessage className="text-2xs" />
                   </FormItem>
                 )} />
+                {cidadeField}
+              </div>}
 
-                <FormField control={form.control} name="city" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className={LBL}>Cidade{REQ}</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                        <Input placeholder="São Paulo – SP" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-city" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormMessage className="text-[11px]" />
-                  </FormItem>
-                )} />
-              </div>
-
-              {/* Endereço (22/09) — opcional */}
-              <div className="space-y-3">
+              {/* Endereço (22/09) — opcional. Rótulos VISÍVEIS (23/09): só o
+                  placeholder dizia o que era cada campo e ele some ao digitar. */}
+              {mostrarDadosPessoais && <div className="space-y-3">
                 <p className={LBL}>Endereço{OPT}</p>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2">
                     <FormField control={form.control} name="addressStreet" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="sr-only">Rua</FormLabel>
+                        <FormLabel className={LBL}>Rua</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                             <Input placeholder="Rua / avenida" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-address-street" {...field} />
                           </div>
                         </FormControl>
-                        <FormMessage className="text-[11px]" />
+                        <FormMessage className="text-2xs" />
                       </FormItem>
                     )} />
                   </div>
                   <FormField control={form.control} name="addressNumber" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="sr-only">Número</FormLabel>
+                      <FormLabel className={LBL}>Número</FormLabel>
                       <FormControl>
                         <Input placeholder="Número" className={INPUT_CLS} data-testid="input-collaborator-address-number" {...field} />
                       </FormControl>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage className="text-2xs" />
                     </FormItem>
                   )} />
                 </div>
@@ -399,17 +456,17 @@ export default function CollaboratorModal({
                   <div className="col-span-2">
                     <FormField control={form.control} name="addressComplement" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="sr-only">Complemento</FormLabel>
+                        <FormLabel className={LBL}>Complemento</FormLabel>
                         <FormControl>
                           <Input placeholder="Complemento (apto, bloco, fundos…)" className={INPUT_CLS} data-testid="input-collaborator-address-complement" {...field} />
                         </FormControl>
-                        <FormMessage className="text-[11px]" />
+                        <FormMessage className="text-2xs" />
                       </FormItem>
                     )} />
                   </div>
                   <FormField control={form.control} name="addressZip" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="sr-only">CEP</FormLabel>
+                      <FormLabel className={LBL}>CEP</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="CEP"
@@ -421,14 +478,14 @@ export default function CollaboratorModal({
                           onBlur={(e) => { const f = formatarCep(e.target.value); if (f) field.onChange(f); field.onBlur(); }}
                         />
                       </FormControl>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage className="text-2xs" />
                     </FormItem>
                   )} />
                 </div>
-              </div>
+              </div>}
 
-              {/* Document upload */}
-              <div className="border-t border-gray-100 pt-4">
+              {/* Document upload — junto com os demais dados pessoais */}
+              {mostrarDadosPessoais && <div className="border-t border-border pt-4">
                 <FormField control={form.control} name="documentAttachmentId" render={({ field }) => (
                   <FormItem>
                     <FormLabel className={LBL}>Documento (CPF/RG){REQ}</FormLabel>
@@ -436,22 +493,22 @@ export default function CollaboratorModal({
                       <AttachmentUpload
                         attachmentIds={documentAttachments}
                         onAttachmentsChange={(ids) => { setDocumentAttachments(ids); field.onChange(ids[0] || ""); }}
-                        title="Anexar Documento"
+                        title="Anexar documento"
                       />
                     </FormControl>
-                    <FormMessage className="text-[11px]" />
+                    <FormMessage className="text-2xs" />
                   </FormItem>
                 )} />
-              </div>
+              </div>}
 
               {/* Emergency section */}
               {isEmergency && (
-                <div className="border-t border-gray-100 pt-4 space-y-3">
+                <div className="border-t border-border pt-4 space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-md bg-amber-50 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 12, fontVariationSettings: "'FILL' 1" }}>emergency</span>
+                    <div className="w-5 h-5 rounded-md bg-warning-soft flex items-center justify-center">
+                      <AlertTriangle className="w-3 h-3 text-warning-strong" aria-hidden="true" />
                     </div>
-                    <p className={LBL}>Informações do Trabalho Emergencial</p>
+                    <p className={LBL}>Informações do trabalho emergencial</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <FormField control={form.control} name="eventId" render={({ field }) => (
@@ -467,7 +524,7 @@ export default function CollaboratorModal({
                             ))}
                           </SelectContent>
                         </Select>
-                        <FormMessage className="text-[11px]" />
+                        <FormMessage className="text-2xs" />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="functionId" render={({ field }) => (
@@ -481,7 +538,7 @@ export default function CollaboratorModal({
                             {functions?.map(fn => <SelectItem key={fn.id} value={fn.id}>{fn.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <FormMessage className="text-[11px]" />
+                        <FormMessage className="text-2xs" />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="actualStartDate" render={({ field }) => (
@@ -489,11 +546,11 @@ export default function CollaboratorModal({
                         <FormLabel className={LBL}>Início{REQ}</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                             <Input type="date" className={`${INPUT_CLS} pl-9`} data-testid="input-emergency-start-date" {...field} />
                           </div>
                         </FormControl>
-                        <FormMessage className="text-[11px]" />
+                        <FormMessage className="text-2xs" />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="actualEndDate" render={({ field }) => (
@@ -501,11 +558,11 @@ export default function CollaboratorModal({
                         <FormLabel className={LBL}>Fim{REQ}</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                             <Input type="date" className={`${INPUT_CLS} pl-9`} data-testid="input-emergency-end-date" {...field} />
                           </div>
                         </FormControl>
-                        <FormMessage className="text-[11px]" />
+                        <FormMessage className="text-2xs" />
                       </FormItem>
                     )} />
                   </div>
@@ -516,12 +573,12 @@ export default function CollaboratorModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/50 shrink-0">
+        <div className="px-5 py-3.5 border-t border-border bg-surface-muted/50 shrink-0">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] text-slate-400">Campos marcados com <span className="text-red-400">*</span> são obrigatórios</p>
+            <p className="text-2xs text-muted-foreground">Campos marcados com <span className="text-danger" aria-hidden="true">*</span> são obrigatórios</p>
             <div className="flex items-center gap-2">
               <button type="button" onClick={handleClose} data-testid="button-cancel-collaborator"
-                className="h-9 px-4 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+                className="h-9 px-4 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-muted transition-colors">
                 Cancelar
               </button>
               <button
@@ -529,12 +586,11 @@ export default function CollaboratorModal({
                 form="collaborator-form"
                 disabled={collaboratorMutation.isPending}
                 data-testid="button-save-collaborator"
-                className="flex items-center gap-1.5 h-9 px-5 text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-60"
-                style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}40` }}
+                className="flex items-center gap-1.5 h-9 px-5 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg shadow-1 transition-all disabled:opacity-60"
               >
                 {collaboratorMutation.isPending
-                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Salvando...</>
-                  : <><Check className="w-3.5 h-3.5" strokeWidth={3} /> {isEdit ? "Atualizar" : "Salvar Colaborador"}</>
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Salvando...</>
+                  : <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> {isEdit ? "Atualizar" : "Salvar colaborador"}</>
                 }
               </button>
             </div>
@@ -542,5 +598,7 @@ export default function CollaboratorModal({
         </div>
       </DialogContent>
     </Dialog>
+    {DialogoDescarte}
+    </>
   );
 }

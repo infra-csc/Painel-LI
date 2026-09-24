@@ -70,3 +70,56 @@ describe("avatarClasses", () => {
     expect(AVATAR_COLORS).toContain(avatarClasses(null));
   });
 });
+
+// ─── Moeda e dias (23/09) ───────────────────────────────────────────────────
+import { formatarMoeda, formatarMoedaReais, contarDiasUteisEFds, contarDiasUteisEFdsPorQuantidade } from "./format";
+
+// O Intl usa espaço não separável entre "R$" e o número.
+const semNbsp = (s: string) => s.replace(/ /g, " ");
+
+describe("formatarMoeda", () => {
+  it("formata centavos em pt-BR", () => {
+    expect(semNbsp(formatarMoeda(123456))).toBe("R$ 1.234,56");
+    expect(semNbsp(formatarMoeda(0))).toBe("R$ 0,00");
+    expect(semNbsp(formatarMoeda(-500))).toBe("-R$ 5,00");
+  });
+  it("arredonda centavos fracionários e tolera valores inválidos", () => {
+    expect(semNbsp(formatarMoeda(1050.6))).toBe("R$ 10,51");
+    expect(semNbsp(formatarMoeda(NaN))).toBe("R$ 0,00");
+    expect(semNbsp(formatarMoeda(null))).toBe("R$ 0,00");
+  });
+});
+
+describe("formatarMoedaReais", () => {
+  it("formata reais", () => {
+    expect(semNbsp(formatarMoedaReais(1234.5))).toBe("R$ 1.234,50");
+    expect(semNbsp(formatarMoedaReais(undefined))).toBe("R$ 0,00");
+  });
+});
+
+describe("contarDiasUteisEFds", () => {
+  it("conta o intervalo fechado (seg 2026-09-21 a dom 2026-09-27)", () => {
+    expect(contarDiasUteisEFds("2026-09-21", "2026-09-27")).toEqual({ weekdays: 5, weekends: 2 });
+  });
+  it("um dia só", () => {
+    expect(contarDiasUteisEFds("2026-09-26", "2026-09-26")).toEqual({ weekdays: 0, weekends: 1 });
+  });
+  it("intervalo invertido é corrigido; datas ausentes ou inválidas dão zero", () => {
+    expect(contarDiasUteisEFds("2026-09-27", "2026-09-21")).toEqual({ weekdays: 5, weekends: 2 });
+    expect(contarDiasUteisEFds(null, "2026-09-21")).toEqual({ weekdays: 0, weekends: 0 });
+    expect(contarDiasUteisEFds("abc", "2026-09-21")).toEqual({ weekdays: 0, weekends: 0 });
+  });
+  it("aceita timestamp ISO (recorta a data)", () => {
+    expect(contarDiasUteisEFds("2026-09-25T00:00:00.000Z", "2026-09-28T00:00:00.000Z")).toEqual({ weekdays: 2, weekends: 2 });
+  });
+});
+
+describe("contarDiasUteisEFdsPorQuantidade", () => {
+  it("conta N dias corridos a partir do início (sex 2026-09-25, 4 dias)", () => {
+    expect(contarDiasUteisEFdsPorQuantidade("2026-09-25", 4)).toEqual({ weekdays: 2, weekends: 2 });
+  });
+  it("quantidade zero ou início ausente dão zero", () => {
+    expect(contarDiasUteisEFdsPorQuantidade("2026-09-25", 0)).toEqual({ weekdays: 0, weekends: 0 });
+    expect(contarDiasUteisEFdsPorQuantidade(null, 3)).toEqual({ weekdays: 0, weekends: 0 });
+  });
+});

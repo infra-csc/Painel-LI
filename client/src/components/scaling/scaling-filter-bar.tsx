@@ -81,13 +81,13 @@ const BotaoFiltro = forwardRef<HTMLButtonElement, {
       type="button"
       data-testid={testid}
       {...props}
-      className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-[13px] font-medium text-slate-700 ${maxW} hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary ${
-        ativo ? "border-[rgba(0,51,204,0.35)]" : "border-border"
+      className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-sm font-medium text-slate-700 ${maxW} hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary ${
+        ativo ? "border-primary/40" : "border-border"
       } ${className ?? ""}`}
     >
       {icone}
       <span className="truncate">{texto}</span>
-      <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
     </button>
   ),
 );
@@ -99,7 +99,7 @@ function Caixa({ on }: { on: boolean }) {
     <span
       aria-hidden="true"
       className={`inline-flex items-center justify-center w-4 h-4 shrink-0 rounded border ${
-        on ? "bg-primary border-primary text-white" : "bg-card border-slate-300 text-transparent"
+        on ? "bg-primary border-primary text-primary-foreground" : "bg-card border-slate-300 text-transparent"
       }`}
     >
       <Check className="w-3 h-3" strokeWidth={3} />
@@ -140,8 +140,8 @@ function PopoverDeMarcacao({ icone, rotulo, vazio, placeholder, testid, marcados
         <BotaoFiltro ativo={ids.length > 0} icone={icone} texto={texto} testid={`button-filtro-${testid}`} />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[420px] p-0 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 bg-background">
-          <Search className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background">
+          <Search className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
           <input
             type="text"
             value={busca}
@@ -149,13 +149,13 @@ function PopoverDeMarcacao({ icone, rotulo, vazio, placeholder, testid, marcados
             placeholder={placeholder}
             aria-label={placeholder.replace("…", "")}
             data-testid={`input-busca-${testid}`}
-            className="flex-1 min-w-0 h-[26px] bg-transparent text-[13px] text-slate-900 outline-none"
+            className="flex-1 min-w-0 h-[26px] bg-transparent text-sm text-foreground outline-none"
           />
           {ids.length > 0 && (
             <button
               type="button"
               onClick={() => onMarcados({})}
-              className="h-6 px-2 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft shrink-0"
+              className="h-6 px-2 rounded-md text-xs font-medium text-primary hover:bg-brand-soft shrink-0"
               data-testid={`button-limpar-${testid}s`}
             >
               Limpar
@@ -170,16 +170,16 @@ function PopoverDeMarcacao({ icone, rotulo, vazio, placeholder, testid, marcados
               role="checkbox"
               aria-checked={!!marcados[o.id]}
               onClick={() => onMarcados({ ...marcados, [o.id]: !marcados[o.id] })}
-              className="flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-[7px] text-[13px] text-slate-700 text-left hover:bg-slate-100"
+              className="flex items-center gap-2.5 w-full min-h-[32px] px-2 py-1.5 rounded-md text-sm text-slate-700 text-left hover:bg-muted"
               data-testid={`opcao-${testid}-${o.id}`}
             >
               <Caixa on={!!marcados[o.id]} />
               <span className="flex-1 min-w-0 truncate">{o.nome}</span>
-              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{o.n}</span>
+              <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">{o.n}</span>
             </button>
           ))}
           {lista.length === 0 && (
-            <p className="px-2 py-3.5 text-center text-[12px] text-muted-foreground">{`Nenhum ${rotulo} com esse nome.`}</p>
+            <p className="px-2 py-3.5 text-center text-xs text-muted-foreground">{`Nenhum ${rotulo} com esse nome.`}</p>
           )}
         </div>
       </PopoverContent>
@@ -204,10 +204,10 @@ function ChipsDaSelecao({ grupo, marcados, onMarcados, opcoes, nomeFallback }: {
         return (
           <span
             key={`${grupo}-${id}`}
-            className="inline-flex max-w-[360px] items-center gap-1 rounded-md border border-[rgba(0,51,204,0.25)] bg-brand-soft py-0.5 pl-2 pr-1 text-[12px] font-medium text-primary"
+            className="inline-flex max-w-[360px] items-center gap-1 rounded-md border border-primary/25 bg-brand-soft py-0.5 pl-2 pr-1 text-xs font-medium text-primary"
             data-testid={`chip-${grupo}-${id}`}
           >
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-primary/70">{grupo}</span>
+            <span className="text-2xs font-semibold uppercase tracking-wide text-primary/70">{grupo}</span>
             <span className="truncate">{nome}</span>
             <button
               type="button"
@@ -248,7 +248,7 @@ export default function ScalingFilterBar(p: Props) {
     <div className="space-y-2">
     <div className="flex items-center gap-2 flex-wrap">
       <div className="relative flex-[1_1_260px] max-w-[320px]">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
         <input
           type="text"
           value={p.busca}
@@ -256,7 +256,7 @@ export default function ScalingFilterBar(p: Props) {
           aria-label="Buscar por ID, nome ou função"
           placeholder="Buscar por ID, nome ou função…"
           data-testid="input-busca-escalacao"
-          className="w-full h-[34px] pl-[33px] pr-3 rounded-lg border border-border bg-card text-[13px] text-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+          className="w-full h-[34px] pl-[33px] pr-3 rounded-lg border border-border bg-card text-sm text-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
         />
       </div>
 
@@ -286,19 +286,19 @@ export default function ScalingFilterBar(p: Props) {
           />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[560px] p-0 rounded-xl overflow-hidden">
-          <div className="flex items-center px-3.5 py-3 border-b border-slate-100">
-            <span className="text-[13px] font-semibold text-slate-900">Filtros</span>
+          <div className="flex items-center px-3.5 py-3 border-b border-border">
+            <span className="text-sm font-semibold text-foreground">Filtros</span>
             {/* Dentro da lista OU, entre listas E: escrito porque é o que
                 permite "precisa de passagem E não comprada" e ninguém adivinha.
                 Passagem e Hospedagem têm duas listas cada (o traço separa). */}
-            <span className="ml-2 text-[12px] text-muted-foreground" title="O número ao lado de cada opção é quantas vagas do recorte atual ela alcança.">
+            <span className="ml-2 text-xs text-muted-foreground" title="O número ao lado de cada opção é quantas vagas do recorte atual ela alcança.">
               mesma lista soma · entre listas cruza · nº = quantas do recorte
             </span>
             {nFlags > 0 && (
               <button
                 type="button"
                 onClick={() => p.onFlags({})}
-                className="ml-auto h-[26px] px-2.5 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft"
+                className="ml-auto h-[26px] px-2.5 rounded-md text-xs font-medium text-primary hover:bg-brand-soft"
                 data-testid="button-limpar-flags"
               >
                 Limpar
@@ -308,28 +308,28 @@ export default function ScalingFilterBar(p: Props) {
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-3.5 max-h-[70vh] overflow-y-auto">
             {FLAG_GROUPS.map((g) => (
               <div key={g.id}>
-                <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="mb-1 px-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   {g.titulo}
                 </p>
                 <div className="flex flex-col gap-px">
                   {g.opcoes.map((o, idx) => (
                     <Fragment key={o.key}>
                     {idx > 0 && o.eixo !== g.opcoes[idx - 1].eixo && (
-                      <div className="my-1 mx-2 border-t border-slate-200" aria-hidden="true" data-testid={`flag-eixo-${g.id}-${o.eixo}`} />
+                      <div className="my-1 mx-2 border-t border-border" aria-hidden="true" data-testid={`flag-eixo-${g.id}-${o.eixo}`} />
                     )}
                     <button
                       type="button"
                       role="checkbox"
                       aria-checked={!!p.flags[o.key]}
                       onClick={() => alternaFlag(o.key)}
-                      className={`flex items-center gap-2.5 min-h-[30px] px-2 rounded-[7px] text-[13px] text-left hover:bg-slate-100 ${
+                      className={`flex items-center gap-2.5 min-h-[30px] px-2 rounded-md text-sm text-left hover:bg-muted ${
                         p.flags[o.key] ? "text-primary font-medium" : "text-slate-700"
                       }`}
                       data-testid={`flag-${o.key}`}
                     >
                       <Caixa on={!!p.flags[o.key]} />
                       <span className="flex-1 min-w-0 truncate">{o.label}</span>
-                      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                      <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
                         {contagens[o.key] ?? 0}
                       </span>
                     </button>
@@ -348,13 +348,13 @@ export default function ScalingFilterBar(p: Props) {
         aria-checked={p.verExcluidos}
         onClick={() => p.onVerExcluidos(!p.verExcluidos)}
         data-testid="toggle-excluidas"
-        className={`inline-flex items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-lg border text-[13px] font-medium shrink-0 transition-colors ${
-          p.verExcluidos ? "border-[rgba(0,51,204,0.35)] bg-brand-soft text-primary" : "border-border bg-card text-slate-700 hover:bg-slate-100"
+        className={`inline-flex items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-lg border text-sm font-medium shrink-0 transition-colors ${
+          p.verExcluidos ? "border-primary/40 bg-brand-soft text-primary" : "border-border bg-card text-slate-700 hover:bg-muted"
         }`}
       >
         <span className={`relative inline-flex items-center w-8 h-[18px] rounded-full shrink-0 transition-colors ${p.verExcluidos ? "bg-primary" : "bg-slate-300"}`}>
           <span
-            className="absolute left-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform"
+            className="absolute left-0.5 h-3.5 w-3.5 rounded-full bg-card shadow-1 transition-transform"
             style={{ transform: `translateX(${p.verExcluidos ? "14px" : "0"})` }}
           />
         </span>
@@ -375,18 +375,18 @@ export default function ScalingFilterBar(p: Props) {
               onClick={() => p.onRecorteEventos(k)}
               data-testid={`recorte-eventos-${k}`}
               title={k === "futuros" ? "Eventos que ainda vão acontecer ou estão acontecendo (vaga sem data conta como futura)" : k === "realizados" ? "Só eventos que já terminaram" : "Sem recorte de evento"}
-              className={`inline-flex h-[28px] items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                on ? "bg-brand-soft text-primary" : "text-slate-600 hover:bg-slate-100"
+              className={`inline-flex h-[28px] items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                on ? "bg-brand-soft text-primary" : "text-slate-600 hover:bg-muted"
               }`}
             >
               {RECORTE_EVENTOS_LABEL[k]}
-              <span className="text-[11px] tabular-nums text-muted-foreground">{p.contagemPorRecorte[k]}</span>
+              <span className="text-2xs tabular-nums text-muted-foreground">{p.contagemPorRecorte[k]}</span>
             </button>
           );
         })}
       </div>
 
-      <span className="ml-auto text-[12px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0" data-testid="contagem-vagas">
+      <span className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0" data-testid="contagem-vagas">
         {p.contagem}
       </span>
     </div>
@@ -400,7 +400,7 @@ export default function ScalingFilterBar(p: Props) {
         <button
           type="button"
           onClick={() => { p.onEventos({}); p.onFuncoes({}); }}
-          className="h-6 px-2 rounded-md text-[12px] font-medium text-slate-600 hover:bg-slate-100"
+          className="h-6 px-2 rounded-md text-xs font-medium text-slate-600 hover:bg-muted"
           data-testid="button-limpar-marcacoes"
         >
           Limpar marcações

@@ -16,10 +16,11 @@ import {
   type LastDecisionInfo, type LastVagaDecisionInfo,
 } from "@shared/scaling-validation-rules";
 import {
-  DECISION_TONE_CLASS, canRequestChange, canValidate, describeLastDecision, describeVagaDecision,
+  DECISION_TONE, canRequestChange, canValidate, describeLastDecision, describeVagaDecision,
   lockReason, workDaysOf, ymd,
   type DecisionDescription, type SuggestionRow,
 } from "./types";
+import { StatusBadge, TONE_CLASS, toneDoStatus } from "@/components/common/status-badge";
 import { CHIP_NEUTRAL, DayLabel, LegChip, NeedChips, TABLE_TH, dayText, legValue } from "./logistics-chips";
 
 // Reexport: outros módulos (ex.: scaling-approval) importam daqui.
@@ -27,31 +28,18 @@ export { workDaysOf } from "./types";
 
 // ── Badges ───────────────────────────────────────────────────────────────────
 
-const STATUS_CLASS: Record<SugestaoStatus, string> = {
-  sugestao_pendente: "bg-amber-50 text-amber-700 border-amber-200",
-  sugestao_validada: "bg-sky-50 text-sky-700 border-sky-200",
-  sugestao_ajuste: "bg-violet-50 text-violet-700 border-violet-200",
-  sugestao_aprovada: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  sugestao_negada: "bg-slate-100 text-slate-600 border-slate-200",
-};
+/**
+ * Filete colorido no início da linha — leitura do status antes de ler o texto.
+ * Mesmo tom da pílula (23/09): pendente/ajuste = warning, validada = info
+ * (passou adiante, está com o aprovador), aprovada = success, negada = danger.
+ */
+const railClass = (status: string) => TONE_CLASS[toneDoStatus(status)].dot;
 
-/** Filete colorido no início da linha — leitura do status antes de ler o texto. */
-const STATUS_RAIL: Record<SugestaoStatus, string> = {
-  sugestao_pendente: "bg-amber-400",
-  sugestao_validada: "bg-sky-400",
-  sugestao_ajuste: "bg-violet-400",
-  sugestao_aprovada: "bg-emerald-400",
-  sugestao_negada: "bg-slate-300",
-};
-
-const railClass = (status: string) => STATUS_RAIL[status as SugestaoStatus] ?? "bg-slate-300";
-
-const BADGE = "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap";
-
+/** Pílula de status da sugestão — StatusBadge único; rótulo do shared ("Negada" para recusa). */
 export function SuggestionStatusBadge({ status }: { status: string }) {
   const s = status as SugestaoStatus;
   const label = SUGESTAO_STATUS_LABELS[s] ?? status;
-  return <span className={cn(BADGE, STATUS_CLASS[s] ?? "bg-slate-100 text-slate-600 border-slate-200")}>{label}</span>;
+  return <StatusBadge tone={toneDoStatus(status)}>{label}</StatusBadge>;
 }
 
 /** O mínimo que os badges de atraso precisam saber da vaga. */
@@ -86,10 +74,9 @@ export function PendingDaysBadge({ row, approverNames }: { row: PendingDaysRow; 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={cn(BADGE, danger ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
-          <Clock className="w-3 h-3" aria-hidden="true" />
+        <StatusBadge tone={danger ? "danger" : "warning"} icon={Clock}>
           {awaiting ? "aguardando aprovação" : "pendente"} há {days} {days === 1 ? "dia" : "dias"}
-        </span>
+        </StatusBadge>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-xs">
         {awaiting
@@ -123,9 +110,9 @@ export function PendingRequestBadge({ row }: { row: SuggestionRow }) {
     <Tooltip>
       <TooltipTrigger asChild>
         {/* Selo PRINCIPAL da vaga com pedido: fica focável — o motivo do pedido só existe no tooltip. */}
-        <span tabIndex={0} className={cn(BADGE, "border-violet-200 bg-violet-50 text-violet-700")}>
-          <MessageSquareWarning className="w-3 h-3" aria-hidden="true" /> Com pedido de {label.toLowerCase()}
-        </span>
+        <StatusBadge tone="warning" icon={MessageSquareWarning} tabIndex={0}>
+          Com pedido de {label.toLowerCase()}
+        </StatusBadge>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
         <p className="font-semibold">Aguardando o aprovador</p>
@@ -144,9 +131,9 @@ function DecisionBadge(
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={cn(BADGE, DECISION_TONE_CLASS[d.tone])}>
-          <Undo2 className="w-3 h-3" aria-hidden="true" /> {label ?? d.title}
-        </span>
+        <StatusBadge tone={DECISION_TONE[d.tone]} icon={Undo2}>
+          {label ?? d.title}
+        </StatusBadge>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-xs space-y-1">
         <p className="font-semibold">{heading}</p>
@@ -279,8 +266,8 @@ function PeriodCell({ row, className }: { row: SuggestionRow; className?: string
             {end && end !== start && <> – <DayLabel v={end} /></>}
           </>
         // Travessão solto não diz nada a quem lê: a falta vira frase.
-        : <span className="font-sans italic text-slate-500">Sem período</span>}
-      {" "}<span className="text-slate-500 font-sans">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+        : <span className="font-sans italic text-muted-foreground">Sem período</span>}
+      {" "}<span className="text-muted-foreground font-sans">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
     </span>
   );
   if (days.length === 0) return label;
@@ -312,7 +299,7 @@ function LogisticsChips({ row, responsive = false }: { row: SuggestionRow; respo
     row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime,
   ].some((v) => legValue(v) !== null);
   if (!hasLeg && !row.needsTicket && !row.needsAccommodation) {
-    return <span className="text-[11px] italic text-slate-500">Sem logística</span>;
+    return <span className="text-2xs italic text-muted-foreground">Sem logística</span>;
   }
   const chips = (compact: boolean) => (
     <>
@@ -331,10 +318,10 @@ function LogisticsChips({ row, responsive = false }: { row: SuggestionRow; respo
 }
 
 function IdChip({ row, onClick }: { row: SuggestionRow; onClick?: () => void }) {
-  const cls = "inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-blue-800";
+  const cls = "inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums text-primary";
   if (!onClick) return <span className={cls}>#{row.inclusionNumber}</span>;
   return (
-    <button type="button" onClick={onClick} className={cn(cls, "hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+    <button type="button" onClick={onClick} className={cn(cls, "hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
       aria-label={`Ver detalhes da vaga #${row.inclusionNumber}`}>
       #{row.inclusionNumber}
     </button>
@@ -345,7 +332,7 @@ function LockedHint({ reason }: { reason: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex items-center justify-center text-slate-400" aria-label={reason}>
+        <span tabIndex={0} className="inline-flex items-center justify-center text-muted-foreground" aria-label={reason}>
           <Lock className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       </TooltipTrigger>
@@ -411,10 +398,10 @@ export function groupRowsByEvent(rows: SuggestionRow[]): EventGroup[] {
 export function EventLine({ row, className }: { row: Pick<SuggestionRow, "eventName" | "eventStartDate" | "eventEndDate">; className?: string }) {
   const period = eventPeriodLabel(row);
   return (
-    <span className={cn("flex items-center gap-1 text-[11px] text-slate-500 min-w-0", className)}>
-      <CalendarDays className="w-3 h-3 shrink-0 text-slate-400" aria-hidden="true" />
+    <span className={cn("flex items-center gap-1 text-2xs text-muted-foreground min-w-0", className)}>
+      <CalendarDays className="w-3 h-3 shrink-0 text-muted-foreground" aria-hidden="true" />
       <span className="break-words font-semibold text-slate-600">{row.eventName ?? "Evento sem nome"}</span>
-      {period && <span className="font-mono text-slate-500 whitespace-nowrap">· {period}</span>}
+      {period && <span className="font-mono text-muted-foreground whitespace-nowrap">· {period}</span>}
     </span>
   );
 }
@@ -492,7 +479,7 @@ const ariaSort = (sortConfig: SortConfig<SuggestionSortField> | null, ...fields:
     ? (sortConfig.direction === "asc" ? "ascending" : "descending")
     : "none";
 
-const ICON_BTN = "inline-flex items-center justify-center w-7 h-7 rounded-lg border bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const ICON_BTN = "inline-flex items-center justify-center w-7 h-7 rounded-lg border bg-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
  * Ações da vaga na própria linha (mockup): validar em destaque, pedir ajuste e
@@ -526,28 +513,28 @@ function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, compact
   const n = row.inclusionNumber;
   return (
     <div className={cn("inline-flex items-center gap-1.5", compact && "flex-wrap")}>
-      {reason && <span className="mr-1 text-[11px] text-slate-500">{reason}</span>}
+      {reason && <span className="mr-1 text-2xs text-muted-foreground">{reason}</span>}
       {mayValidate ? (
         <Button type="button" size="sm" onClick={() => onValidate!(row)}
-          className="h-7 w-[76px] rounded-lg bg-emerald-600 px-2 text-xs font-semibold text-white hover:bg-emerald-700">
+          className="h-7 w-[76px] rounded-lg bg-success px-2 text-xs font-semibold text-white hover:bg-success/90">
           <CheckCheck className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Validar
         </Button>
       ) : vazio("w-[76px]")}
       {mayRequest && onAdjust ? (
         <button type="button" onClick={() => onAdjust(row)} aria-label={`Pedir ajuste da vaga #${n}`} title="Pedir ajuste"
-          className={cn(ICON_BTN, "border-slate-200 text-slate-600 hover:border-primary/30 hover:text-primary")}>
+          className={cn(ICON_BTN, "border-border text-slate-600 hover:border-primary/30 hover:text-primary")}>
           <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       ) : vazio("w-7")}
       {mayRequest && onDelete ? (
         <button type="button" onClick={() => onDelete(row)} aria-label={`Pedir exclusão da vaga #${n}`} title="Pedir exclusão"
-          className={cn(ICON_BTN, "border-red-200 text-red-700 hover:bg-red-50")}>
+          className={cn(ICON_BTN, "border-danger/25 text-danger hover:bg-danger-soft")}>
           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       ) : vazio("w-7")}
       {onOpenDetail && (
         <button type="button" onClick={() => onOpenDetail(row)} aria-label={`Ver detalhe da vaga #${n}`} title="Ver detalhe"
-          className={cn(ICON_BTN, "border-slate-200 text-slate-600 hover:border-primary/30 hover:text-primary")}>
+          className={cn(ICON_BTN, "border-border text-slate-600 hover:border-primary/30 hover:text-primary")}>
           <ChevronRight className="w-4 h-4" aria-hidden="true" />
         </button>
       )}
@@ -561,11 +548,11 @@ function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, compact
 function NameButton({ name, onOpen }: { name: string; onOpen?: () => void }) {
   return onOpen ? (
     <button type="button" onClick={onOpen} title={name}
-      className="block max-w-full break-words text-left text-[13px] font-semibold hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+      className="block max-w-full break-words text-left text-sm font-semibold hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
       {name}
     </button>
   ) : (
-    <span className="block break-words text-[13px] font-semibold" title={name}>{name}</span>
+    <span className="block break-words text-sm font-semibold" title={name}>{name}</span>
   );
 }
 
@@ -580,7 +567,7 @@ function AreaLine({ row }: { row: SuggestionRow }) {
   return (
     <span className="flex items-start gap-1.5 min-w-0">
       {/* Área saiu da tela (dono, 11/09) — a função basta. */}
-      {obs ? <span className="line-clamp-2 text-[11px] leading-4 text-slate-500" title={obs}>{obs}</span> : <span className="text-[11px] leading-4 text-slate-400">Sem observações</span>}
+      {obs ? <span className="line-clamp-2 text-2xs leading-4 text-muted-foreground" title={obs}>{obs}</span> : <span className="text-2xs leading-4 text-muted-foreground">Sem observações</span>}
     </span>
   );
 }
@@ -615,8 +602,8 @@ const SuggestionTableRow = memo(function SuggestionTableRow({
   const open = onOpenDetail ? () => onOpenDetail(row) : undefined;
   return (
     <tr data-testid={`suggestion-row-${row.inclusionNumber}`}
-      className={cn("border-b border-slate-100 transition-colors", selected ? "bg-brand-soft/50" : zebra ? "bg-slate-50/40" : "bg-white",
-        row.canEdit ? "text-slate-800" : "text-slate-600", highlighted && PULSE)}>
+      className={cn("border-b border-border transition-colors", selected ? "bg-brand-soft/50" : zebra ? "bg-surface-muted/40" : "bg-card",
+        row.canEdit ? "text-foreground" : "text-slate-600", highlighted && PULSE)}>
       {/* Filete na altura toda da linha (absoluto dentro da célula): com 36px
           fixos ele parecia um traço solto nas linhas de duas ou três alturas. */}
       <td className="relative w-9 p-0">
@@ -665,7 +652,7 @@ export function SuggestionsList({
   const acoes: SuggestionRowActions = showSelection ? { onValidate, onAdjust, onDelete } : {};
 
   const nameOf = (row: SuggestionRow) => functionNameById.get(row.functionId) ?? "Sem função";
-  const rowTone = (row: SuggestionRow) => (row.canEdit ? "text-slate-800" : "text-slate-600");
+  const rowTone = (row: SuggestionRow) => (row.canEdit ? "text-foreground" : "text-slate-600");
 
   /** Uma linha da tabela (a mesma, agrupada por evento ou não). */
   const tableRow = (row: SuggestionRow, i: number) => (
@@ -695,7 +682,7 @@ export function SuggestionsList({
       {/* Nada de `overflow-hidden` aqui: qualquer ancestral com overflow vira
           um contêiner de rolagem e o `sticky` do cabeçalho passa a se ancorar
           NELE — que não rola — ou seja, o cabeçalho não gruda em lugar nenhum. */}
-      <div className="hidden md:block rounded-2xl border border-slate-200 bg-white">
+      <div className="hidden md:block rounded-xl border border-border bg-card">
         {/* Sem altura máxima: a lista rola COM a página (nada de barra dentro de
             barra). Até `xl` a tabela (820px) pode não caber e precisa da barra
             horizontal; de `xl` para cima ela cabe, o overflow volta a `visible`
@@ -709,7 +696,7 @@ export function SuggestionsList({
             <caption className="sr-only">Vagas sugeridas do evento</caption>
             {/* --sticky-top (main-layout) = barra do topo + banner de simulação:
                 o cabeçalho para EMBAIXO do que está fixo, nunca atrás. */}
-            <thead className="bg-slate-50 border-b border-slate-200 sticky top-[var(--sticky-top,3.5rem)] z-10 shadow-[0_1px_0_0_rgb(226_232_240)] [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+            <thead className="bg-surface-muted border-b border-border sticky top-[var(--sticky-top,3.5rem)] z-10 shadow-1 [&>tr>th:first-child]:rounded-tl-xl [&>tr>th:last-child]:rounded-tr-xl">
               <tr className="group">
                 <th scope="col" className="w-9 p-0"><span className="sr-only">Situação</span></th>
                 {showSelection && (
@@ -745,13 +732,13 @@ export function SuggestionsList({
             {showEvent ? (
               groups.map((g) => (
                 <tbody key={g.key}>
-                  <tr className="bg-slate-50/80">
-                    <th scope="colgroup" colSpan={colCount} className="border-y border-slate-200 px-3 py-1.5 text-left">
+                  <tr className="bg-surface-muted/80">
+                    <th scope="colgroup" colSpan={colCount} className="border-y border-border px-3 py-1.5 text-left">
                       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         <span className={TABLE_TH}>Evento</span>
-                        <span className="text-[13px] font-semibold text-slate-800">{g.name}</span>
-                        {g.period && <span className="font-mono text-[11px] text-slate-500">{g.period}</span>}
-                        <span className="text-[11px] text-slate-500">· {g.rows.length} {g.rows.length === 1 ? "vaga" : "vagas"}</span>
+                        <span className="text-sm font-semibold text-foreground">{g.name}</span>
+                        {g.period && <span className="font-mono text-2xs text-muted-foreground">{g.period}</span>}
+                        <span className="text-2xs text-muted-foreground">· {g.rows.length} {g.rows.length === 1 ? "vaga" : "vagas"}</span>
                       </span>
                     </th>
                   </tr>
@@ -773,7 +760,7 @@ export function SuggestionsList({
           const reason = selectable ? null : lockReason(row);
           const open = onOpenDetail ? () => onOpenDetail(row) : undefined;
           return (
-            <li key={row.id} className={cn("overflow-hidden rounded-2xl border bg-white", selected ? "border-primary/40 bg-brand-soft/40" : "border-slate-200", rowTone(row), highlightIds?.has(row.id) && PULSE)}>
+            <li key={row.id} className={cn("overflow-hidden rounded-xl border bg-card", selected ? "border-primary/40 bg-brand-soft/40" : "border-border", rowTone(row), highlightIds?.has(row.id) && PULSE)}>
               <div className="flex">
                 <span className={cn("w-1 shrink-0", railClass(row.status))} aria-hidden="true" />
                 <div className="flex-1 min-w-0 p-3 space-y-2">

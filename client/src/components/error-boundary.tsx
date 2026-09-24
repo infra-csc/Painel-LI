@@ -22,6 +22,11 @@ interface ErrorBoundaryState {
 // voltar a quebrar, não entramos em loop infinito de reload.
 const CHUNK_RELOAD_KEY = "chunk-reload-once";
 
+// Quanto tempo depois de montar sem erro consideramos o reload "bem-sucedido"
+// e liberamos a flag (23/09). Antes ela ficava para sempre na sessão: um
+// SEGUNDO deploy na mesma aba não recarregava sozinho e caía na tela de erro.
+const LIMPAR_FLAG_APOS_MS = 5_000;
+
 // Erros típicos de import dinâmico (lazy) quando o chunk sai do ar após um
 // novo deploy: o hash do arquivo muda e o navegador ainda pede o antigo.
 function isChunkLoadError(error: unknown): boolean {
@@ -34,10 +39,22 @@ function isChunkLoadError(error: unknown): boolean {
   );
 }
 
+function lerFlag(): boolean {
+  try { return sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1"; } catch { return false; }
+}
+function gravarFlag(): void {
+  try { sessionStorage.setItem(CHUNK_RELOAD_KEY, "1"); } catch { /* sem storage: só perde a proteção anti-loop */ }
+}
+function limparFlag(): void {
+  try { sessionStorage.removeItem(CHUNK_RELOAD_KEY); } catch { /* idem */ }
+}
+
 export class ErrorBoundary extends React.Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
 > {
+  private limpezaDaFlag: ReturnType<typeof setTimeout> | null = null;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null, componentStack: null };
@@ -47,15 +64,26 @@ export class ErrorBoundary extends React.Component<
     return { hasError: true, error };
   }
 
+  componentDidMount() {
+    // Montou e ficou de pé por alguns segundos: o reload automático deu certo,
+    // então a flag pode ser liberada para o próximo deploy.
+    if (!lerFlag()) return;
+    this.limpezaDaFlag = setTimeout(() => {
+      if (!this.state.hasError) limparFlag();
+    }, LIMPAR_FLAG_APOS_MS);
+  }
+
+  componentWillUnmount() {
+    if (this.limpezaDaFlag) clearTimeout(this.limpezaDaFlag);
+  }
+
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Chunk quebrado: normalmente é um deploy novo. Recarrega uma vez de forma
     // automática (o novo index.html aponta para os chunks corretos). A flag em
     // sessionStorage impede o loop caso o reload não resolva.
     if (isChunkLoadError(error)) {
-      const alreadyReloaded =
-        sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
-      if (!alreadyReloaded) {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+      if (!lerFlag()) {
+        gravarFlag();
         window.location.reload();
         return;
       }
@@ -85,7 +113,7 @@ export class ErrorBoundary extends React.Component<
 
   handleReload = () => {
     // Limpa a flag para permitir um novo reload automático futuro.
-    sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+    limparFlag();
     window.location.reload();
   };
 
@@ -108,11 +136,12 @@ export class ErrorBoundary extends React.Component<
             {isContent ? " ou abra outra página pelo menu" : ""}.
           </p>
           <Button onClick={this.handleReload}>Recarregar</Button>
-          {/* O erro em si, para o usuário mandar ao suporte (11/09). Aberto por
-              padrão: quem chega aqui quer saber O QUE deu errado. */}
-          <details open className="w-full max-w-2xl text-left">
+          {/* O erro em si, para o usuário mandar ao suporte (11/09). Fechado
+              por padrão em produção (23/09): a stack assustava quem só queria
+              recarregar; em desenvolvimento abre direto. */}
+          <details open={import.meta.env.DEV} className="w-full max-w-2xl text-left">
             <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">Detalhes técnicos (copie e envie ao suporte)</summary>
-            <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/40 p-3 text-[11px] leading-snug text-foreground" data-testid="erro-detalhe">
+            <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/40 p-3 text-2xs leading-snug text-foreground" data-testid="erro-detalhe">
               {this.detalheTecnico()}
             </pre>
             <Button variant="outline" size="sm" className="mt-2" onClick={this.handleCopy}>Copiar detalhes</Button>

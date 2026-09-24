@@ -15,7 +15,7 @@ import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "
 import { formatCurrency } from "./baggage-core";
 import { NOME_DA_ORDEM, type CampoDeOrdem, type FiltrosDaLista, type Ordem, type ResumoDoRecorte } from "./baggage-logic";
 
-const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-[13px] font-medium text-slate-700";
+const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-sm font-medium text-slate-700";
 
 const ORDENAR_POR: { id: string; nome: string }[] = [
   { id: "boarding", nome: "Embarque" },
@@ -51,14 +51,14 @@ export default function BaggageFilterBar({
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <div className="relative flex-[1_1_260px] max-w-[320px]">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
         <input
           type="text"
           placeholder="Buscar por nome, CPF, LOC, OS ou evento…"
           aria-label="Buscar solicitações por nome, CPF, LOC, OS ou evento"
           value={filtros.search}
           onChange={(e) => onChange({ search: e.target.value })}
-          className={`w-full ${CONTROLE} pl-[33px] pr-3 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
+          className={`w-full ${CONTROLE} pl-[33px] pr-3 placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
           data-testid="input-search-baggage"
         />
       </div>
@@ -101,7 +101,7 @@ export default function BaggageFilterBar({
         onClick={() => onOrdem({ ...ordem, desc: !ordem.desc })}
         title={ordem.desc ? "Ordem decrescente — clique para inverter" : "Ordem crescente — clique para inverter"}
         aria-label={ordem.desc ? "Ordem decrescente, inverter" : "Ordem crescente, inverter"}
-        className={`${CONTROLE} w-[34px] shrink-0 inline-flex items-center justify-center text-muted-foreground hover:bg-slate-100 transition-colors`}
+        className={`${CONTROLE} w-[34px] shrink-0 inline-flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors`}
         data-testid="button-sort-direction"
       >
         {ordem.desc ? <ArrowDown className="w-4 h-4" aria-hidden="true" /> : <ArrowUp className="w-4 h-4" aria-hidden="true" />}
@@ -110,7 +110,7 @@ export default function BaggageFilterBar({
       <button
         type="button"
         onClick={onClear}
-        className={`${CONTROLE} inline-flex items-center gap-1.5 px-3 text-muted-foreground hover:border-[#FECACA] hover:bg-[#FEF2F2] hover:text-[#B91C1C] transition-colors whitespace-nowrap shrink-0`}
+        className={`${CONTROLE} inline-flex items-center gap-1.5 px-3 text-muted-foreground hover:border-danger/25 hover:bg-danger-soft hover:text-danger transition-colors whitespace-nowrap shrink-0`}
         data-testid="button-clear-filters"
       >
         <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar filtros
@@ -121,7 +121,7 @@ export default function BaggageFilterBar({
         leitor de tela anuncia a lista mas nunca o tamanho dela.
       */}
       <span
-        className="ml-auto text-[12px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
+        className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
         aria-live="polite"
         data-testid="contagem-bagagem"
       >

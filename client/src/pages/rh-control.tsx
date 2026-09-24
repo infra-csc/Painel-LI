@@ -1,5 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { formatDias } from "@/lib/utils";
+import { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue, memo, type MutableRefObject } from "react";
+import { cn, formatDias } from "@/lib/utils";
+import { formatarMoeda, toTitleCase } from "@/lib/format";
+import { indexarPorId, agruparPor, chaveComposta } from "@/lib/indices";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -7,11 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { QueryError, useQueriesState } from "@/components/common/query-state";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { useLocation } from "wouter";
+import { campo, useUrlState } from "@/lib/use-url-state";
+import { guardarEventoEmFoco } from "@/lib/evento-em-foco";
 import {
   Shield, Search, CheckCircle, XCircle, RotateCcw, Clock,
   FileText, FileCheck, ChevronDown,
@@ -21,8 +26,8 @@ import {
 } from "lucide-react";
 
 const RH_AVATAR_COLORS = [
-  'bg-sky-500','bg-violet-500','bg-emerald-500','bg-orange-500',
-  'bg-pink-500','bg-indigo-500','bg-amber-600','bg-teal-500','bg-rose-500','bg-cyan-500',
+  'bg-info-strong','bg-primary','bg-success-strong','bg-warning-strong',
+  'bg-primary','bg-primary','bg-warning','bg-info-strong','bg-danger-strong','bg-info-strong',
 ];
 function avatarColorRh(name: string) {
   const idx = name.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % RH_AVATAR_COLORS.length;
@@ -31,11 +36,7 @@ function avatarColorRh(name: string) {
 function initialsRh(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
-// Mesma implementação da tela de Notas Fiscais (invoices.tsx) — manter idênticas.
-function toTitleCase(str: string): string {
-  if (!str || str === "—" || str === "-") return str;
-  return str.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
-}
+// `toTitleCase` vem de lib/format (fonte única; antes copiada aqui e em invoices.tsx).
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 
@@ -120,19 +121,75 @@ function getDiffDays(date: Date | string | null | undefined): number {
   return (now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000);
 }
 
+// Card memoizado com dependências EXPLÍCITAS (23/09). `renderPrestacaoCard`
+// é uma closure de ~500 linhas da página (estado, mutações, navegação); em
+// vez de extrair tudo em props, o componente recebe a closure por ref e
+// declara como props tudo que o card lê do estado da página. `React.memo`
+// compara essas props: digitar na busca ou expandir outro card não repinta
+// este. REGRA: qualquer novo estado lido dentro do card entra aqui como prop.
+interface CartaoPrestacaoProps {
+  item: PrestacaoItem;
+  render: MutableRefObject<(item: PrestacaoItem) => JSX.Element>;
+  expandido: boolean;
+  detalhes: boolean;
+  approvingInvoiceId: string | null;
+  nfApproving: boolean;
+  canRh: boolean;
+  invoice: unknown;
+  users: unknown;
+  nomes: unknown;
+  funcoes: unknown;
+  emiteNf: boolean;
+}
+const CartaoPrestacao = memo(function CartaoPrestacao({ item, render }: CartaoPrestacaoProps) {
+  return render.current(item);
+});
+
 const CONCLUDED_STATUSES: PrestacaoStatus[] = ["aprovada_faturamento", "recusada"];
 const ACTIONABLE_STATUSES: PrestacaoStatus[] = ["planejamento_pendente", "aguardando_prestacao", "prestacao_recebida", "devolvida_para_ajuste"];
 
 export default function RhControlPage() {
   usePageTitle("Controle RH");
-  const [filterEvent, setFilterEvent] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<PrestacaoStatus>("all");
-  const [filterCheckinOnly, setFilterCheckinOnly] = useState(false);
-  const [filterFunction, setFilterFunction] = useState<string>("all");
-  const [filterCollaborator, setFilterCollaborator] = useState<string>("all");
-  const [filterInvoiceStatus, setFilterInvoiceStatus] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showConcluded, setShowConcluded] = useState(false);
+  const { user } = useAuth();
+  // Filtros na URL (23/09): ir ao Planejado/Notas e voltar devolvia a fila
+  // zerada. `?event=` é o mesmo nome dos links para as outras telas do
+  // Financeiro; escolher um evento aqui também vira o "evento em foco" (memória
+  // por usuário). Mas esta é uma tela de FILA: abre em "Todos os eventos" (regra
+  // do dono, 26/08) — o padrão não vem do localStorage, só da URL.
+  const [f, setF] = useUrlState({
+    event: campo.texto(""),
+    status: campo.opcao<PrestacaoStatus>("all"),
+    checkin: campo.booleano(false),
+    function: campo.texto("all"),
+    collaborator: campo.texto("all"),
+    nf: campo.texto("all"),
+    q: campo.texto(""),
+    concluidos: campo.booleano(false),
+  });
+  const filterEvent = f.event || "all";
+  const setFilterEvent = (v: string) => {
+    const id = v === "all" ? "" : v;
+    setF({ event: id });
+    if (id) guardarEventoEmFoco(user?.id, id);
+  };
+  const filterStatus = f.status;
+  const setFilterStatus = (v: PrestacaoStatus | ((prev: PrestacaoStatus) => PrestacaoStatus)) =>
+    setF(prev => ({ ...prev, status: typeof v === "function" ? v(prev.status) : v }));
+  const filterCheckinOnly = f.checkin;
+  const setFilterCheckinOnly = (v: boolean) => setF({ checkin: v });
+  const filterFunction = f.function;
+  const setFilterFunction = (v: string) => setF({ function: v });
+  const filterCollaborator = f.collaborator;
+  const setFilterCollaborator = (v: string) => setF({ collaborator: v });
+  const filterInvoiceStatus = f.nf;
+  const setFilterInvoiceStatus = (v: string) => setF({ nf: v });
+  const searchTerm = f.q;
+  const setSearchTerm = (v: string) => setF({ q: v });
+  // `useDeferredValue` (23/09): refiltrar centenas de prestações a cada tecla
+  // travava a digitação. O input continua controlado por `searchTerm`.
+  const buscaAplicada = useDeferredValue(searchTerm);
+  const showConcluded = f.concluidos;
+  const setShowConcluded = (v: boolean) => setF({ concluidos: v });
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
@@ -142,31 +199,43 @@ export default function RhControlPage() {
   const toggleDetails = (id: string) => setExpandedDetails(prev => {
     const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next;
   });
-  const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
-  const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
-  const { data: users } = useQuery<User[]>({ queryKey: ["/api/users"] });
-  const { data: allTeamInclusions, isLoading: loadingInclusions } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions"],
-    queryFn: async () => {
-      const res = await fetch("/api/team-inclusions", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
+  const qEvents = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const qFunctions = useQuery<Function[]>({ queryKey: ["/api/functions"] });
+  const qCollaborators = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const qUsers = useQuery<User[]>({ queryKey: ["/api/users"] });
+  // Com evento selecionado, busca só as escalações dele (`?eventId=`, contrato
+  // 23/09); em "Todos os eventos" o RH continua liberado a listar tudo.
+  // TODO (23/09): esta tela baixa /api/team-inclusions inteiro (~4.500 linhas)
+  // só para montar a fila e decidir a isenção de NF — trocar por um endpoint
+  // agregado no servidor quando ele existir.
+  const eventoSelecionado = filterEvent !== "all" ? filterEvent : null;
+  const qTeamInclusions = useQuery<TeamInclusion[]>({
+    queryKey: eventoSelecionado ? ["/api/team-inclusions", eventoSelecionado] : ["/api/team-inclusions"],
+    queryFn: () => apiRequest("GET", eventoSelecionado ? `/api/team-inclusions?eventId=${eventoSelecionado}` : "/api/team-inclusions").then(r => r.json()),
   });
-  const { data: allPlanned, isLoading: loadingPlanned } = useQuery<BudgetPlanned[]>({
-    queryKey: ["/api/budget-planned"],
-  });
-  const { data: allActual, isLoading: loadingActual } = useQuery<BudgetActual[]>({
-    queryKey: ["/api/budget-actual"],
-  });
-  const { data: allInvoices = [] } = useQuery<any[]>({ queryKey: ["/api/invoices"] });
+  // Opções do select de evento: independentes do filtro (a lista de escalações
+  // filtrada por evento esvaziaria o dropdown).
+  const qEventsWithInclusions = useQuery<Event[]>({ queryKey: ["/api/events-with-inclusions"] });
+  const qPlanned = useQuery<BudgetPlanned[]>({ queryKey: ["/api/budget-planned"] });
+  const qActual = useQuery<BudgetActual[]>({ queryKey: ["/api/budget-actual"] });
+  const qInvoices = useQuery<any[]>({ queryKey: ["/api/invoices"] });
+  const events = qEvents.data;
+  const functions = qFunctions.data;
+  const collaborators = qCollaborators.data;
+  const users = qUsers.data;
+  const allTeamInclusions = qTeamInclusions.data;
+  const allPlanned = qPlanned.data;
+  const allActual = qActual.data;
+  const allInvoices = qInvoices.data ?? [];
 
-  const isLoading = loadingPlanned || loadingActual || loadingInclusions;
+  // Erro/carregando das consultas que montam a lista (23/09): antes uma falha
+  // de rede virava "Todos os itens estão em dia" — o pior vazio possível para
+  // o RH. `/api/users` fica de fora: é só o nome de quem aprovou.
+  const estado = useQueriesState([qEvents, qFunctions, qCollaborators, qTeamInclusions, qPlanned, qActual, qInvoices]);
+  const isLoading = estado.isLoading;
 
   const canRh = isRhOrAdmin(user);
 
@@ -202,14 +271,25 @@ export default function RhControlPage() {
 
   // Definido na escalação: se emitsNf === false, o colaborador não emite NF.
   // Regra única em @shared/prestacao-rules — mesma da tela de Notas Fiscais.
-  const emitsNfFor = (actual: { eventId?: string | null; collaboratorId?: string | null; functionId?: string | null }): boolean =>
-    !nfIsentaPorEscalacao(allTeamInclusions, actual.collaboratorId, actual.functionId, actual.eventId);
+  // Pré-agrupado por evento+colaborador (23/09): antes cada chamada filtrava
+  // as ~4.500 escalações, e havia uma chamada por item em 7 laços da tela.
+  // A regra continua sendo a função compartilhada — só recebe o grupo pequeno.
+  const inclusoesPorEventoColab = useMemo(
+    () => agruparPor((allTeamInclusions || []).filter(ti => !ti.deletedAt && ti.collaboratorId), ti => chaveComposta(ti.eventId, ti.collaboratorId)),
+    [allTeamInclusions],
+  );
+  const emitsNfFor = useCallback((actual: { eventId?: string | null; collaboratorId?: string | null; functionId?: string | null }): boolean => {
+    if (!actual.collaboratorId) return true;
+    const grupo = inclusoesPorEventoColab.get(chaveComposta(actual.eventId, actual.collaboratorId));
+    return !nfIsentaPorEscalacao(grupo, actual.collaboratorId, actual.functionId, actual.eventId);
+  }, [inclusoesPorEventoColab]);
 
+  const userById = useMemo(() => indexarPorId(users), [users]);
   const getUserName = (id?: string | null) =>
-    id ? users?.find(u => u.id === id)?.name || "-" : "-";
+    id ? userById.get(id)?.name || "-" : "-";
 
-  const fmt = (cents: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+  // Formatador único (lib/format)
+  const fmt = formatarMoeda;
 
   const formatDateTime = (d: Date | string | null | undefined) => {
     if (!d) return "-";
@@ -220,7 +300,7 @@ export default function RhControlPage() {
 
   const resolveResponsavel = (id?: string | null): string => {
     if (!id) return "Responsável da função";
-    return users?.find(u => u.id === id)?.name || "Responsável da função";
+    return userById.get(id)?.name || "Responsável da função";
   };
 
   const prestacaoItems = useMemo((): PrestacaoItem[] => {
@@ -392,7 +472,7 @@ export default function RhControlPage() {
     const checkinPending = relevant.filter(inv => inv.status === "aprovada" && !inv.checkinAt).length;
     const checkinDone    = relevant.filter(inv => inv.status === "aprovada" && !!inv.checkinAt).length;
     return { pending, enviada, devolvida, aprovada, checkinPending, checkinDone };
-  }, [allActual, allInvoices, allTeamInclusions]);
+  }, [allActual, allInvoices, emitsNfFor]);
 
   const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
 
@@ -453,9 +533,9 @@ export default function RhControlPage() {
         const invStatus = inv?.status || "pendente";
         if (invStatus !== filterInvoiceStatus) return false;
       }
-      if (searchTerm) {
+      if (buscaAplicada) {
         const name = getCollaboratorName(item.collaboratorId).toLowerCase();
-        if (!name.includes(searchTerm.toLowerCase())) return false;
+        if (!name.includes(buscaAplicada.toLowerCase())) return false;
       }
       if (filterCheckinOnly) {
         const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
@@ -464,7 +544,7 @@ export default function RhControlPage() {
       }
       return true;
     });
-  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, searchTerm, showConcluded, filterCheckinOnly, collaborators, allInvoices, allTeamInclusions]);
+  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, buscaAplicada, showConcluded, filterCheckinOnly, collaborators, allInvoices, allTeamInclusions]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
@@ -513,15 +593,19 @@ export default function RhControlPage() {
     return prestacaoItems.some(i => !i.collaboratorId);
   }, [prestacaoItems]);
 
-  const eventIdsWithInclusions = useMemo(() => {
-    if (!allTeamInclusions) return new Set<string>();
-    return new Set(allTeamInclusions.filter(ti => !ti.deletedAt).map(ti => ti.eventId));
-  }, [allTeamInclusions]);
+  const eventIdsWithInclusions = useMemo(
+    () => new Set((qEventsWithInclusions.data ?? []).map(e => e.id)),
+    [qEventsWithInclusions.data],
+  );
 
+  // Atualização FUNCIONAL: o card memoizado guarda o closure do seu último
+  // render — ler `expandedCards` aqui apagaria a expansão de outros cards.
   const toggleExpand = (id: string) => {
-    const next = new Set(expandedCards);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setExpandedCards(next);
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   const toggleEventExpand = (eventId: string) => {
@@ -543,12 +627,12 @@ export default function RhControlPage() {
       shortLabel: "Planejamento",
       description: "Escalação confirmada — RH precisa criar o planejamento de valores",
       icon: ClipboardList,
-      color: "text-amber-700",
-      bg: "bg-amber-50",
-      border: "border-amber-200",
-      iconColor: "text-amber-500",
-      badgeCls: "bg-amber-100 text-amber-700 border-amber-200",
-      cardBorder: "border-amber-200",
+      color: "text-warning",
+      bg: "bg-warning-soft",
+      border: "border-warning/25",
+      iconColor: "text-warning-strong",
+      badgeCls: "bg-warning-soft text-warning border-warning/25",
+      cardBorder: "border-warning/25",
     },
     aguardando_prestacao: {
       label: "Aguardando envio do realizado",
@@ -556,94 +640,94 @@ export default function RhControlPage() {
       description: "Planejado criado — aguardando o responsável da função preencher e enviar o realizado",
       icon: Clock,
       color: "text-slate-600",
-      bg: "bg-slate-50",
-      border: "border-slate-200",
-      iconColor: "text-slate-400",
-      badgeCls: "bg-slate-100 text-slate-600 border-slate-200",
-      cardBorder: "border-gray-200",
+      bg: "bg-surface-muted",
+      border: "border-border",
+      iconColor: "text-muted-foreground",
+      badgeCls: "bg-muted text-slate-600 border-border",
+      cardBorder: "border-border",
     },
     prestacao_recebida: {
       label: "Análise pendente",
       shortLabel: "Comparativo",
       description: "Realizado recebido — RH precisa analisar o comparativo para aprovar ou recusar",
       icon: Send,
-      color: "text-blue-700",
-      bg: "bg-blue-50",
-      border: "border-blue-200",
-      iconColor: "text-blue-500",
-      badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
-      cardBorder: "border-blue-200 shadow-sm shadow-blue-100/50",
+      color: "text-primary",
+      bg: "bg-brand-soft",
+      border: "border-primary/25",
+      iconColor: "text-primary",
+      badgeCls: "bg-brand-soft text-primary border-primary/25",
+      cardBorder: "border-primary/25 shadow-1",
     },
     devolvida_para_ajuste: {
       label: "Devolvida para ajuste",
       shortLabel: "Devolvida",
       description: "O RH devolveu o realizado — aguardando o responsável da função corrigir e reenviar",
       icon: RotateCcw,
-      color: "text-orange-700",
-      bg: "bg-orange-50",
-      border: "border-orange-200",
-      iconColor: "text-orange-500",
-      badgeCls: "bg-orange-100 text-orange-700 border-orange-200",
-      cardBorder: "border-orange-200",
+      color: "text-warning",
+      bg: "bg-warning-soft",
+      border: "border-warning/25",
+      iconColor: "text-warning-strong",
+      badgeCls: "bg-warning-soft text-warning border-warning/25",
+      cardBorder: "border-warning/25",
     },
     aprovada_faturamento: {
       label: "Aprovada para faturamento",
       shortLabel: "Aprovada",
       description: "O RH aprovou — pronta para faturamento",
       icon: CheckCircle,
-      color: "text-emerald-700",
-      bg: "bg-emerald-50",
-      border: "border-emerald-200",
-      iconColor: "text-emerald-500",
-      badgeCls: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      cardBorder: "border-emerald-200",
+      color: "text-success",
+      bg: "bg-success-soft",
+      border: "border-success/25",
+      iconColor: "text-success-strong",
+      badgeCls: "bg-success-soft text-success border-success/25",
+      cardBorder: "border-success/25",
     },
     recusada: {
       label: "Recusada",
       shortLabel: "Recusada",
       description: "O RH recusou — não será faturada",
       icon: Ban,
-      color: "text-red-700",
-      bg: "bg-red-50",
-      border: "border-red-200",
-      iconColor: "text-red-500",
-      badgeCls: "bg-red-100 text-red-700 border-red-200",
-      cardBorder: "border-red-200",
+      color: "text-danger",
+      bg: "bg-danger-soft",
+      border: "border-danger/25",
+      iconColor: "text-danger-strong",
+      badgeCls: "bg-danger-soft text-danger border-danger/25",
+      cardBorder: "border-danger/25",
     },
     all: {
       label: "Todos", shortLabel: "Todos", description: "",
-      icon: Users, color: "text-gray-700", bg: "bg-gray-50",
-      border: "border-gray-200", iconColor: "text-gray-400",
-      badgeCls: "bg-gray-100 text-gray-600 border-gray-200",
-      cardBorder: "border-gray-200",
+      icon: Users, color: "text-slate-700", bg: "bg-surface-muted",
+      border: "border-border", iconColor: "text-muted-foreground",
+      badgeCls: "bg-muted text-slate-600 border-border",
+      cardBorder: "border-border",
     },
     rh_action: {
       label: "Pendências do RH", shortLabel: "Pendências RH", description: "",
-      icon: Shield, color: "text-blue-700", bg: "bg-blue-50",
-      border: "border-blue-200", iconColor: "text-blue-500",
-      badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
-      cardBorder: "border-blue-200",
+      icon: Shield, color: "text-primary", bg: "bg-brand-soft",
+      border: "border-primary/25", iconColor: "text-primary",
+      badgeCls: "bg-brand-soft text-primary border-primary/25",
+      cardBorder: "border-primary/25",
     },
     col_action: {
       label: "Aguardando Colaborador", shortLabel: "Ag. Colaborador", description: "",
-      icon: Users, color: "text-blue-700", bg: "bg-blue-50",
-      border: "border-blue-200", iconColor: "text-blue-500",
-      badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
-      cardBorder: "border-blue-200",
+      icon: Users, color: "text-primary", bg: "bg-brand-soft",
+      border: "border-primary/25", iconColor: "text-primary",
+      badgeCls: "bg-brand-soft text-primary border-primary/25",
+      cardBorder: "border-primary/25",
     },
     nf_andamento: {
       label: "Nota Fiscal em andamento", shortLabel: "Nota Fiscal", description: "",
-      icon: FileText, color: "text-amber-700", bg: "bg-amber-50",
-      border: "border-amber-200", iconColor: "text-amber-500",
-      badgeCls: "bg-amber-100 text-amber-700 border-amber-200",
-      cardBorder: "border-amber-200",
+      icon: FileText, color: "text-warning", bg: "bg-warning-soft",
+      border: "border-warning/25", iconColor: "text-warning-strong",
+      badgeCls: "bg-warning-soft text-warning border-warning/25",
+      cardBorder: "border-warning/25",
     },
     concluidos: {
       label: "Concluídos", shortLabel: "Concluídos", description: "",
-      icon: CheckCircle, color: "text-emerald-700", bg: "bg-emerald-50",
-      border: "border-emerald-200", iconColor: "text-emerald-500",
-      badgeCls: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      cardBorder: "border-emerald-200",
+      icon: CheckCircle, color: "text-success", bg: "bg-success-soft",
+      border: "border-success/25", iconColor: "text-success-strong",
+      badgeCls: "bg-success-soft text-success border-success/25",
+      cardBorder: "border-success/25",
     },
   };
 
@@ -766,36 +850,36 @@ export default function RhControlPage() {
             const dateStr = getStepDate(item, i);
             const responsibleName = getStepResponsible(item, i);
             const connectorColor = i === 3
-              ? nfCompleted ? 'bg-emerald-300' : nfEligible && itemEmitsNf ? 'bg-amber-300' : 'bg-gray-200'
-              : isCompleted ? 'bg-blue-300' : 'bg-gray-200';
+              ? nfCompleted ? 'bg-success/20' : nfEligible && itemEmitsNf ? 'bg-warning/20' : 'bg-border'
+              : isCompleted ? 'bg-primary/40' : 'bg-border';
             return (
               <div key={label} className="flex items-start flex-1 min-w-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                       <div className="relative flex items-center justify-center">
-                        {isCurrent && <span className="absolute w-7 h-7 rounded-full bg-blue-100 animate-ping opacity-60 motion-reduce:hidden" />}
+                        {isCurrent && <span className="absolute w-7 h-7 rounded-full bg-brand-soft animate-ping opacity-60 motion-reduce:hidden" />}
                         <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                          isCompleted ? 'bg-blue-600 shadow-sm shadow-blue-200'
-                          : isCurrent ? 'bg-white border-2 border-blue-500'
-                          : 'bg-gray-100 border border-gray-200'
+                          isCompleted ? 'bg-primary shadow-1 '
+                          : isCurrent ? 'bg-card border-2 border-primary'
+                          : 'bg-muted border border-border'
                         }`}>
                           {isCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                          {isCurrent && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                          {isCurrent && <div className="w-2 h-2 rounded-full bg-primary" />}
                         </div>
                       </div>
-                      <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                        isCompleted || isCurrent ? 'text-blue-600' : 'text-slate-300'
+                      <span className={`text-2xs font-semibold mt-1.5 whitespace-nowrap ${
+                        isCompleted || isCurrent ? 'text-primary' : 'text-muted-foreground'
                       }`}>{label}</span>
                       {(isCompleted || isCurrent) && dateStr
-                        ? <span className="text-[10px] text-slate-400 whitespace-nowrap">{dateStr}</span>
-                        : isFuture ? <span className="text-[10px] text-slate-300 italic">Pendente</span>
+                        ? <span className="text-2xs text-muted-foreground whitespace-nowrap">{dateStr}</span>
+                        : isFuture ? <span className="text-2xs text-muted-foreground italic">Pendente</span>
                         : null}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs max-w-[200px]">
                     <p className="font-semibold">{label}</p>
-                    <p className="text-gray-400">{STEP_TOOLTIPS[i]}</p>
+                    <p className="text-muted-foreground">{STEP_TOOLTIPS[i]}</p>
                   </TooltipContent>
                 </Tooltip>
                 {/* Connector — always shown from each main step to the next */}
@@ -810,45 +894,45 @@ export default function RhControlPage() {
               <TooltipTrigger asChild>
                 <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                   <div className="relative flex items-center justify-center">
-                    {(nfEnviada || nfAwaitingSubmission) && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60 motion-reduce:hidden" />}
+                    {(nfEnviada || nfAwaitingSubmission) && <span className="absolute w-7 h-7 rounded-full bg-warning-soft animate-ping opacity-60 motion-reduce:hidden" />}
                     <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                      nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
-                      : nfRecusada ? 'bg-red-500'
-                      : nfEnviada ? 'bg-white border-2 border-amber-400'
-                      : nfDevolvida ? 'bg-white border-2 border-orange-400'
-                      : nfAwaitingSubmission ? 'bg-white border-2 border-amber-400'
-                      : 'bg-gray-200 border border-gray-300'
+                      nfCompleted ? 'bg-success-strong shadow-1 '
+                      : nfRecusada ? 'bg-danger-strong'
+                      : nfEnviada ? 'bg-card border-2 border-warning-strong'
+                      : nfDevolvida ? 'bg-card border-2 border-warning-strong'
+                      : nfAwaitingSubmission ? 'bg-card border-2 border-warning-strong'
+                      : 'bg-border border border-slate-300'
                     }`}>
                       {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                       {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
-                      {nfEnviada && <div className="w-2 h-2 rounded-full bg-amber-400" />}
-                      {nfDevolvida && <div className="w-2 h-2 rounded-full bg-orange-400" />}
-                      {nfAwaitingSubmission && <div className="w-2 h-2 rounded-full bg-amber-300" />}
+                      {nfEnviada && <div className="w-2 h-2 rounded-full bg-warning-strong" />}
+                      {nfDevolvida && <div className="w-2 h-2 rounded-full bg-warning-strong" />}
+                      {nfAwaitingSubmission && <div className="w-2 h-2 rounded-full bg-warning/20" />}
                     </div>
                   </div>
-                  <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                    nfCompleted ? 'text-emerald-600'
-                    : nfEnviada || nfAwaitingSubmission ? 'text-amber-600'
-                    : nfDevolvida ? 'text-orange-600'
-                    : nfRecusada ? 'text-red-600'
-                    : 'text-slate-400'
+                  <span className={`text-2xs font-semibold mt-1.5 whitespace-nowrap ${
+                    nfCompleted ? 'text-success'
+                    : nfEnviada || nfAwaitingSubmission ? 'text-warning'
+                    : nfDevolvida ? 'text-warning'
+                    : nfRecusada ? 'text-danger'
+                    : 'text-muted-foreground'
                   }`}>Nota Fiscal</span>
                   {nfDateStr
-                    ? <span className="text-[10px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
+                    ? <span className="text-2xs text-muted-foreground whitespace-nowrap">{nfDateStr}</span>
                     : nfRecusada
-                    ? <span className="text-[10px] text-red-500 italic font-medium">Recusada</span>
+                    ? <span className="text-2xs text-danger-strong italic font-medium">Recusada</span>
                     : !itemEmitsNf
-                    ? <span className="text-[10px] text-slate-400">Não emite</span>
-                    : <span className="text-[10px] text-amber-500 italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
+                    ? <span className="text-2xs text-muted-foreground">Não emite</span>
+                    : <span className="text-2xs text-warning-strong italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs max-w-[200px]">
                 <p className="font-semibold">Nota Fiscal</p>
-                <p className="text-gray-400">{nfTooltip}</p>
+                <p className="text-muted-foreground">{nfTooltip}</p>
               </TooltipContent>
             </Tooltip>
             {/* Connector NF → Check-in */}
-            <div className={`h-px flex-1 mt-3 rounded-full mx-1 transition-all ${checkinDone ? 'bg-emerald-300' : checkinEligible ? 'bg-violet-200' : 'bg-gray-200'}`} />
+            <div className={`h-px flex-1 mt-3 rounded-full mx-1 transition-all ${checkinDone ? 'bg-success/20' : checkinEligible ? 'bg-primary/40' : 'bg-border'}`} />
           </div>
 
           {/* Check-in step */}
@@ -856,31 +940,31 @@ export default function RhControlPage() {
             <TooltipTrigger asChild>
               <div className="flex flex-col items-center flex-shrink-0 cursor-default w-16">
                 <div className="relative flex items-center justify-center">
-                  {checkinEligible && !checkinDone && <span className="absolute w-7 h-7 rounded-full bg-violet-100 animate-ping opacity-60 motion-reduce:hidden" />}
+                  {checkinEligible && !checkinDone && <span className="absolute w-7 h-7 rounded-full bg-brand-soft animate-ping opacity-60 motion-reduce:hidden" />}
                   <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                    checkinDone ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
-                    : checkinEligible ? 'bg-white border-2 border-violet-400'
-                    : 'bg-gray-100 border border-gray-200'
+                    checkinDone ? 'bg-success-strong shadow-1 '
+                    : checkinEligible ? 'bg-card border-2 border-primary'
+                    : 'bg-muted border border-border'
                   }`}>
                     {checkinDone && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                    {checkinEligible && !checkinDone && <div className="w-2 h-2 rounded-full bg-violet-400" />}
+                    {checkinEligible && !checkinDone && <div className="w-2 h-2 rounded-full bg-primary/40" />}
                   </div>
                 </div>
-                <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                  checkinDone ? 'text-emerald-600'
-                  : checkinEligible ? 'text-violet-600'
-                  : 'text-slate-300'
+                <span className={`text-2xs font-semibold mt-1.5 whitespace-nowrap ${
+                  checkinDone ? 'text-success'
+                  : checkinEligible ? 'text-primary'
+                  : 'text-muted-foreground'
                 }`}>Check-in</span>
                 {checkinDateStr
-                  ? <span className="text-[10px] text-slate-400 whitespace-nowrap">{checkinDateStr}</span>
+                  ? <span className="text-2xs text-muted-foreground whitespace-nowrap">{checkinDateStr}</span>
                   : checkinEligible
-                  ? <span className="text-[10px] text-violet-500 italic font-medium">Pendente</span>
-                  : <span className="text-[10px] text-slate-300">—</span>}
+                  ? <span className="text-2xs text-primary italic font-medium">Pendente</span>
+                  : <span className="text-2xs text-muted-foreground">—</span>}
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-[200px]">
               <p className="font-semibold">Check-in Financeiro</p>
-              <p className="text-gray-400">{STEP_TOOLTIPS[5]}</p>
+              <p className="text-muted-foreground">{STEP_TOOLTIPS[5]}</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -925,19 +1009,19 @@ export default function RhControlPage() {
         const nfInv = item.actual ? getInvoiceForActual(item.actual.id) : undefined;
         const nfSt = nfInv?.status || "pendente";
         // Green = NF approved (concluded); red = NF refused (terminal); blue = NF in review; amber = pending/returned
-        if (nfSt === "aprovada") return { border: "border-l-4 border-l-emerald-400", bg: "" };
-        if (nfSt === "recusada") return { border: "border-l-4 border-l-red-400", bg: "" };
-        if (nfSt === "enviada") return { border: "border-l-4 border-l-blue-300", bg: "" };
-        if (nfSt === "devolvida") return { border: "border-l-4 border-l-orange-300", bg: "" };
-        return { border: "border-l-4 border-l-amber-300", bg: "" };
+        if (nfSt === "aprovada") return { border: "border-l-4 border-l-success-strong", bg: "" };
+        if (nfSt === "recusada") return { border: "border-l-4 border-l-danger-strong", bg: "" };
+        if (nfSt === "enviada") return { border: "border-l-4 border-l-primary/40", bg: "" };
+        if (nfSt === "devolvida") return { border: "border-l-4 border-l-warning/25", bg: "" };
+        return { border: "border-l-4 border-l-warning/25", bg: "" };
       }
-      return { border: "border-l-4 border-l-red-400", bg: "" };
+      return { border: "border-l-4 border-l-danger-strong", bg: "" };
     }
     const days = getDiffDays(item.lastActivityDate);
-    if (days > 30) return { border: "border-l-4 border-l-red-500", bg: "bg-red-50/20" };
-    if (days > 7)  return { border: "border-l-4 border-l-amber-400", bg: "bg-amber-50/20" };
-    if (days > 0)  return { border: "border-l-4 border-l-sky-400", bg: "" };
-    return { border: "border-l-4 border-l-gray-200", bg: "" };
+    if (days > 30) return { border: "border-l-4 border-l-danger-strong", bg: "bg-danger-soft/20" };
+    if (days > 7)  return { border: "border-l-4 border-l-warning-strong", bg: "bg-warning-soft/20" };
+    if (days > 0)  return { border: "border-l-4 border-l-info-strong", bg: "" };
+    return { border: "border-l-4 border-l-border", bg: "" };
   };
 
   const renderPrestacaoCard = (item: PrestacaoItem) => {
@@ -960,7 +1044,7 @@ export default function RhControlPage() {
     return (
       <div
         key={item.id}
-        className={`rounded-lg bg-white border border-slate-100 overflow-hidden hover:shadow-sm transition-shadow ${borderStyle.border} ${borderStyle.bg}`}
+        className={`rounded-lg bg-card border border-border overflow-hidden hover:shadow-1 transition-shadow ${borderStyle.border} ${borderStyle.bg}`}
       >
         {/* Card row */}
         <div
@@ -984,22 +1068,22 @@ export default function RhControlPage() {
           {/* Name + meta */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
+              <span className="text-sm font-semibold text-foreground truncate">{colName}</span>
               {item.status === "aprovada_faturamento" ? (
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full border ${
                   nfStatus === "aprovada" && hasCheckin
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    ? "bg-success-soft text-success border-success/25"
                     : nfStatus === "aprovada" && !hasCheckin
-                    ? "bg-violet-50 text-violet-700 border-violet-200"
+                    ? "bg-brand-soft text-primary border-primary/25"
                     : nfStatus === "enviada"
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    ? "bg-brand-soft text-primary border-primary/25"
                     : nfStatus === "devolvida"
-                    ? "bg-orange-50 text-orange-700 border-orange-200"
+                    ? "bg-warning-soft text-warning border-warning/25"
                     : nfStatus === "recusada"
-                    ? "bg-red-50 text-red-700 border-red-200"
+                    ? "bg-danger-soft text-danger border-danger/25"
                     : !itemEmitsNf
-                    ? "bg-slate-100 text-slate-500 border-slate-200"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
+                    ? "bg-muted text-muted-foreground border-border"
+                    : "bg-warning-soft text-warning border-warning/25"
                 }`}>
                   {nfStatus === "aprovada" && hasCheckin ? "Concluído"
                     : nfStatus === "aprovada" && !hasCheckin ? "Ag. Check-in"
@@ -1010,19 +1094,19 @@ export default function RhControlPage() {
                     : "Ag. Nota Fiscal"}
                 </span>
               ) : (
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
+                <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
                   {config.shortLabel}
                 </span>
               )}
               {isResubmitted && (
-                <span className="text-[10px] bg-violet-50 text-violet-600 border border-violet-200 font-medium px-1.5 py-0.5 rounded-full">Reenviado</span>
+                <span className="text-2xs bg-brand-soft text-primary border border-primary/25 font-medium px-1.5 py-0.5 rounded-full">Reenviado</span>
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <p className="text-xs text-slate-500 truncate">
+              <p className="text-xs text-muted-foreground truncate">
                 {getFunctionName(item.functionId)}
                 {item.planned?.collaboratorType && (
-                  <span className="ml-1 text-slate-400">· {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}</span>
+                  <span className="ml-1 text-muted-foreground">· {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}</span>
                 )}
               </p>
               {(() => {
@@ -1042,7 +1126,7 @@ export default function RhControlPage() {
                   if (evEnd && evEnd < today) {
                     const dAgo = Math.floor((today.getTime() - evEnd.getTime()) / 864e5);
                     return (
-                      <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5 shrink-0">
+                      <span className="text-2xs font-semibold text-danger-strong flex items-center gap-0.5 shrink-0">
                         <AlertTriangle className="w-2.5 h-2.5" /> Evento encerrado há {dAgo} dia{dAgo !== 1 ? 's' : ''}
                       </span>
                     );
@@ -1051,7 +1135,7 @@ export default function RhControlPage() {
                     const dUntil = Math.floor((evStart.getTime() - today.getTime()) / 864e5);
                     if (dUntil <= 14) {
                       return (
-                        <span className="text-[10px] font-semibold text-orange-500 flex items-center gap-0.5 shrink-0">
+                        <span className="text-2xs font-semibold text-warning-strong flex items-center gap-0.5 shrink-0">
                           <AlertTriangle className="w-2.5 h-2.5" /> Evento em {dUntil <= 0 ? 'andamento' : `${dUntil} dia${dUntil !== 1 ? 's' : ''}`}
                         </span>
                       );
@@ -1061,12 +1145,12 @@ export default function RhControlPage() {
                 }
                 if (days > 30) {
                   return (
-                    <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5 shrink-0">
+                    <span className="text-2xs font-semibold text-danger-strong flex items-center gap-0.5 shrink-0">
                       <AlertTriangle className="w-2.5 h-2.5" /> {timeInStatus(item.lastActivityDate)}
                     </span>
                   );
                 }
-                return days > 0 ? <span className="text-[10px] text-slate-400 shrink-0">{timeInStatus(item.lastActivityDate)}</span> : null;
+                return days > 0 ? <span className="text-2xs text-muted-foreground shrink-0">{timeInStatus(item.lastActivityDate)}</span> : null;
               })()}
             </div>
           </div>
@@ -1076,19 +1160,18 @@ export default function RhControlPage() {
             {/* "Próxima ação" context label */}
             {!isExpanded && (() => {
               if (item.status === "aguardando_prestacao")
-                return <span className="text-[10px] text-slate-400 hidden sm:block">Ag. colaborador</span>;
+                return <span className="text-2xs text-muted-foreground hidden sm:block">Ag. colaborador</span>;
               if (item.status === "devolvida_para_ajuste")
-                return <span className="text-[10px] text-orange-400 hidden sm:block">Devolvida</span>;
+                return <span className="text-2xs text-warning-strong hidden sm:block">Devolvida</span>;
               if (nfEligible && nfStatus === "pendente" && !itemEmitsNf)
                 return null; // isento — o badge "Não emite NF" já informa, nada a cobrar
               if (nfEligible && nfStatus === "pendente")
-                return <span className="text-[10px] text-amber-500 hidden sm:block">Ag. nota fiscal</span>;
+                return <span className="text-2xs text-warning-strong hidden sm:block">Ag. nota fiscal</span>;
               return null;
             })()}
             {needsRhAction && navTarget && !isExpanded && (
               <button
-                className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
-                style={{ background: item.status === "prestacao_recebida" ? "#059669" : "var(--primary)" }}
+                className={cn("text-2xs font-semibold h-7 px-3 rounded-md text-white transition-colors", (item.status === "prestacao_recebida" ? "bg-success" : "bg-primary"))}
                 onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
               >
                 {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
@@ -1102,7 +1185,7 @@ export default function RhControlPage() {
                   ? new Date(nfInvCard.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
                   : "";
                 return (
-                  <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1">
+                  <span className="text-2xs font-medium text-success bg-success-soft border border-success/25 rounded-md px-2 py-1">
                     NF Aprovada{approvedDateStr ? ` · ${approvedDateStr}` : ""}
                   </span>
                 );
@@ -1111,7 +1194,7 @@ export default function RhControlPage() {
                 // Ações de aprovação de NF são exclusivas do RH/admin
                 if (!canRh) {
                   return (
-                    <span className="text-[10px] font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-md px-2 py-1">
+                    <span className="text-2xs font-medium text-primary bg-brand-soft border border-primary/25 rounded-md px-2 py-1">
                       NF em análise
                     </span>
                   );
@@ -1122,7 +1205,7 @@ export default function RhControlPage() {
                   // Check-in Financeiro (mesma cerimônia da tela de Notas Fiscais).
                   return (
                     <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                      <span className="text-[11px] text-slate-500 whitespace-nowrap">Aprovar esta nota?</span>
+                      <span className="text-2xs text-muted-foreground whitespace-nowrap">Aprovar esta nota?</span>
                       <button
                         disabled={nfApproving}
                         onClick={async (e) => {
@@ -1147,23 +1230,21 @@ export default function RhControlPage() {
                             setNfApproving(false);
                           }
                         }}
-                        className="text-[11px] font-semibold h-7 px-2.5 rounded-md disabled:opacity-50 text-white transition-colors"
-                        style={{ background: '#059669' }}
+                        className="text-2xs font-semibold h-7 px-2.5 rounded-md disabled:opacity-50 text-white transition-colors bg-success"
                       >
                         {nfApproving ? "..." : "Confirmar"}
                       </button>
                       <button
                         aria-label="Cancelar aprovação"
                         onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(null); }}
-                        className="text-[11px] h-7 px-2 rounded-md border border-gray-200 text-slate-500 hover:bg-gray-50 transition-colors"
+                        className="text-2xs h-7 px-2 rounded-md border border-border text-muted-foreground hover:bg-surface-muted transition-colors"
                       >✕</button>
                     </div>
                   );
                 }
                 return (
                   <button
-                    className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
-                    style={{ background: '#6d28d9' }}
+                    className="text-2xs font-semibold h-7 px-3 rounded-md text-white transition-colors bg-primary-hover"
                     onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(nfInvCard?.id || null); }}
                   >
                     Aprovar NF
@@ -1171,31 +1252,31 @@ export default function RhControlPage() {
                 );
               }
               if (nfStatus === "devolvida") {
-                return <span className="text-[10px] font-medium text-orange-500 border border-orange-200 rounded-md px-2 py-1">NF devolvida</span>;
+                return <span className="text-2xs font-medium text-warning-strong border border-warning/25 rounded-md px-2 py-1">NF devolvida</span>;
               }
               // Recusa é terminal — chip vermelho, sem CTA
               if (nfStatus === "recusada") {
-                return <span className="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-1">NF recusada</span>;
+                return <span className="text-2xs font-semibold text-danger bg-danger-soft border border-danger/25 rounded-md px-2 py-1">NF recusada</span>;
               }
               // Isento (escalação) — nada a cobrar. Em aprovada_faturamento o badge
               // ao lado do nome já diz "Não emite NF"; nos demais mostra chip neutro.
               if (!itemEmitsNf) {
                 return item.status === "aprovada_faturamento"
                   ? null
-                  : <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-md px-2 py-1">Não emite NF</span>;
+                  : <span className="text-2xs font-medium text-muted-foreground bg-muted border border-border rounded-md px-2 py-1">Não emite NF</span>;
               }
-              return <span className="text-[10px] font-semibold rounded-md px-2 py-1 border" style={{ background: '#FEF3C7', color: '#D97706', borderColor: '#FCD34D' }}>Ag. Nota Fiscal</span>;
+              return <span className="text-2xs font-semibold rounded-md px-2 py-1 border bg-warning-soft text-warning border-warning/25">Ag. Nota Fiscal</span>;
             })()}
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
         </div>
 
         {/* Expanded body */}
         {isExpanded && (
-          <div className="border-t border-slate-100 bg-slate-50/30 px-4 pb-4 pt-3 space-y-3">
+          <div className="border-t border-border bg-surface-muted/30 px-4 pb-4 pt-3 space-y-3">
 
             {/* Stepper — rola horizontalmente em telas estreitas */}
-            <div className="rounded-lg bg-white border border-slate-100 px-4 py-3 shadow-sm overflow-x-auto">
+            <div className="rounded-lg bg-card border border-border px-4 py-3 shadow-1 overflow-x-auto">
               {renderTimeline(item)}
             </div>
 
@@ -1224,25 +1305,25 @@ export default function RhControlPage() {
               return (
                 <div className="space-y-2">
                   {/* Compact single-line financial summary */}
-                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <span className="uppercase text-[10px] font-semibold tracking-wide text-slate-400">Planejado</span>
+                  <div className="rounded-lg bg-surface-muted border border-border px-3 py-2 flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 text-2xs">
+                      <span className="uppercase text-2xs font-semibold tracking-wide text-muted-foreground">Planejado</span>
                       <span className="font-semibold text-primary tabular-nums">{fmt(item.planned.totalValue)}</span>
-                      <span className="text-slate-300">→</span>
-                      <span className="uppercase text-[10px] font-semibold tracking-wide text-slate-400">Realizado</span>
-                      <span className="font-semibold text-[#6d28d9] tabular-nums">{fmt(item.actual!.totalValue)}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="uppercase text-2xs font-semibold tracking-wide text-muted-foreground">Realizado</span>
+                      <span className="font-semibold text-primary tabular-nums">{fmt(item.actual!.totalValue)}</span>
                     </div>
                     {isZero ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#F0FDF4', color: '#16A34A' }}>
+                      <span className="inline-flex items-center gap-1 text-2xs font-medium px-1.5 py-0.5 rounded bg-success-soft text-success">
                         <Check className="w-3 h-3" strokeWidth={3} /> Idênticos · {fmt(item.planned.totalValue)}
                       </span>
                     ) : (
-                      <span className={`text-[11px] font-semibold tabular-nums ${isNegative ? 'text-emerald-600' : 'text-red-600'}`}>
+                      <span className={`text-2xs font-semibold tabular-nums ${isNegative ? 'text-success' : 'text-danger'}`}>
                         {isNegative ? '▼' : '▲'} {fmt(Math.abs(diff))} ({isNegative ? '−' : '+'}{pct}%)
                       </span>
                     )}
                     <button
-                      className="ml-auto text-[10px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-0.5 shrink-0"
+                      className="ml-auto text-2xs text-primary hover:text-primary-hover font-medium flex items-center gap-0.5 shrink-0"
                       onClick={() => toggleDetails(item.id)}
                     >
                       {showDetails ? 'Ocultar' : 'Ver detalhes'} <ChevronRight className={`w-3 h-3 transition-transform ${showDetails ? 'rotate-90' : ''}`} />
@@ -1251,24 +1332,24 @@ export default function RhControlPage() {
 
                   {/* Breakdown — visible only when expanded */}
                   {showDetails && (
-                    <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="grid grid-cols-2 divide-x divide-border rounded-lg border border-border overflow-hidden">
                       <div className="p-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--primary)' }}>Planejado</p>
-                        <div className="space-y-1 text-[10px]">
-                          <div className="flex justify-between"><span className="text-slate-400">Diárias</span><span className="tabular-nums text-slate-600">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-400">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-400">Mobilidade</span><span className="tabular-nums text-slate-600">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
+                        <p className="text-2xs font-semibold uppercase tracking-widest mb-1.5 text-primary">Planejado</p>
+                        <div className="space-y-1 text-2xs">
+                          <div className="flex justify-between"><span className="text-muted-foreground">Diárias</span><span className="tabular-nums text-slate-600">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Mobilidade</span><span className="tabular-nums text-slate-600">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
                         </div>
                       </div>
                       <div className="p-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#6d28d9' }}>Realizado</p>
-                        <div className="space-y-1 text-[10px]">
-                          <div className="flex justify-between"><span className="text-slate-400">Diárias</span><span className="tabular-nums text-slate-600">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-400">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-400">Mobilidade</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.mobility + item.actual!.transport)}</span></div>
+                        <p className="text-2xs font-semibold uppercase tracking-widest mb-1.5 text-primary">Realizado</p>
+                        <div className="space-y-1 text-2xs">
+                          <div className="flex justify-between"><span className="text-muted-foreground">Diárias</span><span className="tabular-nums text-slate-600">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Mobilidade</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.mobility + item.actual!.transport)}</span></div>
                         </div>
                         {item.actual!.changeReason && (
-                          <p className="text-[10px] text-slate-400 italic mt-2 pt-1.5 border-t border-gray-100">{item.actual!.changeReason}</p>
+                          <p className="text-2xs text-muted-foreground italic mt-2 pt-1.5 border-t border-border">{item.actual!.changeReason}</p>
                         )}
                       </div>
                     </div>
@@ -1276,11 +1357,11 @@ export default function RhControlPage() {
 
                   {/* Payment info after check-in */}
                   {nfInvFin?.checkinAt && (
-                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 flex items-center justify-between">
-                      <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
+                    <div className="rounded-lg bg-success-soft border border-success/25 px-3 py-2 flex items-center justify-between">
+                      <span className="text-2xs text-success font-semibold flex items-center gap-1.5">
                         <CheckCircle className="w-3.5 h-3.5" /> Check-in Financeiro Realizado
                       </span>
-                      {checkinPayStr && <span className="text-[11px] text-emerald-600 font-medium">💳 Pagamento: {checkinPayStr}</span>}
+                      {checkinPayStr && <span className="text-2xs text-success font-medium">💳 Pagamento: {checkinPayStr}</span>}
                     </div>
                   )}
                 </div>
@@ -1289,11 +1370,11 @@ export default function RhControlPage() {
 
             {/* RH comment */}
             {item.actual?.rhComment && (
-              <div className="px-3 py-2.5 rounded-lg bg-slate-50 border border-gray-200">
-                <p className="text-[10px] font-semibold text-slate-400 mb-1">Comentário do RH</p>
+              <div className="px-3 py-2.5 rounded-lg bg-surface-muted border border-border">
+                <p className="text-2xs font-semibold text-muted-foreground mb-1">Comentário do RH</p>
                 <p className="text-xs text-slate-600">{item.actual.rhComment}</p>
                 {item.actual.rhActionAt && (
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p className="text-2xs text-muted-foreground mt-1">
                     {formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}
                   </p>
                 )}
@@ -1309,7 +1390,7 @@ export default function RhControlPage() {
                   const nfStatus = nfInv?.status || "pendente";
                   if (nfStatus === "pendente" && !itemEmitsNf) {
                     return (
-                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                         <FileText className="w-3.5 h-3.5" />
                         Não emite NF — definido na escalação
                       </span>
@@ -1317,7 +1398,7 @@ export default function RhControlPage() {
                   }
                   if (nfStatus === "pendente") {
                     return (
-                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                         <FileText className="w-3.5 h-3.5" />
                         Aguardando envio da nota fiscal
                       </span>
@@ -1326,7 +1407,7 @@ export default function RhControlPage() {
                   // Recusa é terminal — sem CTA no footer
                   if (nfStatus === "recusada") {
                     return (
-                      <span className="flex items-center gap-1.5 text-[11px] text-red-600 font-medium">
+                      <span className="flex items-center gap-1.5 text-2xs text-danger font-medium">
                         <Ban className="w-3.5 h-3.5" />
                         NF recusada — decisão definitiva, sem reenvio
                       </span>
@@ -1334,7 +1415,7 @@ export default function RhControlPage() {
                   }
                   if (nfStatus === "devolvida") {
                     return (
-                      <span className="flex items-center gap-1.5 text-[11px] text-orange-500 font-medium">
+                      <span className="flex items-center gap-1.5 text-2xs text-warning-strong font-medium">
                         <FileText className="w-3.5 h-3.5" />
                         Nota devolvida
                       </span>
@@ -1348,12 +1429,12 @@ export default function RhControlPage() {
                 <div className="flex items-center gap-2 ml-auto">
                   {navTarget && (() => {
                     const isPrimary = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
-                    const bg = item.status === "prestacao_recebida" ? "#059669" : "var(--primary)";
+                    const bg = item.status === "prestacao_recebida" ? "var(--success)" : "var(--primary)";
                     return (
                       <button
                         onClick={() => navigate(navTarget.path)}
                         className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                          isPrimary ? "text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                          isPrimary ? "text-white shadow-1" : "border border-border text-slate-600 hover:bg-surface-muted"
                         }`}
                         style={isPrimary ? { background: bg } : undefined}
                       >
@@ -1372,8 +1453,7 @@ export default function RhControlPage() {
                       return (
                         <button
                           onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao`)}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors"
-                          style={{ background: '#6d28d9' }}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-1 transition-colors bg-primary-hover"
                         >
                           <FileText className="w-3 h-3" />
                           Aprovar nota fiscal
@@ -1385,7 +1465,7 @@ export default function RhControlPage() {
                       return (
                         <button
                           onClick={() => navigate(`/invoices?event=${item.event.id}`)}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors"
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-warning/25 text-warning hover:bg-warning-soft transition-colors"
                         >
                           Ver notas fiscais
                           <ArrowRight className="w-3 h-3" />
@@ -1400,8 +1480,7 @@ export default function RhControlPage() {
                       return (
                         <button
                           onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao&filter=checkin-pendente&actual=${actualId}`)}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors"
-                          style={{ background: '#7C3AED' }}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-primary-foreground shadow-1 transition-colors bg-primary"
                         >
                           <CircleDot className="w-3 h-3" />
                           Ir para Check-in
@@ -1414,7 +1493,7 @@ export default function RhControlPage() {
                       return (
                         <button
                           onClick={() => navigate(`/invoices?event=${item.event.id}`)}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-success/25 text-success hover:bg-success-soft transition-colors"
                         >
                           <FileCheck className="w-3 h-3" />
                           Ver nota fiscal
@@ -1433,6 +1512,12 @@ export default function RhControlPage() {
       </div>
     );
   };
+
+  // O card é renderizado por `renderPrestacaoCard` (closure da página) através
+  // de um componente memoizado que só repinta quando UMA das props abaixo
+  // muda — ver `CartaoPrestacao`. A ref sempre aponta para o render atual.
+  const renderCardRef = useRef(renderPrestacaoCard);
+  renderCardRef.current = renderPrestacaoCard;
 
   const totalItems = prestacaoItems.length;
   // "Concluído" = NF aprovada + check-in físico realizado (checkinAt)
@@ -1463,16 +1548,16 @@ export default function RhControlPage() {
           <span className="inline-flex items-center gap-1 flex-wrap">
             <span className="mr-1">Prestações de contas ·</span>
             {[
-              { label: "Escalação", color: "#64748b" },
+              { label: "Escalação", color: "var(--muted-foreground)" },
               { label: "Planejado", color: "var(--primary)" },
-              { label: "Realizado", color: "#6d28d9" },
-              { label: "Aprovação", color: "#059669" },
-              { label: "Nota Fiscal", color: "#6d28d9" },
-              { label: "Check-in", color: "#059669" },
+              { label: "Realizado", color: "var(--primary)" },
+              { label: "Aprovação", color: "var(--success)" },
+              { label: "Nota Fiscal", color: "var(--primary)" },
+              { label: "Check-in", color: "var(--success)" },
             ].map((step, i, arr) => (
               <span key={step.label} className="flex items-center gap-1">
                 <span className="font-semibold" style={{ color: step.color }}>{step.label}</span>
-                {i < arr.length - 1 && <span className="text-slate-300" aria-hidden="true">→</span>}
+                {i < arr.length - 1 && <span className="text-muted-foreground" aria-hidden="true">→</span>}
               </span>
             ))}
           </span>
@@ -1503,8 +1588,8 @@ export default function RhControlPage() {
 
         const MetricLine = ({ label, val, color }: { label: string; val: number; color: string }) => (
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold tabular-nums w-7 text-right shrink-0" style={{ color: val > 0 ? color : '#ccc' }}>{val}</span>
-            <span className="text-xs" style={{ color: val > 0 ? '#475569' : '#ccc' }}>{label}</span>
+            <span className="text-sm font-bold tabular-nums w-7 text-right shrink-0" style={{ color: val > 0 ? color : 'var(--muted-foreground)' }}>{val}</span>
+            <span className={cn("text-xs", (val > 0 ? "text-slate-600" : "text-muted-foreground"))}>{label}</span>
           </div>
         );
 
@@ -1532,8 +1617,8 @@ export default function RhControlPage() {
             onClick={onClick}
             aria-pressed={active}
             title={active ? "Clique para limpar este filtro" : "Clique para filtrar a lista por esta categoria"}
-            className={`bg-white rounded-xl border overflow-hidden flex flex-col text-left cursor-pointer transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
-              active ? "border-blue-400 ring-2 ring-blue-100 shadow-sm" : "border-slate-200"
+            className={`bg-card rounded-xl border overflow-hidden flex flex-col text-left cursor-pointer transition-all hover:shadow-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+              active ? "border-primary ring-2 ring-primary/25 shadow-1" : "border-border"
             }`}
           >
             <div className="h-[3px] w-full" style={{ background: stripColor }} />
@@ -1543,7 +1628,7 @@ export default function RhControlPage() {
                 <span className="text-xs font-semibold text-slate-600">{title}</span>
               </div>
               <div className="text-4xl font-bold tabular-nums mt-1 mb-3" style={{ color: iconColor }}>
-                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : value}
+                {isLoading ? <span className="inline-block w-12 h-9 bg-border rounded animate-pulse" /> : value}
               </div>
               <div className="space-y-1">
                 {children}
@@ -1555,12 +1640,12 @@ export default function RhControlPage() {
         return (
           <div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal}
+              <MetricCard stripColor="var(--danger-strong)" icon={AlertTriangle} iconColor="var(--danger-strong)" title="Aguardando RH" value={rhTotal}
                 onClick={() => applyCardFilter("rh_action")} active={filterStatus === "rh_action"}>
-                <MetricLine label="Planejamento" val={rhPlan} color="#ef4444" />
-                <MetricLine label="Comparativo"  val={rhComp} color="#ef4444" />
-                <MetricLine label="Nota Fiscal"  val={rhNf}   color="#ef4444" />
-                {chk > 0 && <MetricLine label="Check-in" val={chk} color="#7C3AED" />}
+                <MetricLine label="Planejamento" val={rhPlan} color="var(--danger-strong)" />
+                <MetricLine label="Comparativo"  val={rhComp} color="var(--danger-strong)" />
+                <MetricLine label="Nota Fiscal"  val={rhNf}   color="var(--danger-strong)" />
+                {chk > 0 && <MetricLine label="Check-in" val={chk} color="var(--primary)" />}
               </MetricCard>
 
               <MetricCard stripColor="var(--primary)" icon={Users} iconColor="var(--primary)" title="Aguardando Colaborador" value={colTotal}
@@ -1570,20 +1655,20 @@ export default function RhControlPage() {
                 <MetricLine label="Aguardando lançamento" val={colNfPend} color="var(--primary)" />
               </MetricCard>
 
-              <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Nota Fiscal" value={emAndamento}
+              <MetricCard stripColor="var(--warning)" icon={Clock} iconColor="var(--warning)" title="Nota Fiscal" value={emAndamento}
                 onClick={() => applyCardFilter("nf_andamento")} active={filterStatus === "nf_andamento"}>
-                <MetricLine label="Ag. envio"    val={nfAgNf}    color="#d97706" />
-                <MetricLine label="Em análise"   val={nfAnalise} color="#d97706" />
-                <MetricLine label="NF devolvida" val={nfDevNf}   color="#d97706" />
+                <MetricLine label="Ag. envio"    val={nfAgNf}    color="var(--warning)" />
+                <MetricLine label="Em análise"   val={nfAnalise} color="var(--warning)" />
+                <MetricLine label="NF devolvida" val={nfDevNf}   color="var(--warning)" />
               </MetricCard>
 
-              <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}
+              <MetricCard stripColor="var(--success)" icon={CheckCircle} iconColor="var(--success)" title="Concluídos" value={concludedCount}
                 onClick={() => applyCardFilter("concluidos")} active={filterStatus === "concluidos"}>
-                <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="#059669" />
-                {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="#ef4444" />}
+                <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="var(--success)" />
+                {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="var(--danger-strong)" />}
               </MetricCard>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1.5">
+            <p className="text-2xs text-muted-foreground mt-1.5">
               Clique em um card para filtrar a lista. As categorias se sobrepõem — um item pode aparecer em mais de um card.
             </p>
           </div>
@@ -1592,57 +1677,53 @@ export default function RhControlPage() {
 
       {/* ── Pending action banner ── */}
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="h-[3px]" style={{ background: '#f97316' }} />
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="h-[3px] bg-warning-strong" />
           <div className="flex items-center gap-5 px-5 py-4">
             {/* Count badge */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl text-white" style={{ background: '#f97316' }}>
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl text-white bg-warning-strong">
               {rhActionCount}
             </div>
 
             {/* Text + progress */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800">
+              <p className="text-sm font-semibold text-foreground">
                 {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
               </p>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 {rhPlanPendingCount > 0 && (
                   <button
                     onClick={() => { setFilterStatus("planejamento_pendente"); setFilterCheckinOnly(false); }}
-                    className="text-[10px] text-slate-500 hover:text-slate-700 cursor-pointer"
-                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                    className="text-2xs text-muted-foreground hover:text-slate-700 cursor-pointer underline decoration-dashed border-0 p-0 bg-transparent"
                   >· {rhPlanPendingCount} planejamento{rhPlanPendingCount > 1 ? 's' : ''}</button>
                 )}
                 {rhReceivedCount > 0 && (
                   <button
                     onClick={() => { setFilterStatus("prestacao_recebida"); setFilterCheckinOnly(false); }}
-                    className="text-[10px] text-slate-500 hover:text-slate-700 cursor-pointer"
-                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                    className="text-2xs text-muted-foreground hover:text-slate-700 cursor-pointer underline decoration-dashed border-0 p-0 bg-transparent"
                   >· {rhReceivedCount} comparativo{rhReceivedCount > 1 ? 's' : ''}</button>
                 )}
                 {rhNfPendingCount > 0 && (
                   <button
                     onClick={() => { setFilterInvoiceStatus("enviada"); setFilterStatus("all"); setFilterCheckinOnly(false); }}
-                    className="text-[10px] text-violet-600 hover:text-violet-800 cursor-pointer"
-                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                    className="text-2xs text-primary hover:text-primary-hover cursor-pointer underline decoration-dashed border-0 p-0 bg-transparent"
                   >· {rhNfPendingCount} nota{rhNfPendingCount > 1 ? 's fiscais' : ' fiscal'}</button>
                 )}
                 {(invoiceCounts.checkinPending || 0) > 0 && (
                   <button
                     onClick={() => { setFilterCheckinOnly(true); setFilterStatus("all"); }}
-                    className="text-[10px] text-violet-600 font-medium hover:text-violet-800 cursor-pointer"
-                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                    className="text-2xs text-primary font-medium hover:text-primary-hover cursor-pointer underline decoration-dashed border-0 p-0 bg-transparent"
                   >· {invoiceCounts.checkinPending} check-in{(invoiceCounts.checkinPending || 0) > 1 ? 's' : ''}</button>
                 )}
               </div>
               <div className="flex items-center gap-3 mt-1.5">
-                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden max-w-[240px]">
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[240px]">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${progressPct}%`, background: "#f97316" }}
+                    className="h-full rounded-full transition-all duration-500 bg-warning-strong"
+                    style={{ width: `${progressPct}%` }}
                   />
                 </div>
-                <span className="text-xs text-slate-500 whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   Progresso geral: <span className="font-semibold text-slate-700">{concludedCount}</span> de {totalForProgress} itens
                 </span>
               </div>
@@ -1650,8 +1731,7 @@ export default function RhControlPage() {
 
             {/* CTA */}
             <button
-              className="text-xs font-bold px-4 py-2 rounded-lg text-white transition-colors shrink-0 shadow-sm"
-              style={{ background: '#f97316' }}
+              className="text-xs font-bold px-4 py-2 rounded-lg text-white transition-colors shrink-0 shadow-1 bg-warning-strong"
               onClick={() => {
                 setFilterEvent("all");
                 setFilterFunction("all");
@@ -1675,38 +1755,38 @@ export default function RhControlPage() {
         {/* flex-wrap: em ~375px a linha busca+toggle quebra em vez de estourar */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               placeholder="Buscar por colaborador..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="h-8 pl-9 text-xs border-gray-200"
+              className="h-8 pl-9 text-xs border-border"
             />
           </div>
 
           <button
             className={`h-8 px-3 text-xs rounded-md border flex items-center gap-1.5 transition-colors whitespace-nowrap ${
-              showConcluded ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-gray-200 text-slate-500 hover:border-gray-300 bg-white'
+              showConcluded ? 'border-primary/40 text-primary bg-brand-soft' : 'border-border text-muted-foreground hover:border-slate-300 bg-card'
             }`}
             onClick={() => setShowConcluded(!showConcluded)}
             aria-pressed={showConcluded}
             title="Concluídos e recusados ficam ocultos por padrão; ligado, eles são acrescentados à lista"
           >
-            <div className={`w-7 h-4 rounded-full relative flex items-center transition-all ${showConcluded ? 'bg-blue-600' : 'bg-gray-200'}`}>
-              <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform ${showConcluded ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            <div className={`w-7 h-4 rounded-full relative flex items-center transition-all ${showConcluded ? 'bg-primary' : 'bg-border'}`}>
+              <div className={`w-3 h-3 rounded-full bg-card shadow-1 transition-transform ${showConcluded ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
             </div>
             Mostrar concluídos e recusados
-            {(concludedCount + recusadaCount) > 0 && <span className="text-[10px] text-slate-400">({concludedCount + recusadaCount})</span>}
+            {(concludedCount + recusadaCount) > 0 && <span className="text-2xs text-muted-foreground">({concludedCount + recusadaCount})</span>}
           </button>
 
           <Button variant="outline" size="sm"
-            className={`h-8 text-xs gap-1.5 ${hasActiveFilters ? 'border-blue-300 text-blue-700 bg-blue-50' : ''}`}
+            className={`h-8 text-xs gap-1.5 ${hasActiveFilters ? 'border-primary/40 text-primary bg-brand-soft' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter className="w-3.5 h-3.5" />
             Filtros
             {hasActiveFilters && (
-              <span className="bg-blue-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+              <span className="bg-primary text-primary-foreground text-2xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
                 {[
                   filterEvent !== "all",
                   filterFunction !== "all",
@@ -1720,7 +1800,7 @@ export default function RhControlPage() {
             )}
           </Button>
           {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs text-slate-400 hover:text-slate-600"
+            <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-slate-600"
               onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setFilterInvoiceStatus("all"); setSearchTerm(""); setFilterCheckinOnly(false); }}>
               Limpar
             </Button>
@@ -1730,48 +1810,48 @@ export default function RhControlPage() {
         {showFilters && (
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={filterEvent} onValueChange={setFilterEvent}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[192px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Evento" /></SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
-                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os eventos</SelectItem>
-                {events?.filter(e => eventIdsWithInclusions.has(e.id)).map(e => <SelectItem key={e.id} value={e.id} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{e.name}</SelectItem>)}
+              <SelectTrigger className="h-9 text-sm w-auto min-w-[192px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Evento" /></SelectTrigger>
+              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Todos os eventos</SelectItem>
+                {events?.filter(e => eventIdsWithInclusions.has(e.id)).map(e => <SelectItem key={e.id} value={e.id} className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">{e.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[176px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Função" /></SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[200px]">
-                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas as funções</SelectItem>
-                {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{getFunctionName(fid)}</SelectItem>)}
+              <SelectTrigger className="h-9 text-sm w-auto min-w-[176px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Função" /></SelectTrigger>
+              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[200px]">
+                <SelectItem value="all" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Todas as funções</SelectItem>
+                {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!} className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">{getFunctionName(fid)}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterCollaborator} onValueChange={setFilterCollaborator}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[192px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Colaborador" /></SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
-                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os colaboradores</SelectItem>
-                <SelectItem value="definido" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Com colaborador</SelectItem>
-                <SelectItem value="a_definir" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Colaborador a definir</SelectItem>
+              <SelectTrigger className="h-9 text-sm w-auto min-w-[192px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Colaborador" /></SelectTrigger>
+              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Todos os colaboradores</SelectItem>
+                <SelectItem value="definido" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Com colaborador</SelectItem>
+                <SelectItem value="a_definir" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Colaborador a definir</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as PrestacaoStatus)}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[220px] border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[240px]">
-                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os status</SelectItem>
-                <SelectItem value="planejamento_pendente" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Aguardando planejamento</SelectItem>
-                <SelectItem value="aguardando_prestacao" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Aguardando realizado</SelectItem>
-                <SelectItem value="prestacao_recebida" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Análise pendente</SelectItem>
-                <SelectItem value="devolvida_para_ajuste" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Devolvida para ajuste</SelectItem>
-                <SelectItem value="aprovada_faturamento" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Aprovada para faturamento</SelectItem>
-                <SelectItem value="recusada" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Recusada</SelectItem>
+              <SelectTrigger className="h-9 text-sm w-auto min-w-[220px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[240px]">
+                <SelectItem value="all" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Todos os status</SelectItem>
+                <SelectItem value="planejamento_pendente" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Aguardando planejamento</SelectItem>
+                <SelectItem value="aguardando_prestacao" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Aguardando realizado</SelectItem>
+                <SelectItem value="prestacao_recebida" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Análise pendente</SelectItem>
+                <SelectItem value="devolvida_para_ajuste" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Devolvida para ajuste</SelectItem>
+                <SelectItem value="aprovada_faturamento" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Aprovada para faturamento</SelectItem>
+                <SelectItem value="recusada" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Recusada</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterInvoiceStatus} onValueChange={setFilterInvoiceStatus}>
-              <SelectTrigger className={`h-9 text-sm w-auto min-w-[200px] border rounded-lg bg-white transition-colors focus:ring-2 focus:ring-violet-200 ${filterInvoiceStatus !== "all" ? 'border-violet-300 text-violet-700' : 'border-slate-200 text-slate-700 hover:border-violet-300'}`}><SelectValue placeholder="Nota Fiscal" /></SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
-                <SelectItem value="all" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Todas as notas</SelectItem>
-                <SelectItem value="pendente" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aguardando nota</SelectItem>
-                <SelectItem value="enviada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aguardando aprovação RH</SelectItem>
-                <SelectItem value="devolvida" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Devolvida</SelectItem>
-                <SelectItem value="aprovada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aprovada</SelectItem>
-                <SelectItem value="recusada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">NF recusada</SelectItem>
+              <SelectTrigger className={`h-9 text-sm w-auto min-w-[200px] border rounded-lg bg-card transition-colors focus:ring-2 focus:ring-primary/25 ${filterInvoiceStatus !== "all" ? 'border-primary/40 text-primary' : 'border-border text-slate-700 hover:border-primary/40'}`}><SelectValue placeholder="Nota Fiscal" /></SelectTrigger>
+              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Todas as notas</SelectItem>
+                <SelectItem value="pendente" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Aguardando nota</SelectItem>
+                <SelectItem value="enviada" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Aguardando aprovação RH</SelectItem>
+                <SelectItem value="devolvida" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Devolvida</SelectItem>
+                <SelectItem value="aprovada" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">Aprovada</SelectItem>
+                <SelectItem value="recusada" className="hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium">NF recusada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1779,45 +1859,47 @@ export default function RhControlPage() {
       </div>
 
       {isRhFilterActive && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-gray-200 text-xs text-slate-500">
-          <Shield className="w-3.5 h-3.5 text-slate-400" />
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-muted border border-border text-xs text-muted-foreground">
+          <Shield className="w-3.5 h-3.5 text-muted-foreground" />
           Mostrando apenas pendências do RH ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
-          <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
+          <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
         </div>
       )}
       {filterCheckinOnly && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-violet-50 border border-violet-200 text-xs text-violet-700">
-          <CircleDot className="w-3.5 h-3.5 text-violet-500" />
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-brand-soft border border-primary/25 text-xs text-primary">
+          <CircleDot className="w-3.5 h-3.5 text-primary" />
           Mostrando apenas check-ins pendentes ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
-          <button className="ml-auto text-violet-600 hover:text-violet-800 font-medium" onClick={() => setFilterCheckinOnly(false)}>Limpar</button>
+          <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => setFilterCheckinOnly(false)}>Limpar</button>
         </div>
       )}
       {(filterStatus !== "all" && filterStatus !== "rh_action") && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-gray-200 text-xs text-slate-500">
-          <Shield className="w-3.5 h-3.5 text-slate-400" />
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-muted border border-border text-xs text-muted-foreground">
+          <Shield className="w-3.5 h-3.5 text-muted-foreground" />
           Filtro ativo: {statusConfig[filterStatus].label} ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
-          <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
+          <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
         </div>
       )}
 
       {/* ── Content ── */}
-      {isLoading ? (
+      {estado.isError ? (
+        <QueryError error={estado.error} onRetry={estado.retry} title="Não foi possível carregar as prestações" />
+      ) : isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map(i => (
-            <div key={i} className="rounded-lg border border-gray-200 bg-white px-4 py-3 animate-pulse flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full shrink-0" />
+            <div key={i} className="rounded-lg border border-border bg-card px-4 py-3 animate-pulse flex items-center gap-3">
+              <div className="w-8 h-8 bg-border rounded-full shrink-0" />
               <div className="flex-1 space-y-1.5">
-                <div className="h-3 bg-gray-200 rounded w-32" />
-                <div className="h-2.5 bg-gray-100 rounded w-48" />
+                <div className="h-3 bg-border rounded w-32" />
+                <div className="h-2.5 bg-muted rounded w-48" />
               </div>
             </div>
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div id="rh-listing" className="rounded-xl border border-dashed border-gray-200 bg-white p-12 text-center">
-          <Shield className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-          <p className="text-sm font-medium text-slate-500">Nenhum item encontrado</p>
-          <p className="text-xs text-slate-400 mt-1">
+        <div id="rh-listing" className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
+          <Shield className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm font-medium text-muted-foreground">Nenhum item encontrado</p>
+          <p className="text-xs text-muted-foreground mt-1">
             {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
              showConcluded ? "Nenhum item encontrado." :
              "Todos os itens estão em dia. Ative 'Mostrar concluídos e recusados' para ver o histórico completo."}
@@ -1839,15 +1921,15 @@ export default function RhControlPage() {
           {/* Section header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs font-medium text-slate-600">Por evento</span>
-              <span className="text-[10px] text-slate-400" aria-live="polite">
+              <span className="text-2xs text-muted-foreground" aria-live="polite">
                 {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <button className="text-[10px] text-blue-600 hover:text-blue-800 font-medium" onClick={expandAllEvents}>Expandir tudo</button>
-              <button className="text-[10px] text-slate-400 hover:text-slate-600 font-medium" onClick={collapseAllEvents}>Recolher tudo</button>
+              <button className="text-2xs text-primary hover:text-primary-hover font-medium" onClick={expandAllEvents}>Expandir tudo</button>
+              <button className="text-2xs text-muted-foreground hover:text-slate-600 font-medium" onClick={collapseAllEvents}>Recolher tudo</button>
             </div>
           </div>
 
@@ -1879,19 +1961,19 @@ export default function RhControlPage() {
               return !isDone && !isChkPending;
             }).length;
             return (
-              <div key={group.event.id} className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
+              <div key={group.event.id} className="rounded-xl bg-card border border-border overflow-hidden shadow-1">
                 <button
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/60 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-muted/60 transition-colors"
                   onClick={() => toggleEventExpand(group.event.id)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
+                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
                     <div className="text-left min-w-0">
-                      <p className="text-sm font-bold text-slate-800 truncate">{group.event.name}</p>
+                      <p className="text-sm font-bold text-foreground truncate">{group.event.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-slate-400">{group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}</span>
+                        <span className="text-xs text-muted-foreground">{group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}</span>
                         {group.actionNeeded > 0 && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">
+                          <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">
                             {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
                           </span>
                         )}
@@ -1902,33 +1984,49 @@ export default function RhControlPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-1 shrink-0">
-                          {statuses.prestacao_recebida ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">{statuses.prestacao_recebida} comparativo{statuses.prestacao_recebida !== 1 ? 's' : ''}</span> : null}
-                          {statuses.planejamento_pendente ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{statuses.planejamento_pendente} planejamento{statuses.planejamento_pendente !== 1 ? 's' : ''}</span> : null}
-                          {statuses.devolvida_para_ajuste ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} devolvido{statuses.devolvida_para_ajuste !== 1 ? 's' : ''}</span> : null}
-                          {statuses.aguardando_prestacao ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} aguardando</span> : null}
-                          {agNfCount > 0 ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{agNfCount} ag. NF</span> : null}
-                          {checkinPendingGroupCount > 0 ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">{checkinPendingGroupCount} check-in</span> : null}
-                          {nfApprovedCount > 0 ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{nfApprovedCount} concluído{nfApprovedCount !== 1 ? 's' : ''}</span> : null}
-                          {statuses.recusada ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} recusado{statuses.recusada !== 1 ? 's' : ''}</span> : null}
+                          {statuses.prestacao_recebida ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary border border-primary/25">{statuses.prestacao_recebida} comparativo{statuses.prestacao_recebida !== 1 ? 's' : ''}</span> : null}
+                          {statuses.planejamento_pendente ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">{statuses.planejamento_pendente} planejamento{statuses.planejamento_pendente !== 1 ? 's' : ''}</span> : null}
+                          {statuses.devolvida_para_ajuste ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">{statuses.devolvida_para_ajuste} devolvido{statuses.devolvida_para_ajuste !== 1 ? 's' : ''}</span> : null}
+                          {statuses.aguardando_prestacao ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{statuses.aguardando_prestacao} aguardando</span> : null}
+                          {agNfCount > 0 ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">{agNfCount} ag. NF</span> : null}
+                          {checkinPendingGroupCount > 0 ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary border border-primary/40">{checkinPendingGroupCount} check-in</span> : null}
+                          {nfApprovedCount > 0 ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-success-soft text-success border border-success/25">{nfApprovedCount} concluído{nfApprovedCount !== 1 ? 's' : ''}</span> : null}
+                          {statuses.recusada ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-danger-soft text-danger border border-danger/25">{statuses.recusada} recusado{statuses.recusada !== 1 ? 's' : ''}</span> : null}
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="text-[11px] space-y-1 p-2.5">
-                        <div className="font-semibold text-gray-600 mb-1.5">Etapas presentes</div>
-                        {statuses.prestacao_recebida ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" /><span className="text-blue-600">Comparativo ({statuses.prestacao_recebida})</span></div> : null}
-                        {statuses.planejamento_pendente ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /><span className="text-amber-600">Planejamento pendente ({statuses.planejamento_pendente})</span></div> : null}
-                        {statuses.devolvida_para_ajuste ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 shrink-0" /><span className="text-orange-600">Devolvida ({statuses.devolvida_para_ajuste})</span></div> : null}
-                        {statuses.aguardando_prestacao ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" /><span className="text-slate-500">Aguardando prestação ({statuses.aguardando_prestacao})</span></div> : null}
-                        {agNfCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-400 shrink-0" /><span className="text-violet-600">Aguardando Nota Fiscal ({agNfCount})</span></div> : null}
-                        {nfApprovedCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" /><span className="text-emerald-600">Concluído ({nfApprovedCount})</span></div> : null}
-                        {statuses.recusada ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 shrink-0" /><span className="text-red-600">Recusada ({statuses.recusada})</span></div> : null}
+                      <TooltipContent side="left" className="text-2xs space-y-1 p-2.5">
+                        <div className="font-semibold text-slate-600 mb-1.5">Etapas presentes</div>
+                        {statuses.prestacao_recebida ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" /><span className="text-primary">Comparativo ({statuses.prestacao_recebida})</span></div> : null}
+                        {statuses.planejamento_pendente ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning-strong shrink-0" /><span className="text-warning">Planejamento pendente ({statuses.planejamento_pendente})</span></div> : null}
+                        {statuses.devolvida_para_ajuste ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning-strong shrink-0" /><span className="text-warning">Devolvida ({statuses.devolvida_para_ajuste})</span></div> : null}
+                        {statuses.aguardando_prestacao ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" /><span className="text-muted-foreground">Aguardando prestação ({statuses.aguardando_prestacao})</span></div> : null}
+                        {agNfCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" /><span className="text-primary">Aguardando Nota Fiscal ({agNfCount})</span></div> : null}
+                        {nfApprovedCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-success-strong shrink-0" /><span className="text-success">Concluído ({nfApprovedCount})</span></div> : null}
+                        {statuses.recusada ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-danger-strong shrink-0" /><span className="text-danger">Recusada ({statuses.recusada})</span></div> : null}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-slate-100 px-3 py-2 space-y-1.5 bg-slate-50/40">
-                    {group.items.map(item => renderPrestacaoCard(item))}
+                  <div className="border-t border-border px-3 py-2 space-y-1.5 bg-surface-muted/40">
+                    {group.items.map(item => (
+                      <CartaoPrestacao
+                        key={item.id}
+                        item={item}
+                        render={renderCardRef}
+                        expandido={expandedCards.has(item.id)}
+                        detalhes={expandedDetails.has(item.id)}
+                        approvingInvoiceId={approvingInvoiceId}
+                        nfApproving={nfApproving}
+                        canRh={canRh}
+                        invoice={item.actual ? invoiceByActualId.get(item.actual.id) : undefined}
+                        users={users}
+                        nomes={collaboratorNameById}
+                        funcoes={functionNameById}
+                        emiteNf={emitsNfFor({ eventId: item.event.id, collaboratorId: item.collaboratorId, functionId: item.functionId })}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

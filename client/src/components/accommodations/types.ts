@@ -75,33 +75,11 @@ export const DEFAULT_FILTERS: AccommodationFilters = {
 };
 
 /**
- * Solicitação de troca normalizada em camelCase. A API devolve as linhas em
- * snake_case (SQL cru com joins), então normalizamos UMA vez ao receber.
+ * Solicitação de troca normalizada em camelCase — tipo ÚNICO do client desde
+ * 23/09 (client/src/lib/swap-types.ts); re-exportado aqui para os imports da
+ * tela continuarem valendo.
  */
-export interface NormalizedSwap {
-  id: string;
-  teamInclusionId: string;
-  status: "pendente" | "aprovado" | "rejeitado" | string;
-  currentCollaboratorId: string | null;
-  newCollaboratorId: string | null;
-  currentCollaboratorName: string | null;
-  newCollaboratorName: string | null;
-  requestedByName: string | null;
-  reason: string | null;
-  reviewComment: string | null;
-  createdAt: string | null;
-  /** De onde o novo colaborador sai (14/09); nulo em pedidos antigos. */
-  newCity: string | null;
-  /** 'substituicao' | 'permuta' (14/09) e os dados das duas vagas da permuta. */
-  swapKind: string;
-  /** A outra vaga da permuta/transferência — também recebe a etiqueta de troca (15/09). */
-  pairedInclusionId: string | null;
-  pairedNewCity: string | null;
-  inclusionNumber: string | null;
-  eventName: string | null;
-  pairedInclusionNumber: string | null;
-  pairedEventName: string | null;
-}
+export type { NormalizedSwap } from "@/lib/swap-types";
 
 /** Só o que a tela usa de passagem e de usuário. */
 export type TicketLite = Pick<Ticket, "id" | "teamInclusionId" | "purchaseDate" | "actualDepartureDate">;

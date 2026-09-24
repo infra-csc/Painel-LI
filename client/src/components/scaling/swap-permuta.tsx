@@ -76,8 +76,8 @@ export function EscolherVagaDaPermuta({ candidatas, getCollaboratorName, getEven
 
   return (
     <div className="rounded-lg border border-border overflow-hidden" data-testid="escolher-vaga-permuta">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-background px-3 py-2">
-        <Search className="w-3.5 h-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+      <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2">
+        <Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
           autoFocus
           type="text"
@@ -86,10 +86,10 @@ export function EscolherVagaDaPermuta({ candidatas, getCollaboratorName, getEven
           placeholder="Buscar por colaborador, evento ou #vaga…"
           aria-label="Buscar a vaga do outro colaborador"
           data-testid="input-busca-vaga-permuta"
-          className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-400"
+          className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-muted-foreground"
         />
       </div>
-      <ul className="max-h-[260px] overflow-y-auto divide-y divide-slate-50">
+      <ul className="max-h-[260px] overflow-y-auto divide-y divide-border">
         {visiveis.map(({ inc, mesmoPeriodo }) => (
           <li key={inc.id}>
             <button
@@ -99,25 +99,25 @@ export function EscolherVagaDaPermuta({ candidatas, getCollaboratorName, getEven
               data-testid={`opcao-vaga-permuta-${inc.id}`}
             >
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] text-slate-900 break-words">{getCollaboratorName(inc.collaboratorId)}</span>
-                <span className="block text-[11px] text-muted-foreground break-words">
+                <span className="block text-sm text-foreground break-words">{getCollaboratorName(inc.collaboratorId)}</span>
+                <span className="block text-2xs text-muted-foreground break-words">
                   #{inc.inclusionNumber} · {getEventName(inc.eventId)} · {getFunctionName(inc.functionId)} · {periodoCurto(inc)}
                 </span>
               </span>
               {mesmoPeriodo && (
-                <span className="shrink-0 rounded-md bg-brand-soft px-2 py-0.5 text-[10px] font-semibold text-primary">Mesmo período</span>
+                <span className="shrink-0 rounded-md bg-brand-soft px-2 py-0.5 text-2xs font-semibold text-primary">Mesmo período</span>
               )}
             </button>
           </li>
         ))}
         {visiveis.length === 0 && (
-          <li className="px-3 py-4 text-center text-[12px] text-muted-foreground">
+          <li className="px-3 py-4 text-center text-xs text-muted-foreground">
             {candidatas.length === 0 ? "Nenhuma outra vaga com colaborador escalado." : "Nenhuma vaga com esse nome."}
           </li>
         )}
       </ul>
       {filtradas.length > visiveis.length && (
-        <p className="border-t border-slate-100 bg-background px-3 py-2 text-[11px] text-muted-foreground">
+        <p className="border-t border-border bg-background px-3 py-2 text-2xs text-muted-foreground">
           Mostrando {visiveis.length} de {filtradas.length} — use a busca.
         </p>
       )}
@@ -140,12 +140,12 @@ export function LinhasDaPermuta({ swap, getCollaboratorName }: {
     { chave: "sai", nome: getCollaboratorName(swap.currentCollaboratorId), para: outraVaga, saiDe: swap.pairedNewCity },
   ];
   return (
-    <ul className="space-y-1.5 text-[11px]" data-testid="swap-permuta-linhas">
+    <ul className="space-y-1.5 text-2xs" data-testid="swap-permuta-linhas">
       {linhas.map((l) => (
         <li key={l.chave} className="flex items-start gap-1.5">
-          <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+          <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="min-w-0 break-words text-slate-600">
-            <span className="font-semibold text-slate-800">{l.nome || "?"}</span> vai para a{" "}
+            <span className="font-semibold text-foreground">{l.nome || "?"}</span> vai para a{" "}
             <span className="font-medium text-slate-700">{l.para}</span>
             {l.saiDe && (
               <>
@@ -173,11 +173,11 @@ export function LinhasDaTransferencia({ swap, getCollaboratorName }: {
     + (swap.pairedFunctionName ? ` · ${swap.pairedFunctionName}` : "");
   const destino = rotuloDaVaga(swap.inclusionNumber, swap.eventName);
   return (
-    <div className="space-y-1 text-[11px]" data-testid="swap-transferencia-linhas">
+    <div className="space-y-1 text-2xs" data-testid="swap-transferencia-linhas">
       <p className="flex items-start gap-1.5 text-slate-600">
-        <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+        <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="min-w-0 break-words">
-          <span className="font-semibold text-slate-800">{getCollaboratorName(swap.newCollaboratorId) || "?"}</span> sai da{" "}
+          <span className="font-semibold text-foreground">{getCollaboratorName(swap.newCollaboratorId) || "?"}</span> sai da{" "}
           <span className="font-medium text-slate-700">{origem}</span> e vai para a{" "}
           <span className="font-medium text-slate-700">{destino}</span>
           {swap.newCity && (
@@ -189,7 +189,7 @@ export function LinhasDaTransferencia({ swap, getCollaboratorName }: {
           )}
         </span>
       </p>
-      <p className="pl-[18px] text-slate-500">A {origem.split(" · ")[0]} fica aberta — a área escala outra pessoa nela.</p>
+      <p className="pl-[18px] text-muted-foreground">A {origem.split(" · ")[0]} fica aberta — a área escala outra pessoa nela.</p>
     </div>
   );
 }

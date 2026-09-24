@@ -73,6 +73,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
         ["--sticky-top" as string]: `${TOPBAR_H + (simActive ? SIMULATION_BANNER_H : 0)}px`,
       } as React.CSSProperties}
     >
+      {/* Link de pulo (23/09): quem navega por teclado/leitor de tela chega ao
+          conteúdo sem atravessar o menu inteiro. Invisível até receber foco. */}
+      <a
+        href="#conteudo"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        Ir para o conteúdo
+      </a>
       <SimulationBanner />
       <Sidebar />
 
@@ -86,8 +94,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
           onOpenShortcuts={openShortcuts}
         />
         <SystemNoticeBar />
-        <main className="flex-1">
-          <div className="p-4 sm:p-6 lg:p-8">
+        {/* `--page-gutter` (23/09): a margem da página em UMA variável. Telas com
+            barra de contexto colada nas bordas (Passagens, Escalação, Espelho)
+            usam `-mx-[var(--page-gutter)]`/`px-[var(--page-gutter)]` — antes
+            cravavam `-mx-6` e, com o padding responsivo daqui, sobrava rolagem
+            horizontal em 375px e uma fresta de 8px em 1024+. */}
+        <main id="conteudo" tabIndex={-1} className="flex-1 outline-none">
+          <div className="[--page-gutter:1rem] sm:[--page-gutter:1.5rem] lg:[--page-gutter:2rem] p-[var(--page-gutter)]">
             {children}
           </div>
         </main>

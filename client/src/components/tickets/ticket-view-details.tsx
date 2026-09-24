@@ -43,21 +43,21 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
     // Chegada também na VOLTA (dono, 18/09): é por ela que se agenda o Uber.
     const arrival = leg === "ida" ? ticket.actualArrivalTime : ticket.returnArrivalTime;
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-4">
-        <div className="text-[11px] font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5" style={{ color: "#2563EB" }}>
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="text-2xs font-black uppercase tracking-[0.12em] mb-3 flex items-center gap-1.5 text-primary">
           {isRodo ? "🚌" : leg === "ida" ? "🛫" : "🛬"} {leg === "ida" ? "IDA" : "VOLTA"}
         </div>
         <div className="space-y-2.5">
           {cityO && <div><div className={LBL}>Cidade Origem</div><div className="text-sm font-medium text-slate-700">{cityO}</div></div>}
-          {airO && <div><div className={LBL}>{isRodo ? "Rodoviária Origem" : "Aeroporto Origem"}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{airO}</div></div>}
+          {airO && <div><div className={LBL}>{isRodo ? "Rodoviária Origem" : "Aeroporto Origem"}</div><div className="text-sm font-bold text-slate-700 uppercase font-mono">{airO}</div></div>}
           {cityD && <div><div className={LBL}>Cidade Destino</div><div className="text-sm font-medium text-slate-700">{cityD}</div></div>}
-          {airD && <div><div className={LBL}>{isRodo ? "Rodoviária Destino" : "Aeroporto Destino"}</div><div className="text-[13px] font-bold text-slate-700 uppercase font-mono">{airD}</div></div>}
-          {date && <div><div className={LBL}>Data</div><div className="text-[13px] font-semibold text-[#2563EB]">{formatDate(date)}</div></div>}
+          {airD && <div><div className={LBL}>{isRodo ? "Rodoviária Destino" : "Aeroporto Destino"}</div><div className="text-sm font-bold text-slate-700 uppercase font-mono">{airD}</div></div>}
+          {date && <div><div className={LBL}>Data</div><div className="text-sm font-semibold text-primary">{formatDate(date)}</div></div>}
           {time && (
             <div>
               <div className={LBL}>Horário</div>
-              <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2" title={arrival ? (leg === "ida" ? "Partida → Chegada (ida) — usado no cálculo automático de alimentação" : "Partida → Chegada (volta) — horário para agendar o transporte na chegada") : undefined}>
-                <span className="text-lg font-bold text-green-700">{time}{arrival ? ` → ${arrival}` : ""}</span>
+              <div className="bg-success-soft border-l-4 border-success-strong rounded-lg px-3 py-2" title={arrival ? (leg === "ida" ? "Partida → Chegada (ida) — usado no cálculo automático de alimentação" : "Partida → Chegada (volta) — horário para agendar o transporte na chegada") : undefined}>
+                <span className="text-lg font-bold text-success">{time}{arrival ? ` → ${arrival}` : ""}</span>
               </div>
             </div>
           )}
@@ -69,17 +69,17 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
   return (
     <div className="space-y-4">
       {/* Header do ticket */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3 flex items-center gap-3" style={{ background: "linear-gradient(to right, #f0f7ff, #ffffff)" }}>
+      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-1">
+        <div className="border-b border-border px-4 py-3 flex items-center gap-3 bg-brand-soft">
           <span className="text-xl">{isVan ? "🚐" : isRodo ? "🚌" : "✈️"}</span>
           <div>
-            <div className="text-[12px] font-black text-[#2563EB] uppercase tracking-[0.12em]">
+            <div className="text-xs font-black text-primary uppercase tracking-[0.12em]">
               {isVan ? "Van" : isRodo ? "Transporte Rodoviário" : "Passagem Aérea"}
             </div>
-            {ticket.purchaseDate && <div className="text-[11px] text-slate-400 mt-0.5">Comprada em {formatDate(ticket.purchaseDate)}</div>}
+            {ticket.purchaseDate && <div className="text-2xs text-muted-foreground mt-0.5">Comprada em {formatDate(ticket.purchaseDate)}</div>}
           </div>
           {ticket.purchaseOrderNumber && (
-            <span className="ml-auto text-[11px] font-bold text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-full">
+            <span className="ml-auto text-2xs font-bold text-muted-foreground font-mono bg-muted px-2.5 py-1 rounded-full">
               {isVan ? "Empresa: " : isRodo ? "Bilhete: " : "LOC: "}{ticket.purchaseOrderNumber}
             </span>
           )}
@@ -103,10 +103,10 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {legCard("ida")}
           {!isOneWayTicket(ticket) ? legCard("volta") : (
-            <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 flex items-center justify-center">
+            <div className="bg-surface-muted border border-dashed border-border rounded-xl p-4 flex items-center justify-center">
               <div className="text-center">
-                <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">{isRodo ? "🚌" : "🛬"} VOLTA</div>
-                <div className="text-xs text-slate-300">Apenas ida / sem informações de volta</div>
+                <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-1">{isRodo ? "🚌" : "🛬"} VOLTA</div>
+                <div className="text-xs text-muted-foreground">Apenas ida / sem informações de volta</div>
               </div>
             </div>
           )}
@@ -114,7 +114,7 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
       )}
 
       {ticket.ticketObservations && !isVan && (
-        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+        <div className="bg-surface-muted border border-border rounded-xl p-4">
           <div className={LBL + " mb-1"}>Observações</div>
           <div className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.ticketObservations}</div>
         </div>
@@ -124,11 +124,11 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
 
       {/* Anexos */}
       {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
-        <div className="border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-slate-400" />
-            <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Anexos</span>
-            <span className="ml-auto text-[10px] text-slate-400">{ticket.attachmentIds.length} arquivo(s)</span>
+        <div className="border border-border rounded-xl overflow-hidden">
+          <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-muted-foreground" />
+            <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Anexos</span>
+            <span className="ml-auto text-2xs text-muted-foreground">{ticket.attachmentIds.length} arquivo(s)</span>
           </div>
           <div className="p-4 space-y-2">
             {ticket.attachmentIds.map((attachmentId, index) => (
@@ -137,18 +137,18 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
                 role="button"
                 tabIndex={0}
                 aria-label={`Abrir arquivo ${index + 1}`}
-                className="flex items-center gap-3 bg-white border border-slate-200 hover:border-[#2563EB] hover:bg-blue-50 rounded-xl px-4 py-3 cursor-pointer transition-all group"
+                className="flex items-center gap-3 bg-card border border-border hover:border-primary hover:bg-brand-soft rounded-xl px-4 py-3 cursor-pointer transition-all group"
                 onClick={() => openAttachment(attachmentId)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAttachment(attachmentId); } }}
               >
-                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-[#2563EB]" />
+                <div className="w-8 h-8 rounded-lg bg-brand-soft border border-primary/25 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-slate-700">Arquivo {index + 1}</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Documento anexado · clique para visualizar</div>
+                  <div className="text-sm font-semibold text-slate-700">Arquivo {index + 1}</div>
+                  <div className="text-2xs text-muted-foreground mt-0.5">Documento anexado · clique para visualizar</div>
                 </div>
-                <Eye className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors flex-shrink-0" />
+                <Eye className="w-4 h-4 text-muted-foreground group-hover:text-primary-hover transition-colors flex-shrink-0" />
               </div>
             ))}
           </div>

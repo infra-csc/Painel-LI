@@ -34,7 +34,8 @@ import type { PendingChangeRequest } from "./use-scaling-data";
 import { isPercursoFunction } from "@shared/calculation-rules";
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
 import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, CENO_FREELA_SHORT, type NormalizedSwap } from "./scaling-utils";
-import { STATUS_META, getScalingStatusKey } from "./scaling-status";
+import { getScalingStatusKey } from "./scaling-status";
+import { StatusBadge, StatusDaVagaBadge } from "@/components/common/status-badge";
 
 // O vocabulário de status mora em scaling-status.ts (módulo sem JSX, para a
 // fila e as Análises poderem usá-lo). Reexportado aqui porque a tela e o modal
@@ -42,27 +43,22 @@ import { STATUS_META, getScalingStatusKey } from "./scaling-status";
 export { getScalingStatusKey, getScalingStatusLabel, STATUS_META } from "./scaling-status";
 export type { ScalingStatusKey } from "./scaling-status";
 
-const SIZE_CLS = {
-  sm: "gap-1.5 h-[22px] px-2 text-[11px]",
-  md: "gap-1.5 h-[24px] px-2.5 text-[11px]",
-  lg: "gap-2 h-[28px] px-3 text-[12px]",
-} as const;
-
-/** A pílula de situação — a mesma na linha, no modal e no resumo. */
+/**
+ * A pílula de situação — a mesma na linha, no modal e no resumo. Desde 23/09
+ * é o `StatusDaVagaBadge` (StatusBadge único, rounded-full, tokens): esta
+ * tabela era a única com pílula rounded-md e hex próprio.
+ */
 export function getStatusBadge(
-  inclusion: Pick<TeamInclusion, "status" | "collaboratorId">,
-  size: keyof typeof SIZE_CLS = "sm",
+  inclusion: Pick<TeamInclusion, "status" | "collaboratorId"> & { empreitaEmpresa?: string | null },
+  size: "sm" | "md" | "lg" = "sm",
 ): ReactNode {
-  const key = getScalingStatusKey(inclusion);
-  const meta = STATUS_META[key];
   return (
-    <span
-      className={`inline-flex w-fit items-center whitespace-nowrap rounded-md font-semibold shrink-0 ${SIZE_CLS[size]} ${meta.wrap}`}
-      data-testid={`scaling-status-${key}`}
-    >
-      <span className={`w-[5px] h-[5px] rounded-full ${meta.dot}`} aria-hidden="true" />
-      {meta.label}
-    </span>
+    <StatusDaVagaBadge
+      status={inclusion.status}
+      collaboratorId={inclusion.collaboratorId}
+      empreitaEmpresa={inclusion.empreitaEmpresa}
+      size={size === "sm" ? "sm" : "md"}
+    />
   );
 }
 
@@ -230,9 +226,9 @@ export function detalheDaSituacao(
 /** Um chip de "Precisa de" — só o que é verdade é desenhado. */
 interface Need { key: string; icon: ReactNode; label: string; title: string; cls: string }
 
-const NEED_INFO = "bg-brand-soft text-[#3730A3]";
-const NEED_NEUTRO = "bg-slate-100 text-[#475569]";
-const NEED_FALTA = "bg-[#FEF3C7] text-[#92400E]";
+const NEED_INFO = "bg-brand-soft text-info";
+const NEED_NEUTRO = "bg-muted text-slate-600";
+const NEED_FALTA = "bg-warning-soft text-warning";
 
 export function needsDaLinha(
   inclusion: TeamInclusion,
@@ -319,7 +315,7 @@ function Th({ field, label, className = "", sortConfig, onSort }: {
     <th
       scope="col"
       aria-sort={dir ? (dir === "asc" ? "ascending" : "descending") : "none"}
-      className={`px-3.5 text-left text-[11px] font-medium ${ativo ? "text-primary" : "text-muted-foreground"} ${className}`}
+      className={`px-3.5 text-left text-2xs font-medium ${ativo ? "text-primary" : "text-muted-foreground"} ${className}`}
       data-testid={field ? `header-${field}` : undefined}
     >
       {field ? (
@@ -395,7 +391,7 @@ export default function ScalingTable({
                       />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-[11px]">
+                  <TooltipContent side="top" className="text-2xs">
                     {selectableIds.length === 0
                       ? "Nenhuma linha visível pode ser confirmada por você"
                       : `Selecionar as ${selectableIds.length} visíveis que você pode confirmar`}
@@ -445,12 +441,13 @@ export default function ScalingTable({
               // este usuário não deve ver não tem detalhe embaixo, e uma borda
               // colorida sem legenda é charada, não sinal.
               const emAnalise = (!!swap && mostraSwap) || !!pedido;
-              const marker = cancelada ? "transparent" : esperaVoce ? "#FBBF24" : emAnalise ? "#A855F7" : "transparent";
+              // Tokens (23/09): espera você = warning-strong; em análise = info-strong.
+              const marker = cancelada ? "border-l-transparent" : esperaVoce ? "border-l-warning-strong" : emAnalise ? "border-l-info-strong" : "border-l-transparent";
 
               return (
                 <tr
                   key={inclusion.id}
-                  className={`group/row h-[52px] border-b border-slate-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${isSelected ? "bg-[#F5F7FF] hover:bg-brand-soft" : "bg-card hover:bg-[#FBFCFE]"} ${cancelada ? "opacity-55" : ""}`}
+                  className={`group/row h-[52px] border-b border-border transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${isSelected ? "bg-brand-soft hover:bg-brand-soft" : "bg-card hover:bg-surface-muted"} ${cancelada ? "opacity-55" : ""}`}
                   onClick={() => onRowClick(inclusion)}
                   tabIndex={0}
                   aria-label={`Abrir detalhes da escalação ${idLabel}`}
@@ -461,8 +458,7 @@ export default function ScalingTable({
                   data-testid={`row-inclusion-${inclusion.id}`}
                 >
                   <td
-                    className="px-3 text-center"
-                    style={{ borderLeft: `3px solid ${marker}` }}
+                    className={`px-3 text-center border-l-[3px] ${marker}`}
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                   >
@@ -484,36 +480,36 @@ export default function ScalingTable({
                   </td>
 
                   <td className="pr-3.5 whitespace-nowrap">
-                    <span className="font-mono text-[12px] text-muted-foreground tabular-nums">{idLabel}</span>
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">{idLabel}</span>
                   </td>
 
                   <td className="px-3.5 min-w-0">
-                    <div className="text-[13px] font-semibold text-slate-900 truncate" title={funcao}>{funcao}</div>
-                    <div className="text-[12px] text-muted-foreground truncate" title={nomeDoEvento}>{nomeDoEvento}</div>
+                    <div className="text-sm font-semibold text-foreground truncate" title={funcao}>{funcao}</div>
+                    <div className="text-xs text-muted-foreground truncate" title={nomeDoEvento}>{nomeDoEvento}</div>
                   </td>
 
                   <td className="px-3.5 min-w-0">
                     {empreita ? (
                       <>
-                        <div className="text-[13px] font-medium text-slate-900 break-words" title={rotuloEmpreita(inclusion as any)}>
-                          <span className="mr-1.5 inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">Empreita</span>
+                        <div className="text-sm font-medium text-foreground break-words" title={rotuloEmpreita(inclusion as any)}>
+                          <StatusBadge tone="info" className="mr-1.5 uppercase tracking-wide">Empreita</StatusBadge>
                           {(inclusion as any).empreitaEmpresa}
                         </div>
-                        <div className="text-[12px] text-muted-foreground">
+                        <div className="text-xs text-muted-foreground">
                           {(inclusion as any).empreitaPessoas ?? 0} {Number((inclusion as any).empreitaPessoas) === 1 ? "pessoa" : "pessoas"}
                           {(inclusion as any).empreitaValor != null ? ` · ${(Number((inclusion as any).empreitaValor) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}` : ""}
                         </div>
                       </>
                     ) : inclusion.collaboratorId ? (
                       <>
-                        <div className="text-[13px] font-medium text-slate-900 truncate" title={nomeDoColaborador}>{nomeDoColaborador}</div>
-                        {city && <div className="text-[12px] text-muted-foreground truncate" title={city}>{city}</div>}
+                        <div className="text-sm font-medium text-foreground truncate" title={nomeDoColaborador}>{nomeDoColaborador}</div>
+                        {city && <div className="text-xs text-muted-foreground truncate" title={city}>{city}</div>}
                       </>
                     ) : vazia && podeGerir ? (
                       <button
                         type="button"
                         onClick={(e) => onEscalar(e, inclusion)}
-                        className="inline-flex items-center gap-1.5 h-[30px] pl-2.5 pr-3 rounded-lg border border-dashed border-[#93A9E8] bg-[#F5F7FF] text-[13px] font-semibold text-primary whitespace-nowrap hover:bg-brand-soft hover:border-solid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        className="inline-flex items-center gap-1.5 h-[30px] pl-2.5 pr-3 rounded-lg border border-dashed border-primary/40 bg-brand-soft text-sm font-semibold text-primary whitespace-nowrap hover:bg-brand-soft hover:border-solid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         data-testid={`button-escalar-${inclusion.id}`}
                       >
                         <UserPlus className="w-4 h-4" aria-hidden="true" /> Escalar alguém
@@ -531,7 +527,7 @@ export default function ScalingTable({
                             ? `Quem escala esta vaga é ${quem}, responsável por ${funcao}. Você pode consultar.`
                             : `Quem responde por ${funcao} escala esta vaga. Você pode consultar.`;
                         })()}
-                        className="inline-flex items-center gap-1.5 text-[13px] text-slate-400"
+                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
                       >
                         <Lock className="w-3.5 h-3.5" aria-hidden="true" />Não escalado
                       </span>
@@ -539,10 +535,10 @@ export default function ScalingTable({
                   </td>
 
                   <td className="px-3.5 whitespace-nowrap">
-                    <div className="text-[13px] text-slate-700 tabular-nums">
+                    <div className="text-sm text-slate-700 tabular-nums">
                       {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
                     </div>
-                    <div className="text-[12px] text-muted-foreground">{formatDiarias(inclusion.dailyRates)}</div>
+                    <div className="text-xs text-muted-foreground">{formatDiarias(inclusion.dailyRates)}</div>
                   </td>
 
                   <td className="px-3.5">
@@ -551,12 +547,12 @@ export default function ScalingTable({
                         <span
                           key={n.key}
                           title={n.title}
-                          className={`inline-flex items-center gap-1 h-[22px] px-[7px] rounded-md text-[11px] font-medium whitespace-nowrap ${n.cls}`}
+                          className={`inline-flex items-center gap-1 h-[22px] px-[7px] rounded-md text-2xs font-medium whitespace-nowrap ${n.cls}`}
                         >
                           {n.icon}{n.label}
                         </span>
                       ))}
-                      {needs.length === 0 && <span className="text-[12px] text-slate-400">Sem logística</span>}
+                      {needs.length === 0 && <span className="text-xs text-muted-foreground">Sem logística</span>}
                     </div>
                   </td>
 
@@ -565,14 +561,13 @@ export default function ScalingTable({
                       {/* Troca pendente manda na pílula (dono, 15/09: "esse aprovado
                           não faz sentido nenhum"): o status guardado da vaga
                           ("Aprovado") só volta a valer depois da decisão. */}
+                      {/* Tom `info` (23/09), não `warning`: a troca está com OUTRA
+                          pessoa decidindo; o marcador de 3px é quem diz se
+                          espera você. Mesma cor do marcador "troca em análise". */}
                       {detalhe?.tom === "troca" ? (
-                        <span
-                          className={`inline-flex w-fit items-center rounded-md font-semibold shrink-0 ${SIZE_CLS.sm} bg-purple-50 text-[#7E22CE]`}
-                          data-testid="scaling-status-troca-em-analise"
-                        >
-                          <span className="w-[5px] h-[5px] rounded-full bg-[#A855F7]" aria-hidden="true" />
+                        <StatusBadge tone="info" dot data-testid="scaling-status-troca-em-analise">
                           Troca em análise
-                        </span>
+                        </StatusBadge>
                       ) : getStatusBadge(inclusion, "sm")}
                       {/* Pedido de ajuste/exclusão em aberto TRAVA a vaga (regra do
                           dono, 26/08): não dá para escalar, comprar nem confirmar até o
@@ -581,8 +576,7 @@ export default function ScalingTable({
                           âmbar, com ícone, que quebra linha em vez de cortar. */}
                       {detalhe && detalhe.tom === "pedido" ? (
                         <span
-                          className="inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-0 rounded-md border px-[7px] py-[2px] text-[11px] font-semibold leading-tight"
-                          style={{ background: "#FEF3C7", color: "#92400E", borderColor: "#FDE68A" }}
+                          className="inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-0 rounded-md border border-warning/30 bg-warning-soft px-[7px] py-[2px] text-2xs font-semibold leading-tight text-warning"
                           title={detalhe.titulo}
                           data-testid={`detalhe-situacao-${inclusion.id}`}
                         >
@@ -592,7 +586,7 @@ export default function ScalingTable({
                         </span>
                       ) : detalhe && (
                         <span
-                          className={`text-[11px] truncate ${detalhe.tom === "troca" ? "text-[#7E22CE]" : "text-muted-foreground"}`}
+                          className={`text-2xs truncate ${detalhe.tom === "troca" ? "text-info" : "text-muted-foreground"}`}
                           title={detalhe.titulo}
                           data-testid={`detalhe-situacao-${inclusion.id}`}
                         >
@@ -603,13 +597,14 @@ export default function ScalingTable({
                           colaborador aprovada. Antes era um texto pequeno que sumia
                           sempre que a linha tinha outro detalhe ("Falta confirmar"…). */}
                       {approvedSwapInclusionIds.has(inclusion.id) && detalhe?.tom !== "troca" && (
-                        <span
-                          className="inline-flex w-fit items-center gap-1 whitespace-nowrap rounded-md bg-[#ECFDF5] px-[7px] py-[2px] text-[11px] font-semibold text-[#047857]"
+                        <StatusBadge
+                          tone="success"
+                          icon={ArrowLeftRight}
                           title="Esta vaga teve uma troca de colaborador aprovada — confira passagem e hospedagem"
                           data-testid={`tag-troca-aprovada-${inclusion.id}`}
                         >
-                          <ArrowLeftRight className="h-3 w-3 shrink-0" aria-hidden="true" />Troca aprovada
-                        </span>
+                          Troca aprovada
+                        </StatusBadge>
                       )}
                     </div>
                   </td>
@@ -621,7 +616,7 @@ export default function ScalingTable({
                           type="button"
                           onClick={(e) => onConfirmarRapido(e, inclusion)}
                           disabled={confirmandoId === inclusion.id}
-                          className="inline-flex h-[30px] items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[12px] font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
+                          className="inline-flex h-[30px] items-center gap-1 rounded-lg bg-success px-2.5 text-xs font-semibold text-white hover:bg-success/90 transition-colors disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
                           title={`Confirmar a escalação de ${nomeDoColaborador} — o servidor decide o status (cenotécnica vai ao gestor)`}
                           aria-label={`Confirmar escalação ${idLabel}`}
                           data-testid={`button-confirmar-rapido-${inclusion.id}`}
@@ -635,7 +630,7 @@ export default function ScalingTable({
                         return (
                           <button
                             type="button"
-                            className="relative inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors"
+                            className="relative inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors"
                             onClick={(e) => onViewComments(e, inclusion)}
                             title={nComments === 0
                               ? "Comentários e histórico"
@@ -647,7 +642,7 @@ export default function ScalingTable({
                             {nComments > 0 && (
                               <span
                                 aria-hidden="true"
-                                className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-primary text-white text-[9px] font-bold leading-none tabular-nums"
+                                className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-primary text-primary-foreground text-2xs font-bold leading-none tabular-nums"
                                 data-testid={`badge-comments-${inclusion.id}`}
                               >
                                 {nComments > 9 ? "9+" : nComments}
@@ -658,7 +653,7 @@ export default function ScalingTable({
                       })()}
                       <button
                         type="button"
-                        className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-slate-400 hover:bg-brand-soft hover:text-primary transition-colors"
+                        className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors"
                         onClick={() => onRowClick(inclusion)}
                         title="Abrir detalhes"
                         aria-label={`Abrir detalhes de ${idLabel}`}
@@ -676,7 +671,7 @@ export default function ScalingTable({
       </div>
 
       <div className="flex items-center gap-3 h-10 px-4 bg-background border-t border-border">
-        <span className="text-[12px] text-[#475569] tabular-nums whitespace-nowrap">
+        <span className="text-xs text-slate-600 tabular-nums whitespace-nowrap">
           Mostrando {visibleRows.length} de {rows.length} · ordenado por {ordemLabel}
         </span>
         {rows.length > visibleCount && (
@@ -684,7 +679,7 @@ export default function ScalingTable({
             <button
               type="button"
               onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-              className="h-[26px] px-2.5 rounded-[7px] border border-border bg-card text-[12px] font-medium text-primary hover:border-primary hover:bg-brand-soft whitespace-nowrap"
+              className="h-[26px] px-2.5 rounded-md border border-border bg-card text-xs font-medium text-primary hover:border-primary hover:bg-brand-soft whitespace-nowrap"
               data-testid="button-load-more-rows"
             >
               Mostrar mais {Math.min(PAGE_SIZE, rows.length - visibleCount)}
@@ -692,7 +687,7 @@ export default function ScalingTable({
             <button
               type="button"
               onClick={() => setVisibleCount(rows.length)}
-              className="h-[26px] px-2 rounded-[7px] text-[12px] font-medium text-muted-foreground hover:text-primary whitespace-nowrap"
+              className="h-[26px] px-2 rounded-md text-xs font-medium text-muted-foreground hover:text-primary whitespace-nowrap"
               data-testid="button-load-all-rows"
             >
               Mostrar todas
@@ -701,12 +696,12 @@ export default function ScalingTable({
         )}
         {/* Legenda dos marcadores: a cor da borda só significa alguma coisa se
             estiver escrito em algum lugar o que ela quer dizer. */}
-        <span className="flex items-center gap-3 ml-auto text-[11px] text-muted-foreground whitespace-nowrap">
+        <span className="flex items-center gap-3 ml-auto text-2xs text-muted-foreground whitespace-nowrap">
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-[#FBBF24]" />espera você
+            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-warning-strong" />espera você
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-[#A855F7]" />troca em análise
+            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-info-strong" />troca em análise
           </span>
         </span>
       </div>

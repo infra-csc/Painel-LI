@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import { getRoleLabel, type UserRole } from "@/lib/role-utils";
 
+import { Eye } from "lucide-react";
 /** Altura fixa do banner — usada pelo MainLayout/Sidebar para abrir espaço. */
 export const SIMULATION_BANNER_H = 40;
 
@@ -37,16 +38,10 @@ export default function SimulationBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-center gap-2 sm:gap-3 px-3 bg-violet-700 text-white shadow-md"
+      className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-center gap-2 sm:gap-3 px-3 bg-primary-hover text-white shadow-2"
       style={{ height: SIMULATION_BANNER_H }}
     >
-      <span
-        className="material-symbols-outlined select-none shrink-0"
-        style={{ fontSize: 18, lineHeight: 1 }}
-        aria-hidden="true"
-      >
-        visibility
-      </span>
+      <Eye className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
       <p className="m-0 text-xs sm:text-sm truncate">
         Você está vendo o sistema como <b>{user?.name}</b> ({roleLabel}) — somente leitura
       </p>
@@ -54,7 +49,7 @@ export default function SimulationBanner() {
         type="button"
         onClick={sair}
         disabled={saindo}
-        className="shrink-0 px-2.5 py-1 rounded-md bg-white/15 hover:bg-white/25 disabled:opacity-60 text-xs sm:text-sm font-semibold border border-white/30 transition-colors"
+        className="shrink-0 px-2.5 py-1 rounded-md bg-card/15 hover:bg-card/25 disabled:opacity-60 text-xs sm:text-sm font-semibold border border-white/30 transition-colors"
       >
         {saindo ? "Saindo..." : "Sair da simulação"}
       </button>

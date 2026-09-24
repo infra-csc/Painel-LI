@@ -63,7 +63,7 @@ export function SeletorDeEvento({ eventos, valor, aoEscolher, formatarPeriodo }:
         onClick={() => setAberto((v) => !v)}
         aria-expanded={aberto}
         aria-haspopup="listbox"
-        className="flex h-[34px] max-w-[460px] items-center gap-1.5 rounded-lg px-2.5 text-[15px] font-semibold transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-[34px] max-w-[460px] items-center gap-1.5 rounded-lg px-2.5 text-base font-semibold transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-testid="mirror-event-trigger"
       >
         <span className="truncate">{atual?.name ?? "Selecione um evento"}</span>
@@ -72,7 +72,7 @@ export function SeletorDeEvento({ eventos, valor, aoEscolher, formatarPeriodo }:
 
       {aberto && (
         <div
-          className="absolute left-0 top-10 z-[60] w-[420px] max-w-[92vw] overflow-hidden rounded-xl border bg-card shadow-[0_16px_48px_rgba(2,8,23,0.16)]"
+          className="absolute left-0 top-10 z-[60] w-[420px] max-w-[92vw] overflow-hidden rounded-xl border bg-card shadow-3"
           role="listbox"
           data-testid="mirror-event-dropdown"
         >
@@ -84,7 +84,7 @@ export function SeletorDeEvento({ eventos, valor, aoEscolher, formatarPeriodo }:
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar evento…"
               aria-label="Buscar evento"
-              className="h-6 w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+              className="h-6 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             {busca && (
               <button type="button" onClick={() => setBusca("")} aria-label="Limpar busca" className="text-muted-foreground hover:text-foreground">
@@ -94,7 +94,7 @@ export function SeletorDeEvento({ eventos, valor, aoEscolher, formatarPeriodo }:
           </div>
           <ul className="max-h-[260px] overflow-y-auto">
             {filtrados.length === 0 && (
-              <li className="px-3 py-4 text-center text-[13px] text-muted-foreground">Nenhum evento com esse nome.</li>
+              <li className="px-3 py-4 text-center text-sm text-muted-foreground">Nenhum evento com esse nome.</li>
             )}
             {filtrados.map((e) => {
               const ativo = e.id === valor;
@@ -111,10 +111,10 @@ export function SeletorDeEvento({ eventos, valor, aoEscolher, formatarPeriodo }:
                     )}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium">{e.name}</span>
-                      <span className="block font-mono text-[11px] tabular-nums text-muted-foreground">{formatarPeriodo(e)}</span>
+                      <span className="block truncate text-sm font-medium">{e.name}</span>
+                      <span className="block font-mono text-2xs tabular-nums text-muted-foreground">{formatarPeriodo(e)}</span>
                     </span>
-                    {e.situacao && <span className="shrink-0 text-[11px] text-muted-foreground">{e.situacao}</span>}
+                    {e.situacao && <span className="shrink-0 text-2xs text-muted-foreground">{e.situacao}</span>}
                   </button>
                 </li>
               );

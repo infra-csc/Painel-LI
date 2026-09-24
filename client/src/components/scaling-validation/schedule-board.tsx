@@ -61,16 +61,16 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
   }, [rows, functionNameById, rangeStart, rangeEnd]);
 
   if (lines.length === 0) {
-    return <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400" role="status">Nenhuma vaga com dias de trabalho para montar o quadro.</p>;
+    return <p className="rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground" role="status">Nenhuma vaga com dias de trabalho para montar o quadro.</p>;
   }
 
   // Cabeçalho no padrão das tabelas do módulo (11px, bold, caixa alta, tracking-wide).
-  const TH = "px-2 py-2 text-center border-r border-slate-100 text-[11px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap";
+  const TH = "px-2 py-2 text-center border-r border-border text-2xs font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap";
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
       {truncated && (
-        <p role="status" className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <p role="status" className="border-b border-warning/25 bg-warning-soft px-3 py-2 text-xs text-warning">
           Período muito longo para exibir o quadro — {totalDays} dias. Mostrando os {dates.length} primeiros (a partir de {formatDateHeader(dates[0]).date}); os demais dias ficaram de fora das colunas.
         </p>
       )}
@@ -84,55 +84,55 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
       >
         <table className="w-full min-w-[640px] text-sm">
           <caption className="sr-only">Quadro de vagas por função e dia (todas as áreas)</caption>
-          <thead className="bg-slate-50 sticky top-0 z-20">
+          <thead className="bg-surface-muted sticky top-0 z-20">
             <tr>
-              <th className={cn(TH, "text-left px-3 sticky left-0 bg-slate-50 z-30 w-[200px] min-w-[200px] border-r-slate-200")}>Função</th>
+              <th className={cn(TH, "text-left px-3 sticky left-0 bg-surface-muted z-30 w-[200px] min-w-[200px] border-r-border")}>Função</th>
               <th className={TH}>Vagas</th>
               {dates.map((d) => {
                 const { date, dayName, isWeekend } = formatDateHeader(d);
                 return (
-                  <th key={d} className={cn(TH, "w-14", isWeekend ? "bg-orange-50 text-orange-700" : "bg-blue-50/50")}>
+                  <th key={d} className={cn(TH, "w-14", isWeekend ? "bg-warning-soft text-warning" : "bg-brand-soft/50")}>
                     <div className="leading-none font-bold">{date}</div>
-                    <div className="text-[10px] mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
+                    <div className="text-2xs mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
                   </th>
                 );
               })}
-              <th className={cn(TH, "border-r-0 border-l border-l-slate-200")}>Pessoas-dia</th>
+              <th className={cn(TH, "border-r-0 border-l border-l-border")}>Pessoas-dia</th>
             </tr>
           </thead>
           <tbody>
             {lines.map((line, i) => (
-              <tr key={line.functionId} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/40" : "bg-white", !line.editable && "text-slate-600")}>
-                <td className={cn("px-3 py-1.5 font-semibold sticky left-0 z-10 border-r border-slate-200 w-[200px] min-w-[200px]", i % 2 === 1 ? "bg-slate-50" : "bg-white", line.editable ? "text-slate-800" : "text-slate-600")}>
+              <tr key={line.functionId} className={cn("border-b border-border", i % 2 === 1 ? "bg-surface-muted/40" : "bg-card", !line.editable && "text-slate-600")}>
+                <td className={cn("px-3 py-1.5 font-semibold sticky left-0 z-10 border-r border-border w-[200px] min-w-[200px]", i % 2 === 1 ? "bg-surface-muted" : "bg-card", line.editable ? "text-foreground" : "text-slate-600")}>
                   <span className="block truncate" title={line.functionName}>{line.functionName}</span>
-                  {!line.editable && <span className="block text-[10px] font-normal text-slate-500">somente leitura</span>}
+                  {!line.editable && <span className="block text-2xs font-normal text-muted-foreground">somente leitura</span>}
                 </td>
-                <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-r border-slate-100">{line.vagas}</td>
+                <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-r border-border">{line.vagas}</td>
                 {dates.map((d) => {
                   const n = line.perDay[d] || 0;
                   const { isWeekend } = formatDateHeader(d);
                   return (
-                    <td key={d} className="px-1 py-1.5 text-center border-r border-slate-100">
+                    <td key={d} className="px-1 py-1.5 text-center border-r border-border">
                       {n > 0 ? (
-                        <span className={cn("inline-flex items-center justify-center h-7 w-10 rounded-lg text-xs font-semibold tabular-nums", line.editable ? "bg-brand-soft text-primary" : "bg-slate-100 text-slate-600")}>{n}</span>
+                        <span className={cn("inline-flex items-center justify-center h-7 w-10 rounded-lg text-xs font-semibold tabular-nums", line.editable ? "bg-brand-soft text-primary" : "bg-muted text-slate-600")}>{n}</span>
                       ) : (
                         <span className="text-slate-200">–</span>
                       )}
                     </td>
                   );
                 })}
-                <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-l border-l-slate-200">{line.total}</td>
+                <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-l border-l-border">{line.total}</td>
               </tr>
             ))}
           </tbody>
-          <tfoot className="bg-slate-50 border-t border-slate-200 sticky bottom-0">
+          <tfoot className="bg-surface-muted border-t border-border sticky bottom-0">
             <tr>
-              <td className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200">Total por dia</td>
-              <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-r border-slate-100">{lines.reduce((a, l) => a + l.vagas, 0)}</td>
+              <td className="px-3 py-2 text-2xs font-bold uppercase tracking-wide text-muted-foreground sticky left-0 bg-surface-muted z-10 border-r border-border">Total por dia</td>
+              <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-r border-border">{lines.reduce((a, l) => a + l.vagas, 0)}</td>
               {dates.map((d) => (
-                <td key={d} className="px-1 py-2 text-center text-xs font-bold tabular-nums text-slate-700 border-r border-slate-100">{totals[d] || <span className="text-slate-300 font-normal">–</span>}</td>
+                <td key={d} className="px-1 py-2 text-center text-xs font-bold tabular-nums text-slate-700 border-r border-border">{totals[d] || <span className="text-muted-foreground font-normal">–</span>}</td>
               ))}
-              <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-l border-l-slate-200">{lines.reduce((a, l) => a + l.total, 0)}</td>
+              <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-l border-l-border">{lines.reduce((a, l) => a + l.total, 0)}</td>
             </tr>
           </tfoot>
         </table>

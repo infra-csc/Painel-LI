@@ -2,6 +2,8 @@
 // e KPIs memoizados. Sem JSX — a página e os componentes só consomem.
 import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchJson } from "@/lib/queryClient";
+import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
 import { passaNosFiltrosBase, passaNosFiltrosDePassagem, VALID_STATUSES_WITHOUT_COLLABORATOR } from "./tickets-filtering";
 import { purchasedValueKpi, isStoredTicketOneWay } from "@/lib/ticket-form";
@@ -11,7 +13,10 @@ import type {
   TeamInclusion, Event, Function, Collaborator, Ticket, Accommodation, User, SwapRequest,
 } from "@shared/schema";
 import type { TicketFilters } from "./types";
+import { useSwapRequests } from "@/hooks/use-swap-requests";
+import { vagasDaTroca } from "@/lib/swap-types";
 
+import { formatarMoeda } from "@/lib/format";
 /** Linha crua de /api/swap-requests (SQL direto → snake_case junto com o tipo drizzle). */
 export type SwapRequestRow = SwapRequest & {
   team_inclusion_id?: string;
@@ -24,11 +29,6 @@ export type SwapRequestRow = SwapRequest & {
 };
 
 export type UserName = Pick<User, "id" | "name">;
-
-const swapInclusionId = (s: SwapRequestRow) => s.team_inclusion_id || s.teamInclusionId;
-/** As vagas da troca: a do pedido e, na permuta/transferência, a outra (16/09). */
-const vagasDaTroca = (s: SwapRequestRow): string[] =>
-  [swapInclusionId(s), (s as any).paired_inclusion_id || (s as any).pairedInclusionId].filter((id): id is string => !!id);
 
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -61,8 +61,7 @@ export const formatDate = (dateStr: string | null | undefined) => {
   return `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}`;
 };
 
-export const formatBrl = (cents: number) =>
-  (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+export const formatBrl = formatarMoeda;
 
 export const PURCHASING_ROLES = ["admin", "administrator", "administrador", "purchasing"];
 
@@ -76,9 +75,14 @@ interface UseTicketsDataArgs {
 export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user }: UseTicketsDataArgs) {
   const queryClient = useQueryClient();
 
-  const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions"],
-  });
+  // Recorte por evento (24/09): com evento selecionado a lista vem só dele
+  // (`?eventId=`); sem evento, Compras/admin/produção/RH leem a fila inteira
+  // (Passagens é multi-evento por natureza) e a área cai em `?phase=all`.
+  const recorte = recorteDaListaDeVagas({ eventId: filters.eventId, user });
+  const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>(
+    listaDeVagasQuery(recorte),
+  );
+  const eventoSelecionado = recorte.eventId;
   const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({
     queryKey: ["/api/events"],
     staleTime: 300_000,
@@ -91,24 +95,26 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     queryKey: ["/api/collaborators"],
     staleTime: 300_000,
   });
+  // Passagens e hospedagens também aceitam `?eventId=` (24/09). A chave por
+  // evento é `["/api/tickets", { eventId }]`: o prefixo continua o mesmo, então
+  // os `setQueryDefaults` e as invalidações `["/api/tickets"]` a alcançam.
   const { data: tickets, isLoading: isLoadingTickets, error: ticketsError } = useQuery<Ticket[]>({
-    queryKey: ["/api/tickets"],
+    queryKey: eventoSelecionado ? ["/api/tickets", { eventId: eventoSelecionado }] : ["/api/tickets"],
+    queryFn: ({ signal }) => fetchJson<Ticket[]>(eventoSelecionado ? `/api/tickets?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/tickets", signal),
   });
-  const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
+  const { data: accommodations } = useQuery<Accommodation[]>({
+    queryKey: eventoSelecionado ? ["/api/accommodations", { eventId: eventoSelecionado }] : ["/api/accommodations"],
+    queryFn: ({ signal }) => fetchJson<Accommodation[]>(eventoSelecionado ? `/api/accommodations?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/accommodations", signal),
+  });
   // Só para exibir o nome do autor dos comentários (a API de comentários não o traz).
   const { data: users } = useQuery<UserName[]>({ queryKey: ["/api/users"], staleTime: 300_000 });
   // Valores de refeição do Planejado — alimentam a linha "Impacto no Planejado".
   const { data: systemSettings } = useQuery<Record<string, number | string>>({ queryKey: ["/api/system-settings"], staleTime: 300_000 });
 
-  // Query global — para badges nas linhas da tabela (sem depender de inclusão selecionada)
-  const { data: allSwapRequests } = useQuery<SwapRequestRow[]>({
-    queryKey: ["/api/swap-requests"],
-    queryFn: async () => {
-      const r = await fetch("/api/swap-requests");
-      if (!r.ok) return [];
-      return r.json();
-    },
-  });
+  // Query global — para badges nas linhas da tabela (sem depender de inclusão
+  // selecionada). Hook único (23/09): cache normalizado compartilhado com a
+  // casca e as outras telas — o fetch cru daqui sobrescrevia o formato deles.
+  const { data: allSwapRequests } = useSwapRequests();
 
   // Esqueleto espera o conteúdo principal da tabela — inclusões, evento,
   // função, colaborador e a própria passagem.
@@ -220,17 +226,17 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     [teamInclusions, contextoDosFiltros, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId, filters.inclusionStatus, filters.periodo], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  // ── Dedupe por colaborador (documento normalizado) + evento + função ──
+  // ── Dedupe por colaborador (id) + evento + função ──
   // Extraído para função para que o contador dos popovers possa rodar o
   // pipeline INTEIRO — sem o dedupe ele prometeria linhas que a lista junta.
+  // A chave é o `collaboratorId` (23/09): o CPF não vem mais para production /
+  // function_area (projeção do GET /api/collaborators) e o id é estável — o
+  // documento normalizado deixava a chave variar conforme o papel de quem olha.
   const deduplicar = useCallback((linhas: TeamInclusion[]) => {
     const map = new Map<string, TeamInclusion>();
-    const normalizeDocument = (doc?: string | null) => (doc ? doc.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() : "");
     const makeKey = (inc: TeamInclusion) => {
-      const collaborator = getCollaborator(inc.collaboratorId);
-      const businessId = normalizeDocument(collaborator?.officialDocument) || inc.collaboratorId || "";
-      if (!businessId) return `${inc.eventId}|${inc.functionId}|unassigned-${inc.id}`;
-      return `${inc.eventId}|${inc.functionId}|${businessId}`;
+      if (!inc.collaboratorId) return `${inc.eventId}|${inc.functionId}|unassigned-${inc.id}`;
+      return `${inc.eventId}|${inc.functionId}|${inc.collaboratorId}`;
     };
     for (const inclusion of linhas) {
       const key = makeKey(inclusion);
@@ -253,8 +259,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
       if (isNewer) map.set(key, inclusion);
     }
     return Array.from(map.values());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collaboratorById]);
+  }, []);
 
   const deduplicatedInclusions = useMemo(() => deduplicar(ticketInclusions), [deduplicar, ticketInclusions]);
 

@@ -98,8 +98,8 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
 
   return (
     <Dialog open={open} onOpenChange={(o) => !exporting && onOpenChange(o)}>
-      <DialogContent className="!max-w-[980px] w-[95vw] p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden rounded-[14px]">
-        <DialogHeader className="px-6 pt-6 pb-3 border-b border-slate-100 pr-12">
+      <DialogContent className="!max-w-[980px] w-[95vw] p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden rounded-xl">
+        <DialogHeader className="px-6 pt-6 pb-3 border-b border-border pr-12">
           <DialogTitle>Exportar escalações</DialogTitle>
           <DialogDescription>
             {typeof quantasLinhas === "number" && (
@@ -114,8 +114,8 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
-          <fieldset className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
-            <legend className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Quais linhas</legend>
+          <fieldset className="rounded-xl border border-border bg-surface-muted/60 px-3 py-2">
+            <legend className="px-1 text-2xs font-bold uppercase tracking-wide text-muted-foreground">Quais linhas</legend>
             <div className="flex flex-wrap gap-2">
               {EXPORT_SCOPES.map((s) => (
                 <button
@@ -127,7 +127,7 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
                   className={`h-7 rounded-lg border px-2.5 text-xs font-medium transition-colors ${
                     scope === s.id
                       ? "border-primary/30 bg-brand-soft text-primary"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                      : "border-border bg-card text-slate-600 hover:border-slate-300"
                   }`}
                 >
                   {s.label}
@@ -137,7 +137,7 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
           </fieldset>
 
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500 tabular-nums">
+            <p className="text-xs text-muted-foreground tabular-nums">
               {marcadas.length} de {ALL_EXPORT_COLUMNS.length} colunas marcadas
             </p>
             <div className="flex gap-2">
@@ -152,7 +152,7 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
             {EXPORT_COLUMN_GROUPS.map((grupo) => {
               const todasDoGrupo = grupo.keys.every((k) => !desmarcadas.has(k));
               return (
-                <fieldset key={grupo.label} className="rounded-xl border border-slate-200 px-3 pb-2 pt-1">
+                <fieldset key={grupo.label} className="rounded-xl border border-border px-3 pb-2 pt-1">
                   <legend className="px-1">
                     <label className="flex cursor-pointer items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-600">
                       <Checkbox
@@ -165,7 +165,7 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
                   </legend>
                   <div className="grid">
                     {grupo.keys.map((k) => (
-                      <label key={k} className="flex cursor-pointer items-center gap-2 rounded px-1 py-[3px] text-[12px] leading-tight text-slate-700 hover:bg-slate-50">
+                      <label key={k} className="flex cursor-pointer items-center gap-2 rounded px-1 py-[3px] text-xs leading-tight text-slate-700 hover:bg-surface-muted">
                         <Checkbox checked={!desmarcadas.has(k)} onCheckedChange={() => alternar(k)} aria-label={k} />
                         {k}
                       </label>
@@ -177,22 +177,22 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-3">
+        <div className="shrink-0 border-t border-border bg-surface-muted/60 px-6 py-3">
           <DialogFooter className="gap-2 sm:gap-2">
             {marcadas.length === 0 && (
-              <p role="alert" className="mr-auto self-center text-xs text-red-700">Marque ao menos uma coluna.</p>
+              <p role="alert" className="mr-auto self-center text-xs text-danger">Marque ao menos uma coluna.</p>
             )}
-            <Button type="button" variant="outline" className="rounded-lg bg-white" disabled={exporting}
+            <Button type="button" variant="outline" className="rounded-lg bg-card" disabled={exporting}
               onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="button" variant="outline" disabled={marcadas.length === 0 || exporting}
               onClick={() => exportar("pdf")}
-              className="rounded-lg border-slate-200 bg-white hover:bg-brand-soft hover:text-primary"
+              className="rounded-lg border-border bg-card hover:bg-brand-soft hover:text-primary"
               title="Abre a janela de impressão — escolha “Salvar como PDF”">
               <Printer className="mr-1.5 h-4 w-4" aria-hidden="true" /> PDF
             </Button>
             <Button type="button" disabled={marcadas.length === 0 || exporting}
               onClick={() => exportar("xlsx")}
-              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+              className="rounded-lg bg-success text-white hover:bg-success/90">
               <FileSpreadsheet className="mr-1.5 h-4 w-4" aria-hidden="true" />
               {exporting ? "Exportando…" : "Excel"}
             </Button>

@@ -31,7 +31,7 @@ export interface CopyEventDialogProps {
   onApply: (result: CopyFromEventResult, sourceName: string) => void;
 }
 
-const HINT = "text-xs text-slate-500";
+const HINT = "text-xs text-muted-foreground";
 
 /** Resumo curto da logística de uma linha — é o que explica a mesma função aparecer duas vezes. */
 function logisticsLabel(r: SuggestionGridRow): string {
@@ -94,7 +94,7 @@ export function CopyEventDialog({
   return (
     <Dialog open={open} onOpenChange={close}>
       {/* Abaixo de `sm` o diálogo respira 1rem de cada lado e arredonda (o padrão do shadcn só arredonda a partir de sm). */}
-      <DialogContent className="max-w-[560px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-2xl sm:w-full">
+      <DialogContent className="max-w-[560px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-xl sm:w-full">
         <DialogHeader className="px-5 pt-5 pb-3 pr-12">
           <DialogTitle className="flex items-center gap-2">
             <FolderInput className="w-4 h-4 text-primary" aria-hidden="true" /> Copiar de outro evento
@@ -129,8 +129,8 @@ export function CopyEventDialog({
           {sourceId && query.isLoading && <LoadingState count={3} label="Buscando as vagas do evento…" />}
 
           {sourceId && query.isError && (
-            <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-              <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-red-600" aria-hidden="true" />
+            <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">
+              <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-danger" aria-hidden="true" />
               <span>
                 <span className="font-semibold">Não foi possível carregar as vagas do evento.</span>{" "}
                 {apiErrorMessage(query.error as ApiError, "Verifique sua conexão e tente novamente.")}
@@ -140,37 +140,37 @@ export function CopyEventDialog({
 
           {converted && (
             converted.totalVagas === 0 ? (
-              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs text-slate-600">
                 Este evento não tem vagas na Validação — não há o que copiar.
               </p>
             ) : (
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600 tabular-nums">
+                <div className="flex flex-wrap items-center gap-1.5 text-2xs">
+                  <span className="rounded-full border border-border bg-surface-muted px-2 py-0.5 text-slate-600 tabular-nums">
                     {converted.totalVagas} {converted.totalVagas === 1 ? "vaga lida" : "vagas lidas"}
                   </span>
                   <span className="rounded-full bg-brand-soft px-2 py-0.5 font-semibold text-primary tabular-nums">
                     {converted.rows.length} {converted.rows.length === 1 ? "linha na grade" : "linhas na grade"}
                   </span>
                   {replaced.length > 0 && (
-                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800 tabular-nums">
+                    <span className="rounded-full border border-warning/25 bg-warning-soft px-2 py-0.5 text-warning tabular-nums">
                       {replaced.length} {replaced.length === 1 ? "função já na grade será substituída" : "funções já na grade serão substituídas"}
                     </span>
                   )}
                 </div>
 
-                <div className="rounded-lg border border-slate-200 overflow-hidden">
-                  <p className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <p className="bg-surface-muted border-b border-border px-3 py-1.5 text-2xs font-bold uppercase tracking-wide text-muted-foreground">
                     Como vai entrar na grade
                   </p>
-                  <ul className="max-h-[180px] overflow-y-auto divide-y divide-slate-100">
+                  <ul className="max-h-[180px] overflow-y-auto divide-y divide-border">
                     {converted.rows.map((r) => {
                       const days = dates.filter((d) => (r.quantities[d] || 0) > 0);
                       const logistica = logisticsLabel(r);
                       return (
                         <li key={r.rowId} className="px-3 py-1.5 text-xs">
                           <div className="flex items-baseline gap-2">
-                            <span className="w-[150px] shrink-0 truncate font-semibold text-slate-800" title={r.functionName}>{r.functionName}</span>
+                            <span className="w-[150px] shrink-0 truncate font-semibold text-foreground" title={r.functionName}>{r.functionName}</span>
                             <span className="min-w-0 truncate font-mono tabular-nums text-slate-600">
                               {days.length > 0
                                 ? days.map((d) => `${formatDayMonthBr(d)}×${r.quantities[d]}`).join(" · ")
@@ -178,7 +178,7 @@ export function CopyEventDialog({
                             </span>
                           </div>
                           {logistica && (
-                            <p className="mt-0.5 pl-[158px] truncate text-[11px] text-slate-500" title={logistica}>{logistica}</p>
+                            <p className="mt-0.5 pl-[158px] truncate text-2xs text-muted-foreground" title={logistica}>{logistica}</p>
                           )}
                         </li>
                       );
@@ -193,8 +193,8 @@ export function CopyEventDialog({
                 )}
 
                 {(converted.outsideDays.length > 0 || converted.unknownFunctions > 0 || converted.clampedCells > 0 || converted.manualDailyRates > 0) && (
-                  <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-amber-600" aria-hidden="true" />
+                  <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-xs text-warning">
+                    <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0 text-warning" aria-hidden="true" />
                     <span>
                       {converted.outsideDays.length > 0 && (
                         <span className="block">
@@ -221,7 +221,7 @@ export function CopyEventDialog({
           )}
         </div>
 
-        <DialogFooter className="px-5 py-3 border-t border-slate-200 bg-slate-50/60 gap-2">
+        <DialogFooter className="px-5 py-3 border-t border-border bg-surface-muted/60 gap-2">
           <Button type="button" variant="outline" className="rounded-lg" onClick={() => close(false)}>Cancelar</Button>
           <Button
             type="button" disabled={applyDisabled}

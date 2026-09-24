@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal, serial, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal, serial, index, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
+
+// ÍNDICES DECLARADOS NO SCHEMA (23/09): os índices/uniques criados por
+// scripts/migrations/*.ts (13/08, 17/08, 19/08, 28/08 e 23/09) agora também
+// aparecem no terceiro argumento de cada pgTable — com o MESMO nome do banco —
+// para um `drizzle-kit generate` futuro não os derrubar por "não existirem" no
+// schema. Declarar aqui não cria nada: quem cria em produção continua sendo o
+// script da data, rodado à mão pelo dono.
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -18,7 +25,11 @@ export const users = pgTable("users", {
   mustChangePassword: boolean("must_change_password").default(false), // force password change
   canApproveCenotecnica: boolean("can_approve_cenotecnica").default(false), // permissão especial: aprovar escalações de cenotécnica
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  // Login compara sem diferenciar maiúsculas; o UNIQUE(email) sozinho deixava
+  // "Ana@x" e "ana@x" coexistirem (23/09).
+  uniqueIndex("users_email_lower_uq").on(sql`lower(${t.email})`),
+]);
 
 // Events table
 export const events = pgTable("events", {
@@ -57,6 +68,8 @@ export const functionUsers = pgTable("function_users", {
 }, (table) => ({
   // Evitar duplicatas
   unq: unique().on(table.functionId, table.userId),
+  // "Funções deste usuário" (23/09)
+  userIdx: index("function_users_user_idx").on(table.userId),
 }));
 
 // Tabela para usuários responsáveis pela função (podem confirmar escalações)
@@ -82,6 +95,8 @@ export const scalingFunctionManagers = pgTable("scaling_function_managers", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   unq: unique().on(table.functionId, table.userId, table.role),
+  // roleFor roda em cada request da Escala (28/08)
+  userIdx: index("scaling_function_managers_user_idx").on(table.userId),
 }));
 
 export const functionManagers = pgTable("function_managers", {
@@ -95,6 +110,8 @@ export const functionManagers = pgTable("function_managers", {
 }, (table) => ({
   // Evitar duplicatas
   unq: unique().on(table.functionId, table.userId),
+  // isUserFunctionManager por usuário (23/09)
+  userIdx: index("function_managers_user_idx").on(table.userId),
 }));
 
 // Collaborators table
@@ -207,7 +224,18 @@ export const teamInclusions = pgTable("team_inclusions", {
   deletedBy: varchar("deleted_by").references(() => users.id), // quem excluiu
   approvedByProduction: varchar("approved_by_production").references(() => users.id), // quem aprovou a cenotécnica (produção)
   approvedByProductionAt: timestamp("approved_by_production_at"), // quando a produção aprovou
-});
+}, (t) => [
+  // Já existem em produção (13/08 e 28/08)
+  index("team_inclusions_event_idx").on(t.eventId),
+  index("team_inclusions_phase_idx").on(t.phase, t.deletedAt),
+  index("team_inclusions_suggestion_sent_idx").on(t.suggestionSentAt),
+  // Novos (23/09 — scripts/migrations/2026-09-23-indices-e-constraints.ts):
+  // vagas por função; agenda do colaborador (conflito de datas) e a tela do
+  // evento por fase, só entre as não excluídas.
+  index("team_inclusions_function_idx").on(t.functionId),
+  index("team_inclusions_collaborator_active_idx").on(t.collaboratorId).where(sql`${t.deletedAt} IS NULL`),
+  index("team_inclusions_event_phase_active_idx").on(t.eventId, t.phase).where(sql`${t.deletedAt} IS NULL`),
+]);
 
 // Tickets table
 export const tickets = pgTable("tickets", {
@@ -254,7 +282,9 @@ export const tickets = pgTable("tickets", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
-});
+}, (t) => [
+  index("tickets_inclusion_idx").on(t.teamInclusionId), // 23/09
+]);
 
 // Accommodations table
 export const accommodations = pgTable("accommodations", {
@@ -281,7 +311,9 @@ export const accommodations = pgTable("accommodations", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
-});
+}, (t) => [
+  index("accommodations_inclusion_idx").on(t.teamInclusionId), // 23/09
+]);
 
 // Financial table
 export const financial = pgTable("financial", {
@@ -299,7 +331,9 @@ export const financial = pgTable("financial", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
-});
+}, (t) => [
+  index("financial_inclusion_idx").on(t.teamInclusionId), // 23/09
+]);
 
 // Comments table
 /**
@@ -313,7 +347,9 @@ export const eventComments = pgTable("event_comments", {
   userId: varchar("user_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  index("event_comments_event_idx").on(t.eventId, t.createdAt.desc()), // já existe (28/08)
+]);
 
 export const comments = pgTable("comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -322,7 +358,9 @@ export const comments = pgTable("comments", {
   content: text("content").notNull(),
   phase: text("phase").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  index("comments_inclusion_created_idx").on(t.teamInclusionId, t.createdAt.desc()), // 23/09
+]);
 
 // Team Inclusion Logs table - audit trail for escalation changes
 export const teamInclusionLogs = pgTable("team_inclusion_logs", {
@@ -335,7 +373,10 @@ export const teamInclusionLogs = pgTable("team_inclusion_logs", {
   userId: varchar("user_id").notNull().references(() => users.id),
   userName: text("user_name").notNull(), // cached for performance
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  // Histórico da vaga, mais recente primeiro (23/09)
+  index("team_inclusion_logs_inclusion_created_idx").on(t.teamInclusionId, t.createdAt.desc()),
+]);
 
 // System Activity Logs table - for public audit trail
 export const systemLogs = pgTable("system_logs", {
@@ -353,7 +394,13 @@ export const systemLogs = pgTable("system_logs", {
   ipAddress: text("ip_address"), // IP address of action
   userAgent: text("user_agent"), // browser/client info
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  // Já existem (28/08)
+  index("system_logs_entity_idx").on(t.entityType, t.entityId),
+  index("system_logs_created_idx").on(t.createdAt.desc()),
+  // "O que este usuário fez" (23/09)
+  index("system_logs_user_created_idx").on(t.userId, t.createdAt.desc()),
+]);
 
 // Valores por função (valores automáticos para cálculo)
 export const functionValues = pgTable("function_values", {
@@ -372,7 +419,10 @@ export const functionValues = pgTable("function_values", {
   transport: integer("transport").notNull().default(0), // translado em centavos
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  // Uma linha de valores por função — a tela faz upsert por convenção (23/09)
+  uniqueIndex("function_values_function_uq").on(t.functionId),
+]);
 
 // Planejado - orçamento previsto do evento
 export const budgetPlanned = pgTable("budget_planned", {
@@ -403,7 +453,11 @@ export const budgetPlanned = pgTable("budget_planned", {
   updatedBy: varchar("updated_by").references(() => users.id),
   didNotAttend: boolean("did_not_attend").notNull().default(false),
   didNotAttendReason: text("did_not_attend_reason"),
-});
+}, (t) => [
+  // Já existem (13/08)
+  index("budget_planned_event_idx").on(t.eventId),
+  uniqueIndex("budget_planned_event_collab_func_uq").on(t.eventId, t.collaboratorId, t.functionId),
+]);
 
 // Realizado - o que realmente aconteceu
 export const budgetActual = pgTable("budget_actual", {
@@ -448,7 +502,14 @@ export const budgetActual = pgTable("budget_actual", {
   rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
   rhAdjustedFields: text("rh_adjusted_fields"), // JSON: {field: {from, to, label}} dos campos alterados pelo RH
   rhAdjustNote: text("rh_adjust_note"), // observação do RH ao fazer ajuste nos valores
-});
+}, (t) => [
+  // Já existem (13/08)
+  index("budget_actual_event_idx").on(t.eventId),
+  index("budget_actual_planned_idx").on(t.plannedId),
+  index("budget_actual_split_parent_idx").on(t.splitParentId),
+  // Um Realizado "raiz" por Planejado; divisões de vaga (split_parent_id) ficam fora (23/09)
+  uniqueIndex("budget_actual_planned_uq").on(t.plannedId).where(sql`${t.plannedId} IS NOT NULL AND ${t.splitParentId} IS NULL`),
+]);
 
 // Comparativo e aprovação do RH
 export const budgetComparison = pgTable("budget_comparison", {
@@ -467,7 +528,9 @@ export const budgetComparison = pgTable("budget_comparison", {
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("budget_comparison_event_uq").on(t.eventId), // já existe (13/08)
+]);
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -526,18 +589,73 @@ export const insertCollaboratorSchema = createInsertSchema(collaborators).omit({
   birthDate: z.string().optional(), // Força string para birthDate
 });
 
-export const insertTeamInclusionSchema = createInsertSchema(teamInclusions).omit({
+/**
+ * Linha completa da vaga para o SERVIDOR gravar (storage, rotas, Validação de
+ * Escala): tudo menos id/createdAt/updatedAt. É o tipo `InsertTeamInclusion`
+ * usado em createTeamInclusion/updateTeamInclusion.
+ */
+export const teamInclusionRowSchema = createInsertSchema(teamInclusions).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertTicketSchema = createInsertSchema(tickets).omit({
+/**
+ * Corpo que o CLIENTE pode mandar ao criar uma vaga (POST /api/team-inclusions
+ * e /bulk). Critério (23/09): quem decide o FLUXO é o servidor. Tudo que marca
+ * etapa, decisão ou autoria de uma mudança sai daqui — antes o corpo podia
+ * nascer com status `aprovado`, phase `sugestao` ou `approvedByProduction`
+ * preenchidos, pulando as rotas dedicadas (confirm, approve-production,
+ * DELETE, Validação de Escala).
+ *
+ *   status / phase / previousStatus  → nextStatusOnConfirm, nextSuggestionState, cancelar/reativar
+ *   suggestionSentAt / validatedAt / validatedBy → Validação de Escala
+ *   approvedByProduction(At)         → rota /approve-production
+ *   deletedAt / deletedBy            → rota DELETE (soft delete)
+ *   updatedBy                        → sempre a sessão
+ *   inclusionNumber                  → sequence do banco
+ *
+ * `userId` FICA: não é o criador — é o "usuário responsável pela função"
+ * (comentário da coluna) e o grid manda `originalFunction.userId || user.id`
+ * (grid-team-inclusion-form.tsx); a rota não o preenche pela sessão.
+ *
+ * ATENÇÃO (servidor): `.parse()` do zod DESCARTA os campos omitidos em
+ * silêncio. Código do servidor que monta a linha com status/phase (Validação
+ * de Escala: server/scaling-validation.ts) deve usar `teamInclusionRowSchema`,
+ * senão a sugestão nasce como `planejado/inclusao` sem erro nenhum.
+ */
+export const insertTeamInclusionSchema = teamInclusionRowSchema.omit({
+  inclusionNumber: true,
+  status: true,
+  phase: true,
+  previousStatus: true,
+  suggestionSentAt: true,
+  validatedAt: true,
+  validatedBy: true,
+  approvedByProduction: true,
+  approvedByProductionAt: true,
+  deletedAt: true,
+  deletedBy: true,
+  updatedBy: true,
+});
+
+/** Linha completa da passagem (servidor) — tipo `InsertTicket`. */
+export const ticketRowSchema = createInsertSchema(tickets).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
   transportType: z.enum(["aereo", "rodoviario", "van"]).optional()
+});
+
+/**
+ * Corpo que o cliente manda em POST/PATCH /api/tickets. "Emitida" é um ato
+ * explícito de quem compra e só a rota /emitidas carimba (26/08) — pelo corpo
+ * cru dava para marcar/desmarcar sem passar por ela (23/09).
+ */
+export const insertTicketSchema = ticketRowSchema.omit({
+  emittedAt: true,
+  emittedBy: true,
 });
 
 export const insertAccommodationSchema = createInsertSchema(accommodations).omit({
@@ -642,10 +760,15 @@ export const invoices = pgTable("invoices", {
   approvedAt: timestamp("approved_at"),
   history: text("history").default("[]"),
   checkinAt: timestamp("checkin_at"),
-  checkinBy: varchar("checkin_by"),
+  // FK real criada NOT VALID em 23/09 (invoices_checkin_by_fk, ON DELETE SET NULL)
+  checkinBy: varchar("checkin_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  // Já existem (13/08)
+  index("invoices_event_idx").on(t.eventId),
+  uniqueIndex("invoices_budget_actual_uq").on(t.budgetActualId).where(sql`${t.budgetActualId} IS NOT NULL`),
+]);
 
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({
   id: true,
@@ -679,7 +802,14 @@ export const flashMovements = pgTable("flash_movements", {
   // e torna a sincronização idempotente. Migração: 2026-08-17-flash-oc.ts.
   sourceType: text("source_type").notNull().default("manual"),
   sourceRef: text("source_ref"),
-});
+}, (t) => [
+  // Já existem (17/08 e 19/08)
+  uniqueIndex("flash_movements_oc_uq").on(t.sourceRef, t.category).where(sql`${t.sourceType} = 'oc'`),
+  uniqueIndex("flash_movements_comparativo_uq").on(t.sourceRef, t.category).where(sql`${t.sourceType} = 'comparativo'`),
+  index("flash_movements_source_idx").on(t.sourceType, t.sourceRef),
+  index("flash_movements_source_event_idx").on(t.sourceType, t.eventId),
+  index("flash_movements_collaborator_idx").on(t.collaboratorId, t.movementDate),
+]);
 
 export const insertFlashMovementSchema = createInsertSchema(flashMovements).omit({
   id: true,
@@ -711,10 +841,16 @@ export type Collaborator = typeof collaborators.$inferSelect;
 export type InsertCollaborator = z.infer<typeof insertCollaboratorSchema>;
 
 export type TeamInclusion = typeof teamInclusions.$inferSelect;
-export type InsertTeamInclusion = z.infer<typeof insertTeamInclusionSchema>;
+/** Linha para gravar (servidor) — inclui status/phase e campos de fluxo. */
+export type InsertTeamInclusion = z.infer<typeof teamInclusionRowSchema>;
+/** Corpo aceito do cliente — sem campos de fluxo (23/09). */
+export type TeamInclusionBody = z.infer<typeof insertTeamInclusionSchema>;
 
 export type Ticket = typeof tickets.$inferSelect;
-export type InsertTicket = z.infer<typeof insertTicketSchema>;
+/** Linha para gravar (servidor) — inclui emittedAt/emittedBy. */
+export type InsertTicket = z.infer<typeof ticketRowSchema>;
+/** Corpo aceito do cliente — sem o carimbo de emitida (23/09). */
+export type TicketBody = z.infer<typeof insertTicketSchema>;
 
 export type Accommodation = typeof accommodations.$inferSelect;
 export type InsertAccommodation = z.infer<typeof insertAccommodationSchema>;
@@ -770,11 +906,15 @@ export const budgetNotes = pgTable("budget_notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   entityType: text("entity_type").notNull(), // 'planned' | 'actual'
   entityId: varchar("entity_id").notNull(),
-  authorId: varchar("author_id").notNull(),
+  // FK real criada NOT VALID em 23/09 (budget_notes_author_fk)
+  authorId: varchar("author_id").notNull().references(() => users.id),
   authorName: text("author_name").notNull(),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  // Chat de uma linha do Planejado/Realizado, em ordem (23/09)
+  index("budget_notes_entity_idx").on(t.entityType, t.entityId, t.createdAt),
+]);
 
 export const insertBudgetNoteSchema = createInsertSchema(budgetNotes).omit({ id: true, createdAt: true });
 export type BudgetNote = typeof budgetNotes.$inferSelect;
@@ -796,15 +936,23 @@ export const swapRequests = pgTable("swap_requests", {
   // Permuta (dono, 14/09): dois colaboradores já escalados trocam de vaga.
   // swap_kind 'permuta' + a outra vaga + de onde sai quem vai para ela.
   swapKind: text("swap_kind").notNull().default("substituicao"), // 'substituicao' | 'permuta'
-  pairedInclusionId: varchar("paired_inclusion_id"),
+  // FK real criada NOT VALID em 23/09 (swap_requests_paired_inclusion_fk, ON DELETE SET NULL)
+  pairedInclusionId: varchar("paired_inclusion_id").references(() => teamInclusions.id, { onDelete: "set null" }),
   pairedNewCity: text("paired_new_city"),
-  status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado
+  // pendente, aprovado, rejeitado, cancelado — CHECK swap_requests_status_chk (23/09)
+  status: text("status").notNull().default("pendente"),
   reviewComment: text("review_comment"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   reviewedByName: text("reviewed_by_name"),
   reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+  index("swap_requests_inclusion_idx").on(t.teamInclusionId), // já existe (28/08)
+  // 23/09: a outra vaga da permuta; e UMA troca pendente por vaga (a rota já
+  // recusa, mas duas requisições simultâneas passavam).
+  index("swap_requests_paired_inclusion_idx").on(t.pairedInclusionId),
+  uniqueIndex("swap_requests_inclusion_pendente_uq").on(t.teamInclusionId).where(sql`${t.status} = 'pendente'`),
+]);
 
 export const insertSwapRequestSchema = createInsertSchema(swapRequests).omit({
   id: true,
@@ -841,7 +989,16 @@ export const scalingChangeRequests = pgTable("scaling_change_requests", {
   resolvedInclusionId: varchar("resolved_inclusion_id").references(() => teamInclusions.id), // inclusão criada quando 'inclusao' é aprovada
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  // Já existem (17/08 e 28/08)
+  index("scaling_change_requests_event_idx").on(t.eventId),
+  index("scaling_change_requests_status_idx").on(t.status),
+  index("scaling_change_requests_inclusion_idx").on(t.teamInclusionId),
+  index("scaling_change_requests_event_status_idx").on(t.eventId, t.status),
+  // Um pedido pendente por vaga sugerida (23/09)
+  uniqueIndex("scaling_change_requests_inclusion_pendente_uq").on(t.teamInclusionId)
+    .where(sql`${t.status} = 'pendente' AND ${t.teamInclusionId} IS NOT NULL`),
+]);
 
 export const insertScalingChangeRequestSchema = createInsertSchema(scalingChangeRequests)
   .omit({
@@ -904,7 +1061,11 @@ export const baggageRequests = pgTable("baggage_requests", {
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"), // soft delete
   deletedBy: varchar("deleted_by"),
-});
+}, (t) => [
+  // Já existem (17/08)
+  index("baggage_requests_event_idx").on(t.eventId),
+  index("baggage_requests_collaborator_idx").on(t.collaboratorId),
+]);
 
 const DATE_YMD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -952,7 +1113,9 @@ export const baggageHistory = pgTable("baggage_history", {
   quantity: integer("quantity").notNull(), // >= 1
   sourceName: text("source_name"), // nome como constava na origem (auditoria)
   importedAt: timestamp("imported_at").defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("baggage_history_collab_cia_uq").on(t.collaboratorId, t.cia), // já existe (17/08)
+]);
 
 export type BaggageHistoryEntry = typeof baggageHistory.$inferSelect;
 
@@ -1008,7 +1171,9 @@ export const uberGroups = pgTable("uber_groups", {
   confirmed: boolean("confirmed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  index("uber_groups_event_idx").on(t.eventId), // 23/09
+]);
 
 export const uberGroupMembers = pgTable("uber_group_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1017,7 +1182,9 @@ export const uberGroupMembers = pgTable("uber_group_members", {
   estimatedShareCents: integer("estimated_share_cents").default(0),
   confirmed: boolean("confirmed").notNull().default(false),
   notes: text("notes"),
-});
+}, (t) => [
+  index("uber_group_members_group_idx").on(t.uberGroupId), // 23/09
+]);
 
 // Grupos de quarto de hotel (sugeridos ou confirmados)
 export const hotelRoomGroups = pgTable("hotel_room_groups", {
@@ -1033,7 +1200,9 @@ export const hotelRoomGroups = pgTable("hotel_room_groups", {
   confirmed: boolean("confirmed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  index("hotel_room_groups_event_idx").on(t.eventId), // 23/09
+]);
 
 export const hotelRoomGroupMembers = pgTable("hotel_room_group_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1048,7 +1217,9 @@ export const hotelRoomGroupMembers = pgTable("hotel_room_group_members", {
   checkOutDate: date("check_out_date"),
   confirmed: boolean("confirmed").notNull().default(false),
   notes: text("notes"),
-});
+}, (t) => [
+  index("hotel_room_group_members_group_idx").on(t.hotelRoomGroupId), // 23/09
+]);
 
 export const insertLogisticsExtraCostSchema = createInsertSchema(logisticsExtraCosts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUberGroupSchema = createInsertSchema(uberGroups).omit({ id: true, createdAt: true, updatedAt: true });

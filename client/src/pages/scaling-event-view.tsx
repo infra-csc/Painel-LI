@@ -36,6 +36,7 @@ import {
 } from "@shared/scaling-validation-rules";
 import { workDaysOf, ymd, type FunctionWithManagers, type SuggestionRow } from "@/components/scaling-validation/types";
 import { SuggestionStatusBadge, legLabel, periodLabel } from "@/components/scaling-validation/suggestions-list";
+import { StatusBadge, TONE_CLASS, toneDoStatus } from "@/components/common/status-badge";
 import { LegChip, NeedChips, legValue } from "@/components/scaling-validation/logistics-chips";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { buildReadDateList } from "@/components/scaling-validation/scaling-grid-utils";
@@ -109,25 +110,27 @@ function OriginBadge({ row }: { row: EventViewRow }) {
   if (isDeleted(row)) {
     // Só a palavra fica riscada: a data "em dd/mm" é informação viva (quando foi
     // excluída) e riscada parecia um erro de digitação.
+    // Excluída = neutral (23/09): é registro encerrado, não erro — vermelho
+    // aqui competia com as vagas negadas.
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 whitespace-nowrap">
-        <span className="line-through decoration-red-300">{ORIGIN_LABEL_EXCLUIDA}</span> em {formatDayMonthBr(toDate(row.deletedAt))}
-      </span>
+      <StatusBadge tone="neutral">
+        <span className="line-through">{ORIGIN_LABEL_EXCLUIDA}</span>&nbsp;em {formatDayMonthBr(toDate(row.deletedAt))}
+      </StatusBadge>
     );
   }
   if (isSuggestionInclusion(row)) return <SuggestionStatusBadge status={row.status} />;
-  return <span className="inline-flex items-center rounded-full border border-primary/30 bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-primary whitespace-nowrap">{ORIGIN_LABEL_INCLUSAO}</span>;
+  return <StatusBadge tone="primary">{ORIGIN_LABEL_INCLUSAO}</StatusBadge>;
 }
 
-/** Cor sutil por origem/status — mesma paleta dos badges (funil, legenda do quadro e KPIs). */
+/** Cor sutil por origem/status — mesma paleta dos badges (funil, legenda do quadro e KPIs): o ponto `*-strong` do tom. */
 const ORIGIN_DOT: Record<string, string> = {
-  [SUGESTAO_STATUS.PENDENTE]: "bg-amber-400",
-  [SUGESTAO_STATUS.VALIDADA]: "bg-sky-400",
-  [SUGESTAO_STATUS.AJUSTE]: "bg-violet-400",
-  [SUGESTAO_STATUS.APROVADA]: "bg-emerald-400",
-  [SUGESTAO_STATUS.NEGADA]: "bg-slate-300",
-  [IN_INCLUSION]: "bg-primary",
-  [DELETED]: "bg-red-300",
+  [SUGESTAO_STATUS.PENDENTE]: TONE_CLASS[toneDoStatus(SUGESTAO_STATUS.PENDENTE)].dot,
+  [SUGESTAO_STATUS.VALIDADA]: TONE_CLASS[toneDoStatus(SUGESTAO_STATUS.VALIDADA)].dot,
+  [SUGESTAO_STATUS.AJUSTE]: TONE_CLASS[toneDoStatus(SUGESTAO_STATUS.AJUSTE)].dot,
+  [SUGESTAO_STATUS.APROVADA]: TONE_CLASS[toneDoStatus(SUGESTAO_STATUS.APROVADA)].dot,
+  [SUGESTAO_STATUS.NEGADA]: TONE_CLASS[toneDoStatus(SUGESTAO_STATUS.NEGADA)].dot,
+  [IN_INCLUSION]: TONE_CLASS.primary.dot,
+  [DELETED]: TONE_CLASS.neutral.dot,
 };
 
 /**
@@ -222,10 +225,10 @@ interface TlStyle { label: string; icon: LucideIcon; dot: string; card: string; 
 const TL_ORDER: TlCat[] = ["envio", "validacao", "pedido", "decisao", "exclusao"];
 const TL: Record<TlCat, TlStyle> = {
   envio:     { label: "Envios",     icon: Send,          dot: "bg-primary",      card: "border-primary/20 bg-brand-soft/50", tag: "bg-brand-soft text-primary",     quote: "border-primary/40" },
-  validacao: { label: "Validações", icon: ClipboardCheck, dot: "bg-sky-500",     card: "border-sky-200 bg-sky-50/60",        tag: "bg-sky-50 text-sky-700",         quote: "border-sky-300" },
-  pedido:    { label: "Pedidos",    icon: PencilLine,    dot: "bg-violet-500",   card: "border-violet-200 bg-violet-50/60",  tag: "bg-violet-50 text-violet-700",   quote: "border-violet-300" },
-  decisao:   { label: "Decisões",   icon: Gavel,         dot: "bg-emerald-500",  card: "border-emerald-200 bg-emerald-50/50", tag: "bg-emerald-50 text-emerald-700", quote: "border-emerald-300" },
-  exclusao:  { label: "Exclusões",  icon: Trash2,        dot: "bg-red-500",      card: "border-red-200 bg-red-50/50",        tag: "bg-red-50 text-red-700",         quote: "border-red-300" },
+  validacao: { label: "Validações", icon: ClipboardCheck, dot: "bg-info-strong",     card: "border-info/25 bg-info-soft/60",        tag: "bg-info-soft text-info",         quote: "border-info/25" },
+  pedido:    { label: "Pedidos",    icon: PencilLine,    dot: "bg-primary",   card: "border-primary/25 bg-brand-soft/60",  tag: "bg-brand-soft text-primary",   quote: "border-primary/40" },
+  decisao:   { label: "Decisões",   icon: Gavel,         dot: "bg-success-strong",  card: "border-success/25 bg-success-soft/50", tag: "bg-success-soft text-success", quote: "border-success/25" },
+  exclusao:  { label: "Exclusões",  icon: Trash2,        dot: "bg-danger-strong",      card: "border-danger/25 bg-danger-soft/50",        tag: "bg-danger-soft text-danger",         quote: "border-danger/25" },
 };
 
 interface TlEntry {
@@ -282,11 +285,11 @@ const idChips = (rows: EventViewRow[], max = 8) =>
 const TIMELINE_EVENTS_STEP = 3;
 
 /** Cabeçalho de tabela — mesmo padrão das outras telas do módulo. */
-const TH = "px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap";
+const TH = "px-3 py-2 text-left text-2xs font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap";
 /** Título de seção/rótulo de grupo (design system: 11px, bold, caixa alta, slate-500). */
-const SECTION = "text-[11px] font-bold uppercase tracking-wide text-slate-500";
-const LABEL = "text-xs text-slate-500";
-const CHIP = "inline-flex items-center h-[22px] rounded-full px-2 text-[11px] font-medium";
+const SECTION = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
+const LABEL = "text-xs text-muted-foreground";
+const CHIP = "inline-flex items-center h-[22px] rounded-full px-2 text-2xs font-medium";
 /** Contêiner com rolagem horizontal alcançável pelo teclado (tabIndex + região nomeada). */
 const SCROLL_X = "overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
@@ -456,20 +459,20 @@ export default function ScalingEventViewPage() {
     };
   }, [liveRows]);
   const KPIS: { key: string; label: string; n: number; cls: string; hint?: string }[] = [
-    { key: ALL, label: "Vagas", n: counts.total, cls: "text-slate-800" },
-    { key: SUGESTAO_STATUS.PENDENTE, label: "Pendentes", n: counts.pendentes, cls: "text-amber-700" },
+    { key: ALL, label: "Vagas", n: counts.total, cls: "text-foreground" },
+    { key: SUGESTAO_STATUS.PENDENTE, label: "Pendentes", n: counts.pendentes, cls: "text-warning" },
     // Validar não aprova (regra de 19/08): a vaga validada pela área fica parada
     // aguardando o aprovador — o rótulo mostra o que está travando, não o que já passou.
     {
       key: SUGESTAO_STATUS.VALIDADA,
       label: "Aguardando aprovação",
       n: counts.validadas,
-      cls: "text-sky-700",
+      cls: "text-info",
       hint: "Validadas pela área e aguardando a decisão do aprovador — clique para filtrar a Lista",
     },
-    { key: SUGESTAO_STATUS.AJUSTE, label: "Com pedido", n: counts.comPedido, cls: "text-violet-700" },
-    { key: SUGESTAO_STATUS.APROVADA, label: "Aprovadas", n: counts.aprovadas, cls: "text-emerald-700" },
-    { key: SUGESTAO_STATUS.NEGADA, label: "Negadas", n: counts.negadas, cls: "text-slate-500" },
+    { key: SUGESTAO_STATUS.AJUSTE, label: "Com pedido", n: counts.comPedido, cls: "text-primary" },
+    { key: SUGESTAO_STATUS.APROVADA, label: "Aprovadas", n: counts.aprovadas, cls: "text-success" },
+    { key: SUGESTAO_STATUS.NEGADA, label: "Negadas", n: counts.negadas, cls: "text-muted-foreground" },
     { key: IN_INCLUSION, label: "Em Inclusão", n: counts.emInclusao, cls: "text-primary" },
   ];
   /**
@@ -799,7 +802,7 @@ export default function ScalingEventViewPage() {
 
   const approvalLink = (r: ScalingChangeRequest) => (
     canOpenApproval ? (
-      <Link href={scalingHref("/scaling-approval", eventId, { request: r.id })} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline whitespace-nowrap">
+      <Link href={scalingHref("/scaling-approval", eventId, { request: r.id })} className="inline-flex items-center gap-1 text-2xs font-medium text-primary hover:underline whitespace-nowrap">
         <ExternalLink className="w-3 h-3" aria-hidden="true" /> Abrir na Aprovação
       </Link>
     ) : null
@@ -820,12 +823,12 @@ export default function ScalingEventViewPage() {
   const renderTimelineDays = (days: { key: string; label: string; items: TlEntry[] }[]) =>
     days.map((g) => (
       <div key={g.key} className="flex flex-col">
-        <div className="sticky top-0 z-[2] flex items-center gap-2.5 bg-white pb-2 pt-3">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-800">{g.label}</span>
-          <span className="text-[11px] text-slate-500">{plural(g.items.length, "movimento", "movimentos")}</span>
-          <span className="h-px flex-1 bg-slate-100" aria-hidden="true" />
+        <div className="sticky top-0 z-[2] flex items-center gap-2.5 bg-card pb-2 pt-3">
+          <span className="text-2xs font-bold uppercase tracking-wide text-foreground">{g.label}</span>
+          <span className="text-2xs text-muted-foreground">{plural(g.items.length, "movimento", "movimentos")}</span>
+          <span className="h-px flex-1 bg-muted" aria-hidden="true" />
         </div>
-        <ol className="m-0 flex list-none flex-col gap-3 border-l border-slate-200 pl-6">
+        <ol className="m-0 flex list-none flex-col gap-3 border-l border-border pl-6">
           {g.items.map((e) => {
             const c = TL[e.cat];
             return (
@@ -835,9 +838,9 @@ export default function ScalingEventViewPage() {
                 </span>
                 <div className={cn("flex flex-col gap-1.5 rounded-xl border p-2.5", c.card)}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[13px] font-semibold text-slate-800">{e.title}</span>
-                    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", c.tag)}>{e.tag}</span>
-                    <span className="ml-auto font-mono text-[11px] text-slate-500">{hhmm(e.at)}</span>
+                    <span className="text-sm font-semibold text-foreground">{e.title}</span>
+                    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide", c.tag)}>{e.tag}</span>
+                    <span className="ml-auto font-mono text-2xs text-muted-foreground">{hhmm(e.at)}</span>
                   </div>
                   {e.text && <p className="text-xs text-slate-600">{e.text}</p>}
                   {e.chips && e.chips.length > 0 && (
@@ -853,7 +856,7 @@ export default function ScalingEventViewPage() {
                             {ch}
                           </button>
                         ) : (
-                          <span key={`${e.id}-${i}`} className={cn(CHIP, "bg-slate-100 text-slate-600")}>{ch}</span>
+                          <span key={`${e.id}-${i}`} className={cn(CHIP, "bg-muted text-slate-600")}>{ch}</span>
                         );
                       })}
                     </div>
@@ -861,9 +864,9 @@ export default function ScalingEventViewPage() {
                   {e.quote && <p className={cn("border-l-2 pl-2.5 text-xs text-slate-700 whitespace-pre-wrap break-words", c.quote)}>{e.quote}</p>}
                   {(e.author || e.href) && (
                     <div className="flex flex-wrap items-center gap-3">
-                      {e.author && <span className="text-[11px] text-slate-500">{e.author}</span>}
+                      {e.author && <span className="text-2xs text-muted-foreground">{e.author}</span>}
                       {e.href && (
-                        <Link href={e.href} className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
+                        <Link href={e.href} className="inline-flex items-center gap-1 text-2xs font-medium text-primary hover:underline">
                           <ExternalLink className="h-3 w-3" aria-hidden="true" />{e.linkLabel}
                         </Link>
                       )}
@@ -913,14 +916,14 @@ export default function ScalingEventViewPage() {
       <ScalingModuleNav current="history" eventId={eventId} className="-mt-1" />
 
       {/* ── Barra de contexto: evento · última movimentação · funil · KPIs ── */}
-      <section aria-label="Evento" className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 space-y-3">
+      <section aria-label="Evento" className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
             <CalendarDays className="w-4 h-4" />
           </span>
           <div ref={eventPickerRef} className="w-[280px] max-w-full shrink-0">
             {loadingEvents ? (
-              <div className="h-8 rounded-lg bg-slate-100 animate-pulse" aria-hidden="true" />
+              <div className="h-8 rounded-lg bg-muted animate-pulse" aria-hidden="true" />
             ) : (
               <EventCombobox
                 events={activeEvents} value={eventId || ALL} showAllOption
@@ -944,8 +947,8 @@ export default function ScalingEventViewPage() {
           )}
           {showData && lastMovement && (
             <p className="ml-auto inline-flex items-center gap-1.5 text-xs text-slate-600">
-              <Timer className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-              Última movimentação: <strong className="font-semibold text-slate-800">{fmtShort(lastMovement.at)} — {lastMovement.title.toLowerCase()}</strong>
+              <Timer className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+              Última movimentação: <strong className="font-semibold text-foreground">{fmtShort(lastMovement.at)} — {lastMovement.title.toLowerCase()}</strong>
             </p>
           )}
         </div>
@@ -954,7 +957,7 @@ export default function ScalingEventViewPage() {
           <div className="space-y-2">
             {funnel.length > 0 && (
               <div
-                className="flex h-3 items-center gap-1.5 overflow-hidden rounded-full bg-slate-100"
+                className="flex h-3 items-center gap-1.5 overflow-hidden rounded-full bg-muted"
                 role="img"
                 aria-label={`Funil da escala: ${funnel.map((f) => `${f.label} ${f.n}`).join(", ")}`}
               >
@@ -983,10 +986,10 @@ export default function ScalingEventViewPage() {
                     title={k.key === ALL ? "Limpar filtro de origem/status" : kpiWouldClear(k.key) ? "Clique para limpar o filtro" : k.hint ?? `Filtrar a Lista por "${k.label}"`}
                     className={cn(
                       "rounded-xl border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      on ? "border-primary/30 bg-brand-soft" : "border-slate-100 bg-slate-50/70 hover:border-slate-300 hover:bg-white",
+                      on ? "border-primary/30 bg-brand-soft" : "border-border bg-surface-muted/70 hover:border-slate-300 hover:bg-card",
                     )}
                   >
-                    <span className={cn("flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide leading-tight", on ? "text-primary" : "text-slate-500")}>
+                    <span className={cn("flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide leading-tight", on ? "text-primary" : "text-muted-foreground")}>
                       {k.key !== ALL && <span className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0", ORIGIN_DOT[k.key])} aria-hidden="true" />}
                       <span className="truncate">{k.label}</span>
                     </span>
@@ -996,7 +999,7 @@ export default function ScalingEventViewPage() {
               })}
             </div>
             {deletedCount > 0 && (
-              <p className="text-[11px] text-slate-500 text-right">
+              <p className="text-2xs text-muted-foreground text-right">
                 + {plural(deletedCount, "vaga excluída", "vagas excluídas")} — fora da soma e do quadro.{" "}
                 <button type="button" className="text-primary underline hover:no-underline" onClick={() => onKpiClick(DELETED)}>
                   {kpiWouldClear(DELETED) ? "Limpar filtro" : "Ver excluídas"}
@@ -1009,11 +1012,11 @@ export default function ScalingEventViewPage() {
 
       {/* ── Onde a escala está travada (sem role=status: a contagem das abas é a única região live) ── */}
       {showData && stalled && (effectiveTab === "timeline" || effectiveTab === "lista") && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
-          <Timer className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/25 bg-warning-soft px-3.5 py-2.5">
+          <Timer className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-amber-900">{stalled.title}</p>
-            <p className="mt-0.5 text-xs text-amber-800">{stalled.text}</p>
+            <p className="text-sm font-semibold text-warning">{stalled.title}</p>
+            <p className="mt-0.5 text-xs text-warning">{stalled.text}</p>
           </div>
           {canOpenApproval && (
             <Link href={scalingHref("/scaling-approval", eventId)} className="ml-auto text-xs font-medium text-primary hover:underline whitespace-nowrap">
@@ -1028,8 +1031,8 @@ export default function ScalingEventViewPage() {
           propósito: não é um problema da escala (esse é o âmbar do "travada"
           acima), é só um aviso de que a página não mostra tudo. */}
       {truncated && (
-        <p role="status" className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+        <p role="status" className="flex items-start gap-3 rounded-xl border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-slate-600">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span>
             <span className="font-semibold text-slate-700">Histórico parcial</span> — são muitos movimentos para mostrar de uma vez
             {viewQuery.data?.rowLimit ? ` (teto de ${viewQuery.data.rowLimit} vagas)` : ""}. Escolha um evento acima para ver o histórico completo dele.
@@ -1042,15 +1045,15 @@ export default function ScalingEventViewPage() {
       {viewQuery.isLoading || (loadingFunctions && !functions) ? (
         <LoadingState count={5} label={viewQuery.isLoading ? (eventId ? "Carregando escala do evento…" : "Carregando histórico dos eventos…") : "Carregando funções…"} />
       ) : viewQuery.error ? (
-        <div role="alert" className="rounded-2xl border border-red-200 bg-white p-6 text-center">
-          <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" aria-hidden="true" />
+        <div role="alert" className="rounded-xl border border-danger/25 bg-card p-6 text-center">
+          <AlertCircle className="mx-auto mb-2 h-5 w-5 text-danger-strong" aria-hidden="true" />
           <p className="text-sm font-semibold text-slate-700">Não foi possível carregar a escala</p>
-          <p className="mt-1 text-xs text-slate-500">{apiErrorMessage(viewQuery.error, "Verifique sua conexão e tente novamente.")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{apiErrorMessage(viewQuery.error, "Verifique sua conexão e tente novamente.")}</p>
           <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => viewQuery.refetch()}>Tentar novamente</Button>
         </div>
       ) : rows.length === 0 && requests.length === 0 ? (
         <EmptyState
-          className="rounded-2xl"
+          className="rounded-xl"
           icon={CalendarRange}
           title={eventId ? "Nenhuma vaga passou pela Validação de Escala neste evento" : "Nenhuma vaga passou pela Validação de Escala"}
           description={eventId
@@ -1060,9 +1063,9 @@ export default function ScalingEventViewPage() {
       ) : (
         <Tabs value={effectiveTab} onValueChange={(v) => setTab(v as Tab)} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList className="h-auto rounded-xl bg-slate-100 p-[3px]">
-              <TabsTrigger value="timeline" className="h-7 rounded-lg px-3.5 text-[13px]">Linha do tempo</TabsTrigger>
-              <TabsTrigger value="lista" className="h-7 rounded-lg px-3.5 text-[13px]">Lista</TabsTrigger>
+            <TabsList className="h-auto rounded-xl bg-muted p-[3px]">
+              <TabsTrigger value="timeline" className="h-7 rounded-lg px-3.5 text-sm">Linha do tempo</TabsTrigger>
+              <TabsTrigger value="lista" className="h-7 rounded-lg px-3.5 text-sm">Lista</TabsTrigger>
               {/* O quadro é função × dia DE UM evento: sem filtro ele somaria
                   dias de eventos diferentes na mesma coluna. A aba fica
                   visível e desabilitada (com o motivo no title) — sumir com
@@ -1071,18 +1074,18 @@ export default function ScalingEventViewPage() {
                 value="escala"
                 disabled={!eventId}
                 title={eventId ? undefined : "Escolha um evento para ver o quadro função × dia"}
-                className="h-7 rounded-lg px-3.5 text-[13px] disabled:pointer-events-auto disabled:cursor-not-allowed"
+                className="h-7 rounded-lg px-3.5 text-sm disabled:pointer-events-auto disabled:cursor-not-allowed"
               >
                 Escala
               </TabsTrigger>
-              <TabsTrigger value="pedidos" className="h-7 rounded-lg px-3.5 text-[13px]">Pedidos{requests.length ? ` (${requests.length})` : ""}</TabsTrigger>
+              <TabsTrigger value="pedidos" className="h-7 rounded-lg px-3.5 text-sm">Pedidos{requests.length ? ` (${requests.length})` : ""}</TabsTrigger>
             </TabsList>
             <p className={LABEL} aria-live="polite">{countText}</p>
           </div>
 
           {/* ── ABA 1: Linha do tempo ── */}
           <TabsContent value="timeline" className="mt-0 space-y-3">
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
               <span className={SECTION}>Mostrar</span>
               {TL_ORDER.map((k) => {
                 const c = TL[k];
@@ -1096,7 +1099,7 @@ export default function ScalingEventViewPage() {
                     onClick={() => setTlCats((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : TL_ORDER.filter((x) => cur.includes(x) || x === k)))}
                     className={cn(
                       "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      on ? "border-primary/30 bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                      on ? "border-primary/30 bg-brand-soft text-primary" : "border-border bg-card text-slate-600 hover:border-slate-300",
                     )}
                   >
                     <span className={cn("inline-block h-1.5 w-1.5 rounded-full", c.dot)} aria-hidden="true" />
@@ -1106,7 +1109,7 @@ export default function ScalingEventViewPage() {
               })}
               <div className="relative ml-auto min-w-[220px]">
                 <Label htmlFor="ev-tl-search" className="sr-only">Buscar movimento</Label>
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                 <Input
                   id="ev-tl-search" value={search} onChange={(e) => setSearch(e.target.value)}
                   placeholder="Função, #ID, pessoa ou texto" className="h-8 pl-8 rounded-lg text-xs"
@@ -1123,7 +1126,7 @@ export default function ScalingEventViewPage() {
               timeline.length === 0 ? (
                 <EmptyState
                   live={false}
-                  className="rounded-2xl"
+                  className="rounded-xl"
                   icon={History}
                   title="Nenhum movimento registrado ainda"
                   description={eventId
@@ -1133,7 +1136,7 @@ export default function ScalingEventViewPage() {
               ) : (
                 <EmptyState
                   live={false}
-                  className="rounded-2xl"
+                  className="rounded-xl"
                   variant="filtered"
                   title="Nada encontrado com esses filtros"
                   description="Ajuste a busca ou o tipo de movimento."
@@ -1145,12 +1148,12 @@ export default function ScalingEventViewPage() {
                  recente primeiro), N por vez — dentro dele, os dias de sempre. */
               <div className="space-y-3">
                 {timelineEvents.slice(0, visibleEvents).map((g) => (
-                  <section key={g.key} className="rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1" aria-label={`Movimentos de ${g.name}`}>
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 pb-2 pt-3">
+                  <section key={g.key} className="rounded-xl border border-border bg-card px-4 pb-4 pt-1" aria-label={`Movimentos de ${g.name}`}>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border pb-2 pt-3">
                       <span className={SECTION}>Evento</span>
-                      <span className="text-[13px] font-semibold text-slate-800">{g.name}</span>
-                      {g.period && <span className="font-mono text-[11px] text-slate-500">{g.period}</span>}
-                      <span className="text-[11px] text-slate-500">· {plural(g.items.length, "movimento", "movimentos")}</span>
+                      <span className="text-sm font-semibold text-foreground">{g.name}</span>
+                      {g.period && <span className="font-mono text-2xs text-muted-foreground">{g.period}</span>}
+                      <span className="text-2xs text-muted-foreground">· {plural(g.items.length, "movimento", "movimentos")}</span>
                     </div>
                     {renderTimelineDays(groupByDay(g.items))}
                   </section>
@@ -1167,10 +1170,10 @@ export default function ScalingEventViewPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 pb-4 pt-1">
+              <div className="rounded-xl border border-border bg-card px-4 pb-4 pt-1">
                 {renderTimelineDays(timelineDays)}
                 {timelineStart && (
-                  <p className="mt-4 text-center text-[11px] text-slate-500">Fim do histórico — a escala deste evento começou em {timelineStart}.</p>
+                  <p className="mt-4 text-center text-2xs text-muted-foreground">Fim do histórico — a escala deste evento começou em {timelineStart}.</p>
                 )}
               </div>
             )}
@@ -1184,7 +1187,7 @@ export default function ScalingEventViewPage() {
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-brand-soft px-3.5 py-2.5">
                 <Info className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 <p className="min-w-0 flex-1 text-xs text-slate-700">
-                  <span className="font-semibold text-slate-800">O quadro Escala precisa de um evento.</span>{" "}
+                  <span className="font-semibold text-foreground">O quadro Escala precisa de um evento.</span>{" "}
                   Ele cruza função × dia de UM evento; enquanto isso, a Lista mostra as vagas de todos.
                 </p>
                 <Button type="button" variant="outline" size="sm" className="h-7 rounded-lg text-xs" onClick={focusEventPicker}>
@@ -1192,10 +1195,10 @@ export default function ScalingEventViewPage() {
                 </Button>
               </div>
             )}
-            <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+            <div className="flex flex-wrap items-end gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5">
               <div className="relative min-w-[240px] flex-1 space-y-1">
                 <Label htmlFor="ev-search" className="sr-only">Buscar vaga</Label>
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                 <Input id="ev-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID, área ou observação" className="h-8 pl-8 rounded-lg text-xs" />
               </div>
               <div className="min-w-[170px]">
@@ -1226,7 +1229,7 @@ export default function ScalingEventViewPage() {
             {filteredRows.length === 0 ? (
               <EmptyState
                 live={false}
-                className="rounded-2xl"
+                className="rounded-xl"
                 variant="filtered"
                 title="Nada encontrado com esses filtros"
                 description="Ajuste a busca, a função ou o filtro de origem/status."
@@ -1234,13 +1237,13 @@ export default function ScalingEventViewPage() {
               />
             ) : (
               <>
-                <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
                   <div className={SCROLL_X} tabIndex={0} role="region" aria-label="Tabela de vagas (rolagem horizontal)">
                     <table className="w-full min-w-[1040px] text-sm">
                       <caption className="sr-only">{eventId ? "Vagas do evento na Validação de Escala" : "Vagas dos eventos do recorte na Validação de Escala"}</caption>
-                      <thead className="bg-slate-50 border-b border-slate-200">
+                      <thead className="bg-surface-muted border-b border-border">
                         <tr>
-                          <th className="w-9 border-b border-slate-200 px-0"><span className="sr-only">Origem</span></th>
+                          <th className="w-9 border-b border-border px-0"><span className="sr-only">Origem</span></th>
                           <th className={TH}>Vaga</th>
                           {!eventId && <th className={cn(TH, "min-w-[170px]")}>Evento</th>}
                           <th className={TH}>Período / diárias</th>
@@ -1262,7 +1265,7 @@ export default function ScalingEventViewPage() {
                             && !hasLeg(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)
                             && !hasLeg(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime);
                           return (
-                            <tr key={row.id} className={cn("border-b border-slate-100", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
+                            <tr key={row.id} className={cn("border-b border-border", i % 2 === 1 ? "bg-surface-muted/40" : "bg-card")}>
                               <td className="w-9 px-0 py-2">
                                 <span className={cn("ml-2 block h-10 w-1 rounded-full", ORIGIN_DOT[originKey(row)])} aria-hidden="true" />
                               </td>
@@ -1275,44 +1278,44 @@ export default function ScalingEventViewPage() {
                                     type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
                                     className="group flex max-w-full items-center gap-2 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   >
-                                    <span className="inline-flex shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums transition-colors group-hover:bg-primary group-hover:text-white">#{row.inclusionNumber}</span>
+                                    <span className="inline-flex shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold text-primary tabular-nums transition-colors group-hover:bg-primary group-hover:text-white">#{row.inclusionNumber}</span>
                                     {/* Negada/excluída: riscada e mais clara — mas ainda legível (slate-500, não 400). */}
-                                    <span className={cn("truncate text-[13px] font-semibold transition-colors group-hover:text-primary", dim ? "text-slate-500 line-through" : "text-slate-800")}>{fnName}</span>
+                                    <span className={cn("truncate text-sm font-semibold transition-colors group-hover:text-primary", dim ? "text-muted-foreground line-through" : "text-foreground")}>{fnName}</span>
                                   </button>
-                                  <span className="mt-0.5 block truncate text-[11px] text-slate-500" title={row.observations ?? undefined}>
+                                  <span className="mt-0.5 block truncate text-2xs text-muted-foreground" title={row.observations ?? undefined}>
                                     {row.observations || "Sem observações"}
                                   </span>
                                 </div>
                               </td>
                               {!eventId && (
                                 <td className="px-3 py-2 max-w-[220px]">
-                                  <span className="block truncate text-[13px] font-semibold text-slate-700" title={eventNameOf(row)}>{eventNameOf(row)}</span>
-                                  <span className="block font-mono text-[11px] text-slate-500">
+                                  <span className="block truncate text-sm font-semibold text-slate-700" title={eventNameOf(row)}>{eventNameOf(row)}</span>
+                                  <span className="block font-mono text-2xs text-muted-foreground">
                                     {row.eventStartDate ? formatDateRange(ymd(row.eventStartDate), ymd(row.eventEndDate) || ymd(row.eventStartDate), { withYear: true }) : "Sem datas"}
                                   </span>
                                 </td>
                               )}
                               <td className="px-3 py-2 whitespace-nowrap">
-                                <span className={cn("font-mono text-xs tabular-nums", dim ? "text-slate-500" : "text-slate-700")}>{periodLabel(row)}</span>
-                                <span className="ml-1 text-[11px] text-slate-500">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+                                <span className={cn("font-mono text-xs tabular-nums", dim ? "text-muted-foreground" : "text-slate-700")}>{periodLabel(row)}</span>
+                                <span className="ml-1 text-2xs text-muted-foreground">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex min-w-[220px] flex-wrap items-center gap-1">
                                   <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
                                   <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
                                   <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
-                                  {semLogistica && <span className="text-[11px] text-slate-500">Sem logística</span>}
+                                  {semLogistica && <span className="text-2xs text-muted-foreground">Sem logística</span>}
                                 </div>
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <OriginBadge row={row} />
-                                  {row.requests.length > 0 && <span className="text-[11px] text-slate-500">{plural(row.requests.length, "pedido", "pedidos")}</span>}
+                                  {row.requests.length > 0 && <span className="text-2xs text-muted-foreground">{plural(row.requests.length, "pedido", "pedidos")}</span>}
                                 </div>
                               </td>
                               <td className="px-3 py-2">
                                 <span className="block text-xs text-slate-600">{last.label}</span>
-                                <span className="block font-mono text-[11px] text-slate-500">{fmtShort(last.at)}</span>
+                                <span className="block font-mono text-2xs text-muted-foreground">{fmtShort(last.at)}</span>
                               </td>
                             </tr>
                           );
@@ -1336,34 +1339,34 @@ export default function ScalingEventViewPage() {
                          título e se "estica" pelo cartão via ::after — assim o
                          HTML continua válido (sem <dl> dentro de <button>) e a
                          seta à direita diz que o cartão é clicável. */
-                      <li key={row.id} className="relative rounded-2xl border border-slate-200 bg-white p-3 space-y-2 transition-colors focus-within:ring-2 focus-within:ring-ring hover:border-slate-300">
+                      <li key={row.id} className="relative rounded-xl border border-border bg-card p-3 space-y-2 transition-colors focus-within:ring-2 focus-within:ring-ring hover:border-slate-300">
                         <div className="flex items-start gap-2">
                           <button
                             type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
-                            className="min-w-0 flex-1 text-left focus-visible:outline-none after:absolute after:inset-0 after:rounded-2xl after:content-['']"
+                            className="min-w-0 flex-1 text-left focus-visible:outline-none after:absolute after:inset-0 after:rounded-xl after:content-['']"
                           >
-                            <span className="block truncate text-sm font-semibold text-slate-800">
-                              <span className="mr-1.5 font-mono text-xs text-slate-500">#{row.inclusionNumber}</span>
+                            <span className="block truncate text-sm font-semibold text-foreground">
+                              <span className="mr-1.5 font-mono text-xs text-muted-foreground">#{row.inclusionNumber}</span>
                               {fnName}
                             </span>
                           </button>
-                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                         </div>
                         {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(row)}</p>}
                         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                          <dt className="text-slate-500">Período</dt><dd className="font-mono text-slate-700">{periodLabel(row)} · {formatDiarias(days.length || row.dailyRates || 0)}</dd>
-                          <dt className="text-slate-500">Último movimento</dt><dd className="text-slate-700">{last.label}{last.at ? ` · ${fmtShort(last.at)}` : ""}</dd>
+                          <dt className="text-muted-foreground">Período</dt><dd className="font-mono text-slate-700">{periodLabel(row)} · {formatDiarias(days.length || row.dailyRates || 0)}</dd>
+                          <dt className="text-muted-foreground">Último movimento</dt><dd className="text-slate-700">{last.label}{last.at ? ` · ${fmtShort(last.at)}` : ""}</dd>
                         </dl>
                         <div className="flex flex-wrap items-center gap-1">
                           <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
                           <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
                           <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
-                          {semLogistica && <span className="text-[11px] text-slate-500">Sem logística</span>}
+                          {semLogistica && <span className="text-2xs text-muted-foreground">Sem logística</span>}
                         </div>
-                        {row.observations && <p className="text-xs text-slate-500 italic">{row.observations}</p>}
+                        {row.observations && <p className="text-xs text-muted-foreground italic">{row.observations}</p>}
                         <div className="flex flex-wrap items-center gap-1.5">
                           <OriginBadge row={row} />
-                          {row.requests.length > 0 && <span className="text-xs text-slate-500">{plural(row.requests.length, "pedido", "pedidos")}</span>}
+                          {row.requests.length > 0 && <span className="text-xs text-muted-foreground">{plural(row.requests.length, "pedido", "pedidos")}</span>}
                         </div>
                       </li>
                     );
@@ -1389,21 +1392,21 @@ export default function ScalingEventViewPage() {
                       onClick={() => setOriginFilter(active ? ALL : l.key)}
                       title={active ? "Clique para mostrar todas" : `Mostrar só "${l.label}" no quadro`}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        active ? "border-primary/30 bg-brand-soft text-primary" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        active ? "border-primary/30 bg-brand-soft text-primary" : "border-border bg-card text-slate-600 hover:border-slate-300",
                       )}
                     >
                       <span className={cn("inline-block w-2 h-2 rounded-full", ORIGIN_DOT[l.key])} aria-hidden="true" />
-                      {l.label} <span className="tabular-nums text-slate-500">({l.n})</span>
+                      {l.label} <span className="tabular-nums text-muted-foreground">({l.n})</span>
                     </button>
                   );
                 })}
                 {boardFilter !== ALL && (
-                  <button type="button" className="ml-1 text-[11px] text-primary hover:underline" onClick={() => setOriginFilter(ALL)}>Mostrar todas</button>
+                  <button type="button" className="ml-1 text-2xs text-primary hover:underline" onClick={() => setOriginFilter(ALL)}>Mostrar todas</button>
                 )}
                 {/* KPI "Negadas"/"Excluídas" ativo: a Lista está filtrada, o quadro não tem como estar. */}
                 {originFilter !== ALL && boardFilter === ALL && (
-                  <span className="ml-1 text-[11px] text-slate-500">O filtro "{ORIGIN_LABELS[originFilter] ?? originFilter}" não se aplica ao quadro.</span>
+                  <span className="ml-1 text-2xs text-muted-foreground">O filtro "{ORIGIN_LABELS[originFilter] ?? originFilter}" não se aplica ao quadro.</span>
                 )}
               </div>
             )}
@@ -1411,15 +1414,15 @@ export default function ScalingEventViewPage() {
                 lista traz os totais de cada função com os MESMOS números. */}
             <ul className="md:hidden space-y-2" aria-label="Vagas e pessoas-dia por função">
               {boardLines.length === 0 ? (
-                <li className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">Nenhuma vaga com dias de trabalho para montar o quadro.</li>
+                <li className="rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground">Nenhuma vaga com dias de trabalho para montar o quadro.</li>
               ) : boardLines.map((l) => (
-                <li key={l.functionId} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                <li key={l.functionId} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-800">{l.name}</p>
+                    <p className="truncate text-sm font-semibold text-foreground">{l.name}</p>
                   </div>
                   <dl className="flex shrink-0 gap-3 text-right">
-                    <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Vagas</dt><dd className="text-sm font-bold tabular-nums text-slate-800">{l.vagas}</dd></div>
-                    <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Pessoas-dia</dt><dd className="text-sm font-bold tabular-nums text-primary">{l.total}</dd></div>
+                    <div><dt className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Vagas</dt><dd className="text-sm font-bold tabular-nums text-foreground">{l.vagas}</dd></div>
+                    <div><dt className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Pessoas-dia</dt><dd className="text-sm font-bold tabular-nums text-primary">{l.total}</dd></div>
                   </dl>
                 </li>
               ))}
@@ -1433,7 +1436,7 @@ export default function ScalingEventViewPage() {
             <div className="hidden md:block">
               <ScheduleBoard rows={boardRows} functionNameById={functionNameById} rangeStart={selectedEvent?.startDate} rangeEnd={selectedEvent?.endDate} />
             </div>
-            <p className="text-[11px] text-slate-500">Quadro função × dia — vagas negadas e excluídas não entram na soma.</p>
+            <p className="text-2xs text-muted-foreground">Quadro função × dia — vagas negadas e excluídas não entram na soma.</p>
           </TabsContent>
 
           {/* ── ABA 4: Pedidos ── */}
@@ -1441,7 +1444,7 @@ export default function ScalingEventViewPage() {
             {requests.length === 0 ? (
               <EmptyState
                 live={false}
-                className="rounded-2xl"
+                className="rounded-xl"
                 icon={PencilLine}
                 title={eventId ? "Nenhum pedido neste evento" : "Nenhum pedido nos eventos do recorte"}
                 description="As áreas não abriram pedidos de ajuste, inclusão ou exclusão."
@@ -1450,10 +1453,10 @@ export default function ScalingEventViewPage() {
               <>
                 {/* Mesma barra da Lista (busca + dois Selects): a aba tinha só a tabela, e
                     com dezenas de pedidos achar um era rolar a tela inteira. */}
-                <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                <div className="flex flex-wrap items-end gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5">
                   <div className="relative min-w-[240px] flex-1 space-y-1">
                     <Label htmlFor="ev-req-search" className="sr-only">Buscar pedido</Label>
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                     <Input id="ev-req-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID, área, pessoa ou texto" className="h-8 pl-8 rounded-lg text-xs" />
                   </div>
                   <div className="min-w-[150px]">
@@ -1484,7 +1487,7 @@ export default function ScalingEventViewPage() {
                 {filteredRequests.length === 0 ? (
                   <EmptyState
                     live={false}
-                    className="rounded-2xl"
+                    className="rounded-xl"
                     variant="filtered"
                     title="Nada encontrado com esses filtros"
                     description="Ajuste a busca, o tipo ou o status do pedido."
@@ -1492,11 +1495,11 @@ export default function ScalingEventViewPage() {
                   />
                 ) : (
                   <>
-                    <div className="hidden md:block rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
                       <div className={SCROLL_X} tabIndex={0} role="region" aria-label="Tabela de pedidos (rolagem horizontal)">
                         <table className="w-full min-w-[900px] text-sm">
                           <caption className="sr-only">{eventId ? "Histórico de pedidos do evento" : "Histórico de pedidos dos eventos do recorte"}</caption>
-                          <thead className="bg-slate-50 border-b border-slate-200">
+                          <thead className="bg-surface-muted border-b border-border">
                             <tr>
                               <th className={TH}>Tipo</th>
                               <th className={cn(TH, "min-w-[240px]")}>Função / vaga</th>
@@ -1508,29 +1511,29 @@ export default function ScalingEventViewPage() {
                           </thead>
                           <tbody>
                             {filteredRequests.map((r, i) => (
-                              <tr key={r.id} className={cn("border-b border-slate-100 align-top", i % 2 === 1 ? "bg-slate-50/40" : "bg-white")}>
+                              <tr key={r.id} className={cn("border-b border-border align-top", i % 2 === 1 ? "bg-surface-muted/40" : "bg-card")}>
                                 <td className="px-3 py-2.5 align-top"><RequestTypeBadge type={r.requestType} /></td>
                                 <td className="px-3 py-2.5 align-top max-w-[280px]">
-                                  <span className="block text-[13px] font-semibold text-slate-800 truncate">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
+                                  <span className="block text-sm font-semibold text-foreground truncate">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
                                   {/* Sem filtro de evento, o pedido precisa dizer de qual ele é. */}
-                                  {!eventId && <span className="block truncate text-[11px] font-semibold text-slate-500" title={eventNameOf(r)}>{eventNameOf(r)}</span>}
-                                  <span className="block font-mono text-[11px] text-slate-500">
+                                  {!eventId && <span className="block truncate text-2xs font-semibold text-muted-foreground" title={eventNameOf(r)}>{eventNameOf(r)}</span>}
+                                  <span className="block font-mono text-2xs text-muted-foreground">
                                     {r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}
                                   </span>
                                   {r.reason && <span className="mt-0.5 block text-xs text-slate-600 line-clamp-2" title={r.reason}>{r.reason}</span>}
                                 </td>
                                 <td className="px-3 py-2.5 align-top whitespace-nowrap">
-                                  <span className="block font-mono text-[11px] text-slate-500">{formatDateTimeBr(r.createdAt)}</span>
-                                  <span className="block text-[11px] text-slate-500">por {r.requestedByName}</span>
+                                  <span className="block font-mono text-2xs text-muted-foreground">{formatDateTimeBr(r.createdAt)}</span>
+                                  <span className="block text-2xs text-muted-foreground">por {r.requestedByName}</span>
                                 </td>
                                 <td className="px-3 py-2.5 align-top"><RequestStatusBadge status={r.status} /></td>
                                 <td className="px-3 py-2.5 align-top min-w-[300px]">
                                   {r.reviewedByName ? (
                                     <>
-                                      <span className="block text-[11px] text-slate-500">{r.reviewedByName} · {formatDateTimeBr(r.reviewedAt)}</span>
+                                      <span className="block text-2xs text-muted-foreground">{r.reviewedByName} · {formatDateTimeBr(r.reviewedAt)}</span>
                                       {r.reviewComment && <span className="block text-xs text-slate-700 whitespace-pre-wrap break-words">{r.reviewComment}</span>}
                                     </>
-                                  ) : <span className="text-xs text-slate-500">Aguardando decisão do aprovador.</span>}
+                                  ) : <span className="text-xs text-muted-foreground">Aguardando decisão do aprovador.</span>}
                                 </td>
                                 {canOpenApproval && <td className="px-3 py-2.5 align-top text-right">{approvalLink(r)}</td>}
                               </tr>
@@ -1542,21 +1545,21 @@ export default function ScalingEventViewPage() {
 
                     <ul className="md:hidden space-y-2" aria-label={eventId ? "Pedidos do evento" : "Pedidos dos eventos do recorte"}>
                       {filteredRequests.map((r) => (
-                        <li key={r.id} className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                        <li key={r.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
                           <div className="flex flex-wrap items-start gap-1.5">
                             <RequestTypeBadge type={r.requestType} />
                             <RequestStatusBadge status={r.status} />
                           </div>
-                          <p className="text-sm font-semibold text-slate-800">
+                          <p className="text-sm font-semibold text-foreground">
                             {functionNameById.get(r.functionId) ?? "Sem função"}
-                            <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}</span>
+                            <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">{r.teamInclusionId ? `vaga #${rowById.get(r.teamInclusionId)?.inclusionNumber ?? "?"}` : "vaga nova"}</span>
                           </p>
                           {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(r)}</p>}
                           <p className={LABEL}>por {r.requestedByName} · {formatDateTimeBr(r.createdAt)}</p>
                           {r.reason && <p className="text-xs text-slate-600">{r.reason}</p>}
                           {r.reviewedByName && (
-                            <p className="border-t border-slate-100 pt-2 text-xs text-slate-700">
-                              <span className="block text-xs text-slate-500">{CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status} · {r.reviewedByName} · {formatDateTimeBr(r.reviewedAt)}</span>
+                            <p className="border-t border-border pt-2 text-xs text-slate-700">
+                              <span className="block text-xs text-muted-foreground">{CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status} · {r.reviewedByName} · {formatDateTimeBr(r.reviewedAt)}</span>
                               {r.reviewComment}
                             </p>
                           )}
@@ -1581,15 +1584,15 @@ export default function ScalingEventViewPage() {
               O arquivo sai com a aba aberta agora — <strong className="font-semibold text-slate-700">{TAB_LABEL[effectiveTab]}</strong> — com os filtros aplicados agora, separado por ponto e vírgula, pronto para o Excel.
             </DialogDescription>
           </DialogHeader>
-          <ul className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <ul className="overflow-hidden rounded-lg border border-border bg-card">
             {/* "Evento" é a primeira coluna no modo "todos" (o quadro Escala só existe com evento). */}
             {[...(!eventId && effectiveTab !== "escala" ? [EXPORT_EVENT_COL] : []), ...EXPORT_COLS[effectiveTab]].map(([grupo, cols]) => (
-              <li key={grupo} className="border-b border-slate-100 px-3 py-1.5 text-xs text-slate-500 last:border-b-0">
+              <li key={grupo} className="border-b border-border px-3 py-1.5 text-xs text-muted-foreground last:border-b-0">
                 <span className="font-semibold text-slate-700">{grupo}</span> {cols}
               </li>
             ))}
           </ul>
-          <p className="font-mono text-[11px] text-slate-500 break-all">{exportFilename}</p>
+          <p className="font-mono text-2xs text-muted-foreground break-all">{exportFilename}</p>
           <DialogFooter>
             <Button type="button" variant="outline" className="rounded-lg" onClick={() => setExportOpen(false)}>Cancelar</Button>
             <Button type="button" className="rounded-lg" onClick={exportCsv}>Baixar CSV</Button>

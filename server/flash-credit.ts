@@ -55,13 +55,28 @@
  *
  * Falha aqui NUNCA derruba a decisão do comparativo: a rota chama a versão
  * `safe*` e devolve `flashCredit: { ok: false }` para o client avisar.
+ *
+ * ── Como grava (23/09) ─────────────────────────────────────────────────────
+ * Antes o sync lia `flash_movements` INTEIRA para filtrar em memória e fazia
+ * um create/update/delete por lançamento, fora de transação: duas aprovações
+ * quase simultâneas (dois cliques em "Ressincronizar") disputavam a unique
+ * (source_ref, category) e uma delas estourava no meio, deixando metade dos
+ * lançamentos. Agora: lê só `source_type='comparativo' AND event_id = X`
+ * (índice flash_movements_source_event_idx), decide tudo em memória
+ * (`planejarSyncFlash`, regra pura) e grava numa transação travada por
+ * advisory lock do evento — INSERT multi-linha, DELETE em lote. A trilha de
+ * auditoria sai DEPOIS do commit, para não registrar o que foi desfeito.
  */
+import { db } from "./db";
 import { storage } from "./storage";
-import type { FlashMovement } from "@shared/schema";
+import { flashMovements, type FlashMovement } from "@shared/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { hojeISO } from "@shared/hoje-sp";
 import {
   FLASH_SOURCE_COMPARATIVO,
   flashComparativoDescription, flashComparisonTotals, flashMovementKey,
-  flashMovementsForComparison, type FlashCategory,
+  flashMovementsForComparison, type FlashCategory, type FlashComparisonMovement,
 } from "@shared/flash-rules";
 
 export interface FlashSyncActor {
@@ -98,19 +113,84 @@ const emptyResult = (error?: string): FlashComparisonSyncResult => ({
   alimentacaoCents: 0, mobilidadeCents: 0, movementIds: [], ...(error ? { error } : {}),
 });
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
 const SOURCE_COMPARATIVO = FLASH_SOURCE_COMPARATIVO;
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
- * Lançamentos automáticos que pertencem ao comparativo do evento.
- * Uma leitura só (a tabela é pequena) em vez de N consultas por prestação —
- * e pega também os órfãos, cujo budget_actual já não existe.
+ * Lançamentos automáticos que pertencem ao comparativo do evento — só eles,
+ * filtrados no banco. Pega também os órfãos, cujo budget_actual já não existe.
  */
-async function currentComparisonMovements(eventId: string): Promise<FlashMovement[]> {
-  const all = await storage.getFlashMovements();
-  return all.filter(m => m.sourceType === FLASH_SOURCE_COMPARATIVO && m.eventId === eventId);
+function currentComparisonMovements(exec: Pick<Tx, "select">, eventId: string): Promise<FlashMovement[]> {
+  return exec.select().from(flashMovements)
+    .where(and(eq(flashMovements.sourceType, SOURCE_COMPARATIVO), eq(flashMovements.eventId, eventId)));
 }
+
+// ---------- Plano do sync (regra pura) ----------
+export interface AtualizacaoDeLancamento {
+  prev: FlashMovement;
+  changes: { amountCents: number; collaboratorId: string; eventId: string; description: string };
+}
+
+export interface PlanoDeSyncFlash {
+  /** a criar, na ordem de `wanted` (ids já gerados: o RETURNING multi-linha não promete ordem) */
+  criar: Array<FlashComparisonMovement & { id: string }>;
+  atualizar: AtualizacaoDeLancamento[];
+  /** automáticos que a regra não quer mais */
+  remover: FlashMovement[];
+  /** ids vigentes após o sync, na ordem de `wanted` */
+  movementIds: string[];
+}
+
+/**
+ * Compara o que a regra quer com o que existe e decide criar/atualizar/remover
+ * por (sourceRef = budget_actual.id, categoria). Sem banco: é o que os testes
+ * cobrem.
+ */
+export function planejarSyncFlash(
+  wanted: FlashComparisonMovement[],
+  existing: FlashMovement[],
+  description: string,
+  eventId: string,
+  novoId: () => string = randomUUID,
+): PlanoDeSyncFlash {
+  const byKey = new Map<string, FlashMovement>();
+  for (const m of existing) byKey.set(flashMovementKey(m), m);
+
+  const plano: PlanoDeSyncFlash = { criar: [], atualizar: [], remover: [], movementIds: [] };
+  const handled = new Set<string>();
+
+  for (const w of wanted) {
+    const key = flashMovementKey({ sourceRef: w.actualId, category: w.category });
+    if (handled.has(key)) continue; // a mesma prestação/categoria duas vezes só entra uma
+    handled.add(key);
+    const prev = byKey.get(key);
+    if (prev) {
+      const changed =
+        prev.amountCents !== w.amountCents ||
+        prev.collaboratorId !== w.collaboratorId ||
+        (prev.description || "") !== description;
+      if (changed) {
+        plano.atualizar.push({ prev, changes: { amountCents: w.amountCents, collaboratorId: w.collaboratorId, eventId, description } });
+      }
+      plano.movementIds.push(prev.id);
+    } else {
+      const id = novoId();
+      plano.criar.push({ ...w, id });
+      plano.movementIds.push(id);
+    }
+  }
+
+  // Sobrou automático que a regra não quer mais (prestação apagada, marcada
+  // como "não participou", devolvida, ou valor zerado pelo RH) → remove.
+  for (const m of existing) {
+    if (!handled.has(flashMovementKey(m))) plano.remover.push(m);
+  }
+  return plano;
+}
+
+/** Lote de INSERT: o Postgres aceita até 65.535 parâmetros por comando. */
+const TAMANHO_DO_LOTE = 500;
 
 /**
  * Sincroniza os lançamentos automáticos de um comparativo com o Realizado
@@ -121,101 +201,99 @@ export async function syncFlashFromComparison(
   comparison: FlashComparisonRef,
   actor: FlashSyncActor,
 ): Promise<FlashComparisonSyncResult> {
-  const actuals = await storage.getBudgetActual(comparison.eventId);
   // O planejado entra só por causa do "não participou" marcado lá: é a marca
   // que o cálculo do comparativo usa para zerar o grupo — se o comparativo
   // conta zero, o Flash não credita.
-  const planned = await storage.getBudgetPlanned(comparison.eventId);
+  const [actuals, planned, event] = await Promise.all([
+    storage.getBudgetActual(comparison.eventId),
+    storage.getBudgetPlanned(comparison.eventId),
+    storage.getEvent(comparison.eventId),
+  ]);
   const wanted = flashMovementsForComparison(actuals as any, planned as any);
   const totals = flashComparisonTotals(wanted);
-  const event = await storage.getEvent(comparison.eventId);
   const description = flashComparativoDescription(event?.name);
+  // Data de negócio em São Paulo — em UTC, das 21h à meia-noite o lançamento
+  // ganhava a data do dia seguinte.
+  const movementDate = hojeISO();
 
-  const existing = await currentComparisonMovements(comparison.eventId);
-  const byKey = new Map<string, FlashMovement>();
-  for (const m of existing) byKey.set(flashMovementKey(m), m);
+  type Auditoria = { action: string; id: string; data: any; oldData?: any };
+  const auditorias: Auditoria[] = [];
 
-  const movementIds: string[] = [];
-  const handled = new Set<string>();
-  let created = 0, updated = 0, removed = 0;
+  const plano = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"flash:" + comparison.eventId}))`);
+    const existing = await currentComparisonMovements(tx, comparison.eventId);
+    const plano = planejarSyncFlash(wanted, existing, description, comparison.eventId);
 
-  for (const w of wanted) {
-    const key = flashMovementKey({ sourceRef: w.actualId, category: w.category });
-    handled.add(key);
-    const prev = byKey.get(key);
-    if (prev) {
-      const changed =
-        prev.amountCents !== w.amountCents ||
-        prev.collaboratorId !== w.collaboratorId ||
-        (prev.description || "") !== description;
-      if (changed) {
-        const row = await storage.updateFlashMovement(prev.id, {
-          amountCents: w.amountCents,
-          collaboratorId: w.collaboratorId,
-          eventId: comparison.eventId,
-          description,
-        });
-        if (row) await actor.audit?.("update", row.id, row, prev);
-        updated += 1;
-        movementIds.push(row?.id ?? prev.id);
-      } else {
-        movementIds.push(prev.id);
-      }
-    } else {
-      const row = await storage.createFlashMovement({
+    if (plano.criar.length > 0) {
+      const linhas = plano.criar.map((w) => ({
+        id: w.id,
         collaboratorId: w.collaboratorId,
         eventId: comparison.eventId,
         category: w.category as FlashCategory,
         type: "credito",
         amountCents: w.amountCents,
-        movementDate: todayISO(),
+        movementDate,
         description,
         createdBy: actor.userId ?? null,
         createdByName: actor.userName ?? "Sistema",
         sourceType: SOURCE_COMPARATIVO,
         sourceRef: w.actualId,
-      });
-      await actor.audit?.("create", row.id, row);
-      created += 1;
-      movementIds.push(row.id);
+      }));
+      for (let i = 0; i < linhas.length; i += TAMANHO_DO_LOTE) {
+        const criados = await tx.insert(flashMovements).values(linhas.slice(i, i + TAMANHO_DO_LOTE)).returning();
+        for (const row of criados) auditorias.push({ action: "create", id: row.id, data: row });
+      }
     }
-  }
 
-  // Sobrou automático que a regra não quer mais (prestação apagada, marcada
-  // como "não participou", devolvida, ou valor zerado pelo RH) → remove.
-  for (const m of existing) {
-    if (!handled.has(flashMovementKey(m))) {
-      await storage.deleteFlashMovement(m.id);
-      await actor.audit?.("delete", m.id, m);
-      removed += 1;
+    // Cada atualização tem valores próprios; são poucas por evento.
+    for (const { prev, changes } of plano.atualizar) {
+      const [row] = await tx.update(flashMovements).set(changes).where(eq(flashMovements.id, prev.id)).returning();
+      if (row) auditorias.push({ action: "update", id: row.id, data: row, oldData: prev });
     }
+
+    if (plano.remover.length > 0) {
+      await tx.delete(flashMovements).where(inArray(flashMovements.id, plano.remover.map((m) => m.id)));
+      for (const m of plano.remover) auditorias.push({ action: "delete", id: m.id, data: m });
+    }
+    return plano;
+  });
+
+  // Só depois do commit: auditoria do que de fato ficou gravado.
+  if (actor.audit) {
+    for (const a of auditorias) await actor.audit(a.action, a.id, a.data, a.oldData);
   }
 
   return {
     ok: true,
-    movements: movementIds.length,
-    created, updated, removed,
+    movements: plano.movementIds.length,
+    created: plano.criar.length,
+    updated: plano.atualizar.length,
+    removed: plano.remover.length,
     collaborators: new Set(wanted.map(w => w.collaboratorId)).size,
     alimentacaoCents: totals.alimentacaoCents,
     mobilidadeCents: totals.mobilidadeCents,
-    movementIds,
+    movementIds: plano.movementIds,
   };
 }
 
 /**
  * Estorno: apaga os lançamentos automáticos do comparativo (recusa/devolução).
- * Devolve quantos foram removidos.
+ * Devolve quantos foram removidos. Um DELETE só, com RETURNING para a auditoria.
  */
 export async function reverseFlashFromComparison(
   comparison: FlashComparisonRef,
   actor: FlashSyncActor,
 ): Promise<{ removed: number }> {
-  const existing = await currentComparisonMovements(comparison.eventId);
-  for (const m of existing) {
-    await storage.deleteFlashMovement(m.id);
-    await actor.audit?.("delete", m.id, m);
+  const removidos = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"flash:" + comparison.eventId}))`);
+    return await tx.delete(flashMovements)
+      .where(and(eq(flashMovements.sourceType, SOURCE_COMPARATIVO), eq(flashMovements.eventId, comparison.eventId)))
+      .returning();
+  });
+  if (actor.audit) {
+    for (const m of removidos) await actor.audit("delete", m.id, m);
   }
-  return { removed: existing.length };
+  return { removed: removidos.length };
 }
 
 /** Versão "nunca falha" para as rotas: erro vira ok=false + log. */

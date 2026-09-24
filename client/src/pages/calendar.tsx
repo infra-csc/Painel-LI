@@ -5,11 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays, ChevronLeft, ChevronRight, X, MapPin, Clock,
   CheckCircle, Play, List, LayoutGrid, AlertTriangle,
-  Users, Tag, Search, ClipboardList, Table2, Ban,
+  Users, Tag, Search, ClipboardList, Table2, Ban, Calendar, Columns3,
 } from "lucide-react";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { STATUS, getEventStatus, statusStyle, parseLocalDate as parseLocalDateOrNull } from "@/lib/event-status";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { PageHeader } from "@/components/common/page-header";
+import { campo, useUrlState } from "@/lib/use-url-state";
+import { listaDeVagasQuery } from "@/hooks/use-vaga-acoes";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 // Cores/labels e a regra de status vêm de @/lib/event-status — a MESMA fonte da
@@ -27,7 +30,7 @@ const VISIBLE_STATUSES = new Set(["concluído", "em andamento", "planejado"]);
 
 function getCfg(status: string) {
   const s = statusStyle(status);
-  return { ...s.tw, label: s.label, icon: STATUS_ICON[status] ?? Clock, pulse: s.pulse, iconName: s.iconName, iconFill: s.iconFill };
+  return { ...s.tw, label: s.label, icon: STATUS_ICON[status] ?? Clock, pulse: s.pulse };
 }
 
 // ─── Foco de diálogos flutuantes ─────────────────────────────────────────────
@@ -184,7 +187,7 @@ function LaneRow({
         style={{ gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}` }}
         title={`${bar.event.name} · ${bar.event.location}`}
         className={[
-          "h-[22px] text-[12px] font-semibold transition-opacity hover:opacity-80 flex items-center",
+          "h-[22px] text-xs font-semibold transition-opacity hover:opacity-80 flex items-center",
           cfg.bar, cfg.barText,
           bar.isStart ? "rounded-l-md ml-0.5 pl-2" : "rounded-l-none pl-1.5",
           bar.isEnd   ? "rounded-r-md mr-0.5 pr-2" : "rounded-r-none pr-0",
@@ -219,9 +222,10 @@ function EventPanel({
   const StatusIcon = cfg.icon;
   const days = dayCount(event.startDate, event.endDate);
 
-  const { data: teamInclusions = [], isLoading: loadingTeam, isError: teamError } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions"],
-  });
+  // Só as vagas DESTE evento (`?eventId=`, 24/09) — antes baixava a fila inteira.
+  const { data: teamInclusions = [], isLoading: loadingTeam, isError: teamError } = useQuery<TeamInclusion[]>(
+    listaDeVagasQuery({ eventId: event.id }),
+  );
 
   // Close on ESC
   useEffect(() => {
@@ -262,75 +266,74 @@ function EventPanel({
         aria-labelledby="event-panel-title"
         ref={panelRef}
         tabIndex={-1}
-        className="absolute bg-white rounded-2xl border border-gray-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="absolute bg-card rounded-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-150 shadow-3"
         style={{
           width: PANEL_W,
           left,
           top,
-          boxShadow: "0 12px 48px -4px rgba(0,0,0,0.22), 0 4px 16px -2px rgba(0,0,0,0.12)",
         }}
       >
         <div className={`h-[3px] w-full ${cfg.bar}`} />
         <div className="px-4 pt-3.5 pb-3">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <Badge variant="outline" className={`text-[10px] ${cfg.bg} ${cfg.text} border ${cfg.border} hover:bg-inherit`}>
+            <Badge variant="outline" className={`text-2xs ${cfg.bg} ${cfg.text} border ${cfg.border} hover:bg-inherit`}>
               <StatusIcon className="w-2.5 h-2.5 mr-1" />
               {cfg.label}
             </Badge>
             <button
               onClick={onClose}
               aria-label="Fechar detalhes do evento"
-              className="w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+              className="w-5 h-5 rounded-full bg-muted hover:bg-border flex items-center justify-center transition-colors shrink-0"
             >
-              <X className="w-3 h-3 text-gray-500" />
+              <X className="w-3 h-3 text-muted-foreground" />
             </button>
           </div>
-          <h2 id="event-panel-title" className="text-[14px] font-bold text-gray-900 leading-snug">
+          <h2 id="event-panel-title" className="text-sm font-bold text-foreground leading-snug">
             {event.name}
           </h2>
         </div>
 
-        <div className="border-t border-gray-100 mx-4" />
+        <div className="border-t border-border mx-4" />
 
         <div className="px-4 pt-3.5 pb-4 space-y-3.5">
           <div className="space-y-2.5">
             <div className="flex items-center gap-2.5">
               <MapPin className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700">{event.location}</span>
+              <span className="text-xs text-slate-700">{event.location}</span>
             </div>
             <div className="flex items-center gap-2.5">
               <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700">{formatDateRange(event.startDate, event.endDate)}</span>
+              <span className="text-xs text-slate-700">{formatDateRange(event.startDate, event.endDate)}</span>
             </div>
             <div className="flex items-center gap-2.5">
               <Clock className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-              <span className="text-[12.5px] text-gray-700">{days} {days === 1 ? "dia" : "dias"}</span>
+              <span className="text-xs text-slate-700">{days} {days === 1 ? "dia" : "dias"}</span>
             </div>
           </div>
 
-          <div className="border-t border-dashed border-gray-200" />
+          <div className="border-t border-dashed border-border" />
 
           <div className="space-y-2.5">
             {/* Nunca mostrar "0 colaboradores" quando na verdade a escala não foi carregada */}
             {loadingTeam ? (
-              <p className="text-[12.5px] text-gray-400">Carregando escala…</p>
+              <p className="text-xs text-muted-foreground">Carregando escala…</p>
             ) : teamError ? (
-              <p className="text-[12.5px] text-amber-600">
+              <p className="text-xs text-warning">
                 Não foi possível carregar a escala deste evento.
               </p>
             ) : (
               <>
                 <div className="flex items-center gap-2.5">
                   <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-                  <span className="text-[12.5px] text-gray-700">
-                    <span className="font-semibold text-gray-900">{collaboratorCount}</span>
+                  <span className="text-xs text-slate-700">
+                    <span className="font-semibold text-foreground">{collaboratorCount}</span>
                     {" "}{collaboratorCount === 1 ? "colaborador escalado" : "colaboradores escalados"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Tag className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
-                  <span className="text-[12.5px] text-gray-700">
-                    <span className="font-semibold text-gray-900">{functionCount}</span>
+                  <span className="text-xs text-slate-700">
+                    <span className="font-semibold text-foreground">{functionCount}</span>
                     {" "}{functionCount === 1 ? "função envolvida" : "funções envolvidas"}
                   </span>
                 </div>
@@ -338,21 +341,21 @@ function EventPanel({
             )}
           </div>
 
-          <div className="border-t border-dashed border-gray-200" />
+          <div className="border-t border-dashed border-border" />
 
           {/* Atalhos — Escala não lê query params (abre a tela); o Espelho lê ?eventId= */}
           <div className="flex items-center gap-2">
             <Link
               href="/scaling"
               onClick={onClose}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-slate-200 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border text-2xs font-semibold text-slate-700 hover:bg-surface-muted transition-colors"
             >
               <ClipboardList className="w-3.5 h-3.5" /> Ver escala
             </Link>
             <Link
               href={`/operational-mirror?eventId=${encodeURIComponent(event.id)}`}
               onClick={onClose}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-slate-200 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border text-2xs font-semibold text-slate-700 hover:bg-surface-muted transition-colors"
             >
               <Table2 className="w-3.5 h-3.5" /> Espelho operacional
             </Link>
@@ -434,30 +437,26 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
         aria-label={title}
         ref={popoverRef}
         tabIndex={-1}
-        className="absolute bg-white animate-in fade-in zoom-in-95 duration-150 flex flex-col"
+        className="absolute bg-card animate-in fade-in zoom-in-95 duration-150 flex flex-col rounded-xl border border-border shadow-3 overflow-hidden"
         style={{
           width: POPOVER_W,
           left,
           top,
           maxHeight: MAX_H,
-          borderRadius: 12,
-          border: "1px solid #e5e7eb",
-          boxShadow: "0 8px 32px -4px rgba(0,0,0,0.16), 0 2px 8px -1px rgba(0,0,0,0.08)",
-          overflow: "hidden",
         }}
       >
         {/* Header — always visible */}
-        <div className="px-3 py-2.5 border-b border-gray-100 shrink-0">
-          <span className="text-[11px] font-semibold text-gray-400 capitalize">{title}</span>
+        <div className="px-3 py-2.5 border-b border-border shrink-0">
+          <span className="text-2xs font-semibold text-muted-foreground capitalize">{title}</span>
         </div>
 
         {/* Scrollable list */}
         <div
-          className="overflow-y-auto divide-y divide-gray-50"
+          className="overflow-y-auto divide-y divide-border"
           style={{
             maxHeight: maxListH,
             scrollbarWidth: "thin",
-            scrollbarColor: "#cbd5e1 transparent",
+            scrollbarColor: "var(--border) transparent",
           }}
         >
           {dayEvents.map(ev => {
@@ -467,19 +466,19 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
               <button
                 key={ev.id}
                 onClick={(e) => { e.stopPropagation(); onSelectEvent(ev, { x: e.clientX, y: e.clientY }); onClose(); }}
-                className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#f8fafc] text-left transition-colors"
+                className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-surface-muted text-left transition-colors"
               >
                 <div className={`w-6 h-6 rounded-lg ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0 mt-0.5`}>
                   <StatusIcon className={`w-3 h-3 ${cfg.text}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p
-                    className="text-[12.5px] font-semibold text-gray-800 leading-snug"
-                    style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                    className="text-xs font-semibold text-foreground leading-snug overflow-hidden"
+                    style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
                   >
                     {ev.name}
                   </p>
-                  <p className="text-[11px] text-gray-400 truncate leading-tight mt-0.5">{ev.location}</p>
+                  <p className="text-2xs text-muted-foreground truncate leading-tight mt-0.5">{ev.location}</p>
                 </div>
               </button>
             );
@@ -542,7 +541,7 @@ function OverflowRow({ bars, week, allEvents, onOpenPopover }: {
               const dayEvents = getDayEvents(day);
               onOpenPopover({ day, dayEvents, x: e.clientX, y: e.clientY });
             }}
-            className="h-[22px] mx-0.5 rounded-md px-2 text-[11px] font-semibold text-[#374151] bg-[#f1f5f9] hover:bg-[#e2e8f0] transition-colors text-left truncate"
+            className="h-[22px] mx-0.5 rounded-md px-2 text-2xs font-semibold text-slate-700 bg-muted hover:bg-border transition-colors text-left truncate"
           >
             + {hiddenCount} {hiddenCount === 1 ? "evento" : "eventos"}
           </button>
@@ -619,11 +618,11 @@ function MonthView({
 
   return (
     <>
-      <div className="flex flex-col h-full bg-white rounded-[32px] border border-slate-200 overflow-hidden" style={{ boxShadow: "0 20px 60px -10px rgba(148,163,184,0.3), 0 4px 16px -4px rgba(148,163,184,0.2)" }}>
+      <div className="flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden shadow-3">
         {/* Weekday header */}
-        <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50 shrink-0">
+        <div className="grid grid-cols-7 border-b border-border bg-surface-muted/50 shrink-0">
           {WEEKDAY_LABELS.map((d, i) => (
-            <div key={d} className={`py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] ${i === 0 || i === 6 ? "text-slate-400" : "text-slate-400"}`}>
+            <div key={d} className={`py-4 text-center text-2xs font-black uppercase tracking-[0.2em] ${i === 0 || i === 6 ? "text-muted-foreground" : "text-muted-foreground"}`}>
               <span className="hidden sm:inline">{d}</span>
               <span className="sm:hidden">{d.slice(0, 3)}</span>
             </div>
@@ -631,15 +630,15 @@ function MonthView({
         </div>
 
         {!monthHasEvents && (
-          <div className="shrink-0 border-b border-slate-100">
+          <div className="shrink-0 border-b border-border">
             <CalendarEmptyState label="neste mês" />
           </div>
         )}
 
         {/* Week rows — minmax ensures minimum height so last row never gets clipped */}
         <div
-          className="flex-1 min-h-0 overflow-y-auto"
-          style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, minmax(112px, 1fr))` }}
+          className="flex-1 min-h-0 overflow-y-auto grid"
+          style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(112px, 1fr))` }}
         >
           {weeks.map((week, wi) => {
             const bars = weekBars[wi];
@@ -648,9 +647,9 @@ function MonthView({
             const hasOverflow = bars.some(b => b.lane >= MAX_VISIBLE_LANES);
 
             return (
-              <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100" : ""}`}>
+              <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-border" : ""}`}>
                 {/* ── DAY-NUMBER ZONE: exactly 28px, z-[40], never receives bars ── */}
-                <div className="relative z-[40] shrink-0 h-7 grid grid-cols-7 divide-x divide-gray-100">
+                <div className="relative z-[40] shrink-0 h-7 grid grid-cols-7 divide-x divide-border">
                   {week.map((day, di) => {
                     const isCurrentMonth = day.getMonth() === month;
                     const isToday = isSameDay(day, today);
@@ -659,16 +658,16 @@ function MonthView({
                       <div
                         key={di}
                         className={`h-full px-2 flex items-center transition-colors ${
-                          !isCurrentMonth ? "bg-slate-50/30" :
-                          isWeekend ? "bg-slate-50/40" : "bg-white"
-                        } ${isCurrentMonth ? "hover:bg-blue-50/20" : ""}`}
+                          !isCurrentMonth ? "bg-surface-muted/30" :
+                          isWeekend ? "bg-surface-muted/40" : "bg-card"
+                        } ${isCurrentMonth ? "hover:bg-brand-soft/20" : ""}`}
                       >
-                        <div className={`text-[13px] font-bold w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition-colors ${
+                        <div className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition-colors ${
                           isToday
-                            ? "bg-primary text-white shadow-md z-[50]"
+                            ? "bg-primary text-primary-foreground shadow-2 z-[50]"
                             : isCurrentMonth
-                              ? "text-slate-800"
-                              : "text-slate-300"
+                              ? "text-foreground"
+                              : "text-muted-foreground"
                         }`}>
                           {day.getDate()}
                         </div>
@@ -773,11 +772,11 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
   if (grouped.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
-          <CalendarDays className="w-7 h-7 text-slate-400" />
+        <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center">
+          <CalendarDays className="w-7 h-7 text-muted-foreground" />
         </div>
         <p className="text-sm font-semibold text-slate-600">Nenhum evento encontrado</p>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground">
           {hasFilters
             ? "Tente remover ou alterar os filtros aplicados"
             : "Ainda não há eventos cadastrados"}
@@ -798,19 +797,19 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
             {/* Month section header */}
             <div className="flex items-center gap-4 mb-4">
               <div className="flex items-center gap-2 shrink-0">
-                <h3 className={`text-[11px] font-black tracking-[0.2em] uppercase ${isCurrent ? "text-primary" : "text-slate-400"}`}>
+                <h3 className={`text-2xs font-black tracking-[0.2em] uppercase ${isCurrent ? "text-primary" : "text-muted-foreground"}`}>
                   {group.label}
                 </h3>
                 {isCurrent && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                  <span className="text-2xs font-bold uppercase tracking-wider bg-brand-soft text-primary px-1.5 py-0.5 rounded-full">
                     Este mês
                   </span>
                 )}
-                <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full font-semibold tabular-nums">
+                <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-semibold tabular-nums">
                   {group.events.length}
                 </span>
               </div>
-              <div className="flex-1 h-px bg-slate-200" />
+              <div className="flex-1 h-px bg-border" />
             </div>
 
             {/* Event cards */}
@@ -822,16 +821,11 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
                   <button
                     key={ev.id}
                     onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
-                    className="w-full bg-white p-4 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 group text-left"
+                    className="w-full bg-card p-4 rounded-xl border border-border shadow-1 hover:shadow-2 transition-shadow flex items-center gap-4 group text-left"
                   >
                     {/* Status icon */}
-                    <div className={`w-12 h-12 ${cfg.bg} ${cfg.iconText} rounded-2xl flex items-center justify-center shrink-0 relative`}>
-                      <span
-                        className="material-symbols-outlined text-2xl"
-                        style={{ fontVariationSettings: cfg.iconFill ? "'FILL' 1" : "'FILL' 0" }}
-                      >
-                        {cfg.iconName}
-                      </span>
+                    <div className={`w-12 h-12 ${cfg.bg} ${cfg.iconText} rounded-xl flex items-center justify-center shrink-0 relative`}>
+                      <cfg.icon className="h-6 w-6" aria-hidden="true" />
                       {cfg.pulse && (
                         <span className="absolute -top-1 -right-1 flex h-3 w-3">
                           <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${cfg.dot} opacity-75`} />
@@ -846,19 +840,19 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
                         {ev.name}
                       </h4>
                       <div className="flex items-center gap-4 mt-1 flex-wrap">
-                        <div className="flex items-center gap-1 text-slate-500 text-xs">
-                          <span className="material-symbols-outlined text-[15px]">location_on</span>
+                        <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                          <MapPin className="h-4 w-4" aria-hidden="true" />
                           <span className="truncate max-w-[200px]">{ev.location}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-slate-500 text-xs">
-                          <span className="material-symbols-outlined text-[15px]">calendar_today</span>
+                        <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                          <Calendar className="h-4 w-4" aria-hidden="true" />
                           {formatListDate(ev.startDate, ev.endDate)}
                         </div>
                       </div>
                     </div>
 
                     {/* Status badge */}
-                    <span className={`px-4 py-1.5 rounded-xl ${cfg.bg} ${cfg.text} text-[11px] font-bold uppercase tracking-wide shrink-0 hidden sm:block`}>
+                    <span className={`px-4 py-1.5 rounded-xl ${cfg.bg} ${cfg.text} text-2xs font-bold uppercase tracking-wide shrink-0 hidden sm:block`}>
                       {cfg.label}
                     </span>
                   </button>
@@ -906,11 +900,11 @@ const WEEK_DAY_LONG = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábad
 function CalendarEmptyState({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-10 text-center" role="status">
-      <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
-        <CalendarDays className="w-6 h-6 text-slate-400" />
+      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
+        <CalendarDays className="w-6 h-6 text-muted-foreground" />
       </div>
       <p className="text-sm font-semibold text-slate-600">Nenhum evento {label}</p>
-      <p className="text-xs text-slate-400">Use as setas para navegar ou ajuste os filtros.</p>
+      <p className="text-xs text-muted-foreground">Use as setas para navegar ou ajuste os filtros.</p>
     </div>
   );
 }
@@ -940,24 +934,24 @@ function WeekView({ weekStart, events, onSelectEvent }: {
   const isWeekend = (i: number) => i === 5 || i === 6;
 
   return (
-    <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "100%" }}>
+    <div className="bg-card rounded-xl border border-border shadow-1 overflow-hidden flex flex-col" style={{ height: "100%" }}>
 
       {/* Day header row — só em md+; no mobile cada dia tem seu próprio cabeçalho */}
-      <div className="hidden md:grid grid-cols-7 border-b border-slate-200 shrink-0">
+      <div className="hidden md:grid grid-cols-7 border-b border-border shrink-0">
         {days.map((day, i) => {
           const isToday = day.getTime() === today.getTime();
           return (
             <div
               key={i}
-              className={`py-4 px-2 text-center border-r border-slate-100 last:border-r-0
-                ${isWeekend(i) ? "bg-slate-50/60" : ""}
-                ${isToday ? "bg-blue-50/70" : ""}
+              className={`py-4 px-2 text-center border-r border-border last:border-r-0
+                ${isWeekend(i) ? "bg-surface-muted/60" : ""}
+                ${isToday ? "bg-brand-soft/70" : ""}
               `}
             >
-              <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isToday ? "text-primary" : "text-slate-400"}`}>
+              <p className={`text-2xs font-bold uppercase tracking-widest mb-1 ${isToday ? "text-primary" : "text-muted-foreground"}`}>
                 {WEEK_DAY_SHORT[i]}
               </p>
-              <p className={`text-2xl font-black leading-none ${isToday ? "text-primary" : "text-slate-800"}`}>
+              <p className={`text-2xl font-black leading-none ${isToday ? "text-primary" : "text-foreground"}`}>
                 {day.getDate()}
               </p>
               {isToday && <div className="w-1.5 h-1.5 bg-primary rounded-full mx-auto mt-2" />}
@@ -967,7 +961,7 @@ function WeekView({ weekStart, events, onSelectEvent }: {
       </div>
 
       {!weekHasEvents && (
-        <div className="shrink-0 border-b border-slate-100">
+        <div className="shrink-0 border-b border-border">
           <CalendarEmptyState label="nesta semana" />
         </div>
       )}
@@ -981,21 +975,21 @@ function WeekView({ weekStart, events, onSelectEvent }: {
             return (
               <div
                 key={i}
-                className={`border-b md:border-b-0 md:border-r border-slate-100 last:border-r-0 last:border-b-0 p-2 flex flex-col gap-2 md:min-h-[260px]
-                  ${isWeekend(i) ? "bg-slate-50/30" : ""}
-                  ${isToday ? "bg-blue-50/20" : ""}
+                className={`border-b md:border-b-0 md:border-r border-border last:border-r-0 last:border-b-0 p-2 flex flex-col gap-2 md:min-h-[260px]
+                  ${isWeekend(i) ? "bg-surface-muted/30" : ""}
+                  ${isToday ? "bg-brand-soft/20" : ""}
                 `}
               >
                 {/* Cabeçalho do dia (mobile) */}
                 <div className="md:hidden flex items-center gap-2 px-1 pt-1">
-                  <span className={`text-lg font-black leading-none ${isToday ? "text-primary" : "text-slate-800"}`}>{day.getDate()}</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? "text-primary" : "text-slate-400"}`}>
+                  <span className={`text-lg font-black leading-none ${isToday ? "text-primary" : "text-foreground"}`}>{day.getDate()}</span>
+                  <span className={`text-2xs font-bold uppercase tracking-widest ${isToday ? "text-primary" : "text-muted-foreground"}`}>
                     {WEEK_DAY_LONG[i]}
                   </span>
-                  {isToday && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-primary px-1.5 py-0.5 rounded-full">Hoje</span>}
+                  {isToday && <span className="ml-auto text-2xs font-bold uppercase tracking-wider bg-brand-soft text-primary px-1.5 py-0.5 rounded-full">Hoje</span>}
                 </div>
                 {dayEvents.length === 0 && (
-                  <span className="text-[10px] text-slate-300 select-none px-1 md:mx-auto md:mt-6">
+                  <span className="text-2xs text-muted-foreground select-none px-1 md:mx-auto md:mt-6">
                     <span className="md:hidden">Sem eventos</span>
                     <span className="hidden md:inline">–</span>
                   </span>
@@ -1006,21 +1000,21 @@ function WeekView({ weekStart, events, onSelectEvent }: {
                     <button
                       key={ev.id}
                       onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
-                      className={`w-full text-left rounded-xl p-2.5 border-l-4 shadow-sm hover:shadow-md transition-shadow ${cfg.panelBg} ${cfg.edge}`}
+                      className={`w-full text-left rounded-xl p-2.5 border-l-4 shadow-1 hover:shadow-2 transition-shadow ${cfg.panelBg} ${cfg.edge}`}
                     >
                       {cfg.pulse && (
                         <div className="flex items-center gap-1 mb-1">
                           <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse shrink-0`} />
-                          <p className={`text-[10px] font-bold uppercase tracking-tight ${cfg.text}`}>
+                          <p className={`text-2xs font-bold uppercase tracking-tight ${cfg.text}`}>
                             {cfg.label}
                           </p>
                         </div>
                       )}
-                      <p className="text-[11px] font-black leading-snug text-slate-900">
+                      <p className="text-2xs font-black leading-snug text-foreground">
                         {ev.name}
                       </p>
                       {ev.location && (
-                        <p className={`text-[10px] mt-1 font-medium truncate ${cfg.text} opacity-80`}>
+                        <p className={`text-2xs mt-1 font-medium truncate ${cfg.text} opacity-80`}>
                           {ev.location}
                         </p>
                       )}
@@ -1041,14 +1035,34 @@ function WeekView({ weekStart, events, onSelectEvent }: {
 export default function CalendarPage() {
   usePageTitle("Calendário");
   const today = new Date();
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [view, setView] = useState<"month" | "week" | "list">("month");
-  const [viewWeekStart, setViewWeekStart] = useState(() => getWeekStart(new Date()));
+  // Visão, mês/semana, status e busca na URL (23/09): voltar para o calendário
+  // devolve o mesmo mês e o mesmo recorte; o link copiado também.
+  const [urlState, setUrlState] = useUrlState({
+    visao: campo.opcao<"month" | "week" | "list">("month"),
+    mes: campo.texto(""),      // AAAA-MM
+    semana: campo.texto(""),   // AAAA-MM-DD (segunda-feira)
+    status: campo.texto("all"),
+    q: campo.texto(""),
+  });
+  const view = urlState.visao;
+  const setView = (v: "month" | "week" | "list") => setUrlState({ visao: v });
+  const { viewYear, viewMonth } = useMemo(() => {
+    const m = /^(d{4})-(d{2})$/.exec(urlState.mes);
+    return m ? { viewYear: Number(m[1]), viewMonth: Number(m[2]) - 1 } : { viewYear: today.getFullYear(), viewMonth: today.getMonth() };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlState.mes]);
+  const viewWeekStart = useMemo(() => {
+    const m = /^(d{4})-(d{2})-(d{2})$/.exec(urlState.semana);
+    return m ? getWeekStart(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : getWeekStart(new Date());
+  }, [urlState.semana]);
+  const mesNaUrl = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, "0")}`;
+  const diaNaUrl = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [clickPos, setClickPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const statusFilter = urlState.status;
+  const setStatusFilter = (v: string) => setUrlState({ status: v });
+  const searchQuery = urlState.q;
+  const setSearchQuery = (v: string) => setUrlState({ q: v });
 
   function handleSelectEvent(e: Event, pos: { x: number; y: number }) {
     setClickPos(pos);
@@ -1088,20 +1102,17 @@ export default function CalendarPage() {
   }, [visibleEvents, statusFilter, searchQuery]);
 
   function prevMonth() {
-    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
-    else setViewMonth(m => m - 1);
+    setUrlState({ mes: viewMonth === 0 ? mesNaUrl(viewYear - 1, 11) : mesNaUrl(viewYear, viewMonth - 1) });
   }
   function nextMonth() {
-    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
-    else setViewMonth(m => m + 1);
+    setUrlState({ mes: viewMonth === 11 ? mesNaUrl(viewYear + 1, 0) : mesNaUrl(viewYear, viewMonth + 1) });
   }
   function goToday() {
-    setViewYear(today.getFullYear());
-    setViewMonth(today.getMonth());
-    setViewWeekStart(getWeekStart(today));
+    // Vazio = hoje: a URL fica limpa quando se está no mês/semana corrente.
+    setUrlState({ mes: "", semana: "" });
   }
-  function prevWeek() { setViewWeekStart(w => addDays(w, -7)); }
-  function nextWeek() { setViewWeekStart(w => addDays(w, 7)); }
+  function prevWeek() { setUrlState({ semana: diaNaUrl(addDays(viewWeekStart, -7)) }); }
+  function nextWeek() { setUrlState({ semana: diaNaUrl(addDays(viewWeekStart, 7)) }); }
 
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
   const currentWeekStart = getWeekStart(today);
@@ -1121,43 +1132,38 @@ export default function CalendarPage() {
   return (
     <div className="flex flex-col gap-3 h-[calc(100vh-48px)] lg:h-[calc(100vh-64px)] max-w-6xl mx-auto">
 
-      {/* ── Header + Control bar (single row) ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 shrink-0">
-
-        {/* Left: icon + title + month nav */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-soft text-primary shrink-0">
-              <CalendarDays className="w-4 h-4" aria-hidden="true" />
-            </div>
-            <div>
-              <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Calendário</h1>
-              <p className="text-xs text-slate-500 leading-tight" aria-live="polite">
-                {isLoading
-                  ? "Carregando eventos…"
-                  : loadErrorMessage
-                    ? "Contagem indisponível"
-                    : `${visibleEvents.length} ${visibleEvents.length === 1 ? "evento" : "eventos"} ativos`}
-              </p>
-            </div>
-          </div>
-
+      {/* Cabeçalho padrão (23/09): PageHeader no lugar do h1 manual; navegação de
+          mês/semana entra como `context`, busca/filtros/visão como `actions`. */}
+      <PageHeader
+        icon={CalendarDays}
+        title="Calendário"
+        subtitle={
+          <span aria-live="polite">
+            {isLoading
+              ? "Carregando eventos…"
+              : loadErrorMessage
+                ? "Contagem indisponível"
+                : `${visibleEvents.length} ${visibleEvents.length === 1 ? "evento" : "eventos"} ativos`}
+          </span>
+        }
+        className="items-center bg-card px-5 py-3 rounded-xl shadow-1 border border-border shrink-0"
+        context={<>
           {/* Month nav — only in month view */}
           {view === "month" && (
-            <div className="flex items-center gap-1 ml-2 border-l border-slate-100 pl-4">
-              <button onClick={prevMonth} aria-label="Mês anterior" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+            <div className="flex items-center gap-1 ml-2 border-l border-border pl-4">
+              <button onClick={prevMonth} aria-label="Mês anterior" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-sm font-bold text-slate-800 min-w-[140px] text-center">
+              <span className="text-sm font-bold text-foreground min-w-[140px] text-center">
                 {MONTH_NAMES[viewMonth]} {viewYear}
               </span>
-              <button onClick={nextMonth} aria-label="Próximo mês" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+              <button onClick={nextMonth} aria-label="Próximo mês" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button
                 onClick={goToday}
                 className={`ml-1 px-3 py-1 border rounded-lg text-xs font-bold transition-all ${
-                  isCurrentMonth ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                  isCurrentMonth ? "border-primary/25 bg-brand-soft text-primary" : "border-border text-muted-foreground hover:bg-surface-muted"
                 }`}
               >
                 Hoje
@@ -1173,23 +1179,23 @@ export default function CalendarPage() {
               ? `${viewWeekStart.getDate()} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
               : `${viewWeekStart.getDate()} ${MONTH_NAMES[viewWeekStart.getMonth()]} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
             return (
-              <div className="flex items-center gap-1 ml-2 border-l border-slate-100 pl-4">
-                <button onClick={prevWeek} aria-label="Semana anterior" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+              <div className="flex items-center gap-1 ml-2 border-l border-border pl-4">
+                <button onClick={prevWeek} aria-label="Semana anterior" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-2 min-w-[200px] justify-center">
-                  <span className="text-sm font-bold text-slate-800">{rangeLabel}</span>
-                  <span className="px-2 py-0.5 bg-blue-50 text-primary text-[10px] font-bold rounded-full uppercase tracking-wider">
+                  <span className="text-sm font-bold text-foreground">{rangeLabel}</span>
+                  <span className="px-2 py-0.5 bg-brand-soft text-primary text-2xs font-bold rounded-full uppercase tracking-wider">
                     Sem. {isoWeekNumber(viewWeekStart)}
                   </span>
                 </div>
-                <button onClick={nextWeek} aria-label="Próxima semana" className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+                <button onClick={nextWeek} aria-label="Próxima semana" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
                   <ChevronRight className="w-4 h-4" />
                 </button>
                 <button
                   onClick={goToday}
                   className={`ml-1 px-3 py-1 border rounded-lg text-xs font-bold transition-all ${
-                    isCurrentWeek ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                    isCurrentWeek ? "border-primary/25 bg-brand-soft text-primary" : "border-border text-muted-foreground hover:bg-surface-muted"
                   }`}
                 >
                   Hoje
@@ -1197,32 +1203,30 @@ export default function CalendarPage() {
               </div>
             );
           })()}
-        </div>
-
-        {/* Right: search + status filters + view toggle */}
-        <div className="flex items-center gap-2 flex-wrap">
+        </>}
+        actions={<>
 
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Buscar evento…"
               aria-label="Buscar evento por nome ou local"
-              className="h-8 pl-8 pr-3 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 placeholder-slate-400 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all w-40"
+              className="h-8 pl-8 pr-3 text-xs rounded-xl border border-border bg-surface-muted text-slate-700 placeholder:text-muted-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/25 transition-all w-40"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setSearchQuery("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
                 <X className="w-3 h-3" />
               </button>
             )}
           </div>
 
           {/* Status filter pills */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-0.5">Filtros:</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-muted rounded-xl border border-border">
+            <span className="text-2xs font-black text-muted-foreground uppercase tracking-widest mr-0.5">Filtros:</span>
             {legendItems.map(item => {
               const count = statusCounts[item.key] || 0;
               const isActive = statusFilter === item.key;
@@ -1231,30 +1235,30 @@ export default function CalendarPage() {
                   key={item.key}
                   onClick={() => setStatusFilter(isActive ? "all" : item.key)}
                   aria-pressed={isActive}
-                  className={`flex items-center gap-1.5 text-[11px] font-bold transition-all px-2 py-0.5 rounded-lg ${
-                    isActive ? `${item.bg} ${item.text}` : "text-slate-500 hover:bg-slate-100"
+                  className={`flex items-center gap-1.5 text-2xs font-bold transition-all px-2 py-0.5 rounded-lg ${
+                    isActive ? `${item.bg} ${item.text}` : "text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full ${item.dot}`} />
                   {item.label}
-                  <span className={`tabular-nums text-[10px] ${isActive ? "opacity-70" : "text-slate-400"}`}>{count}</span>
+                  <span className={`tabular-nums text-2xs ${isActive ? "opacity-70" : "text-muted-foreground"}`}>{count}</span>
                 </button>
               );
             })}
             {statusFilter !== "all" && (
-              <button onClick={() => setStatusFilter("all")} aria-label="Limpar filtro de status" className="text-[10px] text-slate-400 hover:text-red-500 font-bold ml-1">
+              <button onClick={() => setStatusFilter("all")} aria-label="Limpar filtro de status" className="text-2xs text-muted-foreground hover:text-danger-strong font-bold ml-1">
                 <X className="w-3 h-3" />
               </button>
             )}
           </div>
 
           {/* View toggle */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-xl">
             <button
               onClick={() => setView("month")}
               aria-pressed={view === "month"}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                view === "month" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
+                view === "month" ? "bg-primary text-primary-foreground shadow-1" : "text-muted-foreground hover:bg-border"
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" /> Mês
@@ -1263,41 +1267,41 @@ export default function CalendarPage() {
               onClick={() => setView("week")}
               aria-pressed={view === "week"}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                view === "week" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
+                view === "week" ? "bg-primary text-primary-foreground shadow-1" : "text-muted-foreground hover:bg-border"
               }`}
             >
-              <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 0" }}>view_week</span>
+              <Columns3 className="h-3.5 w-3.5" aria-hidden="true" />
               Semana
             </button>
             <button
               onClick={() => setView("list")}
               aria-pressed={view === "list"}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                view === "list" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
+                view === "list" ? "bg-primary text-primary-foreground shadow-1" : "text-muted-foreground hover:bg-border"
               }`}
             >
               <List className="w-3.5 h-3.5" /> Lista
             </button>
           </div>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Calendar / Week / List ── */}
       <div className="flex-1 min-h-0">
         {isLoading ? (
-          <div className="h-full bg-white rounded-[32px] border border-slate-200 flex items-center justify-center">
+          <div className="h-full bg-card rounded-xl border border-border flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" role="status" aria-label="Carregando calendário" />
           </div>
         ) : loadErrorMessage ? (
           <div
             role="alert"
-            className="h-full bg-white rounded-[32px] border border-amber-200 flex flex-col items-center justify-center gap-3 text-center px-6"
+            className="h-full bg-card rounded-xl border border-warning/25 flex flex-col items-center justify-center gap-3 text-center px-6"
           >
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center">
-              <AlertTriangle className="w-7 h-7 text-amber-500" />
+            <div className="w-14 h-14 rounded-xl bg-warning-soft flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7 text-warning-strong" />
             </div>
             <p className="text-sm font-semibold text-slate-700">Não foi possível carregar o calendário</p>
-            <p className="text-xs text-slate-500 max-w-sm">{loadErrorMessage}</p>
+            <p className="text-xs text-muted-foreground max-w-sm">{loadErrorMessage}</p>
           </div>
         ) : view === "month" ? (
           <MonthView

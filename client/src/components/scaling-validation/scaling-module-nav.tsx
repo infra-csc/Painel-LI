@@ -51,10 +51,10 @@ export function ScalingModuleNav({ current, eventId, className }: ScalingModuleN
       {visible.map((s) => {
         const active = s.key === current;
         const cls = cn(
-          "inline-flex items-center gap-1.5 rounded-full border pl-1 pr-1 sm:pr-2.5 py-0.5 text-[11px] font-medium leading-4 transition-colors",
+          "inline-flex items-center gap-1.5 rounded-full border pl-1 pr-1 sm:pr-2.5 py-0.5 text-2xs font-medium leading-4 transition-colors",
           active
             ? "border-primary/30 bg-brand-soft text-primary cursor-default"
-            : "border-slate-200 bg-white text-slate-500 hover:border-primary/30 hover:text-primary",
+            : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-primary",
         );
         /*
          * O número em círculo é o que transforma quatro pills irmãs numa fila
@@ -65,8 +65,8 @@ export function ScalingModuleNav({ current, eventId, className }: ScalingModuleN
           <span
             aria-hidden="true"
             className={cn(
-              "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums",
-              active ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-400",
+              "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-2xs font-bold tabular-nums",
+              active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
             )}
           >
             {s.passo}

@@ -11,7 +11,7 @@ o app roda dentro de um iframe do portal.
 
 ```bash
 npm install
-cp .env.example .env   # preencha DATABASE_URL, SESSION_SECRET e SSO_SECRET
+cp .env.example .env   # preencha DATABASE_URL, SESSION_SECRET, SSO_SECRET e PORTAL_ORIGIN
 npm run dev            # sobe API + client em http://localhost:5000
 ```
 
@@ -22,6 +22,9 @@ npm run dev            # sobe API + client em http://localhost:5000
 | `npm start` | Roda o build de produção |
 | `npm run check` | Type-check do projeto inteiro (`tsc`) |
 | `npm test` | Suíte de testes (vitest) |
+| `npm run lint` | ESLint: erros bloqueiam; avisos são a dívida do design system |
+
+O CI (`.github/workflows/ci.yml`) roda tipos, lint, testes, build e `npm audit` em todo push.
 
 > **Nunca rode `npm run db:push`.** O schema é aplicado por scripts de migração
 > manuais — ver "Banco de dados" abaixo.
@@ -48,6 +51,10 @@ mora em `shared/`** — foi a duplicação dessas regras que fez os contadores d
 uma tela divergirem da lista de outra.
 
 ## Segurança
+
+Modelo em camadas (headers, sessão em Postgres, SSO com JWT estrito, gate global
+com `req.user`, CSRF fail-closed, autorização por papel e escopo, `asyncHandler`
+em toda rota). Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 Toda rota `/api` exige sessão (exceto `/api/auth/`, `/api/integration/` e
 `/api/portal/`), a identidade vem **somente** do cookie de sessão, e as ações
@@ -85,7 +92,9 @@ o reenvio. Passo a passo por tela em
 
 ## Testes
 
-`npm test` roda a suíte do vitest, concentrada nas regras puras de `shared/`
-(cálculo de diárias com deflação, papéis e autorização, transições do fluxo de
-prestação, parsing monetário pt-BR). Testes ficam ao lado do código, como
-`*.test.ts`.
+`npm test` roda o vitest: regras puras de `shared/` (status e transições da vaga,
+conflito de agenda, diárias e deflação, papéis, prestação de contas, parse de
+voucher), módulos puros do client (filtros, relatórios, formulários) e as funções
+puras do servidor (espelho, Flash). Testes ficam ao lado do código, como
+`*.test.ts`. Cenários manuais por deploy: seção 12 do relatório de auditoria
+de 23/09 (link em `docs/arquitetura.md`).

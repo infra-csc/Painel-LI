@@ -32,8 +32,8 @@ interface UniversalFiltersProps {
 
 const FilterLabel = ({ icon: Icon, text }: { icon: any; text: string }) => (
   <label className="flex items-center gap-1.5 mb-1.5">
-    <Icon className="w-3 h-3 text-slate-400" />
-    <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{text}</span>
+    <Icon className="w-3 h-3 text-muted-foreground" />
+    <span className="text-2xs font-bold tracking-widest text-muted-foreground uppercase">{text}</span>
   </label>
 );
 
@@ -95,7 +95,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   };
 
   const selectTriggerClass =
-    "!h-9 w-full border border-slate-200 rounded-lg bg-white px-3 text-sm text-slate-700 font-normal cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 py-0 [&>span]:text-slate-700 [&>span]:font-normal data-[placeholder]:text-slate-400 shadow-none";
+    "!h-9 w-full border border-border rounded-lg bg-card px-3 text-sm text-slate-700 font-normal cursor-pointer hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary py-0 [&>span]:text-slate-700 [&>span]:font-normal data-[placeholder]:text-muted-foreground shadow-none";
 
   const baseCols = hideStatusFilter ? 5 : 6;
   const extraCols = (showTicketFilter ? 1 : 0) + (showAccommodationFilter ? 1 : 0);
@@ -103,7 +103,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   const gridCols = `160px ${Array(totalCols - 1).fill('1fr').join(' ')}`;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-[0_1px_8px_rgba(0,51,204,0.06)] px-5 py-4 mb-6">
+    <div className="bg-card rounded-xl border border-border shadow-1 px-5 py-4 mb-6">
       {/* Grid de filtros */}
       <div
         className="grid gap-3 items-end"
@@ -113,13 +113,13 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         <div>
           <FilterLabel icon={Search} text="Buscar" />
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5 pointer-events-none" />
             <input
               type="text"
               placeholder="ID ou nome..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full h-9 pl-8 pr-3 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+              className="w-full h-9 pl-8 pr-3 border border-border rounded-lg bg-card text-sm text-slate-700 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all"
               data-testid="input-search-id"
             />
           </div>
@@ -242,7 +242,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
       </div>
 
       {/* Linha 2: children (esquerda) + Toggle + Limpar (direita) */}
-      <div className="flex items-center justify-between mt-3.5 pt-3.5 border-t border-slate-100 gap-4">
+      <div className="flex items-center justify-between mt-3.5 pt-3.5 border-t border-border gap-4">
         <div className="flex items-center gap-3 flex-1 flex-wrap">
           {children}
         </div>
@@ -257,13 +257,13 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               onCheckedChange={(checked) => onFiltersChange({ ...filters, showDeleted: checked })}
               data-testid="checkbox-show-deleted"
             />
-            <span className="text-sm text-slate-500 whitespace-nowrap">Mostrar Excluídos</span>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar Excluídos</span>
           </label>
 
           <button
             type="button"
             onClick={clearFilters}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-red-500 text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-danger-strong text-sm font-medium transition-colors"
             data-testid="button-clear-filters"
           >
             <RotateCcw className="w-3.5 h-3.5" />

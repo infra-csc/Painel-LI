@@ -38,7 +38,7 @@ export interface TransferRequestDialogProps {
   onEnviado?: () => void;
 }
 
-const LABEL = "text-[10px] uppercase tracking-wide font-semibold text-slate-500";
+const LABEL = "text-2xs uppercase tracking-wide font-semibold text-muted-foreground";
 
 export function TransferRequestDialog({
   open, onOpenChange, inclusion, collaboratorId, origens, collaborators,
@@ -96,20 +96,20 @@ export function TransferRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && !createSwapRequest.isPending) onOpenChange(false); }}>
-      <DialogContent className="max-w-[640px] p-0 gap-0 rounded-[14px] overflow-hidden">
-        <div className="px-6 pt-5 pb-4 border-b border-slate-100 bg-gradient-to-br from-blue-50/70 to-white">
+      <DialogContent className="max-w-[640px] p-0 gap-0 rounded-xl overflow-hidden">
+        <div className="px-6 pt-5 pb-4 border-b border-border bg-brand-soft/70">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0">
               <ArrowLeftRight className="w-[17px] h-[17px] text-white" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-[15px] font-bold text-slate-900 leading-tight">Pedir transferência de colaborador</DialogTitle>
-              <DialogDescription className="text-[12px] text-slate-500 mt-0.5">
+              <DialogTitle className="text-base font-bold text-foreground leading-tight">Pedir transferência de colaborador</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 A pessoa sai da vaga onde está e entra nesta — só depois da aprovação do time de Compras.
               </DialogDescription>
             </div>
           </div>
-          <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[12px] text-slate-700" data-testid="transferencia-destino">
+          <div className="mt-3 rounded-xl border border-border bg-card px-4 py-2.5 text-xs text-slate-700" data-testid="transferencia-destino">
             <span className={LABEL}>Para esta vaga</span>
             <p className="mt-0.5 break-words font-semibold">
               #{inclusion.inclusionNumber} · {getEventName(inclusion.eventId)} · {getFunctionName(inclusion.functionId)} · {periodoCurto(inclusion)}
@@ -120,13 +120,13 @@ export function TransferRequestDialog({
         <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
           <div>
             <span className={LABEL}>Quem vem</span>
-            <p className="mt-0.5 text-[14px] font-semibold text-slate-900 break-words" data-testid="transferencia-quem">{nome || "?"}</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground break-words" data-testid="transferencia-quem">{nome || "?"}</p>
           </div>
 
           <div className="space-y-1.5">
-            <span className={LABEL}>Sai da vaga <span className="text-red-500">*</span></span>
+            <span className={LABEL}>Sai da vaga <span className="text-danger-strong">*</span></span>
             {origens.length === 0 ? (
-              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-600">
+              <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs text-slate-600">
                 Não achei a outra vaga desta pessoa no período. Recarregue a página e tente de novo.
               </p>
             ) : (
@@ -140,7 +140,7 @@ export function TransferRequestDialog({
                       role="radio"
                       aria-checked={on}
                       onClick={() => { setOrigemId(o.id); setTentou(false); }}
-                      className={`w-full rounded-lg border px-3 py-2 text-left text-[12px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "border-primary bg-brand-soft text-slate-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}
+                      className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "border-primary bg-brand-soft text-foreground" : "border-border bg-card text-slate-700 hover:border-slate-300"}`}
                       data-testid={`transferencia-origem-${o.id}`}
                     >
                       <span className="font-semibold">#{o.inclusionNumber}</span> · {getEventName(o.eventId)} · {getFunctionName(o.functionId)} · {periodoCurto(o)}
@@ -149,7 +149,7 @@ export function TransferRequestDialog({
                 })}
               </div>
             )}
-            {tentou && !origem && origens.length > 0 && <p className="text-[10px] text-red-500">Escolha de qual vaga a pessoa sai.</p>}
+            {tentou && !origem && origens.length > 0 && <p className="text-2xs text-danger-strong">Escolha de qual vaga a pessoa sai.</p>}
           </div>
 
           <CampoSaiDe
@@ -162,8 +162,8 @@ export function TransferRequestDialog({
           />
 
           {origem && (
-            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-800" role="status">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" aria-hidden="true" />
+            <p className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-2xs leading-snug text-warning" role="status">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warning-strong" aria-hidden="true" />
               <span>
                 Aprovada a transferência, {nome} sai da vaga #{origem.inclusionNumber} ({getEventName(origem.eventId)}) e ela fica aberta — a área precisa escalar outra pessoa nela.
               </span>
@@ -172,35 +172,34 @@ export function TransferRequestDialog({
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="transferencia-motivo" className={LABEL}>Motivo <span className="text-red-500">*</span></label>
-              <span className={`text-[10px] ${motivo.length >= 10 ? "text-green-600" : "text-slate-400"}`}>{motivo.length}/10</span>
+              <label htmlFor="transferencia-motivo" className={LABEL}>Motivo <span className="text-danger-strong">*</span></label>
+              <span className={`text-2xs ${motivo.length >= 10 ? "text-success" : "text-muted-foreground"}`}>{motivo.length}/10</span>
             </div>
             <Textarea
               id="transferencia-motivo"
               value={reason}
               onChange={(e) => { setReason(e.target.value); setTentou(false); }}
               placeholder="Por que esta pessoa precisa vir para esta vaga?"
-              className="resize-none text-[12px] rounded-xl"
+              className="resize-none text-xs rounded-xl"
               rows={3}
             />
             {((tentou && !motivo) || motivoCurto)
-              ? <p className="text-[10px] text-red-500 mt-1">{!motivo ? "Informe um motivo." : "Mínimo de 10 caracteres."}</p>
-              : <p className="text-[10px] text-slate-400 mt-1">Mínimo de 10 caracteres.</p>}
+              ? <p className="text-2xs text-danger-strong mt-1">{!motivo ? "Informe um motivo." : "Mínimo de 10 caracteres."}</p>
+              : <p className="text-2xs text-muted-foreground mt-1">Mínimo de 10 caracteres.</p>}
           </div>
         </div>
 
-        <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100">
+        <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-border">
           <Button
             variant="outline"
-            className="flex-1 rounded-xl h-10 text-[13px] font-medium"
+            className="flex-1 rounded-xl h-10 text-sm font-medium"
             onClick={() => onOpenChange(false)}
             disabled={createSwapRequest.isPending}
           >
             Cancelar
           </Button>
           <Button
-            className="flex-1 h-10 text-[13px] font-semibold rounded-xl text-white"
-            style={{ background: "var(--primary)" }}
+            className="flex-1 h-10 text-sm font-semibold rounded-xl text-primary-foreground bg-primary"
             disabled={!pode}
             onClick={enviar}
             data-testid="button-enviar-transferencia"

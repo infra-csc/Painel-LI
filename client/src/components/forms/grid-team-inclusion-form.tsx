@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
+import { avisarAgenda } from "@/hooks/use-vaga-acoes";
 import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket, Copy, MoreHorizontal, HelpCircle, Download, Upload, Check, ChevronsUpDown, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -168,10 +170,10 @@ const QtyCell = memo(function QtyCell({ value, rowIdx, colIdx, functionName, day
       onFocus={e => e.currentTarget.select()}
       className={cn(
         "h-7 w-12 rounded-lg text-center text-xs font-semibold tabular-nums transition-colors outline-none",
-        "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-slate-300",
+        "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground",
         value > 0
           ? "bg-brand-soft text-primary border border-primary/30"
-          : cn("bg-white text-slate-500 border border-slate-200", isWeekend && "bg-orange-50/40"),
+          : cn("bg-card text-muted-foreground border border-border", isWeekend && "bg-warning-soft/40"),
       )}
     />
   );
@@ -1039,8 +1041,8 @@ export default function GridTeamInclusionForm() {
           dailyValue: 0,
           needsTicket: range.needsTicket,
           needsAccommodation: range.needsAccommodation,
-          status: "planejado",
-          phase: "inclusao",
+          // status/fase NÃO vão no corpo (24/09): o servidor decide o fluxo e
+          // toda vaga do lote nasce planejado/inclusao.
           rowOrder: range.rowOrder,
           // Voo por LINHA (range.travelInfo), não da 1ª linha da função
           flightDepartureDate: range.travelInfo.dataVooIda || null,
@@ -1052,7 +1054,7 @@ export default function GridTeamInclusionForm() {
 
       // Uma única chamada transacional: ou todas entram, ou nenhuma
       const resp = await apiRequest("POST", "/api/team-inclusions/bulk", { inclusions: inclusionsPayload });
-      const result = await resp.json();
+      const result = (await resp.json()) as { created: number; avisosDeAgenda?: unknown };
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events-with-inclusions"] });
 
@@ -1060,6 +1062,9 @@ export default function GridTeamInclusionForm() {
         title: "Sucesso",
         description: `${result.created} escalação(ões) criada(s) com sucesso!`,
       });
+      // Duas viagens no mesmo dia para alguém já escolhido na grade: aviso,
+      // não erro — as vagas foram criadas.
+      avisarAgenda(toast, result.avisosDeAgenda);
 
       form.reset();
       setFunctionRows([]);
@@ -1068,11 +1073,12 @@ export default function GridTeamInclusionForm() {
       localStorage.removeItem(draftKey);
       localStorage.removeItem(autoSaveKey);
 
-    } catch (error: any) {
-      // A transação garante que nada foi gravado — mostra a causa e mantém a grade
+    } catch (error: unknown) {
+      // A transação garante que nada foi gravado — mostra a causa (inclusive o
+      // 409 de conflito de agenda) e mantém a grade
       toast({
         title: "Erro ao criar escalações",
-        description: error?.body?.message || "Nenhuma escalação foi criada. Revise os dados e tente novamente.",
+        description: apiErrorMessage(error, "Nenhuma escalação foi criada. Revise os dados e tente novamente."),
         variant: "destructive",
       });
     } finally {
@@ -1083,22 +1089,22 @@ export default function GridTeamInclusionForm() {
   // Guarda de permissão: agora DEPOIS de todos os hooks
   if (!canEditGrid) {
     return (
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+      <div className="bg-card rounded-lg shadow-1 border border-border p-6">
         <p className="text-muted-foreground text-center">Você não tem permissão para usar a escalação por grade.</p>
       </div>
     );
   }
 
   return (
-    <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
-      <CardHeader className="border-b border-slate-100 px-6 py-4" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+    <Card className="border-border shadow-1 rounded-xl overflow-hidden">
+      <CardHeader className="border-b border-border px-6 py-4 bg-surface-muted border-b-2 border-b-border">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-soft text-primary shrink-0">
             <Grid3x3 className="w-4 h-4" aria-hidden="true" />
           </div>
           <div>
-            <CardTitle className="text-[15px] font-bold text-slate-900">Escalação por Grade</CardTitle>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <CardTitle className="text-base font-bold text-foreground">Escalação por Grade</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Em cada célula, informe quantas pessoas daquela função trabalham no dia. Cada pessoa vira 1 registro com os dias em que trabalha.
             </p>
           </div>
@@ -1113,7 +1119,7 @@ export default function GridTeamInclusionForm() {
               name="eventId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Evento <span className="text-red-400">*</span></FormLabel>
+                  <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Evento <span className="text-danger-strong">*</span></FormLabel>
                   <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -1176,7 +1182,7 @@ export default function GridTeamInclusionForm() {
                 name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Data Inicial <span className="text-red-400">*</span></FormLabel>
+                    <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Inicial <span className="text-danger-strong">*</span></FormLabel>
                     <FormControl>
                       <Input
                         type="date"
@@ -1195,7 +1201,7 @@ export default function GridTeamInclusionForm() {
                 name="endDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Data Final <span className="text-red-400">*</span></FormLabel>
+                    <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Final <span className="text-danger-strong">*</span></FormLabel>
                     <FormControl>
                       <Input
                         type="date"
@@ -1215,7 +1221,7 @@ export default function GridTeamInclusionForm() {
             <button
               type="button"
               onClick={generateGrid}
-              className="w-full h-10 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-lg shadow-sm"
+              className="w-full h-10 flex items-center justify-center gap-2 text-primary-foreground text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-2 shadow-1"
               data-testid="button-generate-grid"
             >
               <Calendar className="w-4 h-4" />
@@ -1239,7 +1245,7 @@ export default function GridTeamInclusionForm() {
                   <button
                     type="button"
                     onClick={() => { setConfirmRegenerate(false); buildGrid(false); }}
-                    className="h-10 px-4 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50 transition-colors bg-white"
+                    className="h-10 px-4 text-sm font-medium text-danger border border-danger/25 rounded-md hover:bg-danger-soft transition-colors bg-card"
                   >
                     Recomeçar do zero
                   </button>
@@ -1252,13 +1258,13 @@ export default function GridTeamInclusionForm() {
 
             {/* Grade de Escalação */}
             {showGrid && (
-              <div className="space-y-3 border-t border-slate-100 mt-6 pt-6">
+              <div className="space-y-3 border-t border-border mt-6 pt-6">
                 {/* Header com controles */}
                 <div className="flex flex-wrap justify-between items-center gap-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[13px] font-semibold text-slate-700">Grade de Inclusões</span>
+                    <span className="text-sm font-semibold text-slate-700">Grade de Inclusões</span>
                     {/* Barra de resumo — atualiza a cada célula editada */}
-                    <span className="text-[11px] text-slate-500 tabular-nums" aria-live="polite">
+                    <span className="text-2xs text-muted-foreground tabular-nums" aria-live="polite">
                       {gridSummary.funcoes} {gridSummary.funcoes === 1 ? 'função' : 'funções'}
                       {' · '}{gridSummary.pessoasDia} pessoas-dia
                       {' · '}{gridSummary.registros} {gridSummary.registros === 1 ? 'registro' : 'registros'}
@@ -1268,7 +1274,7 @@ export default function GridTeamInclusionForm() {
                     <button
                       type="button"
                       onClick={() => setShowHelp(!showHelp)}
-                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-white"
+                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border hover:border-slate-300 hover:bg-surface-muted rounded-lg transition-colors bg-card"
                     >
                       <HelpCircle className="w-3.5 h-3.5" />
                       Ajuda
@@ -1276,16 +1282,16 @@ export default function GridTeamInclusionForm() {
                     <button
                       type="button"
                       onClick={() => setShowPasteModal(true)}
-                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 hover:border-green-200 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors bg-white"
+                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border hover:border-success/25 hover:text-success hover:bg-success-soft rounded-lg transition-colors bg-card"
                     >
-                      <Upload className="w-3.5 h-3.5 text-green-500" />
+                      <Upload className="w-3.5 h-3.5 text-success-strong" />
                       Colar Excel
                     </button>
                     {selectedRows.size > 0 && (
                       <button
                         type="button"
                         onClick={deleteSelectedRows}
-                        className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-lg transition-colors bg-white"
+                        className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-danger border border-danger/25 hover:bg-danger-soft rounded-lg transition-colors bg-card"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Excluir ({selectedRows.size})
@@ -1294,7 +1300,7 @@ export default function GridTeamInclusionForm() {
                     <button
                       type="button"
                       onClick={openFunctionSelect}
-                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors bg-primary hover:bg-primary-hover shadow-sm"
+                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-semibold text-primary-foreground rounded-lg transition-colors bg-primary hover:bg-primary-hover shadow-1"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Adicionar Função
@@ -1305,19 +1311,19 @@ export default function GridTeamInclusionForm() {
                 {/* Seção de Ajuda */}
                 <Collapsible open={showHelp}>
                   <CollapsibleContent>
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="bg-brand-soft p-4 rounded-lg border border-primary/25">
                       <div className="grid md:grid-cols-2 gap-4 text-sm">
                         <div>
-                          <h4 className="font-semibold text-blue-900 mb-2">Como preencher</h4>
-                          <ul className="space-y-1 text-blue-800">
+                          <h4 className="font-semibold text-primary mb-2">Como preencher</h4>
+                          <ul className="space-y-1 text-primary">
                             <li><strong>Célula do dia</strong>: número de pessoas daquela função trabalhando no dia (– = ninguém).</li>
                             <li><strong>Registros</strong>: cada pessoa vira 1 registro com os dias em que trabalha — veja a prévia abaixo da grade.</li>
                             <li><strong>Passagem / Hospedagem</strong>: marque quando a função precisa de logística; os dados de voo valem para toda a linha.</li>
                           </ul>
                         </div>
                         <div>
-                          <h4 className="font-semibold text-blue-900 mb-2">Recursos</h4>
-                          <ul className="space-y-1 text-blue-800">
+                          <h4 className="font-semibold text-primary mb-2">Recursos</h4>
+                          <ul className="space-y-1 text-primary">
                             <li><strong>Menu de ações (⋯)</strong>: duplicar a função, copiar/colar dados de viagem, remover.</li>
                             <li><strong>Colar Excel</strong>: cola linhas copiadas de uma planilha (formato indicado no modal).</li>
                             <li><strong>Rascunho</strong>: salve e carregue a grade depois; o auto-save guarda por 1 hora.</li>
@@ -1325,8 +1331,8 @@ export default function GridTeamInclusionForm() {
                           </ul>
                         </div>
                       </div>
-                      <div className="mt-3 pt-3 border-t border-blue-200">
-                        <div className="flex items-center gap-4 text-xs text-blue-700">
+                      <div className="mt-3 pt-3 border-t border-primary/25">
+                        <div className="flex items-center gap-4 text-xs text-primary">
                           <label className="flex items-center gap-2">
                             <Checkbox
                               checked={autoSave}
@@ -1342,8 +1348,8 @@ export default function GridTeamInclusionForm() {
                 </Collapsible>
                 {/* Aviso: passagem marcada sem data de voo */}
                 {rowsMissingFlightDate.length > 0 && (
-                  <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                  <div role="status" className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-xs text-warning">
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-warning" aria-hidden="true" />
                     <span>
                       {rowsMissingFlightDate.length === 1
                         ? <>A função <strong>{rowsMissingFlightDate[0].functionName}</strong> está marcada com passagem mas não tem data de voo (ida e retorno).</>
@@ -1352,119 +1358,119 @@ export default function GridTeamInclusionForm() {
                   </div>
                 )}
 
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="rounded-xl border border-border overflow-hidden">
                   <div className="overflow-x-auto max-h-[550px]">
                     <table className="w-full min-w-[720px] text-sm">
-                      <thead className="bg-slate-50 sticky top-0">
+                      <thead className="bg-surface-muted sticky top-0">
                         <tr>
-                          <th className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-12 min-w-[3rem] sticky left-0 bg-slate-50 z-20">
+                          <th className="px-2 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-12 min-w-[3rem] sticky left-0 bg-surface-muted z-20">
                             <Checkbox
                               checked={selectedRows.size === functionRows.length && functionRows.length > 0}
                               onCheckedChange={toggleSelectAll}
                               aria-label="Selecionar todas"
                             />
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-[180px] min-w-[180px] max-w-[180px] sticky left-12 bg-slate-50 z-20">Função</th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
+                          <th className="px-3 py-2 text-left border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-[180px] min-w-[180px] max-w-[180px] sticky left-12 bg-surface-muted z-20">Função</th>
+                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               <Ticket className="w-3 h-3" />
                               <span>Passagem</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
+                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               🏨
                               <span>Hospedagem</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Data Voo Ida</th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Horário Chegada Sugerido</th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Data Voo Retorno</th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Horário Partida Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-24">Data Voo Ida</th>
+                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold min-w-[120px]">Horário Chegada Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-24">Data Voo Retorno</th>
+                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold min-w-[120px]">Horário Partida Sugerido</th>
                           {dates.map(date => {
                             const { date: d, dayName, isWeekend } = formatDateHeader(date);
                             return (
-                              <th key={date} className={`px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest font-semibold w-16 ${isWeekend ? 'bg-orange-50/60 text-orange-400' : 'bg-blue-50/50 text-slate-400'}`}>
+                              <th key={date} className={`px-2 py-2 text-center border-r border-border text-2xs uppercase tracking-widest font-semibold w-16 ${isWeekend ? 'bg-warning-soft/60 text-warning-strong' : 'bg-brand-soft/50 text-muted-foreground'}`}>
                                 <div className="leading-none font-bold">{d}</div>
-                                <div className="text-[10px] mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
+                                <div className="text-2xs mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
                               </th>
                             );
                           })}
-                          <th className="px-2 py-2 text-center border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-16">Ações</th>
+                          <th className="px-2 py-2 text-center border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-16">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {functionRows.map((row, rowIdx) => (
-                          <tr key={row.functionId} className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
-                            <td className="px-2 py-2 border-r border-slate-100 text-center bg-slate-50 sticky left-0 z-10 w-12 min-w-[3rem]">
+                          <tr key={row.functionId} className={`border-b border-border hover:bg-brand-soft/40 transition-colors ${rowIdx % 2 === 1 ? 'bg-surface-muted/50' : 'bg-card'}`}>
+                            <td className="px-2 py-2 border-r border-border text-center bg-surface-muted sticky left-0 z-10 w-12 min-w-[3rem]">
                               <Checkbox
                                 checked={selectedRows.has(row.functionId)}
                                 onCheckedChange={() => toggleRowSelection(row.functionId)}
                                 aria-label={`Selecionar ${row.functionName}`}
-                                className="accent-blue-500"
+                                className="accent-primary"
                               />
                             </td>
-                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-12 z-10 w-[180px] min-w-[180px] max-w-[180px]">
+                            <td className="px-3 py-2 border-r border-border font-semibold text-foreground bg-surface-muted sticky left-12 z-10 w-[180px] min-w-[180px] max-w-[180px]">
                               <span className="block truncate" title={row.functionName}>{row.functionName}</span>
                             </td>
-                            <td className="px-2 py-2 border-r border-slate-100 text-center">
+                            <td className="px-2 py-2 border-r border-border text-center">
                               <span className="inline-flex items-center gap-1">
                                 <Checkbox
                                   checked={row.needsTicket}
                                   onCheckedChange={(checked) => updateNeedsTicket(row.functionId, checked === true)}
                                   data-testid={`checkbox-needs-ticket-${row.functionId}`}
                                   aria-label={`Precisa de passagem — ${row.functionName}`}
-                                  className="accent-blue-500"
+                                  className="accent-primary"
                                 />
                                 {row.needsTicket && (!row.dataVooIda || !row.dataVooRetorno) && (
                                   <AlertTriangle
-                                    className="w-3 h-3 text-amber-500"
+                                    className="w-3 h-3 text-warning-strong"
                                     role="img"
                                     aria-label="Passagem marcada sem data de voo"
                                   />
                                 )}
                               </span>
                             </td>
-                            <td className="px-2 py-2 border-r border-slate-100 text-center">
+                            <td className="px-2 py-2 border-r border-border text-center">
                               <Checkbox
                                 checked={row.needsAccommodation}
                                 onCheckedChange={(checked) => updateNeedsAccommodation(row.functionId, checked === true)}
                                 data-testid={`checkbox-needs-accommodation-${row.functionId}`}
                                 aria-label={`Precisa de hospedagem — ${row.functionName}`}
-                                className="accent-blue-500"
+                                className="accent-primary"
                               />
                             </td>
-                            <td className="px-2 py-2 border-r border-slate-100">
+                            <td className="px-2 py-2 border-r border-border">
                               <Input 
                                 type="date"
                                 value={row.dataVooIda} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'dataVooIda', e.target.value)}
-                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${row.dataVooIda ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary ${row.dataVooIda ? 'bg-brand-soft border-primary/40' : 'bg-card border-border'}`}
                               />
                             </td>
-                            <td className="px-2 py-2 border-r border-slate-100 min-w-[120px]">
+                            <td className="px-2 py-2 border-r border-border min-w-[120px]">
                               <Input 
                                 value={row.horarioChegadaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioChegadaSugerido', e.target.value)}
                                 placeholder="Ex: 14h30"
-                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full placeholder:text-slate-300 ${row.horarioChegadaSugerido ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary w-full placeholder:text-muted-foreground ${row.horarioChegadaSugerido ? 'bg-brand-soft border-primary/40' : 'bg-card border-border'}`}
                                 maxLength={15}
                               />
                             </td>
-                            <td className="px-2 py-2 border-r border-slate-100">
+                            <td className="px-2 py-2 border-r border-border">
                               <Input 
                                 type="date"
                                 value={row.dataVooRetorno} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'dataVooRetorno', e.target.value)}
-                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${row.dataVooRetorno ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary ${row.dataVooRetorno ? 'bg-brand-soft border-primary/40' : 'bg-card border-border'}`}
                               />
                             </td>
-                            <td className="px-2 py-2 border-r border-slate-100 min-w-[120px]">
+                            <td className="px-2 py-2 border-r border-border min-w-[120px]">
                               <Input 
                                 value={row.horarioPartidaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioPartidaSugerido', e.target.value)}
                                 placeholder="Ex: 18h00"
-                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full placeholder:text-slate-300 ${row.horarioPartidaSugerido ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary w-full placeholder:text-muted-foreground ${row.horarioPartidaSugerido ? 'bg-brand-soft border-primary/40' : 'bg-card border-border'}`}
                                 maxLength={15}
                               />
                             </td>
@@ -1472,7 +1478,7 @@ export default function GridTeamInclusionForm() {
                               const { date: d, dayName, isWeekend } = formatDateHeader(date);
                               const val = row.dailyRates[date] || 0;
                               return (
-                                <td key={date} className={`px-1 py-2 border-r border-slate-100 text-center ${isWeekend ? 'bg-orange-50/30' : ''}`}>
+                                <td key={date} className={`px-1 py-2 border-r border-border text-center ${isWeekend ? 'bg-warning-soft/30' : ''}`}>
                                   <QtyCell
                                     value={val}
                                     rowIdx={rowIdx}
@@ -1488,7 +1494,7 @@ export default function GridTeamInclusionForm() {
                             <td className="px-2 py-2 text-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" aria-label={`Ações da função ${row.functionName}`} className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                                  <Button variant="ghost" size="sm" aria-label={`Ações da função ${row.functionName}`} className="h-7 w-7 p-0 text-muted-foreground hover:text-slate-700 hover:bg-muted rounded-lg transition-colors">
                                     <MoreHorizontal className="w-3 h-3" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -1533,7 +1539,7 @@ export default function GridTeamInclusionForm() {
                   type="button"
                   onClick={openFunctionSelect}
                   disabled={dates.length === 0}
-                  className="border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary/40 hover:text-primary hover:bg-brand-soft/60 rounded-xl w-full py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="border-2 border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-brand-soft/60 rounded-xl w-full py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-4 h-4" />
                   Adicionar Função à Grade
@@ -1543,33 +1549,33 @@ export default function GridTeamInclusionForm() {
                 {(() => {
                   const records = processedRanges;
                   return (
-                    <div className="rounded-xl border border-slate-200 overflow-hidden">
-                      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Prévia dos registros</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${records.length > 0 ? 'bg-brand-soft text-primary' : 'bg-slate-100 text-slate-400'}`} aria-live="polite">
+                    <div className="rounded-xl border border-border overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-surface-muted border-b border-border">
+                        <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">Prévia dos registros</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${records.length > 0 ? 'bg-brand-soft text-primary' : 'bg-muted text-muted-foreground'}`} aria-live="polite">
                           {records.length} {records.length === 1 ? 'registro' : 'registros'}
                         </span>
                       </div>
                       {/* Agrupada por função, sem altura máxima (nada fica escondido) */}
                       <div>
                         {records.length === 0 ? (
-                          <p className="text-slate-400 text-sm text-center py-4 italic">Nenhum registro configurado ainda.</p>
+                          <p className="text-muted-foreground text-sm text-center py-4 italic">Nenhum registro configurado ainda.</p>
                         ) : (
                           previewGroups.map((group, gi) => (
-                            <div key={group.functionId} className={gi > 0 ? 'border-t border-slate-100' : ''}>
-                              <div className="flex items-center justify-between px-4 py-1.5 bg-slate-50/70">
-                                <span className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
+                            <div key={group.functionId} className={gi > 0 ? 'border-t border-border' : ''}>
+                              <div className="flex items-center justify-between px-4 py-1.5 bg-surface-muted/70">
+                                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                                   <span className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" aria-hidden="true" />
                                   {group.functionName}
                                 </span>
-                                <span className="text-[11px] text-slate-400 tabular-nums">
+                                <span className="text-2xs text-muted-foreground tabular-nums">
                                   {group.records.length} {group.records.length === 1 ? 'registro' : 'registros'}
                                 </span>
                               </div>
                               {group.records.map((range, index) => (
-                                <div key={`${group.functionId}-${index}`} className={`flex items-center justify-between gap-3 pl-8 pr-4 py-1.5 text-sm ${index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}>
-                                  <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{formatDiarias(range.dailyRate)}</span>
-                                  <span className="text-xs text-slate-400 font-medium shrink-0 tabular-nums">
+                                <div key={`${group.functionId}-${index}`} className={`flex items-center justify-between gap-3 pl-8 pr-4 py-1.5 text-sm ${index % 2 === 1 ? 'bg-surface-muted/40' : 'bg-card'}`}>
+                                  <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">{formatDiarias(range.dailyRate)}</span>
+                                  <span className="text-xs text-muted-foreground font-medium shrink-0 tabular-nums">
                                     {formatDateForDisplay(range.startDate)} → {formatDateForDisplay(range.endDate)}
                                   </span>
                                 </div>
@@ -1588,7 +1594,7 @@ export default function GridTeamInclusionForm() {
                     <button
                       type="button"
                       onClick={saveDraft}
-                      className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors bg-white"
+                      className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg hover:bg-surface-muted hover:border-slate-300 transition-colors bg-card"
                       data-testid="button-save-draft"
                     >
                       <Save className="w-3.5 h-3.5" />
@@ -1606,7 +1612,7 @@ export default function GridTeamInclusionForm() {
                           });
                         }
                       }}
-                      className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors bg-white"
+                      className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg hover:bg-surface-muted hover:border-slate-300 transition-colors bg-card"
                       data-testid="button-load-draft"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -1620,7 +1626,7 @@ export default function GridTeamInclusionForm() {
                     onClick={handleSubmit}
                     disabled={isProcessing || processedRanges.length === 0 || !selectedEventId || eventoEncerrado}
                     title={motivoBloqueio ?? (!selectedEventId ? "Selecione o evento para criar as escalações" : undefined)}
-                    className="w-full h-11 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
+                    className="w-full h-11 flex items-center justify-center gap-2 text-primary-foreground text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 shadow-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
                     data-testid="button-save-grid"
                   >
                     <Save className="w-4 h-4" />
@@ -1686,7 +1692,7 @@ export default function GridTeamInclusionForm() {
             <DialogTitle>Escolher Função para os Horários Copiados</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-blue-50 p-3 rounded-lg border">
+            <div className="bg-brand-soft p-3 rounded-lg border">
               <p className="text-sm font-medium">
                 Copiando horários de: <strong>{selectedRowForScheduleCopy?.functionName}</strong>
               </p>
@@ -1714,8 +1720,8 @@ export default function GridTeamInclusionForm() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-              <p className="text-xs text-yellow-800">
+            <div className="bg-warning-soft p-3 rounded-lg border border-warning/25">
+              <p className="text-xs text-warning">
                 <strong>Importante:</strong> as quantidades por dia (quantas pessoas em cada célula) NÃO são copiadas — a nova linha começa vazia (–).
                 Só os dados de viagem (datas/horários de voo, passagem e hospedagem) são copiados.
               </p>
@@ -1738,12 +1744,12 @@ export default function GridTeamInclusionForm() {
             <DialogTitle>Colar Dados do Excel</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <p className="text-sm font-semibold text-blue-900 mb-2">📋 Formato Esperado:</p>
-              <div className="text-xs text-blue-800 font-mono bg-white p-2 rounded">
+            <div className="bg-brand-soft p-3 rounded-lg border border-primary/25">
+              <p className="text-sm font-semibold text-primary mb-2">📋 Formato Esperado:</p>
+              <div className="text-xs text-primary font-mono bg-card p-2 rounded">
                 Função | Data Voo Ida | Horário Chegada | Data Voo Retorno | Horário Partida | Passagem | Hospedagem | [Diárias por dia...]
               </div>
-              <p className="text-xs text-blue-700 mt-2">
+              <p className="text-xs text-primary mt-2">
                 <strong>Dica:</strong> Copie as linhas do Excel (sem cabeçalho) e cole abaixo. As diárias nas colunas extras serão aplicadas às datas correspondentes.
               </p>
             </div>

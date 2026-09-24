@@ -14,6 +14,8 @@ import { useVoucherFill } from "./use-voucher-fill";
 import CommentsModal from "@/components/modals/comments-modal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
+import { AVISO_LOGISTICA_PARA_REVISAR } from "@/hooks/use-vaga-acoes";
 import { isReadOnly } from "@/lib/interactions";
 import { useEventLock, PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 import { canEdit as canEditScreen } from "@/lib/permissions";
@@ -48,8 +50,6 @@ interface TicketModalProps {
   onTabChange: (tab: string) => void;
   showCommentsModal: boolean;
   onShowCommentsModal: (open: boolean) => void;
-  /** Modal principal fica não-modal enquanto o de sucesso está aberto. */
-  successOpen: boolean;
   onRequestClose: () => void;
   onStartEdit: (ticket: Ticket) => void;
   /** "Cancelar" em edição: volta ao modo visualização (não fecha o modal). */
@@ -60,7 +60,7 @@ interface TicketModalProps {
 
 export default function TicketModal({
   open, inclusion, data, user, form, helpers, handlers, editingTicketId, activeTab, onTabChange,
-  showCommentsModal, onShowCommentsModal, successOpen, onRequestClose, onStartEdit, onCancelEdit, onSubmit, isSubmitting,
+  showCommentsModal, onShowCommentsModal, onRequestClose, onStartEdit, onCancelEdit, onSubmit, isSubmitting,
 }: TicketModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -91,16 +91,20 @@ export default function TicketModal({
   const latestSwap = swapRequests?.find(s => ["aprovado", "rejeitado"].includes(s.status));
 
   const approveSwapMutation = useMutation({
-    mutationFn: async (id: string) => (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json(),
-    onSuccess: () => {
+    mutationFn: async (id: string) =>
+      (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json() as Promise<{ logisticaParaRevisar?: boolean }>,
+    onSuccess: (resposta) => {
       toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
+      // Passagem/hospedagem já registradas para o colaborador antigo (24/09).
+      if (resposta?.logisticaParaRevisar) toast({ title: "Compras precisa revisar", description: AVISO_LOGISTICA_PARA_REVISAR });
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", inclusionId] });
       // A lista global alimenta o banner e os selos "Troca pendente" da tabela.
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: (err: { body?: { message?: string } }) => {
-      toast({ title: "Erro", description: err?.body?.message || "Erro ao aprovar troca", variant: "destructive" });
+    // 409 = pedido já decidido; a mensagem do servidor explica.
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível aprovar a troca", description: apiErrorMessage(err, "Tente de novo em instantes."), variant: "destructive" });
     },
   });
   const rejectSwapMutation = useMutation({
@@ -111,8 +115,8 @@ export default function TicketModal({
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", inclusionId] });
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
     },
-    onError: (err: { body?: { message?: string } }) => {
-      toast({ title: "Erro", description: err?.body?.message || "Erro ao rejeitar troca", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível rejeitar a troca", description: apiErrorMessage(err, "Tente de novo em instantes."), variant: "destructive" });
     },
   });
 
@@ -150,7 +154,7 @@ export default function TicketModal({
 
   if (!inclusion) {
     return (
-      <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }} modal={!successOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }}>
         <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden" />
       </Dialog>
     );
@@ -167,7 +171,7 @@ export default function TicketModal({
   const isFormMode = !ticket || isEditing;
   const suggestion = extractTravelSuggestion(inclusion);
   const dis = roMode || !canEditTicket;
-  const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#2563EB] data-[state=active]:text-[#2563EB] text-slate-500 bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
+  const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
 
   const onTransportChange = (value: string) => {
     const eventLocation = data.getEventLocation(inclusion.eventId);
@@ -197,33 +201,33 @@ export default function TicketModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }} modal={!successOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }}>
         <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
           {/* HEADER */}
-          <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 flex items-center gap-4 pr-14" style={{ background: "linear-gradient(to right, #f8faff 0%, #ffffff 60%)" }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg, #3b7ef8 0%, #1d4ed8 100%)", boxShadow: "0 4px 16px #2563EB30" }}>
-              <Plane style={{ width: 20, height: 20 }} />
+          <div className="px-6 pt-5 pb-4 border-b border-border shrink-0 flex items-center gap-4 pr-14 bg-brand-soft">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 bg-primary shadow-2">
+              <Plane className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-[17px] font-bold text-slate-900 leading-tight m-0 p-0">Registro de Passagem</DialogTitle>
-              <div className="text-[12px] text-slate-400 mt-0.5 truncate">
-                <span className="font-mono font-bold text-slate-500">#{inclusion.inclusionNumber || "N/A"}</span>
-                <span className="mx-1.5 text-slate-300">·</span>
+              <DialogTitle className="text-lg font-bold text-foreground leading-tight m-0 p-0">Registro de Passagem</DialogTitle>
+              <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                <span className="font-mono font-bold text-muted-foreground">#{inclusion.inclusionNumber || "N/A"}</span>
+                <span className="mx-1.5 text-muted-foreground">·</span>
                 {collaboratorName}
               </div>
             </div>
             {roMode ? (
               <span
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-full shrink-0 border border-amber-200"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full shrink-0 border border-warning/25"
                 title={eventLocked ? PAST_EVENT_BLOCK_MSG : undefined}
               >Somente Leitura</span>
             ) : ticket && !isEditing ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold rounded-full shrink-0 border border-green-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Comprada
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-success-soft text-success text-2xs font-bold rounded-full shrink-0 border border-success/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-success-strong" />Comprada
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full shrink-0 border border-orange-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full shrink-0 border border-warning/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse" />Pendente
               </span>
             )}
           </div>
@@ -232,14 +236,14 @@ export default function TicketModal({
 
           {/* ABAS */}
           <Tabs value={activeTab} onValueChange={onTabChange} className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div className="px-6 border-b border-slate-100 shrink-0">
+            <div className="px-6 border-b border-border shrink-0">
               <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
                 <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
                 <TabsTrigger value="dados" className={tabTrigger}>
                   Dados da Passagem
                   {ticket && !isEditing
-                    ? <span className="ml-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">✓</span>
-                    : <span className="ml-1.5 bg-amber-100 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">!</span>}
+                    ? <span className="ml-1.5 bg-success-soft text-success text-2xs font-bold px-1.5 py-0.5 rounded-full">✓</span>
+                    : <span className="ml-1.5 bg-warning-soft text-warning text-2xs font-bold px-1.5 py-0.5 rounded-full">!</span>}
                 </TabsTrigger>
                 <TabsTrigger value="complementos" className={tabTrigger}>Complementos e Histórico</TabsTrigger>
               </TabsList>
@@ -272,18 +276,18 @@ export default function TicketModal({
                     {/* Voucher/anexo em primeiro lugar (28/08): é por aqui que a
                         passagem começa — o arquivo é o comprovante e a fonte
                         dos dados ao mesmo tempo. */}
-                    <div className="border border-blue-200 bg-blue-50/40 rounded-2xl overflow-hidden">
-                      <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-center gap-2">
+                    <div className="border border-primary/25 bg-brand-soft/40 rounded-xl overflow-hidden">
+                      <div className="bg-brand-soft border-b border-primary/25 px-4 py-2.5 flex items-center gap-2">
                         <FileText className="w-4 h-4 text-primary" />
-                        <span className="text-[11px] font-black text-primary uppercase tracking-[0.12em]">
+                        <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">
                           Voucher e anexos
                         </span>
                         {voucher.lendo && (
-                          <span className="ml-auto text-[11px] font-semibold text-primary">Lendo o voucher…</span>
+                          <span className="ml-auto text-2xs font-semibold text-primary">Lendo o voucher…</span>
                         )}
                       </div>
                       <div className="p-4">
-                        <p className="text-[12px] text-slate-600 mb-3">
+                        <p className="text-xs text-slate-600 mb-3">
                           Anexe aqui o <strong>voucher em PDF</strong>: ele fica guardado como comprovante
                           <strong> e preenche os campos da passagem automaticamente</strong>. Outros arquivos
                           (imagem, comprovante extra) também podem ser anexados — esses só são guardados.
@@ -298,11 +302,11 @@ export default function TicketModal({
                     </div>
 
                     {/* Configuração */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-3">Configuração</div>
+                    <div className="bg-card border border-border rounded-xl p-4">
+                      <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Configuração</div>
                       <div className="flex items-end gap-6 flex-wrap">
                         <div className="flex-1 min-w-[180px]">
-                          <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Modalidade *</Label>
+                          <Label className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Modalidade *</Label>
                           <Select value={form.transportType || "aereo"} onValueChange={onTransportChange}>
                             <SelectTrigger data-testid={`select-transport-type-${sid}`}><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
@@ -314,10 +318,10 @@ export default function TicketModal({
                         </div>
                         {form.transportType !== "van" && (
                           <div className="pb-1">
-                            <Label className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Trechos deste bilhete</Label>
+                            <Label className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Trechos deste bilhete</Label>
                             {/* Três recortes (28/08): a volta pode ter sido emitida por OUTRA
                                 agência, virando um bilhete só de volta. */}
-                            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="radiogroup" aria-label="Trechos deste bilhete">
+                            <div className="inline-flex rounded-lg border border-border bg-surface-muted p-0.5" role="radiogroup" aria-label="Trechos deste bilhete">
                               {([
                                 { chave: "ida_volta", rotulo: "Ida e volta" },
                                 { chave: "so_ida", rotulo: "Só ida" },
@@ -339,8 +343,8 @@ export default function TicketModal({
                                         isReturnOnly: op.chave === "so_volta",
                                       });
                                     }}
-                                    className={`rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                                      ativo ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                      ativo ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700"}`}
                                     data-testid={`trecho-${op.chave}-${sid}`}
                                   >
                                     {op.rotulo}
@@ -374,8 +378,8 @@ export default function TicketModal({
                       useDisabled={dis}
                     />
 
-                    <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                      <Label htmlFor={`ticketObservations-${sid}`} className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1 block">Observações sobre a Passagem</Label>
+                    <div className="bg-card border border-border rounded-xl p-4">
+                      <Label htmlFor={`ticketObservations-${sid}`} className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Observações sobre a Passagem</Label>
                       <Textarea
                         id={`ticketObservations-${sid}`}
                         placeholder="Informações adicionais sobre a passagem..."
@@ -406,12 +410,12 @@ export default function TicketModal({
           </Tabs>
 
           {/* FOOTER */}
-          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0 bg-white">
+          <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3 shrink-0 bg-card">
             {!isFormMode ? (
               <>
-                <Button variant="outline" onClick={onRequestClose} className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium">Fechar</Button>
+                <Button variant="outline" onClick={onRequestClose} className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium">Fechar</Button>
                 {!roMode && canEditTicket && ticket && (
-                  <Button variant="outline" onClick={() => onStartEdit(ticket)} className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium">
+                  <Button variant="outline" onClick={() => onStartEdit(ticket)} className="flex items-center gap-2 border border-primary/25 text-primary bg-brand-soft hover:bg-brand-soft rounded-xl px-5 py-2 text-sm font-medium">
                     <Edit className="w-4 h-4" />Editar Passagem
                   </Button>
                 )}
@@ -419,13 +423,12 @@ export default function TicketModal({
             ) : (
               <>
                 {/* Sem "Salvar rascunho": ou registra completo, ou descarta. Em edição, "Cancelar" volta à visualização. */}
-                <Button variant="ghost" onClick={isEditing ? onCancelEdit : onRequestClose} className="text-slate-500 hover:text-slate-700 rounded-xl px-5 py-2 text-sm font-medium">Cancelar</Button>
+                <Button variant="ghost" onClick={isEditing ? onCancelEdit : onRequestClose} className="text-muted-foreground hover:text-slate-700 rounded-xl px-5 py-2 text-sm font-medium">Cancelar</Button>
                 {!roMode && canEditTicket && (
                   <Button
                     onClick={onSubmit}
                     disabled={isSubmitting}
-                    style={{ background: "#2563EB" }}
-                    className="text-white rounded-xl px-5 py-2 text-sm font-bold hover:opacity-90 flex items-center gap-2"
+                    className="bg-primary hover:bg-primary-hover text-primary-foreground rounded-xl px-5 py-2 text-sm font-bold flex items-center gap-2"
                     data-testid={`button-register-ticket-${sid}`}
                   >
                     {isSubmitting

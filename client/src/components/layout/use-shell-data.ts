@@ -17,11 +17,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { hasPermission } from "@/lib/role-utils";
+import { useSwapRequests } from "@/hooks/use-swap-requests";
+import { hasPermission, hasRole, isAdmin } from "@/lib/role-utils";
+import { fetchJson } from "@/lib/queryClient";
+import { statusDaVagaDaTroca } from "@/lib/swap-types";
 import { getSeenState } from "@/lib/seenSwaps";
 import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "./shell-prefs";
 
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
   id: string;
@@ -39,7 +44,7 @@ interface PendingChangeRequest {
 
 export interface ShellNotification {
   id: string;
-  icon: string;
+  icon: LucideIcon;
   /** Classes do quadradinho do ícone (fundo + cor). */
   iconClass: string;
   title: string;
@@ -67,11 +72,11 @@ function relativeTime(iso: string | null | undefined): string {
 
 export function useShellData() {
   const { user } = useAuth();
-  const isPurchasing = !!user?.role && ["admin", "administrator", "administrador", "purchasing"].includes(user.role);
+  const isPurchasing = hasRole(user, "admin", "purchasing");
   const canSeeApprovals = hasPermission(user, "canAccessScalingApproval");
   const canSeeValidation = hasPermission(user, "canAccessScalingValidation");
   // Gestor da cenotécnica (dono, 15/09): mesma regra da tela de Escalação.
-  const aprovaCenotecnica = !!(user as any)?.canApproveCenotecnica || user?.role === "admin" || user?.role === "administrator" || user?.role === "administrador";
+  const aprovaCenotecnica = !!user?.canApproveCenotecnica || isAdmin(user);
 
   // ── Trocas (mesma consulta que o menu já usava) ──
   const [seenState, setSeenState] = useState<Record<string, any>>(() => (user ? getSeenState(user.id) : {}));
@@ -81,25 +86,16 @@ export function useShellData() {
     return () => window.removeEventListener("swapSeenUpdated", handler);
   }, [user]);
 
-  const { data: swapRequests } = useQuery<any[]>({
-    queryKey: ["/api/swap-requests"],
-    queryFn: async () => {
-      const r = await fetch("/api/swap-requests", { credentials: "include" });
-      if (!r.ok) return [];
-      return r.json();
-    },
-    enabled: !!user,
-    refetchInterval: 30000,
-  });
+  // Hook único das trocas (23/09): o cache ["/api/swap-requests"] é o mesmo
+  // das telas, já normalizado em camelCase. O refetch de 30s é SÓ da casca —
+  // as telas leem o que ela mantém vivo.
+  const { data: swapRequests } = useSwapRequests({ enabled: !!user, refetchInterval: 30_000 });
 
   // Status da inclusão do swap: vem embutido na resposta de /api/swap-requests
   // (JOIN com team_inclusions). A casca NÃO baixa mais a lista inteira de vagas
   // (~6,5 MB) como fallback — era o que travava a troca de tela (15/09).
   // Swaps de inclusões excluídas são ignorados.
-  const getSwapInclusionStatus = useCallback((s: any): string | undefined => {
-    if (s.inclusion_deleted_at || s.inclusionDeletedAt) return undefined;
-    return s.inclusion_status || s.inclusionStatus || undefined;
-  }, []);
+  const getSwapInclusionStatus = useCallback(statusDaVagaDaTroca, []);
 
   // Passagens: swaps de inclusões com passagem comprada (com ou sem hospedagem)
   const ticketSwapCount = useMemo(() => {
@@ -135,13 +131,11 @@ export function useShellData() {
     if (!swapRequests || !user || isPurchasing) return 0;
     let count = 0;
     swapRequests.forEach((s) => {
-      const requestedBy = (s as any).requested_by || s.requestedBy;
-      if (requestedBy !== user.id) return;
+      if (s.requestedBy !== user.id) return;
       if (s.status === "pendente" && !seenState[s.id]?.pendingSeen) {
         count++;
       } else if (["aprovado", "rejeitado"].includes(s.status) && !seenState[s.id]?.respondedSeen) {
-        const reviewedAt = (s as any).reviewed_at || s.reviewedAt;
-        if (reviewedAt && Date.now() - new Date(reviewedAt).getTime() < 48 * 60 * 60 * 1000) count++;
+        if (s.reviewedAt && Date.now() - new Date(s.reviewedAt).getTime() < 48 * 60 * 60 * 1000) count++;
       }
     });
     return count;
@@ -152,13 +146,13 @@ export function useShellData() {
    * terminaram — igual ao card "Com o gestor" em "Futuros". Contado no
    * servidor: antes a casca baixava todas as vagas em toda tela (15/09).
    */
+  // fetchJson (23/09): erro HTTP vira ApiError e a consulta fica em `isError`
+  // — antes `if (!r.ok) return { count: 0 }` escondia um 500 como "zero
+  // pendências". O menu não some: sem dado o contador é 0 e o sino mostra o
+  // estado de erro (notifications-menu já trata `isError`).
   const { data: gestorData } = useQuery<{ count: number }>({
     queryKey: ["shell", "aguardando-gestor"],
-    queryFn: async () => {
-      const r = await fetch("/api/shell/aguardando-gestor", { credentials: "include" });
-      if (!r.ok) return { count: 0 };
-      return r.json();
-    },
+    queryFn: ({ signal }) => fetchJson<{ count: number }>("/api/shell/aguardando-gestor", signal),
     enabled: aprovaCenotecnica,
     staleTime: 60_000,
   });
@@ -170,11 +164,9 @@ export function useShellData() {
   // sumir em silêncio, sem badge e sem tela de erro.
   const { data: pendingRequests } = useQuery<PendingChangeRequest[]>({
     queryKey: ["shell", "pending-change-requests"],
-    queryFn: async () => {
-      const r = await fetch(`/api/scaling-change-requests?status=${CHANGE_REQUEST_STATUS.PENDENTE}`, { credentials: "include" });
-      if (!r.ok) return [];
-      const data = await r.json();
-      return Array.isArray(data) ? data : [];
+    queryFn: async ({ signal }) => {
+      const data = await fetchJson<unknown>(`/api/scaling-change-requests?status=${CHANGE_REQUEST_STATUS.PENDENTE}`, signal);
+      return Array.isArray(data) ? (data as PendingChangeRequest[]) : [];
     },
     enabled: !!user && canSeeApprovals,
     staleTime: 60_000,
@@ -209,11 +201,9 @@ export function useShellData() {
    */
   const { data: suggestionsForBadge } = useQuery<{ status?: string; canDecide?: boolean; eAprovador?: boolean; canEdit?: boolean; pendingRequest?: unknown }[]>({
     queryKey: ["shell", "awaiting-approval"],
-    queryFn: async () => {
-      const r = await fetch("/api/scaling-suggestions", { credentials: "include" });
-      if (!r.ok) return [];
-      const data = await r.json();
-      return Array.isArray(data) ? data : [];
+    queryFn: async ({ signal }) => {
+      const data = await fetchJson<unknown>("/api/scaling-suggestions", signal);
+      return Array.isArray(data) ? (data as { status?: string; canDecide?: boolean; eAprovador?: boolean; canEdit?: boolean; pendingRequest?: unknown }[]) : [];
     },
     // Mesma lista serve à Validação (vagas esperando a área validar).
     enabled: !!user && (canSeeApprovals || canSeeValidation),
@@ -266,7 +256,7 @@ export function useShellData() {
       const vaga = r.inclusionNumber ? ` #${r.inclusionNumber}` : "";
       list.push({
         id: `cr:${r.id}`,
-        icon: r.requestType === "inclusao" ? "edit_note" : r.requestType === "exclusao" ? "undo" : "fact_check",
+        icon: r.requestType === "inclusao" ? FilePen : r.requestType === "exclusao" ? Undo2 : ClipboardCheck,
         iconClass: "bg-brand-soft text-primary",
         title: `Pedido de ${typeLabel.toLowerCase()} aguardando sua decisão`,
         text: [r.functionName ? `${r.functionName}${vaga}` : `Vaga${vaga}`, r.eventName].filter(Boolean).join(" · "),
@@ -281,25 +271,27 @@ export function useShellData() {
     // número — quando ele muda, o aviso volta a ser "novo". O href leva direto
     // ao recorte que resolve (dono, 15/09: "clico e não aparece nada" — ia para
     // /scaling sem abrir a fila, e na própria tela o clique não fazia nada).
-    const entrada = (count: number, chave: string, title: string, text: string, screen: string, href: string, icon: string, iconClass: string) => {
+    const entrada = (count: number, chave: string, title: string, text: string, screen: string, href: string, icon: LucideIcon, iconClass: string) => {
       if (count <= 0) return;
       const id = `${chave}:${count}`;
       list.push({ id, icon, iconClass, title, text, when: "", screen, href, isNew: !seen.has(id) });
     };
     const trocas = (n: number) => `${n} ${n === 1 ? "troca pendente" : "trocas pendentes"}`;
     const vagas = (n: number) => `${n} ${n === 1 ? "vaga" : "vagas"}`;
-    const AMBAR = "bg-amber-50 text-amber-700";
+    // Tokens semânticos (23/09): troca pendente = warning; gestor = warning
+    // (é espera, não erro — antes era vermelho).
+    const AMBAR = "bg-warning-soft text-warning";
 
     if (isPurchasing) {
-      entrada(ticketSwapCount, "swap:/tickets", `${trocas(ticketSwapCount)} em Passagens`, "Compras precisa confirmar a substituição", "Passagens", "/tickets", "swap_horiz", AMBAR);
-      entrada(accommodationSwapCount, "swap:/accommodations", `${trocas(accommodationSwapCount)} em Hospedagem`, "Compras precisa confirmar a substituição", "Hospedagem", "/accommodations", "swap_horiz", AMBAR);
-      entrada(scalingSwapCount, "swap:/scaling", `${trocas(scalingSwapCount)} em Escalação`, "Trocas de colaborador esperando análise", "Escalação", "/scaling?fila=troca", "swap_horiz", AMBAR);
+      entrada(ticketSwapCount, "swap:/tickets", `${trocas(ticketSwapCount)} em Passagens`, "Compras precisa confirmar a substituição", "Passagens", "/tickets", ArrowLeftRight, AMBAR);
+      entrada(accommodationSwapCount, "swap:/accommodations", `${trocas(accommodationSwapCount)} em Hospedagem`, "Compras precisa confirmar a substituição", "Hospedagem", "/accommodations", ArrowLeftRight, AMBAR);
+      entrada(scalingSwapCount, "swap:/scaling", `${trocas(scalingSwapCount)} em Escalação`, "Trocas de colaborador esperando análise", "Escalação", "/scaling?fila=troca", ArrowLeftRight, AMBAR);
     } else {
-      entrada(myScalingSwapsCount, "swap:/scaling", `${trocas(myScalingSwapsCount)} em Escalação`, "Pedidos de troca que você abriu", "Escalação", "/scaling?fila=troca", "swap_horiz", AMBAR);
+      entrada(myScalingSwapsCount, "swap:/scaling", `${trocas(myScalingSwapsCount)} em Escalação`, "Pedidos de troca que você abriu", "Escalação", "/scaling?fila=troca", ArrowLeftRight, AMBAR);
     }
-    entrada(aguardandoGestorCount, "gestor", `${vagas(aguardandoGestorCount)} aguardando o gestor`, "Cenotécnica esperando a sua aprovação", "Escalação", "/scaling?fila=gestor", "engineering", "bg-red-50 text-red-700");
-    entrada(avisoVagasAprovacao, "aprovacao", `${vagas(avisoVagasAprovacao)} aguardando sua aprovação`, "Validadas pela área, esperando decisão", "Aprovação de Escala", "/scaling-approval", "approval", "bg-brand-soft text-primary");
-    entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de Escala", "/scaling-validation", "fact_check", "bg-brand-soft text-primary");
+    entrada(aguardandoGestorCount, "gestor", `${vagas(aguardandoGestorCount)} aguardando o gestor`, "Cenotécnica esperando a sua aprovação", "Escalação", "/scaling?fila=gestor", HardHat, AMBAR);
+    entrada(avisoVagasAprovacao, "aprovacao", `${vagas(avisoVagasAprovacao)} aguardando sua aprovação`, "Validadas pela área, esperando decisão", "Aprovação de Escala", "/scaling-approval", Stamp, "bg-brand-soft text-primary");
+    entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de Escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
   }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount]);

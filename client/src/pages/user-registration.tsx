@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Lock, Info, User, Shield, CircleCheck, MapPin, ShieldCheck, Mail, ShieldX, Circle, CircleDot, Truck, Network, ShoppingCart, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -34,21 +34,21 @@ function initials(name: string) {
 }
 
 const ROLES = [
-  { value: "admin",         label: "Administrador",     icon: "admin_panel_settings" },
-  { value: "production",    label: "Logística Interna", icon: "local_shipping" },
-  { value: "function_area", label: "Área de Função",    icon: "lan" },
-  { value: "purchasing",    label: "Compras / Viagem",  icon: "shopping_cart" },
-  { value: "financial",     label: "RH",                icon: "groups" },
+  { value: "admin",         label: "Administrador",     icon: ShieldCheck },
+  { value: "production",    label: "Logística Interna", icon: Truck },
+  { value: "function_area", label: "Área de Função",    icon: Network },
+  { value: "purchasing",    label: "Compras / Viagem",  icon: ShoppingCart },
+  { value: "financial",     label: "RH",                icon: Users },
 ];
 
 // Estilos compartilhados (tokens, sem hex)
 const INPUT_BASE = "w-full py-2.5 pr-4 text-sm bg-brand-soft border-[1.5px] border-transparent rounded-lg outline-none text-foreground transition-[border-color,background-color] duration-150 focus:bg-card focus:border-primary placeholder:text-muted-foreground";
-const SECTION_TITLE = "text-[11px] font-bold tracking-[0.1em] text-slate-500 uppercase";
-const CARD = "bg-card rounded-xl border border-border shadow-sm";
+const SECTION_TITLE = "text-2xs font-bold tracking-[0.1em] text-muted-foreground uppercase";
+const CARD = "bg-card rounded-xl border border-border shadow-1";
 const FIELD_LABEL = "block text-xs font-semibold text-slate-700 mb-1.5 ml-0.5";
 
 const FieldError = ({ msg }: { msg?: string }) =>
-  msg ? <p role="alert" className="text-[11px] text-destructive mt-[3px] ml-0.5">{msg}</p> : null;
+  msg ? <p role="alert" className="text-2xs text-destructive mt-[3px] ml-0.5">{msg}</p> : null;
 
 export default function UserRegistration() {
   usePageTitle("Cadastro de Usuários");
@@ -107,13 +107,13 @@ export default function UserRegistration() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center p-10 max-w-[420px]">
-          <span className={cn("material-symbols-outlined text-[40px]", isProduction ? "text-amber-600" : "text-destructive")}>
-            {isProduction ? "info" : "gpp_bad"}
-          </span>
-          <p className="mt-3 text-[15px] font-bold text-foreground">
+          {isProduction
+            ? <Info className="mx-auto h-9 w-9 text-warning" aria-hidden="true" />
+            : <ShieldX className="mx-auto h-9 w-9 text-destructive" aria-hidden="true" />}
+          <p className="mt-3 text-base font-bold text-foreground">
             {isProduction ? "Cadastro de usuários indisponível para o seu perfil" : "Acesso restrito"}
           </p>
-          <p className="mt-1.5 text-[13px] text-slate-500 leading-normal">
+          <p className="mt-1.5 text-sm text-muted-foreground leading-normal">
             {isProduction
               ? "Solicite ao RH ou à área de Compras a criação de novos usuários. Você continua podendo aprovar, resetar senha e ativar/desativar contas em Usuários."
               : "Apenas administradores, RH e Compras podem cadastrar usuários."}
@@ -124,7 +124,7 @@ export default function UserRegistration() {
   }
 
   const inputClass = (hasError?: boolean, valid?: boolean) =>
-    cn(INPUT_BASE, "pl-[38px]", hasError ? "border-destructive" : valid ? "border-green-500" : undefined);
+    cn(INPUT_BASE, "pl-[38px]", hasError ? "border-destructive" : valid ? "border-success-strong" : undefined);
 
   return (
     <PageContainer className="max-w-[920px]">
@@ -135,8 +135,8 @@ export default function UserRegistration() {
         title="Cadastro de Usuários"
         subtitle="O acesso ao sistema é feito exclusivamente pelo Portal Norte (Microsoft)"
         actions={
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 rounded-full text-[11px] font-bold text-amber-800 uppercase tracking-[0.05em]">
-            <span className="material-symbols-outlined text-sm [font-variation-settings:'FILL'_1]">lock</span>
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-warning-soft rounded-full text-2xs font-bold text-warning uppercase tracking-[0.05em]">
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
             Acesso restrito
           </div>
         }
@@ -144,8 +144,8 @@ export default function UserRegistration() {
       />
 
       {/* Microsoft SSO notice */}
-      <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-brand-soft border border-primary/20 rounded-[10px]">
-        <span className="material-symbols-outlined text-xl text-primary shrink-0">info</span>
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-brand-soft border border-primary/20 rounded-lg">
+        <Info className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
         <p className="text-xs text-primary m-0 leading-normal">
           <strong>Login via Microsoft:</strong> Não é necessário senha. O usuário cadastrado aqui acessa o sistema pelo Portal Norte usando a conta Microsoft corporativa.
         </p>
@@ -160,8 +160,8 @@ export default function UserRegistration() {
 
             {/* Section 1: Dados Pessoais */}
             <div className="px-4 sm:px-5 py-3.5 border-b border-border/50">
-              <div className="flex items-center gap-2 mb-3 text-slate-400">
-                <span className="material-symbols-outlined text-lg">person</span>
+              <div className="flex items-center gap-2 mb-3 text-muted-foreground">
+                <User className="h-[18px] w-[18px]" aria-hidden="true" />
                 <span className={SECTION_TITLE}>Dados Pessoais</span>
               </div>
 
@@ -172,7 +172,7 @@ export default function UserRegistration() {
                     Nome completo <span className="text-destructive">*</span>
                   </label>
                   <div className="relative">
-                    <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-lg text-slate-400 pointer-events-none" aria-hidden="true">person</span>
+                    <User className="h-[18px] w-[18px] absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
                     <input
                       id="user-name"
                       placeholder="Ex: Ana Silva"
@@ -191,7 +191,7 @@ export default function UserRegistration() {
                     E-mail corporativo <span className="text-destructive">*</span>
                   </label>
                   <div className="relative">
-                    <span className={cn("material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-lg pointer-events-none", emailVal && isEmailValid ? "text-green-500" : "text-slate-400")} aria-hidden="true">mail</span>
+                    <Mail className={cn("absolute left-2.5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] pointer-events-none", emailVal && isEmailValid ? "text-success-strong" : "text-muted-foreground")} aria-hidden="true" />
                     <input
                       id="user-email"
                       type="email"
@@ -201,11 +201,9 @@ export default function UserRegistration() {
                       className={cn(inputClass(!!errors.email, emailVal ? isEmailValid : undefined), "pr-9")}
                       {...register("email")}
                     />
-                    {emailVal && (
-                      <span className={cn("material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[15px] [font-variation-settings:'FILL'_1] pointer-events-none", isEmailValid ? "text-green-500" : "text-slate-300")} aria-hidden="true">
-                        {isEmailValid ? "check_circle" : "radio_button_unchecked"}
-                      </span>
-                    )}
+                    {emailVal && (isEmailValid
+                      ? <CircleCheck className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-success-strong" aria-hidden="true" />
+                      : <Circle className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground" aria-hidden="true" />)}
                   </div>
                   <FieldError msg={errors.email?.message} />
                 </div>
@@ -215,9 +213,9 @@ export default function UserRegistration() {
             {/* Section 2: Perfil de Acesso */}
             <div className="px-4 sm:px-5 py-3.5 border-b border-border/50">
               <div className="flex items-center gap-2 mb-2.5">
-                <span className="material-symbols-outlined text-lg text-slate-400">shield</span>
+                <Shield className="h-[18px] w-[18px] text-muted-foreground" aria-hidden="true" />
                 <span className={SECTION_TITLE}>Perfil de Acesso</span>
-                {errors.role && <span role="alert" className="ml-auto text-[10px] text-destructive font-semibold">{errors.role.message}</span>}
+                {errors.role && <span role="alert" className="ml-auto text-2xs text-destructive font-semibold">{errors.role.message}</span>}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {/* POST /api/users: só admin cria outro Administrador */}
@@ -228,17 +226,15 @@ export default function UserRegistration() {
                       aria-pressed={isSelected}
                       onClick={() => setValue("role", role.value as FormData["role"], { shouldValidate: true })}
                       className={cn(
-                        "relative flex flex-col items-center justify-center text-center gap-1 px-2 py-2.5 rounded-[10px] border-2 transition-all duration-150 cursor-pointer",
+                        "relative flex flex-col items-center justify-center text-center gap-1 px-2 py-2.5 rounded-lg border-2 transition-all duration-150 cursor-pointer",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                         isSelected ? "border-primary bg-primary/10" : "border-transparent bg-brand-soft hover:border-primary/30",
                       )}
                     >
-                      <span className="material-symbols-outlined text-xl text-primary [font-variation-settings:'FILL'_1]" aria-hidden="true">
-                        {role.icon}
-                      </span>
-                      <span className="text-[11px] font-bold text-foreground leading-[1.3]">{role.label}</span>
+                      <role.icon className="h-5 w-5 text-primary" aria-hidden="true" />
+                      <span className="text-2xs font-bold text-foreground leading-snug">{role.label}</span>
                       {isSelected && (
-                        <span className="material-symbols-outlined absolute top-2 right-2 text-sm text-primary [font-variation-settings:'FILL'_1]" aria-hidden="true">check_circle</span>
+                        <CircleCheck className="h-3.5 w-3.5 absolute top-2 right-2 text-primary" aria-hidden="true" />
                       )}
                     </button>
                   );
@@ -249,9 +245,9 @@ export default function UserRegistration() {
             {/* Section 3: Área Específica */}
             <div className="px-4 sm:px-5 py-3.5">
               <div className="flex items-center gap-2 mb-2.5">
-                <span className="material-symbols-outlined text-lg text-slate-400">location_on</span>
+                <MapPin className="h-[18px] w-[18px] text-muted-foreground" aria-hidden="true" />
                 <span className={SECTION_TITLE}>Área Específica</span>
-                <span className="ml-auto text-[10px] text-slate-300">{areaVal.length}/80 · opcional</span>
+                <span className="ml-auto text-2xs text-muted-foreground">{areaVal.length}/80 · opcional</span>
               </div>
               {/* Input com sugestões (datalist) das áreas conhecidas — aceita valor livre */}
               <input
@@ -262,7 +258,7 @@ export default function UserRegistration() {
                 aria-label="Área específica do usuário"
                 maxLength={80}
                 autoComplete="off"
-                className={cn(INPUT_BASE, "text-[13px] px-3 border-input")}
+                className={cn(INPUT_BASE, "text-sm px-3 border-input")}
                 {...register("area")}
               />
               <datalist id="user-area-options">
@@ -273,11 +269,11 @@ export default function UserRegistration() {
             {/* Footer */}
             <div className="flex items-center justify-end gap-2.5 px-4 sm:px-5 py-2.5 bg-muted/30 border-t border-border/50">
               <Button type="button" variant="outline" size="sm" onClick={() => reset()} data-testid="button-clear" disabled={mutation.isPending}
-                className="h-[34px] text-xs font-semibold text-slate-500">
+                className="h-[34px] text-xs font-semibold text-muted-foreground">
                 Limpar
               </Button>
               <Button type="submit" size="sm" disabled={mutation.isPending} data-testid="button-submit"
-                className="h-[34px] text-xs font-bold shadow-sm shadow-primary/30 hover:bg-primary-hover disabled:shadow-none">
+                className="h-[34px] text-xs font-bold shadow-1 hover:bg-primary-hover disabled:shadow-none">
                 {mutation.isPending ? (
                   <>
                     <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -285,7 +281,7 @@ export default function UserRegistration() {
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[17px] [font-variation-settings:'FILL'_1]">person_add</span>
+                    <UserPlus className="h-[18px] w-[18px]" aria-hidden="true" />
                     Criar Usuário
                   </>
                 )}
@@ -299,7 +295,7 @@ export default function UserRegistration() {
 
           {/* Preview card */}
           <div className={cn(CARD, "px-4 py-3.5")}>
-            <h3 className="text-[11px] font-bold text-slate-400 tracking-[0.08em] uppercase m-0 mb-3">Pré-visualização</h3>
+            <h3 className="text-2xs font-bold text-muted-foreground tracking-[0.08em] uppercase m-0 mb-3">Pré-visualização</h3>
             <div className="flex flex-col items-center">
               <div className={cn(
                 "flex items-center justify-center w-14 h-14 rounded-full shrink-0 text-primary text-lg font-bold mb-2 shadow-[inset_0_2px_4px_hsl(226_100%_40%/0.1)] transition-colors duration-200",
@@ -307,20 +303,20 @@ export default function UserRegistration() {
               )}>
                 {nameVal
                   ? initials(nameVal)
-                  : <span className="material-symbols-outlined text-[22px] text-slate-300">person</span>}
+                  : <User className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
               </div>
-              <p className={cn("text-[13px] font-bold m-0 mb-0.5 text-center", nameVal ? "text-foreground" : "text-slate-300")}>
+              <p className={cn("text-sm font-bold m-0 mb-0.5 text-center", nameVal ? "text-foreground" : "text-muted-foreground")}>
                 {nameVal || "Nome do usuário"}
               </p>
-              <p className={cn("text-[11px] m-0 mb-2.5 text-center max-w-full truncate", emailVal && isEmailValid ? "text-slate-700" : "text-slate-300")}>
+              <p className={cn("text-2xs m-0 mb-2.5 text-center max-w-full truncate", emailVal && isEmailValid ? "text-slate-700" : "text-muted-foreground")}>
                 {emailVal && isEmailValid ? emailVal : "email@empresa.com"}
               </p>
               {selectedRole ? (
-                <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase tracking-[0.05em]">
+                <span className="px-3 py-1 bg-primary/10 text-primary text-2xs font-bold rounded-full uppercase tracking-[0.05em]">
                   {selectedRole.label}
                 </span>
               ) : (
-                <span className="px-3 py-1 bg-brand-soft text-slate-300 text-[10px] font-bold rounded-full uppercase tracking-[0.05em]">
+                <span className="px-3 py-1 bg-brand-soft text-muted-foreground text-2xs font-bold rounded-full uppercase tracking-[0.05em]">
                   Sem perfil
                 </span>
               )}
@@ -329,7 +325,7 @@ export default function UserRegistration() {
 
           {/* Checklist card */}
           <div className={cn(CARD, "px-4 py-3.5")}>
-            <h3 className="text-[11px] font-bold text-slate-400 tracking-[0.08em] uppercase m-0 mb-3">Status do Cadastro</h3>
+            <h3 className="text-2xs font-bold text-muted-foreground tracking-[0.08em] uppercase m-0 mb-3">Status do Cadastro</h3>
             <ul className="list-none m-0 p-0 flex flex-col gap-2">
               {[
                 { label: "Nome identificado",         ok: nameVal.length >= 2 },
@@ -337,10 +333,10 @@ export default function UserRegistration() {
                 { label: "Perfil selecionado",        ok: !!roleVal },
               ].map((item, i) => (
                 <li key={i} className="flex items-center gap-2.5">
-                  <span className={cn("material-symbols-outlined text-lg [font-variation-settings:'FILL'_1] shrink-0 transition-colors duration-200", item.ok ? "text-green-500" : "text-slate-200")}>
-                    {item.ok ? "check_circle" : "radio_button_checked"}
-                  </span>
-                  <span className={cn("text-xs font-medium", item.ok ? "text-slate-700" : "text-slate-400")}>{item.label}</span>
+                  {item.ok
+                    ? <CircleCheck className="h-[18px] w-[18px] shrink-0 transition-colors duration-200 text-success-strong" aria-hidden="true" />
+                    : <CircleDot className="h-[18px] w-[18px] shrink-0 transition-colors duration-200 text-slate-200" aria-hidden="true" />}
+                  <span className={cn("text-xs font-medium", item.ok ? "text-slate-700" : "text-muted-foreground")}>{item.label}</span>
                 </li>
               ))}
             </ul>
@@ -348,8 +344,8 @@ export default function UserRegistration() {
 
           {/* Microsoft SSO note */}
           <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-brand-soft rounded-lg border border-primary/20">
-            <span className="material-symbols-outlined text-sm text-primary">verified_user</span>
-            <span className="text-[10px] font-semibold tracking-[0.04em] text-primary">Acesso via Microsoft 365</span>
+            <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            <span className="text-2xs font-semibold tracking-[0.04em] text-primary">Acesso via Microsoft 365</span>
           </div>
         </aside>
       </div>

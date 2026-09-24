@@ -1105,7 +1105,7 @@ function assignColumnRoles(
     .map((p) => ({ index: p.index, date: resolveHeaderDate(p.headerDate, dates, defaultYear) }))
     .filter((d) => d.date);
   let dias = headerDays;
-  let daysFromHeader = headerDays.length > 0;
+  const daysFromHeader = headerDays.length > 0;
   let confidence: PasteConfidence = "alta";
   let warnings: string[] = [];
   if (!daysFromHeader) {

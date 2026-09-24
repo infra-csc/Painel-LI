@@ -1,5 +1,8 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { formatDias, formatDiasUteis, formatFds, fixEncoding, parseBrNumber } from "@/lib/utils";
+import { useState, useMemo, useRef, useEffect, useCallback, useDeferredValue } from "react";
+import { cn, formatDias, formatDiasUteis, formatFds, fixEncoding  } from "@/lib/utils";
+import { formatarMoeda, contarDiasUteisEFds } from "@/lib/format";
+import { indexarPorId, agruparPor, chaveComposta } from "@/lib/indices";
+import { CurrencyInput } from "@/components/common/currency-input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Input } from "@/components/ui/input";
+
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, Plus, Check, RefreshCw, Plane } from "lucide-react";
@@ -21,12 +24,16 @@ import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamIn
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { QueryError, useQueriesState } from "@/components/common/query-state";
+import { normalizeRole } from "@shared/roles";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { Link, useSearch } from "wouter";
+import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { diasComDiaria, regraDiariaPorTipo, isPercursoFunction, isFuncaoLocal, FUNCAO_LOCAL_RAZAO } from "@shared/calculation-rules";
 import { isTransporteTerrestre } from "@shared/atendimento";
 import { calcAlimentacao, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
 
+import { EmptyState } from "@/components/common/empty-state";
 // ── Viagem no Realizado ──────────────────────────────────────────────────────
 // De onde veio cada horário exibido no bloco "Viagem" do modal.
 type TravelSource = "passagem" | "sugerido" | "manual" | "nenhum";
@@ -44,59 +51,8 @@ function alimSignature(dates: string[], chegadaIda: string, partidaVolta: string
   return `${[...dates].sort().join(",")}|${chegadaIda}|${partidaVolta}`;
 }
 
-function CurrencyInput({ value, onChange, className, disabled, style }: {
-  value: number;
-  onChange: (cents: number) => void;
-  className?: string;
-  disabled?: boolean;
-  style?: React.CSSProperties;
-}) {
-  const [display, setDisplay] = useState(() => (value / 100).toFixed(2).replace('.', ','));
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (document.activeElement !== inputRef.current) {
-      setDisplay((value / 100).toFixed(2).replace('.', ','));
-    }
-  }, [value]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    setDisplay(raw);
-    if (raw.trim() === '') return;
-    // parseBrNumber trata "1.500,00" como 1500 (ponto de milhar + vírgula decimal)
-    onChange(Math.round(parseBrNumber(raw) * 100));
-  };
-
-  const handleBlur = () => {
-    if (display.trim() === '') {
-      setDisplay((value / 100).toFixed(2).replace('.', ','));
-      return;
-    }
-    const cents = Math.round(parseBrNumber(display) * 100);
-    onChange(cents);
-    setDisplay((cents / 100).toFixed(2).replace('.', ','));
-  };
-
-  const handleFocus = () => {
-    setTimeout(() => inputRef.current?.select(), 0);
-  };
-
-  return (
-    <Input
-      ref={inputRef}
-      type="text"
-      inputMode="decimal"
-      style={style}
-      className={`bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 focus-visible:border-violet-300 transition-colors ${className ?? ''}`}
-      value={display}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      onFocus={handleFocus}
-      disabled={disabled}
-    />
-  );
-}
+// `CurrencyInput` vive em components/common (23/09) — antes copiado aqui,
+// em system-settings e em split-vaga-modal.
 
 // Reconstrói os valores de diária útil/fds a partir do subtotal gravado.
 // Fórmula única (antes o modal e o card divergiam): média simples subtotal/(úteis+fds)
@@ -115,22 +71,22 @@ function reconstructDailyValues(subtotal: number, weekdays: number, weekends: nu
 export default function BudgetActualPage() {
   usePageTitle("Realizado");
   const searchString = useSearch();
-  const { urlEventId, urlCollaboratorId, urlFunctionId } = useMemo(() => {
+  const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
     const p = new URLSearchParams(searchString);
     return {
-      urlEventId: p.get("event") || "",
       urlCollaboratorId: p.get("collaborator") || "",
       urlFunctionId: p.get("function") || "",
     };
   }, [searchString]);
   const [highlightCardId, setHighlightCardId] = useState<string>("");
 
-  const [selectedEventId, setSelectedEventId] = useState<string>(() => {
-    const p = new URLSearchParams(window.location.search);
-    return p.get("event") || "";
-  });
+  // Evento em foco (23/09): compartilhado com Planejado, Comparativo, Controle RH e Notas.
+  const { eventId: selectedEventId, setEventId: setSelectedEventId, sanitize: sanearEventoEmFoco } = useEventoEmFoco();
   const [editingItem, setEditingItem] = useState<BudgetActual | null>(null);
-  const [editFormData, setEditFormData] = useState<{
+  // `editFormBase` guarda o que foi digitado; `editFormData` (derivado, mais
+  // abaixo) é o que a tela mostra e o saveEdit grava — com a alimentação
+  // recalculada quando os dias/horários mudam e não houve ajuste manual.
+  const [editFormBase, setEditFormData] = useState<{
     valorDiariaUtil: number;
     valorDiariaFds: number;
     weekdayLunch: number;
@@ -152,15 +108,20 @@ export default function BudgetActualPage() {
   // grava é apenas o RESULTADO do cálculo: os 4 campos de alimentação
   // (weekdayLunch / weekdayDinner / weekendLunch / weekendDinner) em
   // `editFormData`, salvos pelo saveEdit como sempre.
-  const [editTravel, setEditTravel] = useState<{ chegadaIda: string; partidaVolta: string }>({ chegadaIda: "", partidaVolta: "" });
-  const [travelSource, setTravelSource] = useState<{ chegada: TravelSource; partida: TravelSource }>({ chegada: "nenhum", partida: "nenhum" });
+  // Estado DERIVADO (23/09): só o que o usuário digitou à mão fica em estado;
+  // o resto (horário da passagem/escalação, alimentação recalculada, aviso de
+  // "desatualizado") é calculado a cada render. Antes eram dois useEffect com
+  // dependências desligadas que sincronizavam cópias — e divergiam.
+  // Horários informados à mão no modal (campo ausente = usa o derivado).
+  const [travelManual, setTravelManual] = useState<{ chegadaIda?: string; partidaVolta?: string }>({});
   // Alimentação ajustada à mão: nunca é sobrescrita automaticamente
   const [alimManual, setAlimManual] = useState(false);
-  // Dias/horários mudaram DEPOIS de um ajuste manual — aviso discreto + botão
-  const [alimStale, setAlimStale] = useState(false);
+  // Assinatura (dias ativos + horários) sob a qual os 4 campos de alimentação
+  // gravados em `editFormBase` valem. Assinatura atual diferente ⇒ recalcula
+  // (automático) ou avisa "desatualizado" (manual).
+  const [alimSigBase, setAlimSigBase] = useState<string>("");
   // Dia extra virou o primeiro/último da lista: destaca o campo de hora correspondente
   const [extraDayEdge, setExtraDayEdge] = useState<null | "primeiro" | "ultimo">(null);
-  const alimSigRef = useRef<string>("");
   const chegadaInputRef = useRef<HTMLInputElement>(null);
   const partidaInputRef = useRef<HTMLInputElement>(null);
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
@@ -179,9 +140,14 @@ export default function BudgetActualPage() {
   const { sidebarWidth } = useSidebar();
   const qc = useQueryClient();
 
-  const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
-  const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const qEvents = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const qFunctions = useQuery<Function[]>({ queryKey: ["/api/functions"] });
+  const qCollaborators = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const events = qEvents.data;
+  // Evento em foco que não existe mais (excluído) é descartado assim que a lista chega (23/09).
+  useEffect(() => { if (events?.length) sanearEventoEmFoco(events.map(e => e.id)); }, [events, sanearEventoEmFoco]);
+  const functions = qFunctions.data;
+  const collaborators = qCollaborators.data;
 
   // Passagens: fonte dos horários de viagem que dirigem a alimentação (mesma
   // base do Planejado — a passagem registrada manda sobre o sugerido)
@@ -193,50 +159,45 @@ export default function BudgetActualPage() {
   }, [allTickets]);
 
   // Valores Padrão: valores de almoço/jantar por perfil usados no recálculo
+  // Sem `queryFn` caseiro (23/09): o padrão do queryClient checa `res.ok`,
+  // trata 401 e HTML de servidor desatualizado — o de antes gravava o corpo
+  // do erro no cache como se fossem os valores.
   const { data: systemSettings } = useQuery<Record<string, number>>({
     queryKey: ["/api/system-settings"],
-    queryFn: async () => {
-      const res = await fetch("/api/system-settings", { credentials: "include" });
-      return res.json();
-    },
   });
 
   // Busca diretamente os eventos que têm planejamento — sem carregar todos os registros
-  const { data: eventsWithPlanned } = useQuery<Event[]>({
+  const qEventsWithPlanned = useQuery<Event[]>({
     queryKey: ["/api/events-with-planned"],
   });
+  const eventsWithPlanned = qEventsWithPlanned.data;
 
-  const { data: budgetActual, isLoading } = useQuery<BudgetActual[]>({
+  // As consultas do evento passam por `apiRequest` (23/09): checa `res.ok`,
+  // trata 401 e HTML de servidor desatualizado. As chaves seguem com o id
+  // separado (`["/api/budget-actual", id]`) porque as invalidações do app usam
+  // esse formato — por isso o `queryFn` explícito continua.
+  const qBudgetActual = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
-    queryFn: async () => {
-      const url = selectedEventId ? `/api/budget-actual?eventId=${selectedEventId}` : "/api/budget-actual";
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch budget actual");
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/budget-actual?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
+  const { data: budgetActual, isLoading } = qBudgetActual;
 
-  const { data: teamInclusions } = useQuery<TeamInclusion[]>({
+  const qTeamInclusions = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/team-inclusions?eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch team inclusions");
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/team-inclusions?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
+  const teamInclusions = qTeamInclusions.data;
 
-  const { data: budgetComparison } = useQuery<BudgetComparison | null>({
+  // Antes devolvia `null` em erro e a tela seguia como se não houvesse
+  // comparativo. O Comparativo lança; unificado em 23/09: lança e a UI avisa.
+  const qBudgetComparison = useQuery<BudgetComparison | null>({
     queryKey: ["/api/budget-comparison", selectedEventId],
-    queryFn: async () => {
-      if (!selectedEventId) return null;
-      const res = await fetch(`/api/budget-comparison?eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) return null;
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/budget-comparison?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
+  const budgetComparison = qBudgetComparison.data;
 
   const rhComment = budgetComparison?.status === 'devolvido' ? budgetComparison.returnReason :
                     budgetComparison?.status === 'rejeitado' ? budgetComparison.rejectionReason : null;
@@ -248,26 +209,22 @@ export default function BudgetActualPage() {
     [budgetActual, selectedEventId]
   );
 
-  const isRhOrAdmin = user?.role === 'admin' || user?.role === 'financial';
+  // `normalizeRole` (23/09): papéis legados ("financeiro", "administrador")
+  // perdiam os botões do RH nesta tela.
+  const papel = normalizeRole(user?.role);
+  const isRhOrAdmin = papel === "admin" || papel === "financial";
 
   const { data: eventNotes = [] } = useQuery<BudgetNote[]>({
     queryKey: ["/api/budget-notes/by-event", "actual", selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/budget-notes/by-event?entityType=actual&eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    // Lança em erro (23/09) em vez de devolver `[]` — o chat não pode parecer vazio por falha de rede.
+    queryFn: () => apiRequest("GET", `/api/budget-notes/by-event?entityType=actual&eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
     staleTime: 30000,
   });
 
   const { data: plannedLogs = [] } = useQuery<any[]>({
     queryKey: ['/api/activity-logs/by-event', 'budget_planned', selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`, { credentials: 'include' });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
     staleTime: 60_000,
   });
@@ -306,7 +263,7 @@ export default function BudgetActualPage() {
       toast({
         title: "Enviado para revisão",
         description: "O orçamento realizado foi enviado para conferência e a emissão de NF foi liberada para os itens enviados.",
-        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        className: "bg-success-soft border-success/25 text-success",
       });
     },
     onError: () => {
@@ -314,34 +271,63 @@ export default function BudgetActualPage() {
     },
   });
 
-  const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
+  const qBudgetPlanned = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch budget planned");
-      return res.json();
-    },
+    queryFn: () => apiRequest("GET", `/api/budget-planned?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
+  const budgetPlanned = qBudgetPlanned.data;
+
+  // Erro/carregando de TUDO que a tela precisa (23/09): um só aviso com
+  // "Tentar de novo", que refaz apenas o que falhou. Antes eram 14 consultas
+  // sem tratamento — a falha virava "Nenhuma prestação disponível".
+  const estadoEvento = useQueriesState([
+    qEvents, qFunctions, qCollaborators, qBudgetActual, qTeamInclusions, qBudgetPlanned, qBudgetComparison,
+  ]);
+
+  // Índices O(1) (23/09): os `.find` abaixo rodavam por card e por dia do modal.
+  // Primeiro registro vence — mesma semântica do Array.find.
+  const plannedById = useMemo(() => indexarPorId(budgetPlanned), [budgetPlanned]);
+  const plannedPorColabFuncEvento = useMemo(
+    () => agruparPor(budgetPlanned, p => chaveComposta(p.collaboratorId, p.functionId, p.eventId)),
+    [budgetPlanned],
+  );
+  const plannedPorColabEvento = useMemo(
+    () => agruparPor(budgetPlanned, p => chaveComposta(p.collaboratorId, p.eventId)),
+    [budgetPlanned],
+  );
+  const collaboratorNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    collaborators?.forEach(c => m.set(c.id, fixEncoding(c.fullName) || "Não definido"));
+    return m;
+  }, [collaborators]);
+  const functionNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    functions?.forEach(f => m.set(f.id, f.name));
+    return m;
+  }, [functions]);
+  // Escalação por colaborador+evento (primeira vence, como o `.find` antigo)
+  const inclusaoPorColabEvento = useMemo(
+    () => agruparPor(teamInclusions, ti => chaveComposta(ti.collaboratorId, ti.eventId)),
+    [teamInclusions],
+  );
+  // Grupo de uma divisão de vaga: pai + filhos, indexado pelo id do pai
+  const actualsPorGrupo = useMemo(
+    () => agruparPor(budgetActual, a => a.splitParentId || a.id),
+    [budgetActual],
+  );
 
   const getPlannedRef = (item: BudgetActual): BudgetPlanned | undefined => {
     if (!budgetPlanned) return undefined;
     if (item.plannedId) {
-      const byId = budgetPlanned.find(p => p.id === item.plannedId);
+      const byId = plannedById.get(item.plannedId);
       if (byId) return byId;
     }
     if (item.collaboratorId && item.functionId) {
-      return budgetPlanned.find(p =>
-        p.collaboratorId === item.collaboratorId &&
-        p.functionId === item.functionId &&
-        p.eventId === item.eventId
-      );
+      return plannedPorColabFuncEvento.get(chaveComposta(item.collaboratorId, item.functionId, item.eventId))?.[0];
     }
     if (item.collaboratorId) {
-      return budgetPlanned.find(p =>
-        p.collaboratorId === item.collaboratorId &&
-        p.eventId === item.eventId
-      );
+      return plannedPorColabEvento.get(chaveComposta(item.collaboratorId, item.eventId))?.[0];
     }
     return undefined;
   };
@@ -364,7 +350,7 @@ export default function BudgetActualPage() {
       toast({
         title: "✓ Prestação salva com sucesso",
         description: "Os valores foram salvos e já estão atualizados na listagem.",
-        className: "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-lg",
+        className: "bg-success-soft border-success/25 text-success shadow-2",
       });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       setEditingItem(null);
@@ -391,7 +377,12 @@ export default function BudgetActualPage() {
 
   const splitMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) => {
-      const res = await apiRequest("POST", `/api/budget-actual/${id}/split`, payload);
+      // O servidor recalcula `totalValue` (do pai e do filho) na divisão
+      // (contrato 23/09) — o client não manda nem depende desse campo.
+      const { totalValue: _t, parentValues, ...resto } = payload as { totalValue?: number; parentValues?: Record<string, unknown> } & Record<string, unknown>;
+      const { totalValue: _pt, ...paiSemTotal } = parentValues ?? {};
+      const corpo = { ...resto, parentValues: paiSemTotal };
+      const res = await apiRequest("POST", `/api/budget-actual/${id}/split`, corpo);
       return res.json();
     },
     onSuccess: () => {
@@ -404,53 +395,35 @@ export default function BudgetActualPage() {
     },
   });
 
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-  };
+  // Formatador único (lib/format) — antes instanciava um Intl por célula.
+  const formatCurrency = formatarMoeda;
 
   const getCollaboratorName = (id?: string | null) => {
     if (!id) return "Não definido";
-    return fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "Não definido";
+    return collaboratorNameById.get(id) || "Não definido";
   };
 
   const getFunctionName = (id?: string | null) => {
     if (!id) return "-";
-    return functions?.find(f => f.id === id)?.name || "-";
+    return functionNameById.get(id) || "-";
   };
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
-  const countWeekdaysAndWeekends = (startDate: string | null | undefined, endDate: string | null | undefined): { weekdays: number; weekends: number } => {
-    if (!startDate || !endDate) return { weekdays: 0, weekends: 0 };
-    let start = new Date(startDate + 'T00:00:00');
-    let end = new Date(endDate + 'T00:00:00');
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) return { weekdays: 0, weekends: 0 };
-    if (end < start) { const tmp = start; start = end; end = tmp; }
-    let weekdays = 0, weekends = 0;
-    const current = new Date(start);
-    while (current <= end) {
-      const day = current.getDay();
-      if (day === 0 || day === 6) weekends++;
-      else weekdays++;
-      current.setDate(current.getDate() + 1);
-    }
-    return { weekdays, weekends };
-  };
+  // Contagem de dias úteis/fds — fonte única em lib/format (era copiada aqui e no Planejado).
+  const countWeekdaysAndWeekends = contarDiasUteisEFds;
 
-  const getItemInclusion = (item: BudgetActual): TeamInclusion | undefined => {
-    if (!teamInclusions || !item.collaboratorId) return undefined;
-    return teamInclusions.find(ti =>
-      ti.collaboratorId === item.collaboratorId &&
-      ti.eventId === item.eventId
-    );
-  };
+  const getItemInclusion = useCallback((item: BudgetActual): TeamInclusion | undefined => {
+    if (!item.collaboratorId) return undefined;
+    return inclusaoPorColabEvento.get(chaveComposta(item.collaboratorId, item.eventId))?.[0];
+  }, [inclusaoPorColabEvento]);
 
   const isWeekendDate = (d: string) => { const day = new Date(d + 'T12:00:00').getDay(); return day === 0 || day === 6; };
 
   // Horários de viagem já conhecidos para este item: a PASSAGEM registrada
   // manda; sem passagem, cai nos horários SUGERIDOS na escalação (texto livre,
   // normalizado para HH:MM por toHoraHHMM).
-  const deriveTravel = (item: BudgetActual): {
+  const deriveTravel = useCallback((item: BudgetActual): {
     chegadaIda: string; partidaVolta: string; chegadaSrc: TravelSource; partidaSrc: TravelSource;
   } => {
     const inclusion = getItemInclusion(item);
@@ -465,7 +438,7 @@ export default function BudgetActualPage() {
       chegadaSrc: chegadaPassagem ? "passagem" : chegadaSugerida ? "sugerido" : "nenhum",
       partidaSrc: partidaPassagem ? "passagem" : partidaSugerida ? "sugerido" : "nenhum",
     };
-  };
+  }, [getItemInclusion, ticketByInclusion]);
 
   /**
    * Primeiro e último dia da VIAGEM INTEIRA (o "grupo": prestação-pai + filhos
@@ -476,9 +449,9 @@ export default function BudgetActualPage() {
    * Dentro do grupo, a prioridade é: `workedDays` de todo o grupo → `workDays`
    * da escalação → intervalo scheduleStartDate/scheduleEndDate.
    */
-  const getGroupDayBounds = (item: BudgetActual): { first: string | null; last: string | null } => {
+  const getGroupDayBounds = useCallback((item: BudgetActual): { first: string | null; last: string | null } => {
     const parentId = item.splitParentId || item.id;
-    const groupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
+    const groupItems = actualsPorGrupo.get(parentId) || [];
     // SEM divisão o item já É a viagem inteira: nada a restringir (e o usuário
     // continua podendo desativar o primeiro dia sem perder o horário de chegada).
     if (groupItems.length <= 1) return { first: null, last: null };
@@ -492,7 +465,7 @@ export default function BudgetActualPage() {
       return { first: String(inclusion.scheduleStartDate).slice(0, 10), last: String(inclusion.scheduleEndDate).slice(0, 10) };
     }
     return { first: null, last: null };
-  };
+  }, [actualsPorGrupo, getItemInclusion]);
 
   // Recalcula a alimentação com as MESMAS regras do Planejado
   // (shared/alimentacao): dias ATIVOS do modal + horário de CHEGADA da ida
@@ -508,14 +481,14 @@ export default function BudgetActualPage() {
   // ativo do item for também o primeiro dia do GRUPO, e a partida só se o
   // último for o último do grupo; nos demais casos o horário é omitido e o dia
   // conta CHEIO (almoço + jantar), como um dia de "meio".
-  const calcAlimentacaoRealizado = (
+  const calcAlimentacaoRealizado = useCallback((
     item: BudgetActual,
     activeDates: string[],
     chegadaIda: string,
     partidaVolta: string,
   ): { weekdayLunch: number; weekdayDinner: number; weekendLunch: number; weekendDinner: number } => {
     const out = { weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0 };
-    const fnName = getFunctionName(item.functionId);
+    const fnName = item.functionId ? functionNameById.get(item.functionId) || "-" : "-";
     // Percurso (pacote fechado) e função local não têm alimentação — igual ao Planejado
     if (isPercursoFunction(fnName) || isFuncaoLocal(fnName)) return out;
     if (activeDates.length === 0) return out;
@@ -563,7 +536,42 @@ export default function BudgetActualPage() {
       if (d.jantar) { if (fds) out.weekendDinner += refFds.jantarCents; else out.weekdayDinner += refUtil.jantarCents; }
     }
     return out;
-  };
+  }, [functionNameById, getItemInclusion, ticketByInclusion, systemSettings, getGroupDayBounds]);
+
+  // ── Viagem e alimentação do modal: DERIVADAS (23/09) ───────────────────────
+  // Horário: o que foi digitado à mão vence; senão, passagem > sugerido na
+  // escalação. Passagem/escalação que chegam depois de o modal abrir entram
+  // sozinhas (sem efeito de sincronização).
+  const travelDerivado = useMemo(
+    () => editingItem ? deriveTravel(editingItem) : { chegadaIda: "", partidaVolta: "", chegadaSrc: "nenhum" as TravelSource, partidaSrc: "nenhum" as TravelSource },
+    [editingItem, deriveTravel],
+  );
+  const editTravel = useMemo(() => ({
+    chegadaIda: travelManual.chegadaIda ?? travelDerivado.chegadaIda,
+    partidaVolta: travelManual.partidaVolta ?? travelDerivado.partidaVolta,
+  }), [travelManual, travelDerivado]);
+  const travelSource = useMemo(() => ({
+    chegada: (travelManual.chegadaIda !== undefined ? "manual" : travelDerivado.chegadaSrc) as TravelSource,
+    partida: (travelManual.partidaVolta !== undefined ? "manual" : travelDerivado.partidaSrc) as TravelSource,
+  }), [travelManual, travelDerivado]);
+
+  const activeDates = useMemo(() => editDayEntries.filter(d => d.active).map(d => d.date), [editDayEntries]);
+  const alimSigAtual = alimSignature(activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+  // Dias/horários mudaram DEPOIS de um ajuste manual — aviso discreto + botão
+  const alimStale = alimManual && alimSigAtual !== alimSigBase;
+  // Alimentação recalculada pelos dias ativos + horários — só quando a
+  // assinatura mudou desde a base e não houve ajuste manual (e o item ainda
+  // pode ser editado).
+  const alimAuto = useMemo(() => {
+    if (!editingItem || editingItem.sentForReview || alimManual) return null;
+    if (alimSigAtual === alimSigBase) return null;
+    return calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+  }, [editingItem, alimManual, alimSigAtual, alimSigBase, calcAlimentacaoRealizado, activeDates, editTravel]);
+  // O que a tela mostra e o saveEdit grava.
+  const editFormData = useMemo(
+    () => editFormBase ? (alimAuto ? { ...editFormBase, ...alimAuto } : editFormBase) : null,
+    [editFormBase, alimAuto],
+  );
 
   const getItemDayCounts = (item: BudgetActual): { weekdays: number; weekends: number; startDate: string | null; endDate: string | null } => {
     // When workedDays is set (after a split), derive counts from it for accuracy
@@ -591,7 +599,7 @@ export default function BudgetActualPage() {
   // conforme os dias que couberam a este item dentro do grupo. Usada no card e no modal.
   const getProportionalPlanned = (item: BudgetActual, rawPlan: BudgetPlanned): BudgetPlanned => {
     const parentId = item.splitParentId || item.id;
-    const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
+    const allGroupItems = actualsPorGrupo.get(parentId) || [];
     const allGroupDays = Array.from(new Set(allGroupItems.flatMap(a => a.workedDays || []))).sort();
     const myDays = item.workedDays || [];
 
@@ -767,78 +775,41 @@ export default function BudgetActualPage() {
 
     // ── Viagem: pré-preenche com o que já existe (passagem > sugerido) ──────
     const travel = deriveTravel(item);
-    setEditTravel({ chegadaIda: travel.chegadaIda, partidaVolta: travel.partidaVolta });
-    setTravelSource({ chegada: travel.chegadaSrc, partida: travel.partidaSrc });
+    setTravelManual({});
     setAlimManual(false);
-    setAlimStale(false);
     setExtraDayEdge(null);
     // Baseline: ao ABRIR, a alimentação gravada é mantida como está (não
-    // sobrescreve o que o RH já ajustou). O recálculo automático só dispara
+    // sobrescreve o que o RH já ajustou). O recálculo automático só vale
     // quando os dias ativos ou os horários mudarem daqui em diante.
-    alimSigRef.current = alimSignature(
+    setAlimSigBase(alimSignature(
       dayEntries.filter(d => d.active).map(d => d.date),
       travel.chegadaIda,
       travel.partidaVolta,
-    );
+    ));
   };
 
   // Recalcula a alimentação pelos dias ativos + horários da viagem e reseta o
   // "ajustado manualmente" (usado pelo botão "Recalcular pela viagem").
   const recalcAlimentacao = () => {
     if (!editingItem) return;
-    const activeDates = editDayEntries.filter(d => d.active).map(d => d.date);
     const next = calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
     setEditFormData(prev => prev ? { ...prev, ...next } : prev);
     setAlimManual(false);
-    setAlimStale(false);
-    alimSigRef.current = alimSignature(activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+    setAlimSigBase(alimSigAtual);
   };
 
-  // Marca a alimentação como ajustada à mão — a partir daqui nada sobrescreve
+  // Marca a alimentação como ajustada à mão — a partir daqui nada sobrescreve.
+  // Persiste na base os valores EFETIVOS atuais (os recalculados, se for o
+  // caso) mais o campo editado, e fixa a assinatura atual como base.
   const setAlimField = (key: 'weekdayLunch' | 'weekdayDinner' | 'weekendLunch' | 'weekendDinner', cents: number) => {
     // Só marca "ajustado manualmente" se o valor REALMENTE mudou — o
     // CurrencyInput dispara onChange também no blur, sem edição nenhuma.
     if (!editFormData || editFormData[key] === cents) return;
-    setEditFormData(prev => prev ? { ...prev, [key]: cents } : prev);
+    const efetivo = editFormData;
+    setEditFormData(prev => prev ? { ...prev, ...efetivo, [key]: cents } : prev);
     setAlimManual(true);
-    setAlimStale(false);
+    setAlimSigBase(alimSigAtual);
   };
-
-  // Passagem/escalação podem chegar DEPOIS de o modal abrir (queries assíncronas):
-  // ressincroniza os horários que ainda não foram informados à mão. Se nada
-  // mudar, devolve o mesmo objeto e não dispara re-render nem recálculo.
-  useEffect(() => {
-    if (!editingItem) return;
-    const t = deriveTravel(editingItem);
-    setEditTravel(prev => {
-      const chegadaIda   = travelSource.chegada === 'manual' ? prev.chegadaIda   : t.chegadaIda;
-      const partidaVolta = travelSource.partida === 'manual' ? prev.partidaVolta : t.partidaVolta;
-      return (chegadaIda === prev.chegadaIda && partidaVolta === prev.partidaVolta) ? prev : { chegadaIda, partidaVolta };
-    });
-    setTravelSource(prev => {
-      const chegada = prev.chegada === 'manual' ? prev.chegada : t.chegadaSrc;
-      const partida = prev.partida === 'manual' ? prev.partida : t.partidaSrc;
-      return (chegada === prev.chegada && partida === prev.partida) ? prev : { chegada, partida };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingItem, allTickets, teamInclusions]);
-
-  // Recálculo automático da alimentação quando os dias ATIVOS ou os horários da
-  // viagem mudam (adicionar dia extra, desativar/reativar um dia, corrigir a
-  // hora). Se o usuário já ajustou os valores à mão, NÃO sobrescreve — só
-  // sinaliza que ficaram desatualizados.
-  useEffect(() => {
-    if (!editingItem || !editFormData) return;
-    if (editingItem.sentForReview) return; // somente leitura
-    const activeDates = editDayEntries.filter(d => d.active).map(d => d.date);
-    const sig = alimSignature(activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
-    if (sig === alimSigRef.current) return;
-    alimSigRef.current = sig;
-    if (alimManual) { setAlimStale(true); return; }
-    const next = calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
-    setEditFormData(prev => prev ? { ...prev, ...next } : prev);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editDayEntries, editTravel, alimManual, editingItem, systemSettings, allTickets, teamInclusions]);
 
   // Dia extra virou o primeiro/último: rola até o campo de hora e foca
   useEffect(() => {
@@ -886,12 +857,15 @@ export default function BudgetActualPage() {
     });
   };
 
+  // `useDeferredValue` (23/09): a lista é grande e refiltrar a cada tecla
+  // travava a digitação. O input continua controlado por `searchTerm`.
+  const buscaAplicada = useDeferredValue(searchTerm);
   const filteredItems = useMemo(() => {
     if (!budgetActual) return [];
     let items = [...budgetActual].filter(item => item.eventId === selectedEventId);
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    if (buscaAplicada) {
+      const term = buscaAplicada.toLowerCase();
       items = items.filter(item => {
         const name = getCollaboratorName(item.collaboratorId).toLowerCase();
         const fn = getFunctionName(item.functionId).toLowerCase();
@@ -921,7 +895,7 @@ export default function BudgetActualPage() {
     }
 
     return items;
-  }, [budgetActual, selectedEventId, searchTerm, filterType, filterFunction, sortBy, collaborators, functions, budgetPlanned]);
+  }, [budgetActual, selectedEventId, buscaAplicada, filterType, filterFunction, sortBy, collaborators, functions, budgetPlanned]);
 
   // ── Split group computation ─────────────────────────────────────────────
   // Map from parentId → list of split children in the filtered set
@@ -1000,10 +974,10 @@ export default function BudgetActualPage() {
   }, [searchTerm, filterType, filterFunction]);
   const totalDifference = totalRealizado - totalPlanejado;
   const diffLabel = totalDifference === 0
-    ? { text: "Dentro do planejado", color: "text-gray-500" }
+    ? { text: "Dentro do planejado", color: "text-muted-foreground" }
     : totalDifference < 0
-      ? { text: `- ${formatCurrency(Math.abs(totalDifference))} abaixo do planejado`, color: "text-emerald-600" }
-      : { text: `+ ${formatCurrency(totalDifference)} acima do planejado`, color: "text-red-500" };
+      ? { text: `- ${formatCurrency(Math.abs(totalDifference))} abaixo do planejado`, color: "text-success" }
+      : { text: `+ ${formatCurrency(totalDifference)} acima do planejado`, color: "text-danger-strong" };
 
   const hasAnyEditable = useMemo(() => {
     if (!budgetActual) return true;
@@ -1014,7 +988,7 @@ export default function BudgetActualPage() {
 
   // Avatar color helper
   const avatarColorAct = (name: string) => {
-    const colors = ["bg-violet-500","bg-purple-500","bg-indigo-500","bg-rose-500","bg-emerald-500","bg-amber-500","bg-sky-500","bg-teal-500"];
+    const colors = ["bg-primary","bg-primary","bg-primary","bg-danger-strong","bg-success-strong","bg-warning-strong","bg-info-strong","bg-info-strong"];
     return colors[(name.charCodeAt(0) || 0) % colors.length];
   };
 
@@ -1060,13 +1034,13 @@ export default function BudgetActualPage() {
     };
     // Badge baseado diretamente em rhStatus: o rh-action zera sentForReview ao devolver/recusar,
     // então condicionar Devolvido/Recusado a sentForReview tornava esses ramos inalcançáveis
-    const statusBadge = cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCheck className="w-2.5 h-2.5" /> Aprovado</span>
-      : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200"><AlertCircle className="w-2.5 h-2.5" /> Devolvido</span>
-      : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200"><AlertCircle className="w-2.5 h-2.5" /> Recusado</span>
-      : cardItem.sentForReview ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200"><Clock className="w-2.5 h-2.5" /> Em revisão</span>
-      : isDuplicated ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-violet-100 text-violet-700 border border-violet-200"><Copy className="w-2.5 h-2.5" /> Duplicado</span>
-      : hasBeenEdited ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-2.5 h-2.5" /> Salvo {fmtDT(cardItem.updatedAt!)}</span>
-      : <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-gray-100 text-gray-500 border border-gray-200">Não preenchido</span>;
+    const statusBadge = cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCheck className="w-2.5 h-2.5" /> Aprovado</span>
+      : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning border border-warning/25"><AlertCircle className="w-2.5 h-2.5" /> Devolvido</span>
+      : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger border border-danger/25"><AlertCircle className="w-2.5 h-2.5" /> Recusado</span>
+      : cardItem.sentForReview ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Clock className="w-2.5 h-2.5" /> Em revisão</span>
+      : isDuplicated ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Copy className="w-2.5 h-2.5" /> Duplicado</span>
+      : hasBeenEdited ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCircle2 className="w-2.5 h-2.5" /> Salvo {fmtDT(cardItem.updatedAt!)}</span>
+      : <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border">Não preenchido</span>;
     const collabName = getCollaboratorName(cardItem.collaboratorId);
     const initials = collabName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
     const avatarBg = avatarColorAct(collabName);
@@ -1088,38 +1062,38 @@ export default function BudgetActualPage() {
       return getProportionalPlanned(cardItem, rawPlan);
     })();
 
-    const stripeColor = isSelected ? '#7c3aed'
-      : notAttended ? '#94a3b8'
-      : cardItem.rhStatus === 'aprovado' ? '#059669'
-      : cardItem.rhStatus === 'devolvido' ? '#d97706'
-      : cardItem.rhStatus === 'rejeitado' ? '#ef4444'
+    const stripeColor = isSelected ? 'var(--primary)'
+      : notAttended ? 'var(--muted-foreground)'
+      : cardItem.rhStatus === 'aprovado' ? 'var(--success)'
+      : cardItem.rhStatus === 'devolvido' ? 'var(--warning)'
+      : cardItem.rhStatus === 'rejeitado' ? 'var(--danger-strong)'
       : cardItem.sentForReview ? 'var(--primary)'
-      : diverges ? '#f59e0b'
-      : '#6d28d9';
+      : diverges ? 'var(--warning-strong)'
+      : 'var(--primary)';
 
     return (
       <div
         data-card-id={cardItem.id}
         className={[
-          'rounded-3xl border overflow-hidden transition-all duration-300 bg-white flex flex-col',
+          'rounded-xl border overflow-hidden transition-all duration-300 bg-card flex flex-col',
           notAttended ? 'opacity-60 grayscale-[30%]' : '',
-          isInGroup ? 'border-l-[3px] border-l-purple-300' : '',
-          highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-[0_8px_32px_rgba(109,40,217,0.14)]'
-            : isSelected ? 'ring-2 ring-violet-300 border-violet-200 shadow-md'
-            : diverges ? 'border-amber-200 shadow-sm'
-            : isInGroup ? 'border-purple-200 shadow-sm'
-            : 'border-slate-200 shadow-sm',
-          !isSelected ? 'hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-100/60 hover:border-purple-200' : '',
+          isInGroup ? 'border-l-[3px] border-l-primary/40' : '',
+          highlightCardId === cardItem.id ? 'ring-2 ring-ring shadow-3'
+            : isSelected ? 'ring-2 ring-primary/40 border-primary/25 shadow-2'
+            : diverges ? 'border-warning/25 shadow-1'
+            : isInGroup ? 'border-primary/25 shadow-1'
+            : 'border-border shadow-1',
+          !isSelected ? 'hover:-translate-y-1 hover:shadow-3 hover:border-primary/25' : '',
         ].join(' ')}
       >
           <div className="h-[3px]" style={{background: stripeColor}} />
 
           {/* Card Header */}
-          <div className={`flex items-center justify-between px-4 py-3 ${isItemLocked ? 'bg-indigo-50/40' : 'bg-slate-50/60'}`}>
+          <div className={`flex items-center justify-between px-4 py-3 ${isItemLocked ? 'bg-brand-soft/40' : 'bg-surface-muted/60'}`}>
             <div className="flex items-center gap-3">
               {isItemLocked ? (
                 <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                  <Lock className="w-4 h-4 text-slate-300 flex-shrink-0 cursor-default" />
+                  <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 cursor-default" />
                 </TooltipTrigger><TooltipContent side="right" className="text-xs">Prestação bloqueada para edição</TooltipContent></Tooltip></TooltipProvider>
               ) : isItemEditable ? (
                 <button
@@ -1129,39 +1103,39 @@ export default function BudgetActualPage() {
                   aria-checked={isSelected}
                   aria-label={`Selecionar prestação de ${collabName}`}
                 >
-                  <div className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-colors ${isSelected ? 'bg-violet-600 border-violet-600' : 'border-slate-300 hover:border-violet-400'}`}>
+                  <div className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-slate-300 hover:border-primary'}`}>
                     {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                   </div>
                 </button>
               ) : null}
-              <div className={`w-9 h-9 rounded-[8px] ${avatarBg} flex items-center justify-center flex-shrink-0`}>
-                <span className="text-white text-[12px] font-bold">{initials || '?'}</span>
+              <div className={`w-9 h-9 rounded-lg ${avatarBg} flex items-center justify-center flex-shrink-0`}>
+                <span className="text-white text-xs font-bold">{initials || '?'}</span>
               </div>
               <div>
-                <span className="font-medium text-slate-800 text-[14px]">{collabName}</span>
+                <span className="font-medium text-foreground text-sm">{collabName}</span>
                 <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
-                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{getFunctionName(cardItem.functionId)}</span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
+                  <span className="text-2xs font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{getFunctionName(cardItem.functionId)}</span>
+                  <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? 'bg-brand-soft text-primary' : 'bg-warning-soft text-warning'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                   <span className="shrink-0">{statusBadge}</span>
                   {notAttended && (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-500 border border-slate-200 shrink-0 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border shrink-0 whitespace-nowrap">
                       <AlertCircle className="w-2.5 h-2.5" /> Não participou
                     </span>
                   )}
                   {cardItem.rhAdjusted && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap" style={{background:'#FEF3C7', color:'#D97706', border:'1px solid #FDE68A'}}>
+                    <span className="inline-flex items-center gap-1 text-2xs font-semibold px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap bg-warning-soft text-warning border border-warning/25">
                       ⚠ Realizado ajustado pelo RH
                     </span>
                   )}
-                  {diverges && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 shrink-0 whitespace-nowrap">Divergência</span>}
-                  {isGParent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 shrink-0 whitespace-nowrap">Titular</span>}
-                  {isGChild && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 flex items-center gap-0.5 shrink-0 whitespace-nowrap"><GitFork className="w-2.5 h-2.5" />Divisão</span>}
+                  {diverges && <span className="inline-flex items-center gap-1 text-2xs font-bold px-1.5 py-0.5 rounded-md bg-warning-soft text-warning shrink-0 whitespace-nowrap">Divergência</span>}
+                  {isGParent && <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-brand-soft text-primary shrink-0 whitespace-nowrap">Titular</span>}
+                  {isGChild && <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-brand-soft text-primary flex items-center gap-0.5 shrink-0 whitespace-nowrap"><GitFork className="w-2.5 h-2.5" />Divisão</span>}
                   {cardItem.plannedId && <PlannedEditedBadge logs={plannedLogs} entityId={cardItem.plannedId} />}
                 </div>
                 {workedDaysStr && isInGroup && (
                   <div className="flex items-center gap-1 mt-1">
-                    <Calendar className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                    <span className="text-[10px] text-purple-600 leading-tight">{workedDaysStr}</span>
+                    <Calendar className="w-3 h-3 text-primary/70 flex-shrink-0" />
+                    <span className="text-2xs text-primary leading-tight">{workedDaysStr}</span>
                   </div>
                 )}
                 <BudgetNotesSnippet notes={eventNotes} entityId={cardItem.id} />
@@ -1169,7 +1143,7 @@ export default function BudgetActualPage() {
             </div>
             <div className="flex items-center gap-0.5">
               <button
-                className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-blue-50 transition-colors"
+                className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-brand-soft transition-colors"
                 onClick={() => openEditModal(cardItem, 'observacoes')}
                 title="Ver observações"
                 aria-label={`Ver observações de ${collabName}`}
@@ -1178,14 +1152,14 @@ export default function BudgetActualPage() {
               </button>
               {isItemEditable ? (
                 <>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" onClick={() => openEditModal(cardItem)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" onClick={() => setSplittingItem(cardItem)} title="Dividir" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => setConfirmDeleteId(cardItem.id)} title="Remover"><Trash2 className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => openEditModal(cardItem)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => setSplittingItem(cardItem)} title="Dividir" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger-strong hover:bg-danger-soft rounded-lg" onClick={() => setConfirmDeleteId(cardItem.id)} title="Remover"><Trash2 className="w-3.5 h-3.5" /></Button>
                 </>
               ) : (
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 hover:bg-muted rounded-lg" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
               )}
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600 rounded-lg" onClick={() => toggleCollapse(cardItem.id)}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 rounded-lg" onClick={() => toggleCollapse(cardItem.id)}>
                 {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
               </Button>
             </div>
@@ -1202,25 +1176,24 @@ export default function BudgetActualPage() {
               if (!planned) return null;
               const d = actual - plan;
               if (Math.abs(d) <= 1) return null;
-              return <span className={`text-[10px] tabular-nums font-bold ml-1 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
+              return <span className={`text-2xs tabular-nums font-bold ml-1 ${d < 0 ? 'text-success' : 'text-danger-strong'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
             };
             const hasRhFields = Object.keys(rhFields).length > 0;
             return (
-              <div className="px-4 py-3 border-t border-slate-100 space-y-3">
+              <div className="px-4 py-3 border-t border-border space-y-3">
                 {/* Banner laranja para não-RH quando RH ajustou */}
                 {!isRhOrAdmin && cardItem.rhAdjusted && (
-                  <div className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-xl" style={{background:'#FFFBEB', border:'1px solid #FDE68A'}}>
+                  <div className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-xl bg-warning-soft border border-warning/25">
                     <div className="flex items-center gap-2">
-                      <span className="text-[13px]">⚠</span>
-                      <span className="text-[11px] font-medium" style={{color:'#92400E'}}>
+                      <span className="text-sm">⚠</span>
+                      <span className="text-2xs font-medium text-warning">
                         O RH ajustou alguns valores do seu realizado. Veja o histórico para detalhes.
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => openEditModal(cardItem, 'historico')}
-                      className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap cursor-pointer border-0 hover:opacity-90 transition-opacity"
-                      style={{background:'#F59E0B', color:'white'}}
+                      className="shrink-0 text-2xs font-semibold px-2 py-1 rounded-lg whitespace-nowrap cursor-pointer border-0 hover:opacity-90 transition-opacity bg-warning-strong text-white"
                     >
                       Ver alterações
                     </button>
@@ -1228,32 +1201,32 @@ export default function BudgetActualPage() {
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {/* Diárias */}
-                  <div className="rounded-xl p-2.5 border border-blue-100 bg-blue-50/50">
+                  <div className="rounded-xl p-2.5 border border-primary/25 bg-brand-soft/50">
                     <div className="flex items-center gap-1 mb-2">
-                      <div className="w-3.5 h-3.5 rounded bg-blue-500 flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" /></div>
-                      <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Diárias</span>
+                      <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" /></div>
+                      <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                      <span className="text-sm font-medium text-foreground tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
                       {diffInline(cardSubtotalDiarias, plannedDiarias)}
                     </div>
-                    {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
+                    {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-2xs text-muted-foreground tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
                     <div className="mt-1.5 space-y-0.5">
-                      {cardDays.weekdays > 0 && <div className="text-[10px] text-blue-600 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
-                      {cardDays.weekends > 0 && <div className="text-[10px] text-indigo-500 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
+                      {cardDays.weekdays > 0 && <div className="text-2xs text-primary tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
+                      {cardDays.weekends > 0 && <div className="text-2xs text-primary tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
                     </div>
                   </div>
                   {/* Alimentação */}
-                  <div className="rounded-xl p-2.5 border border-orange-100 bg-orange-50/50">
+                  <div className="rounded-xl p-2.5 border border-warning/25 bg-warning-soft/50">
                     <div className="flex items-center gap-1 mb-2">
-                      <div className="w-3.5 h-3.5 rounded bg-orange-400 flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" /></div>
-                      <span className="text-[10px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
+                      <div className="w-3.5 h-3.5 rounded bg-warning-strong flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" /></div>
+                      <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      <span className="text-sm font-medium text-foreground tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       {diffInline(totalAlimentacao, plannedAlim)}
                     </div>
-                    {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
+                    {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-2xs text-muted-foreground tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
                     {(() => {
                       const semana = cardItem.weekdayLunch + cardItem.weekdayDinner;
                       const fds = cardItem.weekendLunch + cardItem.weekendDinner;
@@ -1264,30 +1237,30 @@ export default function BudgetActualPage() {
                       const perWke = wke > 0 && fds > 0 ? Math.round(fds / wke) : 0;
                       return (
                         <div className="mt-1.5 space-y-0.5">
-                          {wkd > 0 && semana > 0 && <div className="text-[10px] text-orange-600 tabular-nums">{formatDiasUteis(wkd)} × {formatCurrency(perWkd)}</div>}
-                          {wke > 0 && fds > 0 && <div className="text-[10px] text-amber-500 tabular-nums">{formatFds(wke)} × {formatCurrency(perWke)}</div>}
+                          {wkd > 0 && semana > 0 && <div className="text-2xs text-warning tabular-nums">{formatDiasUteis(wkd)} × {formatCurrency(perWkd)}</div>}
+                          {wke > 0 && fds > 0 && <div className="text-2xs text-warning-strong tabular-nums">{formatFds(wke)} × {formatCurrency(perWke)}</div>}
                         </div>
                       );
                     })()}
                   </div>
                   {/* Mobilidade */}
-                  <div className="rounded-xl p-2.5 border border-violet-100 bg-violet-50/50">
+                  <div className="rounded-xl p-2.5 border border-primary/25 bg-brand-soft/50">
                     <div className="flex items-center gap-1 mb-2">
-                      <div className="w-3.5 h-3.5 rounded bg-violet-500 flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" /></div>
-                      <span className="text-[10px] font-semibold text-violet-700 uppercase tracking-wide">Mobilidade</span>
+                      <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" /></div>
+                      <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
+                      <span className="text-sm font-medium text-foreground tabular-nums">{formatCurrency(cardItem.mobility)}</span>
                       {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
                     </div>
                     {(() => {
                       const ida = cardItem.mobilityIda;
                       const volta = cardItem.mobilityVolta;
                       if (typeof ida === 'number' && (ida > 0 || (volta ?? 0) > 0)) {
-                        return <div className="text-[10px] text-violet-400 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>;
+                        return <div className="text-2xs text-primary/70 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>;
                       }
                       return planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1
-                        ? <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
+                        ? <div className="text-2xs text-muted-foreground tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
                         : null;
                     })()}
                   </div>
@@ -1295,16 +1268,16 @@ export default function BudgetActualPage() {
 
                 {/* Campos ajustados pelo RH — inline */}
                 {hasRhFields && (
-                  <div className="rounded-xl px-3 py-2.5 space-y-1" style={{background:'#FFFBEB', border:'1px solid #FDE68A'}}>
-                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{color:'#92400E'}}>Ajustes do RH</span>
+                  <div className="rounded-xl px-3 py-2.5 space-y-1 bg-warning-soft border border-warning/25">
+                    <span className="text-2xs font-bold uppercase tracking-widest text-warning">Ajustes do RH</span>
                     {Object.values(rhFields).map((f, i) => (
-                      <div key={i} className="flex items-center gap-1 text-[11px]" style={{color:'#6B7280'}}>
+                      <div key={i} className="flex items-center gap-1 text-2xs text-muted-foreground">
                         <span>·</span>
                         <span>{f.label}:</span>
-                        <span className="tabular-nums line-through" style={{color:'#9CA3AF'}}>{formatCurrency(f.from)}</span>
+                        <span className="tabular-nums line-through text-muted-foreground">{formatCurrency(f.from)}</span>
                         <span>→</span>
-                        <span className="tabular-nums font-semibold" style={{color:'#D97706'}}>{formatCurrency(f.to)}</span>
-                        <span className="text-[10px]" style={{color:'#D97706'}}>(RH)</span>
+                        <span className="tabular-nums font-semibold text-warning">{formatCurrency(f.to)}</span>
+                        <span className="text-2xs text-warning">(RH)</span>
                       </div>
                     ))}
                   </div>
@@ -1317,21 +1290,21 @@ export default function BudgetActualPage() {
           const planned = cardPlanned;
           const diff = planned ? cardItem.totalValue - planned.totalValue : 0;
           return (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/40 mt-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-surface-muted/40 mt-auto">
               <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Total Realizado</span>
-                <span className="text-[17px] font-medium tabular-nums text-violet-700" style={{letterSpacing:'-0.02em'}}>{formatCurrency(cardItem.totalValue)}</span>
+                <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-widest">Total Realizado</span>
+                <span className="text-lg font-medium tabular-nums text-primary tracking-[-0.02em]">{formatCurrency(cardItem.totalValue)}</span>
               </div>
               <div>
                 {!planned ? null
                   : Math.abs(diff) <= 1 ? (
-                    <span className="text-[10px] font-medium text-slate-400 px-2.5 py-1 rounded-lg bg-slate-100">Dentro do previsto</span>
+                    <span className="text-2xs font-medium text-muted-foreground px-2.5 py-1 rounded-lg bg-muted">Dentro do previsto</span>
                   ) : diff < 0 ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums text-emerald-700 px-2.5 py-1 rounded-lg bg-emerald-100">
+                    <span className="inline-flex items-center gap-1 text-2xs font-semibold tabular-nums text-success px-2.5 py-1 rounded-lg bg-success-soft">
                       <TrendingDown className="w-3 h-3" />− {formatCurrency(Math.abs(diff))}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums text-red-600 px-2.5 py-1 rounded-lg bg-red-50">
+                    <span className="inline-flex items-center gap-1 text-2xs font-semibold tabular-nums text-danger px-2.5 py-1 rounded-lg bg-danger-soft">
                       <TrendingUp className="w-3 h-3" />+ {formatCurrency(diff)}
                     </span>
                   )
@@ -1363,27 +1336,27 @@ export default function BudgetActualPage() {
         const commented = devolvedItems.filter(i => i.rhComment);
         const shown = commented.slice(0, 3);
         return (
-          <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
-              <AlertCircle className="w-4 h-4 text-amber-600" />
+          <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl border border-warning/25 bg-warning-soft shadow-1">
+            <div className="w-8 h-8 rounded-lg bg-warning-soft border border-warning/25 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-4 h-4 text-warning" />
             </div>
             <div className="min-w-0">
-              <p className="text-[13px] font-bold text-amber-800 m-0">
+              <p className="text-sm font-bold text-warning m-0">
                 {devolvedItems.length === 1
                   ? 'Prestação devolvida pelo RH'
                   : `${devolvedItems.length} prestações devolvidas pelo RH`}
               </p>
               {shown.map(i => (
-                <p key={i.id} className="text-xs text-amber-700 mt-0.5 m-0">
+                <p key={i.id} className="text-xs text-warning mt-0.5 m-0">
                   <span className="font-semibold">{getCollaboratorName(i.collaboratorId)}:</span> {i.rhComment}
                 </p>
               ))}
               {commented.length > shown.length && (
-                <p className="text-xs text-amber-600/80 mt-0.5 m-0">
+                <p className="text-xs text-warning/80 mt-0.5 m-0">
                   + {commented.length - shown.length} {commented.length - shown.length === 1 ? 'outro comentário' : 'outros comentários'} nos cards devolvidos
                 </p>
               )}
-              <p className="text-[11px] text-amber-600/80 mt-1 m-0">Corrija os itens marcados como "Devolvido" e reenvie para revisão.</p>
+              <p className="text-2xs text-warning/80 mt-1 m-0">Corrija os itens marcados como "Devolvido" e reenvie para revisão.</p>
             </div>
           </div>
         );
@@ -1391,41 +1364,37 @@ export default function BudgetActualPage() {
 
       {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
-        <div className="rounded-2xl border border-violet-100 shadow-md">
-          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-2xl px-8 py-20 flex flex-col items-center justify-center text-center">
-            {/* Ícone */}
-            <div className="relative w-24 h-24 mx-auto mb-8">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-200 flex items-center justify-center rotate-3">
-                <ClipboardCheck className="w-10 h-10 text-white" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md">
-                <CheckCircle2 className="w-4 h-4 text-white" />
-              </div>
+        <EmptyState
+          live={false}
+          icon={ClipboardCheck}
+          title="Selecione um evento"
+          description="Registre a prestação de contas com os valores efetivamente gastos em cada escala."
+          className="py-20"
+          action={
+            <div className="w-full max-w-sm text-left">
+              {qEventsWithPlanned.isError ? (
+                <QueryError error={qEventsWithPlanned.error} onRetry={() => qEventsWithPlanned.refetch()} title="Não foi possível carregar os eventos" />
+              ) : (
+                <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
+              )}
             </div>
-
-            <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Selecione um evento</h2>
-            <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
-              Registre a prestação de contas com os valores efetivamente gastos em cada escala.
-            </p>
-
-            <div className="max-w-sm w-full mx-auto mt-8">
-              <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
-            </div>
-          </div>
+          }
+        />
+      ) : estadoEvento.isError ? (
+        <QueryError error={estadoEvento.error} onRetry={estadoEvento.retry} title="Não foi possível carregar o Realizado deste evento" />
+      ) : isLoading || estadoEvento.isLoading ? (
+        <div className="flex items-center justify-center py-20" role="status" aria-label="Carregando…">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : filteredItems.length === 0 && !searchTerm && filterType === "all" && filterFunction === "all" ? (
-        <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
-          <ClipboardCheck className="w-16 h-16 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
-          <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">Nenhuma prestação disponível</h3>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
+      ) : filteredItems.length === 0 && !buscaAplicada && filterType === "all" && filterFunction === "all" ? (
+        <div className="text-center py-16 bg-card rounded-xl border border-border">
+          <ClipboardCheck className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+          <h3 className="text-base font-semibold text-slate-700 mb-2">Nenhuma prestação disponível</h3>
+          <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
             Envie escalas do Planejado para iniciar o Realizado deste evento
           </p>
           <Link href="/budget-planned">
-            <Button className="bg-indigo-600 hover:bg-indigo-700">
+            <Button className="bg-primary hover:bg-primary-hover">
               <ArrowRight className="w-4 h-4 mr-2" />
               Ir para Planejado
             </Button>
@@ -1446,7 +1415,7 @@ export default function BudgetActualPage() {
               { label: "Aprovação RH", desc: "Análise e aprovação" },
             ];
             return (
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-5 py-4">
+              <div className="bg-card border border-border rounded-xl px-5 py-4">
                 <div className="flex items-center">
                   {steps.map((step, i) => {
                     const isDone = i < currentStep;
@@ -1456,9 +1425,9 @@ export default function BudgetActualPage() {
                       <div key={i} className="flex items-center flex-1">
                         <div className="flex flex-col items-center gap-1.5">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
-                            isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' :
-                            isActive ? 'bg-violet-600 text-white shadow-lg shadow-violet-300 dark:shadow-violet-900/50 ring-4 ring-violet-100 dark:ring-violet-900/40' :
-                            'bg-gray-100 dark:bg-gray-700 text-gray-300 dark:text-gray-500'
+                            isDone ? 'bg-success-strong text-primary-foreground shadow-2  ' :
+                            isActive ? 'bg-primary text-primary-foreground shadow-2   ring-4 ring-primary/25 ' :
+                            'bg-muted  text-muted-foreground '
                           }`}>
                             {isDone ? (
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -1467,17 +1436,17 @@ export default function BudgetActualPage() {
                             ) : (i + 1)}
                           </div>
                           <div className="text-center">
-                            <div className={`text-[11px] font-semibold leading-tight ${
-                              isDone ? 'text-emerald-600 dark:text-emerald-400' :
-                              isActive ? 'text-violet-700 dark:text-violet-300' :
-                              'text-gray-400'
+                            <div className={`text-2xs font-semibold leading-tight ${
+                              isDone ? 'text-success ' :
+                              isActive ? 'text-primary ' :
+                              'text-muted-foreground'
                             }`}>{step.label}</div>
-                            <div className="text-[10px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
+                            <div className="text-2xs text-muted-foreground mt-0.5 hidden sm:block">{step.desc}</div>
                           </div>
                         </div>
                         {!isLast && (
                           <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
-                            isDone ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gray-100 dark:bg-gray-700'
+                            isDone ? 'bg-success-strong' : 'bg-muted '
                           }`} />
                         )}
                       </div>
@@ -1495,72 +1464,65 @@ export default function BudgetActualPage() {
             const nDevolvidas = filteredItems.filter(i => i.rhStatus === 'devolvido').length;
             const pctAprovado = prestacaoCount > 0 ? Math.round((nAprovadas / prestacaoCount) * 100) : 0;
             return (
-              <div style={{
-                background: 'rgba(255,255,255,0.88)',
+              <div className="bg-card/88 border border-primary/12 rounded-xl shadow-2 overflow-hidden" style={{
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(109,40,217,0.12)',
-                borderRadius: 20,
-                boxShadow: '0 4px 24px rgba(109,40,217,0.07), 0 1px 4px rgba(0,0,0,0.04)',
-                overflow: 'hidden',
               }}>
                 {/* Faixa accent roxo topo */}
-                <div style={{height: 3, background: 'linear-gradient(90deg, #5b21b6 0%, #7c3aed 60%, #059669 100%)'}} />
+                <div className="h-[3px] bg-primary" />
                 <div className="flex items-stretch flex-wrap">
                   {/* Esquerda — total */}
-                  <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden w-full sm:w-auto sm:min-w-[230px]" style={{
-                    background: 'linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%)',
-                  }}>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
-                    <div className="text-[30px] font-semibold text-white leading-none mt-1.5" style={{letterSpacing:'-0.03em'}}>
+                  <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden w-full sm:w-auto sm:min-w-[230px] bg-primary-hover">
+                    <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
+                    <div className="text-3xl font-semibold text-white leading-none mt-1.5 tracking-[-0.03em]">
                       {formatCurrency(totalRealizado)}
                     </div>
                     {totalPlanejado > 0 && (
-                      <div className="text-[10px] text-white/40 mt-0.5 tabular-nums">
+                      <div className="text-2xs text-white/40 mt-0.5 tabular-nums">
                         Planejado: {formatCurrency(totalPlanejado)}
                       </div>
                     )}
-                    <div className={`text-[10px] mt-1.5 font-medium flex items-center gap-1 ${totalDifference === 0 ? 'text-white/45' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    <div className={`text-2xs mt-1.5 font-medium flex items-center gap-1 ${totalDifference === 0 ? 'text-white/45' : totalDifference < 0 ? 'text-success-soft' : 'text-danger-soft'}`}>
                       {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
                       {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
                       {!selectedEventId ? 'Selecione um evento' : totalDifference === 0 ? '= planejado' : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
                     </div>
                   </div>
                   {/* Separador */}
-                  <div style={{width:1, background:'rgba(109,40,217,0.1)'}} />
+                  <div className="bg-primary-hover/10" style={{ width:1 }} />
                   {/* Direita — KPIs + barra */}
                   <div className="flex-1 px-6 py-5 flex flex-col justify-between">
                     <div className="flex items-start gap-0 flex-wrap gap-y-3">
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
-                        <div className="text-[26px] font-bold leading-none tracking-tight text-violet-700">{prestacaoCount}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Users className="w-3 h-3" />Prestações</div>
+                        <div className="text-2xl font-bold leading-none tracking-tight text-primary">{prestacaoCount}</div>
+                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" />Prestações</div>
                       </div>
-                      <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
+                      <div className="bg-primary-hover/8" style={{ width:1, height:36 }} />
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
-                        <div className="text-[26px] font-bold leading-none tracking-tight text-blue-600">{nRevisao}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" />Em Revisão</div>
+                        <div className="text-2xl font-bold leading-none tracking-tight text-primary">{nRevisao}</div>
+                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />Em Revisão</div>
                       </div>
-                      <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
+                      <div className="bg-primary-hover/8" style={{ width:1, height:36 }} />
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
-                        <div className="text-[26px] font-bold leading-none tracking-tight text-emerald-600">{nAprovadas}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aprovadas</div>
+                        <div className="text-2xl font-bold leading-none tracking-tight text-success">{nAprovadas}</div>
+                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aprovadas</div>
                       </div>
                       {nDevolvidas > 0 && (
                         <>
-                          <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
+                          <div className="bg-primary-hover/8" style={{ width:1, height:36 }} />
                           <div className="flex-1 flex flex-col items-center gap-1 px-3">
-                            <div className="text-[26px] font-bold leading-none tracking-tight text-amber-600">{nDevolvidas}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Devolvidas</div>
+                            <div className="text-2xl font-bold leading-none tracking-tight text-warning">{nDevolvidas}</div>
+                            <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><AlertCircle className="w-3 h-3" />Devolvidas</div>
                           </div>
                         </>
                       )}
                     </div>
                     {prestacaoCount > 0 && (
                       <div className="mt-4">
-                        <div className="h-2 rounded-full overflow-hidden" style={{background:'rgba(109,40,217,0.25)'}}>
-                          <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{width:`${pctAprovado}%`}} />
+                        <div className="h-2 rounded-full overflow-hidden bg-primary-hover/25">
+                          <div className="h-full bg-success-strong rounded-full transition-all duration-500" style={{width:`${pctAprovado}%`}} />
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-1.5 font-light">{nAprovadas} de {prestacaoCount} aprovadas</div>
+                        <div className="text-2xs text-muted-foreground mt-1.5 font-light">{nAprovadas} de {prestacaoCount} aprovadas</div>
                       </div>
                     )}
                   </div>
@@ -1573,66 +1535,57 @@ export default function BudgetActualPage() {
           <div className="flex flex-wrap items-center gap-3 px-0">
             {/* Busca */}
             <div className="relative w-full sm:w-[200px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Buscar colaborador..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full"
-                style={{
-                  height: 34, paddingLeft: 26, paddingRight: 12,
-                  background: '#F8FAFC', border: 'none',
-                  borderBottom: `1.5px solid ${searchTerm ? '#6d28d9' : '#E2E8F0'}`,
-                  borderRadius: '6px 6px 0 0',
-                  fontSize: 12, color: '#334155', outline: 'none',
-                  transition: 'border-color 0.15s',
-                }}
-                onFocus={e => (e.currentTarget.style.borderBottomColor = '#6d28d9')}
-                onBlur={e => (e.currentTarget.style.borderBottomColor = searchTerm ? '#6d28d9' : '#E2E8F0')}
+                className={cn("w-full pr-3 pl-[26px] bg-surface-muted border-0 border-b-[1.5px] rounded-t-md text-xs text-slate-700 outline-none transition-colors focus:border-b-primary", searchTerm ? "border-b-primary" : "border-b-border")}
+                style={{ height: 34 }}
               />
             </div>
 
             {/* Função */}
             <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
+              <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                 <SelectValue placeholder="Função" />
               </SelectTrigger>
-              <SelectContent className="rounded-2xl shadow-xl border border-slate-100 min-w-[180px] p-1.5" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.96)'}}>
-                <SelectItem value="all" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Todas as funções</SelectItem>
+              <SelectContent className="rounded-xl shadow-3 border border-border min-w-[180px] p-1.5 backdrop-blur-md bg-card/96">
+                <SelectItem value="all" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">Todas as funções</SelectItem>
                 {[...(functions ?? [])].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(f => (
-                  <SelectItem key={f.id} value={f.id} className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">{f.name}</SelectItem>
+                  <SelectItem key={f.id} value={f.id} className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">{f.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
             {/* Tipo */}
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
+              <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="rounded-2xl shadow-xl border border-slate-100 min-w-[130px] p-1.5" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.96)'}}>
-                <SelectItem value="all" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Todos</SelectItem>
-                <SelectItem value="casa" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Casa</SelectItem>
-                <SelectItem value="freela" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Freela</SelectItem>
+              <SelectContent className="rounded-xl shadow-3 border border-border min-w-[130px] p-1.5 backdrop-blur-md bg-card/96">
+                <SelectItem value="all" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">Todos</SelectItem>
+                <SelectItem value="casa" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">Casa</SelectItem>
+                <SelectItem value="freela" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">Freela</SelectItem>
               </SelectContent>
             </Select>
 
             {/* Ordenação */}
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
+              <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="rounded-2xl shadow-xl border border-slate-100 min-w-[160px] p-1.5" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.96)'}}>
-                <SelectItem value="adjusted" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Ajustadas primeiro</SelectItem>
-                <SelectItem value="value" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Maior valor</SelectItem>
-                <SelectItem value="name" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Nome A-Z</SelectItem>
+              <SelectContent className="rounded-xl shadow-3 border border-border min-w-[160px] p-1.5 backdrop-blur-md bg-card/96">
+                <SelectItem value="adjusted" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">Ajustadas primeiro</SelectItem>
+                <SelectItem value="value" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">Maior valor</SelectItem>
+                <SelectItem value="name" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover">Nome A-Z</SelectItem>
               </SelectContent>
             </Select>
 
             {/* Contador */}
             <div className="flex-1" />
-            <span style={{fontSize:11, color:'#94A3B8', fontWeight:600, background:'#F8FAFC', borderRadius:8, padding:'4px 10px'}} aria-live="polite">
+            <span className="text-2xs text-muted-foreground font-semibold bg-surface-muted rounded-lg py-1 px-2.5" aria-live="polite">
               {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'itens'}
             </span>
           </div>
@@ -1641,14 +1594,14 @@ export default function BudgetActualPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={selectAll}
-                className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-slate-700 transition-colors"
               >
                 <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                   selectedCards.size === selectableCount && selectedCards.size > 0
-                    ? 'bg-purple-600 border-purple-600'
+                    ? 'bg-primary border-primary'
                     : selectedCards.size > 0
-                      ? 'bg-purple-200 border-purple-400'
-                      : 'border-gray-300 dark:border-gray-600'
+                      ? 'bg-primary/40 border-primary'
+                      : 'border-slate-300 '
                 }`}>
                   {selectedCards.size > 0 && (
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -1668,7 +1621,7 @@ export default function BudgetActualPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-6 px-2 text-[11px] text-gray-400 hover:text-gray-600"
+                  className="h-6 px-2 text-2xs text-muted-foreground hover:text-slate-600"
                   onClick={() => setSelectedCards(new Set())}
                 >
                   Limpar
@@ -1679,15 +1632,15 @@ export default function BudgetActualPage() {
 
           <div className="space-y-5">
             {orderedRenderItems.length === 0 && (
-              <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                  <Search className="w-6 h-6 text-slate-300" />
+              <div className="rounded-xl border-2 border-dashed border-border bg-surface-muted p-12 text-center">
+                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
+                  <Search className="w-6 h-6 text-muted-foreground" />
                 </div>
-                <p className="font-semibold text-slate-500">Nenhum resultado para os filtros</p>
-                <p className="text-sm text-slate-400 mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
+                <p className="font-semibold text-muted-foreground">Nenhum resultado para os filtros</p>
+                <p className="text-sm text-muted-foreground mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
                 <Button
                   variant="ghost"
-                  className="mt-3 h-8 px-4 rounded-xl text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                  className="mt-3 h-8 px-4 rounded-xl text-xs text-muted-foreground hover:text-slate-700 hover:bg-muted"
                   onClick={() => { setSearchTerm(''); setFilterType('all'); setFilterFunction('all'); }}
                 >
                   Limpar filtros
@@ -1719,14 +1672,14 @@ export default function BudgetActualPage() {
 
               const origPeriod = getGroupOriginalPeriod(item);
               return (
-                <div key={item.id} className="rounded-2xl border-2 border-purple-200 dark:border-purple-800/50 overflow-hidden bg-purple-50/20 dark:bg-purple-950/10">
+                <div key={item.id} className="rounded-xl border-2 border-primary/25 overflow-hidden bg-brand-soft/20">
                   {/* Group banner */}
-                  <div className="bg-gradient-to-r from-purple-600 to-violet-600 px-4 py-2.5 flex items-center gap-3">
+                  <div className="bg-primary px-4 py-2.5 flex items-center gap-3">
                     <GitFork className="w-3.5 h-3.5 text-white/80 flex-shrink-0" />
-                    <span className="text-[12px] font-semibold text-white flex-1">
+                    <span className="text-xs font-semibold text-white flex-1">
                       Escalação dividida · {groupChildren.length + 1} colaboradores{origPeriod && ` · Período: ${origPeriod}`}
                     </span>
-                    <span className="text-[12px] font-bold text-white tabular-nums">Total: {formatCurrency(groupTotal)}</span>
+                    <span className="text-xs font-bold text-white tabular-nums">Total: {formatCurrency(groupTotal)}</span>
                   </div>
                   {/* Cards */}
                   <div className="p-2 space-y-0">
@@ -1734,28 +1687,28 @@ export default function BudgetActualPage() {
                     {groupChildren.map((child) => (
                       <div key={child.id}>
                         <div className="flex justify-center py-1.5">
-                          <div className="border-l-2 border-dashed border-purple-300 dark:border-purple-700 h-4" />
+                          <div className="border-l-2 border-dashed border-primary/40 h-4" />
                         </div>
                         {renderSingleCard(child, { isGChild: true })}
                       </div>
                     ))}
                   </div>
                   {/* Group total footer */}
-                  <div className="mx-2 mb-2 flex items-center justify-between px-3 py-2 bg-purple-100/60 dark:bg-purple-900/20 rounded-xl">
+                  <div className="mx-2 mb-2 flex items-center justify-between px-3 py-2 bg-brand-soft/60 rounded-xl">
                     <div className="flex items-center gap-2">
-                      <GitFork className="w-3.5 h-3.5 text-purple-500" />
-                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wider">Total da escalação</span>
+                      <GitFork className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-2xs text-primary font-semibold uppercase tracking-wider">Total da escalação</span>
                       {groupPlannedTotal !== undefined && (
-                        <span className="text-[10px] text-purple-400/70 tabular-nums">plan: {formatCurrency(groupPlannedTotal)}</span>
+                        <span className="text-2xs text-primary/70 tabular-nums">plan: {formatCurrency(groupPlannedTotal)}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
                       {groupPlannedTotal !== undefined && Math.abs(groupTotal - groupPlannedTotal) > 1 && (
-                        <span className={`text-[11px] font-semibold tabular-nums ${groupTotal - groupPlannedTotal < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <span className={`text-2xs font-semibold tabular-nums ${groupTotal - groupPlannedTotal < 0 ? 'text-success' : 'text-warning'}`}>
                           {groupTotal - groupPlannedTotal > 0 ? '+' : ''}{formatCurrency(groupTotal - groupPlannedTotal)}
                         </span>
                       )}
-                      <span className="text-[15px] font-semibold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(groupTotal)}</span>
+                      <span className="text-base font-semibold text-primary tabular-nums">{formatCurrency(groupTotal)}</span>
                     </div>
                   </div>
                 </div>
@@ -1766,40 +1719,39 @@ export default function BudgetActualPage() {
       )}
 
       {selectedEventId && filteredItems.length > 0 && (
-        <div className="fixed bottom-0 right-0 z-40 px-6 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200 transition-all duration-300" style={{left: sidebarWidth, boxShadow:'0 -4px 20px #6d28d910'}}>
+        <div className="fixed bottom-0 right-0 z-40 px-6 py-3 bg-card/95 backdrop-blur-md border-t border-border transition-all duration-300 shadow-2" style={{ left: sidebarWidth }}>
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold text-violet-400">Total Realizado</div>
-                <div className="text-[18px] font-semibold tabular-nums leading-tight text-violet-700">{formatCurrency(totalRealizado)}</div>
+                <div className="text-2xs uppercase tracking-widest font-semibold text-primary/70">Total Realizado</div>
+                <div className="text-lg font-semibold tabular-nums leading-tight text-primary">{formatCurrency(totalRealizado)}</div>
               </div>
-              <div className="h-8 w-px bg-slate-200" />
-              <div className="text-[11px] text-slate-400">
+              <div className="h-8 w-px bg-border" />
+              <div className="text-2xs text-muted-foreground">
                 {prestacaoCount} {prestacaoCount === 1 ? 'prestação' : 'prestações'}
                 {pendingCount < prestacaoCount && pendingCount > 0 && (
-                  <span className="ml-1 text-amber-600 font-medium">· {pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>
+                  <span className="ml-1 text-warning font-medium">· {pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>
                 )}
                 {pendingCount === 0 && prestacaoCount > 0 && (
-                  <span className="ml-1 text-emerald-600 font-medium">· todas enviadas</span>
+                  <span className="ml-1 text-success font-medium">· todas enviadas</span>
                 )}
                 {selectedCards.size > 0 && (
-                  <span className="ml-2 font-semibold text-violet-600">· {selectedCards.size} selecionada{selectedCards.size > 1 ? 's' : ''}</span>
+                  <span className="ml-2 font-semibold text-primary">· {selectedCards.size} selecionada{selectedCards.size > 1 ? 's' : ''}</span>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-3">
               {allSentForReview ? (
-                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 text-xs text-emerald-600 font-semibold">
+                <div className="flex items-center gap-2 bg-success-soft border border-success/25 rounded-xl px-3 py-1.5 text-xs text-success font-semibold">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Enviado para revisão
                 </div>
               ) : selectedCards.size > 0 ? (
                 <>
-                  <button onClick={() => setSelectedCards(new Set())} className="text-xs text-slate-400 hover:text-slate-600">Limpar</button>
+                  <button onClick={() => setSelectedCards(new Set())} className="text-xs text-muted-foreground hover:text-slate-600">Limpar</button>
                   <Button
                     size="sm"
-                    className="h-9 px-5 text-xs font-semibold rounded-xl text-white gap-1.5"
-                    style={{background:'#059669', boxShadow:'0 4px 12px #05966940'}}
+                    className="h-9 px-5 text-xs font-semibold rounded-xl text-white gap-1.5 bg-success shadow-2"
                     disabled={sendForReviewMutation.isPending}
                     onClick={() => {
                       if (!selectedEventId) return;
@@ -1813,11 +1765,10 @@ export default function BudgetActualPage() {
                 </>
               ) : (
                 <>
-                  <span className="text-xs text-slate-400 hidden sm:block">Selecione ou envie todas</span>
+                  <span className="text-xs text-muted-foreground hidden sm:block">Selecione ou envie todas</span>
                   <Button
                     size="sm"
-                    className="h-9 px-5 text-xs font-semibold rounded-xl text-white gap-1.5"
-                    style={{background:'#059669', boxShadow:'0 4px 12px #05966940'}}
+                    className="h-9 px-5 text-xs font-semibold rounded-xl text-white gap-1.5 bg-success shadow-2"
                     disabled={sendForReviewMutation.isPending}
                     onClick={() => {
                       if (!selectedEventId) return;
@@ -1834,8 +1785,8 @@ export default function BudgetActualPage() {
         </div>
       )}
 
-      <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); setExtraDayEdge(null); setAlimManual(false); setAlimStale(false); }}>
-        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)', display:'flex', flexDirection:'column', maxHeight:'90vh'}}>
+      <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); setExtraDayEdge(null); setAlimManual(false); }}>
+        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6 flex flex-col" style={{ maxHeight:'90vh' }}>
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Prestação de Contas</DialogTitle>
           </DialogHeader>
@@ -1870,11 +1821,11 @@ export default function BudgetActualPage() {
             const ddmm = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
             const sourcePill = (src: TravelSource) => (
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${
-                  src === 'passagem' ? 'bg-emerald-100 text-emerald-700'
-                  : src === 'sugerido' ? 'bg-amber-100 text-amber-700'
-                  : src === 'manual' ? 'bg-violet-100 text-violet-700'
-                  : 'bg-slate-100 text-slate-400'}`}
+                className={`text-2xs px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${
+                  src === 'passagem' ? 'bg-success-soft text-success'
+                  : src === 'sugerido' ? 'bg-warning-soft text-warning'
+                  : src === 'manual' ? 'bg-brand-soft text-primary'
+                  : 'bg-muted text-muted-foreground'}`}
               >
                 {TRAVEL_SOURCE_LABEL[src]}
               </span>
@@ -1912,34 +1863,34 @@ export default function BudgetActualPage() {
             const isFieldChanged = (current: number, plannedVal: number) => planned && current !== plannedVal;
 
             const statusBadge = !planned ? null : !hasDivergence
-              ? { label: 'Dentro do planejado', bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800', icon: <CheckCircle2 className="w-3 h-3" /> }
+              ? { label: 'Dentro do planejado', bg: 'bg-success-soft', text: 'text-success', border: 'border-success/25', icon: <CheckCircle2 className="w-3 h-3" /> }
               : difference > 0
-                ? { label: 'Acima do planejado', bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-700 dark:text-red-300', border: 'border-red-200 dark:border-red-800', icon: <TrendingUp className="w-3 h-3" /> }
-                : { label: 'Abaixo do planejado', bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800', icon: <TrendingDown className="w-3 h-3" /> };
+                ? { label: 'Acima do planejado', bg: 'bg-danger-soft', text: 'text-danger', border: 'border-danger/25', icon: <TrendingUp className="w-3 h-3" /> }
+                : { label: 'Abaixo do planejado', bg: 'bg-warning-soft', text: 'text-warning', border: 'border-warning/25', icon: <TrendingDown className="w-3 h-3" /> };
 
             return (
               <>
                 {/* ── Header ── */}
-                <div style={{background:'linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%)'}} className="shrink-0">
-                  <div className="flex items-center gap-3" style={{padding:'14px 20px'}}>
+                <div className="shrink-0 bg-primary-hover">
+                  <div className="flex items-center gap-3 py-3.5 px-5">
                     {(() => {
                       const mName = getCollaboratorName(editingItem.collaboratorId);
                       const mInit = mName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
                       return (
-                        <div className="rounded-[10px] bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0" style={{width:38,height:38}}>
-                          <span className="text-white text-[14px] font-bold">{mInit || '?'}</span>
+                        <div className="rounded-lg bg-card/20 border border-white/30 flex items-center justify-center flex-shrink-0" style={{width:38,height:38}}>
+                          <span className="text-white text-sm font-bold">{mInit || '?'}</span>
                         </div>
                       );
                     })()}
                     <div className="flex-1 min-w-0">
-                      <h2 className="font-bold text-white truncate leading-tight" style={{fontSize:15}}>{getCollaboratorName(editingItem.collaboratorId)}</h2>
-                      <p className="text-[11px] text-white/70">{getFunctionName(editingItem.functionId)}</p>
+                      <h2 className="font-bold text-white truncate leading-tight text-base">{getCollaboratorName(editingItem.collaboratorId)}</h2>
+                      <p className="text-2xs text-white/70">{getFunctionName(editingItem.functionId)}</p>
                       <div className="flex items-center gap-1 mt-1 flex-wrap">
-                        <span className={`inline-flex items-center text-[11px] font-bold px-2 rounded-md ${editingItem.collaboratorType === 'casa' ? 'bg-blue-400/30 text-blue-100' : 'bg-orange-400/30 text-orange-100'}`} style={{height:20}}>
+                        <span className={`inline-flex items-center text-2xs font-bold px-2 rounded-md ${editingItem.collaboratorType === 'casa' ? 'bg-primary/30 text-primary-foreground/80' : 'bg-warning-strong/30 text-warning-soft'}`} style={{height:20}}>
                           {editingItem.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                         </span>
                         {(itemDays.startDate || itemDays.endDate) && (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-white/70" style={{height:20}}>
+                          <span className="inline-flex items-center gap-1 text-2xs text-white/70" style={{height:20}}>
                             <Calendar className="w-3 h-3" />
                             {itemDays.startDate && itemDays.endDate
                               ? `${new Date(itemDays.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} → ${new Date(itemDays.endDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`
@@ -1950,24 +1901,24 @@ export default function BudgetActualPage() {
                           </span>
                         )}
                         {itemDays.weekdays > 0 && (
-                          <span className="inline-flex items-center text-[11px] px-2 rounded-md" style={{height:20, background:'rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.85)'}}>
+                          <span className="inline-flex items-center text-2xs px-2 rounded-md bg-card/12 text-white/85" style={{ height:20 }}>
                             {itemDays.weekdays}d úteis{itemDays.weekends > 0 ? ` · ${itemDays.weekends} fds` : ''}
                           </span>
                         )}
                         {isReadOnly && (
-                          <span className="inline-flex items-center text-[11px] px-2 rounded-md bg-white/15 text-white gap-1" style={{height:20}}>
+                          <span className="inline-flex items-center text-2xs px-2 rounded-md bg-card/15 text-white gap-1" style={{height:20}}>
                             <Lock className="w-2.5 h-2.5" /> Bloqueado
                           </span>
                         )}
                         {editingItem.plannedId && plannedLogs.some(l => l.entity_id === editingItem.plannedId && l.action === 'update') && (
-                          <span className="inline-flex items-center text-[11px] px-2 rounded-md bg-amber-400/25 text-amber-200 border border-amber-300/30 gap-1 font-semibold" style={{height:20}}>
+                          <span className="inline-flex items-center text-2xs px-2 rounded-md bg-warning-strong/25 text-warning-soft border border-warning/30 gap-1 font-semibold" style={{height:20}}>
                             ⚠️ Planejado alterado pelo RH
                           </span>
                         )}
                       </div>
                     </div>
                     {planned && statusBadge && (
-                      <div className="flex items-center gap-1 px-2 rounded-lg text-[11px] font-semibold border flex-shrink-0 mr-6" style={{height:22, background:'transparent', color:'rgba(255,255,255,0.9)', borderColor:'rgba(255,255,255,0.35)'}}>
+                      <div className="flex items-center gap-1 px-2 rounded-lg text-2xs font-semibold border flex-shrink-0 mr-6 bg-transparent text-white/90 border-white/35" style={{ height:22 }}>
                         {statusBadge.icon}
                         {statusBadge.label}
                       </div>
@@ -1975,12 +1926,12 @@ export default function BudgetActualPage() {
                   </div>
                   {/* Comentário do RH: apenas em itens efetivamente devolvidos — não em aprovados/pendentes */}
                   {editingItem.rhStatus === 'devolvido' && (editingItem.rhComment || rhComment) && (
-                    <div className="mt-2.5 p-2 rounded-xl bg-white/10 border border-white/20">
+                    <div className="mt-2.5 p-2 rounded-xl bg-card/10 border border-white/20">
                       <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-300 mt-0.5 flex-shrink-0" />
+                        <AlertTriangle className="w-3.5 h-3.5 text-warning-soft mt-0.5 flex-shrink-0" />
                         <div>
-                          <span className="text-[10px] uppercase text-amber-300 font-bold tracking-wider">Comentário do RH</span>
-                          <p className="text-[11px] text-white/80 mt-0.5">{editingItem.rhComment || rhComment}</p>
+                          <span className="text-2xs uppercase text-warning-soft font-bold tracking-wider">Comentário do RH</span>
+                          <p className="text-2xs text-white/80 mt-0.5">{editingItem.rhComment || rhComment}</p>
                         </div>
                       </div>
                     </div>
@@ -1989,14 +1940,14 @@ export default function BudgetActualPage() {
 
                 {/* ── Read-only banner ── */}
                 {isReadOnly && (
-                  <div className="flex items-center gap-2.5 px-5 py-2 bg-amber-50 border-b border-amber-200 shrink-0">
-                    <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                    <span className="text-xs font-medium text-amber-700">Valores enviados para revisão — somente leitura</span>
+                  <div className="flex items-center gap-2.5 px-5 py-2 bg-warning-soft border-b border-warning/25 shrink-0">
+                    <Lock className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" />
+                    <span className="text-xs font-medium text-warning">Valores enviados para revisão — somente leitura</span>
                   </div>
                 )}
 
                 {/* ── Barra de Abas ── */}
-                <div className="flex border-b border-slate-200 bg-white shrink-0">
+                <div className="flex border-b border-border bg-card shrink-0">
                   {([
                     { id: 'custos',      label: 'Custos' },
                     { id: 'observacoes', label: 'Observações' },
@@ -2006,10 +1957,10 @@ export default function BudgetActualPage() {
                       key={id}
                       onClick={() => setModalActualTab(id)}
                       className={[
-                        'flex-1 h-10 text-[13px] font-medium transition-colors',
+                        'flex-1 h-10 text-sm font-medium transition-colors',
                         modalActualTab === id
-                          ? 'text-[#6d28d9] border-b-2 border-[#6d28d9] bg-violet-50/40'
-                          : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50',
+                          ? 'text-primary border-b-2 border-primary bg-brand-soft/40'
+                          : 'text-muted-foreground hover:text-slate-700 hover:bg-surface-muted',
                       ].join(' ')}
                     >
                       {label}
@@ -2019,33 +1970,33 @@ export default function BudgetActualPage() {
 
                 {/* ── Aba: Custos ── */}
                 {modalActualTab === 'custos' && (
-                <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-4 bg-slate-50" style={{maxHeight:'52vh'}}>
+                <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-4 bg-surface-muted" style={{maxHeight:'52vh'}}>
 
                   {/* ── Diárias — editável ── */}
-                  <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #6d28d9', background:'#FAFBFF'}}>
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-violet-100" style={{background:'rgba(109,40,217,0.05)'}}>
+                  <div className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-primary bg-brand-soft">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-primary/25 bg-primary-hover/5">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-[#6d28d9] flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-primary-hover flex items-center justify-center">
                           <Calendar className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-[#6d28d9] uppercase tracking-wide">Diárias</span>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{background:'#EDE9FE', color:'#6d28d9'}}>
+                        <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
+                        <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary">
                           {activeDayEntries.length} {activeDayEntries.length === 1 ? 'dia ativo' : 'dias ativos'}
                         </span>
                       </div>
-                      <span className="text-[13px] font-bold font-mono text-[#6d28d9] tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
+                      <span className="text-sm font-bold font-mono text-primary tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
                     </div>
                     {/* Col headers */}
-                    <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 bg-slate-50 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                    <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 bg-surface-muted px-4 py-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                       <span className="w-5" />
                       <span>Data</span>
                       <span className="text-right">Planejado</span>
                       <span className="text-right pr-1">Realizado</span>
                     </div>
                     {/* Day rows */}
-                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                    <div className="max-h-48 overflow-y-auto divide-y divide-border">
                       {editDayEntries.length === 0 && (
-                        <div className="px-4 py-6 text-center text-[11px] text-slate-400">
+                        <div className="px-4 py-6 text-center text-2xs text-muted-foreground">
                           Nenhuma data no período da escalação
                         </div>
                       )}
@@ -2059,7 +2010,7 @@ export default function BudgetActualPage() {
                           <div
                             key={entry.date}
                             className={`grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 px-4 py-2 transition-colors
-                              ${!entry.active ? 'opacity-40 bg-slate-50/60' : 'hover:bg-blue-50/20'}`}
+                              ${!entry.active ? 'opacity-40 bg-surface-muted/60' : 'hover:bg-brand-soft/20'}`}
                           >
                             {/* Toggle */}
                             <button
@@ -2067,24 +2018,24 @@ export default function BudgetActualPage() {
                               disabled={isReadOnly}
                               onClick={() => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, active: !e.active } : e))}
                               className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors
-                                ${entry.active ? 'bg-[#6d28d9] text-white' : 'bg-slate-200 text-slate-400'}
+                                ${entry.active ? 'bg-primary-hover text-white' : 'bg-border text-muted-foreground'}
                                 ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
                             >
                               {entry.active && <Check className="w-2.5 h-2.5" />}
                             </button>
                             {/* Date + label */}
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-[12px] font-semibold text-slate-700 tabular-nums">{dateLabel}</span>
-                              <span className="text-[10px] text-slate-400 capitalize">{dayLabel}</span>
+                              <span className="text-xs font-semibold text-slate-700 tabular-nums">{dateLabel}</span>
+                              <span className="text-2xs text-muted-foreground capitalize">{dayLabel}</span>
                               {entry.isWeekend && (
-                                <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 rounded-full shrink-0">FDS</span>
+                                <span className="text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 px-1.5 rounded-full shrink-0">FDS</span>
                               )}
                             </div>
                             {/* Planned reference */}
                             <div className="text-right">
                               {planned && plannedVal > 0
-                                ? <span className="text-[10px] text-slate-400 font-mono tabular-nums">{formatCurrency(plannedVal)}</span>
-                                : <span className="text-[10px] text-slate-200">—</span>}
+                                ? <span className="text-2xs text-muted-foreground font-mono tabular-nums">{formatCurrency(plannedVal)}</span>
+                                : <span className="text-2xs text-slate-200">—</span>}
                             </div>
                             {/* Actual value input */}
                             <CurrencyInput
@@ -2092,14 +2043,14 @@ export default function BudgetActualPage() {
                               value={entry.valueCents}
                               onChange={v => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, valueCents: v } : e))}
                               disabled={!entry.active || isReadOnly}
-                              className={`text-right w-24 font-mono tabular-nums border rounded-[6px] font-semibold
-                                focus:border-[#6d28d9] focus:ring-2 focus:ring-[#6d28d9]/15 focus:bg-white
+                              className={`text-right w-24 font-mono tabular-nums border rounded-md font-semibold
+                                focus:border-primary focus:ring-2 focus:ring-ring/15 focus:bg-card
                                 ${!entry.active || isReadOnly
-                                  ? 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed'
+                                  ? 'bg-surface-muted border-border opacity-40 cursor-not-allowed'
                                   : isChanged
-                                    ? 'bg-amber-50 border-amber-200'
-                                    : 'bg-white border-[#e5e7eb] cursor-text'}`}
-                              style={{height:38, fontSize:14}}
+                                    ? 'bg-warning-soft border-warning/25'
+                                    : 'bg-card border-border cursor-text'} text-sm`}
+                              style={{ height:38 }}
                             />
                           </div>
                         );
@@ -2107,13 +2058,13 @@ export default function BudgetActualPage() {
                     </div>
                     {/* Add extra day */}
                     {!isReadOnly && (
-                      <div className="px-4 py-2 border-t border-slate-100 bg-white">
+                      <div className="px-4 py-2 border-t border-border bg-card">
                         {showAddDay ? (
                           <div className="flex items-center gap-2">
                             <input
                               type="date"
                               autoFocus
-                              className="h-7 text-xs border border-[#6d28d9] rounded-lg px-2 text-slate-700 bg-violet-50 focus:outline-none focus:ring-2 focus:ring-[#6d28d9]/20"
+                              className="h-7 text-xs border border-primary rounded-lg px-2 text-slate-700 bg-brand-soft focus:outline-none focus:ring-2 focus:ring-ring/20"
                               onChange={e => {
                                 const newDate = e.target.value;
                                 if (!newDate) return;
@@ -2138,13 +2089,13 @@ export default function BudgetActualPage() {
                               onBlur={() => setShowAddDay(false)}
                               onKeyDown={e => { if (e.key === 'Escape') setShowAddDay(false); }}
                             />
-                            <span className="text-[10px] text-slate-400">Esc para cancelar</span>
+                            <span className="text-2xs text-muted-foreground">Esc para cancelar</span>
                           </div>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setShowAddDay(true)}
-                            className="flex items-center gap-1.5 text-[11px] font-semibold text-[#6d28d9] hover:text-[#5b21b6] transition-colors py-0.5"
+                            className="flex items-center gap-1.5 text-2xs font-semibold text-primary hover:text-primary-hover transition-colors py-0.5"
                           >
                             <Plus className="w-3 h-3" />
                             Adicionar Dia Extra
@@ -2154,8 +2105,8 @@ export default function BudgetActualPage() {
                     )}
                     {/* Divergence bar */}
                     {planned && Math.abs(diffDiarias) > 1 && (
-                      <div className={`px-4 py-1.5 text-center border-t border-slate-100 ${diffDiarias < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                        <span className={`text-[11px] font-semibold tabular-nums ${diffDiarias < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      <div className={`px-4 py-1.5 text-center border-t border-border ${diffDiarias < 0 ? 'bg-success-soft' : 'bg-danger-soft'}`}>
+                        <span className={`text-2xs font-semibold tabular-nums ${diffDiarias < 0 ? 'text-success' : 'text-danger-strong'}`}>
                           {diffDiarias > 0 ? '+' : '−'}{formatCurrency(Math.abs(diffDiarias))}
                           {plannedSubDiarias > 0 && <span className="ml-1 opacity-70">({diffDiarias > 0 ? '+' : ''}{pctDiarias.toFixed(0)}%)</span>}
                         </span>
@@ -2165,37 +2116,36 @@ export default function BudgetActualPage() {
 
                   {/* ── Mobilidade — somente leitura ── */}
                   <div
-                    className="rounded-xl border border-slate-200 overflow-hidden"
-                    style={{borderLeft:'3px solid #e5e7eb', background:'#F8FAFC'}}
+                    className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-border bg-surface-muted"
                     title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
                   >
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100" style={{background:'#F1F5F9'}}>
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
                           <Car className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Mobilidade</span>
-                        <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
+                        <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Mobilidade</span>
+                        <span className="text-2xs font-medium text-muted-foreground flex items-center gap-0.5">
                           <Lock className="w-2.5 h-2.5" />
                           Definido pelo RH
                         </span>
                       </div>
-                      <span className="text-[13px] font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(modalMobility)}</span>
+                      <span className="text-sm font-bold text-muted-foreground tabular-nums font-mono">{formatCurrency(modalMobility)}</span>
                     </div>
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-border">
                       <div className="flex items-center justify-between px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                          <span className="text-[12px] text-slate-500">Ida</span>
+                          <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <span className="text-xs text-muted-foreground">Ida</span>
                         </div>
-                        <span className="text-[13px] font-mono tabular-nums" style={{color:'#666'}}>{formatCurrency(editFormData.mobilityIda)}</span>
+                        <span className="text-sm font-mono tabular-nums text-muted-foreground">{formatCurrency(editFormData.mobilityIda)}</span>
                       </div>
-                      <div className="flex items-center justify-between px-4 py-2.5" style={{background:'#F8FAFC'}}>
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-surface-muted">
                         <div className="flex items-center gap-2">
-                          <ArrowLeft className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                          <span className="text-[12px] text-slate-500">Volta</span>
+                          <ArrowLeft className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <span className="text-xs text-muted-foreground">Volta</span>
                         </div>
-                        <span className="text-[13px] font-mono tabular-nums" style={{color:'#666'}}>{formatCurrency(editFormData.mobilityVolta)}</span>
+                        <span className="text-sm font-mono tabular-nums text-muted-foreground">{formatCurrency(editFormData.mobilityVolta)}</span>
                       </div>
                     </div>
                   </div>
@@ -2204,22 +2154,21 @@ export default function BudgetActualPage() {
                        linha o total do rodapé não fechava aos olhos do responsável) ── */}
                   {editingItem.transport > 0 && (
                     <div
-                      className="rounded-xl border border-slate-200 overflow-hidden"
-                      style={{borderLeft:'3px solid #e5e7eb', background:'#F8FAFC'}}
+                      className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-border bg-surface-muted"
                       title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
                     >
-                      <div className="flex items-center justify-between px-4 py-2.5" style={{background:'#F1F5F9'}}>
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-muted">
                         <div className="flex items-center gap-2">
                           <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
                             <Car className="w-3 h-3 text-white" />
                           </div>
-                          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Translado</span>
-                          <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
+                          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Translado</span>
+                          <span className="text-2xs font-medium text-muted-foreground flex items-center gap-0.5">
                             <Lock className="w-2.5 h-2.5" />
                             Definido pelo RH
                           </span>
                         </div>
-                        <span className="text-[13px] font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(editingItem.transport)}</span>
+                        <span className="text-sm font-bold text-muted-foreground tabular-nums font-mono">{formatCurrency(editingItem.transport)}</span>
                       </div>
                     </div>
                   )}
@@ -2230,26 +2179,26 @@ export default function BudgetActualPage() {
                        corrigidos aqui porque, no Realizado, a viagem pode ter mudado.
                        O que se persiste é o RESULTADO (os 4 valores de alimentação). ── */}
                   {!semAlimentacao && (
-                    <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #0ea5e9', background:'#F7FBFF'}}>
-                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-sky-100" style={{background:'rgba(14,165,233,0.06)'}}>
+                    <div className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-info-strong bg-brand-soft">
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-info/25 bg-info-strong/6">
                         <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-md bg-sky-500 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-md bg-info-strong flex items-center justify-center">
                             <Plane className="w-3 h-3 text-white" />
                           </div>
-                          <span className="text-[11px] font-semibold text-sky-700 uppercase tracking-wide">Viagem</span>
+                          <span className="text-2xs font-semibold text-info uppercase tracking-wide">Viagem</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 text-right">Define as refeições do 1º e do último dia</span>
+                        <span className="text-2xs text-muted-foreground text-right">Define as refeições do 1º e do último dia</span>
                       </div>
 
                       {modalVoa ? (
-                        <div className="divide-y divide-slate-100">
+                        <div className="divide-y divide-border">
                           {/* Chegada (ida) — vale no PRIMEIRO dia ativo */}
                           <div className="px-4 py-2.5">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <ArrowRight className="w-3 h-3 text-sky-500 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-600">
+                              <ArrowRight className="w-3 h-3 text-info-strong flex-shrink-0" />
+                              <span className="text-xs text-slate-600">
                                 Chegada (ida)
-                                {primeiroDiaAtivo && <span className="text-slate-400"> · {ddmm(primeiroDiaAtivo)}</span>}
+                                {primeiroDiaAtivo && <span className="text-muted-foreground"> · {ddmm(primeiroDiaAtivo)}</span>}
                               </span>
                               <div className="flex-1" />
                               {sourcePill(travelSource.chegada)}
@@ -2262,19 +2211,18 @@ export default function BudgetActualPage() {
                                 value={editTravel.chegadaIda}
                                 onChange={e => {
                                   const v = e.target.value;
-                                  setEditTravel(prev => ({ ...prev, chegadaIda: v }));
-                                  setTravelSource(prev => ({ ...prev, chegada: 'manual' }));
+                                  setTravelManual(prev => ({ ...prev, chegadaIda: v }));
                                   setExtraDayEdge(prev => prev === 'primeiro' ? null : prev);
                                 }}
-                                className={`h-8 w-[104px] text-[12px] font-mono tabular-nums rounded-[6px] border px-2 text-slate-700 transition-colors
-                                  focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15
-                                  ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
-                                    : extraDayEdge === 'primeiro' ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300/40'
-                                    : 'bg-white border-slate-200'}`}
+                                className={`h-8 w-[104px] text-xs font-mono tabular-nums rounded-md border px-2 text-slate-700 transition-colors
+                                  focus:outline-none focus:border-info-strong focus:ring-2 focus:ring-info-strong/15
+                                  ${isReadOnly ? 'bg-surface-muted border-border opacity-50 cursor-not-allowed'
+                                    : extraDayEdge === 'primeiro' ? 'bg-warning-soft border-warning-strong ring-2 ring-warning/40'
+                                    : 'bg-card border-border'}`}
                               />
                             </div>
                             {extraDayEdge === 'primeiro' && (
-                              <p className="mt-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                              <p className="mt-1.5 text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 rounded-lg px-2 py-1">
                                 Este passou a ser o primeiro dia — confirme o horário de chegada.
                               </p>
                             )}
@@ -2283,10 +2231,10 @@ export default function BudgetActualPage() {
                           {/* Partida (volta) — vale no ÚLTIMO dia ativo */}
                           <div className="px-4 py-2.5">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <ArrowLeft className="w-3 h-3 text-sky-500 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-600">
+                              <ArrowLeft className="w-3 h-3 text-info-strong flex-shrink-0" />
+                              <span className="text-xs text-slate-600">
                                 Partida (volta)
-                                {ultimoDiaAtivo && <span className="text-slate-400"> · {ddmm(ultimoDiaAtivo)}</span>}
+                                {ultimoDiaAtivo && <span className="text-muted-foreground"> · {ddmm(ultimoDiaAtivo)}</span>}
                               </span>
                               <div className="flex-1" />
                               {sourcePill(travelSource.partida)}
@@ -2299,26 +2247,25 @@ export default function BudgetActualPage() {
                                 value={editTravel.partidaVolta}
                                 onChange={e => {
                                   const v = e.target.value;
-                                  setEditTravel(prev => ({ ...prev, partidaVolta: v }));
-                                  setTravelSource(prev => ({ ...prev, partida: 'manual' }));
+                                  setTravelManual(prev => ({ ...prev, partidaVolta: v }));
                                   setExtraDayEdge(prev => prev === 'ultimo' ? null : prev);
                                 }}
-                                className={`h-8 w-[104px] text-[12px] font-mono tabular-nums rounded-[6px] border px-2 text-slate-700 transition-colors
-                                  focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15
-                                  ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
-                                    : extraDayEdge === 'ultimo' ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300/40'
-                                    : 'bg-white border-slate-200'}`}
+                                className={`h-8 w-[104px] text-xs font-mono tabular-nums rounded-md border px-2 text-slate-700 transition-colors
+                                  focus:outline-none focus:border-info-strong focus:ring-2 focus:ring-info-strong/15
+                                  ${isReadOnly ? 'bg-surface-muted border-border opacity-50 cursor-not-allowed'
+                                    : extraDayEdge === 'ultimo' ? 'bg-warning-soft border-warning-strong ring-2 ring-warning/40'
+                                    : 'bg-card border-border'}`}
                               />
                             </div>
                             {extraDayEdge === 'ultimo' && (
-                              <p className="mt-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                              <p className="mt-1.5 text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 rounded-lg px-2 py-1">
                                 Este passou a ser o último dia — confirme o horário de partida.
                               </p>
                             )}
                           </div>
 
-                          <div className="px-4 py-1.5 bg-slate-50/60">
-                            <p className="text-[10px] text-slate-400 leading-snug">
+                          <div className="px-4 py-1.5 bg-surface-muted/60">
+                            <p className="text-2xs text-muted-foreground leading-snug">
                               Chegada até 11h paga almoço e até 19h paga jantar no primeiro dia; na volta,
                               partida a partir das 13h paga almoço e a partir das 21h paga jantar.
                             </p>
@@ -2326,7 +2273,7 @@ export default function BudgetActualPage() {
                         </div>
                       ) : (
                         <div className="px-4 py-2.5">
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-2xs text-muted-foreground">
                             Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados,
                             sem depender de horário de viagem.
                           </p>
@@ -2336,15 +2283,15 @@ export default function BudgetActualPage() {
                   )}
 
                   {/* ── Alimentação — calculada pela viagem, editável ── */}
-                  <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #f97316', background:'#FFFCF8'}}>
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-orange-100" style={{background:'rgba(249,115,22,0.06)'}}>
+                  <div className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-warning-strong bg-warning-soft">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-warning/25 bg-warning-strong/6">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-5 h-5 rounded-md bg-orange-500 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-warning-strong flex items-center justify-center">
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
+                        <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
                         {alimManual && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap">
+                          <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary whitespace-nowrap">
                             ajustado manualmente
                           </span>
                         )}
@@ -2354,52 +2301,52 @@ export default function BudgetActualPage() {
                           <button
                             type="button"
                             onClick={recalcAlimentacao}
-                            className="flex items-center gap-1 text-[10px] font-semibold text-orange-700 hover:text-orange-800 bg-white border border-orange-200 rounded-lg px-2 py-1 transition-colors hover:bg-orange-50"
+                            className="flex items-center gap-1 text-2xs font-semibold text-warning hover:text-warning bg-card border border-warning/25 rounded-lg px-2 py-1 transition-colors hover:bg-warning-soft"
                             title="Recalcula almoço e jantar pelos dias ativos e pelos horários de chegada/partida"
                           >
                             <RefreshCw className="w-3 h-3" />
                             Recalcular pela viagem
                           </button>
                         )}
-                        <span className="text-[13px] font-bold text-orange-600 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
+                        <span className="text-sm font-bold text-warning tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
                       </div>
                     </div>
 
                     {/* Avisos */}
                     {alimStale && !isReadOnly && (
-                      <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2 flex-wrap">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                        <span className="text-[11px] text-amber-700 flex-1 min-w-0">
+                      <div className="px-4 py-2 bg-warning-soft border-b border-warning/25 flex items-center gap-2 flex-wrap">
+                        <AlertTriangle className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" />
+                        <span className="text-2xs text-warning flex-1 min-w-0">
                           Os dias ou horários mudaram depois do seu ajuste — os valores não foram recalculados.
                         </span>
                         <button
                           type="button"
                           onClick={recalcAlimentacao}
-                          className="text-[10px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900"
+                          className="text-2xs font-semibold text-warning underline underline-offset-2 hover:text-warning"
                         >
                           Recalcular pela viagem
                         </button>
                       </div>
                     )}
                     {semAlimentacao && (
-                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-                        <p className="text-[11px] text-slate-500">
+                      <div className="px-4 py-2 bg-surface-muted border-b border-border">
+                        <p className="text-2xs text-muted-foreground">
                           {modalFuncaoLocal ? FUNCAO_LOCAL_RAZAO : 'Percurso — alimentação já incluída no pacote fechado.'}
                         </p>
                       </div>
                     )}
                     {!semAlimentacao && alimEstimada && !alimManual && (
-                      <div className="px-4 py-2 bg-amber-50/60 border-b border-amber-100">
-                        <p className="text-[11px] text-amber-700">
+                      <div className="px-4 py-2 bg-warning-soft/60 border-b border-warning/25">
+                        <p className="text-2xs text-warning">
                           Sem horário de {!editTravel.chegadaIda && !editTravel.partidaVolta ? 'chegada e partida' : !editTravel.chegadaIda ? 'chegada' : 'partida'} —
                           o dia foi assumido cheio. Informe o horário acima para o cálculo exato.
                         </p>
                       </div>
                     )}
 
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-border">
                       {!showAlimUtil && !showAlimFds && (
-                        <div className="px-4 py-4 text-center text-[11px] text-slate-400">
+                        <div className="px-4 py-4 text-center text-2xs text-muted-foreground">
                           Nenhuma refeição prevista para os dias ativos.
                         </div>
                       )}
@@ -2407,32 +2354,32 @@ export default function BudgetActualPage() {
                         <>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-600">Almoço <span className="text-slate-400">(dias úteis · {activeWeekdays})</span></span>
+                              <Sun className="w-3 h-3 text-warning-strong flex-shrink-0" />
+                              <span className="text-xs text-slate-600">Almoço <span className="text-muted-foreground">(dias úteis · {activeWeekdays})</span></span>
                             </div>
                             <CurrencyInput
                               value={editFormData.weekdayLunch}
                               onChange={v => setAlimField('weekdayLunch', v)}
                               disabled={isReadOnly}
-                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
-                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
-                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
-                              style={{height:34, fontSize:13}}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-md font-semibold
+                                focus:border-warning-strong focus:ring-2 focus:ring-warning-strong/15 focus:bg-card
+                                ${isReadOnly ? 'bg-surface-muted border-border opacity-50 cursor-not-allowed' : 'bg-card border-border cursor-text'} text-sm`}
+                              style={{ height:34 }}
                             />
                           </div>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-600">Jantar <span className="text-slate-400">(dias úteis · {activeWeekdays})</span></span>
+                              <Moon className="w-3 h-3 text-primary/70 flex-shrink-0" />
+                              <span className="text-xs text-slate-600">Jantar <span className="text-muted-foreground">(dias úteis · {activeWeekdays})</span></span>
                             </div>
                             <CurrencyInput
                               value={editFormData.weekdayDinner}
                               onChange={v => setAlimField('weekdayDinner', v)}
                               disabled={isReadOnly}
-                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
-                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
-                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
-                              style={{height:34, fontSize:13}}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-md font-semibold
+                                focus:border-warning-strong focus:ring-2 focus:ring-warning-strong/15 focus:bg-card
+                                ${isReadOnly ? 'bg-surface-muted border-border opacity-50 cursor-not-allowed' : 'bg-card border-border cursor-text'} text-sm`}
+                              style={{ height:34 }}
                             />
                           </div>
                         </>
@@ -2441,32 +2388,32 @@ export default function BudgetActualPage() {
                         <>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Sun className="w-3 h-3 text-amber-300 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-600">Almoço <span className="text-slate-400">(fins de semana · {activeWeekends})</span></span>
+                              <Sun className="w-3 h-3 text-warning-soft flex-shrink-0" />
+                              <span className="text-xs text-slate-600">Almoço <span className="text-muted-foreground">(fins de semana · {activeWeekends})</span></span>
                             </div>
                             <CurrencyInput
                               value={editFormData.weekendLunch}
                               onChange={v => setAlimField('weekendLunch', v)}
                               disabled={isReadOnly}
-                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
-                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
-                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
-                              style={{height:34, fontSize:13}}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-md font-semibold
+                                focus:border-warning-strong focus:ring-2 focus:ring-warning-strong/15 focus:bg-card
+                                ${isReadOnly ? 'bg-surface-muted border-border opacity-50 cursor-not-allowed' : 'bg-card border-border cursor-text'} text-sm`}
+                              style={{ height:34 }}
                             />
                           </div>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Moon className="w-3 h-3 text-indigo-300 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-600">Jantar <span className="text-slate-400">(fins de semana · {activeWeekends})</span></span>
+                              <Moon className="w-3 h-3 text-primary/70 flex-shrink-0" />
+                              <span className="text-xs text-slate-600">Jantar <span className="text-muted-foreground">(fins de semana · {activeWeekends})</span></span>
                             </div>
                             <CurrencyInput
                               value={editFormData.weekendDinner}
                               onChange={v => setAlimField('weekendDinner', v)}
                               disabled={isReadOnly}
-                              className={`text-right w-28 font-mono tabular-nums border rounded-[6px] font-semibold
-                                focus:border-orange-500 focus:ring-2 focus:ring-orange-500/15 focus:bg-white
-                                ${isReadOnly ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' : 'bg-white border-[#e5e7eb] cursor-text'}`}
-                              style={{height:34, fontSize:13}}
+                              className={`text-right w-28 font-mono tabular-nums border rounded-md font-semibold
+                                focus:border-warning-strong focus:ring-2 focus:ring-warning-strong/15 focus:bg-card
+                                ${isReadOnly ? 'bg-surface-muted border-border opacity-50 cursor-not-allowed' : 'bg-card border-border cursor-text'} text-sm`}
+                              style={{ height:34 }}
                             />
                           </div>
                         </>
@@ -2478,7 +2425,7 @@ export default function BudgetActualPage() {
 
                 {/* ── Aba: Observações ── */}
                 {modalActualTab === 'observacoes' && (
-                  <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/40" style={{maxHeight:'52vh'}}>
+                  <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted/40" style={{maxHeight:'52vh'}}>
                     {editingItem && (
                       <BudgetChat
                         entityType="actual"
@@ -2492,7 +2439,7 @@ export default function BudgetActualPage() {
 
                 {/* ── Aba: Histórico ── */}
                 {modalActualTab === 'historico' && (
-                  <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/40" style={{maxHeight:'52vh'}}>
+                  <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted/40" style={{maxHeight:'52vh'}}>
                     {editingItem && (
                       <ActivityTimeline entityType="budget_actual" entityId={editingItem.id} defaultOpen={true} />
                     )}
@@ -2500,25 +2447,25 @@ export default function BudgetActualPage() {
                 )}
 
                 {/* ── Footer ── */}
-                <div className="border-t border-slate-200 bg-white shrink-0">
+                <div className="border-t border-border bg-card shrink-0">
                   {/* Linha Planejado / Realizado / Diferença */}
-                  <div className="flex items-center divide-x divide-slate-100" style={{height:52}}>
+                  <div className="flex items-center divide-x divide-border" style={{height:52}}>
                     {planned ? (
                       <>
                         <div className="flex-1 flex flex-col items-center justify-center px-3">
-                          <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Planejado</span>
-                          <span className="text-[15px] font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</span>
+                          <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider">Planejado</span>
+                          <span className="text-base font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</span>
                         </div>
                         <div className="flex-1 flex flex-col items-center justify-center px-3">
-                          <span className="text-[10px] uppercase font-semibold tracking-wider" style={{color:'#7C3AED'}}>Realizado</span>
-                          <span className="text-[15px] font-bold tabular-nums" style={{color:'#7C3AED'}}>{formatCurrency(modalTotal)}</span>
+                          <span className="text-2xs uppercase font-semibold tracking-wider text-primary">Realizado</span>
+                          <span className="text-base font-bold tabular-nums text-primary">{formatCurrency(modalTotal)}</span>
                         </div>
                         <div className="flex-1 flex flex-col items-center justify-center px-3">
-                          <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Diferença</span>
+                          <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider">Diferença</span>
                           {Math.abs(difference) <= 1 ? (
-                            <span className="text-[15px] font-bold text-slate-300">—</span>
+                            <span className="text-base font-bold text-muted-foreground">—</span>
                           ) : (
-                            <span className={`text-[15px] font-bold tabular-nums ${difference > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            <span className={`text-base font-bold tabular-nums ${difference > 0 ? 'text-danger' : 'text-success'}`}>
                               {difference > 0 ? '▲ ' : '▼ '}{formatCurrency(Math.abs(difference))}
                             </span>
                           )}
@@ -2526,22 +2473,22 @@ export default function BudgetActualPage() {
                       </>
                     ) : (
                       <div className="flex-1 flex flex-col items-center justify-center px-3">
-                        <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Total da prestação</span>
-                        <span className="text-[15px] font-bold tabular-nums" style={{color:'#7C3AED'}}>{formatCurrency(modalTotal)}</span>
+                        <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider">Total da prestação</span>
+                        <span className="text-base font-bold tabular-nums text-primary">{formatCurrency(modalTotal)}</span>
                       </div>
                     )}
                   </div>
                   {/* Botões */}
                   <div className="px-5 pb-4 flex items-center justify-end gap-3">
                     {isReadOnly ? (
-                      <Button variant="ghost" className="h-10 px-6 text-sm rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}>
+                      <Button variant="ghost" className="h-10 px-6 text-sm rounded-xl text-slate-600 hover:text-foreground hover:bg-muted" onClick={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}>
                         Fechar
                       </Button>
                     ) : (
                       <>
                         <button
                           type="button"
-                          className="text-[13px] text-slate-400 hover:text-slate-600 transition-colors px-2"
+                          className="text-sm text-muted-foreground hover:text-slate-600 transition-colors px-2"
                           onClick={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}
                         >
                           Cancelar
@@ -2549,8 +2496,7 @@ export default function BudgetActualPage() {
                         <Button
                           onClick={saveEdit}
                           disabled={updateMutation.isPending}
-                          className="h-10 px-5 text-[13px] font-semibold rounded-xl text-white shadow-sm"
-                          style={{background: '#6d28d9'}}
+                          className="h-10 px-5 text-sm font-semibold rounded-xl text-white shadow-1 bg-primary-hover"
                         >
                           <Check className="w-4 h-4 mr-1.5" />
                           {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
@@ -2567,7 +2513,7 @@ export default function BudgetActualPage() {
 
       {/* ── Confirmação: enviar para revisão (todas visíveis ou selecionadas) ── */}
       <AlertDialog open={confirmSend !== null} onOpenChange={(open) => { if (!open) setConfirmSend(null); }}>
-        <AlertDialogContent className="max-w-md rounded-2xl">
+        <AlertDialogContent className="max-w-md rounded-xl">
           {(() => {
             // Aviso e envio cobrem o MESMO conjunto: pendentes visíveis no filtro
             // atual ('all') ou a interseção da seleção com esses pendentes ('selected').
@@ -2596,7 +2542,7 @@ export default function BudgetActualPage() {
                       </p>
                       {targetUnfilled > 0 && (
                         <p>
-                          <strong className="text-amber-600">
+                          <strong className="text-warning">
                             {targetUnfilled} {targetUnfilled === 1 ? 'item está como "Não preenchido"' : 'itens estão como "Não preenchido"'}
                           </strong>{' '}
                           e {targetUnfilled === 1 ? 'será enviado' : 'serão enviados'} com os valores atuais.
@@ -2612,8 +2558,7 @@ export default function BudgetActualPage() {
                 <AlertDialogFooter>
                   <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
                   <AlertDialogAction
-                    className="rounded-xl text-white"
-                    style={{background:'#059669'}}
+                    className="rounded-xl text-white bg-success"
                     onClick={() => {
                       if (selectedEventId && targets.length > 0) {
                         sendForReviewMutation.mutate({ eventId: selectedEventId, itemIds: targets.map(t => t.id) });
@@ -2637,7 +2582,7 @@ export default function BudgetActualPage() {
           <DialogHeader>
             <DialogTitle>Confirmar Remoção</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-slate-600">
             Tem certeza que deseja remover esta prestação? Esta ação não pode ser desfeita.
           </p>
           <div className="flex justify-end gap-3 mt-4">

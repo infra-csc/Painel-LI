@@ -29,8 +29,8 @@ import type { Collaborator, TeamInclusion } from "@shared/schema";
 import type { BatchDraft } from "./types";
 import { isCheckOutAfterCheckIn, toDateInput, toTitleCase } from "./utils";
 
-const INPUT = "h-10 bg-slate-50 border-slate-200 rounded-xl text-[13px]";
-const LBL = "text-[11px] font-semibold text-[#64748B] uppercase tracking-tight";
+const INPUT = "h-10 bg-surface-muted border-border rounded-xl text-sm";
+const LBL = "text-2xs font-semibold text-muted-foreground uppercase tracking-tight";
 
 /**
  * Barra `sticky` no rodapé da lista, visível só com linhas marcadas.
@@ -50,18 +50,18 @@ export function BatchSelectionBar({ selectedCount, canEdit, applying, onClear, o
 
   return (
     <div
-      className="sticky bottom-4 z-30 mx-auto w-fit max-w-full flex items-center gap-3 h-[38px] px-3 rounded-xl bg-slate-900 text-white shadow-[0_16px_40px_rgba(15,23,42,.28)]"
+      className="sticky bottom-4 z-30 mx-auto w-fit max-w-full flex items-center gap-3 h-[38px] px-3 rounded-xl bg-slate-900 text-white shadow-3"
       role="region"
       aria-label="Ações da seleção"
       data-testid="barra-selecao-lote"
     >
-      <span className="text-[13px] font-medium tabular-nums whitespace-nowrap">
+      <span className="text-sm font-medium tabular-nums whitespace-nowrap">
         {selectedCount} {plural}
       </span>
       <button
         type="button"
         onClick={onClear}
-        className="inline-flex items-center gap-1 text-[12px] text-slate-300 hover:text-white transition-colors whitespace-nowrap"
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-white transition-colors whitespace-nowrap"
         data-testid="button-clear-selection"
       >
         <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar seleção
@@ -71,7 +71,7 @@ export function BatchSelectionBar({ selectedCount, canEdit, applying, onClear, o
           type="button"
           onClick={onApply}
           disabled={applying}
-          className="h-[28px] px-3 rounded-lg bg-primary hover:bg-primary-hover text-white text-[12px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 transition-colors whitespace-nowrap"
+          className="h-[28px] px-3 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 transition-colors whitespace-nowrap"
           data-testid="button-apply-to-selected"
         >
           <BedDouble className="w-3.5 h-3.5" aria-hidden="true" />
@@ -120,12 +120,12 @@ export function BatchConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[560px] rounded-2xl" data-testid="dialog-batch-confirm">
+      <DialogContent className="max-w-[560px] rounded-xl" data-testid="dialog-batch-confirm">
         <DialogHeader>
-          <DialogTitle className="text-[17px] font-black text-slate-900">
+          <DialogTitle className="text-lg font-black text-foreground">
             Aplicar a {n} {n === 1 ? "hospedagem" : "hospedagens"}?
           </DialogTitle>
-          <DialogDescription className="text-[13px] text-[#64748B]">
+          <DialogDescription className="text-sm text-muted-foreground">
             O mesmo hotel vai para todas as vagas marcadas, e o status de cada uma avança para hospedagem registrada.
           </DialogDescription>
         </DialogHeader>
@@ -147,7 +147,7 @@ export function BatchConfirmDialog({
           {/* Datas do lote — opcionais: em branco, cada inclusão usa seu período de trabalho. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className={LBL}>Check-in <span className="text-[#94A3B8] normal-case">(opcional)</span></Label>
+              <Label className={LBL}>Check-in <span className="text-muted-foreground normal-case">(opcional)</span></Label>
               <div className="grid grid-cols-[1fr_110px] gap-2">
                 <Input type="date" aria-label="Data de check-in do lote" value={draft.checkInDate || ""}
                   onChange={(e) => onChange("checkInDate", e.target.value)} className={INPUT} data-testid="input-quick-checkin-date" />
@@ -156,7 +156,7 @@ export function BatchConfirmDialog({
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className={LBL}>Check-out <span className="text-[#94A3B8] normal-case">(opcional)</span></Label>
+              <Label className={LBL}>Check-out <span className="text-muted-foreground normal-case">(opcional)</span></Label>
               <div className="grid grid-cols-[1fr_110px] gap-2">
                 <Input type="date" aria-label="Data de check-out do lote" min={draft.checkInDate || undefined} value={draft.checkOutDate || ""}
                   onChange={(e) => onChange("checkOutDate", e.target.value)} className={INPUT} data-testid="input-quick-checkout-date" />
@@ -167,26 +167,26 @@ export function BatchConfirmDialog({
           </div>
 
           {!datasOk && (
-            <p className="text-[12px] text-[#B91C1C] flex items-center gap-1.5" role="alert">
+            <p className="text-xs text-danger flex items-center gap-1.5" role="alert">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> O check-out deve ser igual ou posterior ao check-in.
             </p>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="batch-observations" className={LBL}>Observações <span className="text-[#94A3B8] normal-case">(opcional)</span></Label>
+            <Label htmlFor="batch-observations" className={LBL}>Observações <span className="text-muted-foreground normal-case">(opcional)</span></Label>
             <Textarea id="batch-observations" placeholder="Informações adicionais…" value={draft.accommodationObservations || ""}
               onChange={(e) => onChange("accommodationObservations", e.target.value)}
-              className="text-[13px] resize-none bg-slate-50 border-slate-200 rounded-xl h-[64px]" data-testid="textarea-quick-accommodation-observations" />
+              className="text-sm resize-none bg-surface-muted border-border rounded-xl h-[64px]" data-testid="textarea-quick-accommodation-observations" />
           </div>
 
           {(!draft.checkInDate || !draft.checkOutDate) && (
-            <p className="text-[12px] text-[#0033CC] bg-[#EEF2FF] rounded-xl px-3 py-2">
+            <p className="text-xs text-primary bg-brand-soft rounded-xl px-3 py-2">
               As datas em branco usam o período de trabalho de cada inclusão.
             </p>
           )}
 
           {comConflito.length > 0 && (
-            <p className="text-[12px] text-[#92400E] bg-[#FEF3C7] rounded-xl px-3 py-2" role="alert">
+            <p className="text-xs text-warning bg-warning-soft rounded-xl px-3 py-2" role="alert">
               {comConflito.length === 1
                 ? "1 pessoa começa a trabalhar antes deste check-in — ela fica sem hotel na primeira noite."
                 : `${comConflito.length} pessoas começam a trabalhar antes deste check-in — ficam sem hotel na primeira noite.`}
@@ -194,15 +194,15 @@ export function BatchConfirmDialog({
           )}
 
           <div className="rounded-xl border border-border overflow-hidden">
-            <p className="px-3 py-2 bg-[#F8FAFC] text-[11px] font-bold uppercase tracking-[0.06em] text-[#64748B]">
+            <p className="px-3 py-2 bg-surface-muted text-2xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
               Vai ser aplicado a
             </p>
-            <ul className="max-h-[132px] overflow-y-auto divide-y divide-slate-100" data-testid="lista-do-lote">
+            <ul className="max-h-[132px] overflow-y-auto divide-y divide-border" data-testid="lista-do-lote">
               {inclusoes.map((i) => {
                 const c = i.collaboratorId ? collaboratorById.get(i.collaboratorId) : undefined;
                 return (
-                  <li key={i.id} className="px-3 py-1.5 text-[13px] text-slate-700 flex items-center gap-2">
-                    <span className="text-[12px] text-[#64748B] tabular-nums shrink-0">#{i.inclusionNumber}</span>
+                  <li key={i.id} className="px-3 py-1.5 text-sm text-slate-700 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground tabular-nums shrink-0">#{i.inclusionNumber}</span>
                     <span className="truncate">{toTitleCase(c?.fullName) || "Sem colaborador"}</span>
                   </li>
                 );
@@ -214,7 +214,7 @@ export function BatchConfirmDialog({
         <DialogFooter className="sm:justify-between">
           <Button
             variant="ghost"
-            className="rounded-xl text-[#64748B] hover:text-slate-700"
+            className="rounded-xl text-muted-foreground hover:text-slate-700"
             onClick={onClearDraft}
             disabled={rascunhoVazio}
             data-testid="button-clear-quick"
@@ -228,7 +228,7 @@ export function BatchConfirmDialog({
           <Button
             onClick={onConfirm}
             disabled={!podeAplicar}
-            className="rounded-xl bg-primary hover:bg-primary-hover text-white disabled:opacity-50"
+            className="rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground disabled:opacity-50"
             data-testid="button-confirm-batch"
           >
             <Save className="w-4 h-4 mr-1.5" aria-hidden="true" />
@@ -261,21 +261,21 @@ export function BatchResultDialog({ resultado, onClose }: {
 
   return (
     <AlertDialog open={aberto} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <AlertDialogContent className="max-w-[460px] rounded-2xl" data-testid="dialog-batch-result">
+      <AlertDialogContent className="max-w-[460px] rounded-xl" data-testid="dialog-batch-result">
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-[17px] font-black text-slate-900">
+          <AlertDialogTitle className="text-lg font-black text-foreground">
             {houveFalha ? "Lote concluído com falhas" : "Lote concluído"}
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-[13px] text-[#64748B]">
+          <AlertDialogDescription className="text-sm text-muted-foreground">
             {resultado?.registradas ?? 0} {resultado?.registradas === 1 ? "hospedagem registrada" : "hospedagens registradas"}
             {houveFalha ? ` · ${resultado!.falhas.length} ${resultado!.falhas.length === 1 ? "falha" : "falhas"}` : ""}.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         {houveFalha && (
-          <ul className="max-h-[180px] overflow-y-auto rounded-xl border border-[#FECACA] bg-[#FEF2F2] divide-y divide-[#FECACA]" data-testid="lista-falhas-lote">
+          <ul className="max-h-[180px] overflow-y-auto rounded-xl border border-danger/25 bg-danger-soft divide-y divide-danger/25" data-testid="lista-falhas-lote">
             {resultado!.falhas.map((f, i) => (
-              <li key={i} className="px-3 py-1.5 text-[12px] text-[#B91C1C]">{f}</li>
+              <li key={i} className="px-3 py-1.5 text-xs text-danger">{f}</li>
             ))}
           </ul>
         )}

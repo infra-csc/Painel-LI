@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 export type StateBannerTone = "slate" | "amber" | "emerald" | "red";
 
 const TONES: Record<StateBannerTone, { band: string; icon: string }> = {
-  slate: { band: "border-slate-200 bg-slate-50 text-slate-700", icon: "text-slate-500" },
-  amber: { band: "border-amber-200 bg-amber-50 text-amber-900", icon: "text-amber-600" },
-  emerald: { band: "border-emerald-200 bg-emerald-50 text-emerald-900", icon: "text-emerald-600" },
-  red: { band: "border-red-200 bg-red-50 text-red-800", icon: "text-red-600" },
+  slate: { band: "border-border bg-surface-muted text-slate-700", icon: "text-muted-foreground" },
+  amber: { band: "border-warning/25 bg-warning-soft text-warning", icon: "text-warning" },
+  emerald: { band: "border-success/25 bg-success-soft text-success", icon: "text-success" },
+  red: { band: "border-danger/25 bg-danger-soft text-danger", icon: "text-danger" },
 };
 
 export interface StateBannerProps {

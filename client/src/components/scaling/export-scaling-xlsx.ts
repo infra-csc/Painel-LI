@@ -40,11 +40,35 @@ export interface ExportScalingInput {
 export interface ExportScalingResult {
   fileName: string;
   rowCount: number;
+  /** true quando as colunas de CPF/nascimento/telefone ficaram de fora (perfil sem dados pessoais). */
+  dadosPessoaisOmitidos: boolean;
+}
+
+// ── Dados pessoais por papel (23/09) ────────────────────────────────────────
+// GET /api/collaborators só entrega documento, nascimento e telefone para admin,
+// Compras e RH. Para os demais papéis as chaves nem existem no objeto — e a
+// planilha não pode sair com uma coluna "CPF" cheia de "N/A" fingindo que o
+// dado não foi preenchido. As colunas somem e o arquivo diz por quê.
+export const COLUNAS_PESSOAIS = ["CPF Colaborador", "Data Nascimento", "Telefone Colaborador"] as const;
+export const NOTA_DADOS_PESSOAIS = "Dados pessoais omitidos para o seu perfil";
+
+/**
+ * O usuário recebeu os dados pessoais? Decide pelo que chegou do servidor: basta
+ * um colaborador trazer alguma das chaves (a projeção apaga a chave, não a
+ * zera). Lista vazia conta como "sem dados" — não há o que exportar mesmo.
+ */
+export function dadosPessoaisDisponiveis(collaboratorById: Map<string, Collaborator>): boolean {
+  let achou = false;
+  collaboratorById.forEach((c) => {
+    if ("officialDocument" in c || "birthDate" in c || "phone" in c) achou = true;
+  });
+  return achou;
 }
 
 /** Monta as linhas (exportado para teste/inspeção). */
 export function buildScalingExportRows(input: ExportScalingInput): Record<string, string | number>[] {
   const { inclusions, eventById, functionById, collaboratorById, ticketByInclusion, purchasedTicketByInclusion, comments, users } = input;
+  const comDadosPessoais = dadosPessoaisDisponiveis(collaboratorById);
 
   const commentsByInclusion = new Map<string, Comment[]>();
   comments.forEach(c => {
@@ -95,7 +119,7 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
 
     let cpfColaborador = "N/A";
     if (collaborator) {
-      if (collaborator.documentType === "cpf") cpfColaborador = collaborator.officialDocument;
+      if (collaborator.documentType === "cpf") cpfColaborador = collaborator.officialDocument ?? "N/A";
       else if (collaborator.secondaryDocumentType === "cpf") cpfColaborador = collaborator.secondaryDocument || "N/A";
     }
 
@@ -103,7 +127,7 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
     const ticket = purchasedTicketByInclusion.get(inclusion.id) || ticketByInclusion.get(inclusion.id);
     const ticketAny = ticket as any;
 
-    return {
+    const row: Record<string, string | number> = {
       "ID": `#${inclusion.inclusionNumber || "N/A"}`,
       "Evento": event?.name || "N/A",
       "Local do Evento": event?.location || "N/A",
@@ -153,25 +177,40 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
       "Observações Reais": inclusion.actualObservations || "",
       "Comentários": commentsText,
     };
+    if (!comDadosPessoais) for (const k of COLUNAS_PESSOAIS) delete row[k];
+    return row;
   });
 }
 
-/** Gera e baixa o arquivo Escalacoes_DDMMYYYY.xlsx. */
-export async function exportScalingXlsx(input: ExportScalingInput): Promise<ExportScalingResult> {
+/**
+ * Grava o .xlsx: planilha "Escalações" e, quando as colunas pessoais ficaram de
+ * fora, uma planilha "Aviso" com a nota — em vez de uma linha acima do
+ * cabeçalho, que quebraria filtro e importação de quem usa o arquivo.
+ */
+async function gravarXlsx(rows: Record<string, string | number>[], dadosPessoaisOmitidos: boolean): Promise<ExportScalingResult> {
   const XLSX = await import("xlsx");
-  const rows = buildScalingExportRows(input);
   const ws = XLSX.utils.json_to_sheet(rows);
   const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
   ws["!cols"] = keys.map(k => ({ wch: COLUMN_WIDTHS[k] ?? DEFAULT_WIDTH }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Escalações");
+  if (dadosPessoaisOmitidos) {
+    const aviso = XLSX.utils.aoa_to_sheet([[NOTA_DADOS_PESSOAIS], [`Colunas não incluídas: ${COLUNAS_PESSOAIS.join(", ")}.`]]);
+    aviso["!cols"] = [{ wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, aviso, "Aviso");
+  }
 
   const today = new Date();
   const dateStr = `${today.getDate().toString().padStart(2, "0")}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getFullYear()}`;
   const fileName = `Escalacoes_${dateStr}.xlsx`;
   XLSX.writeFile(wb, fileName);
-  return { fileName, rowCount: rows.length };
+  return { fileName, rowCount: rows.length, dadosPessoaisOmitidos };
+}
+
+/** Gera e baixa o arquivo Escalacoes_DDMMYYYY.xlsx. */
+export async function exportScalingXlsx(input: ExportScalingInput): Promise<ExportScalingResult> {
+  return gravarXlsx(buildScalingExportRows(input), !dadosPessoaisDisponiveis(input.collaboratorById));
 }
 
 // ── Escolha de colunas + PDF (regra do dono, 27/08) ──────────────────────────
@@ -194,20 +233,19 @@ function pickColumns(rows: Record<string, string | number>[], selected?: string[
   });
 }
 
+/**
+ * A nota só faz sentido quando alguma coluna pessoal SAIRIA no arquivo: se o
+ * usuário desmarcou todas no modal, não há nada a explicar.
+ */
+function omitiuDadosPessoais(input: ExportScalingInput, selected?: string[]): boolean {
+  if (dadosPessoaisDisponiveis(input.collaboratorById)) return false;
+  if (!selected || selected.length === 0) return true;
+  return COLUNAS_PESSOAIS.some((k) => selected.includes(k));
+}
+
 /** Gera e baixa o Excel só com as colunas escolhidas. */
 export async function exportScalingXlsxColunas(input: ExportScalingInput, selected?: string[]): Promise<ExportScalingResult> {
-  const XLSX = await import("xlsx");
-  const rows = pickColumns(buildScalingExportRows(input), selected);
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
-  ws["!cols"] = keys.map(k => ({ wch: COLUMN_WIDTHS[k] ?? DEFAULT_WIDTH }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Escalações");
-  const today = new Date();
-  const dateStr = `${today.getDate().toString().padStart(2, "0")}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getFullYear()}`;
-  const fileName = `Escalacoes_${dateStr}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-  return { fileName, rowCount: rows.length };
+  return gravarXlsx(pickColumns(buildScalingExportRows(input), selected), omitiuDadosPessoais(input, selected));
 }
 
 const esc = (v: string | number) =>
@@ -221,11 +259,13 @@ const esc = (v: string | number) =>
  * encolhendo conforme a quantidade de colunas. Devolve false se o navegador
  * bloquear o pop-up — a tela avisa o usuário.
  */
-export function exportScalingPdf(input: ExportScalingInput, selected?: string[]): { rowCount: number; opened: boolean } {
+export function exportScalingPdf(input: ExportScalingInput, selected?: string[]): { rowCount: number; opened: boolean; dadosPessoaisOmitidos: boolean } {
   const rows = pickColumns(buildScalingExportRows(input), selected);
   const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
   const hoje = new Date().toLocaleDateString("pt-BR");
   const fontePx = keys.length > 24 ? 6.5 : keys.length > 16 ? 7.5 : keys.length > 10 ? 9 : 10.5;
+  const dadosPessoaisOmitidos = omitiuDadosPessoais(input, selected);
+  const nota = dadosPessoaisOmitidos ? ` · ${NOTA_DADOS_PESSOAIS}` : "";
 
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <title>Escalações — ${hoje}</title>
@@ -244,15 +284,15 @@ export function exportScalingPdf(input: ExportScalingInput, selected?: string[])
   tr { break-inside: avoid; }
 </style></head><body>
 <h1>Escalações</h1>
-<p class="sub">${rows.length} linha(s) · ${keys.length} coluna(s) · gerado em ${hoje} · Painel LI</p>
+<p class="sub">${rows.length} linha(s) · ${keys.length} coluna(s) · gerado em ${hoje} · Painel LI${esc(nota)}</p>
 <table><thead><tr>${keys.map(k => `<th>${esc(k)}</th>`).join("")}</tr></thead>
 <tbody>${rows.map(r => `<tr>${keys.map(k => `<td>${esc(r[k] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table>
 <script>window.onload = () => { window.focus(); window.print(); };<\/script>
 </body></html>`;
 
   const win = window.open("", "_blank");
-  if (!win) return { rowCount: rows.length, opened: false };
+  if (!win) return { rowCount: rows.length, opened: false, dadosPessoaisOmitidos };
   win.document.write(html);
   win.document.close();
-  return { rowCount: rows.length, opened: true };
+  return { rowCount: rows.length, opened: true, dadosPessoaisOmitidos };
 }

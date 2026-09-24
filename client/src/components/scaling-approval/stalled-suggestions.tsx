@@ -4,10 +4,7 @@ import { CheckCircle2, Clock, Timer, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDiarias } from "@/lib/utils";
 import { PendingDaysBadge, eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
@@ -105,7 +102,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
     <>
       {/* O que é uma vaga "parada" e o que o aprovador faz com ela, em três
           frases (dono, 11/09: "está estranho, não dá para entender o que é"). */}
-      <section className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900" aria-labelledby="paradas-o-que-e" data-testid="paradas-explicacao">
+      <section className="space-y-1.5 rounded-xl border border-warning/25 bg-warning-soft px-3 py-2.5 text-xs text-warning" aria-labelledby="paradas-o-que-e" data-testid="paradas-explicacao">
         <p id="paradas-o-que-e" className="flex items-center gap-1.5 font-semibold">
           <Timer className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> O que é uma vaga parada
         </p>
@@ -122,25 +119,25 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
       {/* Barra de lote (04/09): decidir 17 vagas paradas uma a uma era 17
           confirmações iguais. A seleção só existe para quem pode decidir. */}
       {onDecideMany && selecionaveis.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" data-testid="paradas-lote">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs" data-testid="paradas-lote">
           <span className="text-slate-600 tabular-nums">
             {selecionadas.length === 0 ? `Marque vagas para decidir em lote (${selecionaveis.length} ${selecionaveis.length === 1 ? "disponível" : "disponíveis"})` : `${selecionadas.length} ${selecionadas.length === 1 ? "vaga selecionada" : "vagas selecionadas"}`}
           </span>
           <div className="ml-auto flex items-center gap-1.5">
-            <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={busy || selecionadas.length === 0} onClick={() => openConfirmMany("reject")}>
+            <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs text-danger border-danger/25 hover:bg-danger-soft" disabled={busy || selecionadas.length === 0} onClick={() => openConfirmMany("reject")}>
               <XCircle className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Reprovar{selecionadas.length ? ` (${selecionadas.length})` : ""}
             </Button>
-            <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy || selecionadas.length === 0} onClick={() => openConfirmMany("approve")}>
+            <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-success hover:bg-success/90 text-white" disabled={busy || selecionadas.length === 0} onClick={() => openConfirmMany("approve")}>
               <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar direto{selecionadas.length ? ` (${selecionadas.length})` : ""}
             </Button>
           </div>
         </div>
       )}
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-[13px]">
+          <table className="w-full min-w-[820px] text-sm">
             <caption className="sr-only">Vagas sem validação da área há {STALLED_DAYS} dias ou mais</caption>
-            <thead className="bg-slate-50">
+            <thead className="bg-surface-muted">
               <tr>
                 {onDecideMany && (
                   <th scope="col" className={cn(TH, "w-10 text-center")}>
@@ -162,9 +159,9 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 const fnName = functionNameById.get(row.functionId) ?? "Sem função";
                 // A célula grudada precisa de fundo OPACO igual ao da linha: as
                 // outras colunas passam por baixo dela quando a tabela rola.
-                const stickyBg = selected.has(row.id) ? "bg-brand-soft" : i % 2 === 1 ? "bg-slate-50" : "bg-white";
+                const stickyBg = selected.has(row.id) ? "bg-brand-soft" : i % 2 === 1 ? "bg-surface-muted" : "bg-card";
                 return (
-                  <tr key={row.id} className={cn("border-b border-slate-100", selected.has(row.id) ? "bg-brand-soft/40" : i % 2 === 1 ? "bg-slate-50/50" : "bg-white")}>
+                  <tr key={row.id} className={cn("border-b border-border", selected.has(row.id) ? "bg-brand-soft/40" : i % 2 === 1 ? "bg-surface-muted/50" : "bg-card")}>
                     {onDecideMany && (
                       <td className="px-2 py-2 align-middle text-center">
                         {canAct && <Checkbox checked={selected.has(row.id)} disabled={busy} onCheckedChange={() => alternar(row.id)} aria-label={`Selecionar vaga #${row.inclusionNumber}`} />}
@@ -172,37 +169,37 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                     )}
                     <td className="px-2.5 py-2 align-middle max-w-[260px]">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="inline-flex shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-blue-800 tabular-nums">#{row.inclusionNumber}</span>
+                        <span className="inline-flex shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold text-primary tabular-nums">#{row.inclusionNumber}</span>
                         <div className="min-w-0">
-                          <span className="block font-semibold text-slate-800 break-words" title={fnName}>{fnName}</span>
-                          <span className="block text-[11px] text-slate-500 line-clamp-2 break-words" title={row.observations ?? undefined}>{row.observations || "Sem observações"}</span>
+                          <span className="block font-semibold text-foreground break-words" title={fnName}>{fnName}</span>
+                          <span className="block text-2xs text-muted-foreground line-clamp-2 break-words" title={row.observations ?? undefined}>{row.observations || "Sem observações"}</span>
                         </div>
                       </div>
                     </td>
                     {showEvent && (
                       <td className="px-2.5 py-2 align-middle max-w-[220px]">
-                        <span className="block break-words text-[13px] font-semibold text-slate-700" title={row.eventName ?? undefined}>
+                        <span className="block break-words text-sm font-semibold text-slate-700" title={row.eventName ?? undefined}>
                           {row.eventName ?? "Evento sem nome"}
                         </span>
-                        <span className="block font-mono text-[11px] text-slate-500">{eventPeriodLabel(row) || "Sem período"}</span>
+                        <span className="block font-mono text-2xs text-muted-foreground">{eventPeriodLabel(row) || "Sem período"}</span>
                       </td>
                     )}
                     <td className="px-2.5 py-2 align-middle whitespace-nowrap">
                       <span className="font-mono tabular-nums text-xs text-slate-700">{periodLabel(row)}</span>
-                      <span className="ml-1.5 text-[11px] text-slate-500">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+                      <span className="ml-1.5 text-2xs text-muted-foreground">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
                     </td>
                     <td className={cn("px-2.5 py-2 align-middle text-right", STICKY_TD, stickyBg)}>
                       {canAct ? (
                         <span className="inline-flex items-center gap-1.5">
-                          <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs text-red-700 border-red-200 hover:bg-red-50" disabled={busy} onClick={() => openConfirm(row, "reject")}>
+                          <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs text-danger border-danger/25 hover:bg-danger-soft" disabled={busy} onClick={() => openConfirm(row, "reject")}>
                             <XCircle className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Reprovar
                           </Button>
-                          <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => openConfirm(row, "approve")}>
+                          <Button type="button" size="sm" className="h-7 rounded-lg px-2.5 text-xs bg-success hover:bg-success/90 text-white" disabled={busy} onClick={() => openConfirm(row, "approve")}>
                             <CheckCircle2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Aprovar direto
                           </Button>
                         </span>
                       ) : (
-                        <span className="inline-block max-w-[220px] line-clamp-2 text-[11px] text-slate-500" title={lockReason}>{lockReason}</span>
+                        <span className="inline-block max-w-[220px] line-clamp-2 text-2xs text-muted-foreground" title={lockReason}>{lockReason}</span>
                       )}
                     </td>
                   </tr>
@@ -213,33 +210,37 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
         </div>
       </div>
 
-      {/* Enquanto decide, o diálogo não fecha por Esc/clique fora: fechar no
-          meio deixaria a decisão em curso sem feedback. */}
-      <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o && !busy) setConfirm(null); }}>
-        <AlertDialogContent className="!max-w-[560px] max-h-[88vh] overflow-y-auto">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirm && confirm.rows.length > 1
-                ? (confirm.kind === "approve" ? `Aprovar ${confirm.rows.length} vagas direto, sem validação da área?` : `Reprovar ${confirm.rows.length} vagas sem validação da área?`)
-                : (confirm?.kind === "approve" ? "Aprovar vaga direto, sem validação da área?" : "Reprovar vaga sem validação da área?")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirm && confirm.rows.length > 1
-                ? (confirm.kind === "approve" ? "Todas viram Inclusão de Equipe (aguardando escalação) imediatamente." : "Todas saem da escala e ficam registradas como negadas.")
-                : (confirm?.kind === "approve" ? "Ela vira Inclusão de Equipe (aguardando escalação) imediatamente." : "Ela sai da escala e fica registrada como negada.")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+      {/* ConfirmDialog único (23/09). Enquanto decide (`pending`), o diálogo não
+          fecha por Esc/clique fora: fechar no meio deixaria a decisão em curso
+          sem feedback. Reprovar é destrutivo (tom danger, foco no Voltar). */}
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(o) => { if (!o && !busy) setConfirm(null); }}
+        title={confirm && confirm.rows.length > 1
+          ? (confirm.kind === "approve" ? `Aprovar ${confirm.rows.length} vagas direto, sem validação da área?` : `Reprovar ${confirm.rows.length} vagas sem validação da área?`)
+          : (confirm?.kind === "approve" ? "Aprovar vaga direto, sem validação da área?" : "Reprovar vaga sem validação da área?")}
+        description={confirm && confirm.rows.length > 1
+          ? (confirm.kind === "approve" ? "Todas viram Inclusão de Equipe (aguardando escalação) imediatamente." : "Todas saem da escala e ficam registradas como negadas.")
+          : (confirm?.kind === "approve" ? "Ela vira Inclusão de Equipe (aguardando escalação) imediatamente." : "Ela sai da escala e fica registrada como negada.")}
+        icon={confirm?.kind === "approve" ? CheckCircle2 : XCircle}
+        tone={confirm?.kind === "approve" ? "default" : "danger"}
+        className="!max-w-[560px] max-h-[88vh] overflow-y-auto"
+        cancelLabel="Voltar"
+        confirmLabel={rotuloAcao}
+        pending={busy}
+        onConfirm={() => { void doConfirm(); }}
+      >
           {/* Passar por cima da área é a decisão mais pesada da tela: a vaga
               precisa estar à vista, com quanto tempo está parada. */}
           {/* Em lote a lista nomeia cada vaga: "17 vagas" sem os nomes é
               assinar em branco. */}
           {confirm && !unica && (
-            <ul className="max-h-[180px] overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs" data-testid="paradas-lote-lista">
+            <ul className="max-h-[180px] overflow-y-auto rounded-xl border border-border divide-y divide-border text-xs" data-testid="paradas-lote-lista">
               {confirm.rows.map((row) => (
                 <li key={row.id} className="flex items-center gap-2 px-3 py-1.5">
-                  <span className="font-mono text-[11px] text-slate-500 tabular-nums">#{row.inclusionNumber}</span>
-                  <span className="font-semibold text-slate-800 break-words">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
-                  {row.eventName && <span className="text-slate-500 break-words">· {row.eventName}</span>}
+                  <span className="font-mono text-2xs text-muted-foreground tabular-nums">#{row.inclusionNumber}</span>
+                  <span className="font-semibold text-foreground break-words">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
+                  {row.eventName && <span className="text-muted-foreground break-words">· {row.eventName}</span>}
                 </li>
               ))}
             </ul>
@@ -251,8 +252,8 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 functionName={functionNameById.get(unica.functionId)}
                 badge={
                   <span className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-                    unica.daysPending >= DANGER_DAYS ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200",
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-semibold whitespace-nowrap",
+                    unica.daysPending >= DANGER_DAYS ? "bg-danger-soft text-danger border-danger/25" : "bg-warning-soft text-warning border-warning/25",
                   )}>
                     <Clock className="w-3 h-3" aria-hidden="true" /> sem validação da área
                   </span>
@@ -260,10 +261,10 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
                 nota="A área nunca validou esta vaga."
               />
               <section
-                className={cn("rounded-2xl border p-3 space-y-1.5", confirm.kind === "approve" ? "border-emerald-200 bg-emerald-50/60" : "border-red-200 bg-red-50/60")}
+                className={cn("rounded-xl border p-3 space-y-1.5", confirm.kind === "approve" ? "border-success/25 bg-success-soft/60" : "border-danger/25 bg-danger-soft/60")}
                 aria-labelledby="bypass-depois"
               >
-                <p id="bypass-depois" className={cn("text-[11px] font-bold uppercase tracking-wide", confirm.kind === "approve" ? "text-emerald-700" : "text-red-700")}>
+                <p id="bypass-depois" className={cn("text-2xs font-bold uppercase tracking-wide", confirm.kind === "approve" ? "text-success" : "text-danger")}>
                   O que acontece depois
                 </p>
                 <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
@@ -296,21 +297,10 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
           )}
           <div className="space-y-1">
             <Label htmlFor="bypass-comment" className="text-xs text-slate-600">Comentário (opcional)</Label>
-            <Textarea id="bypass-comment" rows={2} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-white" placeholder="Fica registrado no histórico da vaga." />
-            <p className="text-[11px] text-slate-500">Fica registrado no histórico da vaga.</p>
+            <Textarea id="bypass-comment" rows={2} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} className="rounded-lg text-sm bg-card" placeholder="Fica registrado no histórico da vaga." />
+            <p className="text-2xs text-muted-foreground">Fica registrado no histórico da vaga.</p>
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Voltar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); void doConfirm(); }}
-              disabled={busy}
-              className={cn("min-w-[180px]", confirm?.kind === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700")}
-            >
-              {rotuloAcao}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      </ConfirmDialog>
     </>
   );
 }

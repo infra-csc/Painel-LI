@@ -126,9 +126,9 @@ export interface EditDrawerProps {
 
 /** As três abas do drawer, na ordem em que a compra acontece. */
 const ABAS: { chave: DrawerKind; rotulo: string; Icone: typeof Plane; tom: string }[] = [
-  { chave: "ticket", rotulo: "Passagem", Icone: Plane, tom: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400" },
-  { chave: "accommodation", rotulo: "Hospedagem", Icone: BedDouble, tom: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400" },
-  { chave: "extras", rotulo: "Extras", Icone: Luggage, tom: "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400" },
+  { chave: "ticket", rotulo: "Passagem", Icone: Plane, tom: "bg-brand-soft text-primary" },
+  { chave: "accommodation", rotulo: "Hospedagem", Icone: BedDouble, tom: "bg-success-soft text-success" },
+  { chave: "extras", rotulo: "Extras", Icone: Luggage, tom: "bg-warning-soft text-warning" },
 ];
 
 export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, onSaveMany }: EditDrawerProps) {
@@ -245,7 +245,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                 aria-selected={aba === a.chave}
                 disabled={saving}
                 onClick={() => setAba(a.chave)}
-                className={`h-[34px] border-b-2 px-3 text-[13px] transition-colors disabled:opacity-60 ${
+                className={`h-[34px] border-b-2 px-3 text-sm transition-colors disabled:opacity-60 ${
                   aba === a.chave ? "border-primary font-semibold text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
               >
                 {a.rotulo}
@@ -258,7 +258,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
           {secoes.map((sec) => (
             <section key={sec.nome || "geral"}>
               {sec.nome && (
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
                   {sec.nome}
                 </h3>
               )}
@@ -309,7 +309,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                           />
                         </div>
                       )}
-                      {f.hint && <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{f.hint}</p>}
+                      {f.hint && <p className="mt-1 text-2xs leading-snug text-muted-foreground">{f.hint}</p>}
                     </div>
                   );
                 })}

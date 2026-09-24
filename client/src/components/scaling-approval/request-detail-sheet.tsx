@@ -52,7 +52,7 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-2xl !flex !flex-col p-0 gap-0 overflow-hidden"
+        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden"
         onOpenAutoFocus={(e) => {
           // Foco inicial SEMPRE no título (04/09): cair direto no botão "Aprovar"
           // fazia um Enter distraído virar aprovação antes de ler o pedido.
@@ -61,7 +61,7 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
       >
         {r ? (
           <>
-            <DialogHeader className="shrink-0 px-5 pt-5 pb-3 pr-12 border-b border-slate-100 text-left space-y-2">
+            <DialogHeader className="shrink-0 px-5 pt-5 pb-3 pr-12 border-b border-border text-left space-y-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <RequestTypeBadge type={type} />
                 {/* O aviso de "já escalado" muda o que aprovar faz — não pode
@@ -72,7 +72,7 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
               </div>
               <DialogTitle ref={titleRef} tabIndex={-1} className="text-base leading-tight outline-none">
                 {r.functionName ?? "Função"}
-                <span className="font-mono text-[13px] text-slate-500 font-normal"> · {targetLabel(r)}</span>
+                <span className="font-mono text-sm text-muted-foreground font-normal"> · {targetLabel(r)}</span>
               </DialogTitle>
               <DialogDescription className="text-xs">
                 {r.eventName ?? "Evento"}{eventPeriod ? <span className="font-mono tabular-nums"> · {eventPeriod}</span> : null} · pedido por <span className="font-semibold text-slate-700">{r.requestedByName}</span> em {formatDateTimeBr(r.createdAt)}
@@ -97,7 +97,7 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
                     {/* tom "pedido": aqui é o que a área PEDE, ainda não é resultado. */}
                     <DiffTable diff={r.diff} tom="pedido" />
                     {r.diff.length === 0 && r.proposed && (
-                      <p className="text-[11px] text-slate-500">O pedido não altera nada em relação ao estado atual da vaga (pode já ter sido aplicado).</p>
+                      <p className="text-2xs text-muted-foreground">O pedido não altera nada em relação ao estado atual da vaga (pode já ter sido aplicado).</p>
                     )}
                   </section>
                 )}
@@ -108,18 +108,18 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
                   </section>
                 )}
                 {type === "exclusao" && (
-                  <p className="text-xs text-red-800 rounded-xl border border-dashed border-red-200 bg-red-50/40 px-3 py-3">
+                  <p className="text-xs text-danger rounded-xl border border-dashed border-danger/25 bg-danger-soft/40 px-3 py-3">
                     Pedido para <span className="font-semibold">remover a vaga</span> da escala. {approveConsequence(type, 1, postScaling)}
                   </p>
                 )}
 
                 {!isPending && (
-                  <section className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3" aria-labelledby="det-decision">
+                  <section className="space-y-1.5 rounded-xl border border-border bg-surface-muted/60 px-4 py-3" aria-labelledby="det-decision">
                     <h3 id="det-decision" className={SECTION}>Decisão</h3>
-                    <p className="text-sm text-slate-800">
+                    <p className="text-sm text-foreground">
                       <RequestStatusBadge status={r.status} className="mr-1.5" />
                       {r.reviewedByName ? <>por <span className="font-semibold">{r.reviewedByName}</span></> : null}
-                      {r.reviewedAt ? <span className="text-slate-500"> em {formatDateTimeBr(r.reviewedAt)}</span> : null}
+                      {r.reviewedAt ? <span className="text-muted-foreground"> em {formatDateTimeBr(r.reviewedAt)}</span> : null}
                     </p>
                     {r.reviewComment && <p className="text-xs text-slate-700 whitespace-pre-wrap break-words">{r.reviewComment}</p>}
                   </section>
@@ -131,14 +131,14 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
             </div>
 
             {showActions && (
-              <div className="shrink-0 border-t border-slate-200 bg-white px-5 pt-2.5 pb-3 space-y-2" role="region" aria-label="Decisão do pedido">
+              <div className="shrink-0 border-t border-border bg-card px-5 pt-2.5 pb-3 space-y-2" role="region" aria-label="Decisão do pedido">
                 {/* A consequência antes do botão: o mesmo texto do diálogo de
                     confirmação, para a pessoa saber o destino ANTES de clicar. */}
-                <p className="text-[11px] text-slate-500">
+                <p className="text-2xs text-muted-foreground">
                   <span className="font-semibold text-slate-600">Se aprovar como veio:</span> {approveConsequence(type, r.proposed?.quantity ?? 1, postScaling)}
                 </p>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Button type="button" size="sm" variant="outline" className="rounded-lg text-red-700 border-red-200 hover:bg-red-50" disabled={busy} onClick={() => onNegar(r)}>
+                  <Button type="button" size="sm" variant="outline" className="rounded-lg text-danger border-danger/25 hover:bg-danger-soft" disabled={busy} onClick={() => onNegar(r)}>
                     <XCircle className="w-4 h-4 mr-1.5" aria-hidden="true" /> Negar…
                   </Button>
                   <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
                     <Button type="button" size="sm" variant="outline" className="rounded-lg" disabled={busy} onClick={() => onReajustar(r)}>
                       <PencilLine className="w-4 h-4 mr-1.5" aria-hidden="true" /> Reajustar…
                     </Button>
-                    <Button type="button" size="sm" className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" disabled={busy} onClick={() => onApprove(r)}>
+                    <Button type="button" size="sm" className="rounded-lg bg-success hover:bg-success/90 text-white" disabled={busy} onClick={() => onApprove(r)}>
                       <CheckCircle2 className="w-4 h-4 mr-1.5" aria-hidden="true" /> Aprovar como veio
                     </Button>
                   </div>
@@ -155,13 +155,13 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
               </div>
             )}
             {!!r && isPending && !r.canDecide && (
-              <p className="shrink-0 border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-500">Só o aprovador desta função (ou admin) pode decidir este pedido. Você pode acompanhar e conversar pelo chat.</p>
+              <p className="shrink-0 border-t border-border px-5 py-2.5 text-2xs text-muted-foreground">Só o aprovador desta função (ou admin) pode decidir este pedido. Você pode acompanhar e conversar pelo chat.</p>
             )}
           </>
         ) : (
           <div className="p-6">
             <DialogTitle className="sr-only">Detalhe do pedido</DialogTitle>
-            <DialogDescription className="text-sm text-slate-500">Nenhum pedido selecionado.</DialogDescription>
+            <DialogDescription className="text-sm text-muted-foreground">Nenhum pedido selecionado.</DialogDescription>
           </div>
         )}
       </DialogContent>

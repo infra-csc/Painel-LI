@@ -79,12 +79,12 @@ export type BucketKey = "escalado" | "salvo" | "gestor" | "vaga" | "aprovacao" |
  */
 export const BUCKETS: { key: BucketKey; label: string; cor: string }[] = [
   // Sem "Aprovado" (15/09): confirmada é Escalado; com nome sem confirmar é Salvo.
-  { key: "escalado", label: "Escalado", cor: "#10B981" },
-  { key: "salvo", label: "Salvo · falta confirmar", cor: "#6366F1" },
-  { key: "gestor", label: "Com o gestor", cor: "#EF4444" },
-  { key: "vaga", label: "Vaga aberta", cor: "#FBBF24" },
-  { key: "aprovacao", label: "Em aprovação", cor: "#C084FC" },
-  { key: "validacao", label: "Em validação", cor: "#94A3B8" },
+  { key: "escalado", label: "Escalado", cor: "var(--success-strong)" },
+  { key: "salvo", label: "Salvo · falta confirmar", cor: "var(--primary)" },
+  { key: "gestor", label: "Com o gestor", cor: "var(--danger-strong)" },
+  { key: "vaga", label: "Vaga aberta", cor: "var(--warning-strong)" },
+  { key: "aprovacao", label: "Em aprovação", cor: "var(--primary)" },
+  { key: "validacao", label: "Em validação", cor: "var(--neutral)" },
 ];
 
 /** A vaga ainda está na Validação/Aprovação de Escala (antes da escalação). */

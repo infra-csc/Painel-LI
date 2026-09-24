@@ -165,7 +165,7 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
           de UMA vaga; o valor segue no rascunho como veio do pedido. */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
+          <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-danger-strong">*</span></Label>
           {pedidos.length > 0 && (
             <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={disabled || !divergencia}
               title="Devolve a seleção para exatamente os dias que a área pediu"
@@ -178,7 +178,7 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
         {/* Divergência ao vivo: sem ela, o aprovador mexe nos dias e perde a
             conta do que já mudou em relação ao que foi pedido. */}
         {pedidos.length > 0 && (
-          <p className={divergencia ? "text-[11px] text-amber-700" : "text-[11px] text-slate-500"} aria-live="polite">
+          <p className={divergencia ? "text-2xs text-warning" : "text-2xs text-muted-foreground"} aria-live="polite">
             {divergencia ? `Você alterou o pedido: ${divergencia}.` : "Igual ao que a área pediu — nenhum dia alterado por você."}
           </p>
         )}

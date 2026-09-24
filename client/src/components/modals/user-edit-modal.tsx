@@ -17,12 +17,17 @@ import {
   X, Check, User as UserIcon, Mail, MapPin,
   ShieldCheck, Layers, Briefcase, ShoppingCart, BarChart2, Lock
 } from "lucide-react";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
+import { OptionalMark, RequiredMark } from "@/components/forms/required-mark";
+
+// Rótulo padrão dos campos (11px, mínimo legível — 23/09)
+const LBL = "text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-orange-500",
-  "bg-pink-500", "bg-cyan-600", "bg-amber-500", "bg-rose-500",
-  "bg-indigo-500", "bg-teal-500",
+  "bg-primary", "bg-primary", "bg-success-strong", "bg-warning-strong",
+  "bg-primary", "bg-info", "bg-warning-strong", "bg-danger-strong",
+  "bg-primary", "bg-info-strong",
 ];
 function avatarColor(name: string) {
   let h = 0;
@@ -37,11 +42,11 @@ function initials(name: string) {
 
 // ─── Role config ─────────────────────────────────────────────────────────────
 const ROLE_CFG: Record<string, { label: string; badgeCls: string; icon: typeof ShieldCheck; iconCls: string }> = {
-  admin:         { label: "Administrador",            badgeCls: "bg-violet-50 text-violet-700 ring-1 ring-violet-200", icon: ShieldCheck,    iconCls: "text-violet-500" },
-  production:    { label: "Logística Interna",        badgeCls: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",       icon: Layers,         iconCls: "text-blue-500" },
-  function_area: { label: "Área de Função",           badgeCls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", icon: Briefcase,   iconCls: "text-emerald-500" },
-  purchasing:    { label: "Área de Compras/Viagem",   badgeCls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",    icon: ShoppingCart,   iconCls: "text-amber-500" },
-  financial:     { label: "RH",                        badgeCls: "bg-teal-50 text-teal-700 ring-1 ring-teal-200",       icon: BarChart2,      iconCls: "text-teal-500" },
+  admin:         { label: "Administrador",            badgeCls: "bg-brand-soft text-primary ring-1 ring-primary/25", icon: ShieldCheck,    iconCls: "text-primary" },
+  production:    { label: "Logística Interna",        badgeCls: "bg-brand-soft text-primary ring-1 ring-primary/25",       icon: Layers,         iconCls: "text-primary" },
+  function_area: { label: "Área de Função",           badgeCls: "bg-success-soft text-success ring-1 ring-success/25", icon: Briefcase,   iconCls: "text-success-strong" },
+  purchasing:    { label: "Área de Compras/Viagem",   badgeCls: "bg-warning-soft text-warning ring-1 ring-warning/25",    icon: ShoppingCart,   iconCls: "text-warning-strong" },
+  financial:     { label: "RH",                        badgeCls: "bg-info-soft text-info ring-1 ring-info/25",       icon: BarChart2,      iconCls: "text-info-strong" },
 };
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
@@ -63,7 +68,7 @@ interface UserEditModalProps {
 }
 
 // ─── Shared input class ──────────────────────────────────────────────────────
-const BASE_INPUT = "h-11 text-sm border-gray-200 rounded-lg transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20";
+const BASE_INPUT = "h-11 text-sm border-border rounded-lg transition-all focus:border-primary focus:ring-1 focus:ring-ring/20";
 
 export default function UserEditModal({ isOpen, onClose, user }: UserEditModalProps) {
   const { toast } = useToast();
@@ -118,6 +123,9 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
   });
 
   const onSubmit = (data: UserEditFormData) => updateUserMutation.mutate(data);
+  // "Descartar alterações?" (23/09): Esc e clique fora fechavam sem perguntar.
+  const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(form.formState.isDirty, { salvando: updateUserMutation.isPending });
+  const fechar = () => pedirParaFechar(onClose);
 
   // Live email validation state
   const emailValue = form.watch("email");
@@ -129,11 +137,12 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
   const userName = user?.name || "";
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="p-0 gap-0 sm:max-w-[480px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
+    <>
+    <Dialog open={isOpen} onOpenChange={v => { if (!v) fechar(); }}>
+      <DialogContent className="p-0 gap-0 sm:max-w-[480px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
 
         {/* ── Header ── */}
-        <div className="px-6 py-5 border-b border-gray-100">
+        <div className="px-6 py-5 border-b border-border">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               {userName && (
@@ -143,21 +152,23 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
               )}
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-sm font-bold text-slate-800">{userName || "Editar Usuário"}</h2>
+                  <h2 className="text-sm font-bold text-foreground">{userName || "Editar usuário"}</h2>
                   {currentRole && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${roleCfg.badgeCls}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${roleCfg.badgeCls}`}>
                       {roleCfg.label}
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">Edite as informações do usuário</p>
+                <p className="text-2xs text-muted-foreground mt-0.5">Edite as informações do usuário</p>
               </div>
             </div>
             <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors shrink-0"
+              type="button"
+              onClick={fechar}
+              aria-label="Fechar"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors shrink-0"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -173,12 +184,10 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1.5">
-                      Nome <span className="text-red-400">*</span>
-                    </label>
+                    <label className={LBL}>Nome<RequiredMark /></label>
                     <FormControl>
                       <div className="relative">
-                        <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           placeholder="Nome completo"
                           className={`${BASE_INPUT} pl-10`}
@@ -187,7 +196,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                         />
                       </div>
                     </FormControl>
-                    <FormMessage className="text-[11px]" />
+                    <FormMessage className="text-2xs" />
                   </FormItem>
                 )}
               />
@@ -198,37 +207,35 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1.5">
-                      E-mail <span className="text-red-400">*</span>
-                    </label>
+                    <label className={LBL}>E-mail<RequiredMark /></label>
                     <FormControl>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           type="email"
                           placeholder="email@exemplo.com"
                           className={`${BASE_INPUT} pl-10 pr-10 font-mono ${
                             emailValid && emailValue
-                              ? "border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/20"
+                              ? "border-success-strong focus:border-success-strong focus:ring-success-strong/20"
                               : ""
                           }`}
                           data-testid="input-edit-email"
                           {...field}
                         />
                         {emailValid && emailValue && (
-                          <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-500" strokeWidth={3} />
+                          <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-success-strong" strokeWidth={3} />
                         )}
                       </div>
                     </FormControl>
-                    <FormMessage className="text-[11px]" />
+                    <FormMessage className="text-2xs" />
                   </FormItem>
                 )}
               />
 
               {!canChangeRole && (
-                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
-                  <Lock className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-warning-soft border border-warning/25">
+                  <Lock className="w-3.5 h-3.5 text-warning mt-0.5 shrink-0" />
+                  <p className="text-2xs text-warning leading-relaxed">
                     Só administradores alteram perfil e área. Você pode editar nome e e-mail.
                   </p>
                 </div>
@@ -240,9 +247,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                 name="role"
                 render={({ field }) => (
                   <FormItem>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1.5">
-                      Perfil <span className="text-red-400">*</span>
-                    </label>
+                    <label className={LBL}>Perfil<RequiredMark /></label>
                     <Select onValueChange={field.onChange} value={field.value} disabled={!canChangeRole}>
                       <FormControl>
                         <SelectTrigger className={`${BASE_INPUT} px-3 disabled:opacity-60 disabled:cursor-not-allowed`} data-testid="select-edit-role" aria-disabled={!canChangeRole}>
@@ -265,7 +270,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                         })}
                       </SelectContent>
                     </Select>
-                    <FormMessage className="text-[11px]" />
+                    <FormMessage className="text-2xs" />
                   </FormItem>
                 )}
               />
@@ -276,12 +281,10 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                 name="area"
                 render={({ field }) => (
                   <FormItem>
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1.5">
-                      Área <span className="text-slate-300 font-normal normal-case">(opcional)</span>
-                    </label>
+                    <label className={LBL}>Área<OptionalMark /></label>
                     <FormControl>
                       <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           placeholder="Ex: Cenografia, Palco Principal..."
                           className={`${BASE_INPUT} pl-10 disabled:opacity-60 disabled:cursor-not-allowed`}
@@ -291,7 +294,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                         />
                       </div>
                     </FormControl>
-                    <FormMessage className="text-[11px]" />
+                    <FormMessage className="text-2xs" />
                   </FormItem>
                 )}
               />
@@ -302,9 +305,9 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
               <div className="flex items-center gap-2 justify-end">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={fechar}
                   disabled={updateUserMutation.isPending}
-                  className="px-4 py-2 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                  className="px-4 py-2 text-xs font-medium text-slate-600 border border-border rounded-lg hover:border-slate-300 transition-colors"
                   data-testid="button-cancel-edit-user"
                 >
                   Cancelar
@@ -312,7 +315,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                 <button
                   type="submit"
                   disabled={updateUserMutation.isPending}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
+                  className="flex items-center gap-1.5 px-5 py-2 bg-primary hover:bg-primary-hover disabled:opacity-60 text-primary-foreground text-xs font-semibold rounded-lg shadow-1 hover:shadow-2 transition-all"
                   data-testid="button-save-edit-user"
                 >
                   {updateUserMutation.isPending ? (
@@ -328,7 +331,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                   )}
                 </button>
               </div>
-              <p className="text-[10px] text-slate-400 text-center">
+              <p className="text-2xs text-muted-foreground text-center">
                 Apenas o campo <span className="font-medium">Área</span> é opcional
               </p>
             </div>
@@ -336,5 +339,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
         </Form>
       </DialogContent>
     </Dialog>
+    {DialogoDescarte}
+    </>
   );
 }

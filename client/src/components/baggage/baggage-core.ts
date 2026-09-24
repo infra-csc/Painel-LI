@@ -1,4 +1,5 @@
-/**
+
+import { formatarMoeda } from "@/lib/format";/**
  * Tipos, constantes e helpers puros do Controle de Bagagem.
  *
  * Tudo aqui saiu de `pages/baggage-control.tsx`, que tinha 1.563 linhas com a
@@ -69,9 +70,7 @@ export interface FormErrors {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-export function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-}
+export const formatCurrency = formatarMoeda;
 
 export function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -125,15 +124,15 @@ export function ciaGroup(cia: string): CiaGroup {
 
 /** Cores do sistema (paleta Tailwind já usada nas outras telas). */
 export const CIA_STYLE: Record<CiaGroup, { stub: string; badge: string }> = {
-  Azul:   { stub: "bg-sky-600",     badge: "bg-sky-50 text-sky-700" },
-  Gol:    { stub: "bg-orange-500",  badge: "bg-orange-50 text-orange-700" },
-  TAM:    { stub: "bg-red-600",     badge: "bg-red-50 text-red-700" },
-  Outros: { stub: "bg-slate-500",   badge: "bg-slate-100 text-slate-600" },
+  Azul:   { stub: "bg-info",     badge: "bg-info-soft text-info" },
+  Gol:    { stub: "bg-warning-strong",  badge: "bg-warning-soft text-warning" },
+  TAM:    { stub: "bg-danger",     badge: "bg-danger-soft text-danger" },
+  Outros: { stub: "bg-slate-500",   badge: "bg-muted text-slate-600" },
 };
 
 /** A cor sólida de cada CIA, para o marcador da fila. */
 export const CIA_COR: Record<CiaGroup, string> = {
-  Azul: "#0284C7", Gol: "#F97316", TAM: "#DC2626", Outros: "#64748B",
+  Azul: "var(--info)", Gol: "var(--warning-strong)", TAM: "var(--danger)", Outros: "var(--muted-foreground)",
 };
 
 /** Ordem fixa das CIAs — a fila não pode dançar quando um contador muda. */

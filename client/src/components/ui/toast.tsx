@@ -30,6 +30,10 @@ const toastVariants = cva(
         default: "border bg-background text-foreground",
         destructive:
           "destructive group border-destructive bg-destructive text-destructive-foreground",
+        // Sucesso (23/09): substitui os modais bloqueantes "Sucesso" + OK da
+        // Escalação, Passagens e Hospedagem. Tokens semânticos, nunca hex.
+        success:
+          "success group border-success/30 bg-success-soft text-success",
       },
     },
     defaultVariants: {

@@ -9,7 +9,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { SortConfig } from "@/components/common/sortable-header";
 import { apiRequest } from "@/lib/queryClient";
 import { fixEncoding } from "@/lib/utils";
-import { hasRoleIn } from "@shared/roles";
+import { hasRole, isAdmin } from "@/lib/role-utils";
+import { useSwapRequests } from "@/hooks/use-swap-requests";
+import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
+import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
 import { isEventPast, canActOnPastEvent } from "@shared/event-window";
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { isPercursoFunction } from "@shared/calculation-rules";
@@ -50,8 +53,6 @@ export const DEFAULT_SCALING_FILTERS: ScalingFilters = {
 /** User do auth (o schema já expõe canApproveCenotecnica — sem `as any`). */
 export type ScalingUser = User | null | undefined;
 
-const ADMIN_ROLES = ["administrador", "admin", "administrator"];
-
 /**
  * Um comparador só, criado uma vez.
  *
@@ -85,26 +86,28 @@ export function useScalingData(opts: {
     error: inclusionsError,
   } = useQuery<TeamInclusion[]>({
     /**
-     * Sem excluídas, a chave é a MESMA das outras telas (auditoria 28/08):
-     * duas chaves para os mesmos dados faziam a lista descer duas vezes.
+     * Recorte no servidor (24/09): UM evento marcado vira `?eventId=` (chave
+     * `["/api/team-inclusions", { eventId }]`, a mesma que as telas por evento
+     * usam). Nenhum ou vários eventos: admin/compras/produção/RH leem a fila
+     * inteira pela chave global de sempre (compartilhada com Passagens e
+     * Hospedagem); a área de função, que o servidor obriga a recortar, pede
+     * `?phase=all` e as sugestões são tiradas em `filteredTeamInclusions`.
      *
-     * Ligar "Excluídas" usa uma chave PRÓPRIA — e tem de ser assim. Hospedagem,
-     * Inclusão de Equipe e a casca leem `["/api/team-inclusions"]`; encher esse
-     * cache com registros excluídos faria eles aparecerem nas três telas.
+     * Ligar "Excluídas" entra na chave (`includeDeleted`) — e tem de ser
+     * assim: encher o cache global com registros excluídos faria eles
+     * aparecerem nas outras telas.
      *
-     * A troca de chave custa uma segunda busca da lista inteira, que nesta base
-     * leva dezenas de segundos (o driver do Neon cobra por coluna trafegada, e
-     * a tabela passa de cinquenta). Por isso o `placeholderData`: a lista
-     * anterior fica na tela enquanto a nova chega. Sem ele, a tela virava
-     * esqueleto e levava junto a barra de filtros — com o próprio toggle
-     * dentro dela, o que impedia até de desfazer.
+     * A troca de chave custa uma busca nova, que nesta base leva dezenas de
+     * segundos (o driver do Neon cobra por coluna trafegada, e a tabela passa
+     * de cinquenta). Por isso o `placeholderData`: a lista anterior fica na
+     * tela enquanto a nova chega. Sem ele, a tela virava esqueleto e levava
+     * junto a barra de filtros — com o próprio toggle dentro dela.
      */
-    queryKey: filters.showDeleted ? ["/api/team-inclusions", "com-excluidas"] : ["/api/team-inclusions"],
-    queryFn: async () => {
-      const suffix = filters.showDeleted ? "?includeDeleted=true" : "";
-      const response = await apiRequest("GET", `/api/team-inclusions${suffix}`);
-      return response.json();
-    },
+    ...listaDeVagasQuery(recorteDaListaDeVagas({
+      eventId: filters.eventId.length === 1 ? filters.eventId[0] : undefined,
+      user,
+      includeDeleted: filters.showDeleted,
+    })),
     placeholderData: keepPreviousData,
   });
 
@@ -115,6 +118,16 @@ export function useScalingData(opts: {
   const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string; userName?: string | null }[]>({
     queryKey: ["/api/function-managers/all"],
     staleTime: 300_000,
+  });
+  // Responsáveis do MÓDULO DE ESCALA (tabela própria; mesma chave da
+  // Validação, cache compartilhado). Necessário porque o servidor aceita em
+  // PATCH /api/team-inclusions/:id/approve-production quem é 'aprovador'
+  // cadastrado da função da vaga (storage.isUserFunctionApprover) — e o client
+  // só liberava admin e a flag canApproveCenotecnica (23/09).
+  const { data: escalaManagers } = useQuery<{ functionId: string; userId: string; role: "validador" | "aprovador" }[]>({
+    queryKey: ["/api/scaling-function-managers"],
+    staleTime: 300_000,
+    enabled: !!user,
   });
 
   /**
@@ -141,14 +154,9 @@ export function useScalingData(opts: {
   const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000 });
   const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
   const { data: tickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"] });
-  // Swap requests globais — badges nas linhas da tabela
-  const { data: allSwapRequestsRaw } = useQuery<SwapRequest[]>({
-    queryKey: ["/api/swap-requests"],
-    queryFn: async () => {
-      const r = await apiRequest("GET", "/api/swap-requests");
-      return r.json();
-    },
-  });
+  // Swap requests globais — badges nas linhas da tabela. Hook único (23/09):
+  // já vem normalizado e é o mesmo cache da casca e das outras telas.
+  const { data: allSwapRequestsData } = useSwapRequests();
 
   // ── Índices O(1) — preservam a semântica de Array.find: o PRIMEIRO vence ──
   const eventById = useMemo(() => {
@@ -239,11 +247,7 @@ export function useScalingData(opts: {
     return m;
   }, [accommodations]);
 
-  // Trocas normalizadas UMA vez (snake_case → camelCase)
-  const allSwapRequests = useMemo<NormalizedSwap[]>(
-    () => (allSwapRequestsRaw || []).map(normalizeSwap),
-    [allSwapRequestsRaw],
-  );
+  const allSwapRequests = useMemo<NormalizedSwap[]>(() => allSwapRequestsData ?? [], [allSwapRequestsData]);
 
   const pendingSwapByInclusion = useMemo(() => {
     const map = new Map<string, NormalizedSwap>();
@@ -294,16 +298,41 @@ export function useScalingData(opts: {
     return nomes.length === 1 ? nomes[0] : `${nomes[0]} e mais ${nomes.length - 1}`;
   };
 
-  const isAdminRole = !!user?.role && ADMIN_ROLES.includes(user.role);
-  const isAdminOrPurchasing = hasRoleIn(user?.role, ["admin", "purchasing"]);
-  const canApproveProduction = !!user?.canApproveCenotecnica || hasRoleIn(user?.role, ["admin"]);
+  // Papéis via helpers que normalizam aliases legados (23/09) — comparar a
+  // string crua escondia botões de quem tem "administrador"/"compras" no banco.
+  const isAdminRole = isAdmin(user);
+  const isAdminOrPurchasing = hasRole(user, "admin", "purchasing");
+
+  /**
+   * Funções CENOTÉCNICAS em que este usuário é 'aprovador' cadastrado no
+   * módulo de Escala — espelha o que o servidor aceita no approve-production
+   * (admin, flag canApproveCenotecnica ou aprovador da função da vaga, que
+   * precisa ser cenotécnica).
+   */
+  const approverCenotecnicaFunctionIds = useMemo(() => {
+    const ids = new Set<string>();
+    (escalaManagers || []).forEach((m) => {
+      if (m.userId !== user?.id || m.role !== "aprovador") return;
+      if (isCenotecnicaFunctionName(functionById.get(m.functionId)?.name || "")) ids.add(m.functionId);
+    });
+    return ids;
+  }, [escalaManagers, user?.id, functionById]);
+
+  /** Pode aprovar (gestor) ESTA vaga de cenotécnica — a checagem exata do servidor. */
+  const canApproveProductionFor = (inclusion: Pick<TeamInclusion, "functionId">): boolean =>
+    isAdminRole || !!user?.canApproveCenotecnica || approverCenotecnicaFunctionIds.has(inclusion.functionId);
+  /**
+   * Flag geral (fila "Com o gestor", card do modal): verdadeira se a pessoa
+   * pode aprovar ALGUMA função. Para a linha/ação use `canApproveProductionFor`.
+   */
+  const canApproveProduction = isAdminRole || !!user?.canApproveCenotecnica || approverCenotecnicaFunctionIds.size > 0;
   // Exportação XLSX carrega CPF/telefone/nascimento — só admin, Compras e RH/Financeiro
-  const canExport = hasRoleIn(user?.role, ["admin", "purchasing", "financial"]);
+  const canExport = hasRole(user, "admin", "purchasing", "financial");
 
   // Admins and purchasing can manage all functions; else manager of the function
   const canManageFunction = (functionId: string): boolean => {
     if (!user) return false;
-    if (isAdminRole || user.role === "purchasing") return true;
+    if (isAdminRole || hasRole(user, "purchasing")) return true;
     return userFunctionIds.has(functionId);
   };
 
@@ -337,8 +366,8 @@ export function useScalingData(opts: {
   // haver passagem comprada (se needsTicket) ou hospedagem reservada (se needsAccommodation)
   const canEditCollaborator = (inclusion: TeamInclusion): boolean => {
     if (!user) return false;
-    const hasRole = isAdminRole || user.role === "function_area" || user.role === "purchasing";
-    if (!hasRole && !canManageFunction(inclusion.functionId)) return false;
+    const temPapel = hasRole(user, "admin", "function_area", "purchasing");
+    if (!temPapel && !canManageFunction(inclusion.functionId)) return false;
     const ticketPurchased = inclusion.needsTicket ? purchasedTicketByInclusion.has(inclusion.id) : false;
     const accommodationReserved = inclusion.needsAccommodation ? accommodationByInclusion.has(inclusion.id) : false;
     return !(ticketPurchased || accommodationReserved);
@@ -368,15 +397,15 @@ export function useScalingData(opts: {
     // está desligado, mas o cache pode conter as da consulta anterior enquanto
     // a nova não chega (é o `placeholderData` que segura a lista na tela).
     if (!filters.showDeleted && ti.deletedAt) return false;
+    // `?phase=all` (recorte da área de função) traz as vagas ainda em
+    // Validação de Escala — esta tela nunca as mostrou.
+    if (isSuggestionInclusion(ti)) return false;
     const linkedEvent = eventById.get(ti.eventId);
     if (!linkedEvent || linkedEvent.status === "excluído" || linkedEvent.status === "excluido") return false;
-    if (isAdminRole) return true;
-    if (user?.role === "production") return true;
-    if (user?.role === "function_area") return true;
-    if (user?.role === "purchasing") return true;
-    if (user?.role === "financial") return true;
+    // Todo papel conhecido vê tudo; papel desconhecido só as funções que gere.
+    if (hasRole(user, "admin", "production", "function_area", "purchasing", "financial")) return true;
     return userFunctionIds.has(ti.functionId);
-  }), [teamInclusions, eventById, isAdminRole, user?.role, userFunctionIds, filters.showDeleted]);
+  }), [teamInclusions, eventById, user, userFunctionIds, filters.showDeleted]);
 
   // ── Filtros + ordenação ─────────────────────────────────────────────────
   const scalingInclusions = useMemo(() => {
@@ -601,7 +630,7 @@ export function useScalingData(opts: {
     pendingProductionApprovals, pendingProductionApprovalsInView,
     hasActiveFilters,
     // permissões
-    isAdminRole, isAdminOrPurchasing, canApproveProduction, canExport, userFunctionIds,
+    isAdminRole, isAdminOrPurchasing, canApproveProduction, canApproveProductionFor, canExport, userFunctionIds,
     canManageFunction, canConfirmEscalation, canEditCollaborator, canScaleFunction,
     podeAgirEmEventoPassado, isPastEvent, isEventLocked,
     // helpers

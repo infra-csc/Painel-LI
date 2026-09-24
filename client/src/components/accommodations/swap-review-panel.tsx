@@ -4,9 +4,11 @@ import { ArrowLeftRight, ArrowRight, AlertCircle, CheckCheck, XCircle } from "lu
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
+import { AVISO_LOGISTICA_PARA_REVISAR } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
 import type { Collaborator, TeamInclusion } from "@shared/schema";
-import type { ApiError, NormalizedSwap } from "./types";
+import type { NormalizedSwap } from "./types";
 import { formatDateTime, toTitleCase } from "./utils";
 import { ExplicacaoDaTroca } from "@/components/scaling/swap-explicacao";
 import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
@@ -42,15 +44,22 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
   };
 
   const approveMutation = useMutation({
-    mutationFn: async (id: string) => (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json(),
-    onSuccess: () => { toast({ title: "Troca aprovada", description: "O colaborador e a cidade de saída foram atualizados na escalação." }); invalidate(); },
-    onError: (err: ApiError) => toast({ title: "Erro", description: err?.body?.message || "Erro ao aprovar troca", variant: "destructive" }),
+    mutationFn: async (id: string) =>
+      (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json() as Promise<{ logisticaParaRevisar?: boolean }>,
+    onSuccess: (resposta) => {
+      toast({ variant: "success", title: "Troca aprovada", description: "O colaborador e a cidade de saída foram atualizados na escalação." });
+      // Passagem/hospedagem já registradas para o colaborador antigo (24/09).
+      if (resposta?.logisticaParaRevisar) toast({ title: "Compras precisa revisar", description: AVISO_LOGISTICA_PARA_REVISAR });
+      invalidate();
+    },
+    // 409 = pedido já decidido; a mensagem do servidor explica.
+    onError: (err: unknown) => toast({ title: "Não foi possível aprovar a troca", description: apiErrorMessage(err, "Tente de novo em instantes."), variant: "destructive" }),
   });
   const rejectMutation = useMutation({
     mutationFn: async ({ id, comment }: { id: string; comment?: string }) =>
       (await apiRequest("PATCH", `/api/swap-requests/${id}/reject`, { reviewComment: comment || "" })).json(),
-    onSuccess: () => { toast({ title: "Troca rejeitada" }); invalidate(); },
-    onError: (err: ApiError) => toast({ title: "Erro", description: err?.body?.message || "Erro ao rejeitar troca", variant: "destructive" }),
+    onSuccess: () => { toast({ variant: "success", title: "Troca rejeitada", description: "O colaborador atual foi mantido na vaga." }); invalidate(); },
+    onError: (err: unknown) => toast({ title: "Não foi possível rejeitar a troca", description: apiErrorMessage(err, "Tente de novo em instantes."), variant: "destructive" }),
   });
 
   if (inclusion.status !== "hospedagem_comprada") return null;
@@ -64,32 +73,32 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
   const busy = approveMutation.isPending || rejectMutation.isPending;
 
   if (swap.status === "aprovado") return (
-    <div className="mt-2 border border-green-200 rounded-xl overflow-hidden" data-testid="swap-approved">
-      <div className="flex items-center justify-between px-3 py-2 bg-green-50 border-b border-green-200">
+    <div className="mt-2 border border-success/25 rounded-xl overflow-hidden" data-testid="swap-approved">
+      <div className="flex items-center justify-between px-3 py-2 bg-success-soft border-b border-success/25">
         <div className="flex items-center gap-1.5">
-          <CheckCheck className="w-3.5 h-3.5 text-green-600" />
-          <span className="text-[11px] font-bold text-green-800">Troca aprovada</span>
+          <CheckCheck className="w-3.5 h-3.5 text-success" />
+          <span className="text-2xs font-bold text-success">Troca aprovada</span>
         </div>
-        <span className="text-[10px] font-semibold bg-green-200 text-green-800 px-2 py-0.5 rounded-full">Aprovada por Compras</span>
+        <span className="text-2xs font-semibold bg-success/20 text-success px-2 py-0.5 rounded-full">Aprovada por Compras</span>
       </div>
-      <div className="px-3 py-2 bg-green-50/30">
-        <p className="text-[11px] text-green-700">A alteração do colaborador foi liberada para esta escala.</p>
+      <div className="px-3 py-2 bg-success-soft/30">
+        <p className="text-2xs text-success">A alteração do colaborador foi liberada para esta escala.</p>
       </div>
     </div>
   );
 
   if (swap.status === "rejeitado") return (
-    <div className="mt-2 border border-red-200 rounded-xl overflow-hidden" data-testid="swap-rejected">
-      <div className="flex items-center justify-between px-3 py-2 bg-red-50 border-b border-red-200">
+    <div className="mt-2 border border-danger/25 rounded-xl overflow-hidden" data-testid="swap-rejected">
+      <div className="flex items-center justify-between px-3 py-2 bg-danger-soft border-b border-danger/25">
         <div className="flex items-center gap-1.5">
-          <XCircle className="w-3.5 h-3.5 text-red-500" />
-          <span className="text-[11px] font-bold text-red-800">Troca rejeitada</span>
+          <XCircle className="w-3.5 h-3.5 text-danger-strong" />
+          <span className="text-2xs font-bold text-danger">Troca rejeitada</span>
         </div>
-        <span className="text-[10px] font-semibold bg-red-200 text-red-800 px-2 py-0.5 rounded-full">Rejeitada por Compras</span>
+        <span className="text-2xs font-semibold bg-danger/20 text-danger px-2 py-0.5 rounded-full">Rejeitada por Compras</span>
       </div>
-      <div className="px-3 py-2 space-y-1 bg-red-50/30">
-        <p className="text-[11px] text-red-700">A escala permanece com o colaborador atual.</p>
-        {swap.reviewComment && <p className="text-[11px] text-slate-500">Motivo: <span className="font-medium text-slate-600">{swap.reviewComment}</span></p>}
+      <div className="px-3 py-2 space-y-1 bg-danger-soft/30">
+        <p className="text-2xs text-danger">A escala permanece com o colaborador atual.</p>
+        {swap.reviewComment && <p className="text-2xs text-muted-foreground">Motivo: <span className="font-medium text-slate-600">{swap.reviewComment}</span></p>}
       </div>
     </div>
   );
@@ -109,55 +118,55 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
 
   return (
     <>
-      <div className="mt-2 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white" data-testid="swap-pending">
-        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+      <div className="mt-2 rounded-xl overflow-hidden border border-border shadow-1 bg-card" data-testid="swap-pending">
+        <div className="px-4 py-2.5 bg-surface-muted border-b border-border">
           <div className="flex items-center justify-between mb-0.5">
             <div className="flex items-center gap-2">
-              <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-[12px] font-bold text-slate-700">Troca de colaborador solicitada</span>
+              <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs font-bold text-slate-700">Troca de colaborador solicitada</span>
             </div>
-            <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">Aguardando análise</span>
+            <span className="text-2xs font-semibold bg-warning-soft text-warning px-2 py-0.5 rounded-full border border-warning/25 whitespace-nowrap">Aguardando análise</span>
           </div>
-          <p className="text-[10px] text-slate-400 pl-[22px]">
-            Solicitado por <span className="font-medium text-slate-500">{swap.requestedByName || "—"}</span> em {formatDateTime(swap.createdAt)}
+          <p className="text-2xs text-muted-foreground pl-[22px]">
+            Solicitado por <span className="font-medium text-muted-foreground">{swap.requestedByName || "—"}</span> em {formatDateTime(swap.createdAt)}
           </p>
         </div>
         <div className="p-3 space-y-2">
           <div className="flex items-stretch gap-1.5">
-            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 min-w-0">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1">Colaborador atual</p>
-              <p className="text-[12px] font-semibold text-slate-700 leading-snug break-words">{currentName}</p>
+            <div className="flex-1 bg-surface-muted border border-border rounded-lg px-2.5 py-2 min-w-0">
+              <p className="text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em] mb-1">Colaborador atual</p>
+              <p className="text-xs font-semibold text-slate-700 leading-snug break-words">{currentName}</p>
             </div>
             <div className="flex items-center justify-center shrink-0 w-6">
-              <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+              <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
-            <div className="flex-1 bg-brand-soft border border-blue-100 rounded-lg px-2.5 py-2 min-w-0">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-1">Colaborador solicitado</p>
-              <p className="text-[12px] font-semibold text-primary leading-snug break-words">{requestedName}</p>
+            <div className="flex-1 bg-brand-soft border border-primary/25 rounded-lg px-2.5 py-2 min-w-0">
+              <p className="text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em] mb-1">Colaborador solicitado</p>
+              <p className="text-xs font-semibold text-primary leading-snug break-words">{requestedName}</p>
             </div>
           </div>
-          <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Novo colaborador sai de</p>
-            <p className="text-[11px] font-semibold text-slate-700">{saiDeDoPedido || "Não informado"}{!swap.newCity && saiDeDoPedido ? " (cadastro do colaborador)" : ""}</p>
+          <div className="bg-surface-muted border border-border rounded-lg px-2.5 py-2">
+            <p className="text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em] mb-0.5">Novo colaborador sai de</p>
+            <p className="text-2xs font-semibold text-slate-700">{saiDeDoPedido || "Não informado"}{!swap.newCity && saiDeDoPedido ? " (cadastro do colaborador)" : ""}</p>
           </div>
           <ExplicacaoDaTroca troca={trocaExplicada} titulo="Se for aprovada" />
-          <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.08em] mb-0.5">Motivo da solicitação</p>
-            <p className="text-[11px] text-slate-600 leading-snug">{swap.reason || "—"}</p>
+          <div className="bg-surface-muted border border-border rounded-lg px-2.5 py-2">
+            <p className="text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em] mb-0.5">Motivo da solicitação</p>
+            <p className="text-2xs text-slate-600 leading-snug">{swap.reason || "—"}</p>
           </div>
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-            <AlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-[10px] text-amber-700 leading-snug">Esta escala possui hospedagem comprada. Revise os impactos antes de aprovar a troca.</p>
+          <div className="flex items-start gap-2 bg-warning-soft border border-warning/25 rounded-lg px-2.5 py-1.5">
+            <AlertCircle className="w-3 h-3 text-warning-strong shrink-0 mt-0.5" />
+            <p className="text-2xs text-warning leading-snug">Esta escala possui hospedagem comprada. Revise os impactos antes de aprovar a troca.</p>
           </div>
           {canReview && (
             <div className="space-y-1.5 pt-0.5">
               <div className="flex gap-2">
                 <button type="button" onClick={() => setConfirmAction("approve")} disabled={busy} data-testid="button-approve-swap"
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-success hover:bg-success/90 text-white text-2xs font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50">
                   <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
                 </button>
                 <button type="button" onClick={() => { setConfirmAction("reject"); setRejectReason(""); }} disabled={busy} data-testid="button-reject-swap"
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-danger hover:bg-danger/90 text-white text-2xs font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50">
                   <XCircle className="w-3.5 h-3.5" />Rejeitar troca
                 </button>
               </div>
@@ -171,16 +180,16 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
         <Dialog open onOpenChange={() => setConfirmAction(null)}>
           <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader>
-              <DialogTitle className="text-[16px] font-bold text-slate-800">Aprovar troca de colaborador?</DialogTitle>
+              <DialogTitle className="text-base font-bold text-foreground">Aprovar troca de colaborador?</DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-slate-600">Confira abaixo exatamente o que muda. Ao confirmar, a mudança é aplicada na hora.</p>
+            <p className="text-sm text-slate-600">Confira abaixo exatamente o que muda. Ao confirmar, a mudança é aplicada na hora.</p>
             <ExplicacaoDaTroca troca={trocaExplicada} />
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setConfirmAction(null)} className="px-4 py-2 text-[12px] font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+              <button type="button" onClick={() => setConfirmAction(null)} className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-muted rounded-lg transition-colors">Cancelar</button>
               <button type="button"
                 onClick={() => { approveMutation.mutate(swap.id); setConfirmAction(null); }}
                 disabled={approveMutation.isPending}
-                className="px-4 py-2 text-[12px] font-semibold bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-xs font-semibold bg-success hover:bg-success/90 text-white rounded-lg transition-colors disabled:opacity-50"
               >Confirmar aprovação</button>
             </div>
           </DialogContent>
@@ -192,22 +201,22 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
         <Dialog open onOpenChange={() => { setConfirmAction(null); setRejectReason(""); }}>
           <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader>
-              <DialogTitle className="text-[16px] font-bold text-slate-800">Rejeitar troca de colaborador?</DialogTitle>
+              <DialogTitle className="text-base font-bold text-foreground">Rejeitar troca de colaborador?</DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-slate-600">{explicarTroca(trocaExplicada).recusa}</p>
+            <p className="text-sm text-slate-600">{explicarTroca(trocaExplicada).recusa}</p>
             <div>
-              <label htmlFor="swap-reject-reason" className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Motivo da rejeição <span className="text-red-400">*</span></label>
+              <label htmlFor="swap-reject-reason" className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Motivo da rejeição <span className="text-danger-strong">*</span></label>
               <textarea
                 id="swap-reject-reason"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                className="mt-1.5 w-full border border-slate-200 rounded-xl p-2.5 text-[13px] text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
+                className="mt-1.5 w-full border border-border rounded-xl p-2.5 text-sm text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
                 rows={3}
                 placeholder="Descreva o motivo da rejeição..."
               />
             </div>
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => { setConfirmAction(null); setRejectReason(""); }} className="px-4 py-2 text-[12px] font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+              <button type="button" onClick={() => { setConfirmAction(null); setRejectReason(""); }} className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-muted rounded-lg transition-colors">Cancelar</button>
               <button type="button"
                 onClick={() => {
                   if (!rejectReason.trim()) return;
@@ -216,7 +225,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
                   setRejectReason("");
                 }}
                 disabled={rejectMutation.isPending || !rejectReason.trim()}
-                className="px-4 py-2 text-[12px] font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-xs font-semibold bg-danger hover:bg-danger/90 text-white rounded-lg transition-colors disabled:opacity-50"
               >Confirmar rejeição</button>
             </div>
           </DialogContent>

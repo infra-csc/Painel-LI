@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback, memo, forwardRef } from "react";
 import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { rotuloEmpreita, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,31 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/hooks/use-auth";
-import { hasPermission } from "@/lib/role-utils";
-import StatusBadge from "@/components/common/status-badge";
+import { useSwapRequests } from "@/hooks/use-swap-requests";
+import { hasPermission, hasRole } from "@/lib/role-utils";
+import { StatusBadge, StatusPorChaveBadge } from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
-import ConfirmModal, { type ConfirmVariant } from "@/components/common/confirm-modal";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+// Variante do pedido de confirmação (23/09): delete/cancel = destrutivo, confirm = neutro.
+type ConfirmVariant = "delete" | "cancel" | "confirm";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import type { TeamInclusion, Event, Function, Collaborator, SwapRequest } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 import { useEventLock, PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 
-// Mensagem amigável de falha de carregamento/gravação. Distingue sessão expirada
-// de "não há dados" — falha de rede não pode virar estado vazio nem toast genérico.
-const describeError = (err: any, fallback: string): string => {
-  if (err?.status === 401) return "Sua sessão expirou. Atualize a página e entre novamente.";
-  // O 403 traz o motivo real (falta de papel OU evento encerrado) — mostrar a
-  // mensagem do servidor em vez do texto genérico.
-  if (err?.status === 403) return err?.body?.message || "Você não tem permissão para esta ação.";
-  return err?.body?.message || fallback;
-};
-
-// Convert ALL CAPS names to Title Case for better readability
-// Uses split-by-space to avoid issues with accented chars (ã, ç, etc.)
-const toTitleCase = (str: string) =>
-  str.toLowerCase().split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+import { toTitleCase } from "@/lib/format";
+import { useLinhasVirtuais, EspacadorLinha } from "@/components/common/virtual-rows";
 
 // Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
 const getDisplayStatus = (inclusion: TeamInclusion) => {
@@ -41,6 +33,258 @@ const getDisplayStatus = (inclusion: TeamInclusion) => {
   }
   return inclusion.status;
 };
+
+// Nº de colunas da tabela (checkbox + 9 dados/ações) — usado pelos espaçadores da virtualização.
+const COLUNAS_TABELA = 10;
+
+interface InclusionRowProps {
+  index: number;
+  id: string;
+  inclusionNumber: number | null;
+  eventName: string;
+  eventLocation: string;
+  functionName: string;
+  /** Nome já em Title Case; `null` = vaga sem colaborador. */
+  collaboratorName: string | null;
+  /** Empresa da empreita quando a vaga não tem colaborador; `null` = não é empreita. */
+  empreitaEmpresa: string | null;
+  empreitaTitulo: string;
+  displayStatus: string;
+  isCanceled: boolean;
+  periodo: string;
+  diarias: string;
+  needsTicket: boolean;
+  needsAccommodation: boolean;
+  selected: boolean;
+  locked: boolean;
+  lockReason: string | null;
+  canEditScreen: boolean;
+  readOnly: boolean;
+  canDelete: boolean;
+  canCancel: boolean;
+  cancelByRole: boolean;
+  swapApproved: boolean;
+  onToggleSelect: (id: string) => void;
+  onCopyId: (text: string) => void;
+  onComments: (id: string) => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+  onCancel: (id: string) => void;
+}
+
+// Linha memoizada com props PRIMITIVAS (23/09): só a linha cujo dado mudou
+// re-renderiza (marcar um checkbox não repinta as outras 4.499). O `ref` é o
+// medidor da virtualização (altura real da linha); `data-index` é lido por ele.
+const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(function InclusionRow({
+  index, id, inclusionNumber, eventName, eventLocation, functionName, collaboratorName,
+  empreitaEmpresa, empreitaTitulo, displayStatus, isCanceled, periodo, diarias,
+  needsTicket, needsAccommodation, selected, locked, lockReason, canEditScreen, readOnly,
+  canDelete, canCancel, cancelByRole, swapApproved,
+  onToggleSelect, onCopyId, onComments, onEdit, onDelete, onCancel,
+}, ref) {
+  const numero = inclusionNumber ?? '';
+  return (
+    <tr
+      ref={ref}
+      data-index={index}
+      aria-rowindex={index + 2}
+      className={`border-b border-border transition-colors ${isCanceled ? 'opacity-40' : ''} ${index % 2 === 1 ? 'bg-surface-muted/40' : 'bg-card'} hover:bg-brand-soft/40`}
+      data-testid={`row-inclusion-${id}`}
+    >
+      <td className="px-2 py-3">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onToggleSelect(id)}
+          disabled={locked}
+          title={lockReason ?? undefined}
+          aria-label={`Selecionar inclusão #${numero}`}
+          data-testid={`checkbox-row-${id}`}
+        />
+      </td>
+      <td className="px-2 py-3 whitespace-nowrap">
+        <div className="flex items-center gap-1">
+          <div className="text-sm font-mono text-foreground font-medium truncate">
+            #{inclusionNumber || 'N/A'}
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="p-1 h-5 w-5 flex-shrink-0"
+            title="Copiar ID"
+            aria-label={`Copiar ID da inclusão #${numero}`}
+            onClick={() => onCopyId(inclusionNumber?.toString() || id)}
+            data-testid={`button-copy-id-${id}`}
+          >
+            <Copy className="w-3 h-3" />
+          </Button>
+        </div>
+      </td>
+      <td className="px-2 py-3">
+        <div className="text-sm font-medium text-foreground whitespace-normal break-words">
+          {eventName}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {eventLocation}
+        </div>
+      </td>
+      <td className="px-2 py-3 whitespace-nowrap">
+        <div className="text-sm text-slate-700 truncate">
+          {functionName}
+        </div>
+      </td>
+      <td className="px-2 py-3">
+        {collaboratorName !== null ? (
+          <div
+            className="text-sm text-foreground font-medium whitespace-normal break-words leading-snug"
+            title={collaboratorName}
+          >
+            {collaboratorName}
+          </div>
+        ) : empreitaEmpresa !== null ? (
+          <div className="text-sm text-foreground font-medium whitespace-normal break-words leading-snug" title={empreitaTitulo}>
+            <StatusBadge tone="info" className="mr-1.5 uppercase tracking-wide">Empreita</StatusBadge>
+            {empreitaEmpresa}
+          </div>
+        ) : (
+          <StatusBadge tone="neutral">Não escalado</StatusBadge>
+        )}
+      </td>
+      <td className="px-2 py-3 whitespace-nowrap">
+        <div className="text-xs text-foreground">{periodo}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{diarias}</div>
+      </td>
+      <td className="px-2 py-3">
+        <StatusPorChaveBadge status={displayStatus} />
+        {swapApproved && (
+          <StatusBadge tone="success" icon={ArrowLeftRight} className="mt-1">Troca aprovada</StatusBadge>
+        )}
+      </td>
+      <td className="px-2 py-3 text-center">
+        {needsTicket ? (
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-success-soft" title="Precisa de passagem">
+            <Check className="w-3 h-3 text-success shrink-0" />
+          </span>
+        ) : (
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted" title="Não precisa de passagem">
+            <X className="w-3 h-3 text-muted-foreground shrink-0" />
+          </span>
+        )}
+      </td>
+      <td className="px-2 py-3 text-center">
+        {needsAccommodation ? (
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-success-soft" title="Precisa de hospedagem">
+            <Check className="w-3 h-3 text-success shrink-0" />
+          </span>
+        ) : (
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted" title="Não precisa de hospedagem">
+            <X className="w-3 h-3 text-muted-foreground shrink-0" />
+          </span>
+        )}
+      </td>
+      <td className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-sm font-medium">
+        <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''} [&>button]:hover:scale-110 [&>button]:transition-transform`}>
+          {/* Para registros cancelados, permitir apenas comentários se não for edição */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onComments(id)}
+            className="text-primary hover:text-primary-hover h-8 w-8 p-0 shrink-0"
+            title="Comentários"
+            aria-label={`Ver comentários da inclusão #${numero}`}
+            data-testid={`button-comments-${id}`}
+          >
+            <MessageCircle className="w-4 h-4" />
+          </Button>
+          {canEditScreen && locked && (
+            <span
+              className="inline-flex items-center justify-center h-8 w-8 text-warning-strong shrink-0"
+              title={lockReason ?? PAST_EVENT_BLOCK_MSG}
+              aria-label={lockReason ?? PAST_EVENT_BLOCK_MSG}
+              data-testid={`lock-past-event-${id}`}
+            >
+              <Lock className="w-4 h-4" />
+            </span>
+          )}
+          {canEditScreen && !locked && (
+            readOnly ? (
+              // Para cancelados ou comprados, só mostrar botão de excluir se permitido.
+              // Compras e Produção podem cancelar mesmo após compra de passagem/hospedagem.
+              <>
+                {canDelete && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onDelete(id)}
+                    className="text-danger hover:text-danger h-8 w-8 p-0 shrink-0"
+                    data-testid={`button-delete-${id}`}
+                    title="Excluir registro"
+                    aria-label={`Excluir inclusão #${numero}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+                {canCancel && cancelByRole && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onCancel(id)}
+                    className="text-warning hover:text-warning h-8 w-8 p-0 shrink-0"
+                    data-testid={`button-cancel-${id}`}
+                    title="Cancelar Escalação"
+                    aria-label={`Cancelar escalação da inclusão #${numero}`}
+                  >
+                    <Ban className="w-4 h-4" />
+                  </Button>
+                )}
+              </>
+            ) : (
+              // Para status editáveis, mostrar botões de editar, excluir e cancelar
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onEdit(id)}
+                  className="text-success hover:text-success h-8 w-8 p-0 shrink-0"
+                  data-testid={`button-edit-${id}`}
+                  title="Editar inclusão"
+                  aria-label={`Editar inclusão #${numero}`}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                {canDelete && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onDelete(id)}
+                    className="text-danger hover:text-danger h-8 w-8 p-0 shrink-0"
+                    data-testid={`button-delete-${id}`}
+                    title="Excluir registro"
+                    aria-label={`Excluir inclusão #${numero}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+                {canCancel && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onCancel(id)}
+                    className="text-warning hover:text-warning h-8 w-8 p-0 shrink-0"
+                    data-testid={`button-cancel-${id}`}
+                    title="Cancelar Escalação"
+                    aria-label={`Cancelar escalação da inclusão #${numero}`}
+                  >
+                    <Ban className="w-4 h-4" />
+                  </Button>
+                )}
+              </>
+            )
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}));
 
 export default function TeamInclusionTable() {
   const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
@@ -71,19 +315,13 @@ export default function TeamInclusionTable() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const { data: allSwapRequests } = useQuery<SwapRequest[]>({
-    queryKey: ["/api/swap-requests"],
-    queryFn: async () => {
-      const r = await apiRequest("GET", "/api/swap-requests");
-      return r.json();
-    },
-  });
+  // Hook único das trocas (23/09): mesmo cache normalizado da casca e das outras telas.
+  const { data: allSwapRequests } = useSwapRequests();
 
   const approvedSwapInclusionIds = useMemo(() => {
     const ids = new Set<string>();
     allSwapRequests?.filter(s => s.status === 'aprovado').forEach(s => {
-      const id = (s as any).team_inclusion_id || s.teamInclusionId;
-      if (id) ids.add(id);
+      if (s.teamInclusionId) ids.add(s.teamInclusionId);
     });
     return ids;
   }, [allSwapRequests]);
@@ -101,8 +339,13 @@ export default function TeamInclusionTable() {
     });
   };
 
+  // Com UM evento marcado no filtro, busca só as vagas dele (`?eventId=`,
+  // contrato 23/09) — a chave leva o id para o cache ser por evento e as
+  // invalidações por prefixo (`["/api/team-inclusions"]`) continuarem valendo.
+  const eventoFiltrado = filters.eventId.length === 1 ? filters.eventId[0] : null;
   const { data: teamInclusions, isLoading, isError, error } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions"],
+    queryKey: eventoFiltrado ? ["/api/team-inclusions", eventoFiltrado] : ["/api/team-inclusions"],
+    queryFn: () => apiRequest("GET", eventoFiltrado ? `/api/team-inclusions?eventId=${eventoFiltrado}` : "/api/team-inclusions").then(r => r.json()),
   });
 
   const { data: events } = useQuery<Event[]>({
@@ -227,18 +470,15 @@ export default function TeamInclusionTable() {
       return response.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Inclusão atualizada com sucesso",
-      });
+      toast({ variant: "success", title: "Inclusão atualizada" });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       setShowEditModal(false);
       setEditingInclusion(null);
     },
     onError: (err: any) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
-        description: describeError(err, "Erro ao atualizar inclusão"),
+        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível atualizar a inclusão",
+        description: apiErrorMessage(err, "Tente de novo em instantes."),
         variant: "destructive",
       });
     },
@@ -292,11 +532,13 @@ export default function TeamInclusionTable() {
     });
   };
 
+  // Contrato 23/09: só `workDays` vai no PATCH — o servidor calcula
+  // `dailyRates = workDays.length` (nada de status/phase/dailyRates no corpo).
   const batchSaveDiariasMutation = useMutation({
     mutationFn: async (changes: Array<{ id: string; dailyRates: number; workDays: string[] }>) => {
       await Promise.all(
-        changes.map(({ id, ...data }) =>
-          apiRequest("PATCH", `/api/team-inclusions/${id}`, data).then(r => r.json())
+        changes.map(({ id, workDays }) =>
+          apiRequest("PATCH", `/api/team-inclusions/${id}`, { workDays }).then(r => r.json())
         )
       );
     },
@@ -306,9 +548,9 @@ export default function TeamInclusionTable() {
     },
     onError: (err: any) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
+        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível salvar as diárias",
         // Promise.all: parte das linhas pode ter sido gravada antes da falha
-        description: describeError(err, "Erro ao salvar as diárias. Algumas linhas podem ter sido gravadas — confira a lista."),
+        description: apiErrorMessage(err, "Erro ao salvar as diárias. Algumas linhas podem ter sido gravadas — confira a lista."),
         variant: "destructive",
       });
     },
@@ -353,16 +595,13 @@ export default function TeamInclusionTable() {
       return { success: true };
     },
     onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Inclusão removida com sucesso",
-      });
+      toast({ variant: "success", title: "Inclusão removida" });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
     onError: (err: any) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
-        description: describeError(err, "Erro ao remover inclusão"),
+        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível remover a inclusão",
+        description: apiErrorMessage(err, "Tente de novo em instantes."),
         variant: "destructive",
       });
     },
@@ -378,25 +617,29 @@ export default function TeamInclusionTable() {
     });
   };
 
+  // Contrato 23/09: cancelar é `POST /api/team-inclusions/:id/cancel` (o
+  // servidor decide a transição; 409 já cancelada; 403 com passagem emitida,
+  // só o administrador). `logisticaParaRevisar` = passagem/hospedagem já
+  // registradas — Compras precisa saber.
   const cancelEscalationMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, {
-        status: "cancelado",
-        phase: "cancelado"
-      });
+    mutationFn: async (id: string): Promise<{ message?: string; inclusion?: TeamInclusion; logisticaParaRevisar?: boolean }> => {
+      const response = await apiRequest("POST", `/api/team-inclusions/${id}/cancel`, {});
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
-        title: "Sucesso",
-        description: "Escalação cancelada com sucesso",
+        variant: "success",
+        title: "Vaga cancelada",
+        description: data?.logisticaParaRevisar
+          ? "Passagem ou hospedagem já registradas — Compras deve revisar a logística."
+          : undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
     onError: (err: any) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Erro",
-        description: describeError(err, "Erro ao cancelar escalação"),
+        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível cancelar a escalação",
+        description: apiErrorMessage(err, "Tente de novo em instantes."),
         variant: "destructive",
       });
     },
@@ -480,9 +723,9 @@ export default function TeamInclusionTable() {
         queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
         setSelectedRows(new Set());
         toast({
-          title: errorCount === 0 ? "Sucesso" : (successCount > 0 ? "Concluído parcialmente" : "Erro"),
+          title: errorCount === 0 ? "Inclusões excluídas" : (successCount > 0 ? "Concluído parcialmente" : "Nenhuma inclusão excluída"),
           description: `${successCount} inclusão(ões) excluída(s). ${errorCount > 0 ? `${errorCount} não foi(ram) excluída(s).` : ''}`,
-          variant: errorCount > 0 ? "destructive" : "default",
+          variant: errorCount > 0 ? "destructive" : "success",
         });
       },
     });
@@ -513,18 +756,21 @@ export default function TeamInclusionTable() {
         closeConfirm();
         let successCount = 0;
         let errorCount = 0;
+        let logisticaCount = 0;
         for (const id of cancelableIds) {
           try {
-            await apiRequest("PATCH", `/api/team-inclusions/${id}`, { status: "cancelado", phase: "cancelado" });
+            const r = await apiRequest("POST", `/api/team-inclusions/${id}/cancel`, {});
+            const body = await r.json().catch(() => ({}));
+            if (body?.logisticaParaRevisar) logisticaCount++;
             successCount++;
           } catch { errorCount++; }
         }
         queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
         setSelectedRows(new Set());
         toast({
-          title: errorCount === 0 ? "Sucesso" : (successCount > 0 ? "Concluído parcialmente" : "Erro"),
-          description: `${successCount} escalação(ões) cancelada(s). ${errorCount > 0 ? `${errorCount} não foi(ram) cancelada(s).` : ''}`,
-          variant: errorCount > 0 ? "destructive" : "default",
+          title: errorCount === 0 ? "Vagas canceladas" : (successCount > 0 ? "Concluído parcialmente" : "Nenhuma vaga cancelada"),
+          description: `${successCount} vaga(s) cancelada(s). ${errorCount > 0 ? `${errorCount} não foi(ram) cancelada(s).` : ''}${logisticaCount > 0 ? ` ${logisticaCount} com passagem/hospedagem registradas — Compras deve revisar.` : ''}`,
+          variant: errorCount > 0 ? "destructive" : "success",
         });
       },
     });
@@ -655,9 +901,43 @@ export default function TeamInclusionTable() {
   const allVisibleSelected =
     selectableVisibleCount > 0 && selectedVisibleCount === selectableVisibleCount;
 
+  // ── Virtualização (23/09) ──────────────────────────────────────────────────
+  // ~4.500 linhas × 10 colunas iam para o DOM de uma vez. Agora só o que cabe
+  // no contêiner de rolagem (+ overscan) é renderizado; abaixo de 60 linhas a
+  // lista é renderizada inteira (sem overhead). Os hooks ficam ANTES dos
+  // retornos antecipados de carregando/erro.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const linhasVirtuais = useLinhasVirtuais(filteredAndSortedInclusions, {
+    scrollRef,
+    alturaEstimada: 57,
+    overscan: 12,
+  });
+
+  // Callbacks ESTÁVEIS para a linha memoizada: leem o handler mais recente via
+  // ref, então `React.memo` da linha não é furado a cada render da tabela.
+  const acoesRef = useRef({ handleEdit, handleDelete, handleCancelEscalation, handleViewComments, toggleRowSelection });
+  acoesRef.current = { handleEdit, handleDelete, handleCancelEscalation, handleViewComments, toggleRowSelection };
+  const aoEditar = useCallback((id: string) => acoesRef.current.handleEdit(id), []);
+  const aoExcluir = useCallback((id: string) => acoesRef.current.handleDelete(id), []);
+  const aoCancelar = useCallback((id: string) => acoesRef.current.handleCancelEscalation(id), []);
+  const aoVerComentarios = useCallback((id: string) => acoesRef.current.handleViewComments(id), []);
+  const aoAlternarSelecao = useCallback((id: string) => acoesRef.current.toggleRowSelection(id), []);
+  const aoCopiarId = useCallback(async (text: string) => {
+    // Só avisa "copiado" depois de realmente copiar — a API falha em contexto
+    // não seguro e o toast mentia para o usuário.
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ variant: "success", title: "ID copiado", description: "Já está na área de transferência." });
+    } catch {
+      toast({ title: "Não foi possível copiar", description: `Copie manualmente: ${text}`, variant: "destructive" });
+    }
+  }, [toast]);
+  const podeEditarTela = hasPermission(user, 'canEditScreen1');
+  const podeCancelarPorPapel = hasRole(user, "purchasing", "production", "admin");
+
   if (isLoading) {
     return (
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+      <div className="bg-card rounded-lg shadow-1 border border-border p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-4 bg-muted rounded w-1/3"></div>
           <div className="space-y-3">
@@ -673,12 +953,12 @@ export default function TeamInclusionTable() {
   // Falha de rede/sessão NÃO pode virar "nenhuma inclusão encontrada"
   if (isError) {
     return (
-      <div className="bg-white rounded-xl border border-red-200 p-8 text-center">
-        <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-3">
-          <AlertCircle className="w-6 h-6 text-red-400" />
+      <div className="bg-card rounded-xl border border-danger/25 p-8 text-center">
+        <div className="w-12 h-12 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-3">
+          <AlertCircle className="w-6 h-6 text-danger-strong" />
         </div>
-        <h3 className="text-[15px] font-bold text-slate-700 mb-1">Não foi possível carregar as inclusões</h3>
-        <p className="text-[13px] text-slate-500">{describeError(error, "Verifique sua conexão e tente novamente.")}</p>
+        <h3 className="text-base font-bold text-slate-700 mb-1">Não foi possível carregar as inclusões</h3>
+        <p className="text-sm text-muted-foreground">{apiErrorMessage(error, "Verifique sua conexão e tente novamente.")}</p>
       </div>
     );
   }
@@ -698,14 +978,14 @@ export default function TeamInclusionTable() {
       <div className="mb-6">
         <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
           {([
-            { value: totals.incluidos,           label: "Total",          color: "text-blue-600",    border: "border-t-blue-400",    activeBg: "bg-blue-50",    filterType: "all",        filterValue: "all",                 testId: "total-incluidos" },
-            { value: totals.pendentes,           label: "Pendentes",      color: "text-red-500",     border: "border-t-red-400",     activeBg: "bg-red-50",     filterType: "escalation", filterValue: "pending",             testId: "total-pendentes" },
-            { value: totals.escalados,           label: "Escalados",      color: "text-green-600",   border: "border-t-green-500",   activeBg: "bg-green-50",   filterType: "escalation", filterValue: "escalated",           testId: "total-escalados" },
-            { value: totals.aguardando_passagem, label: "Passagem",       color: "text-orange-600",  border: "border-t-orange-400",  activeBg: "bg-orange-50",  filterType: "status",     filterValue: "passagem",            testId: "total-passagem" },
-            { value: totals.hospedagem,          label: "Hospedagem",     color: "text-purple-600",  border: "border-t-purple-400",  activeBg: "bg-purple-50",  filterType: "status",     filterValue: "hospedagem",          testId: "total-hospedagem" },
-            { value: totals.passagem_comprada,   label: "Pass. Comprada", color: "text-emerald-600", border: "border-t-emerald-400", activeBg: "bg-emerald-50", filterType: "status",     filterValue: "passagem_comprada",   testId: "total-passagem-comprada" },
-            { value: totals.hospedagem_comprada, label: "Hosp. Comprada", color: "text-indigo-600",  border: "border-t-indigo-400",  activeBg: "bg-indigo-50",  filterType: "status",     filterValue: "hospedagem_comprada", testId: "total-hospedagem-comprada" },
-            { value: totals.cancelados,          label: "Cancelados",     color: "text-gray-400",    border: "border-t-gray-300",    activeBg: "bg-gray-50",    filterType: "escalation", filterValue: "cancelado",           testId: "total-cancelados" },
+            { value: totals.incluidos,           label: "Total",          color: "text-primary",    border: "border-t-primary",    activeBg: "bg-brand-soft",    filterType: "all",        filterValue: "all",                 testId: "total-incluidos" },
+            { value: totals.pendentes,           label: "Pendentes",      color: "text-danger-strong",     border: "border-t-danger-strong",     activeBg: "bg-danger-soft",     filterType: "escalation", filterValue: "pending",             testId: "total-pendentes" },
+            { value: totals.escalados,           label: "Escalados",      color: "text-success",   border: "border-t-success-strong",   activeBg: "bg-success-soft",   filterType: "escalation", filterValue: "escalated",           testId: "total-escalados" },
+            { value: totals.aguardando_passagem, label: "Passagem",       color: "text-warning",  border: "border-t-warning-strong",  activeBg: "bg-warning-soft",  filterType: "status",     filterValue: "passagem",            testId: "total-passagem" },
+            { value: totals.hospedagem,          label: "Hospedagem",     color: "text-primary",  border: "border-t-primary",  activeBg: "bg-brand-soft",  filterType: "status",     filterValue: "hospedagem",          testId: "total-hospedagem" },
+            { value: totals.passagem_comprada,   label: "Pass. Comprada", color: "text-success", border: "border-t-success-strong", activeBg: "bg-success-soft", filterType: "status",     filterValue: "passagem_comprada",   testId: "total-passagem-comprada" },
+            { value: totals.hospedagem_comprada, label: "Hosp. Comprada", color: "text-primary",  border: "border-t-primary",  activeBg: "bg-brand-soft",  filterType: "status",     filterValue: "hospedagem_comprada", testId: "total-hospedagem-comprada" },
+            { value: totals.cancelados,          label: "Cancelados",     color: "text-muted-foreground",    border: "border-t-slate-300",    activeBg: "bg-surface-muted",    filterType: "escalation", filterValue: "cancelado",           testId: "total-cancelados" },
           ] as const).map(({ value, label, color, border, activeBg, filterType, filterValue, testId }) => {
             // Cards continuam sendo atalho de UM recorte por vez; o multi fica
             // por conta dos dropdowns da barra.
@@ -740,14 +1020,14 @@ export default function TeamInclusionTable() {
                     handleClick();
                   }
                 }}
-                className={`border border-t-2 ${border} rounded-xl px-3 py-2.5 text-center cursor-pointer transition-all duration-150 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+                className={`border border-t-2 ${border} rounded-xl px-3 py-2.5 text-center cursor-pointer transition-all duration-150 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring
                   ${isActive
-                    ? `${activeBg} border-slate-200 shadow-sm`
-                    : "bg-white border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+                    ? `${activeBg} border-border shadow-1`
+                    : "bg-card border-border shadow-1 hover:shadow-2 hover:-translate-y-0.5"}`}
                 data-testid={testId}
               >
-                <div className={`text-[22px] font-bold tabular-nums leading-none ${color}`}>{value}</div>
-                <div className="text-[9px] uppercase tracking-widest text-slate-400 mt-1.5 leading-tight font-semibold">{label}</div>
+                <div className={`text-2xl font-bold tabular-nums leading-none ${color}`}>{value}</div>
+                <div className="text-2xs uppercase tracking-widest text-muted-foreground mt-1.5 leading-tight font-semibold">{label}</div>
               </div>
             );
           })}
@@ -756,12 +1036,12 @@ export default function TeamInclusionTable() {
 
       {/* Barra de ações em lote */}
       {selectedRows.size > 0 && hasPermission(user, 'canEditScreen1') && (
-        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+        <div className="bg-brand-soft border border-primary/25 rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+            <div className="text-sm font-medium text-primary">
               {selectedRows.size} inclusão(ões) selecionada(s)
               {selectedRows.size > selectedVisibleCount && (
-                <span className="ml-1 font-normal text-blue-700/80">
+                <span className="ml-1 font-normal text-primary/80">
                   ({selectedRows.size - selectedVisibleCount} fora dos filtros atuais)
                 </span>
               )}
@@ -771,7 +1051,7 @@ export default function TeamInclusionTable() {
                 variant="outline"
                 size="sm"
                 onClick={openBatchDiarias}
-                className="border-blue-400 text-blue-700 hover:bg-blue-100 gap-1.5"
+                className="border-primary text-primary hover:bg-brand-soft gap-1.5"
                 data-testid="button-bulk-diarias"
               >
                 <LayoutGrid className="w-4 h-4" />
@@ -790,7 +1070,7 @@ export default function TeamInclusionTable() {
                 variant="outline"
                 size="sm"
                 onClick={handleBulkCancel}
-                className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                className="border-warning-strong text-warning hover:bg-warning-soft"
                 data-testid="button-bulk-cancel"
               >
                 <Ban className="w-4 h-4 mr-2" />
@@ -802,12 +1082,12 @@ export default function TeamInclusionTable() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3.5 flex items-center justify-between" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+      <div className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
+        <div className="px-5 py-3.5 flex items-center justify-between bg-surface-muted border-b-2 border-border">
           <div className="flex items-center gap-2">
-            <span className="text-[13px] font-semibold text-slate-700">Inclusões de Equipe</span>
+            <span className="text-sm font-semibold text-slate-700">Inclusões de Equipe</span>
             {filteredAndSortedInclusions.length > 0 && (
-              <span className="text-xs text-slate-400">({filteredAndSortedInclusions.length})</span>
+              <span className="text-xs text-muted-foreground">({filteredAndSortedInclusions.length})</span>
             )}
           </div>
           {hasPermission(user, 'canEditScreen1') && filteredAndSortedInclusions.length > 0 && (
@@ -815,7 +1095,7 @@ export default function TeamInclusionTable() {
               variant="outline"
               size="sm"
               onClick={openBatchDiarias}
-              className="h-7 px-2.5 text-[11px] font-semibold text-blue-700 border-blue-200 hover:bg-blue-50 gap-1.5"
+              className="h-7 px-2.5 text-2xs font-semibold text-primary border-primary/25 hover:bg-brand-soft gap-1.5"
             >
               <LayoutGrid className="w-3 h-3" />
               Editar diárias em lote
@@ -823,9 +1103,15 @@ export default function TeamInclusionTable() {
           )}
         </div>
         
-        <div>
+        {/* Contêiner que rola (base da virtualização): cabeçalho fixo dentro
+            dele; altura = viewport − barra do topo − filtros/cards/rodapé. */}
+        <div
+          ref={scrollRef}
+          className="overflow-auto max-h-[calc(100vh-var(--sticky-top,3.5rem)-14rem)]"
+          data-testid="team-inclusion-scroll"
+        >
           <table className="table-fixed w-full">
-            <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+            <thead className="bg-surface-muted sticky top-0 z-10 shadow-[inset_0_-2px_0_0_var(--border)]">
               <tr>
                 <th className="w-[40px] px-2 py-3">
                   <Checkbox
@@ -835,260 +1121,76 @@ export default function TeamInclusionTable() {
                     data-testid="checkbox-select-all"
                   />
                 </th>
-                <SortableHeader field="id" className="w-[80px] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
-                <SortableHeader field="event" className="w-[22%] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
-                <SortableHeader field="function" className="w-[10%] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
-                <SortableHeader field="collaborator" className="w-[18%] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                <SortableHeader field="date" className="w-[100px] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
-                <SortableHeader field="status" className="w-[130px] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
-                <th className="w-[48px] px-2 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <SortableHeader field="id" className="w-[80px] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                <SortableHeader field="event" className="w-[22%] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
+                <SortableHeader field="function" className="w-[10%] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
+                <SortableHeader field="collaborator" className="w-[18%] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                <SortableHeader field="date" className="w-[100px] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
+                <SortableHeader field="status" className="w-[130px] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
+                <th className="w-[48px] px-2 py-3 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
                   Pass.
                 </th>
-                <th className="w-[64px] px-2 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-[64px] px-2 py-3 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
                   Hosp.
                 </th>
-                <th className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
                   Ações
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {filteredAndSortedInclusions?.length === 0 ? (
+            <tbody aria-rowcount={filteredAndSortedInclusions.length + 1}>
+              {filteredAndSortedInclusions.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={COLUNAS_TABELA} className="px-6 py-12 text-center text-muted-foreground text-sm">
                     Nenhuma inclusão de equipe encontrada
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedInclusions?.map((inclusion, idx) => {
-                  const isCanceled = inclusion.status === 'cancelado';
-                  return (
-                  <tr
-                    key={inclusion.id}
-                    className={`border-b border-slate-100 transition-colors ${isCanceled ? 'opacity-40' : ''} ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'} hover:bg-blue-50/40`}
-                    data-testid={`row-inclusion-${inclusion.id}`}
-                  >
-                    <td className="px-2 py-3">
-                      <Checkbox
-                        checked={selectedRows.has(inclusion.id)}
-                        onCheckedChange={() => toggleRowSelection(inclusion.id)}
-                        disabled={isEventLocked(inclusion)}
-                        title={eventLockReason(inclusion) ?? undefined}
-                        aria-label={`Selecionar inclusão #${inclusion.inclusionNumber ?? ''}`}
-                        data-testid={`checkbox-row-${inclusion.id}`}
-                      />
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        <div className="text-sm font-mono text-foreground font-medium truncate">
-                          #{inclusion.inclusionNumber || 'N/A'}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="p-1 h-5 w-5 flex-shrink-0"
-                          title="Copiar ID"
-                          aria-label={`Copiar ID da inclusão #${inclusion.inclusionNumber ?? ''}`}
-                          onClick={async () => {
-                            const text = inclusion.inclusionNumber?.toString() || inclusion.id;
-                            // Só avisa "copiado" depois de realmente copiar — a API falha
-                            // em contexto não seguro e o toast mentia para o usuário.
-                            try {
-                              await navigator.clipboard.writeText(text);
-                              toast({
-                                title: "Sucesso",
-                                description: "ID copiado para a área de transferência",
-                              });
-                            } catch {
-                              toast({
-                                title: "Não foi possível copiar",
-                                description: `Copie manualmente: ${text}`,
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                          data-testid={`button-copy-id-${inclusion.id}`}
-                        >
-                          <Copy className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </td>
-                    <td className="px-2 py-3">
-                      <div className="text-sm font-medium text-slate-800 whitespace-normal break-words">
-                        {getEventName(inclusion.eventId)}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        {getEventLocation(inclusion.eventId)}
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap">
-                      <div className="text-sm text-slate-700 truncate">
-                        {getFunctionName(inclusion.functionId)}
-                      </div>
-                    </td>
-                    <td className="px-2 py-3">
-                      {inclusion.collaboratorId ? (
-                        <div
-                          className="text-sm text-slate-800 font-medium whitespace-normal break-words leading-snug"
-                          title={toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
-                        >
-                          {toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
-                        </div>
-                      ) : vagaComEmpreita(inclusion as any) ? (
-                        <div className="text-sm text-slate-800 font-medium whitespace-normal break-words leading-snug" title={rotuloEmpreita(inclusion as any)}>
-                          <span className="mr-1.5 inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">Empreita</span>
-                          {(inclusion as any).empreitaEmpresa}
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center text-[11px] font-medium bg-slate-100 text-slate-400 rounded-full px-2 py-0.5">Não escalado</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap">
-                      <div className="text-xs text-foreground">
-                        {inclusion.scheduleStartDate && inclusion.scheduleEndDate
+                <>
+                  <EspacadorLinha altura={linhasVirtuais.espacoAntes} colunas={COLUNAS_TABELA} />
+                  {linhasVirtuais.linhas.map(({ item: inclusion, index, medir }) => {
+                    const empreita = !inclusion.collaboratorId && vagaComEmpreita(inclusion as any);
+                    return (
+                      <InclusionRow
+                        key={inclusion.id}
+                        ref={medir}
+                        index={index}
+                        id={inclusion.id}
+                        inclusionNumber={inclusion.inclusionNumber ?? null}
+                        eventName={getEventName(inclusion.eventId)}
+                        eventLocation={getEventLocation(inclusion.eventId)}
+                        functionName={getFunctionName(inclusion.functionId)}
+                        collaboratorName={inclusion.collaboratorId ? toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "") : null}
+                        empreitaEmpresa={empreita ? String((inclusion as any).empreitaEmpresa ?? "") : null}
+                        empreitaTitulo={empreita ? rotuloEmpreita(inclusion as any) : ""}
+                        displayStatus={getDisplayStatus(inclusion)}
+                        isCanceled={inclusion.status === 'cancelado'}
+                        periodo={inclusion.scheduleStartDate && inclusion.scheduleEndDate
                           ? `${formatDate(inclusion.scheduleStartDate)} - ${formatDate(inclusion.scheduleEndDate)}`
                           : "Não definidas"}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {formatDiarias(inclusion.dailyRates)}
-                      </div>
-                    </td>
-                    <td className="px-2 py-3">
-                      <StatusBadge status={getDisplayStatus(inclusion)} />
-                      {approvedSwapInclusionIds.has(inclusion.id) && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200 mt-1">
-                          <ArrowLeftRight className="w-2.5 h-2.5" />Troca aprovada
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-3 text-center">
-                      {inclusion.needsTicket ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100" title="Precisa de passagem">
-                          <Check className="w-3 h-3 text-green-600 shrink-0" />
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100" title="Não precisa de passagem">
-                          <X className="w-3 h-3 text-slate-400 shrink-0" />
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-3 text-center">
-                      {inclusion.needsAccommodation ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100" title="Precisa de hospedagem">
-                          <Check className="w-3 h-3 text-green-600 shrink-0" />
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100" title="Não precisa de hospedagem">
-                          <X className="w-3 h-3 text-slate-400 shrink-0" />
-                        </span>
-                      )}
-                    </td>
-                    <td className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-sm font-medium">
-                      <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''} [&>button]:hover:scale-110 [&>button]:transition-transform`}>
-                        {/* Para registros cancelados, permitir apenas comentários se não for edição */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleViewComments(inclusion.id)}
-                          className="text-blue-600 hover:text-blue-900 h-8 w-8 p-0 shrink-0"
-                          title="Comentários"
-                          aria-label={`Ver comentários da inclusão #${inclusion.inclusionNumber ?? ''}`}
-                          data-testid={`button-comments-${inclusion.id}`}
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                        </Button>
-                        {hasPermission(user, 'canEditScreen1') && isEventLocked(inclusion) && (
-                          <span
-                            className="inline-flex items-center justify-center h-8 w-8 text-amber-500 shrink-0"
-                            title={eventLockReason(inclusion) ?? PAST_EVENT_BLOCK_MSG}
-                            aria-label={eventLockReason(inclusion) ?? PAST_EVENT_BLOCK_MSG}
-                            data-testid={`lock-past-event-${inclusion.id}`}
-                          >
-                            <Lock className="w-4 h-4" />
-                          </span>
-                        )}
-                        {hasPermission(user, 'canEditScreen1') && !isEventLocked(inclusion) && (
-                          <>
-                            {isReadOnly(inclusion) ? (
-                              // Para cancelados ou comprados, só mostrar botão de excluir se permitido
-                              // Compras e Produção podem cancelar mesmo após compra de passagem/hospedagem
-                              <>
-                                {canDeleteInclusion(inclusion) && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleDelete(inclusion.id)}
-                                    className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
-                                    data-testid={`button-delete-${inclusion.id}`}
-                                    title="Excluir registro"
-                                    aria-label={`Excluir inclusão #${inclusion.inclusionNumber ?? ''}`}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                )}
-                                {canCancelEscalation(inclusion) && (user?.role === 'purchasing' || user?.role === 'production' || user?.role === 'admin') && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleCancelEscalation(inclusion.id)}
-                                    className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
-                                    data-testid={`button-cancel-${inclusion.id}`}
-                                    title="Cancelar Escalação"
-                                    aria-label={`Cancelar escalação da inclusão #${inclusion.inclusionNumber ?? ''}`}
-                                  >
-                                    <Ban className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </>
-                            ) : (
-                              // Para status editáveis, mostrar botões de editar, excluir e cancelar
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleEdit(inclusion.id)}
-                                  className="text-green-600 hover:text-green-900 h-8 w-8 p-0 shrink-0"
-                                  data-testid={`button-edit-${inclusion.id}`}
-                                  title="Editar inclusão"
-                                  aria-label={`Editar inclusão #${inclusion.inclusionNumber ?? ''}`}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                {canDeleteInclusion(inclusion) && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleDelete(inclusion.id)}
-                                    className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
-                                    data-testid={`button-delete-${inclusion.id}`}
-                                    title="Excluir registro"
-                                    aria-label={`Excluir inclusão #${inclusion.inclusionNumber ?? ''}`}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                )}
-                                {canCancelEscalation(inclusion) && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleCancelEscalation(inclusion.id)}
-                                    className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
-                                    data-testid={`button-cancel-${inclusion.id}`}
-                                    title="Cancelar Escalação"
-                                    aria-label={`Cancelar escalação da inclusão #${inclusion.inclusionNumber ?? ''}`}
-                                  >
-                                    <Ban className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  );
-                })
+                        diarias={formatDiarias(inclusion.dailyRates)}
+                        needsTicket={!!inclusion.needsTicket}
+                        needsAccommodation={!!inclusion.needsAccommodation}
+                        selected={selectedRows.has(inclusion.id)}
+                        locked={isEventLocked(inclusion)}
+                        lockReason={eventLockReason(inclusion) ?? null}
+                        canEditScreen={podeEditarTela}
+                        readOnly={isReadOnly(inclusion)}
+                        canDelete={canDeleteInclusion(inclusion)}
+                        canCancel={canCancelEscalation(inclusion)}
+                        cancelByRole={podeCancelarPorPapel}
+                        swapApproved={approvedSwapInclusionIds.has(inclusion.id)}
+                        onToggleSelect={aoAlternarSelecao}
+                        onCopyId={aoCopiarId}
+                        onComments={aoVerComentarios}
+                        onEdit={aoEditar}
+                        onDelete={aoExcluir}
+                        onCancel={aoCancelar}
+                      />
+                    );
+                  })}
+                  <EspacadorLinha altura={linhasVirtuais.espacoDepois} colunas={COLUNAS_TABELA} />
+                </>
               )}
             </tbody>
           </table>
@@ -1104,16 +1206,16 @@ export default function TeamInclusionTable() {
       {/* Modal de Edição */}
       {showEditModal && editingInclusion && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+          <div className="bg-card rounded-xl shadow-3 max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
 
             {/* Header */}
-            <div className="-mx-6 -mt-6 px-6 py-4 rounded-t-2xl mb-6 flex items-center gap-3" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
-              <div className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center shrink-0" style={{ boxShadow: "0 4px 12px #0033CC40" }}>
+            <div className="-mx-6 -mt-6 px-6 py-4 rounded-t-xl mb-6 flex items-center gap-3 bg-surface-muted border-b-2 border-border">
+              <div className="w-9 h-9 rounded-lg bg-primary shadow-2 flex items-center justify-center shrink-0">
                 <Edit className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h2 className="text-[15px] font-bold text-slate-900 leading-tight">Editar Inclusão</h2>
-                <p className="text-xs text-slate-400 mt-0.5">#{editingInclusion.inclusionNumber}</p>
+                <h2 className="text-base font-bold text-foreground leading-tight">Editar Inclusão</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">#{editingInclusion.inclusionNumber}</p>
               </div>
             </div>
 
@@ -1125,8 +1227,11 @@ export default function TeamInclusionTable() {
               const derivedEnd = selectedDaysArr.length > 0 ? selectedDaysArr[selectedDaysArr.length - 1] : editEndDate;
               const data = {
                 functionId: formData.get('functionId') as string,
-                status: formData.get('status') as string,
-                dailyRates: selectedDaysArr.length,
+                // `status` NÃO vai no corpo (23/09): o select do modal não tinha
+                // planejado/aprovado/escalacao e gravava o valor inexistente
+                // "incluido". O status é só do fluxo no servidor.
+                // `dailyRates` não vai no corpo (contrato 23/09): o servidor
+                // calcula = workDays.length.
                 needsTicket: formData.get('needsTicket') === 'true',
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
                 scheduleStartDate: derivedStart,
@@ -1146,12 +1251,12 @@ export default function TeamInclusionTable() {
                 {/* Coluna Esquerda */}
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="edit-function-id" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Função *</label>
+                    <label htmlFor="edit-function-id" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Função *</label>
                     <select
                       id="edit-function-id"
                       name="functionId"
                       defaultValue={editingInclusion.functionId}
-                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
+                      className="border border-border rounded-xl bg-card px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/25 focus:border-primary w-full transition-all"
                       required
                     >
                       {functions?.map((func) => (
@@ -1161,30 +1266,18 @@ export default function TeamInclusionTable() {
                   </div>
 
                   <div>
-                    <label htmlFor="edit-status" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Status *</label>
-                    <select
-                      id="edit-status"
-                      name="status"
-                      defaultValue={editingInclusion.status}
-                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
-                      required
-                    >
-                      <option value="incluido">Incluído</option>
-                      <option value="reaberto">Reaberto</option>
-                      <option value="aguardando_producao">Aguardando Gestor</option>
-                      <option value="escalado">Escalado</option>
-                      <option value="aguardando_passagem">Aguardando Passagem</option>
-                      <option value="aguardando_hospedagem">Aguardando Hospedagem</option>
-                      <option value="passagem_comprada">Passagem Comprada</option>
-                      <option value="hospedagem_comprada">Hospedagem Comprada</option>
-                      <option value="hospedagem_passagem_comprada">Hospedagem e Passagem Comprada</option>
-                      <option value="cancelado">Cancelado</option>
-                    </select>
+                    {/* Somente leitura (23/09): o status é decidido pelo fluxo
+                        (escalação, gestor, compras) — o select antigo não tinha
+                        planejado/aprovado/escalacao e gravava "incluido". */}
+                    <span className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Status</span>
+                    <div className="flex items-center min-h-[42px]" data-testid="edit-status-readonly">
+                      <StatusPorChaveBadge status={getDisplayStatus(editingInclusion)} />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label htmlFor="edit-start-date" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Início *</label>
+                      <label htmlFor="edit-start-date" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Data Início *</label>
                       <input
                         id="edit-start-date"
                         type="date"
@@ -1202,12 +1295,12 @@ export default function TeamInclusionTable() {
                             });
                           }
                         }}
-                        className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
+                        className="border border-border rounded-xl bg-card px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/25 focus:border-primary w-full transition-all"
                         required
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-end-date" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Fim *</label>
+                      <label htmlFor="edit-end-date" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Data Fim *</label>
                       <input
                         id="edit-end-date"
                         type="date"
@@ -1223,13 +1316,13 @@ export default function TeamInclusionTable() {
                             });
                           }
                         }}
-                        className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
+                        className="border border-border rounded-xl bg-card px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/25 focus:border-primary w-full transition-all"
                         required
                       />
                     </div>
                   </div>
                   {editStartDate && editEndDate && editEndDate < editStartDate && (
-                    <p className="text-[11px] font-semibold text-red-500 -mt-2">
+                    <p className="text-2xs font-semibold text-danger-strong -mt-2">
                       A data de fim não pode ser anterior à data de início.
                     </p>
                   )}
@@ -1243,17 +1336,17 @@ export default function TeamInclusionTable() {
                     return (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
                             Dias trabalhados
                           </label>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-blue-700 bg-blue-50 rounded-lg px-2 py-0.5">{selectedCount} dia{selectedCount !== 1 ? 's' : ''}</span>
+                            <span className="text-xs font-bold text-primary bg-brand-soft rounded-lg px-2 py-0.5">{selectedCount} dia{selectedCount !== 1 ? 's' : ''}</span>
                             <button type="button" onClick={() => {
                               setEditSelectedDays(new Set(allDays));
                             }}
-                              className="text-[10px] text-slate-400 hover:text-blue-600 underline">todos</button>
+                              className="text-2xs text-muted-foreground hover:text-primary-hover underline">todos</button>
                             <button type="button" onClick={() => setEditSelectedDays(new Set())}
-                              className="text-[10px] text-slate-400 hover:text-red-500 underline">nenhum</button>
+                              className="text-2xs text-muted-foreground hover:text-danger-strong underline">nenhum</button>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -1273,15 +1366,15 @@ export default function TeamInclusionTable() {
                                   if (next.has(day)) next.delete(day); else next.add(day);
                                   return next;
                                 })}
-                                className={`flex flex-col items-center px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all min-w-[38px] ${
+                                className={`flex flex-col items-center px-2 py-1 rounded-lg border text-2xs font-semibold transition-all min-w-[38px] ${
                                   isSelected
-                                    ? isWeekend ? 'bg-orange-500 text-white border-orange-500' : 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-white text-slate-400 border-slate-200 line-through'
+                                    ? isWeekend ? 'bg-warning-strong text-primary-foreground border-warning-strong' : 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-card text-muted-foreground border-border line-through'
                                 }`}
                               >
-                                <span className="text-[9px] font-normal">{wd}</span>
+                                <span className="text-2xs font-normal">{wd}</span>
                                 <span>{dayNum}</span>
-                                <span className="text-[9px] font-normal">{mon}</span>
+                                <span className="text-2xs font-normal">{mon}</span>
                               </button>
                             );
                           })}
@@ -1291,12 +1384,12 @@ export default function TeamInclusionTable() {
                   })()}
 
                   <div>
-                    <label htmlFor="edit-needs-ticket" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Passagem?</label>
+                    <label htmlFor="edit-needs-ticket" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Precisa de Passagem?</label>
                     <select
                       id="edit-needs-ticket"
                       name="needsTicket"
                       defaultValue={editingInclusion.needsTicket ? 'true' : 'false'}
-                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
+                      className="border border-border rounded-xl bg-card px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/25 focus:border-primary w-full transition-all"
                     >
                       <option value="false">Não</option>
                       <option value="true">Sim</option>
@@ -1304,12 +1397,12 @@ export default function TeamInclusionTable() {
                   </div>
 
                   <div>
-                    <label htmlFor="edit-needs-accommodation" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Hospedagem?</label>
+                    <label htmlFor="edit-needs-accommodation" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Precisa de Hospedagem?</label>
                     <select
                       id="edit-needs-accommodation"
                       name="needsAccommodation"
                       defaultValue={editingInclusion.needsAccommodation ? 'true' : 'false'}
-                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
+                      className="border border-border rounded-xl bg-card px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/25 focus:border-primary w-full transition-all"
                     >
                       <option value="false">Não</option>
                       <option value="true">Sim</option>
@@ -1319,67 +1412,67 @@ export default function TeamInclusionTable() {
 
                 {/* Coluna Direita - Sugestões de Viagem */}
                 <div>
-                  <div className="bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100 rounded-2xl p-5">
-                    <h4 className="text-sm font-bold text-blue-700 flex items-center gap-2 mb-1">
+                  <div className="bg-brand-soft border border-primary/25 rounded-xl p-5">
+                    <h4 className="text-sm font-bold text-primary flex items-center gap-2 mb-1">
                       ✈️ Sugestões de Viagem
                     </h4>
-                    <p className="text-xs text-blue-400 mb-4">Essas informações aparecerão como sugestões na tela de escalação</p>
+                    <p className="text-xs text-primary/70 mb-4">Essas informações aparecerão como sugestões na tela de escalação</p>
 
                     <div className="grid grid-cols-2 gap-3">
                       {/* Card IDA */}
-                      <div className="bg-white rounded-xl border border-blue-100 p-3 shadow-sm">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500 mb-2">IDA</p>
+                      <div className="bg-card rounded-xl border border-primary/25 p-3 shadow-1">
+                        <p className="text-2xs font-bold uppercase tracking-wider text-primary mb-2">IDA</p>
                         <div className="space-y-2">
                           <div>
-                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Dia</label>
+                            <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">Dia</label>
                             <input
                               type="date"
                               name="ida"
                               defaultValue={editingInclusion.flightDepartureDate || ''}
-                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                              className="border border-border rounded-lg bg-card px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-primary/25"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Horário</label>
+                            <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">Horário</label>
                             <input
                               type="text"
                               name="chegada"
                               defaultValue={editingInclusion.flightArrivalSuggestedTime || ''}
                               placeholder="Ex: 9h, manhã"
-                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                              className="border border-border rounded-lg bg-card px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-primary/25"
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Card RETORNO */}
-                      <div className="bg-white rounded-xl border border-blue-100 p-3 shadow-sm">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">RETORNO</p>
+                      <div className="bg-card rounded-xl border border-primary/25 p-3 shadow-1">
+                        <p className="text-2xs font-bold uppercase tracking-wider text-muted-foreground mb-2">RETORNO</p>
                         <div className="space-y-2">
                           <div>
-                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Dia</label>
+                            <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">Dia</label>
                             <input
                               type="date"
                               name="retorno"
                               defaultValue={editingInclusion.flightReturnDate || ''}
-                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                              className="border border-border rounded-lg bg-card px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-primary/25"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Horário</label>
+                            <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">Horário</label>
                             <input
                               type="text"
                               name="horarioRetorno"
                               defaultValue={editingInclusion.flightReturnSuggestedTime || ''}
                               placeholder="Ex: 18h, final da tarde"
-                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                              className="border border-border rounded-lg bg-card px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-primary/25"
                             />
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-blue-100/60 rounded-lg px-3 py-2 text-xs text-blue-600 mt-3 flex items-start gap-1.5">
+                    <div className="bg-brand-soft/60 rounded-lg px-3 py-2 text-xs text-primary mt-3 flex items-start gap-1.5">
                       <span className="font-semibold">Dica:</span>
                       <span>Use descrições claras como "sábado", "9h", "domingo", "18h" ou datas específicas</span>
                     </div>
@@ -1388,22 +1481,21 @@ export default function TeamInclusionTable() {
               </div>
 
               {/* Rodapé */}
-              <div className="border-t border-slate-100 pt-4 mt-4 flex gap-2 justify-end">
+              <div className="border-t border-border pt-4 mt-4 flex gap-2 justify-end">
                 <button
                   type="button"
                   onClick={() => {
                     setShowEditModal(false);
                     setEditingInclusion(null);
                   }}
-                  className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-6 py-2.5 text-sm font-medium transition-colors"
+                  className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-6 py-2.5 text-sm font-medium transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={updateTeamInclusionMutation.isPending}
-                  className="text-white rounded-lg px-6 py-2.5 text-sm font-semibold transition-all disabled:opacity-50"
-                  style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
+                  className="text-primary-foreground rounded-lg px-6 py-2.5 text-sm font-semibold transition-all disabled:opacity-50 bg-primary hover:bg-primary-hover shadow-1"
                 >
                   {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
@@ -1422,17 +1514,17 @@ export default function TeamInclusionTable() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh]">
+            <div className="bg-card rounded-xl shadow-3 w-full max-w-5xl flex flex-col max-h-[90vh]">
 
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                    <LayoutGrid className="w-4 h-4 text-blue-600" />
+                  <div className="w-8 h-8 rounded-xl bg-brand-soft flex items-center justify-center shrink-0">
+                    <LayoutGrid className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <h2 className="text-[14px] font-bold text-slate-900 leading-tight">Edição de Diárias em Lote</h2>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <h2 className="text-sm font-bold text-foreground leading-tight">Edição de Diárias em Lote</h2>
+                    <p className="text-2xs text-muted-foreground mt-0.5">
                       {targets.length} inclusão(ões) — selecione os dias de cada uma; a quantidade será calculada automaticamente
                     </p>
                   </div>
@@ -1442,14 +1534,14 @@ export default function TeamInclusionTable() {
                   aria-label="Fechar edição de diárias em lote"
                   title="Fechar"
                   onClick={() => setShowBatchDiarias(false)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-slate-600 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Rows */}
-              <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+              <div className="overflow-y-auto flex-1 divide-y divide-border">
                 {targets.map((inc, idx) => {
                   const selectedDays = batchDiariasSelections[inc.id] ?? [];
                   const start = normDay(inc.scheduleStartDate);
@@ -1462,19 +1554,19 @@ export default function TeamInclusionTable() {
                   return (
                     <div
                       key={inc.id}
-                      className={`px-6 py-4 transition-colors ${changed ? 'bg-blue-50/50' : idx % 2 === 1 ? 'bg-slate-50/30' : 'bg-white'}`}
+                      className={`px-6 py-4 transition-colors ${changed ? 'bg-brand-soft/50' : idx % 2 === 1 ? 'bg-surface-muted/30' : 'bg-card'}`}
                     >
                       {/* Info row */}
                       <div className="flex items-center gap-4 mb-3">
-                        <span className="text-[10px] font-mono text-slate-400 w-10 shrink-0">#{inc.inclusionNumber ?? '—'}</span>
-                        <span className="text-[12px] font-semibold text-slate-800 w-40 shrink-0 truncate">
+                        <span className="text-2xs font-mono text-muted-foreground w-10 shrink-0">#{inc.inclusionNumber ?? '—'}</span>
+                        <span className="text-xs font-semibold text-foreground w-40 shrink-0 truncate">
                           {inc.collaboratorId
                             ? fixEncoding(getCollaboratorName(inc.collaboratorId))
-                            : <span className="text-slate-400 italic font-normal">Não escalado</span>}
+                            : <span className="text-muted-foreground italic font-normal">Não escalado</span>}
                         </span>
-                        <span className="text-[12px] text-slate-500 w-32 shrink-0 truncate">{getFunctionName(inc.functionId)}</span>
+                        <span className="text-xs text-muted-foreground w-32 shrink-0 truncate">{getFunctionName(inc.functionId)}</span>
                         <div className="flex items-center gap-1.5 ml-auto shrink-0">
-                          <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${changed ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                          <span className={`text-2xs font-bold px-2.5 py-0.5 rounded-full ${changed ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-600'}`}>
                             {selectedDays.length} dia{selectedDays.length !== 1 ? 's' : ''}
                           </span>
                           {allDays.length > 0 && (
@@ -1482,12 +1574,12 @@ export default function TeamInclusionTable() {
                               <button
                                 type="button"
                                 onClick={() => setBatchDiariasSelections(prev => ({ ...prev, [inc.id]: allDays }))}
-                                className="text-[10px] text-slate-400 hover:text-blue-600 underline"
+                                className="text-2xs text-muted-foreground hover:text-primary-hover underline"
                               >todos</button>
                               <button
                                 type="button"
                                 onClick={() => setBatchDiariasSelections(prev => ({ ...prev, [inc.id]: [] }))}
-                                className="text-[10px] text-slate-400 hover:text-red-500 underline"
+                                className="text-2xs text-muted-foreground hover:text-danger-strong underline"
                               >nenhum</button>
                             </>
                           )}
@@ -1509,23 +1601,23 @@ export default function TeamInclusionTable() {
                                 key={day}
                                 type="button"
                                 onClick={() => toggleBatchDay(inc.id, day)}
-                                className={`flex flex-col items-center px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all min-w-[38px] ${
+                                className={`flex flex-col items-center px-2 py-1 rounded-lg border text-2xs font-semibold transition-all min-w-[38px] ${
                                   isSelected
                                     ? isWeekend
-                                      ? 'bg-orange-500 text-white border-orange-500'
-                                      : 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-white text-slate-400 border-slate-200 line-through'
+                                      ? 'bg-warning-strong text-primary-foreground border-warning-strong'
+                                      : 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-card text-muted-foreground border-border line-through'
                                 }`}
                               >
-                                <span className="text-[9px] font-normal">{wd}</span>
+                                <span className="text-2xs font-normal">{wd}</span>
                                 <span>{dayNum}</span>
-                                <span className="text-[9px] font-normal">{mon}</span>
+                                <span className="text-2xs font-normal">{mon}</span>
                               </button>
                             );
                           })}
                         </div>
                       ) : (
-                        <p className="ml-14 text-[11px] text-slate-400 italic">Sem período definido nesta inclusão</p>
+                        <p className="ml-14 text-2xs text-muted-foreground italic">Sem período definido nesta inclusão</p>
                       )}
                     </div>
                   );
@@ -1533,22 +1625,21 @@ export default function TeamInclusionTable() {
               </div>
 
               {/* Footer */}
-              <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
-                <p className="text-[11px] text-slate-400">
-                  Linhas em <span className="text-blue-600 font-semibold">azul</span> têm dias alterados. Status das escalações não será modificado.
+              <div className="border-t border-border px-6 py-4 flex items-center justify-between shrink-0">
+                <p className="text-2xs text-muted-foreground">
+                  Linhas em <span className="text-primary font-semibold">azul</span> têm dias alterados. Status das escalações não será modificado.
                 </p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowBatchDiarias(false)}
-                    className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium transition-colors"
+                    className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleSaveBatchDiarias}
                     disabled={batchSaveDiariasMutation.isPending}
-                    className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-semibold transition-all disabled:opacity-50"
-                    style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
+                    className="flex items-center gap-2 text-primary-foreground rounded-xl px-5 py-2 text-sm font-semibold transition-all disabled:opacity-50 bg-primary hover:bg-primary-hover shadow-1"
                   >
                     <Save className="w-3.5 h-3.5" />
                     {batchSaveDiariasMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
@@ -1561,14 +1652,14 @@ export default function TeamInclusionTable() {
         );
       })()}
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmState.open}
-        variant={confirmState.variant}
+        onOpenChange={(o) => { if (!o) closeConfirm(); }}
+        tone={confirmState.variant === "confirm" ? "default" : "danger"}
         title={confirmState.title}
-        message={confirmState.message}
+        description={confirmState.message}
         confirmLabel={confirmState.confirmLabel}
         onConfirm={confirmState.onConfirm}
-        onCancel={closeConfirm}
       />
     </>
   );

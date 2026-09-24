@@ -30,8 +30,9 @@ import {
 } from "./scaling-utils";
 import type { ScalingMutations } from "./use-scaling-mutations";
 
-const lbl = "text-[11px] text-muted-foreground font-medium mb-1";
-const val = "text-[13px] font-semibold text-slate-700";
+import { formatarMoeda } from "@/lib/format";
+const lbl = "text-2xs text-muted-foreground font-medium mb-1";
+const val = "text-sm font-semibold text-slate-700";
 
 type RenderAttachments = (ids: string[] | null | undefined, label: string) => ReactNode;
 
@@ -43,12 +44,12 @@ function AbaVazia({ icone, titulo, texto, tom = "neutro" }: {
   return (
     <div className="flex flex-col items-center justify-center py-10 text-center">
       <div className={`w-12 h-12 rounded-xl border border-dashed flex items-center justify-center mb-3 ${
-        pendente ? "bg-[#FFFBEB] border-[#FCD34D] text-[#B45309]" : "bg-background border-border text-slate-300"
+        pendente ? "bg-warning-soft border-warning/25 text-warning" : "bg-background border-border text-muted-foreground"
       }`}>
         {icone}
       </div>
-      <div className={`text-[13px] font-semibold mb-1 ${pendente ? "text-slate-700" : "text-slate-500"}`}>{titulo}</div>
-      <div className="text-[12px] text-muted-foreground max-w-[420px]">{texto}</div>
+      <div className={`text-sm font-semibold mb-1 ${pendente ? "text-slate-700" : "text-muted-foreground"}`}>{titulo}</div>
+      <div className="text-xs text-muted-foreground max-w-[420px]">{texto}</div>
     </div>
   );
 }
@@ -78,8 +79,8 @@ export function PassagemTab({ inclusion, ticket: selectedTicket, renderAttachmen
               <div className="border border-border rounded-xl overflow-hidden">
                 <div className="bg-brand-soft border-b border-border px-4 py-2.5 flex items-center gap-2">
                   <Plane className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-                  <span className="text-[11px] font-semibold text-primary uppercase tracking-[0.06em]">Datas sugeridas</span>
-                  <span className="text-[11px] text-muted-foreground ml-1">· da inclusão de equipe</span>
+                  <span className="text-2xs font-semibold text-primary uppercase tracking-[0.06em]">Datas sugeridas</span>
+                  <span className="text-2xs text-muted-foreground ml-1">· da inclusão de equipe</span>
                 </div>
                 <div className="p-4">
                   {(() => {
@@ -88,17 +89,17 @@ export function PassagemTab({ inclusion, ticket: selectedTicket, renderAttachmen
                     return (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="bg-card border border-border rounded-lg p-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-2">🛫 Ida</div>
+                          <div className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-2">🛫 Ida</div>
                           <div className="space-y-1.5">
-                            <div><div className={lbl}>Data</div><div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.ida)}</div></div>
-                            <div><div className={lbl}>Horário sugerido</div><div className="text-[12px] font-semibold text-slate-700">{showTime(travelInfo.chegada)}</div></div>
+                            <div><div className={lbl}>Data</div><div className="text-xs font-semibold text-slate-700">{formatSuggestionDate(travelInfo.ida)}</div></div>
+                            <div><div className={lbl}>Horário sugerido</div><div className="text-xs font-semibold text-slate-700">{showTime(travelInfo.chegada)}</div></div>
                           </div>
                         </div>
                         <div className="bg-card border border-border rounded-lg p-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-2">🛬 Volta</div>
+                          <div className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-2">🛬 Volta</div>
                           <div className="space-y-1.5">
-                            <div><div className={lbl}>Data</div><div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.retorno)}</div></div>
-                            <div><div className={lbl}>Horário sugerido</div><div className="text-[12px] font-semibold text-slate-700">{showTime(travelInfo.horario)}</div></div>
+                            <div><div className={lbl}>Data</div><div className="text-xs font-semibold text-slate-700">{formatSuggestionDate(travelInfo.retorno)}</div></div>
+                            <div><div className={lbl}>Horário sugerido</div><div className="text-xs font-semibold text-slate-700">{showTime(travelInfo.horario)}</div></div>
                           </div>
                         </div>
                       </div>
@@ -138,14 +139,14 @@ export function HospedagemTab({ inclusion, accommodation, renderAttachments }: {
           ) : (
             <div className="space-y-4">
               <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="border-b border-slate-100 px-4 py-3 flex items-center gap-3">
-                  <Bed className="w-5 h-5 text-[#047857] shrink-0" aria-hidden="true" />
+                <div className="border-b border-border px-4 py-3 flex items-center gap-3">
+                  <Bed className="w-5 h-5 text-success shrink-0" aria-hidden="true" />
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-[#047857] uppercase tracking-[0.06em]">Hospedagem reservada</div>
-                    <div className="text-[14px] font-semibold text-slate-900 mt-0.5 truncate">{accommodation.hotelName || "Hotel não informado"}</div>
+                    <div className="text-2xs font-semibold text-success uppercase tracking-[0.06em]">Hospedagem reservada</div>
+                    <div className="text-sm font-semibold text-foreground mt-0.5 truncate">{accommodation.hotelName || "Hotel não informado"}</div>
                   </div>
                   {accommodation.reservationNumber && (
-                    <span className="ml-auto shrink-0 text-[11px] font-medium text-muted-foreground font-mono bg-background border border-border px-2.5 py-1 rounded-md">
+                    <span className="ml-auto shrink-0 text-2xs font-medium text-muted-foreground font-mono bg-background border border-border px-2.5 py-1 rounded-md">
                       LOC {accommodation.reservationNumber}
                     </span>
                   )}
@@ -180,7 +181,7 @@ export function HospedagemTab({ inclusion, accommodation, renderAttachments }: {
                     </div>
                   </div>
                   {accommodation.accommodationObservations && (
-                    <div className="mt-4 pt-4 border-t border-slate-100">
+                    <div className="mt-4 pt-4 border-t border-border">
                       <div className={lbl}>Observações</div>
                       <div className="text-sm text-slate-700 mt-0.5 whitespace-pre-line">{accommodation.accommodationObservations}</div>
                     </div>
@@ -204,7 +205,7 @@ function EsqueletoHistorico({ linhas = 3 }: { linhas?: number }) {
       {Array.from({ length: linhas }).map((_, i) => (
         <div
           key={i}
-          className="h-14 rounded-lg border border-slate-100 bg-background animate-pulse"
+          className="h-14 rounded-lg border border-border bg-background animate-pulse"
           style={{ animationDelay: `${i * 90}ms` }}
         />
       ))}
@@ -216,14 +217,14 @@ function EsqueletoHistorico({ linhas = 3 }: { linhas?: number }) {
 
 /** Uma cor por categoria — a pílula diz DE ONDE veio o acontecimento. */
 const CATEGORIA_META: Record<CategoriaDoHistorico, { rotulo: string; ponto: string; chip: string }> = {
-  vaga: { rotulo: "Vaga", ponto: "bg-slate-400", chip: "bg-slate-100 text-slate-600" },
-  escala: { rotulo: "Escala", ponto: "bg-blue-500", chip: "bg-blue-50 text-blue-700" },
-  aprovacao: { rotulo: "Aprovação", ponto: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700" },
-  passagem: { rotulo: "Passagem", ponto: "bg-violet-500", chip: "bg-violet-50 text-violet-700" },
-  hospedagem: { rotulo: "Hospedagem", ponto: "bg-sky-500", chip: "bg-sky-50 text-sky-700" },
-  troca: { rotulo: "Troca", ponto: "bg-amber-500", chip: "bg-amber-50 text-amber-800" },
-  pedido: { rotulo: "Pedido", ponto: "bg-fuchsia-500", chip: "bg-fuchsia-50 text-fuchsia-700" },
-  alteracao: { rotulo: "Alteração", ponto: "bg-slate-300", chip: "bg-slate-100 text-slate-600" },
+  vaga: { rotulo: "Vaga", ponto: "bg-slate-400", chip: "bg-muted text-slate-600" },
+  escala: { rotulo: "Escala", ponto: "bg-primary", chip: "bg-brand-soft text-primary" },
+  aprovacao: { rotulo: "Aprovação", ponto: "bg-success-strong", chip: "bg-success-soft text-success" },
+  passagem: { rotulo: "Passagem", ponto: "bg-primary", chip: "bg-brand-soft text-primary" },
+  hospedagem: { rotulo: "Hospedagem", ponto: "bg-info-strong", chip: "bg-info-soft text-info" },
+  troca: { rotulo: "Troca", ponto: "bg-warning-strong", chip: "bg-warning-soft text-warning" },
+  pedido: { rotulo: "Pedido", ponto: "bg-primary", chip: "bg-brand-soft text-primary" },
+  alteracao: { rotulo: "Alteração", ponto: "bg-slate-300", chip: "bg-muted text-slate-600" },
 };
 
 const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -255,7 +256,7 @@ function CriacaoDaVaga({ historico }: { historico: EntradaDoHistorico[] | undefi
   const e = historico.find((x) => x.id === "vaga-criada" || (x.categoria === "vaga" && x.titulo.startsWith("Vaga criada")));
   if (!e) {
     return (
-      <p className="mb-3 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[12px] text-slate-500" data-testid="historico-criacao">
+      <p className="mb-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground" data-testid="historico-criacao">
         A criação desta vaga não ficou registrada.
       </p>
     );
@@ -263,9 +264,9 @@ function CriacaoDaVaga({ historico }: { historico: EntradaDoHistorico[] | undefi
   const quando = new Date(e.at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const onde = e.detalhe ? e.detalhe.replace(/^Pela\s+/i, "") : null;
   return (
-    <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-600" data-testid="historico-criacao">
+    <div className="mb-3 rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs text-slate-600" data-testid="historico-criacao">
       <p>
-        <span className="font-semibold text-slate-800">{e.titulo}</span> em{" "}
+        <span className="font-semibold text-foreground">{e.titulo}</span> em{" "}
         <span className="font-medium tabular-nums text-slate-700">{quando}</span>
       </p>
       <p className="mt-0.5 break-words">
@@ -286,10 +287,10 @@ function HistoricoDaVaga({ historico, carregando }: { historico: EntradaDoHistor
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <History className="w-4 h-4 text-slate-400" aria-hidden="true" />
-        <span className="text-[12px] font-semibold text-slate-600 uppercase tracking-[0.06em]">Histórico</span>
+        <History className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+        <span className="text-xs font-semibold text-slate-600 uppercase tracking-[0.06em]">Histórico</span>
         {historico && historico.length > 0 && (
-          <span className="text-[11px] text-muted-foreground">{historico.length} {historico.length === 1 ? "registro" : "registros"}</span>
+          <span className="text-2xs text-muted-foreground">{historico.length} {historico.length === 1 ? "registro" : "registros"}</span>
         )}
       </div>
       {!carregando && <CriacaoDaVaga historico={historico} />}
@@ -298,35 +299,35 @@ function HistoricoDaVaga({ historico, carregando }: { historico: EntradaDoHistor
       ) : !historico || historico.length === 0 ? (
         <div className="bg-background rounded-lg border border-dashed border-border text-center py-8">
           <History className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
-          <div className="text-[12px] text-muted-foreground">Nenhum registro desta vaga.</div>
+          <div className="text-xs text-muted-foreground">Nenhum registro desta vaga.</div>
         </div>
       ) : (
         <ol className="max-h-[480px] overflow-y-auto pr-1 space-y-4" aria-label="Histórico da vaga" data-testid="historico-da-vaga">
           {grupos.map((g) => (
             <li key={g.dia}>
-              <p className="sticky top-0 z-10 bg-background/95 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{rotuloDoDia(g.dia)}</p>
-              <ol className="mt-1 space-y-1.5 border-l border-slate-200 ml-1.5 pl-3.5">
+              <p className="sticky top-0 z-10 bg-background/95 py-1 text-2xs font-bold uppercase tracking-wide text-muted-foreground">{rotuloDoDia(g.dia)}</p>
+              <ol className="mt-1 space-y-1.5 border-l border-border ml-1.5 pl-3.5">
                 {g.itens.map((e) => {
                   const meta = CATEGORIA_META[e.categoria] ?? CATEGORIA_META.alteracao;
                   const hora = e.diaFixo ? null : new Date(e.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
                   return (
-                    <li key={e.id} className="relative rounded-lg border border-slate-100 bg-card px-3 py-2" data-testid={`historico-${e.id}`}>
+                    <li key={e.id} className="relative rounded-lg border border-border bg-card px-3 py-2" data-testid={`historico-${e.id}`}>
                       <span className={`absolute -left-[19px] top-3 h-2 w-2 rounded-full ring-2 ring-white ${meta.ponto}`} aria-hidden="true" />
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className={`rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide ${meta.chip}`}>{meta.rotulo}</span>
-                        <span className="text-[12px] font-semibold text-slate-800 break-words">{e.titulo}</span>
-                        <span className="ml-auto text-[11px] tabular-nums text-slate-500 whitespace-nowrap">{hora ?? "dia"}</span>
+                        <span className={`rounded px-1.5 py-px text-2xs font-semibold uppercase tracking-wide ${meta.chip}`}>{meta.rotulo}</span>
+                        <span className="text-xs font-semibold text-foreground break-words">{e.titulo}</span>
+                        <span className="ml-auto text-2xs tabular-nums text-muted-foreground whitespace-nowrap">{hora ?? "dia"}</span>
                       </div>
-                      {e.detalhe && <p className="mt-0.5 text-[11px] text-slate-600 break-words">{e.detalhe}</p>}
+                      {e.detalhe && <p className="mt-0.5 text-2xs text-slate-600 break-words">{e.detalhe}</p>}
                       {e.linhas.length > 0 && (
-                        <ul className="mt-0.5 space-y-0.5 text-[11px] text-slate-600">
+                        <ul className="mt-0.5 space-y-0.5 text-2xs text-slate-600">
                           {e.linhas.map((l) => <li key={l} className="break-words">{l}</li>)}
                         </ul>
                       )}
                       {e.comentario && (
-                        <p className="mt-1 rounded-md border-l-2 border-slate-300 bg-slate-50 px-2 py-1 text-[11px] italic text-slate-600 break-words">“{e.comentario}”</p>
+                        <p className="mt-1 rounded-md border-l-2 border-slate-300 bg-surface-muted px-2 py-1 text-2xs italic text-slate-600 break-words">“{e.comentario}”</p>
                       )}
-                      {e.autor && <p className="mt-1 text-[11px] text-slate-500">por <span className="font-medium text-slate-700">{e.autor}</span></p>}
+                      {e.autor && <p className="mt-1 text-2xs text-muted-foreground">por <span className="font-medium text-slate-700">{e.autor}</span></p>}
                     </li>
                   );
                 })}
@@ -371,10 +372,10 @@ export function ComentariosTab({
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-2 mb-1">
-                <MessageSquare className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                <span className="text-[12px] font-semibold text-slate-600 uppercase tracking-[0.06em]">Comentários</span>
+                <MessageSquare className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-[0.06em]">Comentários</span>
                 {comments && comments.length > 0 && (
-                  <span className="bg-primary text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">{comments.length}</span>
+                  <span className="bg-primary text-primary-foreground text-2xs font-semibold px-2 py-0.5 rounded-full">{comments.length}</span>
                 )}
               </div>
               {carregando ? (
@@ -385,17 +386,17 @@ export function ComentariosTab({
                     <div key={comment.id} className="bg-card border border-border p-3 rounded-lg">
                       <div className="flex justify-between items-center mb-1.5">
                         <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+                          <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xs font-bold shrink-0">
                             {getUserName(comment.userId).charAt(0).toUpperCase()}
                           </div>
-                          <div className="text-[12px] font-semibold text-slate-700">{getUserName(comment.userId)}</div>
+                          <div className="text-xs font-semibold text-slate-700">{getUserName(comment.userId)}</div>
                         </div>
-                        <div className="text-[11px] text-muted-foreground shrink-0 ml-2">{formatDateTime(comment.createdAt)}</div>
+                        <div className="text-2xs text-muted-foreground shrink-0 ml-2">{formatDateTime(comment.createdAt)}</div>
                       </div>
-                      <div className="text-[12px] text-slate-600 leading-relaxed">{comment.content}</div>
+                      <div className="text-xs text-slate-600 leading-relaxed">{comment.content}</div>
                       {comment.phase && (
-                        <div className="mt-1.5 pt-1.5 border-t border-slate-50">
-                          <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground">{getPhaseLabel(comment.phase)}</span>
+                        <div className="mt-1.5 pt-1.5 border-t border-border">
+                          <span className="bg-muted px-1.5 py-0.5 rounded text-2xs font-medium text-muted-foreground">{getPhaseLabel(comment.phase)}</span>
                         </div>
                       )}
                     </div>
@@ -404,7 +405,7 @@ export function ComentariosTab({
               ) : (
                 <div className="bg-background rounded-lg border border-dashed border-border text-center py-8">
                   <MessageSquare className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
-                  <div className="text-[12px] text-muted-foreground">Nenhum comentário registrado.</div>
+                  <div className="text-xs text-muted-foreground">Nenhum comentário registrado.</div>
                 </div>
               )}
               <div className="pt-1 space-y-2">
@@ -413,7 +414,7 @@ export function ComentariosTab({
                   placeholder="Escreva um comentário..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  className="w-full border border-border rounded-lg bg-card text-[13px] p-3 resize-none min-h-[70px] focus:ring-[3px] focus:ring-primary/12 focus:border-primary transition-all"
+                  className="w-full border border-border rounded-lg bg-card text-sm p-3 resize-none min-h-[70px] focus:ring-[3px] focus:ring-primary/12 focus:border-primary transition-all"
                   data-testid="textarea-comment-inline"
                   disabled={!canComment}
                 />
@@ -421,7 +422,7 @@ export function ComentariosTab({
                   <Button
                     onClick={() => { if (newComment.trim()) addComment.mutate(newComment.trim(), { onSuccess: () => setNewComment("") }); }}
                     disabled={addComment.isPending || !newComment.trim() || !canSend}
-                    className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white rounded-lg px-5 h-9 text-sm font-medium"
+                    className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg px-5 h-9 text-sm font-medium"
                     data-testid="button-add-comment-inline"
                   >
                     <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
@@ -466,9 +467,9 @@ function TicketDetails({ ticket, renderAttachments }: {
         <div key={rotulo} className="flex-1 min-w-0">
           <div className={lbl}>{rotulo}</div>
           <div
-            className={`rounded-lg px-3 py-1.5 border-l-[3px] ${valor ? "bg-[#ECFDF5] border-l-[#10B981]" : "bg-background border-l-slate-200"}`}
+            className={`rounded-lg px-3 py-1.5 border-l-[3px] ${valor ? "bg-success-soft border-l-success-strong" : "bg-background border-l-border"}`}
           >
-            <span className={`text-[17px] font-semibold tabular-nums ${valor ? "text-[#047857]" : "text-slate-300"}`}>
+            <span className={`text-lg font-semibold tabular-nums ${valor ? "text-success" : "text-muted-foreground"}`}>
               {valor || "--:--"}
             </span>
           </div>
@@ -477,28 +478,28 @@ function TicketDetails({ ticket, renderAttachments }: {
     </div>
   );
   const hasReturn = !!(t.actualReturnDate || t.actualReturnTime || t.returnCityOrigin || t.returnCityDestination);
-  const brl = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const brl = formatarMoeda;
 
   return (
     <div className="space-y-4">
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="border-b border-slate-100 px-4 py-3 flex items-center gap-3">
+        <div className="border-b border-border px-4 py-3 flex items-center gap-3">
           <span className="text-xl" aria-hidden="true">{isVan ? "🚐" : isRodo ? "🚌" : "✈️"}</span>
           <div>
-            <div className="text-[11px] font-semibold text-primary uppercase tracking-[0.06em]">
+            <div className="text-2xs font-semibold text-primary uppercase tracking-[0.06em]">
               {isVan ? "Van" : isRodo ? "Transporte rodoviário" : "Passagem aérea"}
             </div>
-            {t.purchaseDate && <div className="text-[12px] text-muted-foreground mt-0.5">Comprada em {formatDate(t.purchaseDate)}</div>}
+            {t.purchaseDate && <div className="text-xs text-muted-foreground mt-0.5">Comprada em {formatDate(t.purchaseDate)}</div>}
           </div>
           {t.purchaseDate && (
-            <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 bg-[#ECFDF5] text-[#047857] text-[11px] font-semibold rounded-md">✓ Comprada</span>
+            <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 bg-success-soft text-success text-2xs font-semibold rounded-md">✓ Comprada</span>
           )}
         </div>
         <div className="px-4 py-3 flex flex-wrap gap-x-8 gap-y-3">
           {t.purchaseOrderNumber && (
             <div>
               <div className={lbl}>{isVan ? "Empresa / OC" : isRodo ? "Bilhete" : "Ordem de compra"}</div>
-              <div className="text-[13px] font-semibold text-slate-700 font-mono">{t.purchaseOrderNumber}</div>
+              <div className="text-sm font-semibold text-slate-700 font-mono">{t.purchaseOrderNumber}</div>
             </div>
           )}
           {/* Localizador, companhia e valor estavam gravados e invisíveis nesta
@@ -506,7 +507,7 @@ function TicketDetails({ ticket, renderAttachments }: {
           {t.locator && (
             <div>
               <div className={lbl}>Localizador</div>
-              <div className="text-[13px] font-semibold text-slate-700 font-mono uppercase">{t.locator}</div>
+              <div className="text-sm font-semibold text-slate-700 font-mono uppercase">{t.locator}</div>
             </div>
           )}
           {t.ticketCompany && (
@@ -524,7 +525,7 @@ function TicketDetails({ ticket, renderAttachments }: {
           {t.cardLastFourDigits && (
             <div>
               <div className={lbl}>Cartão</div>
-              <div className="text-[13px] font-semibold text-slate-700 font-mono">•••• {t.cardLastFourDigits}</div>
+              <div className="text-sm font-semibold text-slate-700 font-mono">•••• {t.cardLastFourDigits}</div>
             </div>
           )}
         </div>
@@ -540,7 +541,7 @@ function TicketDetails({ ticket, renderAttachments }: {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-3 flex items-center gap-1.5 text-primary">{isRodo ? "🚌" : "🛫"} Ida</div>
+            <div className="text-2xs font-semibold uppercase tracking-[0.06em] mb-3 flex items-center gap-1.5 text-primary">{isRodo ? "🚌" : "🛫"} Ida</div>
             <div className="space-y-2.5">
               {isRodo && t.departureAirport && field("Rodoviária de origem", t.departureAirport)}
               {t.departureCityOrigin && field("Cidade de origem", t.departureCityOrigin)}
@@ -554,7 +555,7 @@ function TicketDetails({ ticket, renderAttachments }: {
           </div>
           {hasReturn ? (
             <div className="bg-card border border-border rounded-xl p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-3 flex items-center gap-1.5 text-primary">{isRodo ? "🚌" : "🛬"} Volta</div>
+              <div className="text-2xs font-semibold uppercase tracking-[0.06em] mb-3 flex items-center gap-1.5 text-primary">{isRodo ? "🚌" : "🛬"} Volta</div>
               <div className="space-y-2.5">
                 {isRodo && t.returnOriginAirport && field("Rodoviária de origem", t.returnOriginAirport)}
                 {t.returnCityOrigin && field("Cidade de origem", t.returnCityOrigin)}
@@ -569,8 +570,8 @@ function TicketDetails({ ticket, renderAttachments }: {
           ) : (
             <div className="bg-background border border-dashed border-border rounded-xl p-4 flex items-center justify-center">
               <div className="text-center">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">{isRodo ? "🚌" : "🛬"} Volta</div>
-                <div className="text-xs text-slate-400">Sem informações de volta</div>
+                <div className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">{isRodo ? "🚌" : "🛬"} Volta</div>
+                <div className="text-xs text-muted-foreground">Sem informações de volta</div>
               </div>
             </div>
           )}

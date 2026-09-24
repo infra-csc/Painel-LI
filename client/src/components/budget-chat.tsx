@@ -27,8 +27,8 @@ interface BudgetChatProps {
 
 function avatarColor(name: string) {
   const palette = [
-    "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-emerald-500",
-    "bg-orange-500", "bg-rose-500", "bg-teal-500", "bg-cyan-500",
+    "bg-primary", "bg-primary", "bg-primary", "bg-success-strong",
+    "bg-warning-strong", "bg-danger-strong", "bg-info-strong", "bg-info-strong",
   ];
   const idx = name.split("").reduce((s, c) => s + c.charCodeAt(0), 0) % palette.length;
   return palette[idx];
@@ -127,61 +127,61 @@ export function BudgetChat({
   };
 
   return (
-    <section className={`border-t border-slate-100 ${className ?? ""}`} aria-labelledby={`${inputId}-title`}>
+    <section className={`border-t border-border ${className ?? ""}`} aria-labelledby={`${inputId}-title`}>
       {/* Header */}
       <div className="flex items-center gap-2 px-5 pt-4 pb-2">
         <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center" aria-hidden="true">
           <MessageSquare className="w-3 h-3 text-primary-foreground" />
         </div>
-        <h3 id={`${inputId}-title`} className="text-[11px] font-semibold text-primary uppercase tracking-wide">
+        <h3 id={`${inputId}-title`} className="text-2xs font-semibold text-primary uppercase tracking-wide">
           {title}
         </h3>
         {allNotes.length > 0 && (
-          <span className="ml-auto text-[10px] bg-primary/10 text-primary font-semibold px-1.5 py-0.5 rounded-full" aria-label={`${allNotes.length} mensagem(ns)`}>
+          <span className="ml-auto text-2xs bg-primary/10 text-primary font-semibold px-1.5 py-0.5 rounded-full" aria-label={`${allNotes.length} mensagem(ns)`}>
             {allNotes.length}
           </span>
         )}
       </div>
 
       {/* Message list */}
-      <div ref={listRef} className="mx-5 mb-3 rounded-xl border border-slate-200 bg-slate-50/60 max-h-48 overflow-y-auto" aria-live="polite">
+      <div ref={listRef} className="mx-5 mb-3 rounded-xl border border-border bg-surface-muted/60 max-h-48 overflow-y-auto" aria-live="polite">
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-4 h-4 text-primary/60 animate-spin" aria-label="Carregando mensagens" />
           </div>
         ) : loadError ? (
           <div className="text-center py-5 px-3" role="alert">
-            <p className="text-[11px] text-red-700">Não foi possível carregar as mensagens.</p>
-            <button type="button" onClick={() => refetch()} className="mt-1 text-[11px] font-semibold text-primary hover:underline">Tentar novamente</button>
+            <p className="text-2xs text-danger">Não foi possível carregar as mensagens.</p>
+            <button type="button" onClick={() => refetch()} className="mt-1 text-2xs font-semibold text-primary hover:underline">Tentar novamente</button>
           </div>
         ) : allNotes.length === 0 ? (
           <div className="text-center py-6">
-            <MessageSquare className="w-5 h-5 text-slate-300 mx-auto mb-1" aria-hidden="true" />
-            <p className="text-[11px] text-slate-500">Nenhuma mensagem ainda</p>
+            <MessageSquare className="w-5 h-5 text-muted-foreground mx-auto mb-1" aria-hidden="true" />
+            <p className="text-2xs text-muted-foreground">Nenhuma mensagem ainda</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {allNotes.map((note) => {
               const isMe = note.authorId === user?.id;
               return (
                 <div key={note.id} className={`px-3 py-2.5 flex gap-2.5 ${isMe ? "bg-primary/5" : ""}`}>
-                  <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold mt-0.5 ${avatarColor(note.authorName)}`}>
+                  <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-white text-2xs font-bold mt-0.5 ${avatarColor(note.authorName)}`}>
                     {initials(note.authorName)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-1.5 mb-0.5 flex-wrap">
-                      <span className="text-[11px] font-semibold text-slate-700 truncate">{note.authorName}</span>
+                      <span className="text-2xs font-semibold text-slate-700 truncate">{note.authorName}</span>
                       {/* 9px era ilegível em qualquer tela — 10px é o mínimo do módulo. */}
-                      <span className="text-[10px] text-slate-500 flex-shrink-0">
+                      <span className="text-2xs text-muted-foreground flex-shrink-0">
                         {formatDateTime(note.createdAt!)}
                       </span>
                       {note.isLinked && (
-                        <span className="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                        <span className="text-2xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
                           Planejado
                         </span>
                       )}
                     </div>
-                    <p className="text-[12px] text-slate-600 leading-relaxed break-words">{note.content}</p>
+                    <p className="text-xs text-slate-600 leading-relaxed break-words">{note.content}</p>
                   </div>
                 </div>
               );
@@ -213,7 +213,7 @@ export function BudgetChat({
             readOnly={createMutation.isPending}
             aria-busy={createMutation.isPending || undefined}
             aria-describedby={submitOnEnter ? undefined : `${inputId}-hint`}
-            className={`flex-1 text-[12px] rounded-xl border border-slate-200 bg-white px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary placeholder:text-slate-400 ${createMutation.isPending ? "opacity-60" : ""}`}
+            className={`flex-1 text-xs rounded-xl border border-border bg-card px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary placeholder:text-muted-foreground ${createMutation.isPending ? "opacity-60" : ""}`}
           />
           <button
             type="button"
@@ -231,10 +231,10 @@ export function BudgetChat({
           </button>
         </div>
         {!submitOnEnter && (
-          <p id={`${inputId}-hint`} className="mt-1 text-[10px] text-slate-500">Ctrl+Enter envia · Enter quebra linha</p>
+          <p id={`${inputId}-hint`} className="mt-1 text-2xs text-muted-foreground">Ctrl+Enter envia · Enter quebra linha</p>
         )}
         {createMutation.isError && (
-          <p role="alert" className="mt-1 text-[11px] text-red-700">
+          <p role="alert" className="mt-1 text-2xs text-danger">
             Não foi possível enviar a mensagem.{" "}
             <button type="button" className="font-semibold underline" onClick={send}>Tentar de novo</button>
           </p>
@@ -250,8 +250,8 @@ export function BudgetNotesBadge({ notes, entityId }: { notes: BudgetNote[]; ent
   if (entityNotes.length === 0) return null;
   return (
     <div className="relative flex items-center">
-      <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
-      <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-blue-600 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+      <MessageSquare className="w-3.5 h-3.5 text-primary" />
+      <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-primary text-primary-foreground text-2xs font-bold rounded-full flex items-center justify-center leading-none">
         {entityNotes.length > 9 ? "9+" : entityNotes.length}
       </span>
     </div>
@@ -267,9 +267,9 @@ export function BudgetNotesSnippet({ notes, entityId }: { notes: BudgetNote[]; e
   if (!last) return null;
   return (
     <div className="flex items-start gap-1.5 mt-1 px-0">
-      <MessageSquare className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
-      <p className="text-[10px] text-slate-500 leading-snug line-clamp-1 flex-1">
-        <span className="font-medium text-blue-600">{last.authorName.split(" ")[0]}: </span>
+      <MessageSquare className="w-3 h-3 text-primary/70 flex-shrink-0 mt-0.5" />
+      <p className="text-2xs text-muted-foreground leading-snug line-clamp-1 flex-1">
+        <span className="font-medium text-primary">{last.authorName.split(" ")[0]}: </span>
         {last.content}
       </p>
     </div>

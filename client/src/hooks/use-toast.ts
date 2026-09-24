@@ -5,7 +5,9 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
+// 3 e não 1 (23/09): com limite 1, numa ação em lote cada toast apagava o
+// anterior e um "sucesso" engolia o "erro" que acabara de aparecer.
+const TOAST_LIMIT = 3
 const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {

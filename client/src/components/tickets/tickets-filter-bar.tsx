@@ -37,7 +37,7 @@ interface TicketsFilterBarProps {
 }
 
 /** Altura e forma comuns a todos os controles da linha. */
-const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-[13px] font-medium text-slate-700";
+const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-sm font-medium text-slate-700";
 
 /** Os mesmos valores dos `<select>` que estavam aqui — nada mudou de opção. */
 const STATUS_DA_PASSAGEM = [
@@ -73,14 +73,14 @@ export default function TicketsFilterBar({
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <div className="relative flex-[1_1_260px] max-w-[320px]">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
         <input
           type="text"
           placeholder="Buscar por nome, ID ou função…"
           aria-label="Buscar por nome, ID ou função"
           value={filters.searchId ?? ""}
           onChange={(e) => set("searchId", e.target.value)}
-          className={`w-full ${CONTROLE} pl-[33px] pr-3 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
+          className={`w-full ${CONTROLE} pl-[33px] pr-3 placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
           data-testid="input-search-id"
         />
       </div>
@@ -153,14 +153,14 @@ export default function TicketsFilterBar({
       <button
         type="button"
         onClick={() => { onChange(() => DEFAULT_TICKET_FILTERS); onClear(); }}
-        className={`${CONTROLE} inline-flex items-center gap-1.5 px-3 text-muted-foreground hover:border-[#FECACA] hover:bg-[#FEF2F2] hover:text-[#B91C1C] transition-colors whitespace-nowrap shrink-0`}
+        className={`${CONTROLE} inline-flex items-center gap-1.5 px-3 text-muted-foreground hover:border-danger/25 hover:bg-danger-soft hover:text-danger transition-colors whitespace-nowrap shrink-0`}
         data-testid="button-clear-filters"
       >
         <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar filtros
       </button>
 
       <span
-        className="ml-auto text-[12px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
+        className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
         data-testid="contagem-passagens"
       >
         {contagem}

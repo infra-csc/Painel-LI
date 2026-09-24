@@ -18,11 +18,11 @@ import {
   type CollaboratorItem, type EventOption,
 } from "./baggage-core";
 
-const CAMPO = "h-9 text-xs rounded-lg border-gray-200";
-const LISTA = "absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto";
-const OPCAO = "w-full text-left px-3 py-2 text-xs transition-colors border-b border-gray-50 last:border-0";
+const CAMPO = "h-9 text-xs rounded-lg border-border";
+const LISTA = "absolute z-20 left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-2 overflow-y-auto";
+const OPCAO = "w-full text-left px-3 py-2 text-xs transition-colors border-b border-border last:border-0";
 /** Escolhido: caixa azul com o valor e um X para trocar. */
-const ESCOLHIDO = "flex items-center gap-2 h-9 px-3 rounded-lg border border-blue-200 bg-blue-50/50";
+const ESCOLHIDO = "flex items-center gap-2 h-9 px-3 rounded-lg border border-primary/25 bg-brand-soft/50";
 
 /** Teclado compartilhado pelos dois: setas percorrem, Enter escolhe, Esc fecha. */
 function usarTeclado<T>(
@@ -101,14 +101,14 @@ export function EventCombobox({
         <p className="flex-1 min-w-0 text-xs font-semibold text-slate-700 truncate" title={selected.name}>
           {selected.name}
           {eventPeriod(selected) && (
-            <span className="ml-2 font-mono font-normal text-[11px] text-[#64748B] whitespace-nowrap">{eventPeriod(selected)}</span>
+            <span className="ml-2 font-mono font-normal text-2xs text-muted-foreground whitespace-nowrap">{eventPeriod(selected)}</span>
           )}
         </p>
         <button
           type="button"
           onClick={() => { onChange(""); setQuery(""); }}
           aria-label={`Remover evento ${selected.name}`}
-          className="w-6 h-6 flex items-center justify-center rounded-md text-[#64748B] hover:text-slate-700 hover:bg-white transition-colors shrink-0"
+          className="w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-card transition-colors shrink-0"
         >
           <X className="w-3 h-3" aria-hidden="true" />
         </button>
@@ -138,7 +138,7 @@ export function EventCombobox({
       {open && (
         <div id={listboxId} role="listbox" aria-label="Eventos" className={`${LISTA} max-h-[260px] min-w-[240px]`}>
           {matches.length === 0 ? (
-            <p className="text-[11px] text-[#64748B] text-center py-3 px-3">Nenhum evento encontrado.</p>
+            <p className="text-2xs text-muted-foreground text-center py-3 px-3">Nenhum evento encontrado.</p>
           ) : matches.map((ev, i) => (
             <button
               key={ev.id}
@@ -150,10 +150,10 @@ export function EventCombobox({
               onMouseDown={e => e.preventDefault()}
               onMouseEnter={() => setActiveIndex(i)}
               onClick={() => select(ev.id)}
-              className={`${OPCAO} ${i === activeIndex ? "bg-blue-50" : ""}`}
+              className={`${OPCAO} ${i === activeIndex ? "bg-brand-soft" : ""}`}
             >
               <span className="block font-semibold text-slate-700 truncate">{ev.name}</span>
-              <span className="block text-[11px] text-[#64748B] mt-0.5 truncate">
+              <span className="block text-2xs text-muted-foreground mt-0.5 truncate">
                 {eventPeriod(ev)}
                 {ev.location && (eventPeriod(ev) ? ` · ${ev.location}` : ev.location)}
               </span>
@@ -213,13 +213,13 @@ export function CollaboratorCombobox({
       <div className={ESCOLHIDO}>
         <p className="flex-1 min-w-0 text-xs font-semibold text-slate-700 truncate">
           {toTitleCase(fixEncoding(selected.fullName))}
-          {cpf && <span className="ml-2 font-mono font-normal text-[#64748B]">{formatCpf(cpf)}</span>}
+          {cpf && <span className="ml-2 font-mono font-normal text-muted-foreground">{formatCpf(cpf)}</span>}
         </p>
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label="Remover colaborador selecionado"
-          className="w-6 h-6 flex items-center justify-center rounded-md text-[#64748B] hover:text-slate-700 hover:bg-white transition-colors shrink-0"
+          className="w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-card transition-colors shrink-0"
         >
           <X className="w-3 h-3" aria-hidden="true" />
         </button>
@@ -249,7 +249,7 @@ export function CollaboratorCombobox({
       {open && query.trim() && (
         <div id={listboxId} role="listbox" aria-label="Colaboradores" className={`${LISTA} max-h-[240px]`}>
           {matches.length === 0 ? (
-            <p className="text-[11px] text-[#64748B] text-center py-3 px-3">Nenhum colaborador encontrado.</p>
+            <p className="text-2xs text-muted-foreground text-center py-3 px-3">Nenhum colaborador encontrado.</p>
           ) : matches.map((c, i) => {
             const cpf = getCpf(c);
             return (
@@ -263,10 +263,10 @@ export function CollaboratorCombobox({
                 onMouseDown={e => e.preventDefault()}
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => select(c.id)}
-                className={`${OPCAO} ${i === activeIndex ? "bg-blue-50" : ""}`}
+                className={`${OPCAO} ${i === activeIndex ? "bg-brand-soft" : ""}`}
               >
                 <span className="font-semibold text-slate-700">{toTitleCase(fixEncoding(c.fullName))}</span>
-                {cpf && <span className="ml-2 font-mono text-[11px] text-[#64748B]">{formatCpf(cpf)}</span>}
+                {cpf && <span className="ml-2 font-mono text-2xs text-muted-foreground">{formatCpf(cpf)}</span>}
               </button>
             );
           })}
