@@ -169,3 +169,11 @@ Detalhe técnico de cada regra: [`seguranca-e-permissoes.md`](seguranca-e-permis
 4. Já registradas em `seguranca-e-permissoes.md` §6: rotação de segredos,
    `PORTAL_ORIGIN`, histórico do Git, e-mail de "esqueci a senha" (não
    implementado; o reset real é por admin).
+
+
+## 24/09 — dependências (commit de merge após d7647805)
+
+- `drizzle-orm` 0.39 → 0.45, `drizzle-kit` 0.30 → 0.31, `vite` 5 → 8, `@vitejs/plugin-react` 4 → 6, `esbuild` 0.25 → 0.28. Nenhum ajuste de código; build do client 3× mais rápido.
+- `npm audit`: 0 vulnerabilidades altas em runtime (resta `picomatch` via Tailwind 3, dev; `uuid` via google-cloud, moderada).
+- **Exige Node 20.19+**: o `.replit` passou de `nodejs-20` para `nodejs-22` e o CI roda em Node 22. Depois do pull, confirme `node -v` no Shell do Replit antes do primeiro build.
+- `drizzle-zod` ficou em 0.7 de propósito: a 0.8 emite schemas do zod v4 e o app é zod v3 (migrar os dois juntos, depois).
