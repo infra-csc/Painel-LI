@@ -38,7 +38,7 @@ declare module "express-session" {
 
 // ── Sanitização ─────────────────────────────────────────────────────────────
 /** Usuário sem os campos que NUNCA podem sair do servidor. */
-export function semSegredos<T extends Record<string, any>>(user: T) {
+export function semSegredos<T extends { password?: unknown; resetToken?: unknown; resetTokenExpiry?: unknown }>(user: T) {
   const { password: _p, resetToken: _t, resetTokenExpiry: _e, ...resto } = user;
   return resto;
 }
@@ -235,7 +235,7 @@ export async function usuarioDoSso(p: PayloadDoSso): Promise<User> {
       status: "approved",
       isActive: true,
       area: null,
-    } as any);
+    });
     console.log(`[SSO] Usuário auto-criado via Portal Norte: ${user.id}`);
   }
 

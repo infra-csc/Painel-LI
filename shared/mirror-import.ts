@@ -33,24 +33,6 @@ export const COLUNAS_DA_PLANILHA = [
   "PENDÊNCIAS",
 ] as const;
 
-/**
- * Coluna → campo do espelho, na ordem do arquivo. `null` é coluna que se lê mas
- * não se grava: NOME e DEPARTAMENTO identificam a pessoa, PENDÊNCIAS é
- * calculada pelo sistema, e QUARTO sai do agrupamento, não da digitação.
- */
-const CAMPO_DA_COLUNA: (string | null)[] = [
-  null, null,
-  "schedule.startDate", "schedule.departureDate", "schedule.endDate", "schedule.returnDate",
-  "ticket.value", "ticket.departureAirport", "ticket.actualDepartureTime", "ticket.actualReturnTime",
-  "ticket.returnOriginAirport", "ticket.locator", "ticket.ticketCompany", "ticket.purchaseOrderNumber", "ticket.checkIn3",
-  "accommodation.nightsCount", null, "accommodation.dailyRate", "accommodation.lateCheckout",
-  "accommodation.totalCents", "accommodation.hotelName", "accommodation.paymentCompany", "accommodation.hotelOc", "accommodation.checkIn4",
-  "baggage.amountCents", "baggage.oc", "baggage.checkIn",
-  "uber.amountCents", "uber.oc", "uber.checkIn",
-  "carRental.company", "carRental.amountCents", "carRental.oc", "carRental.checkIn",
-  null,
-];
-
 /** Como cada campo é interpretado ao vir da planilha. */
 const TIPO_DO_CAMPO: Record<string, "texto" | "dinheiro" | "inteiro" | "data" | "hora" | "bool"> = {
   "schedule.startDate": "data", "schedule.departureDate": "data",

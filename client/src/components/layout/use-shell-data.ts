@@ -21,7 +21,7 @@ import { useSwapRequests } from "@/hooks/use-swap-requests";
 import { hasPermission, hasRole, isAdmin } from "@/lib/role-utils";
 import { fetchJson } from "@/lib/queryClient";
 import { statusDaVagaDaTroca } from "@/lib/swap-types";
-import { getSeenState } from "@/lib/seenSwaps";
+import { getSeenState, type SeenState } from "@/lib/seenSwaps";
 import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "./shell-prefs";
 
@@ -79,7 +79,7 @@ export function useShellData() {
   const aprovaCenotecnica = !!user?.canApproveCenotecnica || isAdmin(user);
 
   // ── Trocas (mesma consulta que o menu já usava) ──
-  const [seenState, setSeenState] = useState<Record<string, any>>(() => (user ? getSeenState(user.id) : {}));
+  const [seenState, setSeenState] = useState<SeenState>(() => (user ? getSeenState(user.id) : {}));
   useEffect(() => {
     const handler = () => { if (user) setSeenState(getSeenState(user.id)); };
     window.addEventListener("swapSeenUpdated", handler);

@@ -17,7 +17,7 @@ export function registrarFinanceiroLegado(app: Express): void {
     try {
       const financial = await storage.getFinancials();
       res.json(financial);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar dados financeiros" });
     }
   });
@@ -28,7 +28,7 @@ export function registrarFinanceiroLegado(app: Express): void {
       const financialData = insertFinancialSchema.parse(req.body);
       const financial = await storage.createFinancial(financialData);
       res.json(financial);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Dados inválidos" });
     }
   });
@@ -59,7 +59,7 @@ export function registrarFinanceiroLegado(app: Express): void {
       };
       const financial = await storage.updateFinancial(id, updates);
       res.json(financial);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao atualizar dados financeiros" });
     }
   });

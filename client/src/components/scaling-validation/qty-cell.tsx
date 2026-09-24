@@ -43,7 +43,7 @@ function atTextEdge(el: HTMLInputElement, side: "start" | "end"): boolean {
   return side === "start" ? s === 0 && e === 0 : s === len && e === len;
 }
 
-export const QtyCell = memo(function QtyCell({ value, rowId, date, rowIdx, colIdx, functionName, dayLabel, isWeekend, disabled, onChangeQty }: QtyCellProps) {
+export const QtyCell = memo(function QtyCell({ value, rowId, date, rowIdx, colIdx, functionName, dayLabel, disabled, onChangeQty }: QtyCellProps) {
   const emit = (v: number) => onChangeQty(rowId, date, v);
   // "Bateu no teto": o valor digitado foi cortado pelo clamp. Sem sinal, quem
   // digitava "20" via "15" aparecer e achava que a tecla falhou.

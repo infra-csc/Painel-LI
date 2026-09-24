@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -1075,10 +1076,8 @@ export default function CalendarPage() {
   // um calendário vazio indistinguível de uma agenda realmente vazia.
   const loadErrorMessage = (() => {
     if (!isError) return null;
-    const err = error as any;
-    if (err?.status === 401) return "Sua sessão expirou. Entre novamente para ver os eventos.";
-    if (err?.status === 403) return "Você não tem permissão para consultar os eventos.";
-    return err?.body?.message || "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.";
+    if (apiErrorStatus(error) === 401) return "Sua sessão expirou. Entre novamente para ver os eventos.";
+    return apiErrorMessage(error, "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.");
   })();
 
   // Only show concluido / em_andamento / planejado — never cancelled/deleted/inactive

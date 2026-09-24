@@ -79,8 +79,7 @@ function AddManagerButton({ func, role, users, onAdd, onMove, isPending }: {
   isPending: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const managers = func.managers ?? [];
-  const byUser = useMemo(() => new Map(managers.map(m => [m.userId, m])), [managers]);
+  const byUser = useMemo(() => new Map((func.managers ?? []).map(m => [m.userId, m])), [func.managers]);
   const otherRole: ManagerRole = role === "aprovador" ? "validador" : "aprovador";
 
   return (
@@ -347,7 +346,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
     mutationFn: async (v: { functionId: string; userId: string; role: ManagerRole }) =>
       (await apiRequest("POST", "/api/scaling-function-managers", { functionId: v.functionId, userId: v.userId, role: v.role })).json(),
     onSuccess: (_d, v) => { invalidate(); toast({ title: v.role === "aprovador" ? "Aprovador adicionado!" : "Validador adicionado!" }); },
-    onError: (err: any) => toast({ title: "Erro ao adicionar responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao adicionar responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const moveMutation = useMutation({
     mutationFn: async (v: { functionId: string; userId: string; role: ManagerRole }) =>
@@ -356,13 +355,13 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
       (await apiRequest("DELETE", `/api/scaling-function-managers/${v.functionId}/${v.userId}`).then(() =>
         apiRequest("POST", "/api/scaling-function-managers", { functionId: v.functionId, userId: v.userId, role: v.role }))).json(),
     onSuccess: (_d, v) => { invalidate(); toast({ title: "Papel alterado!", description: `Agora é ${roleLabel(v.role)} desta função.` }); },
-    onError: (err: any) => toast({ title: "Erro ao alterar papel", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao alterar papel", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const removeMutation = useMutation({
     mutationFn: async (v: { functionId: string; userId: string }) =>
       (await apiRequest("DELETE", `/api/scaling-function-managers/${v.functionId}/${v.userId}`)).json(),
     onSuccess: () => { invalidate(); toast({ title: "Responsável removido." }); },
-    onError: (err: any) => toast({ title: "Erro ao remover responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao remover responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const cellFor = (func: FunctionWithManagers, role: ManagerRole) => {

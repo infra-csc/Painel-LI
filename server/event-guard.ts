@@ -16,6 +16,7 @@
  * funções toca no banco. Para os demais, quem já tem o registro em mãos passa
  * ele adiante (`inclusion` / `event`) em vez de mandar reler.
  */
+import type { Response } from "express";
 import { storage } from "./storage";
 import { isEventPast, canActOnPastEvent, PAST_EVENT_BLOCK_MSG } from "@shared/event-window";
 
@@ -59,7 +60,7 @@ export async function isEventIdBlockedForActor(
 export async function assertEventEditable(
   eventId: string | null | undefined,
   actor: EventActor,
-  res: any,
+  res: Response,
   cache?: EventCache,
 ): Promise<boolean> {
   if (!(await isEventIdBlockedForActor(eventId, actor, cache))) return true;
@@ -68,7 +69,7 @@ export async function assertEventEditable(
 }
 
 /** Variante para quem já tem o evento em mãos (o /bulk, por exemplo). */
-export function assertLoadedEventEditable(event: EventLike, actor: EventActor, res: any): boolean {
+export function assertLoadedEventEditable(event: EventLike, actor: EventActor, res: Response): boolean {
   if (!isEventBlockedForActor(event, actor)) return true;
   res.status(403).json({ message: PAST_EVENT_BLOCK_MSG });
   return false;
@@ -82,7 +83,7 @@ export function assertLoadedEventEditable(event: EventLike, actor: EventActor, r
 export async function assertInclusionEventEditable(
   teamInclusionId: string | null | undefined,
   actor: EventActor,
-  res: any,
+  res: Response,
   inclusion?: InclusionLike,
   cache?: EventCache,
 ): Promise<boolean> {

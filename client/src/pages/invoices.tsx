@@ -1,10 +1,10 @@
-import { Fragment, useState, useRef, useEffect, useMemo } from "react";
+import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
-import { isRhOrAdmin } from "@/lib/permissions";
+import { isRhOrAdmin } from "@/lib/role-utils";
 import { EventSearchSelect } from "@/components/event-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,13 +20,14 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
-  ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
+  ChevronDown, ChevronUp, Paperclip, Building2,
   FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CircleDot, Ban
 } from "lucide-react";
 import { Link, useSearch } from "wouter";
 import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { campo, useUrlState } from "@/lib/use-url-state";
-import type { Event, Invoice } from "@shared/schema";
+import type { BudgetActual, Collaborator, Event, Function as FunctionRow, Invoice, PaymentCompany, TeamInclusion } from "@shared/schema";
+import type { QueryClient } from "@tanstack/react-query";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 
 import { formatarMoeda, toTitleCase } from "@/lib/format";
@@ -35,7 +36,13 @@ import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
 import { campoComErro } from "@/lib/campo-com-erro";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 const formatCurrency = formatarMoeda;
-function fmtDate(d?: string | null) {
+/** Timestamps do schema são `Date` no tipo, mas chegam como ISO pelo JSON — aceita os dois. */
+function iso(v: string | Date | null | undefined): string | null {
+  if (v == null || v === "") return null;
+  return v instanceof Date ? v.toISOString() : v;
+}
+function fmtDate(raw?: string | Date | null) {
+  const d = iso(raw);
   if (!d) return "—";
   // Aceita "YYYY-MM-DD" e timestamps ISO ("YYYY-MM-DDTHH:mm:ss…")
   const [y, m, day] = d.split("T")[0].split("-");
@@ -45,7 +52,7 @@ function fmtDate(d?: string | null) {
 // Effective status for display (aprovada splits into checkin-pendente / checkin-realizado)
 type EffStatus = "pendente" | "enviada" | "devolvida" | "recusada" | "aprovada" | "checkin-pendente" | "checkin-realizado";
 
-function getEffectiveStatus(inv: any): EffStatus {
+function getEffectiveStatus(inv: Invoice | null | undefined): EffStatus {
   if (!inv) return "pendente";
   if (inv.status === "aprovada") {
     // "Concluído" = checkin realizado (checkinAt set); otherwise waiting for physical check-in
@@ -187,7 +194,7 @@ export default function InvoicesPage() {
   });
   const activeTab = urlState.tab;
   // Os ids de filtro diferem entre as abas — trocar de aba zera o filtro.
-  const setActiveTab = (tab: "lancamento" | "aprovacao") => setUrlState({ tab, filter: "" });
+  const setActiveTab = useCallback((tab: "lancamento" | "aprovacao") => setUrlState({ tab, filter: "" }), [setUrlState]);
   const filterStatus = urlState.filter || "all";
   const setFilterStatus = (v: string) => setUrlState({ filter: v === "all" ? "" : v });
 
@@ -206,14 +213,13 @@ export default function InvoicesPage() {
   const canRH = isRhOrAdmin(user);
 
   const qEvents = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const events = qEvents.data ?? [];
-  const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
+  const activeEvents = useMemo(() => (qEvents.data ?? []).filter(e => e.status !== "excluído"), [qEvents.data]);
   // Evento em foco excluído é descartado assim que a lista chega (23/09).
   useEffect(() => {
     if (qEvents.data?.length) sanearEventoEmFoco(qEvents.data.filter(e => e.status !== "excluído").map(e => e.id));
   }, [qEvents.data, sanearEventoEmFoco]);
 
-  const { data: paymentCompanies = [] } = useQuery<any[]>({ queryKey: ["/api/payment-companies"] });
+  const { data: paymentCompanies = [] } = useQuery<PaymentCompany[]>({ queryKey: ["/api/payment-companies"] });
 
   // Sync from URL params when navigating from another page
   useEffect(() => {
@@ -224,17 +230,16 @@ export default function InvoicesPage() {
   // um corpo vazio — cai para "lancamento".
   useEffect(() => {
     if (activeTab === "aprovacao" && !canRH) setActiveTab("lancamento");
-  }, [activeTab, canRH]);
+  }, [activeTab, canRH, setActiveTab]);
 
   // Auto-select the first active event when the list loads (if nothing is selected yet)
   useEffect(() => {
     if (!selectedEventId && activeEvents.length > 0) {
       setSelectedEventId(activeEvents[0].id);
     }
-  }, [activeEvents.length]);
+  }, [activeEvents, selectedEventId, setSelectedEventId]);
 
-  const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
-  const selectedEvent = activeEvents.find((e: any) => e.id === selectedEventId);
+  const selectedEvent = activeEvents.find(e => e.id === selectedEventId);
 
   const setEventCompanyMutation = useMutation({
     mutationFn: async ({ name, cnpj }: { name: string; cnpj: string }) => {
@@ -259,20 +264,20 @@ export default function InvoicesPage() {
   });
   const invoices = qInvoices.data ?? [];
 
-  const qActuals = useQuery<any[]>({
+  const qActuals = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: () => apiRequest("GET", `/api/budget-actual?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
   const budgetActuals = qActuals.data ?? [];
 
-  const qCollaborators = useQuery<any[]>({ queryKey: ["/api/collaborators"] });
-  const qFunctions = useQuery<any[]>({ queryKey: ["/api/functions"] });
+  const qCollaborators = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const qFunctions = useQuery<FunctionRow[]>({ queryKey: ["/api/functions"] });
   const collaborators = qCollaborators.data ?? [];
   const functions = qFunctions.data ?? [];
 
   // Escalação do evento — fonte da flag "emite NF" de cada escalado
-  const qInclusions = useQuery<any[]>({
+  const qInclusions = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", selectedEventId, "invoices"],
     queryFn: () => apiRequest("GET", `/api/team-inclusions?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
@@ -285,15 +290,15 @@ export default function InvoicesPage() {
   const estado = useQueriesState([qEvents, qCollaborators, qFunctions, qInvoices, qActuals, qInclusions]);
   const dataLoading = !!selectedEventId && estado.isLoading;
 
-  const getName     = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
-  const getFuncName = (id?: string | null) => (functions     as any[]).find(f => f.id === id)?.name     || "—";
+  const getName     = (id?: string | null) => collaborators.find(c => c.id === id)?.fullName || "—";
+  const getFuncName = (id?: string | null) => functions.find(f => f.id === id)?.name     || "—";
 
   // Definido na escalação: se false, a tela não cobra NF deste colaborador.
   // Regra única em @shared/prestacao-rules — mesma da tela Controle de
   // Prestações (as cópias locais tinham divergido).
-  const emitsNfFor = (actual: any): boolean =>
+  const emitsNfFor = (actual: BudgetActual): boolean =>
     !nfIsentaPorEscalacao(
-      teamInclusions as any[],
+      teamInclusions,
       actual.collaboratorId,
       actual.functionId,
       actual.eventId ?? selectedEventId,
@@ -301,15 +306,15 @@ export default function InvoicesPage() {
 
   // Elegibilidade da NF vem de @shared/prestacao-rules — a mesma regra que o
   // servidor aplica. Antes cada tela tinha sua cópia e elas divergiram.
-  const approvedActuals = (budgetActuals as any[]).filter(
+  const approvedActuals = budgetActuals.filter(
     a => isNfEligible(a) && !a.splitParentId
   );
 
   const getInvoice = (actualId: string) =>
-    (invoices as any[]).find(inv => inv.budgetActualId === actualId);
+    invoices.find(inv => inv.budgetActualId === actualId);
 
   // Ids dos itens NF-elegíveis do Realizado — mesmo recorte do Controle RH (rh-control).
-  const eligibleActualIds = new Set(approvedActuals.map((a: any) => a.id));
+  const eligibleActualIds = new Set(approvedActuals.map(a => a.id));
 
   // "Lançamento": itens NF-elegíveis que ainda dependem do colaborador — sem NF enviada
   // ("Aguardando lançamento") ou com NF devolvida. Equivale a "Aguardando lançamento"
@@ -320,9 +325,9 @@ export default function InvoicesPage() {
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
   }).length;
   // "Aprovação RH" (em análise): NFs enviadas de itens NF-elegíveis — mesmo critério do Controle RH.
-  const rhPendingCount = (invoices as any[]).filter(i => i.status === "enviada" && eligibleActualIds.has(i.budgetActualId)).length;
+  const rhPendingCount = invoices.filter(i => i.status === "enviada" && eligibleActualIds.has(i.budgetActualId ?? "")).length;
   // "Check-in": NFs aprovadas de itens NF-elegíveis ainda sem check-in financeiro.
-  const checkinPendingCount = (invoices as any[]).filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId)).length;
+  const checkinPendingCount = invoices.filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId ?? "")).length;
 
   const tabs = [
     { id: "lancamento" as const, label: "Lançamento",   count: pendingCount,   countCls: "bg-warning-soft text-warning" },
@@ -403,7 +408,7 @@ export default function InvoicesPage() {
         ) : !selectedEvent?.paymentCompanyCnpj?.trim() && canRH ? (
           // Definir a empresa pagadora é ação do RH/admin — só eles veem o formulário
           (() => {
-            const pcs = paymentCompanies as any[];
+            const pcs = paymentCompanies;
             const selectedPc = pcs.find(c => String(c.id) === confirmCompanyId);
             const isManual = confirmCompanyId === "__manual__" || pcs.length === 0;
             const canConfirm = isManual
@@ -587,10 +592,10 @@ export default function InvoicesPage() {
 
             {activeTab === "aprovacao" && canRH && (
               <AprovacaoTab
-                invoices={invoices as any[]}
+                invoices={invoices}
                 getName={getName}
                 getFuncName={getFuncName}
-                budgetActuals={budgetActuals as any[]}
+                budgetActuals={budgetActuals}
                 selectedEventId={selectedEventId}
                 qc={qc}
                 toast={toast}
@@ -618,9 +623,30 @@ const LANC_FILTERS = [
   { id: "sem-nf",            label: "Não emite NF",       activeBg: "bg-slate-500 text-white" },
 ];
 
+type ToastFn = ReturnType<typeof useToast>["toast"];
+
+/** Props comuns das abas e do card: resolvedores de nome e infra da página. */
+interface AbaBaseProps {
+  getName: (id?: string | null) => string;
+  getFuncName: (id?: string | null) => string;
+  selectedEventId: string;
+  qc: QueryClient;
+  toast: ToastFn;
+  filterStatus: string;
+  onFilterStatus: (v: string) => void;
+  highlightActualId: string;
+}
+
+interface LancamentoTabProps extends AbaBaseProps {
+  approvedActuals: BudgetActual[];
+  emitsNfFor: (actual: BudgetActual) => boolean;
+  getInvoice: (actualId: string) => Invoice | undefined;
+  selectedEvent: Event | undefined;
+}
+
 // Filtro de status controlado pela página (vive na URL desde 23/09).
-function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: any) {
-  const setFilterStatus = onFilterStatus as (v: string) => void;
+function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: LancamentoTabProps) {
+  const setFilterStatus = onFilterStatus;
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
 
   // When highlightActualId arrives, update and clear after animation
@@ -649,7 +675,7 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
     return () => clearTimeout(t);
   }, [highlightedId, filterStatus, approvedActuals?.length]);
 
-  function getEffStatus(actual: any) {
+  function getEffStatus(actual: BudgetActual) {
     if (!emitsNfFor(actual)) return "sem-nf"; // definido na escalação
     return getEffectiveStatus(getInvoice(actual.id));
   }
@@ -657,11 +683,11 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
   const countFor = (id: string) =>
     id === "all"
       ? approvedActuals.length
-      : approvedActuals.filter((a: any) => getEffStatus(a) === id).length;
+      : approvedActuals.filter(a => getEffStatus(a) === id).length;
 
   const filtered = filterStatus === "all"
     ? approvedActuals
-    : approvedActuals.filter((a: any) => getEffStatus(a) === filterStatus);
+    : approvedActuals.filter(a => getEffStatus(a) === filterStatus);
 
   if (approvedActuals.length === 0) {
     return (
@@ -683,7 +709,7 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
-          {filtered.map((actual: any) => {
+          {filtered.map(actual => {
             const isTarget = actual.id === highlightedId;
             if (!emitsNfFor(actual)) {
               // Definido na escalação: não emite NF — mostra o item sem cobrar nota
@@ -732,7 +758,13 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
 }
 
 // ── Invoice Card (collaborator view) ─────────────────────────────────────────
-function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
+interface InvoiceCardProps extends Pick<AbaBaseProps, "getName" | "getFuncName" | "selectedEventId" | "qc" | "toast"> {
+  actual: BudgetActual;
+  invoice: Invoice | undefined;
+  selectedEvent: Event | undefined;
+}
+
+function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: InvoiceCardProps) {
   const effStatus = getEffectiveStatus(invoice);
   const cfg = getStatusCfg(effStatus);
 
@@ -810,7 +842,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
       // A nota só documenta o pagamento, então nada de aviso de Flash aqui.
       toast({ title: "Nota enviada!", description: "Aguardando análise do RH." });
     },
-    onError: (e: any) => {
+    onError: (e: unknown) => {
       setUploading(false);
       // e.body vem do apiRequest enriquecido — mostra a mensagem real do
       // servidor (ex.: validação de OC repetida) em vez do texto genérico
@@ -1039,7 +1071,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
       {/* History panel */}
       {historyOpen && history.length > 0 && (
         <div className="bg-surface-muted border-t border-t-primary/25" style={{ padding: "12px 20px 14px 48px" }}>
-          <HistoryPanel events={history} collabName={name} />
+          <HistoryPanel events={history} />
         </div>
       )}
     </div>
@@ -1057,9 +1089,10 @@ const APROV_FILTERS = [
 ];
 
 // ── History helpers ───────────────────────────────────────────────────────────
-function fmtDateTime(iso?: string | null) {
-  if (!iso) return null;
-  const d = new Date(iso);
+function fmtDateTime(raw?: string | Date | null) {
+  const s = iso(raw);
+  if (!s) return null;
+  const d = new Date(s);
   if (isNaN(d.getTime())) return null;
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -1090,11 +1123,27 @@ const HIST_CFG: Record<HistEvent["type"], { label: string; color: string; by: "c
   checkin:   { label: "Check-in",  color: "var(--primary)", by: "rh" },
 };
 
-function buildHistory(inv: any, collabName: string): HistEvent[] {
+/** Entrada do JSON gravado em `invoices.history` (texto livre do servidor). */
+interface StoredHistEntry {
+  type?: string;
+  at?: string | null;
+  oc?: string | null;
+  attachmentName?: string | null;
+  comment?: string | null;
+  paymentDate?: string | null;
+}
+
+function parseStoredHistory(raw: string | null | undefined): StoredHistEntry[] {
+  if (!raw) return [];
+  const parsed: unknown = JSON.parse(raw);
+  return Array.isArray(parsed) ? (parsed as StoredHistEntry[]) : [];
+}
+
+function buildHistory(inv: Invoice, collabName: string): HistEvent[] {
   // Use stored history if available
   if (inv.history) {
     try {
-      const stored: any[] = JSON.parse(inv.history);
+      const stored = parseStoredHistory(inv.history);
       if (stored.length > 0) {
         return stored.map(e => {
           const cfg = HIST_CFG[e.type as HistEvent["type"]] || HIST_CFG.enviado;
@@ -1128,7 +1177,7 @@ function buildHistory(inv: any, collabName: string): HistEvent[] {
   return events;
 }
 
-function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName: string }) {
+function HistoryPanel({ events }: { events: HistEvent[] }) {
   if (events.length === 0) return null;
   if (events.length === 1) {
     const e = events[0];
@@ -1192,14 +1241,19 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
 type AprovAction = "approve" | "return" | "reject" | "checkin";
 type ActiveAprovAction = { invId: string; type: AprovAction } | null;
 
+interface AprovacaoTabProps extends AbaBaseProps {
+  invoices: Invoice[];
+  budgetActuals: BudgetActual[];
+}
+
 // Filtro de status controlado pela página (vive na URL desde 23/09).
-function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: any) {
+function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: AprovacaoTabProps) {
   const [active, setActive]             = useState<ActiveAprovAction>(null);
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
   const [comment, setComment]           = useState("");
   const [tocouMotivo, setTocouMotivo]   = useState(false);
   const [checkinDate, setCheckinDate]   = useState("");
-  const setFilterStatus = onFilterStatus as (v: string) => void;
+  const setFilterStatus = onFilterStatus;
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
 
   // Param `actual` → destaca a linha e limpa após a animação (padrão da LancamentoTab)
@@ -1281,7 +1335,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       // aprovado; para estornar, rejeite/devolva o comparativo do evento.
       toast({ title: "Nota recusada.", description: "A recusa é definitiva — esta nota não poderá ser reenviada." });
     },
-    onError: (e: any) => toast({ title: "Não foi possível recusar a nota", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Não foi possível recusar a nota", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
 
   const checkinMutation = useMutation({
@@ -1307,15 +1361,15 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     );
   }
 
-  const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
+  const getActual = (id: string | null) => budgetActuals.find(a => a.id === id);
 
-  function daysSince(inv: any) {
+  function daysSince(inv: Invoice) {
     // Conta a partir do último envio/reenvio registrado no histórico
     // (após uma devolução + reenvio, o prazo reinicia). Fallback: createdAt.
-    let ref: string | null = inv.createdAt || null;
+    let ref: string | null = iso(inv.createdAt);
     if (inv.history) {
       try {
-        const stored: any[] = JSON.parse(inv.history);
+        const stored = parseStoredHistory(inv.history);
         for (const e of stored) {
           if ((e?.type === "enviado" || e?.type === "reenviado") && e?.at) ref = e.at;
         }
@@ -1328,24 +1382,24 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   const aprovCountFor = (id: string) => {
     if (id === "all") return invoices.length;
-    return invoices.filter((i: any) => getEffectiveStatus(i) === id).length;
+    return invoices.filter(i => getEffectiveStatus(i) === id).length;
   };
   const alertFor = (id: string): number => {
     if (id !== "enviada") return 0;
-    return invoices.filter((i: any) => i.status === "enviada" && daysSince(i) > 3).length;
+    return invoices.filter(i => i.status === "enviada" && daysSince(i) > 3).length;
   };
 
   const filteredInvoices = filterStatus === "all"
     ? invoices
-    : invoices.filter((i: any) => getEffectiveStatus(i) === filterStatus);
+    : invoices.filter(i => getEffectiveStatus(i) === filterStatus);
 
   // Totals footer
-  const approvedTotal = invoices.reduce((sum: number, inv: any) => {
+  const approvedTotal = invoices.reduce((sum: number, inv) => {
     if (inv.status !== "aprovada") return sum;
     const actual = getActual(inv.budgetActualId);
     return sum + (actual?.totalValue || 0);
   }, 0);
-  const waitingTotal = invoices.reduce((sum: number, inv: any) => {
+  const waitingTotal = invoices.reduce((sum: number, inv) => {
     if (inv.status !== "enviada") return sum;
     const actual = getActual(inv.budgetActualId);
     return sum + (actual?.totalValue || 0);
@@ -1388,7 +1442,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                 </td>
               </tr>
             ) : null}
-            {filteredInvoices.map((inv: any) => {
+            {filteredInvoices.map(inv => {
               const actual   = getActual(inv.budgetActualId);
               const name     = getName(inv.collaboratorId);
               const effSt        = getEffectiveStatus(inv);
@@ -1743,7 +1797,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                           padding: "12px 16px 12px 48px",
                         }}
                       >
-                        <HistoryPanel events={history} collabName={name} />
+                        <HistoryPanel events={history} />
                       </td>
                     </tr>
                   )}

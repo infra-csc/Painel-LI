@@ -11,7 +11,7 @@
  *   3. o que pode ser enviado (PDF, PNG, JPG, XLSX, CSV — conferido pelos
  *      primeiros bytes, não pelo mimetype do cliente).
  */
-import type { File } from "@google-cloud/storage";
+import type { File, FileMetadata } from "@google-cloud/storage";
 import { ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
 
 // ── Metadados gravados no objeto ─────────────────────────────────────────────
@@ -25,8 +25,8 @@ export interface MetadadosDoAnexo {
   tamanho: number | null;
 }
 
-export function lerMetadadosDoAnexo(metadata: any): MetadadosDoAnexo {
-  const custom = metadata?.metadata ?? {};
+export function lerMetadadosDoAnexo(metadata: FileMetadata | null | undefined): MetadadosDoAnexo {
+  const custom: Record<string, unknown> = metadata?.metadata ?? {};
   const tamanho = metadata?.size != null ? Number(metadata.size) : null;
   return {
     ownerId: typeof custom[META_DONO] === "string" && custom[META_DONO] ? custom[META_DONO] : null,

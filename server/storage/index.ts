@@ -74,7 +74,8 @@ export { StorageHttpError, normalizarDataIso, type FunctionManagerRole } from ".
 export { excludeSuggestions } from "./vagas";
 export type { TeamInclusionPhaseFilter, TeamInclusionListOptions, UpdateTeamInclusionOptions } from "./vagas";
 export type { FunctionManagerSummary, FunctionWithManagers } from "./funcoes";
+export type { CollaboratorPatch } from "./colaboradores";
 export type { InsertFlashMovementWithSource } from "./flash";
 export type { InsertScalingChangeRequestRow, CancelSuggestionSendParams, CancelSuggestionSendResult } from "./validacao-de-escala";
 export type { SystemLogFilters } from "./logs-do-sistema";
-export { mapSwapRequestRow } from "./trocas";
+export { mapSwapRequestRow, type SwapRequestRow } from "./trocas";

@@ -80,8 +80,9 @@ export class ObjectStorageService {
     try {
       const [metadata] = await file.getMetadata();
       return lerMetadadosDoAnexo(metadata);
-    } catch (err: any) {
-      if (err?.code === 404 || err?.code === "404") throw new ObjectNotFoundError();
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code === 404 || code === "404") throw new ObjectNotFoundError();
       throw err;
     }
   }

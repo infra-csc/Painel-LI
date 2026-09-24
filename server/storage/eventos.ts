@@ -49,7 +49,10 @@ export async function createEvent(eventData: InsertEvent): Promise<Event> {
   return event;
 }
 
-export async function updateEvent(id: string, eventData: Partial<InsertEvent>): Promise<Event> {
+/** O que um PUT/DELETE de evento pode gravar: o schema público mais `status` (updateEventSchema o inclui). */
+export type EventPatch = Partial<InsertEvent> & { status?: string };
+
+export async function updateEvent(id: string, eventData: EventPatch): Promise<Event> {
   const [event] = await db.update(events).set(eventData).where(eq(events.id, id)).returning();
   return event;
 }

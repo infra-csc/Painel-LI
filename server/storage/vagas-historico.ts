@@ -7,12 +7,13 @@
  * Apresentação dentro da camada de dados (anotado em 24/09, mantido): os
  * textos "R$ …", "dd/mm/aaaa" e "N/A" ficam PERSISTIDOS em `details`,
  * `previousValue` e `newValue` — não são rótulos de UI calculados na hora,
- * são o histórico como foi escrito. shared/log-auditoria.ts tem um `reais()`
- * idêntico, mas privado; quando for exportado, `fmtCents` daqui pode sumir.
+ * são o histórico como foi escrito. O "R$ …" vem de `reais()` de
+ * shared/log-auditoria.ts (mesma escrita nos dois lugares).
  * Rótulos de status já vêm de `rotuloDoStatus` (shared/vaga-status).
  */
 import type { TeamInclusion, InsertTeamInclusion, InsertTeamInclusionLog } from "@shared/schema";
 import { rotuloDoStatus } from "@shared/vaga-status";
+import { reais } from "@shared/log-auditoria";
 import { normalizarDataIso } from "./_comum";
 
 export interface EntradaDoHistoricoDaVaga {
@@ -46,8 +47,6 @@ const fmtDate = (d: unknown): string => {
   const parts = iso.split("-");
   return parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
 };
-
-const fmtCents = (v: number) => `R$ ${(v / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const fmtDay = (d: string) => { const parts = toIsoDate(d).split("-"); return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d; };
 
@@ -102,7 +101,7 @@ export function montarLogsDeAlteracaoDaVaga(e: EntradaDoHistoricoDaVaga): Insert
 
   if (inclusionData.dailyValue !== undefined && inclusionData.dailyValue !== oldInclusion.dailyValue) {
     push("daily_value_changed",
-      `Valor da diária alterado de ${fmtCents(oldInclusion.dailyValue ?? 0)} para ${fmtCents(inclusionData.dailyValue)}`,
+      `Valor da diária alterado de ${reais(oldInclusion.dailyValue ?? 0)} para ${reais(inclusionData.dailyValue)}`,
       String(oldInclusion.dailyValue ?? 0), String(inclusionData.dailyValue));
   }
 

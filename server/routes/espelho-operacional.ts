@@ -6,7 +6,7 @@
  * Papéis: logística (admin/Compras/Produção); leitura aberta a qualquer sessão.
  * Toda escrita passa pela trava de evento encerrado e grava auditoria.
  */
-import type { Express } from "express";
+import type { Express, Response } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import {
@@ -17,6 +17,9 @@ import {
   uberGroupMembers as uberGroupMembersTable,
   logisticsExtraCosts as logisticsExtraCostsTable,
   insertLogisticsExtraCostSchema,
+  type InsertHotelRoomGroup,
+  type InsertUberGroup,
+  type InsertLogisticsExtraCost,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { assertEventEditable, assertInclusionEventEditable } from "../event-guard";
@@ -48,7 +51,7 @@ export function registrarEspelhoOperacional(app: Express): void {
 
   /** Campos do espelho que mexem no PERÍODO da vaga — travados por pedido de ajuste pendente. */
   const CAMPOS_DE_DATA_DO_ESPELHO = new Set(["schedule.startDate", "schedule.endDate"]);
-  const travaDePedidoPendente = async (rowId: string, res: any): Promise<boolean> => {
+  const travaDePedidoPendente = async (rowId: string, res: Response): Promise<boolean> => {
     const pendente = (await storage.getScalingChangeRequestsByInclusion(rowId)).find((r) => r.status === "pendente");
     if (!pendente) return true;
     res.status(409).json({ message: `Há um pedido de ${pendente.requestType} aguardando o aprovador — as datas desta vaga ficam travadas até a decisão.` });
@@ -68,9 +71,9 @@ export function registrarEspelhoOperacional(app: Express): void {
       const result = await patchOperationalMirrorCell(req.params.eventId, req.params.rowId, field, value);
       await createAuditLog("update", "operational_mirror", req.params.rowId, { eventId: req.params.eventId, field, value }, ator.id, ator.name, undefined, req);
       res.json(result);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao salvar célula do espelho:", error);
-      res.status(400).json({ message: error?.message || "Erro ao salvar célula" });
+      res.status(400).json({ message: (error instanceof Error && error.message) || "Erro ao salvar célula" });
     }
   });
 
@@ -173,7 +176,7 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(hotelRoomGroupsTable.id, req.params.id)).returning();
       await createAuditLog("confirm", "hotel_room_group", req.params.id, g, ator.id, ator.name, grupo, req);
       res.json(g);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao confirmar grupo de quarto" });
     }
   });
@@ -261,7 +264,7 @@ export function registrarEspelhoOperacional(app: Express): void {
 
       const membrosOrigem = await db.select().from(hotelRoomGroupMembersTable)
         .where(eq(hotelRoomGroupMembersTable.hotelRoomGroupId, deGrupoId));
-      const membro = membrosOrigem.find((m: any) => m.collaboratorId === collaboratorId);
+      const membro = membrosOrigem.find((m) => m.collaboratorId === collaboratorId);
       if (!membro) return res.status(404).json({ message: "Esta pessoa não está neste quarto." });
 
       const destinoId = await db.transaction(async (tx) => {
@@ -323,7 +326,7 @@ export function registrarEspelhoOperacional(app: Express): void {
 
       const membrosOrigem = await db.select().from(uberGroupMembersTable)
         .where(eq(uberGroupMembersTable.uberGroupId, deGrupoId));
-      const membro = membrosOrigem.find((m: any) => m.collaboratorId === collaboratorId);
+      const membro = membrosOrigem.find((m) => m.collaboratorId === collaboratorId);
       if (!membro) return res.status(404).json({ message: "Esta pessoa não está neste carro." });
 
       const destinoId = await db.transaction(async (tx) => {
@@ -376,8 +379,8 @@ export function registrarEspelhoOperacional(app: Express): void {
       const anterior = await grupoDeQuarto(req.params.id);
       if (!anterior) return res.status(404).json({ message: "Quarto não encontrado" });
       if (!await assertEventEditable(anterior.eventId, ator, res)) return;
-      const allowed: any = {};
-      for (const k of ["hotelName", "roomType", "genderRule", "checkInDate", "checkOutDate", "notes", "confirmed"]) {
+      const allowed: Partial<InsertHotelRoomGroup> = {};
+      for (const k of ["hotelName", "roomType", "genderRule", "checkInDate", "checkOutDate", "notes", "confirmed"] as const) {
         if (k in req.body) allowed[k] = req.body[k];
       }
       const [g] = await db.update(hotelRoomGroupsTable)
@@ -385,7 +388,7 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(hotelRoomGroupsTable.id, req.params.id)).returning();
       await createAuditLog("update", "hotel_room_group", req.params.id, g, ator.id, ator.name, anterior, req);
       res.json(g);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao atualizar grupo de quarto" });
     }
   });
@@ -402,7 +405,7 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(uberGroupsTable.id, req.params.id)).returning();
       await createAuditLog("confirm", "uber_group", req.params.id, g, ator.id, ator.name, anterior, req);
       res.json(g);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao confirmar grupo de uber" });
     }
   });
@@ -424,7 +427,7 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(uberGroupsTable.id, req.params.id)).returning();
       await createAuditLog("update", "uber_group", req.params.id, { ...g, acao: "reabrir" }, ator.id, ator.name, anterior, req);
       res.json(g);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao reabrir grupo de uber" });
     }
   });
@@ -436,8 +439,8 @@ export function registrarEspelhoOperacional(app: Express): void {
       const atual = await grupoDeUber(req.params.id);
       if (!atual) return res.status(404).json({ message: "Carro não encontrado" });
       if (!await assertEventEditable(atual.eventId, ator, res)) return;
-      const allowed: any = {};
-      for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed", "titularCollaboratorId", "manualTime"]) {
+      const allowed: Partial<InsertUberGroup> = {};
+      for (const k of ["groupName", "direction", "origin", "destination", "date", "time", "estimatedTotalCents", "notes", "status", "confirmed", "titularCollaboratorId", "manualTime"] as const) {
         if (k in req.body) allowed[k] = req.body[k];
       }
       // Ajustar o horário à mão grava nos DOIS campos: `manualTime` registra que
@@ -454,7 +457,7 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(uberGroupsTable.id, req.params.id)).returning();
       await createAuditLog("update", "uber_group", req.params.id, g, ator.id, ator.name, atual, req);
       res.json(g);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao atualizar grupo de uber" });
     }
   });
@@ -478,7 +481,7 @@ export function registrarEspelhoOperacional(app: Express): void {
       if (!ti) return res.status(404).json({ message: "Vaga não encontrada" });
       await createAuditLog("update", "team_inclusion", ti.id, ti, ator.id, ator.name, vaga, req);
       res.json({ id: ti.id, skipUber: ti.skipUber });
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao atualizar a roteirização desta pessoa" });
     }
   });
@@ -496,8 +499,8 @@ export function registrarEspelhoOperacional(app: Express): void {
       if (!anterior) return res.status(404).json({ message: "Ocupante não encontrado" });
       const grupo = await grupoDeQuarto(anterior.hotelRoomGroupId);
       if (grupo && !await assertEventEditable(grupo.eventId, ator, res)) return;
-      const allowed: any = {};
-      for (const k of ["checkInDate", "checkOutDate", "notes", "confirmed"]) {
+      const allowed: Partial<typeof hotelRoomGroupMembersTable.$inferInsert> = {};
+      for (const k of ["checkInDate", "checkOutDate", "notes", "confirmed"] as const) {
         if (k in req.body) allowed[k] = req.body[k] === "" ? null : req.body[k];
       }
       if (allowed.checkInDate && allowed.checkOutDate && allowed.checkOutDate < allowed.checkInDate) {
@@ -509,7 +512,7 @@ export function registrarEspelhoOperacional(app: Express): void {
       if (!m) return res.status(404).json({ message: "Ocupante não encontrado" });
       await createAuditLog("update", "hotel_room_group_member", req.params.id, m, ator.id, ator.name, anterior, req);
       res.json(m);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao atualizar a estadia desta pessoa" });
     }
   });
@@ -520,7 +523,7 @@ export function registrarEspelhoOperacional(app: Express): void {
     if (!ator) return;
     try {
       const data = insertLogisticsExtraCostSchema.parse(req.body);
-      if (!await assertEventEditable((data as any).eventId ?? null, ator, res)) return;
+      if (!await assertEventEditable(data.eventId ?? null, ator, res)) return;
       const [created] = await db.insert(logisticsExtraCostsTable).values(data).returning();
       await createAuditLog("create", "logistics_extra_cost", created.id, created, ator.id, ator.name, undefined, req);
       res.json(created);
@@ -536,9 +539,9 @@ export function registrarEspelhoOperacional(app: Express): void {
     try {
       const [anterior] = await db.select().from(logisticsExtraCostsTable).where(eq(logisticsExtraCostsTable.id, req.params.id));
       if (!anterior) return res.status(404).json({ message: "Custo não encontrado" });
-      if (!await assertEventEditable((anterior as any).eventId ?? null, ator, res)) return;
-      const allowed: any = {};
-      for (const k of ["collaboratorId", "type", "description", "amountCents", "oc", "checkInReference", "company", "notes", "attachmentUrl"]) {
+      if (!await assertEventEditable(anterior.eventId ?? null, ator, res)) return;
+      const allowed: Partial<InsertLogisticsExtraCost> = {};
+      for (const k of ["collaboratorId", "type", "description", "amountCents", "oc", "checkInReference", "company", "notes", "attachmentUrl"] as const) {
         if (k in req.body) allowed[k] = req.body[k];
       }
       const [updated] = await db.update(logisticsExtraCostsTable)
@@ -546,7 +549,7 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(logisticsExtraCostsTable.id, req.params.id)).returning();
       await createAuditLog("update", "logistics_extra_cost", req.params.id, updated, ator.id, ator.name, anterior, req);
       res.json(updated);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao atualizar custo" });
     }
   });
@@ -559,11 +562,11 @@ export function registrarEspelhoOperacional(app: Express): void {
     try {
       const [anterior] = await db.select().from(logisticsExtraCostsTable).where(eq(logisticsExtraCostsTable.id, req.params.id));
       if (!anterior) return res.status(404).json({ message: "Custo não encontrado" });
-      if (!await assertEventEditable((anterior as any).eventId ?? null, ator, res)) return;
+      if (!await assertEventEditable(anterior.eventId ?? null, ator, res)) return;
       await db.delete(logisticsExtraCostsTable).where(eq(logisticsExtraCostsTable.id, req.params.id));
       await createAuditLog("delete", "logistics_extra_cost", req.params.id, anterior, ator.id, ator.name, undefined, req);
       res.json({ ok: true });
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao excluir custo" });
     }
   });

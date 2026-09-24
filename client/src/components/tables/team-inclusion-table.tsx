@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { apiErrorMessage } from "@/lib/api-error";
+import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { useAuth } from "@/hooks/use-auth";
 import { useSwapRequests } from "@/hooks/use-swap-requests";
 import { hasPermission, hasRole } from "@/lib/role-utils";
@@ -20,8 +20,9 @@ import { RequiredMark } from "@/components/forms/required-mark";
 // Variante do pedido de confirmação (23/09): delete/cancel = destrutivo, confirm = neutro.
 type ConfirmVariant = "delete" | "cancel" | "confirm";
 import UniversalFilters from "@/components/common/universal-filters";
+import type { UniversalFilterValues } from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, InsertTeamInclusion } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 import { useEventLock, PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 
@@ -303,7 +304,7 @@ export default function TeamInclusionTable() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   // Seleção múltipla (28/08): listas; vazia = todos. Também conserta o filtro
   // de Funções, que comparava string com a lista do multi-select e zerava a tela.
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<UniversalFilterValues & { status: string[] }>({
     eventId: [] as string[],
     functionId: [] as string[],
     collaboratorId: [] as string[],
@@ -392,22 +393,24 @@ export default function TeamInclusionTable() {
     return m;
   }, [teamInclusions]);
 
-  const getEventName = (eventId: string) => {
+  // Getters memoizados pelo mapa que leem: entram como dependência dos memos
+  // sem recriá-los a cada render.
+  const getEventName = useCallback((eventId: string) => {
     return eventById.get(eventId)?.name || "Evento não encontrado";
-  };
+  }, [eventById]);
 
-  const getEventLocation = (eventId: string) => {
+  const getEventLocation = useCallback((eventId: string) => {
     return eventById.get(eventId)?.location || "";
-  };
+  }, [eventById]);
 
-  const getFunctionName = (functionId: string) => {
+  const getFunctionName = useCallback((functionId: string) => {
     return functionById.get(functionId)?.name || "Função não encontrada";
-  };
+  }, [functionById]);
 
-  const getCollaboratorName = (collaboratorId?: string) => {
+  const getCollaboratorName = useCallback((collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
     return fixEncoding(collaboratorById.get(collaboratorId)?.fullName) || "Colaborador não encontrado";
-  };
+  }, [collaboratorById]);
 
   const formatDate = (dateStr: string) => {
     // Parse manual para evitar problemas de timezone (e recorta timestamp se houver)
@@ -423,7 +426,7 @@ export default function TeamInclusionTable() {
   };
 
   // Normaliza qualquer valor de data para "YYYY-MM-DD"
-  const normDay = (d: any): string => {
+  const normDay = (d: string | Date | null | undefined): string => {
     if (!d) return '';
     if (typeof d === 'string') return d.split('T')[0];
     if (d instanceof Date) return d.toISOString().split('T')[0];
@@ -478,7 +481,7 @@ export default function TeamInclusionTable() {
   }, []);
 
   const updateTeamInclusionMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertTeamInclusion> }) => {
       const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, data);
       return response.json();
     },
@@ -488,9 +491,9 @@ export default function TeamInclusionTable() {
       setShowEditModal(false);
       setEditingInclusion(null);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível atualizar a inclusão",
+        title: apiErrorStatus(err) === 401 ? "Sessão expirada" : "Não foi possível atualizar a inclusão",
         description: apiErrorMessage(err, "Tente de novo em instantes."),
         variant: "destructive",
       });
@@ -559,9 +562,9 @@ export default function TeamInclusionTable() {
       toast({ title: "Diárias salvas", description: "Todas as alterações foram aplicadas." });
       setShowBatchDiarias(false);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível salvar as diárias",
+        title: apiErrorStatus(err) === 401 ? "Sessão expirada" : "Não foi possível salvar as diárias",
         // Promise.all: parte das linhas pode ter sido gravada antes da falha
         description: apiErrorMessage(err, "Erro ao salvar as diárias. Algumas linhas podem ter sido gravadas — confira a lista."),
         variant: "destructive",
@@ -623,9 +626,9 @@ export default function TeamInclusionTable() {
       toast({ variant: "success", title: "Inclusão removida" });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível remover a inclusão",
+        title: apiErrorStatus(err) === 401 ? "Sessão expirada" : "Não foi possível remover a inclusão",
         description: apiErrorMessage(err, "Tente de novo em instantes."),
         variant: "destructive",
       });
@@ -661,9 +664,9 @@ export default function TeamInclusionTable() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível cancelar a escalação",
+        title: apiErrorStatus(err) === 401 ? "Sessão expirada" : "Não foi possível cancelar a escalação",
         description: apiErrorMessage(err, "Tente de novo em instantes."),
         variant: "destructive",
       });
@@ -812,8 +815,8 @@ export default function TeamInclusionTable() {
       if (filters.escalationStatus.length > 0) {
         const isCanceled = inclusion.status === "cancelado";
         const matches = filters.escalationStatus.some((v) =>
-          v === "pending" ? (!inclusion.collaboratorId && !vagaComEmpreita(inclusion as any) && !isCanceled)
-          : v === "escalated" ? ((!!inclusion.collaboratorId || vagaComEmpreita(inclusion as any)) && !isCanceled)
+          v === "pending" ? (!inclusion.collaboratorId && !vagaComEmpreita(inclusion) && !isCanceled)
+          : v === "escalated" ? ((!!inclusion.collaboratorId || vagaComEmpreita(inclusion)) && !isCanceled)
           : v === "cancelado" ? isCanceled
           : false,
         );
@@ -881,7 +884,7 @@ export default function TeamInclusionTable() {
       if (!b.scheduleStartDate) return -1;
       return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
     });
-  }, [teamInclusions, filters, sortConfig, eventById, functionById, collaboratorById]);
+  }, [teamInclusions, filters, sortConfig, getCollaboratorName, getEventName, getFunctionName]);
 
   // Totals base: only base filters (event, function, collaborator, searchId)
   // Ignores status AND escalationStatus so card counts never change when a card is clicked
@@ -905,8 +908,8 @@ export default function TeamInclusionTable() {
   // menor do que a quantidade de linhas exibidas ao clicar nele.
   const totals = {
     incluidos: totalsBase.length,
-    pendentes: totalsBase.filter(i => !i.collaboratorId && !vagaComEmpreita(i as any) && i.status !== 'cancelado').length,
-    escalados: totalsBase.filter(i => (i.collaboratorId || vagaComEmpreita(i as any)) && i.status !== 'cancelado').length,
+    pendentes: totalsBase.filter(i => !i.collaboratorId && !vagaComEmpreita(i) && i.status !== 'cancelado').length,
+    escalados: totalsBase.filter(i => (i.collaboratorId || vagaComEmpreita(i)) && i.status !== 'cancelado').length,
     aguardando_passagem: totalsBase.filter(i => i.status === 'passagem').length,
     hospedagem: totalsBase.filter(i => i.status === 'hospedagem').length,
     passagem_comprada: totalsBase.filter(i => i.status === 'passagem_comprada').length,
@@ -990,7 +993,7 @@ export default function TeamInclusionTable() {
 
   return (
     <>
-      <UniversalFilters filters={filters} onFiltersChange={setFilters} />
+      <UniversalFilters filters={filters} onFiltersChange={(f) => setFilters({ ...f, status: f.status ?? [] })} />
 
       {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
           já terminado e o usuário não é o administrador. */}
@@ -1175,7 +1178,7 @@ export default function TeamInclusionTable() {
                 <>
                   <EspacadorLinha altura={linhasVirtuais.espacoAntes} colunas={COLUNAS_TABELA} />
                   {linhasVirtuais.linhas.map(({ item: inclusion, index, medir }) => {
-                    const empreita = !inclusion.collaboratorId && vagaComEmpreita(inclusion as any);
+                    const empreita = !inclusion.collaboratorId && vagaComEmpreita(inclusion);
                     return (
                       <InclusionRow
                         key={inclusion.id}
@@ -1187,8 +1190,8 @@ export default function TeamInclusionTable() {
                         eventLocation={getEventLocation(inclusion.eventId)}
                         functionName={getFunctionName(inclusion.functionId)}
                         collaboratorName={inclusion.collaboratorId ? toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "") : null}
-                        empreitaEmpresa={empreita ? String((inclusion as any).empreitaEmpresa ?? "") : null}
-                        empreitaTitulo={empreita ? rotuloEmpreita(inclusion as any) : ""}
+                        empreitaEmpresa={empreita ? String(inclusion.empreitaEmpresa ?? "") : null}
+                        empreitaTitulo={empreita ? rotuloEmpreita(inclusion) : ""}
                         displayStatus={getDisplayStatus(inclusion)}
                         isCanceled={inclusion.status === 'cancelado'}
                         periodo={inclusion.scheduleStartDate && inclusion.scheduleEndDate

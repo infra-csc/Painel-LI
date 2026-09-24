@@ -63,7 +63,7 @@ export function registrarFlash(app: Express): void {
       const base = { collaboratorId, type: "credito" as const, movementDate, description: "Crédito inicial — admissão", createdBy: user.id, createdByName: user.name };
       const movements = await db.transaction(async (tx) => {
         const existentes = await tx.select().from(flashMovementsTable).where(eq(flashMovementsTable.collaboratorId, collaboratorId));
-        if (existentes.some((m: any) => !isAutomaticFlashMovement(m))) {
+        if (existentes.some((m) => !isAutomaticFlashMovement(m))) {
           throw new HttpError(409, "Este colaborador já tem lançamentos — o crédito inicial só vale para conta nova.");
         }
         return await tx.insert(flashMovementsTable).values([

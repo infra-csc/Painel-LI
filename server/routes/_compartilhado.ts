@@ -8,6 +8,7 @@
  * Nenhuma rota é registrada aqui.
  */
 import multer from "multer";
+import type { Request, Response } from "express";
 import { z } from "zod";
 import { timingSafeEqual } from "crypto";
 import { storage } from "../storage";
@@ -29,11 +30,14 @@ export function safeTokenEqual(a: string, b: string): boolean {
 }
 
 // Audit helpers
-export function sanitizeFields(data: any): any {
+/** Objeto genérico vindo do banco/da requisição — campo a campo, sem tipo fechado. */
+export type DadosSoltos = Record<string, unknown>;
+
+export function sanitizeFields<T>(data: T): T {
   if (!data || typeof data !== 'object') return data;
 
   const sensitiveFields = ['password', 'resetToken', 'resetTokenExpiry'];
-  const sanitized = { ...data };
+  const sanitized: DadosSoltos = { ...(data as DadosSoltos) };
 
   for (const field of sensitiveFields) {
     if (sanitized[field] !== undefined) {
@@ -41,26 +45,30 @@ export function sanitizeFields(data: any): any {
     }
   }
 
-  return sanitized;
+  return sanitized as T;
 }
 
 /**
  * Igualdade por VALOR (18/09): antes era `!==`, e duas datas iguais são objetos
  * diferentes — toda edição acusava "createdAt" como alterado no log.
  */
-export function mesmoValor(a: any, b: any): boolean {
-  const norm = (v: any) => (v instanceof Date ? v.toISOString() : v === undefined ? null : v);
+export function mesmoValor(a: unknown, b: unknown): boolean {
+  const norm = (v: unknown) => (v instanceof Date ? v.toISOString() : v === undefined ? null : v);
   return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
 }
 
-export function safeDiff(oldData: any, newData: any): { changed: string[], previous: any, current: any } {
-  if (!oldData && !newData) return { changed: [], previous: {}, current: {} };
-  if (!oldData) return { changed: Object.keys(newData || {}), previous: {}, current: sanitizeFields(newData) };
-  if (!newData) return { changed: [], previous: sanitizeFields(oldData), current: {} };
+export function safeDiff(antesCru: unknown, depoisCru: unknown): { changed: string[], previous: DadosSoltos, current: DadosSoltos } {
+  const antes = (antesCru ?? null) as DadosSoltos | null;
+  const depois = (depoisCru ?? null) as DadosSoltos | null;
+  if (!antes && !depois) return { changed: [], previous: {}, current: {} };
+  if (!antes) return { changed: Object.keys(depois || {}), previous: {}, current: sanitizeFields(depois ?? {}) };
+  if (!depois) return { changed: [], previous: sanitizeFields(antes), current: {} };
+  const oldData = antes;
+  const newData = depois;
 
   const changed: string[] = [];
-  const previous: any = {};
-  const current: any = {};
+  const previous: DadosSoltos = {};
+  const current: DadosSoltos = {};
 
   // Compare all fields from both objects
   const allFields = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
@@ -80,8 +88,17 @@ export function safeDiff(oldData: any, newData: any): { changed: string[], previ
   };
 }
 
-export function getEntityName(entityType: string, entityData: any): string {
-  if (!entityData) return 'N/A';
+/** Campos que o nome de exibição de uma entidade pode usar (todos opcionais). */
+type CamposDoNome = Partial<{
+  id: string | null; name: string | null; email: string | null; fullName: string | null;
+  eventNumber: number | null; functionNumber: number | null; collaboratorNumber: number | null;
+  inclusionNumber: number | null; purchaseOrderNumber: string | null; reservationNumber: string | null;
+  phase: string | null; collaboratorName: string | null; requestType: string | null;
+}>;
+
+export function getEntityName(entityType: string, dados: unknown): string {
+  if (!dados) return 'N/A';
+  const entityData = dados as CamposDoNome;
 
   switch (entityType) {
     case 'user':
@@ -129,11 +146,11 @@ export function montarLogDeAuditoria(
   action: string,
   entityType: string,
   entityId: string,
-  entityData: any,
+  entityData: unknown,
   userId?: string,
   userName?: string,
-  oldData?: any,
-  req?: any,
+  oldData?: unknown,
+  req?: Request,
 ): InsertSystemLog {
   const diff = safeDiff(oldData, entityData);
   return {
@@ -148,7 +165,7 @@ export function montarLogDeAuditoria(
     newData: diff.changed.length > 0 ? JSON.stringify(diff.current) : JSON.stringify(sanitizeFields(entityData)),
     userId: userId || null,
     userName: userName || 'Sistema',
-    ipAddress: req?.ip || req?.connection?.remoteAddress || null,
+    ipAddress: req?.ip || req?.socket?.remoteAddress || null,
     userAgent: req?.get?.('User-Agent') || null,
   };
 }
@@ -157,11 +174,11 @@ export async function createAuditLog(
   action: string,
   entityType: string,
   entityId: string,
-  entityData: any,
+  entityData: unknown,
   userId?: string,
   userName?: string,
-  oldData?: any,
-  req?: any
+  oldData?: unknown,
+  req?: Request,
 ) {
   try {
     await storage.createSystemLog(montarLogDeAuditoria(action, entityType, entityId, entityData, userId, userName, oldData, req));
@@ -184,20 +201,20 @@ export async function createAuditLogsBatch(logs: InsertSystemLog[]) {
  * As mutações não rodam em simulação (guard de somente leitura), então para
  * escrever/auditar é sempre este — sem reler o banco a cada handler (23/09).
  */
-export function usuarioDaSessao(req: any): User | null {
-  return (req?.user as User | undefined) ?? null;
+export function usuarioDaSessao(req: Request): User | null {
+  return req.user ?? null;
 }
 
 /** Postgres 23505 (unique) → 409 com a mensagem do negócio. */
 export function ehViolacaoDeUnicidade(error: unknown): boolean {
-  return !!error && typeof error === "object" && (error as any).code === "23505";
+  return !!error && typeof error === "object" && (error as { code?: unknown }).code === "23505";
 }
 
 /** Erros com status (HttpError do http.ts, StorageHttpError do storage) respondidos como { message }. */
-export function responderErroComStatus(res: any, error: unknown, fallback: string, fallbackStatus = 400): void {
-  const status = (error as any)?.status;
-  if (typeof status === "number" && status >= 400 && status < 500 && (error as any)?.message) {
-    res.status(status).json({ message: (error as any).message });
+export function responderErroComStatus(res: Response, error: unknown, fallback: string, fallbackStatus = 400): void {
+  const e = (error ?? {}) as { status?: unknown; message?: unknown };
+  if (typeof e.status === "number" && e.status >= 400 && e.status < 500 && e.message) {
+    res.status(e.status).json({ message: e.message });
     return;
   }
   console.error(fallback + ":", error);
@@ -227,9 +244,7 @@ export const upload = multer({
   fileFilter: (req, file, cb) => {
     if (ALLOWED_UPLOAD_MIMES.has(file.mimetype)) return cb(null, true);
     // status 415: o tratador global (server/http.ts) traduz para a mensagem
-    const err: any = new Error(`Tipo de arquivo não permitido: ${file.mimetype}`);
-    err.status = 415;
-    cb(err);
+    cb(Object.assign(new Error(`Tipo de arquivo não permitido: ${file.mimetype}`), { status: 415 }));
   }
 });
 
@@ -243,7 +258,7 @@ export const upload = multer({
 // ── Catálogos: cache curto no navegador ────────────────────────────────────
 // Os catálogos usam max-age curto em vez de revalidação (ETag desligado em
 // registerRoutes).
-export const cacheDeCatalogo = (res: any) => res.set("Cache-Control", "private, max-age=60");
+export const cacheDeCatalogo = (res: Response) => res.set("Cache-Control", "private, max-age=60");
 
 // ── Autorização por papel ─────────────────────────────────────────────────
 // A autenticação é garantida pelo middleware global de server/index.ts (toda
@@ -255,7 +270,7 @@ export const cacheDeCatalogo = (res: any) => res.set("Cache-Control", "private, 
 // pelo guard global de somente leitura) e o usuário real fora dele.
 // O gate global já carregou o usuário REAL em `req.user`; só voltamos ao
 // banco quando a identidade efetiva é outra (simulação).
-export const requireRoles = async (req: any, res: any, roles: readonly CanonicalRole[]) => {
+export const requireRoles = async (req: Request, res: Response, roles: readonly CanonicalRole[]): Promise<User | null> => {
   const userId = effectiveUserId(req);
   if (!userId) {
     res.status(401).json({ message: "Não autenticado" });
@@ -309,7 +324,7 @@ export const MSG_VAGA_EM_VALIDACAO = "Esta vaga está em Validação de Escala �
  * sem passagem/hospedagem (a empresa se vira), e o tipo de freela não se
  * aplica (o valor é o da empreita).
  */
-export function normalizarEmpreita(updates: Record<string, any>, atual: Record<string, any>, cenotecnica: boolean): string | null {
+export function normalizarEmpreita(updates: DadosSoltos, atual: DadosSoltos, cenotecnica: boolean): string | null {
   const chaves = ["empreitaEmpresa", "empreitaPessoas", "empreitaValor"] as const;
   const tocou = chaves.some((k) => updates[k] !== undefined);
   const limpar = () => { for (const k of chaves) updates[k] = null; };
@@ -335,10 +350,10 @@ export function normalizarEmpreita(updates: Record<string, any>, atual: Record<s
 
 /** "" → null nos campos de data que o formulário manda vazios. */
 export const CAMPOS_DE_DATA_DA_VAGA = ["scheduleStartDate", "scheduleEndDate", "actualStartDate", "actualEndDate", "flightDepartureDate", "flightReturnDate"] as const;
-export const limparDatasVazias = (raw: Record<string, any>) => {
-  const out = { ...raw };
+export const limparDatasVazias = <T extends DadosSoltos>(raw: T): T => {
+  const out: DadosSoltos = { ...raw };
   for (const k of CAMPOS_DE_DATA_DA_VAGA) if (out[k] === "") out[k] = null;
-  return out;
+  return out as T;
 };
 
 /** Responsável da função (function_managers) ou responsável legado (functions.userId). */
@@ -406,7 +421,7 @@ export const verificarColaboradorParaVaga = async (
  * (shared/vaga-status + server/vaga-guards.statusDeLogistica). Guardado pelo
  * status atual: se outra decisão chegou antes, não grava por cima.
  */
-export const recalcularStatusDeLogistica = async (inclusionId: string, ator: User, req: any): Promise<TeamInclusion | null> => {
+export const recalcularStatusDeLogistica = async (inclusionId: string, ator: User, req: Request): Promise<TeamInclusion | null> => {
   const vaga = await storage.getTeamInclusion(inclusionId);
   if (!vaga || vaga.deletedAt) return null;
   const { temPassagem, temHospedagem } = await logisticaDaVaga(inclusionId);
@@ -421,13 +436,13 @@ export const recalcularStatusDeLogistica = async (inclusionId: string, ator: Use
     });
   } catch (error) {
     // Perdeu a corrida (409): a outra decisão vale; a passagem/hospedagem já está gravada.
-    if ((error as any)?.status === 409) return null;
+    if ((error as { status?: unknown } | null)?.status === 409) return null;
     throw error;
   }
 };
 
 /** Ator da sessão para as rotas sem requireRoles (permissão decidida na própria rota). */
-export const atorDaVaga = async (req: any, res: any): Promise<User | null> => {
+export const atorDaVaga = async (req: Request, res: Response): Promise<User | null> => {
   const userId = req.session?.userId;
   if (!userId) { res.status(401).json({ message: "Usuário não autenticado" }); return null; }
   const user = usuarioDaSessao(req) ?? (await storage.getUser(userId)) ?? null;
@@ -446,7 +461,7 @@ export const atorDaVaga = async (req: any, res: any): Promise<User | null> => {
 // admin/RH (docs/seguranca-e-permissoes.md: grupo `financeiro`). A única
 // leitura que continua aberta a qualquer sessão é /api/payment-companies
 // (nomes de empresa, sem custo, usados pelo modal de evento).
-export const requireQualquerSessao = (req: any, res: any): string | null => {
+export const requireQualquerSessao = (req: Request, res: Response): string | null => {
   const userId = effectiveUserId(req);
   if (!userId) {
     res.status(401).json({ message: "Não autenticado" });
@@ -455,7 +470,7 @@ export const requireQualquerSessao = (req: any, res: any): string | null => {
   return userId;
 };
 // Sessão + papel de decisão financeira (admin/RH, aliases legados inclusos)
-export const requireFinanceUser = async (req: any, res: any) => {
+export const requireFinanceUser = async (req: Request, res: Response): Promise<User | null> => {
   const userId = requireQualquerSessao(req, res);
   if (!userId) return null;
   const user = req.user && req.user.id === userId ? req.user : await storage.getUser(userId);
@@ -467,7 +482,7 @@ export const requireFinanceUser = async (req: any, res: any) => {
 };
 // Leitura e escrita no módulo financeiro exigem papel financeiro. Os dois
 // nomes devolvem o userId (string) ou null, mantendo os call sites.
-export const requireFinSession = async (req: any, res: any): Promise<string | null> => {
+export const requireFinSession = async (req: Request, res: Response): Promise<string | null> => {
   const user = await requireFinanceUser(req, res);
   return user ? user.id : null;
 };

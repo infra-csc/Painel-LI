@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { formatDiarias } from "@/lib/utils";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,7 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -205,25 +205,6 @@ export default function GridTeamInclusionForm() {
   const draftKey = `grid-draft-save:${user?.id ?? "anon"}`;
   const autoSaveKey = `grid-auto-save:${user?.id ?? "anon"}`;
 
-  // Auto-save functionality
-  useEffect(() => {
-    if (autoSave && functionRows.length > 0) {
-      const timeoutId = setTimeout(() => {
-        const { eventId, startDate, endDate } = form.getValues();
-        localStorage.setItem(autoSaveKey, JSON.stringify({
-          functionRows,
-          dates,
-          eventId,
-          startDate,
-          endDate,
-          timestamp: Date.now()
-        }));
-      }, 2000); // Auto-save after 2 seconds of inactivity
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [functionRows, dates, autoSave, autoSaveKey]);
-
   // Função para salvar rascunho manualmente
   const saveDraft = () => {
     if (functionRows.length > 0) {
@@ -304,6 +285,26 @@ export default function GridTeamInclusionForm() {
       endDate: "",
     },
   });
+
+  // Auto-save (fica depois do useForm: lê form.getValues())
+  useEffect(() => {
+    if (autoSave && functionRows.length > 0) {
+      const timeoutId = setTimeout(() => {
+        const { eventId, startDate, endDate } = form.getValues();
+        localStorage.setItem(autoSaveKey, JSON.stringify({
+          functionRows,
+          dates,
+          eventId,
+          startDate,
+          endDate,
+          timestamp: Date.now()
+        }));
+      }, 2000); // Auto-save after 2 seconds of inactivity
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [functionRows, dates, autoSave, autoSaveKey, form]);
+
 
 
   // Evento escolhido (reativo) — habilita/desabilita o botão de criar
@@ -802,7 +803,7 @@ export default function GridTeamInclusionForm() {
       if (newRows.length > 0) {
         setFunctionRows(prev => {
           const getOriginalId = (row: FunctionRow): string => {
-            if ((row as any).originalFunctionId) return (row as any).originalFunctionId;
+            if (row.originalFunctionId) return row.originalFunctionId;
             if (row.functionId.includes('-')) {
               const parts = row.functionId.split('-');
               for (let i = 1; i <= parts.length; i++) {
@@ -814,11 +815,11 @@ export default function GridTeamInclusionForm() {
           };
 
           // IDs das funções que vieram no paste (em ordem do Excel)
-          const pastedOriginalIds = newRows.map(r => (r as any).originalFunctionId as string);
+          const pastedOriginalIds = newRows.map(r => r.originalFunctionId ?? r.functionId);
 
           // Mapa de originalId → row atualizada pelo paste
           const pastedMap = new Map<string, FunctionRow>();
-          newRows.forEach(r => pastedMap.set((r as any).originalFunctionId, r));
+          newRows.forEach(r => pastedMap.set(r.originalFunctionId ?? r.functionId, r));
 
           // Linhas que NÃO vieram no paste (mantém ao final)
           const remaining = prev.filter(r => !pastedOriginalIds.includes(getOriginalId(r)));
@@ -851,7 +852,7 @@ export default function GridTeamInclusionForm() {
           : "Verifique o formato dos dados colados.";
         toast({ title: "Nenhum dado válido", description: msg, variant: "destructive" });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Erro ao processar dados",
         description: "Verifique se os dados estão no formato correto.",
@@ -865,7 +866,7 @@ export default function GridTeamInclusionForm() {
     if (!dateStr || typeof dateStr !== 'string') {
       return 'Data inválida';
     }
-    const [year, month, day] = dateStr.split('-');
+    const [, month, day] = dateStr.split('-');
     return `${day}/${month}`;
   };
 
@@ -889,7 +890,7 @@ export default function GridTeamInclusionForm() {
       if (datesWithRates.length === 0) return;
 
       // Usar originalFunctionId se existir (linha vinda do Excel ou duplicada) ou extrair do ID
-      let originalFunctionId = (row as any).originalFunctionId || row.functionId;
+      let originalFunctionId = row.originalFunctionId || row.functionId;
       
       // Se não tem originalFunctionId, usar functionMap (O(1)) para resolver
       if (!originalFunctionId || originalFunctionId === row.functionId) {
@@ -909,14 +910,8 @@ export default function GridTeamInclusionForm() {
       const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
       // Logic: Create records when value changes from previous
-      const startDate = sortedDates[0];
-      const endDate = sortedDates[sortedDates.length - 1];
-      const numberOfDays = sortedDates.length;
       
       // Check if all values are the same
-      const allValues = sortedDates.map(date => row.dailyRates[date]);
-      const allSame = allValues.every(val => val === allValues[0]);
-      const firstValue = allValues[0];
       
       // Nova lógica: pensar em pessoas individuais
       // Determinar quantas pessoas no máximo estão trabalhando em qualquer dia

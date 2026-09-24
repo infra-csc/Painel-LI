@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { apiErrorMessage } from "@/lib/api-error";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -84,12 +85,8 @@ export default function UserRegistration() {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       reset();
     },
-    onError: (e: any) => {
-      const description =
-        e?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar." :
-        e?.status === 403 ? "Você não tem permissão para cadastrar usuários." :
-        e?.body?.message || e?.message || "Tente novamente.";
-      toast({ title: "Erro ao criar usuário", description, variant: "destructive" });
+    onError: (e: unknown) => {
+      toast({ title: "Erro ao criar usuário", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     },
   });
 

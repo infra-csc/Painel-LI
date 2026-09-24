@@ -3,7 +3,7 @@ interface SeenEntry {
   respondedSeen?: boolean;
 }
 
-type SeenState = Record<string, SeenEntry>;
+export type SeenState = Record<string, SeenEntry>;
 
 function storageKey(userId: string) {
   return `swap_seen_${userId}`;

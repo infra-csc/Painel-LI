@@ -1,10 +1,9 @@
-import { useState, useMemo, useEffect, useRef, useDeferredValue } from "react";
+import { useState, useMemo, useEffect, useRef, useDeferredValue, useCallback } from "react";
 import { cn, fixEncoding, parseBrNumber } from "@/lib/utils";
 import { formatarMoeda, avatarClasses } from "@/lib/format";
 import { agruparPor, chaveComposta } from "@/lib/indices";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -22,8 +21,7 @@ import {
   TrendingUp, TrendingDown, DollarSign,
   Calendar, MessageSquare, Info,
   ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square,
-  Send, Clock, ListChecks, Briefcase, Utensils, Car, Users,
-  AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX, Pencil, Wallet, RefreshCw
+  Send, Clock, ListChecks, Utensils, Car, AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX, Pencil, Wallet, RefreshCw
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -219,6 +217,9 @@ function SectionBlock({ title, icon: Icon, headerBg, iconColor, titleColor, subt
   );
 }
 
+/** Resumo do crédito/estorno automático no Flash devolvido pelas rotas do comparativo. */
+type FlashCreditResumo = { ok?: boolean; movements?: number; collaborators?: number; created?: number; updated?: number; removed?: number; alimentacaoCents?: number; mobilidadeCents?: number };
+
 export default function BudgetComparisonPage() {
   usePageTitle("Comparativo");
   const searchString = useSearch();
@@ -345,7 +346,7 @@ export default function BudgetComparisonPage() {
       });
       return res.json();
     },
-    onSuccess: (data: any, variables) => {
+    onSuccess: (data: { skipped?: unknown[] }, variables) => {
       const labels: Record<string, { title: string; cls: string }> = {
         aprovado: { title: "Prestação aprovada — análise formal do RH", cls: "bg-success-soft border-success/25 text-success" },
         rejeitado: { title: "Prestação recusada", cls: "bg-danger-soft border-danger/25 text-danger" },
@@ -371,10 +372,10 @@ export default function BudgetComparisonPage() {
       setActionNoteError(false);
       setSelectedItems(new Set());
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Erro ao processar a ação",
-        description: err?.body?.message || "Não foi possível concluir a ação do RH. Tente novamente.",
+        description: apiErrorMessage(err, "Não foi possível concluir a ação do RH. Tente novamente."),
         variant: "destructive",
       });
     },
@@ -395,7 +396,7 @@ export default function BudgetComparisonPage() {
       const res = await apiRequest("POST", `/api/budget-comparison/${id}/approve`, {});
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: { flashCredit?: FlashCreditResumo }) => {
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
       const fc = data?.flashCredit;
@@ -412,15 +413,15 @@ export default function BudgetComparisonPage() {
       toast({
         title: "Comparativo aprovado",
         description: n > 0
-          ? `${n} lançamento${n !== 1 ? 's' : ''} no Flash para ${pessoas} colaborador${pessoas !== 1 ? 'es' : ''} — alimentação ${fmt(fc.alimentacaoCents || 0)} · mobilidade ${fmt(fc.mobilidadeCents || 0)}.`
+          ? `${n} lançamento${n !== 1 ? 's' : ''} no Flash para ${pessoas} colaborador${pessoas !== 1 ? 'es' : ''} — alimentação ${fmt(fc?.alimentacaoCents || 0)} · mobilidade ${fmt(fc?.mobilidadeCents || 0)}.`
           : "Nenhum valor de alimentação ou mobilidade a creditar no Flash neste evento.",
         variant: "success",
       });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Erro ao aprovar o comparativo",
-        description: err?.body?.message || "Não foi possível aprovar o comparativo. Tente novamente.",
+        description: apiErrorMessage(err, "Não foi possível aprovar o comparativo. Tente novamente."),
         variant: "destructive",
       });
     },
@@ -437,7 +438,7 @@ export default function BudgetComparisonPage() {
       const res = await apiRequest("POST", `/api/budget-comparison/${id}/approve`, {});
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: { flashCredit?: FlashCreditResumo }) => {
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
       const fc = data?.flashCredit;
@@ -458,10 +459,10 @@ export default function BudgetComparisonPage() {
         variant: "success",
       });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Erro ao ressincronizar o Flash",
-        description: err?.body?.message || "Não foi possível ressincronizar. Tente novamente.",
+        description: apiErrorMessage(err, "Não foi possível ressincronizar. Tente novamente."),
         variant: "destructive",
       });
     },
@@ -479,7 +480,7 @@ export default function BudgetComparisonPage() {
       const res = await apiRequest("POST", `/api/budget-comparison/${id}/return`, { returnReason });
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: { flashReverse?: FlashCreditResumo }) => {
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
       setReopenOpen(false);
@@ -503,17 +504,17 @@ export default function BudgetComparisonPage() {
         variant: "warning",
       });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Erro ao reabrir o comparativo",
-        description: err?.body?.message || "Não foi possível reabrir o comparativo. Tente novamente.",
+        description: apiErrorMessage(err, "Não foi possível reabrir o comparativo. Tente novamente."),
         variant: "destructive",
       });
     },
   });
 
   const patchActualMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Record<string, number> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, string | number | null> }) => {
       const res = await apiRequest("PATCH", `/api/budget-actual/${id}`, data);
       return res.json();
     },
@@ -557,7 +558,7 @@ export default function BudgetComparisonPage() {
     // Envia apenas o que foi realmente editado. Recalcular tudo alterava o total em centavos
     // sem o usuário mudar nada (dailyValue é uma média arredondada — qty×dailyValue não
     // reproduz o subtotal de diárias gravado dia a dia).
-    const data: Record<string, any> = { rhAdjustNote: editForm.rhAdjustNote?.trim() || null };
+    const data: Record<string, string | number | null> = { rhAdjustNote: editForm.rhAdjustNote?.trim() || null };
     (Object.keys(parsed) as Array<keyof typeof parsed>).forEach(k => {
       if (parsed[k] !== orig[k]) data[k] = parsed[k];
     });
@@ -626,11 +627,11 @@ export default function BudgetComparisonPage() {
     functions?.forEach(f => m.set(f.id, f.name));
     return m;
   }, [functions]);
-  const getCollaboratorName = (id?: string | null) =>
-    id ? collaboratorNameById.get(id) || "-" : "-";
+  const getCollaboratorName = useCallback((id?: string | null) =>
+    id ? collaboratorNameById.get(id) || "-" : "-", [collaboratorNameById]);
 
-  const getFunctionName = (id?: string | null) =>
-    id ? functionNameById.get(id) || "-" : "-";
+  const getFunctionName = useCallback((id?: string | null) =>
+    id ? functionNameById.get(id) || "-" : "-", [functionNameById]);
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
@@ -760,8 +761,10 @@ export default function BudgetComparisonPage() {
   // (`id:totalValue` de cada prestação, inclusive filhos de divisão) — soma agregada
   // perdia edições que se cancelavam entre itens
   const lastCalcHashRef = useRef<string>("");
+  // `mutate` é estável no react-query v5; o objeto da mutation inteiro não é.
+  const { mutate: calcularComparativo, isPending: calculando } = calculateMutation;
   useEffect(() => {
-    if (!selectedEventId || isLoadingComparison || comparisonData.length === 0 || calculateMutation.isPending) return;
+    if (!selectedEventId || isLoadingComparison || comparisonData.length === 0 || calculando) return;
     const itemsSignature = comparisonData
       .flatMap(r => [r.actual, ...r.splitChildren].map(i => `${i.id}:${i.totalValue}`))
       .sort()
@@ -772,9 +775,9 @@ export default function BudgetComparisonPage() {
     lastCalcHashRef.current = hash;
     // Calcula quando ainda não existe comparativo; recalcula apenas se os actuals mudaram de fato
     if (!comparison || !isFirstObservationForEvent) {
-      calculateMutation.mutate(selectedEventId);
+      calcularComparativo(selectedEventId);
     }
-  }, [selectedEventId, comparison, isLoadingComparison, comparisonData]);
+  }, [selectedEventId, comparison, isLoadingComparison, comparisonData, calculando, calcularComparativo]);
 
   // Limpa a seleção quando busca/filtro mudam — itens selecionados podem sair da
   // lista visível. Ordenar não muda a visibilidade, então sortBy fica de fora.
@@ -801,7 +804,7 @@ export default function BudgetComparisonPage() {
       });
     }
     return data;
-  }, [comparisonData, buscaAplicada, filterFunction, filterType, statusFilter]);
+  }, [comparisonData, buscaAplicada, filterFunction, filterType, statusFilter, getCollaboratorName]);
 
   const sortedData = useMemo(() => {
     const sorted = [...filteredData];

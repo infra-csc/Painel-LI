@@ -116,6 +116,13 @@ const PASSOS: Passo[] = [
     descricao: "collaborators.address_zip (endereço, opcional)",
     sql: `ALTER TABLE collaborators ADD COLUMN IF NOT EXISTS address_zip text`,
   },
+  // 24/09 — observação opcional de quem valida a vaga na Validação de Escala,
+  // lida pelo aprovador. O `select` explícito do storage lista a coluna: sem
+  // ela, toda a listagem de vagas cai. Nula e aditiva — segura em prod.
+  {
+    descricao: "team_inclusions.validation_note (observação de quem validou a vaga)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS validation_note text`,
+  },
 ];
 
 /**

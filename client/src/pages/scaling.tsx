@@ -29,7 +29,7 @@ import { type SortConfig, type SortField } from "@/components/common/sortable-he
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { canView } from "@/lib/permissions";
+import { hasPermission } from "@/lib/role-utils";
 import { isRhOrAdmin } from "@/lib/role-utils";
 import { PastEventBanner } from "@/lib/event-lock";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -147,7 +147,7 @@ export default function Scaling() {
   const readSeen = () => {
     if (!user) return new Set<string>();
     const state = getSeenState(user.id);
-    return new Set(Object.entries(state).filter(([, v]: [string, any]) => v.pendingSeen).map(([k]) => k));
+    return new Set(Object.entries(state).filter(([, v]) => v.pendingSeen).map(([k]) => k));
   };
   const [seenSwapIds, setSeenSwapIds] = useState<Set<string>>(readSeen);
   useEffect(() => {
@@ -207,7 +207,7 @@ export default function Scaling() {
   );
 
   const queueContext = useMemo<QueueContext>(() => ({
-    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i as any),
+    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i),
     temTroca: (i) => pendingSwapByInclusion.has(i.id),
     temPedido: (i) => !!data.pendingChangeByInclusion?.get(i.id),
     bloqueioParaConfirmar: getSelectBlockReason,
@@ -266,7 +266,6 @@ export default function Scaling() {
       const podeVer = data.isAdminRole || veemTodasAsFuncoes.includes(String(user?.role ?? "")) || data.userFunctionIds.has(i.functionId);
       return podeVer && testePeriodo(i) && testeRecorte(i) && testeFuncao(i);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sugestoesRaw, data.eventById, data.isAdminRole, data.userFunctionIds, user?.role, eventosMarcados, testePeriodo, testeRecorte, testeFuncao]);
 
   // Opções de função: base com tudo aplicado menos a própria função.
@@ -493,7 +492,7 @@ export default function Scaling() {
       payload.empreitaValor = Math.round(Number(modalData.empreitaValor) * 100);
       payload.needsTicket = false;
       payload.needsAccommodation = false;
-    } else if ((inclusion as any).empreitaEmpresa) {
+    } else if (inclusion.empreitaEmpresa) {
       payload.empreitaEmpresa = null;
       payload.empreitaPessoas = null;
       payload.empreitaValor = null;
@@ -650,7 +649,7 @@ export default function Scaling() {
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
 
   // Permissão de acesso à tela — depois de todos os hooks
-  if (!canView(user, "scaling")) {
+  if (!hasPermission(user, "canAccessScreen2")) {
     return (
       <div className="rounded-xl border border-border bg-card px-8 py-12 text-center">
         <div className="flex justify-center text-muted-foreground" aria-hidden="true"><Lock className="w-7 h-7" aria-hidden="true" /></div>
@@ -671,7 +670,7 @@ export default function Scaling() {
   // números diferentes na mesma tela para o mesmo recorte.
   const resumoTopo = (() => {
     if (comPeriodo.length === 0) return "nenhuma vaga no recorte";
-    const semNome = comPeriodo.filter(i => !i.collaboratorId && !vagaComEmpreita(i as any) && i.status !== "cancelado").length;
+    const semNome = comPeriodo.filter(i => !i.collaboratorId && !vagaComEmpreita(i) && i.status !== "cancelado").length;
     const nEventos = new Set(comPeriodo.map(i => i.eventId)).size;
     return [
       `${comPeriodo.length} ${comPeriodo.length === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
@@ -725,7 +724,7 @@ export default function Scaling() {
    * o botão só aparece em vaga com nome, não confirmada e sem bloqueio.
    */
   const podeConfirmarRapido = (i: TeamInclusion) =>
-    (!!i.collaboratorId || vagaComEmpreita(i as any)) && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
+    (!!i.collaboratorId || vagaComEmpreita(i)) && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
   const confirmarRapido = async (e: React.MouseEvent, inclusion: TeamInclusion) => {
     e.stopPropagation();
     if (confirmandoId) return;
@@ -736,8 +735,8 @@ export default function Scaling() {
         collaboratorId: inclusion.collaboratorId || "",
         observations: inclusion.observations || "",
         city: isCityFromSP(inclusion.city) ? "São Paulo - SP" : (inclusion.city || ""),
-        atendimentoTipo: (inclusion as any).atendimentoTipo || null,
-        percurseiroTipo: (inclusion as any).percurseiroTipo || null,
+        atendimentoTipo: inclusion.atendimentoTipo || null,
+        percurseiroTipo: inclusion.percurseiroTipo || null,
         needsTicket: inclusion.needsTicket,
         needsAccommodation: inclusion.needsAccommodation,
       });

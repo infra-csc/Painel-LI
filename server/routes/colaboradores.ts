@@ -6,8 +6,8 @@
  */
 import type { Express } from "express";
 import { z } from "zod";
-import { storage } from "../storage";
-import { insertCollaboratorSchema } from "@shared/schema";
+import { storage, type CollaboratorPatch } from "../storage";
+import { insertCollaboratorSchema, type Collaborator, type InsertCollaborator } from "@shared/schema";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import { corrigirTextoDeNome } from "@shared/texto-nome";
 import { normalizarEndereco } from "@shared/endereco";
@@ -26,9 +26,9 @@ export function registrarColaboradores(app: Express): void {
     "addressStreet", "addressNumber", "addressComplement", "addressZip",
   ] as const;
   const PAPEIS_QUE_VEEM_DADOS_PESSOAIS: readonly CanonicalRole[] = ["admin", "purchasing", "financial"];
-  const projetarColaborador = (c: Record<string, any>, role: CanonicalRole | null) => {
+  const projetarColaborador = (c: Collaborator, role: CanonicalRole | null): Partial<Collaborator> => {
     if (role && PAPEIS_QUE_VEEM_DADOS_PESSOAIS.includes(role)) return c;
-    const copia: Record<string, any> = { ...c };
+    const copia: Partial<Collaborator> = { ...c };
     for (const campo of CAMPOS_PESSOAIS_DO_COLABORADOR) delete copia[campo];
     return copia;
   };
@@ -44,7 +44,7 @@ export function registrarColaboradores(app: Express): void {
       const collaborators = await storage.getCollaborators(eventId);
       res.set("Cache-Control", "no-store"); // dado pessoal
       res.json(collaborators.map((c) => projetarColaborador(c, role)));
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar colaboradores" });
     }
   });
@@ -54,7 +54,6 @@ export function registrarColaboradores(app: Express): void {
     // só sessão, então qualquer logado criava colaborador.
     const creator = await requireRoles(req, res, [...CADASTRO_ROLES, 'function_area']);
     if (!creator) return;
-    const creatorId = creator.id;
     try {
       // Campos de identidade que o client ainda possa enviar são descartados —
       // a identidade e o papel vêm da sessão
@@ -62,7 +61,7 @@ export function registrarColaboradores(app: Express): void {
 
       // Validar dados do colaborador
       // (não logar o corpo: contém CPF/telefone do colaborador)
-      let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
+      let collaboratorData: InsertCollaborator = insertCollaboratorSchema.parse(bodyData);
       // Nome e cidade limpos ao gravar (15/09): planilha colada com a
       // codificação trocada deixava "SILVAÂ", "GONÃALVES", espaços sobrando.
       if (typeof collaboratorData.fullName === "string") collaboratorData.fullName = corrigirTextoDeNome(collaboratorData.fullName);
@@ -207,9 +206,9 @@ export function registrarColaboradores(app: Express): void {
           documentosExistentes.add(validatedData.officialDocument);
           await storage.createCollaborator({
             ...validatedData,
-            createdBy: bulkCreator?.id ?? null,
-            createdByName: bulkCreator?.name ?? null,
-          } as any);
+            createdBy: bulkCreator.id,
+            createdByName: bulkCreator.name,
+          });
           result.successful++;
 
         } catch (error) {
@@ -240,7 +239,7 @@ export function registrarColaboradores(app: Express): void {
       // approvedBy/approvedAt são preenchidos pela sessão (abaixo), nunca pelo
       // corpo — o client mandava ISO string e o schema (timestamp) recusava com 400.
       const { approvedBy: _ab, approvedAt: _aa, ...body } = req.body ?? {};
-      const collaboratorData: any = insertCollaboratorSchema.partial().parse(body);
+      const collaboratorData: CollaboratorPatch = insertCollaboratorSchema.partial().parse(body);
       // Nome e cidade limpos ao gravar (15/09) — mesma regra do cadastro.
       if (typeof collaboratorData.fullName === "string") collaboratorData.fullName = corrigirTextoDeNome(collaboratorData.fullName);
       if (typeof collaboratorData.city === "string") collaboratorData.city = corrigirTextoDeNome(collaboratorData.city);
@@ -288,10 +287,10 @@ export function registrarColaboradores(app: Express): void {
         active: false,
         inactiveReason: reason,
         inactivatedAt: new Date(),
-      } as any);
+      });
       await createAuditLog("inactivate", "collaborator", id, updated, currentUser.id, currentUser.name, collaborator, req);
       res.json(updated);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error inactivating collaborator:", error);
       res.status(500).json({ message: "Erro ao inativar colaborador" });
     }
@@ -308,10 +307,10 @@ export function registrarColaboradores(app: Express): void {
         active: true,
         inactiveReason: null,
         inactivatedAt: null,
-      } as any);
+      });
       await createAuditLog("reactivate", "collaborator", id, updated, currentUser.id, currentUser.name, collaborator, req);
       res.json(updated);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error reactivating collaborator:", error);
       res.status(500).json({ message: "Erro ao reativar colaborador" });
     }

@@ -27,6 +27,7 @@ import {
   describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow,
 } from "./types";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
+import { ValidationNoteBlock } from "./validation-note-blocks";
 
 interface SuggestionDetailDrawerProps {
   open: boolean;
@@ -408,6 +409,12 @@ export function SuggestionDetailDrawer({
                   </section>
                 )}
 
+                {/* Observação de quem validou (dono, 24/09) — só enquanto a vaga
+                    está validada: ao voltar para validação o servidor a zera. */}
+                {row.status === SUGESTAO_STATUS.VALIDADA && (
+                  <ValidationNoteBlock id="det-obs-validacao" note={row.validationNote} at={row.validatedAt} />
+                )}
+
                 {/* Pedido pendente */}
                 {pending && (
                   <section aria-labelledby="det-pedido" className="rounded-xl border border-primary/25 bg-brand-soft/60 px-3.5 py-3 space-y-1">
@@ -514,7 +521,9 @@ export function SuggestionDetailDrawer({
                           <li key={log.id} className="ml-4">
                             <span className={cn("absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white", agora ? "bg-primary" : "bg-slate-300")} aria-hidden="true" />
                             <p className="flex flex-wrap items-center gap-1.5 text-sm text-foreground">
-                              {phrase}
+                              {/* `whitespace-pre-line`: o log de validação traz a
+                                  observação numa linha própria ("\nObservação: …"). */}
+                              <span className="whitespace-pre-line break-words">{phrase}</span>
                               {agora && <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-primary">agora</span>}
                             </p>
                             {/* Basta um dos dois lados: campo esvaziado tem "de"

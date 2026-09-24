@@ -7,7 +7,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, insertBudgetActualSchema } from "@shared/schema";
+import { budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, insertBudgetActualSchema, type InsertBudgetActual } from "@shared/schema";
 import { eq, and, ne, inArray } from "drizzle-orm";
 import { isFinanceRole } from "@shared/roles";
 import { HttpError } from "../http";
@@ -61,17 +61,11 @@ export function registrarOrcamentoRealizado(app: Express): void {
     const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
-      const data: any = insertBudgetActualSchema.parse(req.body);
       // Campos de workflow não nascem pela API — impedem "nascer aprovado"
-      delete data.rhStatus;
-      delete data.sentForReview;
-      delete data.rhActionBy;
-      delete data.rhActionAt;
-      delete data.rhAdjusted;
-      delete data.rhAdjustedFields;
-      delete data.resubmitted;
-      delete data.didNotAttend;
-      delete data.didNotAttendReason;
+      const {
+        rhStatus: _rs, sentForReview: _sfr, rhActionBy: _rab, rhActionAt: _raa, rhAdjusted: _ra,
+        rhAdjustedFields: _raf, resubmitted: _re, didNotAttend: _dna, didNotAttendReason: _dnr, ...data
+      } = insertBudgetActualSchema.parse(req.body);
       const actual = await storage.createBudgetActual({ ...data, createdBy: actorId });
       const actor = usuarioDaSessao(req);
       await createAuditLog('create', 'budget_actual', actual.id, actual, actorId, actor?.name || 'Sistema', undefined, req);
@@ -229,11 +223,11 @@ export function registrarOrcamentoRealizado(app: Express): void {
           workedDays,
           observations: `Divisão de escalação — colaborador adicional`,
           createdBy: actorId,
-        } as any).returning();
+        }).returning();
         // Pai: dias restantes + valores recalculados; guardado pelo estado (não
         // pode ter ido para análise no meio).
         const [paiAtualizado] = await tx.update(budgetActualTable)
-          .set({ workedDays: remainingDays, ...(pv ? { ...pai, totalValue: totalDaPrestacao(pai) } : {}), updatedAt: new Date(), updatedBy: actorId } as any)
+          .set({ workedDays: remainingDays, ...(pv ? { ...pai, totalValue: totalDaPrestacao(pai) } : {}), updatedAt: new Date(), updatedBy: actorId })
           .where(and(eq(budgetActualTable.id, parent.id), eq(budgetActualTable.rhStatus, parent.rhStatus), eq(budgetActualTable.sentForReview, parent.sentForReview)))
           .returning();
         if (!paiAtualizado) throw new HttpError(409, "O item original mudou de estado enquanto era dividido — recarregue e tente de novo.");
@@ -259,7 +253,7 @@ export function registrarOrcamentoRealizado(app: Express): void {
       const updated = await storage.updateBudgetActual(req.params.id, {
         didNotAttend: toggled,
         didNotAttendReason: toggled ? (reason || null) : null,
-      } as any);
+      });
       const actorId = finUser.id;
       const actor = finUser;
       await createAuditLog('update', 'budget_actual', req.params.id, updated, actorId, actor?.name || 'Sistema', item, req);
@@ -296,17 +290,11 @@ export function registrarOrcamentoRealizado(app: Express): void {
 
       // Validação + allowlist: workflow muda apenas pelas rotas dedicadas
       // (send-for-review, rh-action, toggle-not-attended)
-      const parsed: any = insertBudgetActualSchema.partial().parse(req.body);
-      delete parsed.rhStatus;
-      delete parsed.sentForReview;
-      delete parsed.rhActionBy;
-      delete parsed.rhActionAt;
-      delete parsed.rhAdjusted;
-      delete parsed.rhAdjustedFields;
-      delete parsed.resubmitted;
-      delete parsed.didNotAttend;
-      delete parsed.didNotAttendReason;
-      const updatePayload: any = { ...parsed, updatedBy: actorId };
+      const {
+        rhStatus: _rs, sentForReview: _sfr, rhActionBy: _rab, rhActionAt: _raa, rhAdjusted: _ra,
+        rhAdjustedFields: _raf, resubmitted: _re, didNotAttend: _dna, didNotAttendReason: _dnr, ...parsed
+      } = insertBudgetActualSchema.partial().parse(req.body);
+      const updatePayload: Partial<InsertBudgetActual> = { ...parsed, updatedBy: actorId };
 
       if (isRhAdmin && prev) {
         const existingFields: Record<string, {from: number; to: number; label: string}> =
@@ -314,9 +302,10 @@ export function registrarOrcamentoRealizado(app: Express): void {
 
         let changed = false;
         for (const [field, label] of Object.entries(RH_FIELDS)) {
-          const newVal = parsed[field];
+          const newVal = (parsed as Record<string, unknown>)[field];
           if (newVal === undefined) continue;
-          const prevVal = (prev as any)[field] ?? 0;
+          // Colunas inteiras da prestação (RH_FIELDS): o valor gravado é número.
+          const prevVal = ((prev as Record<string, unknown>)[field] ?? 0) as number;
           if (Number(newVal) !== Number(prevVal)) {
             existingFields[field] = { from: prevVal, to: Number(newVal), label };
             changed = true;
@@ -373,7 +362,7 @@ export function registrarOrcamentoRealizado(app: Express): void {
       const items = await storage.getBudgetActual(eventId);
       // Aprovado é terminal — reenvio só para pendente nunca enviado, devolvido ou rejeitado
       const toUpdate = itemIds?.length
-        ? items.filter((i: any) => itemIds.includes(i.id) && podeEnviarParaRevisao(i))
+        ? items.filter((i) => itemIds.includes(i.id) && podeEnviarParaRevisao(i))
         : items.filter(podeEnviarParaRevisao);
       const actor = usuarioDaSessao(req);
 

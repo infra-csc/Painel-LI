@@ -73,6 +73,12 @@ export async function getBudgetComparison(eventId: string): Promise<BudgetCompar
   return comparison;
 }
 
+/** Comparativo pelo PRÓPRIO id (as decisões aprovar/recusar/devolver recebem o id, não o evento). */
+export async function getBudgetComparisonById(id: string): Promise<BudgetComparison | undefined> {
+  const [comparison] = await db.select().from(budgetComparison).where(eq(budgetComparison.id, id));
+  return comparison;
+}
+
 export async function getAllBudgetComparisons(): Promise<BudgetComparison[]> {
   return await db.select().from(budgetComparison);
 }

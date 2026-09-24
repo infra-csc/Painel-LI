@@ -2,10 +2,10 @@ import { useRef } from "react";
 import { CheckCircle2, PencilLine, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CHANGE_REQUEST_STATUS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
+import { CHANGE_REQUEST_STATUS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import { isPostValidationInclusion } from "@shared/scaling-change-window";
 import type { ChangeRequestItem } from "./types";
-import { CanDecideBadge, PostScalingBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge, formatDateTimeBr } from "./request-badges";
+import { CanDecideBadge, PostScalingBadge, RequestStatusBadge, RequestTypeBadge, formatDateTimeBr } from "./request-badges";
 import { DiffTable, ProposedList, ReasonBlock, VagaCompleta } from "./request-detail";
 import type { TeamInclusion } from "@shared/schema";
 import { RequestChat } from "./request-chat";
@@ -42,7 +42,6 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
   const type = (r?.requestType ?? "ajuste") as ChangeRequestType;
   const isPending = r?.status === CHANGE_REQUEST_STATUS.PENDENTE;
   const showActions = !!r && isPending && r.canDecide;
-  const days = r ? daysPending(r.createdAt) : 0;
   const titleRef = useRef<HTMLHeadingElement>(null);
   // Vaga já escalada: aprovar aplica direto na escalação, não devolve à fila.
   const postScaling = isPostValidationInclusion(r?.inclusionState);

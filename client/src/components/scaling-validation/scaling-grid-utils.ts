@@ -1708,7 +1708,6 @@ export function validateGridRow(row: SuggestionGridRow): RowValidation {
   if (!hasQty) return NO_ISSUES; // linha vazia é ignorada no envio
   const errors: string[] = [];
   const warnings: string[] = [];
-  const hhmm = /^\d{2}:\d{2}$/;
   // Horário sugerido é texto livre com faixa (04/09): "8-14h", "20h+" valem.
   // Só é erro quando não tem nenhum dígito (não dá para Compras usar).
   const horarioOk = (v: string) => /[0-9]/.test(v) && v.trim().length <= 40;

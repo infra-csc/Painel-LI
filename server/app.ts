@@ -20,6 +20,7 @@ import connectPgSimple from "connect-pg-simple";
 import rateLimit from "express-rate-limit";
 import { randomUUID } from "crypto";
 import { pool } from "./db";
+import type { User } from "@shared/schema";
 import { registerRoutes } from "./routes";
 import { simulationReadOnlyGuard } from "./simulation";
 import { log } from "./vite";
@@ -37,7 +38,8 @@ import {
 declare module 'express-session' {
   interface SessionData {
     userId?: string;
-    user?: any;
+    /** Cópia do usuário sem segredos (auth-guards.semSegredos) gravada no login. */
+    user?: Omit<User, "password" | "resetToken" | "resetTokenExpiry">;
   }
 }
 
@@ -174,7 +176,9 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
     } else {
       const PgSession = connectPgSimple(session);
       store = new PgSession({
-        pool: pool as any,
+        // any: o Pool do @neondatabase/serverless não é o pg.Pool que o
+        // connect-pg-simple tipa, mas expõe a mesma interface de query.
+        pool: pool as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         tableName: 'session',
         createTableIfMissing: true,
         // Sem isso o connect-pg-simple faz UPDATE na tabela session em TODO request

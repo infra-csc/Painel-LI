@@ -151,7 +151,7 @@ export function registrarUsuarios(app: Express): void {
 
     const filteredData: Partial<typeof targetUser> = {};
     for (const field of allowedFields) {
-      if (updateData[field] !== undefined) (filteredData as any)[field] = updateData[field];
+      if (updateData[field] !== undefined) (filteredData as Record<string, unknown>)[field] = updateData[field];
     }
     if (hashedNewPassword) {
       filteredData.password = hashedNewPassword;

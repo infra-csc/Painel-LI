@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Edit, Key, Search, AlertCircle, X, UserPlus, Users,
@@ -116,8 +117,8 @@ export default function AdminUsers() {
   const roleFilter = urlState.role;
   const searchQuery = urlState.q;
   const page = urlState.pagina;
-  const setPage = (p: number | ((prev: number) => number)) =>
-    setUrlState(prev => ({ ...prev, pagina: typeof p === "function" ? p(prev.pagina) : p }));
+  const setPage = useCallback((p: number | ((prev: number) => number)) =>
+    setUrlState(prev => ({ ...prev, pagina: typeof p === "function" ? p(prev.pagina) : p })), [setUrlState]);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [resetPwdUser, setResetPwdUser] = useState<User | null>(null);
   // "delete"/"cancel" desfazem algo → tom destrutivo no ConfirmDialog; "confirm" é neutro.
@@ -141,12 +142,8 @@ export default function AdminUsers() {
   const canManageAccounts = hasPermission(user, "canManageUserAccounts");
   const SO_ADMIN = "Só administradores podem fazer isso.";
 
-  // Mensagem de erro padronizada: erro de rede/sessão nunca pode virar "lista vazia".
-  const errorText = (e: any, fallback: string) => {
-    if (e?.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
-    if (e?.status === 403) return "Você não tem permissão para executar esta ação.";
-    return e?.body?.message || e?.message || fallback;
-  };
+  // Mensagem de erro padronizada (api-error): erro de rede/sessão nunca pode virar "lista vazia".
+  const errorText = (e: unknown, fallback: string) => apiErrorMessage(e, fallback);
 
   const { data: users = [], isLoading, isError, error, refetch, isFetching } = useQuery<User[]>({
     queryKey: ["/api/users"],
@@ -156,21 +153,21 @@ export default function AdminUsers() {
   const toggleActiveMutation = useMutation({
     mutationFn: async (userId: string) => (await apiRequest("PATCH", `/api/users/${userId}/toggle-active`)).json(),
     onSuccess: () => { toast({ variant: "success", title: "Status da conta atualizado" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
-    onError: (e: any) => toast({ title: "Não foi possível alterar o status da conta", description: errorText(e, "Não foi possível alterar o status da conta."), variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Não foi possível alterar o status da conta", description: errorText(e, "Não foi possível alterar o status da conta."), variant: "destructive" }),
   });
 
   const resetPasswordMutation = useMutation({
     mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) =>
       (await apiRequest("POST", `/api/users/${userId}/reset-password`, { newPassword })).json(),
     onSuccess: () => { toast({ variant: "success", title: "Senha redefinida", description: "O usuário deverá trocá-la no próximo login." }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
-    onError: (e: any) => toast({ title: "Não foi possível redefinir a senha", description: errorText(e, "Não foi possível resetar a senha."), variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Não foi possível redefinir a senha", description: errorText(e, "Não foi possível resetar a senha."), variant: "destructive" }),
   });
 
   const approveUserMutation = useMutation({
     mutationFn: async ({ userId, status }: { userId: string; status: "approved" | "rejected" }) =>
       (await apiRequest("PATCH", `/api/users/${userId}/approval`, { status })).json(),
     onSuccess: () => { toast({ variant: "success", title: "Aprovação do usuário atualizada" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
-    onError: (e: any) => toast({ title: "Não foi possível atualizar a aprovação", description: errorText(e, "Tente novamente."), variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Não foi possível atualizar a aprovação", description: errorText(e, "Tente novamente."), variant: "destructive" }),
   });
 
   const toggleCenotecnicaMutation = useMutation({
@@ -181,7 +178,7 @@ export default function AdminUsers() {
       toast({ title: "Permissão atualizada", description: `Aprovação de cenotécnica ${label} para este usuário.` });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
-    onError: (e: any) => toast({ title: "Não foi possível alterar a permissão", description: errorText(e, "Tente novamente."), variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Não foi possível alterar a permissão", description: errorText(e, "Tente novamente."), variant: "destructive" }),
   });
 
   const handleResetPassword = (u: User) => {
@@ -270,7 +267,7 @@ export default function AdminUsers() {
   // podia ficar fora do intervalo e a tabela aparecia vazia com o rodapé cheio.
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  }, [page, totalPages, setPage]);
 
   // A checagem de permissão precisa vir DEPOIS de todos os hooks: quando ela
   // ficava antes, o primeiro render (sessão ainda carregando) não executava os
@@ -581,11 +578,11 @@ export default function AdminUsers() {
                                       <button
                                         onClick={() => toggleCenotecnicaMutation.mutate(u.id)}
                                         disabled={toggleCenotecnicaMutation.isPending}
-                                        aria-label={(u as any).canApproveCenotecnica
+                                        aria-label={u.canApproveCenotecnica
                                           ? `Remover permissão de aprovar cenotécnica de ${u.name}`
                                           : `Dar permissão de aprovar cenotécnica a ${u.name}`}
                                         className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
-                                          (u as any).canApproveCenotecnica
+                                          u.canApproveCenotecnica
                                             ? "text-primary bg-brand-soft hover:bg-brand-soft"
                                             : "text-muted-foreground hover:text-primary-hover hover:bg-brand-soft"
                                         }`}
@@ -595,7 +592,7 @@ export default function AdminUsers() {
                                       </button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      {(u as any).canApproveCenotecnica
+                                      {u.canApproveCenotecnica
                                         ? "Remover permissão: aprovar cenotécnica"
                                         : "Dar permissão: aprovar cenotécnica"}
                                     </TooltipContent>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, Clock, Lock, Undo2, X, XCircle } from "lucide-react";
+import { CheckCircle2, Lock, MessageSquareText, Undo2, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -11,11 +11,10 @@ import { cn, formatDiarias } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
 import { VagaCard, pessoasDiaDaVaga } from "@/components/scaling-validation/vaga-card";
-import { DANGER_DAYS, STALLED_DAYS, daysAwaitingApproval, pendingSeverity } from "@shared/scaling-validation-rules";
+import { ValidationNoteBlock, ValidationNoteHint } from "@/components/scaling-validation/validation-note-blocks";
+import { daysAwaitingApproval } from "@shared/scaling-validation-rules";
 import { isStaleDecisionError } from "./use-decisions";
 import { SECTION, STICKY_TD, STICKY_TH, TH } from "./tokens";
-import { toneDaSeveridade } from "./request-badges";
-import { StatusBadge } from "@/components/common/status-badge";
 import type { StalledRow as SuggestionRow, VagaDecisionKind } from "./types";
 
 interface AwaitingApprovalProps {
@@ -66,31 +65,6 @@ export function daysAwaiting(row: SuggestionRow): number {
   return daysAwaitingApproval(row);
 }
 
-function AwaitingBadge({ days }: { days: number }) {
-  const sev = pendingSeverity(days);
-  const text = days <= 0 ? "hoje" : `há ${days} ${days === 1 ? "dia" : "dias"}`;
-  // Neutro: sem tooltip, só a etiqueta cinza (mesma caixa das demais — a coluna não "pula").
-  // StatusBadge único (23/09): mesmo tom de atraso da Validação e da fila de pedidos.
-  if (sev === "ok") {
-    return <StatusBadge tone="neutral" icon={Clock}>{text}</StatusBadge>;
-  }
-  const danger = sev === "danger";
-  const explicacao = danger ? `Aguardando aprovação há ${DANGER_DAYS} dias ou mais — priorize.` : `Aguardando aprovação há ${STALLED_DAYS} dias ou mais.`;
-  // Sem tab stop (04/09): um badge só de leitura não é um controle. O leitor de
-  // tela recebe a explicação pelo texto oculto; o mouse, pelo tooltip.
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <StatusBadge tone={toneDaSeveridade(sev)} icon={Clock}>
-          {text}
-          <span className="sr-only"> — {explicacao}</span>
-        </StatusBadge>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="text-xs">{explicacao}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 const CHIP = "inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium whitespace-nowrap";
 
 function TravelCell({ row }: { row: SuggestionRow }) {
@@ -117,7 +91,11 @@ function ValidatedCell({ row, userNameById }: { row: SuggestionRow; userNameById
   // Sem nome (o GET só traz o id) o que importa é a data — nunca mostrar o UUID.
   return (
     <span className="block text-xs text-slate-600">
-      {name ? <span className="font-semibold text-slate-700">{name}</span> : <span className="text-muted-foreground">Área responsável</span>}
+      <span className="inline-flex items-center gap-1">
+        {name ? <span className="font-semibold text-slate-700">{name}</span> : <span className="text-muted-foreground">Área responsável</span>}
+        {/* Observação de quem validou (24/09): ícone com o texto no tooltip; o painel completo está no diálogo de decisão. */}
+        <ValidationNoteHint note={row.validationNote} />
+      </span>
       {when && <span className="block font-mono tabular-nums text-2xs text-muted-foreground">{when}</span>}
     </span>
   );
@@ -450,6 +428,13 @@ export function AwaitingApproval({
                           ) : <span className="text-2xs text-muted-foreground">Sem logística</span>}
                         </div>
                         {r.observations && <p className="line-clamp-2 text-2xs italic text-muted-foreground" title={r.observations}>{r.observations}</p>}
+                        {/* O que a área quis dizer ao validar — o aprovador lê ANTES de aprovar. */}
+                        {r.validationNote?.trim() && (
+                          <p className="flex items-start gap-1 text-2xs text-info">
+                            <MessageSquareText className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+                            <span className="whitespace-pre-line break-words"><span className="font-semibold">Observação da validação:</span> {r.validationNote.trim()}</span>
+                          </p>
+                        )}
                       </li>
                     );
                   })}
@@ -520,6 +505,13 @@ export function AwaitingApproval({
                 nota={decisionRow.validatedAt
                   ? `Validada por ${(decisionRow.validatedBy && userNameById?.get(decisionRow.validatedBy)) ?? "área responsável"} · ${formatDateBr(new Date(decisionRow.validatedAt))}`
                   : "A área nunca validou esta vaga."}
+              />
+              {/* Observação de quem validou (24/09) — o aprovador decide lendo o que a área quis dizer. */}
+              <ValidationNoteBlock
+                id="decisao-obs-validacao"
+                note={decisionRow.validationNote}
+                byName={decisionRow.validatedBy ? userNameById?.get(decisionRow.validatedBy) : undefined}
+                at={decisionRow.validatedAt}
               />
               <section
                 className={cn("rounded-xl border p-3 space-y-1.5", decision.kind === "reprovar" ? "border-danger/25 bg-danger-soft/60" : "border-warning/25 bg-warning-soft/60")}

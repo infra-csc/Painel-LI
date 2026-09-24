@@ -6,11 +6,11 @@
  */
 import type { Express } from "express";
 import { storage } from "../storage";
-import { db } from "../db";
+import { db, linhasDe } from "../db";
 import { budgetNotes, insertBudgetNoteSchema } from "@shared/schema";
 import { eq, and, sql as drizzleSql } from "drizzle-orm";
 import { effectiveUserId } from "../simulation";
-import { requireRoles, FINANCE_ROLES } from "./_compartilhado";
+import { requireRoles, FINANCE_ROLES, usuarioDaSessao } from "./_compartilhado";
 
 export function registrarNotasEHistorico(app: Express): void {
   // ─── Budget Notes (Chat de Auditoria) ───────────────────────────────────────
@@ -36,10 +36,10 @@ export function registrarNotasEHistorico(app: Express): void {
 
   // POST /api/budget-notes
   app.post("/api/budget-notes", async (req, res) => {
-    const userId = req.session.userId;
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(userId);
-    if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+    // Usuário REAL já carregado pelo gate global (mutação não roda em simulação).
+    const user = usuarioDaSessao(req);
+    if (!user) return res.status(401).json({ message: "Não autenticado" });
+    const userId = user.id;
     const parsed = insertBudgetNoteSchema.safeParse({
       ...req.body,
       authorId: userId,
@@ -55,8 +55,7 @@ export function registrarNotasEHistorico(app: Express): void {
           const sentCheck = await db.execute(drizzleSql`
             SELECT id FROM budget_actual WHERE planned_id = ${parsed.data.entityId} LIMIT 1`
           );
-          const rows = Array.isArray(sentCheck) ? sentCheck : (sentCheck as any).rows || [];
-          if (rows.length > 0) {
+          if (linhasDe(sentCheck).length > 0) {
             await storage.createSystemLog({
               action: 'note',
               entityType: 'budget_planned',
@@ -69,7 +68,9 @@ export function registrarNotasEHistorico(app: Express): void {
               newData: JSON.stringify({ content: parsed.data.content }),
             });
           }
-        } catch (_) {}
+        } catch {
+          // Log automático é opcional: a observação já foi gravada.
+        }
       }
 
       res.status(201).json(note);
@@ -86,7 +87,7 @@ export function registrarNotasEHistorico(app: Express): void {
     const { entityType, eventId } = req.query as Record<string, string>;
     if (!entityType || !eventId) return res.status(400).json({ message: "entityType e eventId obrigatórios" });
     try {
-      let result: any;
+      let result: unknown;
       if (entityType === "actual") {
         result = await db.execute(drizzleSql`
           SELECT bn.* FROM budget_notes bn
@@ -104,8 +105,7 @@ export function registrarNotasEHistorico(app: Express): void {
       } else {
         return res.json([]);
       }
-      const notes = Array.isArray(result) ? result : (result as any).rows || [];
-      res.json(notes);
+      res.json(linhasDe(result));
     } catch (error) {
       console.error("Error fetching event budget notes:", error);
       res.status(500).json({ message: "Erro ao buscar observações do evento" });
@@ -133,8 +133,7 @@ export function registrarNotasEHistorico(app: Express): void {
         ORDER BY created_at DESC
         LIMIT 100`
       );
-      const logs = Array.isArray(result) ? result : (result as any).rows || [];
-      res.json(logs);
+      res.json(linhasDe(result));
     } catch (error) {
       console.error("Error fetching activity logs:", error);
       res.status(500).json({ message: "Erro ao buscar histórico" });
@@ -147,7 +146,7 @@ export function registrarNotasEHistorico(app: Express): void {
     const { entityType, eventId } = req.query as Record<string, string>;
     if (!entityType || !eventId) return res.status(400).json({ message: "entityType e eventId obrigatórios" });
     try {
-      let result: any;
+      let result: unknown;
       if (entityType === "budget_planned") {
         result = await db.execute(drizzleSql`
           SELECT sl.id, sl.action, sl.entity_type, sl.entity_id, sl.entity_name,
@@ -169,8 +168,7 @@ export function registrarNotasEHistorico(app: Express): void {
       } else {
         return res.json([]);
       }
-      const logs = Array.isArray(result) ? result : (result as any).rows || [];
-      res.json(logs);
+      res.json(linhasDe(result));
     } catch (error) {
       console.error("Error fetching event activity logs:", error);
       res.status(500).json({ message: "Erro ao buscar histórico do evento" });

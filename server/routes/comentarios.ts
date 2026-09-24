@@ -44,7 +44,7 @@ export function registrarComentarios(app: Express): void {
       const { teamInclusionId } = req.params;
       const comments = await storage.getComments(teamInclusionId);
       res.json(comments);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar comentários" });
     }
   });
@@ -60,7 +60,7 @@ export function registrarComentarios(app: Express): void {
       if (!inclusion) return res.status(404).json({ message: "Inclusão não encontrada" });
       const comment = await storage.createComment({ ...parsed, userId });
       res.json(comment);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Dados inválidos" });
     }
   });
@@ -72,7 +72,7 @@ export function registrarComentarios(app: Express): void {
       const allComments = await storage.getAllComments(Number.isFinite(limit) && limit > 0 ? limit : 500);
       res.set("Cache-Control", "no-store");
       res.json(allComments);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar todos os comentários" });
     }
   });

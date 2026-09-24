@@ -1,5 +1,5 @@
 /** Auditoria geral (tabela system_logs). */
-import { eq, and, or, sql, desc, ilike, gte } from "drizzle-orm";
+import { eq, and, or, sql, desc, ilike, gte, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { systemLogs, type SystemLog, type InsertSystemLog } from "@shared/schema";
 
@@ -17,14 +17,14 @@ export async function getSystemLogs(filters?: SystemLogFilters): Promise<{ logs:
   // Auditoria 28/08: antes a tabela INTEIRA vinha para o Node e filtro/ordem/
   // página aconteciam em JS — com o log só crescendo, cada visita ao
   // Histórico ficava mais lenta. Agora WHERE/ORDER/LIMIT/COUNT são do banco.
-  const conds = [] as ReturnType<typeof eq>[];
+  const conds: SQL[] = [];
   if (filters?.entityType && filters.entityType !== "all") conds.push(eq(systemLogs.entityType, filters.entityType));
   if (filters?.action && filters.action !== "all") conds.push(eq(systemLogs.action, filters.action));
   if (filters?.userId) conds.push(eq(systemLogs.userId, filters.userId));
   if (filters?.days) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - filters.days);
-    conds.push(gte(systemLogs.createdAt, cutoffDate) as any);
+    conds.push(gte(systemLogs.createdAt, cutoffDate));
   }
   if (filters?.search) {
     const term = `%${filters.search}%`;
@@ -34,7 +34,7 @@ export async function getSystemLogs(filters?: SystemLogFilters): Promise<{ logs:
       ilike(systemLogs.details, term),
       ilike(systemLogs.action, term),
       ilike(systemLogs.entityType, term),
-    ) as any);
+    )!);
   }
   const where = conds.length > 0 ? and(...conds) : undefined;
 

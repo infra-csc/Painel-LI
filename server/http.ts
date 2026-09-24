@@ -61,8 +61,8 @@ export function asyncHandler(fn: QualquerHandler): RequestHandler {
 export function protegerRotas(app: Express): void {
   const metodos = ["get", "post", "put", "patch", "delete"] as const;
   for (const metodo of metodos) {
-    const original = (app as any)[metodo].bind(app);
-    (app as any)[metodo] = (caminho: unknown, ...handlers: unknown[]) => {
+    const original = (app[metodo] as (...args: unknown[]) => unknown).bind(app);
+    (app as unknown as Record<(typeof metodos)[number], unknown>)[metodo] = (caminho: unknown, ...handlers: unknown[]) => {
       if (handlers.length === 0) return original(caminho);
       const protegidos = handlers.map((h) => (typeof h === "function" ? asyncHandler(h as QualquerHandler) : h));
       return original(caminho, ...protegidos);
@@ -99,8 +99,12 @@ function traduzirIssue(code: string, original: string): string {
  *  - erros "conhecidos" (multer, body-parser, zod, Postgres 23503/23505 e
  *    HttpError) viram status e frase em pt-BR.
  */
-export function tratadorGlobalDeErros(err: any, req: Request, res: Response, _next: NextFunction): void {
+/** Campos que os erros "conhecidos" (multer, body-parser, http-errors, Postgres) carregam. */
+type ErroConhecido = { name?: unknown; code?: unknown; status?: unknown; type?: unknown; expose?: unknown; message?: unknown; tipoDeArquivoRecusado?: unknown };
+
+export function tratadorGlobalDeErros(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   const requestId = req.requestId ?? "-";
+  const e: ErroConhecido = (err && typeof err === "object" ? err : {}) as ErroConhecido;
   let status = 500;
   let message = "Erro interno";
   let extra: Record<string, unknown> | undefined;
@@ -112,31 +116,31 @@ export function tratadorGlobalDeErros(err: any, req: Request, res: Response, _ne
   } else if (err instanceof ZodError) {
     status = 400;
     message = mensagemDoZod(err);
-  } else if (err?.name === "MulterError") {
-    if (err.code === "LIMIT_FILE_SIZE") { status = 413; message = "Arquivo maior que o limite de 10 MB"; }
-    else if (err.code === "LIMIT_UNEXPECTED_FILE") { status = 415; message = "Arquivo não esperado neste envio"; }
-    else if (err.code === "LIMIT_FILE_COUNT") { status = 413; message = "Quantidade de arquivos acima do permitido"; }
+  } else if (e.name === "MulterError") {
+    if (e.code === "LIMIT_FILE_SIZE") { status = 413; message = "Arquivo maior que o limite de 10 MB"; }
+    else if (e.code === "LIMIT_UNEXPECTED_FILE") { status = 415; message = "Arquivo não esperado neste envio"; }
+    else if (e.code === "LIMIT_FILE_COUNT") { status = 413; message = "Quantidade de arquivos acima do permitido"; }
     else { status = 400; message = "Envio de arquivo inválido"; }
-  } else if (err?.status === 415 || err?.tipoDeArquivoRecusado) {
+  } else if (e.status === 415 || e.tipoDeArquivoRecusado) {
     // fileFilter do multer (routes.ts) marca o erro com status 415
     status = 415; message = "Tipo de arquivo não permitido";
-  } else if (err?.type === "entity.too.large") {
+  } else if (e.type === "entity.too.large") {
     status = 413; message = "Envio grande demais";
-  } else if (err?.type === "entity.parse.failed") {
+  } else if (e.type === "entity.parse.failed") {
     status = 400; message = "JSON inválido no corpo da requisição";
-  } else if (err?.type === "charset.unsupported" || err?.type === "encoding.unsupported") {
+  } else if (e.type === "charset.unsupported" || e.type === "encoding.unsupported") {
     status = 415; message = "Codificação não suportada";
-  } else if (err?.code === "23503") {
+  } else if (e.code === "23503") {
     status = 409; message = "Registro em uso por outro cadastro";
-  } else if (err?.code === "23505") {
+  } else if (e.code === "23505") {
     status = 409; message = "Já existe um registro igual";
-  } else if (typeof err?.status === "number" && err.status >= 400 && err.status < 500 && typeof err?.expose === "boolean" && err.expose) {
+  } else if (typeof e.status === "number" && e.status >= 400 && e.status < 500 && typeof e.expose === "boolean" && e.expose) {
     // http-errors (body-parser e afins) com `expose: true` são seguros de mostrar
-    status = err.status; message = "Requisição inválida";
+    status = e.status; message = "Requisição inválida";
   }
 
   const nivel = status >= 500 ? "error" : "warn";
-  console[nivel](`[Error ${requestId}] ${req.method} ${req.path} → ${status}`, status >= 500 ? err : (err?.message ?? err));
+  console[nivel](`[Error ${requestId}] ${req.method} ${req.path} → ${status}`, status >= 500 ? err : (e.message ?? err));
   if (status >= 500) log(`erro ${requestId} em ${req.method} ${req.path}`, "error");
 
   if (res.headersSent) return;

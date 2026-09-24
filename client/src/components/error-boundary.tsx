@@ -94,15 +94,20 @@ export class ErrorBoundary extends React.Component<
     this.setState({ error, componentStack: errorInfo.componentStack ?? null });
   }
 
-  /** Texto técnico pronto para copiar e mandar para o suporte. */
+  /**
+   * Texto técnico pronto para copiar e mandar para o suporte. Página, hora e
+   * a mensagem do erro vão sempre; a stack (do erro e dos componentes) só em
+   * desenvolvimento — em produção ela expõe caminhos internos e não ajuda
+   * quem só vai encaminhar o texto.
+   */
   detalheTecnico(): string {
     const { error, componentStack } = this.state;
     const linhas = [
       `Página: ${window.location.pathname}${window.location.search}`,
       `Quando: ${new Date().toISOString()}`,
       `Erro: ${error?.name ?? "Error"}: ${error?.message ?? "(sem mensagem)"}`,
-      error?.stack ? `Stack:\n${error.stack.split("\n").slice(0, 8).join("\n")}` : null,
-      componentStack ? `Componentes:\n${componentStack.split("\n").filter(Boolean).slice(0, 8).join("\n")}` : null,
+      import.meta.env.DEV && error?.stack ? `Stack:\n${error.stack.split("\n").slice(0, 8).join("\n")}` : null,
+      import.meta.env.DEV && componentStack ? `Componentes:\n${componentStack.split("\n").filter(Boolean).slice(0, 8).join("\n")}` : null,
     ].filter(Boolean);
     return linhas.join("\n");
   }

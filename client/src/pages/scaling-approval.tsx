@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 import { useQuery } from "@tanstack/react-query";
 import { formatDateRange } from "@/lib/dates";
 import { useLocation, useSearch } from "wouter";
-import { CalendarDays, CheckCircle2, CheckSquare, Clock, EyeOff, Inbox, Search, ShieldCheck, Square } from "lucide-react";
+import { CalendarDays, CheckCircle2, CheckSquare, EyeOff, Inbox, Search, ShieldCheck, Square } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,7 @@ import {
   ALL_EVENTS_ROW_LIMIT,
   CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_LABELS, CHANGE_REQUEST_STATUS_VALUES,
   STALLED_DAYS, SUGESTAO_STATUS, daysPending,
-  pendingSeverity, type ChangeRequestType,
+  type ChangeRequestType,
 } from "@shared/scaling-validation-rules";
 import { SUGGESTIONS_QUERY_KEY, type ApiError, type FunctionWithManagers } from "@/components/scaling-validation/types";
 import { APPROVAL_QUERY_KEYS, type ChangeRequestItem, type ReviewBody, type StalledRow } from "@/components/scaling-approval/types";
@@ -325,12 +325,6 @@ export default function ScalingApprovalPage() {
    * `validatedAt` — sem isto uma vaga validada nunca alertava ninguém.
    * Conta só as SUAS: é o alerta do tile "aguardando sua aprovação".
    */
-  const stalledAwaiting = useMemo(() => {
-    const days = awaitingMine.map(daysAwaiting).filter((d) => d >= STALLED_DAYS);
-    const worst = days.length ? Math.max(...days) : 0;
-    return { count: days.length, worst, severity: pendingSeverity(worst) };
-  }, [awaitingMine]);
-
   /**
    * Aba padrão: com vagas aguardando aprovação, é ali que o aprovador precisa
    * estar. Roda uma vez por evento e só enquanto o usuário não escolheu aba.
@@ -410,7 +404,6 @@ export default function ScalingApprovalPage() {
     setStatusFilter(CHANGE_REQUEST_STATUS.PENDENTE);
     setTypeFilter(q === "pendentes" ? ALL : q);
   };
-  const toggleLate = () => { switchTab("fila"); setStatusFilter(CHANGE_REQUEST_STATUS.PENDENTE); setLateOnly((v) => !v); };
 
   // ── Deep-link ?request= ──
   // Link de pedido manda para a Fila: o padrão automático da aba "aguardando
@@ -450,7 +443,7 @@ export default function ScalingApprovalPage() {
       restaurarStatusDoDeepLink();
     }
     finish();
-  }, [deepLinkId, canAccess, pendingQuery.isLoading, pendingItems, statusFilter, listQuery.isLoading, items, eventId, setLocation, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deepLinkId, canAccess, pendingQuery.isLoading, pendingItems, statusFilter, listQuery.isLoading, items, eventId, setLocation, toast]);
 
   // ── Decisões ──
   const closeAll = () => { dispatch({ type: "close" }); restaurarStatusDoDeepLink(); };

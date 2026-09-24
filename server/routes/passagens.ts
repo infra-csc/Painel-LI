@@ -29,7 +29,7 @@ export function registrarPassagens(app: Express): void {
       const tickets = await storage.getTickets(eventId);
       res.set("Cache-Control", "no-store"); // dados do passageiro
       res.json(tickets);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar passagens" });
     }
   });

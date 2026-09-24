@@ -47,7 +47,7 @@ export async function getUsersByStatus(status: 'pending' | 'approved' | 'rejecte
 }
 
 export async function approveUser(id: string, status: 'approved' | 'rejected', role?: string): Promise<User | undefined> {
-  const updateData: any = { status };
+  const updateData: Partial<User> = { status };
   if (role) updateData.role = role;
 
   const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();

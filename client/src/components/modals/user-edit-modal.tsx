@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -113,12 +114,8 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
       toast({ variant: "success", title: "Usuário atualizado" });
       onClose();
     },
-    onError: (err: any) => {
-      // err.message vem como "403: {...json…}" — o texto legível está em err.body.message.
-      const description =
-        err?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar." :
-        err?.body?.message || "Erro ao atualizar usuário";
-      toast({ title: "Não foi possível atualizar o usuário", description, variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível atualizar o usuário", description: apiErrorMessage(err, "Erro ao atualizar usuário"), variant: "destructive" });
     },
   });
 

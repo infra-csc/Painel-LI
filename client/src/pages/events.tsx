@@ -1,3 +1,4 @@
+import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { useState, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -456,6 +457,8 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+/** Um select de filtro da barra (valor, setter, opções [valor, rótulo]). */
+type SelectDeFiltro = { val: string; set: (v: string) => void; opts: string[][]; test?: string; label: string };
 export default function Events() {
   // Excluir evento: só administrador (dono, 18/09). Os demais só reativam.
   const { user } = useAuth();
@@ -488,10 +491,10 @@ export default function Events() {
   // e as sugestões são descontadas abaixo.
   const { data: inclusions }        = useQuery<TeamInclusion[]>(listaDeVagasQuery(recorteDaListaDeVagas({ user })));
 
-  const loadErrorMsg = (err: any) =>
-    err?.status === 401 ? "Sua sessão expirou. Entre novamente para ver os eventos."
-    : err?.status === 403 ? "Você não tem permissão para ver os eventos."
-    : err?.body?.message || "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.";
+  const loadErrorMsg = (err: unknown) =>
+    apiErrorStatus(err) === 401 ? "Sua sessão expirou. Entre novamente para ver os eventos."
+    : apiErrorStatus(err) === 403 ? "Você não tem permissão para ver os eventos."
+    : apiErrorMessage(err, "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.");
 
   const escalacoes = useMemo(() => {
     const map: Record<string, number> = {};
@@ -540,7 +543,7 @@ export default function Events() {
       });
     } else {
       list.sort((a, b) => {
-        let va: any, vb: any;
+        let va: string | number, vb: string | number;
         if (sortKey === "eventNumber") { va = a.eventNumber ?? 0; vb = b.eventNumber ?? 0; }
         else if (sortKey === "name")   { va = a.name;              vb = b.name;             }
         else if (sortKey === "period") { va = a.startDate;         vb = b.startDate;        }
@@ -558,20 +561,17 @@ export default function Events() {
     await qc.invalidateQueries({ queryKey: ["/api/events?includeDeleted=true"] });
   };
 
-  const mutationErrorMsg = (err: any, fallback: string) =>
-    err?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar."
-    : err?.status === 403 ? "Você não tem permissão para esta ação."
-    : err?.body?.message || fallback;
+  const mutationErrorMsg = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
 
   const deleteMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento marcado como excluído." }); },
-    onError: (err: any) => toast({ title: "Erro ao excluir", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao excluir", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const restoreMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "planejado" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento restaurado." }); },
-    onError: (err: any) => toast({ title: "Erro ao restaurar", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao restaurar", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const isMutating = deleteMutation.isPending || restoreMutation.isPending;
 
@@ -683,9 +683,9 @@ export default function Events() {
               { val: yearFilter, set: setYearFilter,
                 opts: [["all","Todos os anos"], ...availableYears.map(y => [String(y), String(y)])],
                 test: undefined, label: "Filtrar por ano" },
-            ] as any[]).map((s, i) => (
+            ] satisfies SelectDeFiltro[]).map((s, i) => (
               <select key={i} value={s.val} onChange={e => s.set(e.target.value)} data-testid={s.test} aria-label={s.label} className={SELECT_CLASS}>
-                {s.opts.map(([v, l]: [string, string]) => <option key={v} value={v}>{l}</option>)}
+                {s.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             ))}
 

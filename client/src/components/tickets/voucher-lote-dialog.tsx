@@ -57,7 +57,7 @@ export default function VoucherLoteDialog({
   onRegistrar: (inclusion: TeamInclusion, form: TicketFormValues) => Promise<void>;
   registrando: boolean;
   /** Passagem já gravada da vaga, no formato do formulário — para completar ida/volta. */
-  getPassagemAtual?: (inclusionId: string) => Record<string, any> | null;
+  getPassagemAtual?: (inclusionId: string) => TicketFormValues | null;
 }) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -143,11 +143,11 @@ export default function VoucherLoteDialog({
       const vaga = vagaById.get(vagaId);
       if (!vaga) continue;
       const gravada = getPassagemAtual?.(vagaId) ?? null;
-      let form: Record<string, any> | null = null;
+      let form: TicketFormValues | null = null;
       const resumos: string[] = [];
       for (const i of indices) {
         const linha = atualizadas[i];
-        const base: Record<string, any> | null = form ?? gravada;
+        const base: TicketFormValues | null = form ?? gravada;
         const junto: IdaEVoltaJuntas | null = base ? juntarIdaEVolta(base, { campos: linha.campos, trechoUnico: linha.trechoUnico }) : null;
         if (junto) {
           form = { ...base, ...junto.campos };

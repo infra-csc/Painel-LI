@@ -78,13 +78,11 @@ import {
   diffInclusion,
   daysPending,
   canValidateInclusion,
-  canApproveRequest,
   canApproveInFunction,
   DEFAULT_APPROVER_SETTING_KEY,
   ALL_EVENTS_ROW_LIMIT,
   requestStatusForAction,
   isRealYmd,
-  isValidHhmm,
   VAGA_STATE_CHANGED_MSG,
   PROPOSED_FIELD_LABELS,
   type ProposedChanges,
@@ -110,30 +108,29 @@ import { effectiveUserId } from "./simulation";
 
 // ── Dependências injetadas por routes.ts (evita import circular) ─────────────
 export interface ScalingValidationDeps {
-  requireRoles: (req: any, res: any, roles: readonly CanonicalRole[]) => Promise<User | null>;
+  requireRoles: (req: Request, res: Response, roles: readonly CanonicalRole[]) => Promise<User | null>;
   createAuditLog: (
     action: string,
     entityType: string,
     entityId: string,
-    entityData: any,
+    entityData: unknown,
     userId?: string,
     userName?: string,
-    oldData?: any,
-    req?: any,
+    oldData?: unknown,
+    req?: Request,
   ) => Promise<void>;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
-// Formato E existência real da data/horário (o mesmo refine do shared —
-// "2027-02-29" / "24:00" passam no regex mas não existem no calendário/relógio).
+// Formato E existência real da data (o mesmo refine do shared — "2027-02-29"
+// passa no regex mas não existe no calendário). Os horários usam
+// `horarioSugeridoSchema` do shared.
 const ymd = z.string().regex(YMD, "Data inválida (use AAAA-MM-DD)").refine(isRealYmd, "Data inexistente");
-const hhmm = z.string().regex(/^\d{2}:\d{2}$/, "Horário inválido (use HH:MM)")
-  .refine(isValidHhmm, "Horário inexistente (use HH:MM entre 00:00 e 23:59)");
 
 /** "" → null nos campos de data/hora (mesmo tratamento do /bulk histórico). */
-function blankToNull<T extends Record<string, any>>(obj: T, keys: string[]): T {
-  const out: Record<string, any> = { ...obj };
+function blankToNull<T extends Record<string, unknown>>(obj: T, keys: string[]): T {
+  const out: Record<string, unknown> = { ...obj };
   for (const k of keys) if (out[k] === "") out[k] = null;
   return out as T;
 }
@@ -179,7 +176,7 @@ async function getActor(req: Request, res: Response): Promise<User | null> {
   // Usuário EFETIVO (server/simulation.ts): no modo "Ver como usuário" os GETs
   // respondem como o usuário simulado — a fila que ele aprova, as funções que
   // valida. As mutações nem chegam aqui (guard global de somente leitura).
-  const userId = effectiveUserId(req as any);
+  const userId = effectiveUserId(req);
   if (!userId) { res.status(401).json({ message: "Não autenticado" }); return null; }
   const user = await storage.getUser(userId);
   if (!user) { res.status(401).json({ message: "Usuário não encontrado" }); return null; }
@@ -473,6 +470,21 @@ function detailsWithComment(detail: string, comment: string | null): string {
   return comment ? `${detail}${LOG_COMMENT_MARK}${comment}` : detail;
 }
 
+/** Texto fixo do log de validação pela área. */
+export const VALIDATION_LOG_DETAIL = "Vaga validada pela área — segue para aprovação do aprovador";
+/** Prefixo da linha da observação no `details` do log de validação (24/09). */
+export const VALIDATION_NOTE_LOG_PREFIX = "\nObservação: ";
+
+/**
+ * `details` do log `suggestion_validated`: texto fixo + "\nObservação: <texto>"
+ * quando quem validou deixou uma observação. Linha própria (não a marca
+ * ". Comentário: " do aprovador) porque é OUTRA pessoa falando — o Histórico
+ * da vaga mostra as duas sem confundir.
+ */
+export function validationDetails(validationNote: string | null): string {
+  return validationNote ? `${VALIDATION_LOG_DETAIL}${VALIDATION_NOTE_LOG_PREFIX}${validationNote}` : VALIDATION_LOG_DETAIL;
+}
+
 /** Volta do `details` só o comentário do aprovador (null quando não há). */
 export function commentFromLogDetails(details: string | null | undefined): string | null {
   if (!details) return null;
@@ -615,6 +627,19 @@ const idsArray = z.array(z.string().min(1))
 
 const idsSchema = z.object({ inclusionIds: idsArray });
 
+/**
+ * Observação opcional de quem valida (dono, 24/09): um texto só, para TODO o
+ * lote — é assim que o botão "Validar (N)" funciona. Vazio/só espaços vira
+ * null; o teto evita um payload sem fim no `details` do log e na coluna.
+ */
+const VALIDATION_NOTE_MAX = 1000;
+const validateSchema = idsSchema.extend({
+  validationNote: z.string()
+    .trim()
+    .max(VALIDATION_NOTE_MAX, `A observação da validação pode ter no máximo ${VALIDATION_NOTE_MAX} caracteres`)
+    .nullish(),
+});
+
 /** Comentários livres: teto generoso para o texto humano, sem aceitar um payload sem fim. */
 const COMMENT_MAX = 2000;
 const COMMENT_MAX_MSG = "Comentário pode ter no máximo 2000 caracteres";
@@ -652,7 +677,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     try {
       const parsed = bulkSuggestionSchema.safeParse({
         ...req.body,
-        rows: Array.isArray(req.body?.rows) ? req.body.rows.map((r: any) => blankToNull(r ?? {}, DATE_KEYS)) : req.body?.rows,
+        rows: Array.isArray(req.body?.rows) ? req.body.rows.map((r: Record<string, unknown> | null) => blankToNull(r ?? {}, DATE_KEYS)) : req.body?.rows,
       });
       if (!parsed.success) {
         return res.status(400).json({ message: "Dados inválidos na escala sugerida", errors: parsed.error.flatten() });
@@ -941,11 +966,21 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   // POST /api/scaling-suggestions/validate — validador da função (ou admin)
   // valida vagas em lote. A validação é o PRIMEIRO passo: a vaga vai para
   // 'sugestao_validada' e fica AGUARDANDO O APROVADOR (PATCH /:id/aprovar).
+  // Corpo: { inclusionIds: string[], validationNote?: string } — a observação
+  // (opcional, ≤ 1000 caracteres) vale para todas as vagas do lote e fica em
+  // `team_inclusions.validation_note`, visível ao aprovador nas listas.
   app.post("/api/scaling-suggestions/validate", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
-    const parsed = idsSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
+    const parsed = validateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      // A observação longa demais merece a mensagem dela (o client mostra
+      // `message`); os demais erros de forma continuam em `errors`.
+      const noteIssue = parsed.error.issues.find((i) => i.path[0] === "validationNote");
+      return res.status(400).json({ message: noteIssue?.message ?? "Dados inválidos", errors: parsed.error.flatten() });
+    }
+    // Só espaços → null: observação vazia não existe.
+    const validationNote = parsed.data.validationNote?.trim() || null;
     try {
       const admin = isAdmin(actor);
       const ok: string[] = [];
@@ -986,12 +1021,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const next = rule(() => nextSuggestionState({ phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE }, "validar"));
         updated = await storage.validateScalingSuggestionsBatch(
           candidates.map((c) => c.id),
-          { phase: next.phase, status: next.status, validatedAt: now, validatedBy: actor.id, updatedBy: actor.id },
+          { phase: next.phase, status: next.status, validatedAt: now, validatedBy: actor.id, validationNote, updatedBy: actor.id },
           { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE },
           (row) => ({
             teamInclusionId: row.id,
             action: "suggestion_validated",
-            details: "Vaga validada pela área — segue para aprovação do aprovador",
+            details: validationDetails(validationNote),
             previousValue: `${SUGESTAO_PHASE}/${SUGESTAO_STATUS.PENDENTE}`,
             newValue: stateLabel(row),
             userId: actor.id,
@@ -1096,9 +1131,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     // aprovador, que não é da área.
     if (kind === "devolver" || kind === "reprovar") {
       patch.suggestionSentAt = now;
-      // Volta a ser vaga "não validada": a área revalida do zero.
+      // Volta a ser vaga "não validada": a área revalida do zero — inclusive a
+      // observação, que era desta validação e não vale para a próxima.
       patch.validatedAt = null;
       patch.validatedBy = null;
+      patch.validationNote = null;
     }
     return patch;
   }
@@ -1567,7 +1604,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         return res.status(400).json({ message: parsedComment.error.issues[0]?.message ?? "Dados inválidos" });
       }
       const comment = parsedComment.data.comment?.trim() || null;
-      const proposed = rule(() => parseProposedChanges(request.proposedChanges, request.requestType as any));
+      const proposed = rule(() => parseProposedChanges(request.proposedChanges, request.requestType as ChangeRequestType));
       const now = new Date();
       let inclusionResult: TeamInclusion | TeamInclusion[] | null = null;
       const requestUpdates = {
@@ -1600,7 +1637,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const patch: Partial<InsertTeamInclusion> = postScaling
           ? { ...proposedToPatch(proposed), updatedBy: actor.id }
           : (() => {
-              const next = rule(() => nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as any }));
+              const next = rule(() => nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as ChangeRequestType }));
               return isAjuste
                 ? {
                     ...proposedToPatch(proposed),
@@ -1748,7 +1785,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
                 // Reenvio para validação: a vaga volta a sugestao_pendente e o
                 // contador de atraso REINICIA (suggestionSentAt = agora, mesmo
                 // instante do reviewedAt — o GET usa isso para casar a decisão).
+                // A observação de uma validação anterior (vaga validada → pedido
+                // → reenvio) não vale para a nova rodada.
                 p.suggestionSentAt = now;
+                p.validationNote = null;
               }
               return p;
             })();

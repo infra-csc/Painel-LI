@@ -6,10 +6,11 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { invoices as invoicesTable, insertInvoiceSchema } from "@shared/schema";
+import { invoices as invoicesTable, insertInvoiceSchema, type Invoice } from "@shared/schema";
 import { eq, and, isNull, sql as drizzleSql } from "drizzle-orm";
+import { ZodError } from "zod";
 import { isNfEligible, podeAprovarNota, podeDevolverNota, podeFazerCheckin } from "@shared/prestacao-rules";
-import { createAuditLog, requireRoles, FINANCE_ROLES, requireFinanceUser } from "./_compartilhado";
+import { createAuditLog, ehViolacaoDeUnicidade, requireRoles, FINANCE_ROLES, requireFinanceUser } from "./_compartilhado";
 
 export function registrarNotasFiscais(app: Express): void {
   // ── Invoices (Notas Fiscais) ──────────────────────────────────────────────
@@ -35,7 +36,7 @@ export function registrarNotasFiscais(app: Express): void {
    * uma entrada e gravavam status por cima. 0 linhas → 409.
    */
   const decidirNota = async (
-    invoiceId: string, statusEsperado: string, patch: Record<string, unknown>, evento: Record<string, unknown>,
+    invoiceId: string, statusEsperado: string, patch: Partial<Invoice>, evento: Record<string, unknown>,
   ) => {
     const entrada = JSON.stringify([{ ...evento, at: new Date().toISOString() }]);
     const [row] = await db.update(invoicesTable)
@@ -43,15 +44,15 @@ export function registrarNotasFiscais(app: Express): void {
         ...patch,
         updatedAt: new Date(),
         history: drizzleSql`(COALESCE(NULLIF(${invoicesTable.history}, ''), '[]')::jsonb || ${entrada}::jsonb)::text`,
-      } as any)
+      })
       .where(and(eq(invoicesTable.id, invoiceId), eq(invoicesTable.status, statusEsperado)))
       .returning();
     return row;
   };
   // Reenvio pelo PATCH (status devolvida/enviada → enviada) usa o mesmo append.
-  async function appendHistory(invoiceId: string, event: Record<string, any>): Promise<string> {
+  async function appendHistory(invoiceId: string, event: Record<string, unknown>): Promise<string> {
     const existing = await storage.getInvoice(invoiceId);
-    let arr: any[] = [];
+    let arr: unknown[] = [];
     try { arr = JSON.parse(existing?.history || "[]"); } catch { arr = []; }
     arr.push({ ...event, at: new Date().toISOString() });
     return JSON.stringify(arr);
@@ -90,15 +91,11 @@ export function registrarNotasFiscais(app: Express): void {
   app.post("/api/invoices", async (req, res) => {
     if (!await requireRoles(req, res, FINANCE_ROLES)) return;
     try {
-      const data: any = insertInvoiceSchema.parse(req.body);
+      // NF não nasce aprovada/paga — envio sempre começa o fluxo
+      const { approvedAt: _ap, checkinAt: _ca, checkinBy: _cb, paymentDate: _pd, ...data } = insertInvoiceSchema.parse(req.body);
       if (anexoDaNotaInvalido(data.attachmentUrl)) {
         return res.status(400).json({ message: "Anexo da nota inválido: use um arquivo enviado pelo sistema." });
       }
-      // NF não nasce aprovada/paga — envio sempre começa o fluxo
-      delete data.approvedAt;
-      delete data.checkinAt;
-      delete data.checkinBy;
-      delete data.paymentDate;
       if (data.status && data.status !== "enviada" && data.status !== "pendente") {
         data.status = "enviada";
       }
@@ -130,11 +127,11 @@ export function registrarNotasFiscais(app: Express): void {
       // substitui a regra de 17/08 que creditava aqui pelo número da OC). O
       // crédito acontece na aprovação do comparativo (server/flash-credit.ts).
       res.json(invoice);
-    } catch (error: any) {
-      if (error?.name === 'ZodError') {
+    } catch (error) {
+      if (error instanceof ZodError) {
         return res.status(400).json({ message: "Dados da nota inválidos. Verifique OC e anexo." });
       }
-      if (error?.code === '23505') {
+      if (ehViolacaoDeUnicidade(error)) {
         return res.status(409).json({ message: "Já existe uma nota fiscal para este item." });
       }
       console.error("Error creating invoice:", error);
@@ -162,8 +159,8 @@ export function registrarNotasFiscais(app: Express): void {
       // Allowlist: este PATCH serve ao envio/reenvio pelo colaborador.
       // Aprovar/devolver/recusar/check-in têm rotas dedicadas com papel —
       // antes qualquer logado aprovava a própria NF por aqui (IDOR).
-      const body: any = {};
-      for (const k of ["oc", "attachmentUrl", "attachmentName", "paymentText"]) {
+      const body: Partial<Invoice> = {};
+      for (const k of ["oc", "attachmentUrl", "attachmentName", "paymentText"] as const) {
         if (k in req.body) body[k] = req.body[k];
       }
       if (req.body.status !== undefined) {
@@ -295,7 +292,7 @@ export function registrarNotasFiscais(app: Express): void {
           paymentDate,
           updatedAt: new Date(),
           history: drizzleSql`(COALESCE(NULLIF(${invoicesTable.history}, ''), '[]')::jsonb || ${JSON.stringify([{ type: "checkin", paymentDate, at: new Date().toISOString() }])}::jsonb)::text`,
-        } as any)
+        })
         .where(and(eq(invoicesTable.id, req.params.id), eq(invoicesTable.status, "aprovada"), isNull(invoicesTable.checkinAt)))
         .returning();
       if (!invoice) return res.status(409).json({ message: "Esta nota já teve check-in ou mudou de status — recarregue a lista." });

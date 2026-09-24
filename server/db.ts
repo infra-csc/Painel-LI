@@ -141,3 +141,15 @@ const conexao: Conexao = MODO_PGLITE
 
 export const pool: Pool = conexao.pool;
 export const db: NeonDatabase<typeof schema> = conexao.db;
+
+/**
+ * Linhas de um `db.execute(sql`…`)` cru, com o tipo da linha que o SELECT
+ * devolve (snake_case, como o SQL escreve). Os dois drivers (Neon e PGlite)
+ * devolvem `{ rows }`; o fallback para array cobre um driver que devolva as
+ * linhas direto. Quem chama declara o tipo — o SQL é a fonte da verdade.
+ */
+export function linhasDe<T extends object = Record<string, unknown>>(resultado: unknown): T[] {
+  if (Array.isArray(resultado)) return resultado as T[];
+  const rows = (resultado as { rows?: unknown } | null | undefined)?.rows;
+  return (Array.isArray(rows) ? rows : []) as T[];
+}

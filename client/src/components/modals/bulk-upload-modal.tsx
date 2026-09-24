@@ -185,7 +185,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
         description: `${result.successful} colaborador${result.successful === 1 ? "" : "es"} importado${result.successful === 1 ? "" : "s"}${result.failed ? `, ${result.failed} com erro` : ""}.`,
       });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({ title: "Erro na importação", description: apiErrorMessage(err, "Ocorreu um erro durante a importação dos colaboradores."), variant: "destructive" });
     },
   });

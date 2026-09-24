@@ -426,7 +426,7 @@ export default function ScalingTable({
               const cancelada = inclusion.status === "cancelado";
               const eventoTravado = isEventLocked?.(inclusion) ?? false;
               const podeGerir = canManageFunction(inclusion.functionId) && !readOnly && !eventoTravado;
-              const empreita = vagaComEmpreita(inclusion as any);
+              const empreita = vagaComEmpreita(inclusion);
               const vazia = !inclusion.collaboratorId && !empreita && !cancelada;
               const needs = needsDaLinha(inclusion, {
                 ticket, funcao,
@@ -493,13 +493,13 @@ export default function ScalingTable({
                   <td className="px-3.5 min-w-0">
                     {empreita ? (
                       <>
-                        <div className="text-sm font-medium text-foreground break-words" title={rotuloEmpreita(inclusion as any)}>
+                        <div className="text-sm font-medium text-foreground break-words" title={rotuloEmpreita(inclusion)}>
                           <StatusBadge tone="info" className="mr-1.5 uppercase tracking-wide">Empreita</StatusBadge>
-                          {(inclusion as any).empreitaEmpresa}
+                          {inclusion.empreitaEmpresa}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {(inclusion as any).empreitaPessoas ?? 0} {Number((inclusion as any).empreitaPessoas) === 1 ? "pessoa" : "pessoas"}
-                          {(inclusion as any).empreitaValor != null ? ` · ${(Number((inclusion as any).empreitaValor) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}` : ""}
+                          {inclusion.empreitaPessoas ?? 0} {Number(inclusion.empreitaPessoas) === 1 ? "pessoa" : "pessoas"}
+                          {inclusion.empreitaValor != null ? ` · ${(Number(inclusion.empreitaValor) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}` : ""}
                         </div>
                       </>
                     ) : inclusion.collaboratorId ? (

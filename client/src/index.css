@@ -73,6 +73,9 @@
   --spacing: 0.25rem;
 }
 
+/* Tema escuro desligado no app (24/09): o ThemeProvider e o toggle foram
+   removidos; nada adiciona `.dark` ao <html>. O bloco fica só como tabela de
+   tokens, para um eventual retorno do tema — não é lido em produção. */
 .dark {
   --background: hsl(0, 0%, 0%);
   --foreground: hsl(200, 6.6667%, 91.1765%);

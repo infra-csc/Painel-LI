@@ -4,7 +4,7 @@
  * Autenticação: Bearer MARATONA_API_TOKEN (fora do gate de sessão). Entrega
  * colaboradores, eventos e participações com ids estáveis para a Maratona.
  */
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { storage, normalizarDataIso } from "../storage";
 import { safeTokenEqual } from "./_compartilhado";
 
@@ -14,7 +14,7 @@ export function registrarIntegracaoMaratona(app: Express): void {
   // Autenticação: Authorization: Bearer <MARATONA_API_TOKEN>
   // Os externalId são os IDs estáveis (uuid) das tabelas, garantindo que a
   // Maratona reconheça e atualize registros em vez de duplicar.
-  const validateMaratonaToken = (req: any, res: any): boolean => {
+  const validateMaratonaToken = (req: Request, res: Response): boolean => {
     const authHeader = req.headers["authorization"] as string | undefined;
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     const secret = process.env.MARATONA_API_TOKEN;

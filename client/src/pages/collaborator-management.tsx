@@ -1,3 +1,4 @@
+import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { useState, useMemo } from "react";
 import { enderecoEmUmaLinha } from "@shared/endereco";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -18,7 +19,6 @@ import { useAuth } from "@/hooks/use-auth";
 import CollaboratorModal, { validateCPF } from "@/components/modals/collaborator-modal";
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
-import { normalizeRole } from "@shared/roles";
 import { hasPermission, hasRole } from "@/lib/role-utils";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { PageHeader } from "@/components/common/page-header";
@@ -159,7 +159,7 @@ export default function CollaboratorManagement() {
     mutationFn: async ({ id, status, approvalNotes, cpf, rg }: { id: string; status: string; approvalNotes?: string; cpf?: string; rg?: string }) => {
       // approvedAt/approvedBy vão sempre que o status muda (o servidor também
       // os preenche pela sessão — aqui é só para o cache local ficar coerente).
-      const payload: any = { status, approvedAt: new Date().toISOString(), approvedBy: user?.id ?? null };
+      const payload: Record<string, string | null> = { status, approvedAt: new Date().toISOString(), approvedBy: user?.id ?? null };
       if (approvalNotes) payload.approvalNotes = approvalNotes;
       if (cpf) { payload.officialDocument = cpf; payload.documentType = "cpf"; if (rg) { payload.secondaryDocument = rg; payload.secondaryDocumentType = "rg"; } }
       else if (rg) { payload.officialDocument = rg; payload.documentType = "rg"; }
@@ -171,23 +171,11 @@ export default function CollaboratorManagement() {
       setShowDetailsModal(false); setShowApprovalModal(false);
       setApprovalNotes(""); setEditCpf(""); setEditRg("");
     },
-    onError: (err: any) => toast({ title: "Erro ao atualizar colaborador", description: parseErr(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao atualizar colaborador", description: parseErr(err, "Tente novamente."), variant: "destructive" }),
   });
 
-  // apiRequest já entrega o corpo do erro em err.body — só cai no parse manual
-  // quando o servidor devolve algo fora do padrão.
-  const parseErr = (err: any, fallback: string) => {
-    if (err?.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
-    if (err?.status === 403) return "Você não tem permissão para esta ação.";
-    if (err?.body?.message) return String(err.body.message);
-    const raw = err?.message as string | undefined;
-    if (!raw) return fallback;
-    const jsonStart = raw.indexOf("{");
-    if (jsonStart >= 0) {
-      try { return JSON.parse(raw.slice(jsonStart))?.message || fallback; } catch { return raw; }
-    }
-    return raw;
-  };
+  // apiRequest já entrega o corpo do erro em err.body — api-error resolve a mensagem.
+  const parseErr = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
 
   const inactivateMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
@@ -199,7 +187,7 @@ export default function CollaboratorManagement() {
       setSelectedCollaborator(null);
       setInactivateReason("");
     },
-    onError: (err: any) => toast({ title: parseErr(err, "Erro ao inativar colaborador"), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: parseErr(err, "Erro ao inativar colaborador"), variant: "destructive" }),
   });
 
   const reactivateMutation = useMutation({
@@ -209,7 +197,7 @@ export default function CollaboratorManagement() {
       toast({ title: "Colaborador reativado com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
     },
-    onError: (err: any) => toast({ title: parseErr(err, "Erro ao reativar colaborador"), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: parseErr(err, "Erro ao reativar colaborador"), variant: "destructive" }),
   });
 
   const filtered = useMemo(() => {
@@ -222,7 +210,7 @@ export default function CollaboratorManagement() {
       const statusMatch = filters.status === "all"
         ? true
         : filters.status === "inativo"
-          ? (c.status === "inativo" || (c as any).active === false)
+          ? (c.status === "inativo" || c.active === false)
           : c.status === filters.status;
       const typeMatch = filters.type === "all" || c.type === filters.type;
       // Documento ausente para quem não vê dados pessoais (`c.officialDocument.includes`
@@ -322,10 +310,9 @@ export default function CollaboratorManagement() {
   // refetchOnWindowFocus ligado, um refetch falho em segundo plano não pode
   // apagar uma lista que o usuário está usando.
   if (isError && !collaborators) {
-    const err: any = error;
-    const msg = err?.status === 401 ? "Sua sessão expirou. Entre novamente para ver os colaboradores."
-      : err?.status === 403 ? "Você não tem permissão para ver os colaboradores."
-      : err?.body?.message || "Verifique sua conexão e tente novamente.";
+    const msg = apiErrorStatus(error) === 401 ? "Sua sessão expirou. Entre novamente para ver os colaboradores."
+      : apiErrorStatus(error) === 403 ? "Você não tem permissão para ver os colaboradores."
+      : apiErrorMessage(error, "Verifique sua conexão e tente novamente.");
     return (
       /* Antes, uma falha de rede caía no estado vazio e dizia "nenhum colaborador". */
       <div role="alert" className="bg-card rounded-xl border border-danger/25 shadow-1 py-16 px-6 text-center">
@@ -489,7 +476,7 @@ export default function CollaboratorManagement() {
                 <tbody className="divide-y divide-border">
                   {paginated.map(c => {
                     const isPending = c.status === "pendente";
-                    const isInactive = (c as any).active === false;
+                    const isInactive = c.active === false;
                     const typeCfg = TYPE_CFG[c.type] ?? TYPE_CFG.local;
                     const displayName = toTitleCase(c.fullName);
                     const [bgCls, textCls] = avatarClasses(c.fullName);
@@ -548,8 +535,8 @@ export default function CollaboratorManagement() {
                                     <Ban className="w-3 h-3" aria-hidden="true" /> Inativo
                                   </span>
                                 </TooltipTrigger>
-                                {(c as any).inactiveReason && (
-                                  <TooltipContent className="max-w-[240px]">{(c as any).inactiveReason}</TooltipContent>
+                                {c.inactiveReason && (
+                                  <TooltipContent className="max-w-[240px]">{c.inactiveReason}</TooltipContent>
                                 )}
                               </Tooltip>
                             )}

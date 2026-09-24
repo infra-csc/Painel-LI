@@ -1,28 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { LucideIcon } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
-import { X, Search, CalendarDays, Layers, UserRound, Tag, ArrowUpDown, RotateCcw, Plane, BedDouble } from "lucide-react";
+import { Search, CalendarDays, Layers, UserRound, Tag, ArrowUpDown, RotateCcw, Plane, BedDouble } from "lucide-react";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
 import MultiSelectFilter from "@/components/ui/multi-select-filter";
 import { fixEncoding } from "@/lib/utils";
 import type { Event, Function, Collaborator } from "@shared/schema";
 
+// Seleção múltipla (pedido do dono, 28/08): cada campo é uma LISTA de
+// valores marcados; lista vazia significa "todos".
+export interface UniversalFilterValues {
+  eventId: string[];
+  functionId: string | string[];
+  collaboratorId: string[];
+  status?: string[];
+  escalationStatus: string[];
+  searchId: string;
+  showDeleted?: boolean;
+  ticketStatus?: string[];
+  accommodationStatus?: string[];
+}
+
 interface UniversalFiltersProps {
-  // Seleção múltipla (pedido do dono, 28/08): cada campo é uma LISTA de
-  // valores marcados; lista vazia significa "todos".
-  filters: {
-    eventId: string[];
-    functionId: string | string[];
-    collaboratorId: string[];
-    status?: string[];
-    escalationStatus: string[];
-    searchId: string;
-    showDeleted?: boolean;
-    ticketStatus?: string[];
-    accommodationStatus?: string[];
-  };
-  onFiltersChange: (filters: any) => void;
+  filters: UniversalFilterValues;
+  onFiltersChange: (filters: UniversalFilterValues) => void;
   hideStatusFilter?: boolean;
   children?: React.ReactNode;
   rightActions?: React.ReactNode;
@@ -30,7 +32,7 @@ interface UniversalFiltersProps {
   showAccommodationFilter?: boolean;
 }
 
-const FilterLabel = ({ icon: Icon, text }: { icon: any; text: string }) => (
+const FilterLabel = ({ icon: Icon, text }: { icon: LucideIcon; text: string }) => (
   <label className="flex items-center gap-1.5 mb-1.5">
     <Icon className="w-3 h-3 text-muted-foreground" />
     <span className="text-2xs font-bold tracking-widest text-muted-foreground uppercase">{text}</span>
@@ -44,16 +46,25 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
     setSearchInput(filters.searchId ?? "");
   }, [filters.searchId]);
 
+  // O debounce só pode reagir ao que o usuário digita: `filters`/`onFiltersChange`
+  // mudam a cada render da tela pai e, como dependências, reiniciariam o timer
+  // (e disparariam o callback) sem nenhuma tecla nova. Por isso ficam numa ref.
+  const ultimo = useRef({ filters, onFiltersChange });
+  ultimo.current = { filters, onFiltersChange };
   useEffect(() => {
     // Sem mudança real, sem callback (auditoria 28/08): este efeito disparava
     // onFiltersChange no MONTAR da tela, e cada tela reagia refazendo memos e
     // repintando a lista inteira antes mesmo do usuário digitar algo.
-    if (searchInput === (filters.searchId ?? "")) return;
+    const { filters: atuais, onFiltersChange: aplicar } = ultimo.current;
+    if (searchInput === (atuais.searchId ?? "")) return;
     if (searchInput === "") {
-      onFiltersChange({ ...filters, searchId: "" });
+      aplicar({ ...atuais, searchId: "" });
       return;
     }
-    const t = setTimeout(() => onFiltersChange({ ...filters, searchId: searchInput }), 300);
+    const t = setTimeout(() => {
+      const { filters: f, onFiltersChange: cb } = ultimo.current;
+      cb({ ...f, searchId: searchInput });
+    }, 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
@@ -80,7 +91,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   ];
 
   const clearFilters = () => {
-    const baseFilters: any = {
+    const baseFilters: UniversalFilterValues = {
       eventId: [],
       functionId: [],
       collaboratorId: [],
@@ -93,9 +104,6 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
     if (showAccommodationFilter) baseFilters.accommodationStatus = [];
     onFiltersChange(baseFilters);
   };
-
-  const selectTriggerClass =
-    "!h-9 w-full border border-border rounded-lg bg-card px-3 text-sm text-slate-700 font-normal cursor-pointer hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary py-0 [&>span]:text-slate-700 [&>span]:font-normal data-[placeholder]:text-muted-foreground shadow-none";
 
   const baseCols = hideStatusFilter ? 5 : 6;
   const extraCols = (showTicketFilter ? 1 : 0) + (showAccommodationFilter ? 1 : 0);

@@ -10,7 +10,7 @@ import { usePageTitle } from "@/components/common/use-page-title";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
-import { canView, canEdit as canEditScreen } from "@/lib/permissions";
+import { hasPermission } from "@/lib/role-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { PastEventBanner } from "@/lib/event-lock";
 import { useAuth } from "@/hooks/use-auth";
@@ -95,10 +95,11 @@ export default function Tickets() {
   const data = useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user });
   const {
     events, functions, collaborators, eventById, accommodationByInclusion,
-    getTicket, getEventName, getFunctionName, getCollaboratorName, getCollaborator,
+    getTicket, getEventName, getFunctionName, getCollaboratorName,
     ticketInclusions, filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis, isPurchasingRole,
   } = data;
-  const canEdit = canEditScreen(user, "tickets");
+  // Espelha POST/PATCH /api/tickets (admin, production, purchasing) — mesma flag do modal.
+  const canEdit = hasPermission(user, "canRegisterTickets");
 
   /**
    * Qual bloco da fila está aceso. Deriva dos filtros que a tela já tinha —
@@ -154,7 +155,6 @@ export default function Tickets() {
         .filter(c => porColaborador.has(c.id))
         .map(c => ({ id: c.id, nome: toTitleCase(c.fullName), n: porColaborador.get(c.id) ?? 0 })),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.teamInclusions, data.eventById, data.collaboratorById, data.completarPipeline, data.hoje, events, functions, collaborators, filters]);
 
   /**
@@ -456,7 +456,7 @@ export default function Tickets() {
     .map(inc => `#${inc.inclusionNumber ?? "?"} ${toTitleCase(getCollaboratorName(inc.collaboratorId))}`);
 
   // ── Guardas de tela ──
-  if (!canView(user, "tickets")) {
+  if (!hasPermission(user, "canAccessScreen3")) {
     return (
       <div className="bg-card rounded-lg shadow-1 border border-border p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
@@ -636,7 +636,7 @@ export default function Tickets() {
         inclusions={ticketInclusions}
         getCollaboratorName={getCollaboratorName}
         getEventName={getEventName}
-        getPassagemAtual={(id) => { const t = getTicket(id); return t ? ticketToFormValues(t as any) : null; }}
+        getPassagemAtual={(id) => { const t = getTicket(id); return t ? ticketToFormValues(t) : null; }}
         onRegistrar={async (inclusion, form) => { await upsertTicketForInclusion(inclusion, form); }}
         registrando={isSubmitting}
       />

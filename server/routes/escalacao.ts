@@ -11,11 +11,12 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { db } from "../db";
+import { db, linhasDe } from "../db";
 import {
   teamInclusions as teamInclusionsTable,
   teamInclusionLogs as teamInclusionLogsTable,
   type User,
+  type InsertTeamInclusion,
   insertTeamInclusionSchema,
 } from "@shared/schema";
 import { eq, and, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
@@ -38,7 +39,7 @@ import {
   CAMPOS_DE_FLUXO_DA_VAGA,
 } from "../vaga-guards";
 import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
-import { trocaNaVisaoDaVaga } from "@shared/swap-permuta";
+import { trocaNaVisaoDaVaga, type TrocaCrua } from "@shared/swap-permuta";
 import { ONDE_A_VAGA_NASCEU, origemDaCriacao } from "@shared/criacao-da-vaga";
 import { isSuggestionInclusion, SUGESTAO_PHASE } from "@shared/scaling-validation-rules";
 import { effectiveUserId } from "../simulation";
@@ -58,6 +59,7 @@ import {
   type AvisoDeAgenda,
   verificarColaboradorParaVaga,
   atorDaVaga,
+  type DadosSoltos,
 } from "./_compartilhado";
 
 export function registrarEscalacao(app: Express): void {
@@ -167,12 +169,12 @@ export function registrarEscalacao(app: Express): void {
       // Só os usuários que a linha do tempo cita (23/09) — antes a tabela
       // inteira de usuários vinha junto a cada abertura do histórico.
       const idsDeUsuario = [
-        (vaga as any).validatedBy as string | null,
+        vaga.validatedBy,
         ...passagens.map((t) => t.emittedBy),
       ].filter((v): v is string => !!v);
       const usuarios = await storage.getUsersByIds(idsDeUsuario);
       const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name]));
-      const trocas = (((trocasRes as any).rows ?? trocasRes) as any[]).map((r) => trocaNaVisaoDaVaga(r, id));
+      const trocas = linhasDe<TrocaCrua>(trocasRes).map((r) => trocaNaVisaoDaVaga(r, id));
       // Quem criou a vaga, por onde e quando (dono, 14/09). A vaga não guarda o
       // autor: vem do registro da vaga (pedido, sugestão, criação) ou da
       // auditoria gravada na criação — a da grade antiga é UMA por lote, achada
@@ -193,7 +195,7 @@ export function registrarEscalacao(app: Express): void {
         vagaId: id,
         createdAt: vaga.createdAt,
         logs,
-        auditorias: (((auditoriasRes as any).rows ?? auditoriasRes) as any[]).map((a) => ({
+        auditorias: linhasDe<{ entity_id: string; action: string; user_name: string | null; new_data: string | null; created_at: Date | string }>(auditoriasRes).map((a) => ({
           entityId: String(a.entity_id),
           action: String(a.action),
           userName: a.user_name ?? null,
@@ -205,10 +207,10 @@ export function registrarEscalacao(app: Express): void {
         vaga: {
           id: vaga.id,
           createdAt: vaga.createdAt,
-          suggestionSentAt: (vaga as any).suggestionSentAt,
-          validatedAt: (vaga as any).validatedAt,
-          validatedByName: (vaga as any).validatedBy ? nomeDoUsuario.get((vaga as any).validatedBy) ?? null : null,
-          deletedAt: (vaga as any).deletedAt,
+          suggestionSentAt: vaga.suggestionSentAt,
+          validatedAt: vaga.validatedAt,
+          validatedByName: vaga.validatedBy ? nomeDoUsuario.get(vaga.validatedBy) ?? null : null,
+          deletedAt: vaga.deletedAt,
           criadaPor: criacao.por,
           criadaOnde: criacao.onde,
         },
@@ -241,7 +243,7 @@ export function registrarEscalacao(app: Express): void {
       const { id } = req.params;
       const logs = await storage.getTeamInclusionLogs(id);
       res.json(logs);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar histórico de alterações" });
     }
   });
@@ -299,7 +301,7 @@ export function registrarEscalacao(app: Express): void {
     const actor = await requireRoles(req, res, CADASTRO_ROLES);
     if (!actor) return;
     try {
-      const { inclusions } = req.body as { inclusions: any[] };
+      const { inclusions } = req.body as { inclusions: DadosSoltos[] };
       if (!Array.isArray(inclusions) || inclusions.length === 0) {
         return res.status(400).json({ message: "Lista de escalações é obrigatória" });
       }
@@ -487,9 +489,9 @@ export function registrarEscalacao(app: Express): void {
         'city', 'atendimentoTipo', 'percurseiroTipo',
         'cenoFreelaTipo', 'empreitaEmpresa', 'empreitaPessoas', 'empreitaValor',
       ]);
-      const updates: Record<string, any> = { updatedBy: userId };
+      const updates: Partial<InsertTeamInclusion> = { updatedBy: userId };
       for (const [k, v] of Object.entries(bodyData)) {
-        if (EDITABLE_INCLUSION_FIELDS.has(k)) updates[k] = v;
+        if (EDITABLE_INCLUSION_FIELDS.has(k)) (updates as DadosSoltos)[k] = v;
       }
 
       // Atendimento: ao ter colaborador atribuído, o tipo (Key Account /
@@ -497,7 +499,7 @@ export function registrarEscalacao(app: Express): void {
       // (As regras abaixo olham a função ALVO — a nova, quando trocada.)
       if (isAtendimentoFunction(funcAlvo.name)) {
         const effColab = updates.collaboratorId !== undefined ? updates.collaboratorId : currentInclusion.collaboratorId;
-        const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : (currentInclusion as any).atendimentoTipo;
+        const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : currentInclusion.atendimentoTipo;
         if (effColab && !effTipo) {
           return res.status(400).json({ message: "Para atendimento, selecione o tipo (Key Account ou Executivo de Contas) ao escalar o colaborador." });
         }
@@ -510,7 +512,7 @@ export function registrarEscalacao(app: Express): void {
       // da diária, mas por decisão do usuário (17/08) é definido NO PLANEJADO —
       // a escalação NÃO exige o tipo (só valida o valor se vier).
       if (isPercursoFunction(funcAlvo.name)) {
-        const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : (currentInclusion as any).percurseiroTipo;
+        const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : currentInclusion.percurseiroTipo;
         if (effTipo != null && effTipo !== 'tipo_1' && effTipo !== 'tipo_2') {
           return res.status(400).json({ message: "Tipo de percurseiro inválido — use Tipo 1 ou Tipo 2." });
         }
@@ -522,7 +524,7 @@ export function registrarEscalacao(app: Express): void {
       // define o valor FECHADO por nº de dias (regra 19/08). Não é obrigatória
       // ao escalar — só valida o valor quando vier; fora de cenotécnica, limpa.
       if (isCenotecnicaFunction(funcAlvo.name)) {
-        const effTipo = updates.cenoFreelaTipo !== undefined ? updates.cenoFreelaTipo : (currentInclusion as any).cenoFreelaTipo;
+        const effTipo = updates.cenoFreelaTipo !== undefined ? updates.cenoFreelaTipo : currentInclusion.cenoFreelaTipo;
         if (effTipo != null && !isCenoFreelaTipo(effTipo)) {
           return res.status(400).json({ message: "Tipo de freela cenotécnica inválido — use Freela Viagem, Freela SP, Freela Local (A) ou Freela Local (B)." });
         }
@@ -530,7 +532,7 @@ export function registrarEscalacao(app: Express): void {
         updates.cenoFreelaTipo = null;
       }
 
-      const erroEmpreita = normalizarEmpreita(updates, currentInclusion as any, isCenotecnicaFunction(funcAlvo?.name ?? ""));
+      const erroEmpreita = normalizarEmpreita(updates, currentInclusion, isCenotecnicaFunction(funcAlvo?.name ?? ""));
       if (erroEmpreita) return res.status(400).json({ message: erroEmpreita });
 
       // UPDATE guardado pelo status atual + auditoria na mesma transação.
@@ -582,12 +584,13 @@ export function registrarEscalacao(app: Express): void {
       const regra = podeConfirmar(currentInclusion.status);
       if (!regra.ok) return res.status(409).json({ message: regra.motivo });
 
-      const body = limparDatasVazias((req.body ?? {}) as Record<string, any>);
+      const body = limparDatasVazias((req.body ?? {}) as DadosSoltos);
       // Empreita por empresa (10/09): a vaga confirma SEM colaborador.
       const empreitaNoPedido = body.empreitaEmpresa !== undefined
         ? !!(body.empreitaEmpresa && String(body.empreitaEmpresa).trim())
-        : !!(currentInclusion as any).empreitaEmpresa;
-      const collaboratorId: string | undefined = empreitaNoPedido ? undefined : (body.collaboratorId || currentInclusion.collaboratorId || undefined);
+        : !!currentInclusion.empreitaEmpresa;
+      const colaboradorDoPedido = typeof body.collaboratorId === "string" && body.collaboratorId ? body.collaboratorId : undefined;
+      const collaboratorId: string | undefined = empreitaNoPedido ? undefined : (colaboradorDoPedido || currentInclusion.collaboratorId || undefined);
       if (!collaboratorId && !empreitaNoPedido) {
         return res.status(400).json({ message: "Selecione um colaborador (ou informe a empreita) antes de confirmar." });
       }
@@ -609,9 +612,9 @@ export function registrarEscalacao(app: Express): void {
 
       // Só os campos que o Confirmar da tela envia
       const CONFIRM_FIELDS = new Set(['observations', 'city', 'atendimentoTipo', 'percurseiroTipo', 'cenoFreelaTipo', 'dailyValue', 'emitsNf', 'needsTicket', 'needsAccommodation', 'empreitaEmpresa', 'empreitaPessoas', 'empreitaValor']);
-      const updates: Record<string, any> = { updatedBy: userId, collaboratorId: collaboratorId ?? null };
+      const updates: Partial<InsertTeamInclusion> = { updatedBy: userId, collaboratorId: collaboratorId ?? null };
       for (const [k, v] of Object.entries(body)) {
-        if (CONFIRM_FIELDS.has(k) && v !== undefined) updates[k] = v;
+        if (CONFIRM_FIELDS.has(k) && v !== undefined) (updates as DadosSoltos)[k] = v;
       }
       if (updates.dailyValue !== undefined && Number(updates.dailyValue) !== Number(currentInclusion.dailyValue ?? 0) && !podeMudarValorDaDiaria(user)) {
         return res.status(403).json({ message: "O valor da diária só pode ser alterado pelo Financeiro ou pelo administrador." });
@@ -637,7 +640,7 @@ export function registrarEscalacao(app: Express): void {
 
       // Atendimento: tipo obrigatório ao escalar (define a tarifa da diária)
       if (isAtendimentoFunction(func.name)) {
-        const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : (currentInclusion as any).atendimentoTipo;
+        const effTipo = updates.atendimentoTipo !== undefined ? updates.atendimentoTipo : currentInclusion.atendimentoTipo;
         if (!effTipo) {
           return res.status(400).json({ message: "Para atendimento, selecione o tipo (Key Account ou Executivo de Contas) ao escalar o colaborador." });
         }
@@ -648,7 +651,7 @@ export function registrarEscalacao(app: Express): void {
       // Percurso: o tipo (Tipo 1 / Tipo 2) é definido NO PLANEJADO (decisão do
       // usuário, 17/08) — confirmar a escalação não exige o tipo; só valida o valor.
       if (isPercursoFunction(func.name)) {
-        const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : (currentInclusion as any).percurseiroTipo;
+        const effTipo = updates.percurseiroTipo !== undefined ? updates.percurseiroTipo : currentInclusion.percurseiroTipo;
         if (effTipo != null && effTipo !== 'tipo_1' && effTipo !== 'tipo_2') {
           return res.status(400).json({ message: "Tipo de percurseiro inválido — use Tipo 1 ou Tipo 2." });
         }
@@ -659,7 +662,7 @@ export function registrarEscalacao(app: Express): void {
       // Cenotécnica (empreita): modalidade opcional na confirmação — o valor
       // fechado por dias só entra no Planejado quando ela estiver definida.
       if (isCenotecnicaFunction(func.name)) {
-        const effTipo = updates.cenoFreelaTipo !== undefined ? updates.cenoFreelaTipo : (currentInclusion as any).cenoFreelaTipo;
+        const effTipo = updates.cenoFreelaTipo !== undefined ? updates.cenoFreelaTipo : currentInclusion.cenoFreelaTipo;
         if (effTipo != null && !isCenoFreelaTipo(effTipo)) {
           return res.status(400).json({ message: "Tipo de freela cenotécnica inválido — use Freela Viagem, Freela SP, Freela Local (A) ou Freela Local (B)." });
         }
@@ -667,7 +670,7 @@ export function registrarEscalacao(app: Express): void {
         updates.cenoFreelaTipo = null;
       }
 
-      const erroEmpreita = normalizarEmpreita(updates, currentInclusion as any, isCenotecnicaFunction(func.name));
+      const erroEmpreita = normalizarEmpreita(updates, currentInclusion, isCenotecnicaFunction(func.name));
       if (erroEmpreita) return res.status(400).json({ message: erroEmpreita });
 
       const next = nextStatusOnConfirm({
@@ -773,7 +776,7 @@ export function registrarEscalacao(app: Express): void {
       const inclusion = await storage.updateTeamInclusion(req.params.id, {
         atendimentoTipo,
         updatedBy: actor.id,
-      } as any, {
+      }, {
         rejectDeleted: true,
         auditFor: (updated) => montarLogDeAuditoria('update', 'team_inclusion', req.params.id, updated, actor.id, actor.name, current, req),
       });
@@ -804,7 +807,7 @@ export function registrarEscalacao(app: Express): void {
       const inclusion = await storage.updateTeamInclusion(req.params.id, {
         percurseiroTipo,
         updatedBy: actor.id,
-      } as any, {
+      }, {
         rejectDeleted: true,
         auditFor: (updated) => montarLogDeAuditoria('update', 'team_inclusion', req.params.id, updated, actor.id, actor.name, current, req),
       });
@@ -845,7 +848,7 @@ export function registrarEscalacao(app: Express): void {
       const inclusion = await storage.updateTeamInclusion(req.params.id, {
         cenoFreelaTipo,
         updatedBy: actor.id,
-      } as any, {
+      }, {
         rejectDeleted: true,
         auditFor: (updated) => montarLogDeAuditoria('update', 'team_inclusion', req.params.id, updated, actor.id, actor.name, current, req),
       });
@@ -1115,7 +1118,7 @@ export function registrarEscalacao(app: Express): void {
           FROM (VALUES ${valores}) AS v(id, ida, horario)
           WHERE t.id = v.id
         `);
-        updatedCount = Number((r as any).rowCount ?? alteracoes.length);
+        updatedCount = Number((r as { rowCount?: number | null }).rowCount ?? alteracoes.length);
         await createAuditLog('update', 'team_inclusion', 'migrate-flight-times', { updatedCount, ids: alteracoes.map((a) => a.id) }, user.id, user.name, undefined, req);
       }
       res.json({ message: `Migração concluída`, updatedCount, totalProcessed: inclusions.length });
@@ -1144,9 +1147,9 @@ export function registrarEscalacao(app: Express): void {
           AND ti.status = 'aguardando_producao'
           AND e.end_date >= (now() AT TIME ZONE 'America/Sao_Paulo')::date
       `);
-      const n = Number((rows as any).rows?.[0]?.n ?? 0);
+      const n = Number(linhasDe<{ n: number }>(rows)[0]?.n ?? 0);
       res.json({ count: n });
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao contar vagas aguardando o gestor" });
     }
   });

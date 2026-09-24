@@ -4,8 +4,9 @@ import {
   Plus, Edit2, Trash2, CheckCircle, RotateCcw, XCircle,
   Clock, Send, ChevronDown, ChevronUp, History, User, FileText
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-interface ActivityLog {
+export interface ActivityLog {
   id: string;
   action: string;
   entity_type: string;
@@ -19,7 +20,7 @@ interface ActivityLog {
   created_at?: string | null;
 }
 
-const ACTION_CONFIG: Record<string, { dotColor: string; bg: string; text: string; Icon: any; label: string }> = {
+const ACTION_CONFIG: Record<string, { dotColor: string; bg: string; text: string; Icon: LucideIcon; label: string }> = {
   create:      { dotColor: 'bg-primary',    bg: 'bg-brand-soft',    text: 'text-primary',    Icon: Plus,         label: 'Criado' },
   update:      { dotColor: 'bg-warning-strong',   bg: 'bg-warning-soft',   text: 'text-warning',   Icon: Edit2,        label: 'Atualizado' },
   edit:        { dotColor: 'bg-warning-strong',   bg: 'bg-warning-soft',   text: 'text-warning',   Icon: Edit2,        label: 'Editado' },
@@ -77,16 +78,22 @@ function fmtMoney(cents: number): string {
   return `R$ ${(cents / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
 }
 
-function fmt(field: string, value: any): string {
+function fmt(field: string, value: unknown): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   if (MONETARY_FIELDS.has(field) && typeof value === 'number') return fmtMoney(value);
   return String(value);
 }
 
-function parseJson(s: string | null | undefined): Record<string, any> | null {
+/** JSON de auditoria (prev/next): campos livres do registro alterado. */
+type Snapshot = Record<string, unknown>;
+
+function parseJson(s: string | null | undefined): Snapshot | null {
   if (!s) return null;
-  try { return JSON.parse(s); } catch { return null; }
+  try {
+    const v: unknown = JSON.parse(s);
+    return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Snapshot) : null;
+  } catch { return null; }
 }
 
 function formatDate(iso: string | null | undefined): string {
@@ -97,7 +104,7 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 
-function buildNarrativeBullets(action: string, prev: Record<string, any> | null, next: Record<string, any> | null, details?: string): string[] {
+function buildNarrativeBullets(action: string, prev: Snapshot | null, next: Snapshot | null, details?: string): string[] {
   const bullets: string[] = [];
 
   // ── Observação / Nota ──
@@ -134,25 +141,29 @@ function buildNarrativeBullets(action: string, prev: Record<string, any> | null,
 
   // ── Criação ──
   if (action === 'create' && next) {
-    if (next.dailyQuantity && next.dailyValue) {
-      bullets.push(`Diária: ${fmtMoney(next.dailyValue)}/dia × ${next.dailyQuantity} diária${next.dailyQuantity !== 1 ? 's' : ''} = ${fmtMoney(next.dailyValue * next.dailyQuantity)}`);
+    // Valores em centavos vêm do JSON gravado; o que não for número conta como 0.
+    const n = (k: string): number => { const v = next[k]; return typeof v === "number" ? v : 0; };
+    const dailyQuantity = n("dailyQuantity"), dailyValue = n("dailyValue");
+    if (dailyQuantity && dailyValue) {
+      bullets.push(`Diária: ${fmtMoney(dailyValue)}/dia × ${dailyQuantity} diária${dailyQuantity !== 1 ? 's' : ''} = ${fmtMoney(dailyValue * dailyQuantity)}`);
     }
-    const hasWeekday = next.weekdayLunch || next.weekdayDinner;
-    const hasWeekend = next.weekendLunch || next.weekendDinner;
-    if (hasWeekday) {
+    const weekdayLunch = n("weekdayLunch"), weekdayDinner = n("weekdayDinner");
+    const weekendLunch = n("weekendLunch"), weekendDinner = n("weekendDinner");
+    if (weekdayLunch || weekdayDinner) {
       const parts: string[] = [];
-      if (next.weekdayLunch) parts.push(`Almoço ${fmtMoney(next.weekdayLunch)}`);
-      if (next.weekdayDinner) parts.push(`Jantar ${fmtMoney(next.weekdayDinner)}`);
+      if (weekdayLunch) parts.push(`Almoço ${fmtMoney(weekdayLunch)}`);
+      if (weekdayDinner) parts.push(`Jantar ${fmtMoney(weekdayDinner)}`);
       bullets.push(`Alimentação (dias úteis): ${parts.join(' + ')}`);
     }
-    if (hasWeekend) {
+    if (weekendLunch || weekendDinner) {
       const parts: string[] = [];
-      if (next.weekendLunch) parts.push(`Almoço ${fmtMoney(next.weekendLunch)}`);
-      if (next.weekendDinner) parts.push(`Jantar ${fmtMoney(next.weekendDinner)}`);
+      if (weekendLunch) parts.push(`Almoço ${fmtMoney(weekendLunch)}`);
+      if (weekendDinner) parts.push(`Jantar ${fmtMoney(weekendDinner)}`);
       bullets.push(`Alimentação (fins de semana): ${parts.join(' + ')}`);
     }
-    if (next.mobility) {
-      bullets.push(`Mobilidade: ${fmtMoney(next.mobility)} (ida + volta)`);
+    const mobility = n("mobility");
+    if (mobility) {
+      bullets.push(`Mobilidade: ${fmtMoney(mobility)} (ida + volta)`);
     }
     return bullets;
   }

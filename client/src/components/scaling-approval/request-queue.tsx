@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
-import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
+import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import type { ChangeRequestItem } from "./types";
-import { CanDecideBadge, PostScalingBadge, RequestAgeBadge, RequestStatusBadge, RequestTypeBadge, changeSummary } from "./request-badges";
+import { CanDecideBadge, PostScalingBadge, RequestStatusBadge, RequestTypeBadge, changeSummary } from "./request-badges";
 import { isPostValidationInclusion } from "@shared/scaling-change-window";
 import { STICKY_TD, STICKY_TH, TH } from "./tokens";
 
@@ -90,7 +90,6 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
             <tbody>
               {items.map((r, i) => {
                 const pending = r.status === CHANGE_REQUEST_STATUS.PENDENTE;
-                const days = daysPending(r.createdAt);
                 const decidable = pending && r.canDecide && canAct;
                 const resumo = changeSummary(r);
                 // A célula grudada precisa do MESMO fundo da linha, senão a zebra
@@ -205,7 +204,6 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
       <ul className="md:hidden space-y-2" aria-label="Pedidos">
         {items.map((r) => {
           const pending = r.status === CHANGE_REQUEST_STATUS.PENDENTE;
-          const days = daysPending(r.createdAt);
           const decidable = pending && r.canDecide && canAct;
           return (
             <li key={r.id} className="rounded-xl border border-border bg-card p-3 space-y-2">

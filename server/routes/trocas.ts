@@ -6,8 +6,8 @@
  * Papéis: quem edita a vaga abre; admin/Compras decidem; solicitante cancela.
  */
 import type { Express } from "express";
-import { storage, mapSwapRequestRow } from "../storage";
-import { db } from "../db";
+import { storage, mapSwapRequestRow, type SwapRequestRow } from "../storage";
+import { db, linhasDe } from "../db";
 import {
   swapRequests as swapRequestsTable,
   teamInclusions as teamInclusionsTable,
@@ -77,7 +77,7 @@ export function registrarTrocas(app: Express): void {
         ORDER BY sr.created_at DESC`);
       // snake_case, como o SQL devolve — o client normaliza (swap-types.ts).
       res.set("Cache-Control", "no-store");
-      res.json((((rows as any).rows ?? rows) as any[]).map(mapSwapRequestRow));
+      res.json(linhasDe<SwapRequestRow>(rows).map(mapSwapRequestRow));
     } catch (error) {
       console.error("Error fetching swap requests:", error);
       res.status(500).json({ message: "Erro ao buscar solicitações de troca" });
@@ -95,7 +95,7 @@ export function registrarTrocas(app: Express): void {
         WHERE sr.team_inclusion_id = ${teamInclusionId} OR sr.paired_inclusion_id = ${teamInclusionId}
         ORDER BY sr.created_at DESC`);
       res.set("Cache-Control", "no-store");
-      res.json((((rows as any).rows ?? rows) as any[]).map(mapSwapRequestRow));
+      res.json(linhasDe<SwapRequestRow>(rows).map(mapSwapRequestRow));
     } catch (error) {
       console.error("Error fetching swap requests for inclusion:", error);
       res.status(500).json({ message: "Erro ao buscar solicitações de troca" });
@@ -172,7 +172,7 @@ export function registrarTrocas(app: Express): void {
     const permuta = kind === "permuta";
     const transferencia = kind === "transferencia";
     const comOutraVaga = permuta || transferencia;
-    if (transferencia && (currentCollaboratorId || (inclusion as any).empreitaEmpresa)) {
+    if (transferencia && (currentCollaboratorId || inclusion.empreitaEmpresa)) {
       return res.status(400).json({ message: "Esta vaga já está preenchida — use a troca de colaborador." });
     }
     const pairedInclusion = comOutraVaga && pairedInclusionId ? await storage.getTeamInclusion(String(pairedInclusionId)) : undefined;
@@ -212,7 +212,7 @@ export function registrarTrocas(app: Express): void {
           WHERE status = 'pendente'
             AND (team_inclusion_id IN (${teamInclusionId}, ${vagaOutra}) OR paired_inclusion_id IN (${teamInclusionId}, ${vagaOutra}))
         `);
-        if ((((existing as any).rows ?? existing) as any[]).length > 0) {
+        if (linhasDe(existing).length > 0) {
           throw new HttpError(409, comOutraVaga
             ? "Já existe uma solicitação de troca pendente nesta vaga ou na outra vaga."
             : "Já existe uma solicitação de troca pendente para esta escalação");
@@ -222,7 +222,7 @@ export function registrarTrocas(app: Express): void {
           VALUES (${teamInclusionId}, ${currentUser.id}, ${currentUser.name}, ${currentCollaboratorId}, ${newCollaboratorId}, ${reason.trim()}, 'pendente', ${String(newCity).trim()}, ${comOutraVaga ? kind : 'substituicao'}, ${comOutraVaga && pairedInclusion ? pairedInclusion.id : null}, ${permuta ? String(pairedNewCity).trim() : null})
           RETURNING *
         `);
-        const created = ((result as any).rows ?? result)[0];
+        const created = linhasDe<SwapRequestRow>(result)[0];
         const detalhe = `Solicitação de troca (${comOutraVaga ? kind : "substituição"}) aberta por ${currentUser.name}: ${newCollaborator.fullName} — motivo: ${reason.trim()}`;
         const logs = [logDaTroca(teamInclusionId, "swap_requested", detalhe, currentCollaboratorId, newCollaboratorId, currentUser)];
         if (pairedInclusion) logs.push(logDaTroca(pairedInclusion.id, "swap_requested", detalhe, pairedInclusion.collaboratorId ?? null, currentCollaboratorId, currentUser));
@@ -238,10 +238,10 @@ export function registrarTrocas(app: Express): void {
   });
 
   /** Carrega o pedido com o evento da vaga (para a trava de evento encerrado). */
-  const carregarTroca = async (id: string) => {
+  const carregarTroca = async (id: string): Promise<SwapRequestRow | undefined> => {
     const srRows = await db.execute(drizzleSql`SELECT sr.*, (SELECT event_id FROM team_inclusions WHERE id = sr.team_inclusion_id) AS inclusion_event_id
       FROM swap_requests sr WHERE sr.id = ${id}`);
-    return ((srRows as any).rows ?? srRows)[0] as Record<string, any> | undefined;
+    return linhasDe<SwapRequestRow>(srRows)[0];
   };
 
   app.patch("/api/swap-requests/:id/approve", async (req, res) => {
@@ -327,7 +327,8 @@ export function registrarTrocas(app: Express): void {
         const erroOutra = vagaVivaParaTroca(vagaPareada, "A outra vaga da troca");
         if (erroOutra) return res.status(409).json({ message: `${erroOutra.message} Recuse o pedido.` });
         const outra = vagaPareada!;
-        if (vaga.collaboratorId !== sr.current_collaborator_id || outra.collaboratorId !== sr.new_collaborator_id) {
+        const atualId = sr.current_collaborator_id;
+        if (!atualId || vaga.collaboratorId !== atualId || outra.collaboratorId !== sr.new_collaborator_id) {
           return res.status(409).json({ message: "As vagas mudaram desde o pedido — recuse e peça a troca de novo." });
         }
         if (!await assertInclusionEventEditable(outra.id, currentUser, res, { eventId: outra.eventId ?? null })) return;
@@ -337,18 +338,18 @@ export function registrarTrocas(app: Express): void {
         }
         const c1 = await conflitoNaTroca(sr.new_collaborator_id, vaga, [vaga.id, outra.id]);
         if (c1) return res.status(c1.status).json({ message: c1.message });
-        const c2 = await conflitoNaTroca(sr.current_collaborator_id, outra, [vaga.id, outra.id]);
+        const c2 = await conflitoNaTroca(atualId, outra, [vaga.id, outra.id]);
         if (c2) return res.status(c2.status).json({ message: c2.message });
-        const nomeDoAtual = String((await storage.getCollaborator(sr.current_collaborator_id))?.fullName ?? "colaborador atual");
+        const nomeDoAtual = String((await storage.getCollaborator(atualId))?.fullName ?? "colaborador atual");
         const { pedido, logisticaParaRevisar } = await db.transaction(async (tx) => {
           const [pedido] = await tx.update(swapRequestsTable).set({ ...decisao, newCity: saiDe, pairedNewCity: saiDeOutro, reviewedAt: new Date() })
             .where(and(eq(swapRequestsTable.id, id), eq(swapRequestsTable.status, 'pendente'))).returning();
           if (!pedido) throw new HttpError(409, "Este pedido já foi decidido");
           const [a] = await tx.update(teamInclusionsTable)
             .set({ collaboratorId: sr.new_collaborator_id, city: saiDe, updatedAt: new Date(), updatedBy: currentUser.id })
-            .where(and(eq(teamInclusionsTable.id, vaga.id), eq(teamInclusionsTable.collaboratorId, sr.current_collaborator_id), isNull(teamInclusionsTable.deletedAt))).returning();
+            .where(and(eq(teamInclusionsTable.id, vaga.id), eq(teamInclusionsTable.collaboratorId, atualId), isNull(teamInclusionsTable.deletedAt))).returning();
           const [b] = await tx.update(teamInclusionsTable)
-            .set({ collaboratorId: sr.current_collaborator_id, city: saiDeOutro, updatedAt: new Date(), updatedBy: currentUser.id })
+            .set({ collaboratorId: atualId, city: saiDeOutro, updatedAt: new Date(), updatedBy: currentUser.id })
             .where(and(eq(teamInclusionsTable.id, outra.id), eq(teamInclusionsTable.collaboratorId, sr.new_collaborator_id), isNull(teamInclusionsTable.deletedAt))).returning();
           if (!a || !b) throw new HttpError(409, "As vagas mudaram desde o pedido — recuse e peça a troca de novo.");
           // Passagem/hospedagem das duas vagas NÃO são apagadas: Compras revisa.

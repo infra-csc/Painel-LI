@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import type { Control, ControllerRenderProps, FieldPath } from "react-hook-form";
@@ -29,7 +29,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { isAdmin, isRhOrAdmin } from "@/lib/permissions";
+import { isAdmin, isRhOrAdmin } from "@/lib/role-utils";
 import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 import {
@@ -429,9 +429,9 @@ export default function SystemSettingsPage() {
   const qFunctionValues = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"], enabled: allowed });
   const qPaymentCompanies = useQuery<PaymentCompany[]>({ queryKey: ["/api/payment-companies"], enabled: allowed });
   const settings = qSettings.data;
-  const allFunctions = qFunctions.data ?? [];
+  const allFunctions = useMemo(() => qFunctions.data ?? [], [qFunctions.data]);
   const fnCollaboratorTypes = qFnCollaboratorTypes.data ?? {};
-  const allFunctionValues = qFunctionValues.data ?? [];
+  const allFunctionValues = useMemo(() => qFunctionValues.data ?? [], [qFunctionValues.data]);
   const paymentCompanies = qPaymentCompanies.data ?? [];
   // Erro/carregando das 5 consultas (23/09): o formulário só aparece com os
   // dados na mão — antes nascia vazio e era preenchido depois.
@@ -456,7 +456,7 @@ export default function SystemSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/payment-companies"] });
       toast({ title: "Empresa removida." });
     },
-    onError: (e: any) => toast({
+    onError: (e: unknown) => toast({
       title: "Não foi possível remover a empresa",
       description: apiErrorMessage(e, "Tente novamente."),
       variant: "destructive",
@@ -465,14 +465,14 @@ export default function SystemSettingsPage() {
 
   // Reconstrói os 4 mapas de valores por função a partir do que está salvo.
   // Usado no carregamento e também pelo "Descartar" da barra flutuante.
-  const resetFunctionValueStates = () => {
+  const resetFunctionValueStates = useCallback(() => {
     if (allFunctions.length === 0) return;
     const mapCasaWd: Record<string, string> = {};
     const mapCasaWe: Record<string, string> = {};
     const mapFreelaWd: Record<string, string> = {};
     const mapFreelaWe: Record<string, string> = {};
     for (const fn of allFunctions) {
-      const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+      const fv = allFunctionValues.find(v => v.functionId === fn.id);
       mapCasaWd[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
       mapCasaWe[fn.id] = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
       mapFreelaWd[fn.id] = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreela, fv.dailyValue)) : "0.00";
@@ -482,11 +482,11 @@ export default function SystemSettingsPage() {
     setFnWeekendValues(mapCasaWe);
     setFnFreelaValues(mapFreelaWd);
     setFnFreelaWeekendValues(mapFreelaWe);
-  };
+  }, [allFunctions, allFunctionValues]);
 
   useEffect(() => {
     resetFunctionValueStates();
-  }, [allFunctions, allFunctionValues]);
+  }, [resetFunctionValueStates]);
 
   useEffect(() => {
     if (editingFunctionId && editInputRef.current) {
@@ -498,7 +498,7 @@ export default function SystemSettingsPage() {
   // Predicado único de "função com valor alterado" — antes estava duplicado
   // verbatim aqui e no contador do rodapé, e as cópias já tinham divergido
   const isFunctionDirty = (fn: FunctionType): boolean => {
-    const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+    const fv = allFunctionValues.find(v => v.functionId === fn.id);
     const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
     const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
     const savedFreelaWd = fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreela, fv.dailyValue)) : "0.00";
@@ -651,7 +651,7 @@ export default function SystemSettingsPage() {
         ...cenoEmpreitaReais(s),
       });
     }
-  }, [settings]);
+  }, [settings, form]);
 
   const mobilityIda = parseBrNumber(form.watch("default_mobility_ida") || "0");
   const mobilityVolta = parseBrNumber(form.watch("default_mobility_volta") || "0");
@@ -679,20 +679,20 @@ export default function SystemSettingsPage() {
     onSuccess: (_, values) => {
       queryClient.invalidateQueries({ queryKey: ["/api/system-settings"] });
       const now = new Date().toISOString();
-      const userName = (user as any)?.name || (user as any)?.username || "Admin";
+      const userName = user?.name || "Admin";
       const newEntries: HistoryEntry[] = [];
       if (settings) {
         for (const key of Object.keys(values) as (keyof FormValues)[]) {
           const newVal = values[key];
           if (PERCENT_KEYS.has(key)) {
             // Percentuais inteiros — o valor salvo já é inteiro cru (sem ×100)
-            const oldRaw = String((settings as any)[key] ?? "");
+            const oldRaw = String(settings[key] ?? "");
             if (parseBrNumber(oldRaw || "NaN") !== parseBrNumber(newVal)) {
               newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: `${oldRaw || "—"}%`, newValue: `${newVal}%` });
             }
             continue;
           }
-          const oldVal = centavosToReais((settings as any)[key] ?? (settings as any)["default_daily_value"] ?? 0);
+          const oldVal = centavosToReais(settings[key] ?? settings["default_daily_value"] ?? 0);
           if (parseBrNumber(oldVal) !== parseBrNumber(newVal)) {
             newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: formatCurrency(oldVal), newValue: formatCurrency(newVal) });
           }
@@ -717,10 +717,10 @@ export default function SystemSettingsPage() {
   // valores antigos (a invalidation do save recarrega a query).
   const buildFunctionHistoryEntries = (): HistoryEntry[] => {
     const now = new Date().toISOString();
-    const userName = (user as any)?.name || (user as any)?.username || "Admin";
+    const userName = user?.name || "Admin";
     const entries: HistoryEntry[] = [];
     for (const fn of allFunctions.filter(isFunctionDirty)) {
-      const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+      const fv = allFunctionValues.find(v => v.functionId === fn.id);
       const cells: { label: string; saved: string; current: string }[] = [
         { label: "Casa · Dia Útil", saved: fv ? centavosToReais(fv.dailyValue) : "0.00", current: functionDailyValues[fn.id] ?? "0" },
         { label: "Casa · Fim de Semana", saved: fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00", current: fnWeekendValues[fn.id] ?? "0" },
@@ -788,11 +788,10 @@ export default function SystemSettingsPage() {
               : "Os novos valores serão aplicados em orçamentos de novos eventos.",
           });
         }
-      } catch (e: any) {
-        // Mensagem do servidor (e.body.message) em vez do genérico
+      } catch (e) {
         toast({
           title: "Erro ao salvar",
-          description: e?.body?.message || "Não foi possível salvar as alterações. Tente novamente.",
+          description: apiErrorMessage(e, "Não foi possível salvar as alterações. Tente novamente."),
           variant: "destructive",
         });
       }
@@ -1438,7 +1437,7 @@ export default function SystemSettingsPage() {
                           <div className="divide-y divide-border">
                             {visibleFns.map((fn) => {
                               const isCoord = fn.responsibleArea === '__system__';
-                              const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+                              const fv = allFunctionValues.find(v => v.functionId === fn.id);
                               const wdVal = getCurrentValue(fn.id, 'wd');
                               const weVal = getCurrentValue(fn.id, 'we');
                               const savedWdCent = !fv ? 0 : activeTab === 'casa' ? (fv.dailyValue ?? 0) : freelaOuCasa(fv.dailyValueFreela, fv.dailyValue);

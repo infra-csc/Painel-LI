@@ -8,7 +8,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { db } from "../db";
+import { db, linhasDe } from "../db";
 import { users, functionManagers as functionManagersTable, insertFunctionSchema } from "@shared/schema";
 import { eq, sql as drizzleSql } from "drizzle-orm";
 import { normalizeRole } from "@shared/roles";
@@ -25,7 +25,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       const functions = await storage.getFunctionsWithManagers();
       cacheDeCatalogo(res);
       res.json(functions);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar funções" });
     }
   });
@@ -41,11 +41,11 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
         GROUP BY ti.function_id
       `);
       const result: Record<string, string[]> = {};
-      for (const row of rows.rows as any[]) {
+      for (const row of linhasDe<{ function_id: string; types: string[] | null }>(rows)) {
         result[row.function_id] = row.types ?? [];
       }
       res.json(result);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar tipos por função" });
     }
   });
@@ -61,7 +61,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
 
       const functions = await storage.getFunctionsByUser(userId);
       res.json(functions);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar funções do usuário" });
     }
   });
@@ -74,7 +74,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       const func = await storage.createFunction(functionData);
       await createAuditLog("create", "function", func.id, func, ator.id, ator.name, undefined, req);
       res.json(func);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Dados inválidos" });
     }
   });
@@ -90,7 +90,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       const func = await storage.updateFunction(id, functionData);
       await createAuditLog("update", "function", id, func, ator.id, ator.name, anterior, req);
       res.json(func);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao atualizar função" });
     }
   });
@@ -105,7 +105,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       await storage.deleteFunction(id);
       await createAuditLog("delete", "function", id, anterior, ator.id, ator.name, undefined, req);
       res.json({ success: true });
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao deletar função" });
     }
   });
@@ -116,7 +116,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       const { id } = req.params;
       const functionUsers = await storage.getFunctionUsers(id);
       res.json(functionUsers);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar usuários da função" });
     }
   });
@@ -152,7 +152,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
         userId: targetUserId
       });
       res.json(functionUser);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao adicionar usuário à função" });
     }
   });
@@ -183,7 +183,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
 
       await storage.removeUserFromFunction(functionId, targetUserId);
       res.json({ success: true });
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao remover usuário da função" });
     }
   });
@@ -267,7 +267,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       const { id } = req.params;
       const functionManagers = await storage.getFunctionManagers(id);
       res.json(functionManagers);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar responsáveis da função" });
     }
   });
@@ -312,7 +312,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       });
       await createAuditLog("create", "function_manager", `${id}:${targetUserId}`, { functionId: id, userId: targetUserId, role }, user.id, user.name, undefined, req);
       res.json(functionManager);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao adicionar responsável à função" });
     }
   });
@@ -343,7 +343,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       await storage.removeManagerFromFunction(functionId, targetUserId);
       await createAuditLog("delete", "function_manager", `${functionId}:${targetUserId}`, { functionId, userId: targetUserId }, user.id, user.name, undefined, req);
       res.json({ success: true });
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao remover responsável da função" });
     }
   });
@@ -362,7 +362,7 @@ export function registrarFuncoesEResponsaveis(app: Express): void {
       if (!updated) return res.status(404).json({ message: "Responsável não encontrado nesta função" });
       await createAuditLog("update", "function_manager", `${functionId}:${targetUserId}`, { functionId, userId: targetUserId, role: parsedBody.data.role }, ator.id, ator.name, undefined, req);
       res.json(updated);
-    } catch (error) {
+    } catch {
       res.status(400).json({ message: "Erro ao alterar papel do responsável" });
     }
   });

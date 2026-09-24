@@ -4,7 +4,8 @@
  * Autenticação: Bearer PORTAL_API_TOKEN (SSO_SECRET aceito com aviso de
  * depreciação). Cria, atualiza e desativa contas que o portal provisiona.
  */
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
+import type { User } from "@shared/schema";
 import { storage } from "../storage";
 import { destruirSessoesDoUsuario, invalidarCacheDeUsuario, papelDoPortal } from "../auth-guards";
 import { log } from "../vite";
@@ -19,7 +20,7 @@ export function registrarPortal(app: Express): void {
   // boot (server/index.ts) — o mesmo segredo assinar o JWT e autenticar esta
   // API significava que vazar um vazava o outro.
 
-  const validatePortalSecret = (req: any, res: any): boolean => {
+  const validatePortalSecret = (req: Request, res: Response): boolean => {
     const authHeader = req.headers["authorization"] as string | undefined;
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     const secret = process.env.PORTAL_API_TOKEN || process.env.SSO_SECRET;
@@ -32,7 +33,7 @@ export function registrarPortal(app: Express): void {
 
   // Resposta padrão do portal: nunca password/resetToken (semSegredos) e só
   // os campos que o portal usa.
-  const usuarioParaOPortal = (u: any) => ({
+  const usuarioParaOPortal = (u: User) => ({
     id: u.id, email: u.email, name: u.name, role: u.role,
     area: u.area, status: u.status, isActive: u.isActive, createdAt: u.createdAt,
   });
@@ -71,7 +72,7 @@ export function registrarPortal(app: Express): void {
         status: "approved",
         area: area || null,
         isActive: true,
-      } as any);
+      });
 
       log(`[Portal API] Usuário criado: ${user.id}`);
       return res.status(201).json(usuarioParaOPortal(user));
@@ -90,7 +91,7 @@ export function registrarPortal(app: Express): void {
       if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
 
       const { name, role, area, isActive, status } = req.body ?? {};
-      const updates: Record<string, any> = {};
+      const updates: Partial<User> = {};
       if (name !== undefined) updates.name = String(name);
       if (role !== undefined) updates.role = papelDoPortal(role);
       if (area !== undefined) updates.area = area;
@@ -121,7 +122,7 @@ export function registrarPortal(app: Express): void {
       const user = await storage.getUserByEmail(email);
       if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
 
-      await storage.updateUser(user.id, { isActive: false, status: "rejected" } as any);
+      await storage.updateUser(user.id, { isActive: false, status: "rejected" });
       await destruirSessoesDoUsuario(user.id);
       log(`[Portal API] Usuário desativado: ${user.id}`);
       return res.json({ message: "Usuário desativado com sucesso" });

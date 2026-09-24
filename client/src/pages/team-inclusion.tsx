@@ -2,7 +2,7 @@ import GridTeamInclusionForm from "@/components/forms/grid-team-inclusion-form";
 import TeamInclusionTable from "@/components/tables/team-inclusion-table";
 import EventModal from "@/components/modals/event-modal";
 import { useAuth } from "@/hooks/use-auth";
-import { canView, canEdit } from "@/lib/permissions";
+import { hasPermission } from "@/lib/role-utils";
 import { useState, useEffect } from "react";
 import { Plus, Loader2, UserPlus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -33,7 +33,8 @@ export default function TeamInclusion() {
   useQuery({ queryKey: ["/api/functions"], staleTime: PREFETCH_STALE });
 
   // Check if user can access this screen
-  if (!canView(user as any, 'team_inclusion')) {
+  // Espelha GET /api/team-inclusions (admin, production, purchasing, financial; function_area não entra).
+  if (!hasPermission(user, "canAccessScreen1")) {
     return (
       <div className="bg-card rounded-lg shadow-1 border border-border p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
@@ -50,7 +51,7 @@ export default function TeamInclusion() {
         title="Inclusão de equipe"
         subtitle="Monte a grade de funções e gerencie as inclusões do evento"
         actions={
-          canEdit(user as any, 'team_inclusion') && (
+          hasPermission(user, "canEditScreen1") && (
             <button
               onClick={() => setShowEventModal(true)}
               className="h-9 px-4 flex items-center gap-1.5 text-sm font-semibold text-primary-foreground rounded-lg transition-colors bg-primary hover:bg-primary-hover shadow-1"

@@ -1,27 +1,25 @@
 import { useState, useMemo, useRef, useEffect, useCallback, useDeferredValue } from "react";
-import { cn, formatDias, formatDiasUteis, formatFds, fixEncoding  } from "@/lib/utils";
+import type { ActivityLog as ActivityLogRow } from "@/components/activity-timeline";
+import { cn, formatDiasUteis, formatFds, fixEncoding } from "@/lib/utils";
 import { formatarMoeda, contarDiasUteisEFds } from "@/lib/format";
 import { indexarPorId, agruparPor, chaveComposta } from "@/lib/indices";
 import { CurrencyInput } from "@/components/common/currency-input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, Plus, Check, RefreshCw, Plane } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, Users, CheckCircle2, Send, Lock, TrendingDown, TrendingUp, AlertTriangle, Eye, Clock, AlertCircle, CheckCheck, GitFork, Plus, Check, RefreshCw, Plane } from "lucide-react";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 import { ActivityTimeline, PlannedEditedBadge } from "@/components/activity-timeline";
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison, BudgetNote } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison, BudgetNote, Ticket, InsertBudgetActual } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
@@ -152,9 +150,9 @@ export default function BudgetActualPage() {
 
   // Passagens: fonte dos horários de viagem que dirigem a alimentação (mesma
   // base do Planejado — a passagem registrada manda sobre o sugerido)
-  const { data: allTickets } = useQuery<any[]>({ queryKey: ["/api/tickets"] });
+  const { data: allTickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"] });
   const ticketByInclusion = useMemo(() => {
-    const m = new Map<string, any>();
+    const m = new Map<string, Ticket>();
     for (const t of allTickets || []) if (t.teamInclusionId) m.set(t.teamInclusionId, t);
     return m;
   }, [allTickets]);
@@ -223,7 +221,7 @@ export default function BudgetActualPage() {
     staleTime: 30000,
   });
 
-  const { data: plannedLogs = [] } = useQuery<any[]>({
+  const { data: plannedLogs = [] } = useQuery<ActivityLogRow[]>({
     queryKey: ['/api/activity-logs/by-event', 'budget_planned', selectedEventId],
     queryFn: () => apiRequest("GET", `/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
@@ -318,7 +316,7 @@ export default function BudgetActualPage() {
     [budgetActual],
   );
 
-  const getPlannedRef = (item: BudgetActual): BudgetPlanned | undefined => {
+  const getPlannedRef = useCallback((item: BudgetActual): BudgetPlanned | undefined => {
     if (!budgetPlanned) return undefined;
     if (item.plannedId) {
       const byId = plannedById.get(item.plannedId);
@@ -331,16 +329,16 @@ export default function BudgetActualPage() {
       return plannedPorColabEvento.get(chaveComposta(item.collaboratorId, item.eventId))?.[0];
     }
     return undefined;
-  };
+  }, [budgetPlanned, plannedById, plannedPorColabFuncEvento, plannedPorColabEvento]);
 
-  const hasItemDivergence = (item: BudgetActual): boolean => {
+  const hasItemDivergence = useCallback((item: BudgetActual): boolean => {
     const planned = getPlannedRef(item);
     if (!planned) return false;
     return planned.totalValue !== item.totalValue;
-  };
+  }, [getPlannedRef]);
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertBudgetActual> }) => {
       const res = await apiRequest("PATCH", `/api/budget-actual/${id}`, {
         ...data,
         updatedBy: user?.id,
@@ -399,15 +397,15 @@ export default function BudgetActualPage() {
   // Formatador único (lib/format) — antes instanciava um Intl por célula.
   const formatCurrency = formatarMoeda;
 
-  const getCollaboratorName = (id?: string | null) => {
+  const getCollaboratorName = useCallback((id?: string | null) => {
     if (!id) return "Não definido";
     return collaboratorNameById.get(id) || "Não definido";
-  };
+  }, [collaboratorNameById]);
 
-  const getFunctionName = (id?: string | null) => {
+  const getFunctionName = useCallback((id?: string | null) => {
     if (!id) return "-";
     return functionNameById.get(id) || "-";
-  };
+  }, [functionNameById]);
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
@@ -506,7 +504,7 @@ export default function BudgetActualPage() {
         isTransporteTerrestre(inclusion?.flightReturnSuggestedTime)
       ));
 
-    const perfil = refeicaoPerfil(fnName, (inclusion as any)?.atendimentoTipo);
+    const perfil = refeicaoPerfil(fnName, inclusion?.atendimentoTipo);
     const ss = systemSettings as Record<string, number> | undefined;
     const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: item.collaboratorType, isWeekend: false });
     const refFds  = refeicaoCentsDia(perfil, ss, { tipoColaborador: item.collaboratorType, isWeekend: true });
@@ -896,7 +894,7 @@ export default function BudgetActualPage() {
     }
 
     return items;
-  }, [budgetActual, selectedEventId, buscaAplicada, filterType, filterFunction, sortBy, collaborators, functions, budgetPlanned]);
+  }, [budgetActual, selectedEventId, buscaAplicada, filterType, filterFunction, sortBy, getCollaboratorName, getFunctionName, hasItemDivergence]);
 
   // ── Split group computation ─────────────────────────────────────────────
   // Map from parentId → list of split children in the filtered set
@@ -933,16 +931,16 @@ export default function BudgetActualPage() {
   }, [filteredItems, splitGroupsMap]);
 
   // Itens marcados como "não participou" são excluídos das somas do banner (o Comparativo também os zera)
-  const isDidNotAttend = (item: BudgetActual): boolean =>
-    !!item.didNotAttend || !!getPlannedRef(item)?.didNotAttend;
-  const { totalRealizado, totalCasa, totalFreela } = useMemo(() => {
+  const isDidNotAttend = useCallback((item: BudgetActual): boolean =>
+    !!item.didNotAttend || !!getPlannedRef(item)?.didNotAttend, [getPlannedRef]);
+  const { totalRealizado } = useMemo(() => {
     const attendedItems = filteredItems.filter(i => !isDidNotAttend(i));
     return {
       totalRealizado: attendedItems.reduce((sum, item) => sum + item.totalValue, 0),
       totalCasa: attendedItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0),
       totalFreela: attendedItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0),
     };
-  }, [filteredItems, budgetPlanned]);
+  }, [filteredItems, isDidNotAttend]);
   const totalPlanejado = useMemo(() => {
     return filteredItems
       // "Não participou" fica fora do planejado também — igual ao realizado acima
@@ -952,7 +950,7 @@ export default function BudgetActualPage() {
         // Sem planejado correspondente soma 0 — usar item.totalValue inflava o planejado
         return sum + (planned ? planned.totalValue : 0);
       }, 0);
-  }, [filteredItems, budgetPlanned]);
+  }, [filteredItems, getPlannedRef, isDidNotAttend]);
   const { prestacaoCount, pendingCount } = useMemo(() => ({
     prestacaoCount: filteredItems.filter(item => !item.splitParentId).length,
     pendingCount: filteredItems.filter(item => !item.splitParentId && !item.sentForReview).length,
@@ -974,12 +972,6 @@ export default function BudgetActualPage() {
     setSelectedCards(new Set());
   }, [searchTerm, filterType, filterFunction]);
   const totalDifference = totalRealizado - totalPlanejado;
-  const diffLabel = totalDifference === 0
-    ? { text: "Dentro do planejado", color: "text-muted-foreground" }
-    : totalDifference < 0
-      ? { text: `- ${formatCurrency(Math.abs(totalDifference))} abaixo do planejado`, color: "text-success" }
-      : { text: `+ ${formatCurrency(totalDifference)} acima do planejado`, color: "text-danger-strong" };
-
   const hasAnyEditable = useMemo(() => {
     if (!budgetActual) return true;
     const eventItems = budgetActual.filter(a => a.eventId === selectedEventId);
@@ -1831,7 +1823,6 @@ export default function BudgetActualPage() {
                 {TRAVEL_SOURCE_LABEL[src]}
               </span>
             );
-            const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
             const rawPlannedModal = (() => {
               const own = getPlannedRef(editingItem);
               if (own) return own;
@@ -1855,13 +1846,10 @@ export default function BudgetActualPage() {
             const rawDifference = modalTotal - plannedTotal;
             const hasDivergence = planned && Math.abs(rawDifference) > 1;
             const difference = Math.abs(rawDifference) <= 1 ? 0 : rawDifference;
-            const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            const pctChange = plannedTotal > 0 ? ((modalTotal - plannedTotal) / plannedTotal * 100) : 0;
 
             const diffDiarias = subtotalDiariasRaw - plannedSubDiarias;
             const pctDiarias = plannedSubDiarias > 0 ? ((subtotalDiariasRaw - plannedSubDiarias) / plannedSubDiarias * 100) : 0;
 
-            const isFieldChanged = (current: number, plannedVal: number) => planned && current !== plannedVal;
 
             const statusBadge = !planned ? null : !hasDivergence
               ? { label: 'Dentro do planejado', bg: 'bg-success-soft', text: 'text-success', border: 'border-success/25', icon: <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> }

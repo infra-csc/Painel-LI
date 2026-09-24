@@ -125,7 +125,6 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
 
     // Dados reais da passagem — prioriza a passagem já comprada
     const ticket = purchasedTicketByInclusion.get(inclusion.id) || ticketByInclusion.get(inclusion.id);
-    const ticketAny = ticket as any;
 
     const row: Record<string, string | number> = {
       "ID": `#${inclusion.inclusionNumber || "N/A"}`,
@@ -135,7 +134,7 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
       "Fim do Evento": event?.endDate ? formatDate(event.endDate) : "N/A",
       "Função": func?.name || "N/A",
       "Área": inclusion.area || "N/A",
-      "Colaborador": fixEncoding(collaborator?.fullName) || ((inclusion as any).empreitaEmpresa ? `Empreita · ${(inclusion as any).empreitaEmpresa}` : "Não escalado"),
+      "Colaborador": fixEncoding(collaborator?.fullName) || (inclusion.empreitaEmpresa ? `Empreita · ${inclusion.empreitaEmpresa}` : "Não escalado"),
       "Tipo": collaborator?.type ? (collaborator.type === "local" ? "CASA" : collaborator.type.toUpperCase()) : "N/A",
       "CPF Colaborador": cpfColaborador,
       "Data Nascimento": collaborator?.birthDate ? formatDate(collaborator.birthDate) : "N/A",
@@ -159,9 +158,9 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
       "Ida - Horário": ticket?.actualDepartureTime || horarioSugeridoIda,
       "Horário Sugerido Ida": horarioSugeridoIda,
       "Volta - Cidade Origem": ticket?.returnCityOrigin || "N/A",
-      "Volta - Aeroporto Origem": ticketAny?.returnOriginAirport || "N/A",
+      "Volta - Aeroporto Origem": ticket?.returnOriginAirport || "N/A",
       "Volta - Cidade Destino": ticket?.returnCityDestination || "N/A",
-      "Volta - Aeroporto Destino": ticketAny?.returnDestinationAirport || "N/A",
+      "Volta - Aeroporto Destino": ticket?.returnDestinationAirport || "N/A",
       "Volta - Data": ticket?.actualReturnDate ? formatDate(ticket.actualReturnDate) : dataVooVolta,
       "Volta - Horário": ticket?.actualReturnTime || horarioSugeridoVolta,
       "Horário Sugerido Volta": horarioSugeridoVolta,

@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/common/page-header";
@@ -164,7 +165,7 @@ export default function CalculationRulesPage() {
 
 // ── Blocos reutilizáveis ──────────────────────────────────────────────────────
 
-function Card({ title, icon: Icon, children, accent = "text-muted-foreground" }: any) {
+function Card({ title, icon: Icon, children, accent = "text-muted-foreground" }: { title: string; icon?: LucideIcon; children: ReactNode; accent?: string }) {
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3 border-b border-border">

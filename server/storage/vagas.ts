@@ -116,6 +116,7 @@ export async function getTeamInclusions(
       suggestionSentAt: teamInclusions.suggestionSentAt,
       validatedAt: teamInclusions.validatedAt,
       validatedBy: teamInclusions.validatedBy,
+      validationNote: teamInclusions.validationNote,
       dailyRates: teamInclusions.dailyRates,
       workDays: teamInclusions.workDays,
       dailyValue: teamInclusions.dailyValue,
@@ -317,16 +318,13 @@ export async function updateTeamInclusionIfState(
 // ── Registros da vaga (team_inclusion_logs) ───────────────────────────────
 
 export async function getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]> {
-  const logs = await db
+  // Do mais novo para o mais antigo, no banco (índice team_inclusion_logs
+  // (team_inclusion_id, created_at DESC)) — como a versão por ids abaixo.
+  return await db
     .select()
     .from(teamInclusionLogs)
-    .where(eq(teamInclusionLogs.teamInclusionId, teamInclusionId));
-
-  // Sort by creation time, newest first
-  return logs.sort((a, b) => {
-    if (!a.createdAt || !b.createdAt) return 0;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+    .where(eq(teamInclusionLogs.teamInclusionId, teamInclusionId))
+    .orderBy(desc(teamInclusionLogs.createdAt));
 }
 
 /**

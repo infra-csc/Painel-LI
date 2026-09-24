@@ -8,7 +8,7 @@ import { storage } from "../storage";
 import { normalizeRole } from "@shared/roles";
 import { CHAVE_DO_PRAZO, ETAPAS_COM_PRAZO, lerDiasDosPrazos, validarDiasDosPrazos } from "@shared/prazos-da-escala";
 import { CENO_EMPREITA_SETTING_KEYS, cenoEmpreitaDefaultsMap } from "@shared/cenotecnica-empreita";
-import { createAuditLog, requireFinanceUser, requireFinSession } from "./_compartilhado";
+import { createAuditLog, requireFinanceUser, requireFinSession, usuarioDaSessao } from "./_compartilhado";
 
 export function registrarConfiguracoes(app: Express): void {
   // ─── System Settings ──────────────────────────────────────────────
@@ -23,15 +23,15 @@ export function registrarConfiguracoes(app: Express): void {
     try {
       const linhas = await storage.getSystemSettings();
       res.json({ dias: lerDiasDosPrazos(linhas) });
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao ler os prazos" });
     }
   });
 
   app.put("/api/escala/prazos", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
-    if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+    // Usuário REAL já carregado pelo gate global (mutação não roda em simulação).
+    const user = usuarioDaSessao(req);
+    if (!user) return res.status(401).json({ message: "Não autenticado" });
     if (normalizeRole(user.role) !== "admin") return res.status(403).json({ message: "Só o administrador altera os prazos." });
     const r = validarDiasDosPrazos(req.body ?? {});
     if ("erro" in r) return res.status(400).json({ message: r.erro });

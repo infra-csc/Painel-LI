@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -152,7 +152,7 @@ export default function BaggageControlPage() {
   const colaboradoresAtivos = useMemo(() => collaborators.filter(c => c.active !== false), [collaborators]);
 
   const getCollabName = (id: string) => toTitleCase(fixEncoding(collabById.get(id)?.fullName || "")) || "—";
-  const getEventName = (id: string) => fixEncoding(eventById.get(id)?.name || "") || "—";
+  const getEventName = useCallback((id: string) => fixEncoding(eventById.get(id)?.name || "") || "—", [eventById]);
 
   const bagsByCollaborator = useMemo(
     () => agregarPorColaborador(requests, baggageHistory),
@@ -244,7 +244,7 @@ export default function BaggageControlPage() {
       .map(([eventId, agg]) => ({ eventId, name: getEventName(eventId), ...agg }))
       .filter(r => !q || r.name.toLowerCase().includes(q))
       .sort((a, b) => b.cents - a.cents);
-  }, [requests, eventById, eventTabSearch]);
+  }, [requests, getEventName, eventTabSearch]);
 
   const eventTotals = useMemo(() => {
     let bags = 0, cents = 0;
@@ -286,7 +286,7 @@ export default function BaggageControlPage() {
       toast({ title: editing ? "Solicitação atualizada" : "Solicitação registrada" });
       fecharForm();
     },
-    onError: (e: any) => toast({
+    onError: (e: unknown) => toast({
       title: "Não foi possível salvar a solicitação",
       description: apiErrorMessage(e, "Tente novamente."),
       variant: "destructive",
@@ -299,7 +299,7 @@ export default function BaggageControlPage() {
       qc.invalidateQueries({ queryKey: ["/api/baggage-requests"] });
       toast({ title: "Solicitação excluída" });
     },
-    onError: (e: any) => toast({
+    onError: (e: unknown) => toast({
       title: "Não foi possível excluir a solicitação",
       description: apiErrorMessage(e, "Tente novamente."),
       variant: "destructive",
@@ -318,7 +318,7 @@ export default function BaggageControlPage() {
       qc.setQueryData(["/api/baggage-history"], p.quantity > 0 ? [...rest, { ...p }] : rest);
       return { prev };
     },
-    onError: (e: any, _p, ctxMut) => {
+    onError: (e: unknown, _p, ctxMut) => {
       if (ctxMut?.prev) qc.setQueryData(["/api/baggage-history"], ctxMut.prev);
       toast({ title: "Não foi possível ajustar o histórico", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     },

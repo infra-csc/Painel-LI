@@ -10,8 +10,7 @@
     "check": "tsc",
     "test": "vitest run",
     "test:rotas": "vitest run server/test",
-    "lint": "eslint . --max-warnings=100000",
-    "lint:strict": "eslint . --max-warnings=0"
+    "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.0",

@@ -2,9 +2,11 @@
 
 > Reescrito em 24/09/2026 a partir do código (`server/app.ts`,
 > `server/auth-guards.ts`, `server/routes/_compartilhado.ts`, `shared/roles.ts`
-> e os 27 routers em `server/routes/*.ts` + `server/scaling-validation.ts` +
+> e os 26 routers + `_compartilhado.ts` em `server/routes/` + `server/scaling-validation.ts` +
 > `server/simulation.ts`). Quando este documento e o código divergirem, **o
-> código vale** — e o documento precisa ser corrigido.
+> código vale** — e o documento precisa ser corrigido. As divergências
+> client × API do §4 foram reconferidas em 24/09 contra o client atual
+> (commit `b998b8fc` e árvore de trabalho).
 >
 > Convenção de nomes na UI: `admin` = Administrador · `production` = Logística
 > Interna · `purchasing` = Compras/Viagens · `function_area` = Área
@@ -30,7 +32,7 @@ A ordem importa — cada regra só enxerga o que a anterior deixou passar:
 | 9 | `simulationReadOnlyGuard` | Com `session.simulatedUserId`, toda mutação em `/api` responde **403**, exceto `POST /api/simulation/start|stop` e `POST /api/auth/logout`. |
 | 10 | **CSRF fail-closed** | Ver 1.4. |
 | 11 | `registerRoutes` | `protegerRotas` (asyncHandler em tudo), `etag` desligado, routers na ordem de `server/routes.ts`. |
-| 12 | `tratadorGlobalDeErros` | multer → 413/415, zod → 400, Postgres 23503/23505 → 409, resto → 500 "Erro interno" (detalhe só no log). Nunca devolve `err.message` cru. |
+| 12 | `tratadorGlobalDeErros` | multer → 413/415, zod → 400, Postgres 23503/23505 → 409, `HttpError` (inclusive `StorageHttpError` de `server/storage/_comum.ts`, que herda dela desde 24/09) → o status que a camada de dados escolheu, resto → 500 "Erro interno" (detalhe só no log). Nunca devolve `err.message` cru. |
 
 ### 1.2 SSO do Portal Norte (`server/auth-guards.ts`)
 
@@ -186,9 +188,9 @@ Evento encerrado (🕓) = só admin, mesmo que a coluna diga ✅.
 | Listar usuários | `GET /api/users` | 👁 | 👁 | 👁 | ❌ | 👁 | sem `password`/`resetToken` |
 | Editar usuário | `PATCH /api/users/:id` | 🔒 | 🔒 | 🔒 | 🔒 | 🔒 | próprio: name, email, senha (com a atual); RH/Compras em terceiros: só name; admin em terceiros: name, email, role, status, area; **ninguém** muda o próprio role/status |
 | Aprovar/rejeitar | `PATCH /api/users/:id/approval` | ✅ | ❌ | ❌ | ❌ | ❌ | não em si mesmo; rejeitar derruba sessões |
-| Inativar/reativar | `PATCH /api/users/:id/toggle-active` | ✅ | ❌ | ❌ | ❌ | ❌ | não em si mesmo; inativar remove das funções e derruba sessões. ⚠️ ver §4 |
+| Inativar/reativar | `PATCH /api/users/:id/toggle-active` | ✅ | ❌ | ❌ | ❌ | ❌ | não em si mesmo; inativar remove das funções e derruba sessões |
 | Permissão de cenotécnica | `PATCH /api/users/:id/toggle-cenotecnica-approval` | ✅ | ❌ | ❌ | ❌ | ❌ | flag `canApproveCenotecnica` |
-| Reset de senha por admin | `POST /api/users/:id/reset-password` | 🔒 | ❌ | ❌ | ❌ | ❌ | nunca contra **outro** admin; força `mustChangePassword`. ⚠️ ver §4 |
+| Reset de senha por admin | `POST /api/users/:id/reset-password` | 🔒 | ❌ | ❌ | ❌ | ❌ | nunca contra **outro** admin; força `mustChangePassword` |
 | Simular usuário | `POST /api/simulation/start` | ✅ | ❌ | ❌ | ❌ | ❌ | admin **real** da sessão; alvo ativo/aprovado; auditado |
 | Sair da simulação | `POST /api/simulation/stop` | ✅ | — | — | — | — | qualquer sessão com simulação ativa |
 
@@ -197,7 +199,7 @@ Evento encerrado (🕓) = só admin, mesmo que a coluna diga ✅.
 | Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
 |---|---|---|---|---|---|---|---|
 | Listar / com vagas | `GET /api/events`, `GET /api/events-with-inclusions` | 👁 | 👁 | 👁 | 👁 | 👁 | `?includeDeleted=true` |
-| Criar evento | `POST /api/events` | ✅ | ✅ | ✅ | ❌ | ❌ | empresa pagadora do corpo é descartada. ⚠️ ver §4 |
+| Criar evento | `POST /api/events` | ✅ | ✅ | ✅ | ❌ | ❌ | empresa pagadora do corpo é descartada |
 | Editar evento | `PUT /api/events/:id` | ✅ | ✅ | ✅ | ❌ | ❌ | mudar pagadora sem ser financeiro → 403; `status: "excluído"` só admin; Compras pode **reativar** excluído |
 | Empresa pagadora | `PATCH /api/events/:id/payment-company` | ✅ | ❌ | ❌ | ❌ | ✅ | nome + CNPJ obrigatórios |
 | Excluir evento | `DELETE /api/events/:id` | ✅ | ❌ | ❌ | ❌ | ❌ | soft delete; **409** se houver vaga não cancelada |
@@ -226,8 +228,8 @@ Evento encerrado (🕓) = só admin, mesmo que a coluna diga ✅.
 | Listar | `GET /api/collaborators[?eventId=]` | 👁 | 👁 (projetado) | 👁 | 👁 (projetado) | 👁 | production e function_area **não recebem** CPF/RG, nascimento, telefone, endereço nem `documentAttachmentId`; `Cache-Control: no-store` |
 | Criar / em lote | `POST /api/collaborators`, `POST /api/collaborators/bulk` | ✅ | ✅ | ✅ | ✅ | ❌ | function_area nasce **aprovado** (auto-aprovação); os demais `pendente`; 409 por documento duplicado |
 | Editar (inclui aprovar/rejeitar via `status`) | `PATCH /api/collaborators/:id` | ✅ | ✅ | ✅ | ✅ | ❌ | `active`/`inactiveReason`/`createdBy` descartados; `approvedBy/At` vêm da sessão |
-| Inativar | `POST /api/collaborators/:id/inactivate` | ✅ | ❌ | ✅ | ❌ | ❌ | motivo obrigatório. ⚠️ ver §4 |
-| Reativar | `POST /api/collaborators/:id/reactivate` | ✅ | ❌ | ✅ | ❌ | ❌ | ⚠️ ver §4 |
+| Inativar | `POST /api/collaborators/:id/inactivate` | ✅ | ❌ | ✅ | ❌ | ❌ | motivo obrigatório |
+| Reativar | `POST /api/collaborators/:id/reactivate` | ✅ | ❌ | ✅ | ❌ | ❌ | — |
 
 ### 3.6 Vagas / Escalação (`escalacao.ts`)
 
@@ -293,7 +295,7 @@ a vaga sem permissão/estado entra em `skipped`.
 |---|---|---|---|---|---|---|---|
 | Listar passagens / hospedagens | `GET /api/tickets[?eventId=]`, `GET /api/accommodations[?eventId=]` | 👁 | 👁 | 👁 | 👁 | 👁 | `no-store` (dados do passageiro) |
 | Registrar / editar passagem | `POST /api/tickets`, `PATCH /api/tickets/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | status da vaga **derivado** pelo servidor; `teamInclusionId` do PATCH ignorado |
-| Marcar/desmarcar **emitida** (lote) | `POST /api/tickets/emitidas` | ✅🕓 | ❌ | ✅🕓 | ❌ | ❌ | ≤ 200 vagas; cria linha de passagem se não houver. ⚠️ ver §4 |
+| Marcar/desmarcar **emitida** (lote) | `POST /api/tickets/emitidas` | ✅🕓 | ❌ | ✅🕓 | ❌ | ❌ | ≤ 200 vagas; cria linha de passagem se não houver |
 | Registrar / editar hospedagem | `POST /api/accommodations`, `PATCH /api/accommodations/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | mover para outra vaga → 400 |
 | Ler vouchers (PDF) | `POST /api/vouchers/ler` | ✅ | ✅ | ✅ | ❌ | ❌ | só interpretação; não grava |
 
@@ -350,7 +352,7 @@ a vaga sem permissão/estado entra em `skipped`.
 | Comparativo: criar, calcular, editar | `POST`, `POST /calculate/:eventId`, `PATCH /:id` | ✅ | ✅ | ❌ | decisão só por rota dedicada |
 | Comparativo: aprovar / recusar / devolver | `POST /api/budget-comparison/:id/approve`, `/reject`, `/return` | ✅ | ✅ | ❌ | aprovar sincroniza o Flash; recusar/devolver estornam; recusar exige motivo; 409 por estado |
 | NF: ler, enviar, reenviar | `GET /api/invoices[?eventId=]`, `POST /api/invoices`, `PATCH /api/invoices/:id` | ✅ | ✅ | ❌ | `attachmentUrl` só `/api/attachments/ATT-…/(view\|download)`; aprovada imutável; recusada terminal |
-| NF: aprovar, devolver, recusar, check-in | `POST /api/invoices/:id/approve`, `/return`, `/reject`, `/checkin` | ✅ | ✅ | ❌ | histórico anexado no banco; check-in único |
+| NF: aprovar, devolver, recusar, check-in | `POST /api/invoices/:id/approve`, `/return`, `/reject`, `/checkin` | ✅ | ✅ | ❌ | histórico anexado no banco; **devolver exige `comment`** (400 sem, desde 24/09 — o colaborador precisa saber o que corrigir); check-in único |
 | Flash: ler | `GET /api/flash-movements[?collaboratorId=]` | 👁 | 👁 | ❌ | — |
 | Flash: lançar, crédito inicial, editar, excluir | `POST /api/flash-movements`, `POST /initial-credit`, `PATCH /:id`, `DELETE /:id` | ✅ | ✅ | ❌ | lançamentos automáticos (comparativo) → 409 |
 | Configurações financeiras | `GET/PUT /api/system-settings` | ✅ | ✅ | ❌ | allowlist de chaves; percentuais 0–100 |
@@ -367,32 +369,68 @@ funções + 6 colaboradores + 19 escalação + 20 Validação de Escala/prazos +
 trocas + 7 passagens/hospedagem/vouchers + 19 espelho + 6 bagagem + 13
 comentários/notas/anexos/logs + 43 financeiro + 7 integrações).
 
-## 4. Divergências client × API (⚠️)
+## 4. Client × API — estado das divergências
 
-Encontradas lendo `client/src/lib/role-utils.ts`, `client/src/lib/permissions.ts`,
-`client/src/components/scaling/use-scaling-data.ts` e o ponto de uso de cada
-flag. "Botão a mais" = a tela mostra e a API recusa com 403 (a pessoa vê um
-erro); "botão a menos" = a API aceitaria, mas a tela esconde.
+A auditoria de 23/09 encontrou sete pontos em que a tela mostrava um botão
+que a API recusava com 403 ("botão a mais") ou escondia um que a API
+aceitaria ("botão a menos"). **Todas as sete foram corrigidas no client em
+24/09 (`b998b8fc`)** e reconferidas, uma a uma, no código listado abaixo.
+Linhas são da árvore de trabalho de 24/09 e podem deslocar com edições
+posteriores; o nome do símbolo é o que importa.
 
-| # | Onde | O que | Efeito |
-|---|---|---|---|
-| ⚠️ 1 | `role-utils.ts` `canManageUserAccounts` = true para **production e purchasing**; `admin-users.tsx:550` usa a flag para mostrar inativar/reset de senha | API: `PATCH /api/users/:id/toggle-active` e `POST /api/users/:id/reset-password` são **só admin** | botão a mais (Compras e Logística tomam 403). O comentário da flag ainda diz "admin, purchasing, production" — está desatualizado. |
-| ⚠️ 2 | `role-utils.ts` `canAccessCadastros` = true para **financial**; `App.tsx`/`nav-items.ts` liberam `/events` e `/functions` para RH; `events.tsx` não tem gate de papel em criar/editar | API: `POST /api/events` e `PUT /api/events/:id` são `CADASTRO_ROLES` (RH recebe 403; RH só pode `PATCH …/payment-company`) | botão a mais para RH em Eventos (criar/editar). Funções está correto (`canManageFunctions` false para RH). |
-| ⚠️ 3 | `tickets.tsx` "Marcar como emitida" sem gate de papel (tela aberta a admin/production/purchasing/financial via `canAccessScreen3`) | API: `POST /api/tickets/emitidas` é **admin + purchasing** | botão a mais para Logística Interna (e RH, que vê a tela). |
-| ⚠️ 4 | `collaborator-management.tsx` mostra inativar/reativar sob `canEditCollaborators` (admin, production, purchasing, function_area) | API: `POST /api/collaborators/:id/inactivate|reactivate` é **admin + purchasing** | botão a mais para Logística Interna e Área de Função. |
-| ⚠️ 5 | `use-scaling-data.ts` `canEditCollaborator`: qualquer **function_area** passa por `temPapel` sem ser responsável da função | API: `PATCH /api/team-inclusions/:id` exige `podeEditarVagaAsync` (function_area só se responsável em `function_managers`) | botão a mais para Área de Função em vagas de funções alheias. |
-| ⚠️ 6 | `use-scaling-data.ts` `canManageFunction`/`canConfirmEscalation` liberam admin, purchasing e responsável — **não** `production` | API: `PATCH`/`/confirm` aceitam `production` sempre | botão a menos para Logística Interna (mais restritivo que a API; sem erro, só ausência). |
-| ⚠️ 7 | `permissions.ts` (matriz legada) `scaling.production = 'view'` e `team_inclusion.function_area = 'none'` | API deixa production editar vagas; function_area responsável edita a vaga | matriz legada mais restritiva; convive com `role-utils.ts` por decisão registrada no próprio arquivo. |
-| ⚠️ 8 | `role-utils.ts` `canAccessScreen6` comenta "espelha `GET /api/system-logs`" — correto; mas `canAccessAdminUsers` = true para production | API `GET /api/users` aceita production — **coerente**; listado aqui só para registrar que a lista de usuários (nomes/e-mails) é visível à Logística Interna. | sem divergência, decisão consciente |
+### 4.1 O padrão adotado: botão desabilitado com motivo
 
-Sem divergência encontrada (confirmado no código): trocas (`swap-review-panel`,
-`ticket-modal`, `use-scaling-mutations` → admin/Compras), exclusão de evento
-(`events.tsx` → `isAdmin`), prazos (`scaling-analytics.tsx` → `ehAdmin`),
-bagagem (`allowed` = admin/Compras), Validação de Escala (`canEdit`/`canDecide`
-vêm do servidor por linha), simulação (só admin), responsáveis da Escala (só
-admin), aprovação de cenotécnica (`canApproveProductionFor` espelha
-admin/flag/aprovador), exportação de colaboradores (admin/Compras/RH), empresa
-pagadora em `system-settings.tsx` (excluir só admin).
+Em vez de esconder a ação de quem não pode executá-la, a tela agora **mostra
+o botão desabilitado e explica por quê** num Tooltip. O componente é
+`client/src/components/common/motivo-desabilitado.tsx` (`MotivoDesabilitado`):
+
+- um botão `disabled` não dispara eventos de ponteiro, então o Radix Tooltip
+  nunca abriria nele; quando `desabilitado` é verdadeiro o componente envolve
+  o filho num `<span tabIndex={0}>` que recebe hover e foco de teclado e mostra
+  o `motivo`; habilitado, o tooltip vai direto no botão (`asChild`);
+- o `title` nativo foi abandonado nesses casos (não aparece no toque nem para
+  leitor de tela); o `<span>` recebe `aria-label` com o motivo quando ele é
+  texto;
+- o motivo é sempre a regra da API em português ("Só administradores podem
+  aprovar, inativar ou redefinir senha", "Só administradores e Compras podem
+  inativar ou reativar", "Só administradores, Compras e Logística Interna
+  alteram eventos").
+
+Isso vale para as 46 ocorrências trocadas em `b998b8fc`, não só para as sete
+abaixo. Quando a pessoa **nem deveria saber** que a ação existe (ex.: aba
+"Responsáveis da Escala", simulação), a ação continua escondida.
+
+### 4.2 Conferência ponto a ponto
+
+| # | O que a auditoria apontou | Regra da API | Como está no client (24/09) | Estado |
+|---|---|---|---|---|
+| 1 | Compras e Logística viam inativar/reset de senha em Usuários | `toggle-active`, `approval`, `reset-password`: **só admin** | `role-utils.ts` `canManageUserAccounts` só `true` para `admin` (comentário "SÓ admin (23/09)"); `admin-users.tsx:141` lê a flag e nas linhas 503–575 aprovar, rejeitar, reativar, redefinir senha e desativar ficam dentro de `MotivoDesabilitado` com `SO_ADMIN` | ✅ igual à API |
+| 2 | RH podia abrir "Novo evento"/editar | `POST /api/events`, `PUT /api/events/:id`: `CADASTRO_ROLES`; RH só `PATCH …/payment-company` | `events.tsx:465` `podeCadastrar = hasRole(admin, purchasing, production)`: "Novo evento" só renderiza com ela (617), e para RH o ícone da linha vira "Ver" (257–275, `podeEditar`); `event-modal.tsx:70` `podeEditarEvento` desabilita o salvar com motivo (384); `podeAlterarPagadora` (71, 300–346) = admin/financial, espelhando a rota da pagadora. `canAccessCadastros` continua `true` para RH **de propósito**: RH entra na tela para ver e trocar a empresa pagadora | ✅ igual à API |
+| 3 | "Marcar como emitida" aparecia para Logística e RH | `POST /api/tickets/emitidas`: **admin + purchasing** | `use-tickets-data.ts:196` `isPurchasingRole = hasRole(admin, purchasing)`; `tickets.tsx:378` `podeEmitir` guarda a barra de lote (532) e o toggle da linha (`onToggleEmitida`, 593) | ✅ igual à API |
+| 4 | Logística e Área de Função viam inativar/reativar colaborador | `inactivate`/`reactivate`: **admin + purchasing** | `collaborator-management.tsx:146` `canManage = hasRole(admin, purchasing)`; botões em `MotivoDesabilitado` com `SO_ADMIN_COMPRAS` (604–614). `canEditCollaborators` (que inclui production e function_area) segue valendo só para criar/editar, como a API | ✅ igual à API |
+| 5 | Área de Função editava colaborador em vaga de função alheia | `PATCH /api/team-inclusions/:id`: `podeEditarVagaAsync` — function_area só se responsável em `function_managers` | `use-scaling-data.ts:279` `userFunctionIds` vem de `allFunctionManagers` filtrado pelo usuário; `canManageFunction` (336) libera admin/purchasing/production ou `userFunctionIds.has(functionId)`; `canEditCollaborator` (372) passa por `canManageFunction` antes de olhar passagem/hospedagem | ✅ igual à API (o fallback legado `functions.userId` da API não é considerado no client — no máximo um botão a menos para cadastro antigo) |
+| 6 | Logística Interna não via "Confirmar" | `PATCH`/`/confirm` aceitam `production` sempre | `use-scaling-data.ts:338` inclui `production` em `canManageFunction`; `canConfirmEscalation` (342) delega para ela. O comentário registra o motivo ("antes `production` ficava de fora") | ✅ igual à API |
+| 7 | Matriz legada `permissions.ts`: `scaling.production = 'view'` | production edita vaga | `permissions.ts:35` `scaling.production = 'edit'` com o comentário "espelha podeEditarVagaAsync (antes 'view')". `team_inclusion.function_area = 'none'` (27) foi mantido e **está certo**: essa feature é a grade de criação de vagas (`POST /api/team-inclusions`), que é `CADASTRO_ROLES` | ✅ igual à API |
+| 8 | Registro: Logística vê a lista de usuários | `GET /api/users` aceita production | `canAccessAdminUsers` `true` para production | sem divergência, decisão consciente |
+
+Mais estrito que a API **por decisão do dono** (não é divergência):
+`canScaleFunction` em `use-scaling-data.ts` (atalho "Escalar alguém" na
+linha só para admin e responsável da função — regra de 01/09; Compras troca
+pelo registro).
+
+Sem divergência encontrada (confirmado no código): criação de usuário
+(`user-registration.tsx:106` → `canCreateUsers` = admin/RH/Compras, igual a
+`POST /api/users`), trocas (`swap-review-panel`, `ticket-modal`,
+`use-scaling-mutations` → admin/Compras), exclusão de evento (`events.tsx` →
+`isAdmin`), prazos (`scaling-analytics.tsx` → `ehAdmin`), bagagem (`allowed` =
+admin/Compras), Validação de Escala (`canEdit`/`canDecide` vêm do servidor por
+linha), simulação (só admin), responsáveis da Escala (só admin), aprovação de
+cenotécnica (`canApproveProductionFor` espelha admin/flag/aprovador),
+exportação de colaboradores (admin/Compras/RH), empresa pagadora em
+`system-settings.tsx` (excluir só admin), cancelar vaga (`use-vaga-acoes.ts`
+→ `POST …/cancel`, sem `status` no corpo).
+
+**Nenhuma divergência client × API permanece aberta em 24/09.**
 
 ## 5. Integridade dos dados (o que o servidor recusa além do papel)
 
@@ -410,8 +448,12 @@ pagadora em `system-settings.tsx` (excluir só admin).
   NF/comparativo, `approvedBy`, `checkinAt`…) só por rota dedicada; NF exige
   `enviada` para decidir, `aprovada` + data para check-in; comparativo decide
   por lista de status de origem; Flash automático intocável.
-- **Anexos**: tipo por magic number, nome sanitizado, `CSP: sandbox` no
-  download, `attachmentUrl` de NF só interno.
+- **Anexos**: tipo por magic number; nome sanitizado por
+  `sanitizarNomeDeArquivo` (`server/objectAcl.ts`): só o último segmento do
+  caminho, sem caracteres de controle/aspas/`;<>`, até 120 chars, e **todas**
+  as extensões removidas (`nota.pdf.exe` → `nota.pdf`, com a extensão vinda do
+  tipo detectado, não do nome enviado); `CSP: sandbox` no download;
+  `attachmentUrl` de NF só interno.
 - **Constraints no banco** (ver `docs/migracoes.md`): UNIQUEs de planejado,
   comparativo, NF por prestação, troca pendente por vaga, e-mail
   case-insensitive; CHECKs `NOT VALID` de status/fase; FKs.

@@ -15,6 +15,7 @@ import {
   updateEventSchema,
 } from "@shared/schema";
 import { eq, and, ne, desc, sql as drizzleSql } from "drizzle-orm";
+import { ZodError } from "zod";
 import { isFinanceRole, normalizeRole } from "@shared/roles";
 import { createAuditLog, cacheDeCatalogo, requireRoles, CADASTRO_ROLES, FINANCE_ROLES } from "./_compartilhado";
 
@@ -26,7 +27,7 @@ export function registrarEventos(app: Express): void {
       const events = await storage.getEvents(includeDeleted);
       cacheDeCatalogo(res);
       res.json(events);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar eventos" });
     }
   });
@@ -36,7 +37,7 @@ export function registrarEventos(app: Express): void {
     try {
       const eventsWithInclusions = await storage.getEventsWithInclusions();
       res.json(eventsWithInclusions);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar eventos com escalações" });
     }
   });
@@ -49,13 +50,13 @@ export function registrarEventos(app: Express): void {
     try {
       const eventData = insertEventSchema.parse(req.body);
       // Empresa pagadora é decisão do financeiro (rota dedicada abaixo)
-      const { paymentCompanyName: _pc, paymentCompanyCnpj: _cnpj, ...semPagadora } = eventData as any;
+      const { paymentCompanyName: _pc, paymentCompanyCnpj: _cnpj, ...semPagadora } = eventData;
       const event = await storage.createEvent(semPagadora);
 
       await createAuditLog('create', 'event', event.id, event, currentUser.id, currentUser.name, undefined, req);
       res.json(event);
     } catch (error) {
-      if ((error as any)?.name === "ZodError") return res.status(400).json({ message: "Dados inválidos" });
+      if (error instanceof ZodError) return res.status(400).json({ message: "Dados inválidos" });
       throw error;
     }
   });
@@ -96,7 +97,7 @@ export function registrarEventos(app: Express): void {
       }
 
       // Allow partial updates including status field
-      const eventData: Record<string, any> = updateEventSchema.parse(req.body);
+      const eventData = updateEventSchema.parse(req.body);
       if (!isFinanceRole(currentUser.role)) {
         for (const campo of ["paymentCompanyName", "paymentCompanyCnpj"] as const) {
           if (eventData[campo] === undefined) continue;
@@ -118,7 +119,7 @@ export function registrarEventos(app: Express): void {
 
       res.json(updatedEvent);
     } catch (error) {
-      if ((error as any)?.name === "ZodError") return res.status(400).json({ message: "Dados inválidos" });
+      if (error instanceof ZodError) return res.status(400).json({ message: "Dados inválidos" });
       throw error;
     }
   });
@@ -151,9 +152,7 @@ export function registrarEventos(app: Express): void {
       });
     }
 
-    // updateEvent tipa Partial<InsertEvent> (sem status); o PUT já grava status
-    // pelo mesmo caminho via updateEventSchema.
-    const updated = await storage.updateEvent(eventId, { status: "excluído" } as any);
+    const updated = await storage.updateEvent(eventId, { status: "excluído" });
 
     await createAuditLog('delete', 'event', eventId, updated, currentUser.id, currentUser.name, event, req);
 

@@ -171,12 +171,12 @@ function FunctionManagersCell({ functionId, functionName, managers: managersProp
       setSelectedUserId(""); setIsOpen(false);
       toast({ title: "Responsável adicionado!" });
     },
-    onError: (err: any) => toast({ title: "Erro ao adicionar responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao adicionar responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const removeManagerMutation = useMutation({
     mutationFn: async (userId: string) => (await apiRequest("DELETE", `/api/functions/${functionId}/managers/${userId}`)).json(),
     onSuccess: () => { invalidateManagers(); toast({ title: "Responsável removido." }); },
-    onError: (err: any) => toast({ title: "Erro ao remover responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao remover responsável", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const managers = useMemo(() => managersProp ?? [], [managersProp]);
@@ -357,17 +357,17 @@ export default function Functions() {
   const updateFunctionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: FunctionFormData }) => (await apiRequest("PATCH", `/api/functions/${id}`, data)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/functions"] }); toast({ title: "Função atualizada!" }); handleCloseDialog(); },
-    onError: (err: any) => toast({ title: "Erro ao atualizar função", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao atualizar função", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const createFunctionMutation = useMutation({
     mutationFn: async (data: FunctionFormData) => (await apiRequest("POST", "/api/functions", data)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/functions"] }); toast({ title: "Função criada!" }); handleCloseDialog(); },
-    onError: (err: any) => toast({ title: "Erro ao salvar função", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao salvar função", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const deleteFunctionMutation = useMutation({
     mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/functions/${id}`)).json(),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/functions"] }); toast({ title: "Função removida." }); },
-    onError: (err: any) => toast({ title: "Erro ao remover função", description: apiErrorMessage(err, "Pode haver escalações vinculadas."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao remover função", description: apiErrorMessage(err, "Pode haver escalações vinculadas."), variant: "destructive" }),
   });
 
   const handleOpenDialog = (fn?: Function) => { setEditingFunction(fn ?? null); form.reset({ name: fn?.name ?? "", costCenter: fn?.costCenter ?? "" }); setIsDialogOpen(true); };

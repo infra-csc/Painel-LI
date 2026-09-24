@@ -2,9 +2,10 @@
  * FONTE ÚNICA das flags de permissão do client, espelhadas do servidor.
  * NOVAS PERMISSÕES VÃO AQUI (com o comentário da rota que espelham).
  *
- * `permissions.ts` é a matriz feature × nível ('none' | 'view' | 'edit')
- * usada por telas legadas — convivem por enquanto; não unificar sem
- * revisar cada tela.
+ * A matriz legada `permissions.ts` (feature × 'none' | 'view' | 'edit') foi
+ * absorvida aqui em 24/09: team_inclusion → canAccessScreen1/canEditScreen1,
+ * scaling → canAccessScreen2, tickets → canAccessScreen3/canRegisterTickets,
+ * accommodations → canAccessScreen3/canEditScreen4.
  */
 import type { User } from "@shared/schema";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";

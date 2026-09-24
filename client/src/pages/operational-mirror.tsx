@@ -4,7 +4,6 @@ import { Link } from "wouter";
 import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { PageHeader } from "@/components/common/page-header";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import EventCombobox from "@/components/ui/event-combobox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
@@ -47,10 +45,10 @@ import { cn } from "@/lib/utils";
 import { formatarMoeda } from "@/lib/format";
 import {
   RefreshCw, FileSpreadsheet, AlertTriangle, Plane, BedDouble, Luggage, Car,
-  CheckCircle2, Users, Loader2, CheckCheck, MapPin, Clock, Check, CalendarDays,
+  CheckCircle2, Users, Loader2, CheckCheck, MapPin, Check, CalendarDays,
   SlidersHorizontal, Columns3, Pencil, ChevronDown, ChevronRight, Search, X, LayoutGrid,
   Table2, Building2, Rows3, AlignJustify, Filter, Eraser, UserRound, ChevronUp, ChevronsUpDown,
-  Lock, ExternalLink, Landmark, Info, FilterX, ArrowLeftRight,
+  Lock, ExternalLink, Landmark, FilterX, ArrowLeftRight,
 } from "lucide-react";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
@@ -63,7 +61,6 @@ function fmtDate(d: string | null | undefined): string {
 }
 const genderLabel: Record<string, string> = { male: "M", female: "F", unknown: "?" };
 // Regra de gênero do quarto (hotel_room_groups.gender_rule)
-const GENDER_RULE_LABEL: Record<string, string> = { male: "Masculino", female: "Feminino", mixed: "Misto", none: "Misto" };
 // Direção do grupo de Uber (uber_groups.direction) — antes tudo que não era "ida" virava "Volta"
 const UBER_DIRECTION_LABEL: Record<string, string> = {
   ida: "Ida", volta: "Volta", interno: "Deslocamento interno",
@@ -472,16 +469,6 @@ function GrupoHead({ ponto, children, ...resto }: { ponto: string; children: Rea
     </th>
   );
 }
-
-const G = {
-  schedule: "bg-info-soft text-info border-info/25",
-  ticket: "bg-brand-soft text-primary border-primary/25",
-  hotel: "bg-success-soft text-success border-success/25",
-  baggage: "bg-warning-soft text-warning border-warning/25",
-  uber: "bg-brand-soft text-primary border-primary/25",
-  car: "bg-warning-soft text-warning border-warning/25",
-  pend: "bg-danger-soft text-danger border-danger/25",
-};
 
 /** Barra que abre cada etapa — mesma família de cor do cabeçalho do bloco. */
 const BARRA = {
@@ -1567,7 +1554,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, idx) => {
+                {rows.map((r) => {
                   const t: Partial<NonNullable<MirrorRow["ticket"]>> = r.ticket || {};
                   const a: Partial<NonNullable<MirrorRow["accommodation"]>> = r.accommodation || {};
                   const ctx = ctxDaLinha(r);
@@ -1863,48 +1850,6 @@ function Fato({ rotulo, children, onClick }: { rotulo: string; children: React.R
  * cartão, mais bordas só criam ruído — o que separa aqui é o divisor e o
  * alinhamento do valor à direita.
  */
-function LinhaCusto({ icon, titulo, valor, detalhes = [], vazio, onEdit, derivado }: {
-  icon: React.ReactNode;
-  titulo: string;
-  valor: number;
-  detalhes?: SummaryLine[];
-  vazio: string;
-  onEdit?: () => void;
-  derivado?: boolean;
-}) {
-  const linhas = detalhes.filter(Boolean) as (string | number)[];
-  const semNada = !valor && linhas.length === 0;
-  const conteudo = (
-    <>
-      <span className="flex items-start gap-2.5 min-w-0">
-        <span className="mt-0.5 text-muted-foreground shrink-0" aria-hidden="true">{icon}</span>
-        <span className="min-w-0">
-          <span className="block text-sm font-medium leading-tight">{titulo}</span>
-          {semNada ? (
-            <span className="block text-2xs text-muted-foreground/70 leading-tight mt-0.5">{vazio}</span>
-          ) : (
-            <span className="block text-2xs text-muted-foreground leading-snug mt-0.5 truncate">{linhas.join(" · ")}</span>
-          )}
-        </span>
-      </span>
-      <span className={`shrink-0 text-sm font-semibold tabular-nums ${semNada ? "text-muted-foreground" : ""} ${derivado ? "italic" : ""}`}
-        title={derivado ? "Valor derivado: diária × noites (total não informado)" : undefined}>
-        {brl(valor)}
-      </span>
-    </>
-  );
-  if (!onEdit) {
-    return <div className="flex items-start justify-between gap-3 px-4 py-2.5">{conteudo}</div>;
-  }
-  return (
-    <button type="button" onClick={onEdit} aria-label={`Editar ${titulo}`}
-      className="w-full flex items-start justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/40">
-      {conteudo}
-    </button>
-  );
-}
-
-type SummaryLine = string | number | false | null | undefined;
 
 // ============ DEPARTAMENTOS VIEW ============
 interface DepartamentosViewProps {
@@ -2256,7 +2201,6 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                 const bruto = (g.members || [])[mi] as { id?: string; checkInDate?: string | null; checkOutDate?: string | null } | undefined;
                 const ini = bruto?.checkInDate || r?.accommodation?.checkInDate || r?.schedule.startDate || g.checkInDate;
                 const fim = bruto?.checkOutDate || r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
-                const proprio = !!(bruto?.checkInDate || bruto?.checkOutDate);
                 return (
                   <tr key={`${g.id}-${m.id ?? mi}`}
                     className={`group/linha ${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
@@ -2351,145 +2295,6 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
  * "Norte × Aeroporto" de "Aeroporto × Norte" em blocos distintos — misturar os
  * dois numa lista só obrigava a ler a coluna "Trajeto" linha a linha.
  */
-function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, canEdit, onConfirm, onPatch, onMover, pendingId, onSkipUber }: {
-  titulo: string;
-  subtitulo: string;
-  tom: string;
-  grupos: UberGroup[];
-  rowByCollab: Map<string, MirrorRow>;
-  collabById: Map<string, MirrorCollaborator>;
-  canEdit: boolean;
-  onConfirm: (id: string) => void;
-  onPatch: (id: string, campos: Record<string, unknown>) => void;
-  onMover: (collaboratorId: string, deGrupoId: string, paraGrupoId: string | null) => void;
-  pendingId: string | null | undefined;
-  /** Tira a pessoa da roteirização (ou traz de volta). */
-  onSkipUber?: (rowId: string, skip: boolean) => void;
-}) {
-  const ida = titulo.toLowerCase().startsWith("ida");
-  /** Cada carro se descreve por quem já está nele — é assim que se decide. */
-  const descreve = (g: UberGroup) => {
-    const nomes = (g.members || []).map((m) => memberInfo(m, collabById).name.split(" ")[0]);
-    return nomes.length ? `Com ${nomes.join(", ")}` : "Carro vazio";
-  };
-  return (
-    <section className="rounded-lg border bg-card overflow-hidden">
-      <header className={`px-4 py-2.5 border-b ${tom}`}>
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          {ida ? <Plane className="h-3.5 w-3.5" aria-hidden="true" /> : <Plane className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />}
-          {titulo}
-          <span className="rounded-full bg-background/70 px-1.5 text-2xs tabular-nums">{grupos.length}</span>
-        </h3>
-        <p className="text-2xs text-muted-foreground mt-0.5">{subtitulo}</p>
-      </header>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/60 border-b">
-            <tr className="text-left">
-              <th scope="col" className="px-3 py-2 font-semibold">Nome</th>
-              <th scope="col" className="px-3 py-2 font-semibold">Departamento</th>
-              <th scope="col" className="px-3 py-2 font-semibold border-l">Dia</th>
-              <th scope="col" className="px-3 py-2 font-semibold">Data</th>
-              <th scope="col" className="px-3 py-2 font-semibold">Aeroporto</th>
-              <th scope="col" className="px-3 py-2 font-semibold">{ida ? "Sair às" : "Buscar às"}</th>
-              <th scope="col" className="px-3 py-2 font-semibold border-l">Titular</th>
-              <th scope="col" className="px-3 py-2 font-semibold text-right">Situação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {grupos.map((g, gi) => {
-              const membros = (g.members || []).map((m) => memberInfo(m, collabById));
-              const faixa = FAIXA[gi % FAIXA.length];
-              return membros.map((m, mi) => {
-                const r = m.id ? rowByCollab.get(m.id) : undefined;
-                const t = r?.ticket;
-                const data = g.date || (ida ? t?.actualDepartureDate : t?.actualReturnDate);
-                const aero = ida ? (t?.destinationAirport || g.origin) : (t?.returnOriginAirport || g.destination);
-                const hora = g.time || (ida ? t?.actualArrivalTime : t?.actualReturnTime);
-                return (
-                  <tr key={`${g.id}-${m.id ?? mi}`}
-                    className={`group/linha ${faixa} ${mi === membros.length - 1 ? "border-b-2 border-border" : "border-b border-border/40"}`}
-                    data-testid={`uber-row-${g.id}-${mi}`}>
-                    <td className="px-3 py-2 font-medium">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate">{m.name}</span>
-                        {canEdit && m.id && (
-                          <MoverPara pessoa={m.name} grupoAtual={g.id} rotuloNovo="Carro só para ela"
-                            destinos={grupos.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
-                            onMover={(para) => onMover(m.id as string, g.id, para)} />
-                        )}
-                        {/* Nem todo mundo vai de Uber: carro próprio, quem já
-                            está na cidade, quem a produção leva de outro jeito. */}
-                        {canEdit && r && onSkipUber && (
-                          <button type="button"
-                            onClick={() => onSkipUber(r.teamInclusionId, true)}
-                            title="Tirar da roteirização — não entra em carro nenhum e não gera custo"
-                            aria-label={`Tirar ${m.name} da roteirização de Uber`}
-                            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            data-testid={`skip-uber-${r.teamInclusionId}`}>
-                            <X className="h-3 w-3" aria-hidden="true" />
-                          </button>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 capitalize text-muted-foreground">{r?.function.area || r?.function.name || "—"}</td>
-                    <td className="px-3 py-2 border-l text-muted-foreground">{diaSemana(data)}</td>
-                    <td className="px-3 py-2 tabular-nums">{fmtDate(data)}</td>
-                    <td className="px-3 py-2 uppercase">{aero || "—"}</td>
-                    {/* O horário é do CARRO, não da pessoa: aparece uma vez e
-                        pode ser corrigido. A cor diz de onde ele veio —
-                        calculado, ajustado à mão ou travado por confirmação. */}
-                    {mi === 0 ? (
-                      <td className="px-3 py-2 align-middle" rowSpan={membros.length}>
-                        <HorarioDoCarro grupo={g} canEdit={canEdit} onPatch={onPatch} />
-                      </td>
-                    ) : null}
-                    {/* TITULAR: quem chama o carro. Escolhido à mão entre os
-                        passageiros do grupo — o sistema não sugere. */}
-                    {mi === 0 ? (
-                      <td className="px-3 py-2 border-l align-middle" rowSpan={membros.length}>
-                        {canEdit ? (
-                          <select
-                            value={g.titularCollaboratorId ?? ""}
-                            onChange={(e) => onPatch(g.id, { titularCollaboratorId: e.target.value || null })}
-                            aria-label="Titular do carro"
-                            className="h-7 w-full min-w-[150px] rounded-md border bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            data-testid={`uber-titular-${g.id}`}>
-                            <option value="">Escolher…</option>
-                            {membros.map((op, i) => (
-                              <option key={op.id ?? i} value={op.id ?? ""}>{op.name}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="font-medium">
-                            {membros.find((op) => op.id === g.titularCollaboratorId)?.name
-                              ?? <span className="text-muted-foreground">—</span>}
-                          </span>
-                        )}
-                      </td>
-                    ) : null}
-                    {mi === 0 ? (
-                      <td className="px-3 py-2 text-right align-middle" rowSpan={membros.length}>
-                        {g.confirmed ? (
-                          <Badge className="bg-success hover:bg-success/90">Confirmado</Badge>
-                        ) : canEdit ? (
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
-                            {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" aria-hidden="true" /> : <CheckCheck className="h-3 w-3 mr-1" aria-hidden="true" />} Confirmar
-                          </Button>
-                        ) : <Badge variant="outline">Sugestão</Badge>}
-                      </td>
-                    ) : null}
-                  </tr>
-                );
-              });
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 /**
  * O horário do carro — e de onde ele veio.
  *
@@ -3042,7 +2847,7 @@ function RateioTabela({ titulo, icone, linhas, vazio }: {
   );
 }
 
-function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDerived?: boolean }) {
+function FooterTotals({ totals }: { totals: MirrorTotals; hotelDerived?: boolean }) {
   // Só vale mostrar o rateio por conta quando alguma função tem conta
   // preenchida — senão seria uma tabela com uma linha "(sem conta)".
   const contas = (totals.byAccount || []).filter((c) => c.name !== "(sem conta)");
@@ -3086,25 +2891,3 @@ function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDer
  * propósito: num evento local, quatro das cinco categorias são R$ 0,00 e não
  * podem ter o mesmo peso visual do que realmente foi gasto.
  */
-function CostItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
-  const zerado = !value;
-  return (
-    <div className="px-4 py-3">
-      <p className={`flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wider ${zerado ? "text-muted-foreground" : "text-muted-foreground"}`}>
-        <span aria-hidden="true">{icon}</span>{label}
-      </p>
-      <p className={`mt-1 text-base font-semibold tabular-nums ${zerado ? "text-muted-foreground" : "text-foreground"}`}>
-        {brl(value)}
-      </p>
-    </div>
-  );
-}
-
-function TotalLine({ label, value, bold, italic, title, muted }: { label: string; value: string; bold?: boolean; italic?: boolean; title?: string; muted?: boolean }) {
-  return (
-    <div className={`flex items-center justify-between ${bold ? "text-base font-semibold" : ""}`}>
-      <span className={bold ? "" : "text-muted-foreground"}>{label}</span>
-      <span className={`tabular-nums ${italic ? "italic" : ""} ${muted && !bold ? "text-muted-foreground" : ""}`} title={title}>{value}</span>
-    </div>
-  );
-}

@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Não foi possível redefinir a senha",
         description: "Tente novamente em instantes.",

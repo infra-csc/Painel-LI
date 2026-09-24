@@ -110,7 +110,6 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
                 <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-r border-border">{line.vagas}</td>
                 {dates.map((d) => {
                   const n = line.perDay[d] || 0;
-                  const { isWeekend } = formatDateHeader(d);
                   return (
                     <td key={d} className="px-1 py-1.5 text-center border-r border-border">
                       {n > 0 ? (

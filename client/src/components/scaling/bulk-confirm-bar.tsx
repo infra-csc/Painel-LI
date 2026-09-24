@@ -49,8 +49,8 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
           observations: inclusion.observations || "",
           // Mesma normalização do modal: cidade vazia/SP grava "São Paulo - SP"
           city: isCityFromSP(inclusion.city) ? "São Paulo - SP" : (inclusion.city || ""),
-          atendimentoTipo: (inclusion as any).atendimentoTipo || null,
-          percurseiroTipo: (inclusion as any).percurseiroTipo || null,
+          atendimentoTipo: inclusion.atendimentoTipo || null,
+          percurseiroTipo: inclusion.percurseiroTipo || null,
           needsTicket: inclusion.needsTicket,
           needsAccommodation: inclusion.needsAccommodation,
         });

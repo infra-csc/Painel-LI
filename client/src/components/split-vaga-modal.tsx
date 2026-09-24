@@ -54,14 +54,6 @@ function capitalizeName(name: string): string {
   return name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function SmLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]" style={{ margin: "0 0 8px" }}>
-      {children}
-    </p>
-  );
-}
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface SplitVagaModalProps {
@@ -376,7 +368,6 @@ export function SplitVagaModal({
       document.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Render ────────────────────────────────────────────────────────────────

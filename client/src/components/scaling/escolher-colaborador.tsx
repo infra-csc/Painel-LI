@@ -59,7 +59,7 @@ export default function EscolherColaborador({
 
   const ordenados = useMemo(
     () => (colaboradores ?? [])
-      .filter((c) => c.status === "aprovado" && (c as any).active !== false)
+      .filter((c) => c.status === "aprovado" && c.active !== false)
       .sort((a, b) => fixEncoding(a.fullName).localeCompare(fixEncoding(b.fullName), "pt-BR", { sensitivity: "base" })),
     [colaboradores],
   );

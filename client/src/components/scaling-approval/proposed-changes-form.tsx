@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDayMonthBr } from "@/lib/dates";
@@ -155,7 +154,7 @@ function divergenciaDeDias(escolhidos: string[], pedidos: string[]): string {
  * Formulário dos campos propostos (mesmo conjunto do pedido de ajuste/inclusão
  * da área), reaproveitando WorkDaysPicker + TravelFields da Validação de Escala.
  */
-export function ProposedChangesForm({ type, value, onChange, event, disabled, idPrefix = "rev", diasPedidos }: ProposedChangesFormProps) {
+export function ProposedChangesForm({ value, onChange, event, disabled, idPrefix = "rev", diasPedidos }: ProposedChangesFormProps) {
   const set = (patch: Partial<ProposedDraft>) => onChange({ ...value, ...patch });
   // Diárias são 1 por dia de trabalho — acompanham os dias, sempre.
   const onDays = (days: string[]) => set({ workDays: days, dailyRates: String(days.length) });

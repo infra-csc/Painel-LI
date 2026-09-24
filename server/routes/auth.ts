@@ -107,7 +107,7 @@ export function registrarAuth(app: Express): void {
 
       const portalReturnUrl = req.session.portalReturnUrl || null;
       return res.json({ user: semSegredos(user), portalReturnUrl, simulation });
-    } catch (error) {
+    } catch {
       return res.status(500).json({ message: "Erro interno" });
     }
   });
@@ -160,7 +160,7 @@ export function registrarAuth(app: Express): void {
       }
 
       res.json({ user: semSegredos(user) });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Login] Error:', error);
       res.status(500).json({ message: "Erro interno do servidor" });
     }
@@ -206,7 +206,7 @@ export function registrarAuth(app: Express): void {
       log(`[ForgotPassword] Token gerado para o usuário ${user.id}`);
 
       res.json({ message: RESPOSTA_GENERICA_RESET });
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro interno do servidor" });
     }
   });
@@ -243,7 +243,7 @@ export function registrarAuth(app: Express): void {
       await createAuditLog('reset_password', 'user', user.id, updatedUser, user.id, user.name, user, req);
 
       res.json({ message: "Senha redefinida com sucesso" });
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro interno do servidor" });
     }
   });

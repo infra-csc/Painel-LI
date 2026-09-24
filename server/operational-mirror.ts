@@ -374,11 +374,11 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   })) as RoomGroup[];
 
   // mapear colaborador -> grupo (uber/quarto) do evento
-  const collabToUberGroup = new Map<string, any>();
+  const collabToUberGroup = new Map<string, UberGroup>();
   for (const g of uberGroupsWithMembers) {
     for (const m of g.members) collabToUberGroup.set(m.collaboratorId, g);
   }
-  const collabToRoomGroup = new Map<string, any>();
+  const collabToRoomGroup = new Map<string, RoomGroup>();
   for (const g of roomGroupsWithMembers) {
     for (const m of g.members) collabToRoomGroup.set(m.collaboratorId, g);
   }
@@ -386,11 +386,11 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   // extras por inclusão (preferencial) ou colaborador (legado) e tipo
   const extrasFor = indexarExtras(extras);
 
-  const rows: MirrorRow[] = inclusions.map((ti: any) => {
-    const collab: any = ti.collaboratorId ? collabMap.get(ti.collaboratorId) : null;
-    const fn: any = ti.functionId ? fnMap.get(ti.functionId) : null;
-    const ticket: any = ticketByInclusion.get(ti.id) || null;
-    const acc: any = accByInclusion.get(ti.id) || null;
+  const rows: MirrorRow[] = inclusions.map((ti) => {
+    const collab = (ti.collaboratorId ? collabMap.get(ti.collaboratorId) : null) ?? null;
+    const fn = (ti.functionId ? fnMap.get(ti.functionId) : null) ?? null;
+    const ticket = ticketByInclusion.get(ti.id) || null;
+    const acc = accByInclusion.get(ti.id) || null;
 
     const baggageExtra = extrasFor(ti.id, ti.collaboratorId, "baggage");
     const uberExtra = extrasFor(ti.id, ti.collaboratorId, "uber");
@@ -403,7 +403,9 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     // ----- Pendências automáticas -----
     const pendencies: string[] = [];
     if (ti.needsTicket && !ticket) pendencies.push("Sem passagem");
-    if (ticket && !ticket.locator && !ticket.reservationNumber) pendencies.push("Passagem sem localizador");
+    // Só `locator` existe em tickets (o `reservationNumber` é da hospedagem) — a
+    // checagem antiga lia um campo inexistente, que era sempre vazio.
+    if (ticket && !ticket.locator) pendencies.push("Passagem sem localizador");
     if (ticket && !ticket.purchaseOrderNumber) pendencies.push("Passagem sem OC");
     if (ticket && !ticket.fileUrl && (!ticket.attachmentIds || ticket.attachmentIds.length === 0)) pendencies.push("Passagem sem voucher");
     if (ti.needsAccommodation && !acc) pendencies.push("Sem hospedagem");
@@ -625,7 +627,10 @@ export function alvoDoCampo(field: string): FieldTarget | null {
   return Object.hasOwn(FIELD_MAP, field) ? FIELD_MAP[field] : null;
 }
 
-export function coerce(value: any, type: string): any {
+/** O que uma célula do espelho vira depois de `coerce` — o que o banco recebe. */
+export type ValorDeCelula = string | number | boolean | null;
+
+export function coerce(value: unknown, type: string): ValorDeCelula {
   if (value === "" || value === undefined || value === null) {
     return type === "bool" ? false : null;
   }
@@ -663,14 +668,21 @@ export function patchDaVaga(
   return patch;
 }
 
-export async function patchOperationalMirrorCell(eventId: string, rowId: string, field: string, rawValue: any) {
+/**
+ * Patch com coluna escolhida em runtime (allowlist FIELD_MAP, validada em
+ * `alvoDoCampo`): o drizzle só tipa chaves literais, então o objeto é montado
+ * solto e afirmado como o tipo de inserção da tabela.
+ */
+const patchDinamico = <T>(obj: Record<string, unknown>): T => obj as T;
+
+export async function patchOperationalMirrorCell(eventId: string, rowId: string, field: string, rawValue: unknown) {
   const target = alvoDoCampo(field);
   if (!target) throw new Error(`Campo não permitido: ${field}`);
 
   const value = coerce(rawValue, target.type);
 
   // Tipo de quarto é um enum na UI (Select); rejeitar valores fora dele.
-  if (field === "accommodation.roomType" && value !== null && !["single", "double", "triple"].includes(value)) {
+  if (field === "accommodation.roomType" && value !== null && !["single", "double", "triple"].includes(String(value))) {
     throw new Error("Tipo de quarto inválido: use single, double ou triple");
   }
 
@@ -687,7 +699,7 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
 
     if (target.table === "team_inclusions") {
       const patch = patchDaVaga(inclusion, target.col, value);
-      await tx.update(teamInclusions).set({ ...patch, updatedAt: new Date() } as any).where(eq(teamInclusions.id, rowId));
+      await tx.update(teamInclusions).set(patchDinamico<Partial<typeof teamInclusions.$inferInsert>>({ ...patch, updatedAt: new Date() })).where(eq(teamInclusions.id, rowId));
       return { ok: true };
     }
 
@@ -698,9 +710,9 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
         .where(eq(tickets.teamInclusionId, rowId))
         .orderBy(sql`${tickets.createdAt} DESC NULLS LAST`, sql`${tickets.id} DESC`).limit(1);
       if (existing) {
-        await tx.update(tickets).set({ [target.col]: value, updatedAt: new Date() } as any).where(eq(tickets.id, existing.id));
+        await tx.update(tickets).set(patchDinamico<Partial<typeof tickets.$inferInsert>>({ [target.col]: value, updatedAt: new Date() })).where(eq(tickets.id, existing.id));
       } else {
-        await tx.insert(tickets).values({ teamInclusionId: rowId, [target.col]: value } as any);
+        await tx.insert(tickets).values(patchDinamico<typeof tickets.$inferInsert>({ teamInclusionId: rowId, [target.col]: value }));
       }
       return { ok: true };
     }
@@ -710,9 +722,9 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
         .where(eq(accommodations.teamInclusionId, rowId))
         .orderBy(sql`${accommodations.createdAt} DESC NULLS LAST`, sql`${accommodations.id} DESC`).limit(1);
       if (existing) {
-        await tx.update(accommodations).set({ [target.col]: value, updatedAt: new Date() } as any).where(eq(accommodations.id, existing.id));
+        await tx.update(accommodations).set(patchDinamico<Partial<typeof accommodations.$inferInsert>>({ [target.col]: value, updatedAt: new Date() })).where(eq(accommodations.id, existing.id));
       } else {
-        await tx.insert(accommodations).values({ teamInclusionId: rowId, [target.col]: value } as any);
+        await tx.insert(accommodations).values(patchDinamico<typeof accommodations.$inferInsert>({ teamInclusionId: rowId, [target.col]: value }));
       }
       return { ok: true };
     }
@@ -730,16 +742,16 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
     const existing = candidatos.find((e) => e.teamInclusionId === rowId) || candidatos.find((e) => !e.teamInclusionId);
     if (existing) {
       await tx.update(logisticsExtraCosts)
-        .set({ [target.col]: value, teamInclusionId: rowId, updatedAt: new Date() } as any)
+        .set(patchDinamico<Partial<typeof logisticsExtraCosts.$inferInsert>>({ [target.col]: value, teamInclusionId: rowId, updatedAt: new Date() }))
         .where(eq(logisticsExtraCosts.id, existing.id));
     } else {
-      await tx.insert(logisticsExtraCosts).values({
+      await tx.insert(logisticsExtraCosts).values(patchDinamico<typeof logisticsExtraCosts.$inferInsert>({
         eventId,
         teamInclusionId: rowId,
         collaboratorId: inclusion.collaboratorId || null,
         type: target.logType,
         [target.col]: value,
-      } as any);
+      }));
     }
     return { ok: true };
   });
@@ -1113,7 +1125,7 @@ function leitorEmWorker(arquivo: Buffer, limite: number): LeitorDePlanilha {
         void worker.terminate();
         reject(new Error("A leitura da planilha demorou demais. Tente um arquivo menor ou só com a aba do evento."));
       }, TEMPO_MAXIMO_DE_LEITURA_MS);
-      const onMessage = (r: any) => {
+      const onMessage = (r: { ok?: boolean; erro?: string } | null) => {
         limpar();
         if (r?.ok) resolve(r as T);
         else reject(new Error(r?.erro || "Falha ao ler a planilha."));
@@ -1292,7 +1304,7 @@ export async function exportOperationalMirrorExcel(eventId: string): Promise<Buf
     "PENDÊNCIAS",
   ];
 
-  const aoa: any[][] = [];
+  const aoa: (string | number | boolean | null | undefined)[][] = [];
   aoa.push([`Evento: ${data.event.name}`]);
   aoa.push([`Endereço: ${data.event.location || ""}`]);
   aoa.push([`Data: ${data.event.startDate} a ${data.event.endDate}`]);

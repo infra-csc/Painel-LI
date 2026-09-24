@@ -5,7 +5,7 @@
  * Papéis: cadastro + RH + Área de Função anexam; logística lê vouchers;
  * qualquer papel acessa anexo respeitando a ACL.
  */
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { collaborators as collaboratorsTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -57,7 +57,7 @@ export function registrarAnexos(app: Express): void {
   // compara. Nenhuma rota entrega URL de PUT ao cliente.
   const PAPEIS_QUE_ANEXAM: readonly CanonicalRole[] = [...CADASTRO_ROLES, "financial", "function_area"];
 
-  const idDeAnexoValido = (id: string, res: any): boolean => {
+  const idDeAnexoValido = (id: string, res: Response): boolean => {
     if (/^ATT-[A-Z0-9-]{4,60}$/.test(id)) return true;
     res.status(400).json({ message: "Identificador de anexo inválido" });
     return false;
@@ -167,7 +167,7 @@ export function registrarAnexos(app: Express): void {
    * papel de cadastro/RH/admin); documento de colaborador só cadastro/RH/admin.
    * Devolve o objeto e os metadados, ou null (resposta já enviada).
    */
-  const abrirAnexoComAcl = async (req: any, res: any) => {
+  const abrirAnexoComAcl = async (req: Request, res: Response) => {
     const quem = await requireRoles(req, res, TODOS_OS_PAPEIS);
     if (!quem) return null;
     const { id } = req.params as { id: string };

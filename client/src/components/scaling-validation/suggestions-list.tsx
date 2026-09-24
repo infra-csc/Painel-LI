@@ -21,7 +21,8 @@ import {
   type DecisionDescription, type SuggestionRow,
 } from "./types";
 import { StatusBadge, TONE_CLASS, toneDoStatus } from "@/components/common/status-badge";
-import { CHIP_NEUTRAL, DayLabel, LegChip, NeedChips, TABLE_TH, dayText, legValue } from "./logistics-chips";
+import { DayLabel, LegChip, NeedChips, TABLE_TH, dayText, legValue } from "./logistics-chips";
+import { ValidationNoteHint } from "./validation-note-blocks";
 
 // Reexport: outros módulos (ex.: scaling-approval) importam daqui.
 export { workDaysOf } from "./types";
@@ -209,7 +210,7 @@ function ReturnedBadge({ row }: { row: Pick<SuggestionRow, "lastDecision" | "las
  * `approverNames`: aprovador(es) da função — `undefined` quando a tela não sabe
  * (aí nada é afirmado); `[]` significa "função sem aprovador cadastrado".
  */
-export function StatusCell({ row, approverNames }: { row: SuggestionRow; approverNames?: string[] }) {
+export function StatusCell({ row }: { row: SuggestionRow; approverNames?: string[] }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
       {/* Com pedido em aberto, UM selo só — o do pedido, que diz o tipo certo e
@@ -222,6 +223,9 @@ export function StatusCell({ row, approverNames }: { row: SuggestionRow; approve
       {/* "pendente há N dias" saiu da lista (04/09): a contagem virava ruído
           vermelho em toda linha; o recorte "Atrasadas" continua nos KPIs. */}
       <ReturnedBadge row={row} />
+      {/* Observação de quem validou (24/09): ícone com o texto no tooltip —
+          só na vaga validada (ao voltar para validação o servidor a zera). */}
+      {row.status === SUGESTAO_STATUS.VALIDADA && <ValidationNoteHint note={row.validationNote} />}
     </div>
   );
 }

@@ -8,11 +8,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ToastAction } from "@/components/ui/toast";
+import { OptionalMark } from "@/components/forms/required-mark";
+import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
+import { idDoErro } from "@/lib/campo-com-erro";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import EventCombobox from "@/components/ui/event-combobox";
@@ -40,6 +43,7 @@ import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module
 import { DecidedPanel } from "@/components/scaling-validation/decided-panel";
 import { EventCommentsButton } from "@/components/scaling-validation/event-comments-dialog";
 import { useEscalaManagers } from "@/components/scaling-validation/use-escala-managers";
+import { VALIDATION_NOTE_MAX, normalizeValidationNote } from "@/components/scaling-validation/validation-note";
 import {
   SUGGESTIONS_QUERY_KEY, canActOn, canValidate, invalidateScalingQueries, workDaysOf,
   type ApiError, type FunctionWithManagers, type SuggestionRow, type ValidateResult,
@@ -178,6 +182,14 @@ export default function ScalingValidationPage() {
    * do lote (o usuário pode ter montado um lote de 8 vagas antes de clicar).
    */
   const [validateTargetIds, setValidateTargetIds] = useState<string[] | null>(null);
+  /**
+   * Observação opcional para o aprovador (dono, 24/09) — digitada no diálogo
+   * de confirmação, vale para TODAS as vagas do lote. Zerada a cada abertura
+   * (`openValidateConfirm`): a nota de um lote não pode vazar para o próximo.
+   */
+  const [validationNote, setValidationNote] = useState("");
+  /** Mensagem do servidor (400) sobre a observação — marca o campo, o diálogo fica aberto. */
+  const [validationNoteError, setValidationNoteError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   /** Linhas realçadas por um instante (pedido enviado, "Ver quais" do lote parcial). */
   const [pulseIds, setPulseIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -503,8 +515,19 @@ export default function ScalingValidationPage() {
     afterDrawerTimer.current = setTimeout(flushAfterDrawer, AFTER_DRAWER_FALLBACK_MS);
   }, [flushAfterDrawer]);
 
+  /**
+   * ÚNICA porta de entrada do diálogo "Validar N vagas?" (linha, drawer,
+   * "Validar e próxima" e o botão do lote): zera a observação e o erro antes
+   * de abrir. `null` = o lote selecionado; lista = alvo próprio da linha.
+   */
+  const openValidateConfirm = useCallback((ids: string[] | null) => {
+    setValidationNote("");
+    setValidationNoteError(null);
+    setValidateTargetIds(ids);
+    setConfirmValidate(true);
+  }, []);
   /** Validar uma vaga só: mesma confirmação do lote, mas com alvo próprio — a seleção fica intacta. */
-  const validateOne = useCallback((row: SuggestionRow) => runAfterDrawer(() => { setValidateTargetIds([row.id]); setConfirmValidate(true); }), [runAfterDrawer]);
+  const validateOne = useCallback((row: SuggestionRow) => runAfterDrawer(() => openValidateConfirm([row.id])), [runAfterDrawer, openValidateConfirm]);
 
   /**
    * "Validar e próxima" (rodapé do drawer): encadeia a fila sem passar pela
@@ -541,8 +564,10 @@ export default function ScalingValidationPage() {
 
   // ── Validar em massa ──
   const validateMutation = useMutation({
-    mutationFn: async ({ ids }: { ids: string[]; fromRow: boolean }) =>
-      (await apiRequest("POST", "/api/scaling-suggestions/validate", { inclusionIds: ids })).json() as Promise<ValidateResult>,
+    // `validationNote`: a observação do diálogo, já normalizada (trim; vazia →
+    // null) — o servidor aplica a mesma regra e grava o texto em cada vaga do lote.
+    mutationFn: async ({ ids, validationNote: note }: { ids: string[]; fromRow: boolean; validationNote: string | null }) =>
+      (await apiRequest("POST", "/api/scaling-suggestions/validate", { inclusionIds: ids, validationNote: note })).json() as Promise<ValidateResult>,
     onSuccess: (res, { ids, fromRow }) => {
       invalidateScalingQueries(queryClient);
       // Saem da seleção só as vagas efetivamente validadas — o resto do lote
@@ -589,10 +614,19 @@ export default function ScalingValidationPage() {
       }
     },
     onError: (err: ApiError) => {
+      const message = apiErrorMessage(err, "Tente novamente.");
+      // 400 = o servidor recusou o corpo (na prática, a observação — ex.: acima
+      // de 1000 caracteres). O diálogo FICA aberto com o campo marcado: fechar
+      // apagaria o texto que a pessoa acabou de escrever.
+      if (err.status === 400) {
+        setValidationNoteError(message);
+        toast({ title: "Não foi possível validar", description: message, variant: "destructive" });
+        return;
+      }
       setConfirmValidate(false);
       setValidateTargetIds(null);
       chainNextId.current = null; // a corrente para aqui: nada de abrir a próxima
-      toast({ title: "Não foi possível validar", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
+      toast({ title: "Não foi possível validar", description: message, variant: "destructive" });
     },
   });
 
@@ -1140,7 +1174,7 @@ export default function ScalingValidationPage() {
           {/* Sem dica de "já validada": pela regra de 26/08 uma vaga validada
               nem entra na seleção — o caso não existe mais. */}
           <Button type="button" size="sm" className="flex-1 rounded-lg bg-success text-white hover:bg-success/90 sm:flex-none"
-            onClick={() => { setValidateTargetIds(null); setConfirmValidate(true); }} disabled={nVal === 0 || validateMutation.isPending}>
+            onClick={() => openValidateConfirm(null)} disabled={nVal === 0 || validateMutation.isPending}>
             <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar ({nVal})
           </Button>
           </div>
@@ -1166,14 +1200,14 @@ export default function ScalingValidationPage() {
       {/* Fechar/cancelar zera só o alvo — a seleção do lote não é tocada. */}
       <ConfirmDialog
         open={confirmValidate}
-        onOpenChange={(o) => { setConfirmValidate(o); if (!o) { setValidateTargetIds(null); chainNextId.current = null; } }}
+        onOpenChange={(o) => { setConfirmValidate(o); if (!o) { setValidateTargetIds(null); setValidationNoteError(null); chainNextId.current = null; } }}
         title={`Validar ${vagas(nConfirm)}?`}
         cancelLabel="Voltar"
         // O botão declara a consequência — o mesmo padrão dos diálogos de decisão da Aprovação.
         confirmLabel={`Validar ${vagas(nConfirm)} · enviar para aprovação`}
         pending={validateMutation.isPending}
         confirmDisabled={nConfirm === 0}
-        onConfirm={() => validateMutation.mutate({ ids: validateIds, fromRow: validateTargetIds !== null })}
+        onConfirm={() => validateMutation.mutate({ ids: validateIds, fromRow: validateTargetIds !== null, validationNote: normalizeValidationNote(validationNote) })}
       >
                 <p>
                   Você confirma que a escala sugerida está correta para {nConfirm === 1 ? "esta vaga" : "estas vagas"}.
@@ -1215,6 +1249,34 @@ export default function ScalingValidationPage() {
                     </li>
                   ))}
                 </ul>
+                {/* Observação para o aprovador (dono, 24/09): opcional, vale
+                    para o lote inteiro. O erro do servidor (400) marca o campo
+                    e o diálogo continua aberto com o texto preservado. */}
+                <div className="space-y-1 text-left">
+                  <Label htmlFor="validation-note" className="text-xs text-slate-600">
+                    Observação para o aprovador<OptionalMark />
+                  </Label>
+                  <Textarea
+                    id="validation-note" rows={3} maxLength={VALIDATION_NOTE_MAX} value={validationNote}
+                    onChange={(e) => { setValidationNote(e.target.value); if (validationNoteError) setValidationNoteError(null); }}
+                    disabled={validateMutation.isPending}
+                    className="rounded-lg bg-card text-sm"
+                    placeholder="Algo que o aprovador precisa saber antes de decidir — fica no histórico da vaga."
+                    aria-invalid={validationNoteError ? true : undefined}
+                    aria-describedby={[
+                      "validation-note-contador",
+                      nConfirm > 1 ? "validation-note-lote" : null,
+                      validationNoteError ? idDoErro("validation-note") : null,
+                    ].filter(Boolean).join(" ")}
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-2xs text-muted-foreground">
+                    {nConfirm > 1
+                      ? <span id="validation-note-lote">Vai junto com todas as vagas deste lote.</span>
+                      : <span>Vai junto com a vaga para o aprovador.</span>}
+                    <span id="validation-note-contador" className="tabular-nums" aria-live="polite">{validationNote.length}/{VALIDATION_NOTE_MAX}</span>
+                  </div>
+                  <MensagemDeErro id="validation-note" erro={validationNoteError} />
+                </div>
       </ConfirmDialog>
 
       <AdjustRequestDialog

@@ -42,7 +42,13 @@ export async function createCollaborator(collaboratorData: InsertCollaborator): 
   return collaborator;
 }
 
-export async function updateCollaborator(id: string, collaboratorData: Partial<InsertCollaborator>): Promise<Collaborator> {
+/**
+ * O que um PATCH de colaborador pode gravar: o schema público mais
+ * `inactivatedAt`, que só as rotas /inactivate e /reactivate preenchem.
+ */
+export type CollaboratorPatch = Partial<InsertCollaborator> & { inactivatedAt?: Date | null };
+
+export async function updateCollaborator(id: string, collaboratorData: CollaboratorPatch): Promise<Collaborator> {
   const [collaborator] = await db.update(collaborators).set(collaboratorData).where(eq(collaborators.id, id)).returning();
   return collaborator;
 }

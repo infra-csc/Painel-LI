@@ -39,7 +39,7 @@ export default function SwapReviewPanel({
   const closeConfirm = () => { setConfirmAction(null); setRejectReason(""); };
   /** O que muda ao aprovar (16/09) — o mesmo texto da Escalação. */
   const trocaExplicada: TrocaParaExplicar = {
-    ...normalizeSwap(swap as Record<string, any>),
+    ...normalizeSwap(swap as Record<string, unknown>),
     currentCollaboratorName: currentCollabName,
     newCollaboratorName: requestedCollabName,
   };

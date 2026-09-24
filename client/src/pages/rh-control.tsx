@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue, memo, type MutableRefObject } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue, memo, type MutableRefObject, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import { apiErrorMessage } from "@/lib/api-error";
 import { cn, formatDias } from "@/lib/utils";
 import { formatarMoeda, toTitleCase } from "@/lib/format";
 import { indexarPorId, agruparPor, chaveComposta } from "@/lib/indices";
@@ -13,7 +15,7 @@ import { QueryError, useQueriesState } from "@/components/common/query-state";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { isRhOrAdmin } from "@/lib/permissions";
+import { isRhOrAdmin } from "@/lib/role-utils";
 import { useLocation } from "wouter";
 import { campo, useUrlState } from "@/lib/use-url-state";
 import { guardarEventoEmFoco } from "@/lib/evento-em-foco";
@@ -37,7 +39,7 @@ function initialsRh(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 // `toTitleCase` vem de lib/format (fonte única; antes copiada aqui e em invoices.tsx).
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion, Invoice } from "@shared/schema";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 
 type PrestacaoStatus =
@@ -100,19 +102,6 @@ function timeInStatus(date: Date | string | null | undefined): string {
   return `Há ${formatDias(diffD)}`;
 }
 
-type UrgencyLevel = "neutral" | "low" | "medium" | "critical";
-
-function getUrgencyLevel(date: Date | string | null | undefined): UrgencyLevel {
-  if (!date) return "neutral";
-  const now = new Date();
-  const d = new Date(date);
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = diffMs / (24 * 60 * 60 * 1000);
-  if (diffDays >= 7) return "critical";
-  if (diffDays >= 3) return "medium";
-  if (diffDays >= 1) return "low";
-  return "neutral";
-}
 
 function getDiffDays(date: Date | string | null | undefined): number {
   if (!date) return 0;
@@ -147,6 +136,9 @@ const CartaoPrestacao = memo(function CartaoPrestacao({ item, render }: CartaoPr
 
 const CONCLUDED_STATUSES: PrestacaoStatus[] = ["aprovada_faturamento", "recusada"];
 const ACTIONABLE_STATUSES: PrestacaoStatus[] = ["planejamento_pendente", "aguardando_prestacao", "prestacao_recebida", "devolvida_para_ajuste"];
+
+/** Status em que a bola está com o RH (também conta no card "Ação do RH"). */
+const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
 
 export default function RhControlPage() {
   usePageTitle("Controle RH");
@@ -221,7 +213,7 @@ export default function RhControlPage() {
   const qEventsWithInclusions = useQuery<Event[]>({ queryKey: ["/api/events-with-inclusions"] });
   const qPlanned = useQuery<BudgetPlanned[]>({ queryKey: ["/api/budget-planned"] });
   const qActual = useQuery<BudgetActual[]>({ queryKey: ["/api/budget-actual"] });
-  const qInvoices = useQuery<any[]>({ queryKey: ["/api/invoices"] });
+  const qInvoices = useQuery<Invoice[]>({ queryKey: ["/api/invoices"] });
   const events = qEvents.data;
   const functions = qFunctions.data;
   const collaborators = qCollaborators.data;
@@ -229,7 +221,7 @@ export default function RhControlPage() {
   const allTeamInclusions = qTeamInclusions.data;
   const allPlanned = qPlanned.data;
   const allActual = qActual.data;
-  const allInvoices = qInvoices.data ?? [];
+  const allInvoices = useMemo(() => qInvoices.data ?? [], [qInvoices.data]);
 
   // Erro/carregando das consultas que montam a lista (23/09): antes uma falha
   // de rede virava "Todos os itens estão em dia" — o pior vazio possível para
@@ -241,8 +233,8 @@ export default function RhControlPage() {
 
   // Maps memoizados — evita Array.find O(n) repetido dezenas de vezes por render
   const invoiceByActualId = useMemo(() => {
-    const map = new Map<string, any>();
-    for (const inv of allInvoices as any[]) {
+    const map = new Map<string, Invoice>();
+    for (const inv of allInvoices) {
       if (inv?.budgetActualId) map.set(inv.budgetActualId, inv);
     }
     return map;
@@ -260,14 +252,14 @@ export default function RhControlPage() {
     return map;
   }, [functions]);
 
-  const getInvoiceForActual = (actualId: string | undefined): any | undefined =>
-    actualId ? invoiceByActualId.get(actualId) : undefined;
+  const getInvoiceForActual = useCallback((actualId: string | undefined): Invoice | undefined =>
+    actualId ? invoiceByActualId.get(actualId) : undefined, [invoiceByActualId]);
 
-  const getCollaboratorName = (id?: string | null) =>
-    id ? collaboratorNameById.get(id) || "-" : "-";
+  const getCollaboratorName = useCallback((id?: string | null) =>
+    id ? collaboratorNameById.get(id) || "-" : "-", [collaboratorNameById]);
 
-  const getFunctionName = (id?: string | null) =>
-    id ? functionNameById.get(id) || "-" : "-";
+  const getFunctionName = useCallback((id?: string | null) =>
+    id ? functionNameById.get(id) || "-" : "-", [functionNameById]);
 
   // Definido na escalação: se emitsNf === false, o colaborador não emite NF.
   // Regra única em @shared/prestacao-rules — mesma da tela de Notas Fiscais.
@@ -298,10 +290,10 @@ export default function RhControlPage() {
       date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
-  const resolveResponsavel = (id?: string | null): string => {
+  const resolveResponsavel = useCallback((id?: string | null): string => {
     if (!id) return "Responsável da função";
     return userById.get(id)?.name || "Responsável da função";
-  };
+  }, [userById]);
 
   const prestacaoItems = useMemo((): PrestacaoItem[] => {
     if (!events) return [];
@@ -448,7 +440,7 @@ export default function RhControlPage() {
     });
 
     return items;
-  }, [allTeamInclusions, allPlanned, allActual, events, users]);
+  }, [allTeamInclusions, allPlanned, allActual, events, resolveResponsavel]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -462,7 +454,7 @@ export default function RhControlPage() {
     // servidor (@shared/prestacao-rules) — não há mais cópia para divergir.
     const approvedActuals = (allActual || []).filter(a => isNfEligible(a) && !a.splitParentId);
     const approvedIds = new Set(approvedActuals.map(a => a.id));
-    const relevant = (allInvoices as any[]).filter(inv => approvedIds.has(inv.budgetActualId));
+    const relevant = allInvoices.filter(inv => !!inv.budgetActualId && approvedIds.has(inv.budgetActualId));
     const enviada   = relevant.filter(inv => inv.status === "enviada").length;
     const devolvida = relevant.filter(inv => inv.status === "devolvida").length;
     const aprovada  = relevant.filter(inv => inv.status === "aprovada").length;
@@ -473,8 +465,6 @@ export default function RhControlPage() {
     const checkinDone    = relevant.filter(inv => inv.status === "aprovada" && !!inv.checkinAt).length;
     return { pending, enviada, devolvida, aprovada, checkinPending, checkinDone };
   }, [allActual, allInvoices, emitsNfFor]);
-
-  const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
 
   const filteredItems = useMemo(() => {
     return prestacaoItems.filter(item => {
@@ -544,7 +534,7 @@ export default function RhControlPage() {
       }
       return true;
     });
-  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, buscaAplicada, showConcluded, filterCheckinOnly, collaborators, allInvoices, allTeamInclusions]);
+  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, buscaAplicada, showConcluded, filterCheckinOnly, emitsNfFor, getCollaboratorName, getInvoiceForActual]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
@@ -587,11 +577,7 @@ export default function RhControlPage() {
       const nameB = getFunctionName(b).toLowerCase();
       return nameA.localeCompare(nameB, 'pt-BR');
     });
-  }, [prestacaoItems, functions]);
-
-  const hasItemsWithoutCollaborator = useMemo(() => {
-    return prestacaoItems.some(i => !i.collaboratorId);
-  }, [prestacaoItems]);
+  }, [prestacaoItems, getFunctionName]);
 
   const eventIdsWithInclusions = useMemo(
     () => new Set((qEventsWithInclusions.data ?? []).map(e => e.id)),
@@ -619,7 +605,7 @@ export default function RhControlPage() {
 
   const statusConfig: Record<PrestacaoStatus, {
     label: string; shortLabel: string; description: string;
-    icon: any; color: string; bg: string; border: string;
+    icon: LucideIcon; color: string; bg: string; border: string;
     iconColor: string; badgeCls: string; cardBorder: string;
   }> = {
     planejamento_pendente: {
@@ -774,26 +760,6 @@ export default function RhControlPage() {
     return null;
   };
 
-  const getStepResponsible = (item: PrestacaoItem, stepIndex: number): string | null => {
-    if (stepIndex === 0 && item.teamInclusion?.updatedBy) {
-      const name = getUserName(item.teamInclusion.updatedBy);
-      return name !== "-" ? name : null;
-    }
-    if (stepIndex === 1 && item.planned?.createdBy) {
-      const name = getUserName(item.planned.createdBy);
-      return name !== "-" ? name : null;
-    }
-    if (stepIndex === 2 && item.actual) {
-      const name = getUserName(item.actual.createdBy || item.actual.updatedBy);
-      return name !== "-" ? name : null;
-    }
-    if (stepIndex === 3 && item.actual?.rhActionBy) {
-      const name = getUserName(item.actual.rhActionBy);
-      return name !== "-" ? name : null;
-    }
-    return null;
-  };
-
   const STEP_TOOLTIPS = [
     "Equipe definida e confirmada para o evento",
     "Valores planejados pelo RH",
@@ -848,7 +814,6 @@ export default function RhControlPage() {
             const isCurrent = !isConcluded && i === step;
             const isFuture = !isCompleted && !isCurrent;
             const dateStr = getStepDate(item, i);
-            const responsibleName = getStepResponsible(item, i);
             const connectorColor = i === 3
               ? nfCompleted ? 'bg-success/20' : nfEligible && itemEmitsNf ? 'bg-warning/20' : 'bg-border'
               : isCompleted ? 'bg-primary/40' : 'bg-border';
@@ -980,7 +945,7 @@ export default function RhControlPage() {
     return `${base}?${params.toString()}`;
   };
 
-  const getNavigationTarget = (item: PrestacaoItem): { label: string; path: string; icon: any } | null => {
+  const getNavigationTarget = (item: PrestacaoItem): { label: string; path: string; icon: LucideIcon } | null => {
     if (item.status === "planejamento_pendente") {
       return { label: "Ir para Planejado", path: buildNavPath("/budget-planned", item), icon: ArrowRight };
     }
@@ -1113,7 +1078,7 @@ export default function RhControlPage() {
                 if (item.status === "aprovada_faturamento") return null;
                 const today = new Date(); today.setHours(0, 0, 0, 0);
                 // Parse local de "YYYY-MM-DD" — new Date(string) interpretaria como UTC
-                const parseLocalDate = (s: any): Date | null => {
+                const parseLocalDate = (s: string | Date | null | undefined): Date | null => {
                   if (!s) return null;
                   const [y, m, d] = String(s).split("T")[0].split("-").map(Number);
                   if (!y || !m || !d) return null;
@@ -1220,10 +1185,10 @@ export default function RhControlPage() {
                               title: "Nota aprovada!",
                               description: "Faça o Check-in Financeiro para definir a data de pagamento.",
                             });
-                          } catch (err: any) {
+                          } catch (err) {
                             toast({
                               title: "Erro ao aprovar nota",
-                              description: err?.body?.message || err?.message || "Tente novamente",
+                              description: apiErrorMessage(err, "Tente novamente"),
                               variant: "destructive",
                             });
                           } finally {
@@ -1519,7 +1484,6 @@ export default function RhControlPage() {
   const renderCardRef = useRef(renderPrestacaoCard);
   renderCardRef.current = renderPrestacaoCard;
 
-  const totalItems = prestacaoItems.length;
   // "Concluído" = NF aprovada + check-in físico realizado (checkinAt)
   const concludedCount = invoiceCounts.checkinDone;
   // Denominador exclui quem nunca terá check-in: não compareceu, recusados e
@@ -1609,7 +1573,7 @@ export default function RhControlPage() {
         const MetricCard = ({
           stripColor, icon: Icon, iconColor, title, value, children, onClick, active,
         }: {
-          stripColor: string; icon: any; iconColor: string; title: string; value: number; children: any;
+          stripColor: string; icon: LucideIcon; iconColor: string; title: string; value: number; children: ReactNode;
           onClick: () => void; active: boolean;
         }) => (
           <button

@@ -1,30 +1,57 @@
 # Arquitetura do Painel LI
 
-Atualizado em 23/09/2026, depois do code review completo. Este documento diz
-**onde cada coisa mora e por quê**; o `README.md` diz como rodar.
+Atualizado em 24/09/2026, depois do code review completo (commits `80fbd554`
+e `b998b8fc`). Este documento diz **onde cada coisa mora e por quê**; o
+`README.md` diz como rodar.
 
 ## Camadas
 
 ```
-client/src/pages          telas (uma por rota, carregadas sob demanda)
-client/src/components     componentes por domínio + kit em components/common
-client/src/lib            cliente de API (queryClient, ApiError), permissões, URL state
-client/src/hooks          auth, toast, trocas (useSwapRequests)
-shared/                   REGRAS DE NEGÓCIO puras + schema Drizzle/Zod (usadas pelos dois lados)
-server/index.ts           boot: segurança (sessão, CSRF, headers), SSO, gate global
-server/auth-guards.ts     req.user, cache de usuário, autenticação por SSO
-server/http.ts            asyncHandler, protegerRotas, tratador global de erros
-server/routes.ts          rotas HTTP (em migração para um router por domínio)
-server/storage.ts         acesso a dados (Drizzle)
-server/scaling-validation.ts, operational-mirror.ts, flash-credit.ts, event-guard.ts
-scripts/migrations        migrações idempotentes, rodadas à mão
+client/src/pages              telas (uma por rota, carregadas sob demanda)
+client/src/components         componentes por domínio + kit em components/common
+client/src/lib                cliente de API (queryClient, ApiError), permissões (role-utils), URL state, evento em foco
+client/src/hooks              auth, toast, trocas (useSwapRequests), ações de vaga (use-vaga-acoes)
+shared/                       REGRAS DE NEGÓCIO puras + schema Drizzle/Zod (usadas pelos dois lados)
+server/index.ts               boot do processo: ensure-schema, createApp, Vite/estático, listen
+server/app.ts                 FÁBRICA da aplicação (createApp): headers, sessão, SSO, gate global,
+                              simulação, CSRF, rotas, tratador de erros — a mesma para produção e testes
+server/auth-guards.ts         req.user, cache de usuário, autenticação por SSO
+server/http.ts                HttpError, asyncHandler, protegerRotas, tratador global de erros
+server/routes.ts              ORDEM de registro dos routers (a ordem define quem atende caminhos sobrepostos)
+server/routes/                26 routers por domínio + _compartilhado.ts (papéis, auditoria, erros,
+                              upload, guardas da vaga e do financeiro)
+server/storage/               20 módulos de acesso a dados (19 domínios + _comum.ts); index.ts monta
+                              o objeto `storage` com a mesma superfície do antigo storage.ts
+server/scaling-validation.ts, simulation.ts, operational-mirror.ts, flash-credit.ts,
+server/event-guard.ts, vaga-guards.ts, objectAcl.ts, objectStorage.ts
+server/test/                  testes de rota HTTP: harness.ts (PGlite + supertest), setup.ts, *.test.ts
+scripts/migrations            migrações idempotentes, rodadas à mão (runbook em docs/migracoes.md)
 ```
+
+Routers em `server/routes/`: `auth`, `usuarios`, `eventos`,
+`funcoes-e-responsaveis`, `colaboradores`, `escalacao`, `passagens`,
+`hospedagem`, `espelho-operacional`, `financeiro-legado`, `comentarios`,
+`anexos`, `logs`, `valores-por-funcao`, `orcamento-planejado`,
+`orcamento-realizado`, `orcamento-comparativo`, `configuracoes`,
+`notas-fiscais`, `empresas-pagadoras`, `flash`, `bagagem`,
+`notas-e-historico`, `trocas`, `integracao-maratona`, `portal`. A Validação
+de Escala e a simulação registram rotas a partir de `server/scaling-validation.ts`
+e `server/simulation.ts`.
+
+Módulos em `server/storage/`: `usuarios`, `eventos`, `funcoes`,
+`responsaveis`, `colaboradores`, `vagas`, `vagas-historico`, `passagens`,
+`hospedagem`, `financeiro-legado`, `comentarios`, `logs-do-sistema`,
+`valores-por-funcao`, `orcamento`, `configuracoes`, `notas-fiscais`,
+`empresas-pagadoras`, `flash`, `bagagem`, `validacao-de-escala`, mais
+`_comum.ts` (`StorageHttpError`, que herda de `HttpError`, e helpers). Trocas,
+espelho operacional, simulação, portal e crédito Flash consultam o banco
+direto nos próprios módulos.
 
 **Regra prática:** se uma regra precisa valer no navegador e no servidor, ela
 mora em `shared/` com teste. O servidor é a autoridade; o client só antecipa a
 resposta para o usuário não esperar um 409.
 
-## Segurança em camadas (server/index.ts)
+## Segurança em camadas (server/app.ts, `createApp`)
 
 1. Headers: `nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy`,
    `Content-Security-Policy: frame-ancestors 'self' <PORTAL_ORIGIN>`, HSTS em produção.
@@ -115,6 +142,30 @@ Transições no servidor seguem o padrão `UPDATE … WHERE id = $1 AND status =
 - Migrações: idempotentes, rodadas pelo dono com `DATABASE_URL=… npx tsx`.
   `server/ensure-schema.ts` repõe no boot as colunas que um `db:push` antigo
   apagou; é rede de segurança, não mecanismo de migração.
+
+## Testes
+
+`npm test` roda o vitest com **dois projetos** (`vitest.config.ts`):
+
+- **`unitarios`** — regras puras de `shared/` (status e transições da vaga,
+  conflito de agenda, diárias, alimentação, prestação de contas…), do client
+  (`lib/*.test.ts`) e do servidor (espelho, Flash, guardas). Co-locados como
+  `*.test.ts` ao lado do código; milhares por segundo.
+- **`rotas`** (`npm run test:rotas`, `server/test/`) — sobe a aplicação
+  **real** (`createApp` de `server/app.ts`) sobre um Postgres embutido
+  (**PGlite**, WASM: sem rede, sem `DATABASE_URL`). `harness.ts` gera o schema
+  em tempo de teste a partir de `shared/schema.ts` pela API do drizzle-kit
+  (se o schema mudar, o teste acompanha), cria usuário/evento/função/
+  colaborador/vaga direto no banco e loga um `supertest.agent` pelo caminho
+  do SSO — o único que vale em produção. Exercita gate global, CSRF, papéis e
+  máquina de estados pelo HTTP, como o client faz. Cada arquivo tem o próprio
+  worker e o próprio PGlite (nada vaza entre arquivos); `setup.ts` faz o
+  warm-up do banco antes do primeiro teste; 3 workers e `retry: 0` de
+  propósito. 75 cenários em 24/09: financeiro, NF, usuários/eventos, anexos,
+  espelho/logística.
+
+O CI (`.github/workflows/ci.yml`) roda tipos, lint (só erros), os dois
+projetos de teste, build e `npm audit --audit-level=critical` em todo push.
 
 ## Deploy
 

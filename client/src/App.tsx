@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { SidebarProvider } from "@/contexts/sidebar-context";
-import { ThemeProvider } from "@/contexts/theme-context";
 import MainLayout from "@/components/layout/main-layout";
 import { ErrorBoundary } from "@/components/error-boundary";
 import TrocarSenhaObrigatoria from "@/components/ui/trocar-senha-obrigatoria";
@@ -53,11 +52,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasPermission, getRoleLabel } from "@/lib/role-utils";
 import type { RolePermissions, UserRole } from "@/lib/role-utils";
 
-// O tema escuro ainda não é suportado pela maioria das telas (5/26). Enquanto
-// isso, o botão de alternância fica escondido e qualquer preferência "dark"
-// persistida é neutralizada antes do ThemeProvider montar.
-if (typeof window !== "undefined" && localStorage.getItem("theme") === "dark") {
-  localStorage.setItem("theme", "light");
+// Tema escuro removido (24/09): o app é só claro. Quem ainda tem a preferência
+// antiga gravada não pode acordar com a classe `.dark` no <html>.
+if (typeof window !== "undefined") {
+  try { localStorage.removeItem("theme"); } catch { /* sem storage */ }
   document.documentElement.classList.remove("dark");
 }
 
@@ -321,18 +319,16 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <SidebarProvider>
-            <TooltipProvider>
-              <Toaster />
-              {/* Senha provisória: o servidor responde 403 para tudo até a troca. */}
-              <TrocarSenhaObrigatoria />
-              <Router />
-            </TooltipProvider>
-          </SidebarProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <AuthProvider>
+        <SidebarProvider>
+          <TooltipProvider>
+            <Toaster />
+            {/* Senha provisória: o servidor responde 403 para tudo até a troca. */}
+            <TrocarSenhaObrigatoria />
+            <Router />
+          </TooltipProvider>
+        </SidebarProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

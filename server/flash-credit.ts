@@ -83,7 +83,7 @@ export interface FlashSyncActor {
   userId?: string | null;
   userName?: string | null;
   /** Trilha de auditoria (routes.ts injeta createAuditLog com o req). */
-  audit?: (action: string, entityId: string, data: any, oldData?: any) => Promise<void>;
+  audit?: (action: string, entityId: string, data: unknown, oldData?: unknown) => Promise<void>;
 }
 
 /** O mínimo que o sync precisa saber do comparativo. */
@@ -209,14 +209,14 @@ export async function syncFlashFromComparison(
     storage.getBudgetPlanned(comparison.eventId),
     storage.getEvent(comparison.eventId),
   ]);
-  const wanted = flashMovementsForComparison(actuals as any, planned as any);
+  const wanted = flashMovementsForComparison(actuals, planned);
   const totals = flashComparisonTotals(wanted);
   const description = flashComparativoDescription(event?.name);
   // Data de negócio em São Paulo — em UTC, das 21h à meia-noite o lançamento
   // ganhava a data do dia seguinte.
   const movementDate = hojeISO();
 
-  type Auditoria = { action: string; id: string; data: any; oldData?: any };
+  type Auditoria = { action: string; id: string; data: unknown; oldData?: unknown };
   const auditorias: Auditoria[] = [];
 
   const plano = await db.transaction(async (tx) => {
@@ -303,9 +303,9 @@ export async function safeSyncFlashFromComparison(
 ): Promise<FlashComparisonSyncResult> {
   try {
     return await syncFlashFromComparison(comparison, actor);
-  } catch (error: any) {
+  } catch (error) {
     console.error("[flash-credit] falha ao creditar o Flash do comparativo", comparison.id, error);
-    return emptyResult(error?.message || "Falha ao creditar o Flash");
+    return emptyResult((error as { message?: string } | null)?.message || "Falha ao creditar o Flash");
   }
 }
 

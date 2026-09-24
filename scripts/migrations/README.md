@@ -49,6 +49,7 @@ colateral. **ES** = a estrutura também é reposta no boot por
 | 2026-09-22 | `2026-09-22-colaborador-endereco.sql` | `collaborators.address_street/_number/_complement/_zip`. ES | DDL | sim |
 | 2026-09-23 | `2026-09-23-indices-e-constraints.ts` | 17 índices com `CONCURRENTLY` (derruba índice inválido antes), 5 UNIQUEs com checagem de duplicatas (e-mail case-insensitive, `function_values`, troca/pedido pendente por vaga, realizado raiz por planejado), 3 CHECKs `NOT VALID` (status/fase da vaga, status da troca) e 3 FKs `NOT VALID`. Imprime pendências no fim. **Pendente em produção.** | DDL | sim |
 | 2026-09-23 | `2026-09-23-status-fora-do-dominio.sql` | Diagnóstico da distribuição de status/fase e limpeza **sugerida** (UPDATEs comentados, um caso por vez) dos legados `incluido`, `pendente`, `confirmado`, `aguardando_*`; bloco final troca o CHECK pelo canônico e valida. **Pendente em produção; rodar depois do script acima.** | Diag + Dados (manual) | manual |
+| 2026-09-24 | `2026-09-24-observacao-da-validacao.sql` | `team_inclusions.validation_note` (observação opcional de quem valida a vaga, lida pelo aprovador). ES | DDL | sim |
 | — | `check-bagagem-match.ts` | Conferência (só leitura) do casamento do seed de bagagem com os colaboradores, por CPF e nome. `npx tsx … <json>`. | Diag | n/a |
 
 Fora desta pasta, mas do mesmo tipo: `scripts/2026-08-31-uber-quartos-por-pessoa.ts`

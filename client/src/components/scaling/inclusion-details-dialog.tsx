@@ -172,7 +172,7 @@ function CenoFreelaTipoCard({ inclusion, systemSettings, canEdit, isCasa, mutati
   /** Motivo do bloqueio (evento encerrado) — vira o tooltip dos botões. */
   disabledReason?: string | null;
 }) {
-  const atual = ((inclusion as any).cenoFreelaTipo ?? null) as CenoFreelaTipo | null;
+  const atual = (inclusion.cenoFreelaTipo ?? null) as CenoFreelaTipo | null;
   const dias = cenoDiasTrabalhados(inclusion);
   const saving = mutation.isPending;
   const algumExtrapolado = CENO_FREELA_TIPOS.some(t => cenoEmpreitaTotalCents(t, dias, systemSettings)?.extrapolado);
@@ -448,7 +448,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
           {inclusion && getStatusBadge(inclusion, "sm")}
           <div className="flex-1 min-w-0">
             <DialogTitle className="text-lg font-semibold text-foreground leading-tight m-0 p-0 truncate">
-              {inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : (inclusion as any)?.empreitaEmpresa ? `Empreita · ${(inclusion as any).empreitaEmpresa}` : "Vaga sem nome"}
+              {inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : inclusion?.empreitaEmpresa ? `Empreita · ${inclusion.empreitaEmpresa}` : "Vaga sem nome"}
             </DialogTitle>
             <span className="sr-only">Detalhes da escalação</span>
           </div>
@@ -539,7 +539,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                         <div>
                           <div className={lbl}>Nota Fiscal</div>
                           {(() => {
-                            const emitsNf = (inclusion as any).emitsNf !== false;
+                            const emitsNf = inclusion.emitsNf !== false;
                             // Mesmo gate do Confirmar: responsável pela função, admin ou Compras
                             // Pedido em análise trava aqui também: a NF entra na
                             // conta do que o aprovador está decidindo.
@@ -655,8 +655,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                           <div className="space-y-2">
                             <div className="border border-border rounded-xl bg-card px-3 py-2.5">
                               <div className="text-sm font-medium text-slate-700">
-                                {(inclusion as any).empreitaEmpresa
-                                  ? `Empreita · ${(inclusion as any).empreitaEmpresa} · ${(inclusion as any).empreitaPessoas ?? 0} pessoas · ${(Number((inclusion as any).empreitaValor ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}`
+                                {inclusion.empreitaEmpresa
+                                  ? `Empreita · ${inclusion.empreitaEmpresa} · ${inclusion.empreitaPessoas ?? 0} pessoas · ${(Number(inclusion.empreitaValor ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}`
                                   : getCollaboratorName(modalData.collaboratorId)}
                               </div>
                               {(() => {
@@ -1009,7 +1009,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                       Escalação, por pedido do usuário (19/08). Aparece também
                       depois de confirmada (só leitura quando sem permissão). */}
                   {/* Com empreita por empresa o valor é o da empreita — o tipo de freela não se aplica. */}
-                  {isCenoEmpreitaInclusion && !modalData.empreitaModo && !(inclusion as any).empreitaEmpresa && (
+                  {isCenoEmpreitaInclusion && !modalData.empreitaModo && !inclusion.empreitaEmpresa && (
                     <CenoFreelaTipoCard
                       inclusion={inclusion}
                       systemSettings={systemSettings}

@@ -18,7 +18,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { AVISO_LOGISTICA_PARA_REVISAR } from "@/hooks/use-vaga-acoes";
 import { isReadOnly } from "@/lib/interactions";
 import { useEventLock, PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
-import { canEdit as canEditScreen } from "@/lib/permissions";
+import { hasPermission } from "@/lib/role-utils";
 import {
   extractTravelSuggestion,
   suggestionToFormPatch,
@@ -123,19 +123,20 @@ export default function TicketModal({
 
   // Contexto do "Impacto no Planejado": período completo início→fim (mesma
   // régua do Planejado) e valores de refeição da função (cenotécnica ou não).
+  const { getFunctionName, systemSettings, eventById } = data;
   const impactCtx = useMemo<PlannedImpactContext | undefined>(() => {
     if (!inclusion) return undefined;
     // Perfil (18/08): Key Account / Gerente = 44/44; cenotécnica 35/35; demais 40/40
-    const perfil = refeicaoPerfil(data.getFunctionName(inclusion.functionId), inclusion.atendimentoTipo);
-    const { almocoCents, jantarCents } = refeicaoCents(perfil, data.systemSettings);
+    const perfil = refeicaoPerfil(getFunctionName(inclusion.functionId), inclusion.atendimentoTipo);
+    const { almocoCents, jantarCents } = refeicaoCents(perfil, systemSettings);
     // Local do evento entra no contexto: em SP a mobilidade é zero, e a prévia
     // precisa dizer o mesmo que o Planejado.
     return {
       workDays: periodDays(inclusion.scheduleStartDate, inclusion.scheduleEndDate),
-      eventLocation: data.eventById.get(inclusion.eventId)?.location ?? null,
+      eventLocation: eventById.get(inclusion.eventId)?.location ?? null,
       almocoCents, jantarCents,
     };
-  }, [inclusion, data.systemSettings, data.functionById]);
+  }, [inclusion, systemSettings, eventById, getFunctionName]);
 
   // Um anexo só: o PDF do voucher vira comprovante E preenche os campos
   // (pedido do dono, 28/08 — "não ter dois pra subir").
@@ -148,7 +149,7 @@ export default function TicketModal({
     colaborador: inclusion?.collaboratorId ? data.getCollaboratorName(inclusion.collaboratorId) : undefined,
     trecho: form.isReturnOnly ? "so_volta" : form.isOneWay ? "so_ida" : "ida_volta",
     atual: form,
-    onPreencher: (campos: Record<string, any>) => {
+    onPreencher: (campos) => {
       if (inclusion) handlers.onPatch(inclusion.id, campos);
     },
   });
@@ -167,7 +168,7 @@ export default function TicketModal({
   const collaboratorName = data.getCollaboratorName(inclusion.collaboratorId);
   const eventLocked = eventLock.isLockedInclusion(inclusion);
   const roMode = isReadOnly(inclusion, user) || eventLocked;
-  const canEditTicket = canEditScreen(user, "tickets");
+  const canEditTicket = hasPermission(user, "canRegisterTickets");
   const isEditing = editingTicketId === sid;
   const isFormMode = !ticket || isEditing;
   const suggestion = extractTravelSuggestion(inclusion);

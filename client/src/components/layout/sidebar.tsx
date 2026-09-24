@@ -110,9 +110,10 @@ export default function Sidebar() {
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const q = normalize(query.trim());
-  const matches = (tab: NavTab) => !q || normalize(tab.label).includes(q);
   const filtered = useMemo(
-    () => groups.map((g) => ({ ...g, items: g.items.filter(matches) })).filter((g) => g.items.length > 0),
+    () => groups
+      .map((g) => ({ ...g, items: g.items.filter((tab) => !q || normalize(tab.label).includes(q)) }))
+      .filter((g) => g.items.length > 0),
     [groups, q],
   );
   const searching = q.length > 0;

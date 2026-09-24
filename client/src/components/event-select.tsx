@@ -74,7 +74,7 @@ export function EventSelect({ value, onValueChange, events, className }: EventSe
         <SelectValue placeholder="Selecionar evento" />
       </SelectTrigger>
       <SelectContent className="rounded-lg shadow-2 border-border">
-        <EventItems events={sorted} checkedClass="data-[state=checked]:bg-brand-soft dark:data-[state=checked]:bg-primary-hover/30 data-[state=checked]:text-primary dark:data-[state=checked]:text-primary/70" />
+        <EventItems events={sorted} checkedClass="data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary" />
       </SelectContent>
     </Select>
   );
@@ -363,17 +363,17 @@ export function EventSelectCTA({
     blue: {
       border: "border-primary/40 hover:border-primary",
       icon: "text-primary",
-      checked: "data-[state=checked]:bg-brand-soft dark:data-[state=checked]:bg-primary-hover/30 data-[state=checked]:text-primary dark:data-[state=checked]:text-primary/70",
+      checked: "data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary",
     },
     purple: {
       border: "border-primary/40 hover:border-primary",
       icon: "text-primary",
-      checked: "data-[state=checked]:bg-brand-soft dark:data-[state=checked]:bg-primary-hover/30 data-[state=checked]:text-primary dark:data-[state=checked]:text-primary/70",
+      checked: "data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary",
     },
     emerald: {
       border: "border-success/25 hover:border-success-strong",
       icon: "text-success-strong",
-      checked: "data-[state=checked]:bg-success-soft dark:data-[state=checked]:bg-success/30 data-[state=checked]:text-success dark:data-[state=checked]:text-success-soft",
+      checked: "data-[state=checked]:bg-success-soft data-[state=checked]:text-success",
     },
   };
 

@@ -4,7 +4,7 @@ import { AlertCircle, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
-import { canView, canEdit as canEditScreen } from "@/lib/permissions";
+import { hasPermission } from "@/lib/role-utils";
 import { useEventLock, PastEventBanner } from "@/lib/event-lock";
 import { hasRoleIn } from "@shared/roles";
 import { useAuth } from "@/hooks/use-auth";
@@ -65,7 +65,8 @@ export default function Accommodations() {
 
   // Admin ou Compras — aceita aliases legados ("administrador", "compras"...)
   const isPurchasingRole = hasRoleIn(user?.role, ["admin", "purchasing"]);
-  const canEditField = canEditScreen(user, "accommodations");
+  // Espelha POST/PATCH /api/accommodations (admin, production, purchasing) — RH só vê.
+  const canEditField = hasPermission(user, "canEditScreen4");
   // Evento encerrado (regra 19/08): hospedagem depende da escalação — depois do
   // término só o administrador age (o servidor devolve 403).
   const eventLock = useEventLock();
@@ -331,7 +332,7 @@ export default function Accommodations() {
     );
   }
 
-  if (!canView(user, "accommodations")) {
+  if (!hasPermission(user, "canAccessScreen3")) {
     return (
       <div className="bg-card rounded-lg shadow-1 border border-border p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>

@@ -3,6 +3,7 @@
  * Extraído de pages/scaling.tsx. Efeitos locais de UI (fechar um dialog de
  * confirmação, limpar um campo) ficam nos componentes via `mutate(vars, { onSuccess })`.
  */
+import { apiErrorMessage, apiErrorStatus, isApiError } from "@/lib/api-error";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -38,10 +39,11 @@ export interface InclusionSavePayload {
   dailyValue?: number;
 }
 
-const readErrorMessage = async (err: any): Promise<string | undefined> => {
-  if (err?.body?.message) return err.body.message;
-  const msg = await err?.response?.json?.().catch(() => null);
-  return msg?.message;
+const readErrorMessage = async (err: unknown): Promise<string | undefined> => {
+  if (!isApiError(err)) return undefined;
+  if (err.serverMessage) return err.serverMessage;
+  const msg = await err.response.json().catch(() => null);
+  return typeof msg?.message === "string" ? msg.message : undefined;
 };
 
 /** POST /api/team-inclusions/:id/confirm — o servidor decide status/fase (409 se já confirmada ou com conflito de agenda). */
@@ -82,8 +84,8 @@ export function useScalingMutations(opts: {
       return r.json();
     },
     onSuccess: () => invalidateInclusionSwaps(),
-    onError: async (err: any) => {
-      if (err?.status === 401) {
+    onError: async (err: unknown) => {
+      if (apiErrorStatus(err) === 401) {
         toast({
           title: "Sessão expirada",
           description: "Sua sessão expirou. Atualize a página e entre novamente para solicitar a troca.",
@@ -104,7 +106,7 @@ export function useScalingMutations(opts: {
       toast({ title: "Solicitação cancelada", description: "A solicitação de troca foi cancelada com sucesso." });
       invalidateInclusionSwaps();
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       toast({ title: "Não foi possível cancelar a solicitação", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
@@ -121,7 +123,7 @@ export function useScalingMutations(opts: {
       invalidateInclusionSwaps();
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       toast({ title: "Não foi possível aprovar a troca", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
@@ -135,7 +137,7 @@ export function useScalingMutations(opts: {
       toast({ title: "Troca rejeitada", description: "A escala permanece com o colaborador atual." });
       invalidateInclusionSwaps();
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       toast({ title: "Não foi possível rejeitar a troca", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
@@ -146,7 +148,7 @@ export function useScalingMutations(opts: {
       const r = await apiRequest("PATCH", `/api/team-inclusions/${id}`, { emitsNf });
       return r.json();
     },
-    onSuccess: (updatedInclusion: any) => {
+    onSuccess: (updatedInclusion: TeamInclusion) => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       setSelectedInclusion(prev => prev && prev.id === updatedInclusion.id ? { ...prev, emitsNf: updatedInclusion.emitsNf } : prev);
       toast({
@@ -156,7 +158,7 @@ export function useScalingMutations(opts: {
           : "A tela de Notas Fiscais não vai cobrar nota deste escalado.",
       });
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       toast({ title: "Não foi possível atualizar a emissão de NF", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
@@ -178,16 +180,17 @@ export function useScalingMutations(opts: {
         description: `${CENO_FREELA_TIPO_LABELS[vars.cenoFreelaTipo]} — o Planejado passa a usar o valor fechado desta modalidade.`,
       });
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       // O 403 pode ser falta de permissão OU evento encerrado — a mensagem do
       // servidor diz qual; só caímos no texto genérico se ela faltar.
       const serverMsg = await readErrorMessage(err);
+      const status = apiErrorStatus(err);
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível definir o tipo de freela",
-        description: err?.status === 401
+        title: status === 401 ? "Sessão expirada" : "Não foi possível definir o tipo de freela",
+        description: status === 401
           ? "Sua sessão expirou. Atualize a página e entre novamente — o tipo não foi salvo."
           : serverMsg
-            || (err?.status === 403 ? "Você não tem permissão para definir o tipo de freela desta cenotécnica." : "Erro ao definir o tipo de freela"),
+            || (status === 403 ? "Você não tem permissão para definir o tipo de freela desta cenotécnica." : "Erro ao definir o tipo de freela"),
         variant: "destructive",
       });
     },
@@ -204,7 +207,7 @@ export function useScalingMutations(opts: {
       toast({ title: "Escalação reprovada", description: "O colaborador foi removido e a vaga voltou para escalação." });
       invalidateAndRefetchInclusions();
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       toast({ title: "Erro ao reprovar", description: (await readErrorMessage(err)) || "Erro ao reprovar escalação", variant: "destructive" });
     },
   });
@@ -220,7 +223,7 @@ export function useScalingMutations(opts: {
       toast({ title: "Aprovado pelo gestor", description: "Escalação de cenotécnica aprovada e enviada ao fluxo normal." });
       invalidateAndRefetchInclusions();
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       toast({ title: "Erro ao aprovar", description: (await readErrorMessage(err)) || "Erro ao aprovar escalação", variant: "destructive" });
     },
   });
@@ -236,7 +239,7 @@ export function useScalingMutations(opts: {
       toast({ title: "Escalação reativada", description: "A escalação foi reativada e voltou ao status Pendente." });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
-    onError: async (err: any) => {
+    onError: async (err: unknown) => {
       toast({ title: "Não foi possível reativar a escalação", description: (await readErrorMessage(err)) || "Tente de novo em instantes.", variant: "destructive" });
     },
   });
@@ -256,12 +259,12 @@ export function useScalingMutations(opts: {
       toast({ variant: "success", title: "Comentário adicionado", description: "Já aparece no histórico da vaga." });
       queryClient.invalidateQueries({ queryKey: ["/api/comments", selectedInclusionId] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível adicionar o comentário",
-        description: err?.status === 401
+        title: apiErrorStatus(err) === 401 ? "Sessão expirada" : "Não foi possível adicionar o comentário",
+        description: apiErrorStatus(err) === 401
           ? "Sua sessão expirou. Atualize a página e entre novamente para comentar."
-          : (err?.body?.message || "Erro ao adicionar comentário"),
+          : apiErrorMessage(err, "Erro ao adicionar comentário"),
         variant: "destructive",
       });
     },
@@ -287,12 +290,12 @@ export function useScalingMutations(opts: {
       invalidateAndRefetchInclusions();
       onInclusionSaved(updatedInclusion, vars.action, !!vars.thenNext);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
-        title: err?.status === 401 ? "Sessão expirada" : "Não foi possível atualizar a escalação",
-        description: err?.status === 401
+        title: apiErrorStatus(err) === 401 ? "Sessão expirada" : "Não foi possível atualizar a escalação",
+        description: apiErrorStatus(err) === 401
           ? "Sua sessão expirou. Atualize a página e entre novamente — nada foi salvo."
-          : (err?.body?.message || "Erro ao atualizar escalação"),
+          : apiErrorMessage(err, "Erro ao atualizar escalação"),
         variant: "destructive",
       });
     },

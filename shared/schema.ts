@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal, serial, index, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, serial, index, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 // ÍNDICES DECLARADOS NO SCHEMA (23/09): os índices/uniques criados por
 // scripts/migrations/*.ts (13/08, 17/08, 19/08, 28/08 e 23/09) agora também
@@ -193,6 +193,10 @@ export const teamInclusions = pgTable("team_inclusions", {
   suggestionSentAt: timestamp("suggestion_sent_at"), // quando a sugestão foi enviada para validação da área
   validatedAt: timestamp("validated_at"), // quando a área validou a sugestão
   validatedBy: varchar("validated_by").references(() => users.id), // quem validou (responsável da função)
+  // Observação opcional de quem validou — lida pelo aprovador (dono, 24/09).
+  // Só a rota POST /api/scaling-suggestions/validate grava; zera quando a vaga
+  // volta a `sugestao_pendente` (devolvida/reprovada/reenviada), junto com validatedAt/By.
+  validationNote: text("validation_note"),
   dailyRates: integer("daily_rates").notNull(), // quantidade de diárias planejadas
   workDays: date("work_days").array(), // dias específicos de trabalho (quando não consecutivos)
   dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
@@ -609,7 +613,7 @@ export const teamInclusionRowSchema = createInsertSchema(teamInclusions).omit({
  * DELETE, Validação de Escala).
  *
  *   status / phase / previousStatus  → nextStatusOnConfirm, nextSuggestionState, cancelar/reativar
- *   suggestionSentAt / validatedAt / validatedBy → Validação de Escala
+ *   suggestionSentAt / validatedAt / validatedBy / validationNote → Validação de Escala
  *   approvedByProduction(At)         → rota /approve-production
  *   deletedAt / deletedBy            → rota DELETE (soft delete)
  *   updatedBy                        → sempre a sessão
@@ -632,6 +636,7 @@ export const insertTeamInclusionSchema = teamInclusionRowSchema.omit({
   suggestionSentAt: true,
   validatedAt: true,
   validatedBy: true,
+  validationNote: true,
   approvedByProduction: true,
   approvedByProductionAt: true,
   deletedAt: true,

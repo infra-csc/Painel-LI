@@ -1,3 +1,4 @@
+import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 /**
  * LOG DE AUDITORIA — quem fez o quê, quando, e o que mudou (revisão 18/09:
  * "os logs de auditoria não estão muito claros, revise para deixar 10/10").
@@ -449,14 +450,14 @@ export default function SystemLogsPage() {
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-danger/25 bg-card px-6 py-16 text-center">
           <ShieldAlert className="h-10 w-10 text-danger-strong" aria-hidden="true" />
           <p className="font-medium text-slate-700">
-            {(error as any)?.status === 401
+            {apiErrorStatus(error) === 401
               ? "Sua sessão expirou. Entre novamente para consultar o log."
-              : (error as any)?.status === 403
+              : apiErrorStatus(error) === 403
               ? "Você não tem permissão para consultar o log de auditoria."
               : "Não foi possível carregar os registros."}
           </p>
           <p className="max-w-md text-sm text-muted-foreground">
-            {(error as any)?.body?.message || "Verifique sua conexão e tente novamente. Isto não significa que não existam registros."}
+            {apiErrorMessage(error, "Verifique sua conexão e tente novamente. Isto não significa que não existam registros.")}
           </p>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             {isFetching ? "Tentando…" : "Tentar novamente"}

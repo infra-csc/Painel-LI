@@ -46,7 +46,7 @@ function formatDateTime(dt: string | Date) {
 }
 
 export function BudgetChat({
-  entityType, entityId, eventId, linkedEntityType, linkedEntityId,
+  entityType, entityId, linkedEntityType, linkedEntityId,
   title = "Observações", placeholder, submitOnEnter = true, className,
 }: BudgetChatProps) {
   const { user } = useAuth();

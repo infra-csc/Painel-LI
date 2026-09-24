@@ -13,7 +13,7 @@
 import { ArrowDown, ArrowUp, Search, X } from "lucide-react";
 import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
 import { formatCurrency } from "./baggage-core";
-import { NOME_DA_ORDEM, type CampoDeOrdem, type FiltrosDaLista, type Ordem, type ResumoDoRecorte } from "./baggage-logic";
+import { type CampoDeOrdem, type FiltrosDaLista, type Ordem, type ResumoDoRecorte } from "./baggage-logic";
 
 const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-sm font-medium text-slate-700";
 

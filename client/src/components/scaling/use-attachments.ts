@@ -34,7 +34,7 @@ export function useAttachments(opts: {
           const data = await res.json();
           if (alive) setAttachmentMeta(prev => ({ ...prev, [id]: data }));
         }
-      } catch (_) {}
+      } catch { /* sem storage */ }
     });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps

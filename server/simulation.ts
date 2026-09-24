@@ -106,11 +106,11 @@ type CreateAuditLog = (
   action: string,
   entityType: string,
   entityId: string,
-  entityData: any,
+  entityData: unknown,
   userId?: string,
   userName?: string,
-  oldData?: any,
-  req?: any,
+  oldData?: unknown,
+  req?: Request,
 ) => Promise<void>;
 
 export interface SimulationDeps {

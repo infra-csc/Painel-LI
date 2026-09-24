@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -70,10 +71,10 @@ export default function SimulationPage() {
       // do admin. O reload em "/" leva à home do usuário simulado.
       queryClient.clear();
       window.location.href = "/";
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Não foi possível iniciar a simulação",
-        description: error?.body?.message ?? "Tente novamente em instantes.",
+        description: apiErrorMessage(error, "Tente novamente em instantes."),
         variant: "destructive",
       });
       setStartingId(null);

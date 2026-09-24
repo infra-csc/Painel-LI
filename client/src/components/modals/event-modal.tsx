@@ -24,12 +24,19 @@ import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { guardarEventoEmFoco, hrefComEvento } from "@/lib/evento-em-foco";
 import { RequiredMark } from "@/components/forms/required-mark";
 
+const STATUS_DO_FORMULARIO = ["planejado", "concluído", "excluído"] as const;
+type StatusDoFormulario = (typeof STATUS_DO_FORMULARIO)[number];
+/** Status gravado (texto livre) → opção do select; legado/desconhecido cai em "planejado". */
+function statusDoFormulario(status: string | null | undefined): StatusDoFormulario {
+  return (STATUS_DO_FORMULARIO as readonly string[]).includes(status ?? "") ? (status as StatusDoFormulario) : "planejado";
+}
+
 const eventSchema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
   location: z.string().min(1, "Local obrigatório"),
   startDate: z.string().min(1, "Data início obrigatória"),
   endDate: z.string().min(1, "Data fim obrigatória"),
-  status: z.enum(["planejado", "concluído", "excluído"]).optional(),
+  status: z.enum(STATUS_DO_FORMULARIO).optional(),
   observations: z.string().optional(),
   paymentCompanyName: z.string().optional(),
   paymentCompanyCnpj: z.string().optional().refine(v => {
@@ -85,12 +92,12 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const addCompany = useMutation({
     mutationFn: (d: { name: string; cnpj: string }) => apiRequest("POST", "/api/payment-companies", d),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/payment-companies"] }),
-    onError: (err: any) => toast({ title: "Erro ao salvar empresa", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao salvar empresa", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
   const delCompany = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/payment-companies/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/payment-companies"] }); toast({ title: "Empresa removida." }); },
-    onError: (err: any) => toast({ title: "Erro ao remover empresa", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao remover empresa", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const form = useForm<EventFormData>({
@@ -111,10 +118,10 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       form.reset({
         name: event.name, location: event.location,
         startDate: event.startDate, endDate: event.endDate,
-        status: event.status as any,
+        status: statusDoFormulario(event.status),
         observations: obs,
-        paymentCompanyName: (event as any).paymentCompanyName || "",
-        paymentCompanyCnpj: (event as any).paymentCompanyCnpj || "",
+        paymentCompanyName: event.paymentCompanyName || "",
+        paymentCompanyCnpj: event.paymentCompanyCnpj || "",
       });
       setObsLen(obs.length);
     } else {
@@ -123,7 +130,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
     }
     // `open` na lista: garante que reabrir o modal para o MESMO evento recarregue
     // os valores salvos em vez de manter uma edição abandonada.
-  }, [event, open]);
+  }, [event, open, form]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -170,7 +177,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       ]);
       onClose();
     },
-    onError: (e: any) => toast({ title: "Erro ao salvar evento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Erro ao salvar evento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
 
   // "Descartar alterações?" (23/09): Esc e clique fora chamavam `form.reset()`

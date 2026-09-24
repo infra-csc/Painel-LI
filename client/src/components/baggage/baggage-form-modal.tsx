@@ -22,7 +22,7 @@ import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { parseBrNumber, fixEncoding } from "@/lib/utils";
 import {
   AGENCIAS_FIXAS, CIAS_FIXAS, CIA_STYLE, TYPE_LABEL, contarObrigatorios, emptyForm,
-  formatCurrency, formatCpf, fmtDate, getCpf, toTitleCase,
+  formatCurrency, fmtDate, toTitleCase,
   type BaggageRequestItem, type CiaGroup, type CollaboratorItem, type EventOption,
   type FormErrors, type FormState,
 } from "./baggage-core";

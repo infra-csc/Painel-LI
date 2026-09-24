@@ -6,7 +6,7 @@ import { fetchJson } from "@/lib/queryClient";
 import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
 import { hasRole } from "@/lib/role-utils";
-import { passaNosFiltrosBase, passaNosFiltrosDePassagem, VALID_STATUSES_WITHOUT_COLLABORATOR } from "./tickets-filtering";
+import { passaNosFiltrosBase, passaNosFiltrosDePassagem } from "./tickets-filtering";
 import { purchasedValueKpi, isStoredTicketOneWay } from "@/lib/ticket-form";
 import { isEventPast, canActOnPastEvent } from "@shared/event-window";
 import type { SortConfig } from "@/components/common/sortable-header";
@@ -202,17 +202,18 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     !podeAgirEmEventoPassado && !!inclusion.eventId && isEventPast(eventById.get(inclusion.eventId)?.endDate);
 
   // ── Getters ──
-  const getTicket = (inclusionId: string): Ticket | undefined => ticketByInclusion.get(inclusionId);
-  const getEventName = (eventId: string) => eventById.get(eventId)?.name || "Evento não encontrado";
-  const getFunctionName = (functionId: string) => functionById.get(functionId)?.name || "Função não encontrada";
-  const getCollaboratorName = (collaboratorId?: string | null) => {
+  // Memoizados pelo mapa que leem: o modal e os memos abaixo os usam como dependência.
+  const getTicket = useCallback((inclusionId: string): Ticket | undefined => ticketByInclusion.get(inclusionId), [ticketByInclusion]);
+  const getEventName = useCallback((eventId: string) => eventById.get(eventId)?.name || "Evento não encontrado", [eventById]);
+  const getFunctionName = useCallback((functionId: string) => functionById.get(functionId)?.name || "Função não encontrada", [functionById]);
+  const getCollaboratorName = useCallback((collaboratorId?: string | null) => {
     if (!collaboratorId) return "Não escalado";
     return fixEncoding(collaboratorById.get(collaboratorId)?.fullName) || "Colaborador não encontrado";
-  };
-  const getCollaborator = (collaboratorId?: string | null) =>
-    collaboratorId ? collaboratorById.get(collaboratorId) || null : null;
-  const getEventLocation = (eventId: string) => eventById.get(eventId)?.location || "Destino não informado";
-  const getUserName = (userId: string) => userNameById.get(userId) || "Usuário";
+  }, [collaboratorById]);
+  const getCollaborator = useCallback((collaboratorId?: string | null) =>
+    collaboratorId ? collaboratorById.get(collaboratorId) || null : null, [collaboratorById]);
+  const getEventLocation = useCallback((eventId: string) => eventById.get(eventId)?.location || "Destino não informado", [eventById]);
+  const getUserName = useCallback((userId: string) => userNameById.get(userId) || "Usuário", [userNameById]);
 
   // ── Inclusões que precisam de passagem + filtros simples ──
   // A regra mora em tickets-filtering.ts para os contadores dos popovers
@@ -306,7 +307,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
           return 0;
       }
     });
-  }, [deduplicatedInclusions, filters.ticketStatus, filters.transportType, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, sortConfig, eventById, functionById, collaboratorById]);
+  }, [deduplicatedInclusions, filters, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, sortConfig, getCollaboratorName, getEventName, getFunctionName]);
 
   // Banner: trocas pendentes que aparecem de fato na tabela (mesma lista renderizada).
   const pendingTicketSwapsCount = useMemo(() => {

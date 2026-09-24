@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDiarias } from "@/lib/utils";
-import { PendingDaysBadge, eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
+import { eventPeriodLabel, periodLabel, workDaysOf } from "@/components/scaling-validation/suggestions-list";
 import { VagaCard, pessoasDiaDaVaga } from "@/components/scaling-validation/vaga-card";
 import { DANGER_DAYS, STALLED_DAYS } from "@shared/scaling-validation-rules";
 import { isStaleDecisionError } from "./use-decisions";

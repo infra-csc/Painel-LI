@@ -20,7 +20,7 @@ import { isCenotecnicaFunctionName } from "@shared/scaling-rules";
 import { getScalingStatusLabel } from "./scaling-status";
 import type {
   TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation,
-  TeamInclusionLog, SwapRequest, User,
+  SwapRequest, User,
 } from "@shared/schema";
 import {
   ACTIVE_CONFLICT_STATUSES, ALREADY_HANDLED_SWAP_STATUSES, isEscalated,
@@ -463,7 +463,7 @@ export function useScalingData(opts: {
 
       if (!q) return true;
       // Empreita por empresa (10/09): a busca acha pelo nome da empresa.
-      const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : ((inclusion as any).empreitaEmpresa ?? "").toLowerCase();
+      const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : (inclusion.empreitaEmpresa ?? "").toLowerCase();
       const city = (inclusion.city || getCollaboratorCity(inclusion.collaboratorId) || "").toLowerCase();
       return (
         String(inclusion.inclusionNumber ?? "").toLowerCase().includes(q) ||
@@ -473,13 +473,6 @@ export function useScalingData(opts: {
         city.includes(q)
       );
     });
-
-    const byPeriod = (a: TeamInclusion, b: TeamInclusion) => {
-      if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
-      if (!a.scheduleStartDate) return 1;
-      if (!b.scheduleStartDate) return -1;
-      return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
-    };
 
     /**
      * Ordena por CHAVE pré-computada.
@@ -517,7 +510,7 @@ export function useScalingData(opts: {
         // antes da direção, senão inverter a ordem traria as vazias para cima.
         case "collaborator":
           return filtered
-            .map((item, idx) => ({ item, idx, k: item.collaboratorId ? getCollaboratorName(item.collaboratorId) : ((item as any).empreitaEmpresa ?? "") }))
+            .map((item, idx) => ({ item, idx, k: item.collaboratorId ? getCollaboratorName(item.collaboratorId) : (item.empreitaEmpresa ?? "") }))
             .sort((a, b) => {
               const semA = a.k ? 0 : 1;
               const semB = b.k ? 0 : 1;
@@ -674,7 +667,7 @@ export function useInclusionDetails(inclusionId: string | undefined) {
 
   // /api/users só é necessário para o nome dos autores dos comentários (a rota
   // de comentários não devolve userName) — carrega só com o modal aberto.
-  const { data: users, refetch: refetchUsers } = useQuery<any[]>({
+  const { data: users, refetch: refetchUsers } = useQuery<User[]>({
     queryKey: ["/api/users"],
     enabled,
   });

@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { apiErrorMessage, cn, formatDiarias } from "@/lib/utils";
+import { apiErrorMessage, cn } from "@/lib/utils";
 import type { Event, Function as FunctionType, TeamInclusion } from "@shared/schema";
 import {
   diffInclusion, PROPOSED_FIELD_LABELS, TRANSPORT_MODE_LABELS,

@@ -89,7 +89,7 @@ export const BUCKETS: { key: BucketKey; label: string; cor: string }[] = [
 
 /** A vaga ainda está na Validação/Aprovação de Escala (antes da escalação). */
 export const ehSugestao = (i: TeamInclusion): boolean =>
-  (i as any).phase === "sugestao" || String(i.status ?? "").startsWith("sugestao_");
+  i.phase === "sugestao" || String(i.status ?? "").startsWith("sugestao_");
 
 /** As quatro etapas do caminho da vaga, na ordem em que ela anda. */
 export type Etapa = "validacao" | "aprovacao" | "escalacao" | "completa";
@@ -342,7 +342,7 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
     const comum = {
       inclusion: i,
       id: `#${i.inclusionNumber ?? ""}`,
-      nome: (i as any).empreitaEmpresa ? `Empreita · ${(i as any).empreitaEmpresa}` : ctx.temNome(i) ? ctx.getCollaboratorName(i.collaboratorId) : "Vaga sem nome",
+      nome: i.empreitaEmpresa ? `Empreita · ${i.empreitaEmpresa}` : ctx.temNome(i) ? ctx.getCollaboratorName(i.collaboratorId) : "Vaga sem nome",
       funcao: ctx.getFunctionName(i.functionId),
     };
     if (i.status === "aguardando_producao") {
@@ -370,7 +370,7 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
   }
   grupos.forEach((g) => {
     const desde = (i: TeamInclusion) =>
-      dias(g.etapa === "aprovacao" ? ((i as any).validatedAt ?? (i as any).suggestionSentAt ?? i.updatedAt) : ((i as any).suggestionSentAt ?? i.updatedAt));
+      dias(g.etapa === "aprovacao" ? (i.validatedAt ?? i.suggestionSentAt ?? i.updatedAt) : (i.suggestionSentAt ?? i.updatedAt));
     const diasList = g.linhas.map(desde).filter((d): d is number => d !== null);
     const funcoes = Array.from(new Set(g.linhas.map((i) => ctx.getFunctionName(i.functionId))));
     const n = g.linhas.length;

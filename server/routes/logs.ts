@@ -3,36 +3,21 @@
  * Papéis: só admin.
  */
 import type { Express } from "express";
-import { storage } from "../storage";
-import { normalizeRole } from "@shared/roles";
-import { effectiveUserId } from "../simulation";
+import { storage, type SystemLogFilters } from "../storage";
+import { requireRoles } from "./_compartilhado";
 
 export function registrarLogs(app: Express): void {
   // System Logs route (admin only)
   app.get("/api/system-logs", async (req, res) => {
+    // Só admin (usuário efetivo — simulação); requireRoles usa req.user e só
+    // volta ao banco quando a identidade efetiva é outra.
+    if (!await requireRoles(req, res, ["admin"])) return;
     try {
-      // Check authentication and authorization (usuário efetivo — simulação)
-      const userId = effectiveUserId(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
-
-      const currentUser = await storage.getUser(userId);
-      if (!currentUser) {
-        return res.status(401).json({ message: "Usuário não encontrado" });
-      }
-
-      // Only admins can access system logs
-      const isAdmin = normalizeRole(currentUser.role) === 'admin';
-      if (!isAdmin) {
-        return res.status(403).json({ message: "Sem permissão para acessar logs do sistema. Apenas administradores podem acessar esta funcionalidade." });
-      }
-
       // Parse query parameters for filtering
       const { entityType, action, days, search, userId: filterUserId, page = '1', limit = '50' } = req.query;
 
       // Build filters object
-      const filters: any = {};
+      const filters: SystemLogFilters = {};
       if (entityType && entityType !== 'all') {
         filters.entityType = entityType as string;
       }

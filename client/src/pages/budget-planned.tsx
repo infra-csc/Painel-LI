@@ -12,11 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
 import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Sun, Search, Home, UserCheck, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Eye } from "lucide-react";
-import { isRhOrAdmin } from "@/lib/permissions";
+import { isRhOrAdmin } from "@/lib/role-utils";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
+import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote, BudgetPlanned as BudgetPlannedRow, BudgetActual, Ticket } from "@shared/schema";
 import { isAtendimentoFunction, atendimentoDailyCents, ATENDIMENTO_TIPOS, type AtendimentoTipo } from "@shared/atendimento";
 import { calcDeflatedDailies, deflationFactorsFromSettings, percurseiroDiariaCents, PERCURSEIRO_TIPOS, FUNCAO_LOCAL_RAZAO, type DeflationSegment, type RegraDiaria, type PercurseiroTipo, type PercurseiroDiaria } from "@shared/calculation-rules";
 import { CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo, type CenoEmpreitaValor } from "@shared/cenotecnica-empreita";
@@ -164,7 +164,7 @@ interface SheetRowProps {
   showTopBorder: boolean;
   selected: boolean;
   ovr?: BudgetOverride;
-  matchingActual?: any;
+  matchingActual?: BudgetActual;
   subtotalOpen: boolean;
   onToggleSelect: (sid: string, v: boolean) => void;
   onSheetEdit: (budget: CalculatedBudget, field: SheetField, rawValue: string) => void;
@@ -714,7 +714,7 @@ export default function BudgetPlannedPage() {
   // escalação veio sem tipo. Só estado local; persiste no Salvar.
   const chooseLocalPercurseiroTipo = (tipo: PercurseiroTipo) => {
     if (!editingBudgetInfo) return;
-    const pacote = percurseiroDiariaCents(tipo, systemSettings as any);
+    const pacote = percurseiroDiariaCents(tipo, systemSettings);
     setPendingPercurseiroTipo(tipo === (editingBudgetInfo.savedPercurseiroTipo ?? null) ? null : tipo);
     setEditingBudgetInfo(prev => prev ? { ...prev, percurseiroTipo: tipo, percurseiro: pacote } : prev);
     applyTipoDiariaNoModal(pacote?.total);
@@ -727,7 +727,7 @@ export default function BudgetPlannedPage() {
     if (!editingBudgetInfo) return;
     setPendingAtendimentoTipo(tipo === (editingBudgetInfo.savedAtendimentoTipo ?? null) ? null : tipo);
     setEditingBudgetInfo(prev => prev ? { ...prev, atendimentoTipo: tipo } : prev);
-    applyTipoDiariaNoModal(atendimentoDailyCents(tipo, systemSettings as any));
+    applyTipoDiariaNoModal(atendimentoDailyCents(tipo, systemSettings));
   };
 
   // Persistência dos tipos NA ESCALAÇÃO (rotas dedicadas aceitam o papel
@@ -747,8 +747,8 @@ export default function BudgetPlannedPage() {
       setPendingAtendimentoTipo(null);
       setPendingPercurseiroTipo(null);
       return true;
-    } catch (e: any) {
-      toast({ title: "Não foi possível salvar o tipo na escalação", description: e?.body?.message || e?.message || "Tente novamente.", variant: "destructive" });
+    } catch (e) {
+      toast({ title: "Não foi possível salvar o tipo na escalação", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
       return false;
     } finally {
       setSavingTipo(false);
@@ -778,7 +778,7 @@ export default function BudgetPlannedPage() {
   const buscaAplicada = useDeferredValue(searchTerm);
   const [sortBy, setSortBy] = useState<string>("name_asc");
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
-  const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
+  const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: CalculatedBudget; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
   const [activeTab, setActiveTab] = useState<'overview' | 'sheet'>('overview');
   const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
@@ -787,7 +787,7 @@ export default function BudgetPlannedPage() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [batchPopover, setBatchPopover] = useState<{ field: 'vdia'|'alim'|'mob'; value: string } | null>(null);
   const [batchApplied, setBatchApplied] = useState<Set<'vdia'|'alim'|'mob'>>(new Set());
-  const [batchHistory, setBatchHistory] = useState<{ fields: ('vdia'|'alim'|'mob')[]; prev: Record<string, any> } | null>(null);
+  const [batchHistory, setBatchHistory] = useState<{ fields: ('vdia'|'alim'|'mob')[]; prev: Record<string, BudgetOverride> } | null>(null);
   const batchPopoverRef = useRef<HTMLDivElement>(null);
   // A11y: botão ✏ que abriu o popover de lote — recebe o foco de volta ao fechar
   const batchTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -825,7 +825,7 @@ export default function BudgetPlannedPage() {
         description: "Um rascunho no formato antigo foi descartado para não travar os cálculos automáticos.",
       });
     }
-  }, [selectedEventId, toast]);
+  }, [selectedEventId, usuarioId, toast]);
 
   // Carrega o rascunho salvo ao trocar de evento
   useEffect(() => {
@@ -900,9 +900,9 @@ export default function BudgetPlannedPage() {
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: functionValues, isLoading: isLoadingFunctionValues, isError: isErrorFunctionValues, refetch: refetchFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
   // Passagens: fonte dos horários de voo para mobilidade e alimentação
-  const { data: allTickets } = useQuery<any[]>({ queryKey: ["/api/tickets"] });
+  const { data: allTickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"] });
   const ticketByInclusion = useMemo(() => {
-    const m = new Map<string, any>();
+    const m = new Map<string, Ticket>();
     for (const t of allTickets || []) if (t.teamInclusionId) m.set(t.teamInclusionId, t);
     return m;
   }, [allTickets]);
@@ -913,7 +913,7 @@ export default function BudgetPlannedPage() {
     queryKey: ["/api/system-settings"],
   });
 
-  const { data: existingActuals } = useQuery<any[]>({
+  const { data: existingActuals } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: async () => {
       const res = await fetch(`/api/budget-actual?eventId=${selectedEventId}`, { credentials: "include" });
@@ -923,7 +923,7 @@ export default function BudgetPlannedPage() {
     enabled: !!selectedEventId,
   });
 
-  const { data: allBudgetPlanned } = useQuery<any[]>({
+  const { data: allBudgetPlanned } = useQuery<BudgetPlannedRow[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
     queryFn: async () => {
       const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
@@ -948,14 +948,14 @@ export default function BudgetPlannedPage() {
       const res = await apiRequest("POST", `/api/budget-planned/${id}/toggle-not-attended`, { reason });
       return res.json();
     },
-    onSuccess: (data: any, { id }) => {
+    onSuccess: (data: BudgetPlannedRow, { id }) => {
       qc.invalidateQueries({ queryKey: ["/api/budget-planned", selectedEventId] });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setNotAttendedModal(null);
       setNotAttendedReason("");
       if (data.didNotAttend) {
         // Remove de seleção se estava selecionado
-        const plan = allBudgetPlanned?.find((p: any) => p.id === id);
+        const plan = allBudgetPlanned?.find(p => p.id === id);
         const budget = plan && calculatedBudgets.find(b => b.inclusion.collaboratorId === plan.collaboratorId && b.inclusion.functionId === plan.functionId);
         if (budget) setSelectedIds(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
         toast({ title: "Colaborador marcado como não participou" });
@@ -967,7 +967,7 @@ export default function BudgetPlannedPage() {
   });
 
   const createAndMarkNotAttendedMutation = useMutation({
-    mutationFn: async ({ budget, reason }: { budget: any; reason: string }) => {
+    mutationFn: async ({ budget, reason }: { budget: CalculatedBudget; reason: string }) => {
       // Dias persistidos = dias que efetivamente recebem diária (casa: só fds)
       const totalDias = budget.diasComDiaria ?? (budget.weekdays + budget.weekends);
       const weightedDailyValue = totalDias > 0
@@ -1061,21 +1061,21 @@ export default function BudgetPlannedPage() {
     return m;
   }, [functions]);
 
-  const getCollaboratorName = (id?: string | null) => {
+  const getCollaboratorName = useCallback((id?: string | null) => {
     if (!id) return "Não definido";
     return collaboratorNamesById.get(id) || "Não definido";
-  };
+  }, [collaboratorNamesById]);
   /** Nome que a linha mostra: colaborador, ou a empresa da empreita (10/09). */
   const nomeDaVaga = (i: TeamInclusion): string => {
-    const empresa = (i as any).empreitaEmpresa as string | null | undefined;
-    if (empresa) return `Empreita · ${empresa}${(i as any).empreitaPessoas ? ` (${(i as any).empreitaPessoas} pessoas)` : ""}`;
+    const empresa = i.empreitaEmpresa as string | null | undefined;
+    if (empresa) return `Empreita · ${empresa}${i.empreitaPessoas ? ` (${i.empreitaPessoas} pessoas)` : ""}`;
     return getCollaboratorName(i.collaboratorId);
   };
 
-  const getFunctionName = (id?: string | null) => {
+  const getFunctionName = useCallback((id?: string | null) => {
     if (!id) return "-";
     return functionNamesById.get(id) || "-";
-  };
+  }, [functionNamesById]);
 
   // Índices O(1) (23/09): `collaborators?.find` e `functionValues?.find` rodavam
   // dentro do `.map` do cálculo — O(n·m) a cada render.
@@ -1180,7 +1180,7 @@ export default function BudgetPlannedPage() {
   // Set de chaves "collaboratorId|functionId" para cards marcados como "não participou"
   const notAttendedKeys = useMemo(() => {
     const keys = new Set<string>();
-    (allBudgetPlanned || []).forEach((p: any) => {
+    (allBudgetPlanned || []).forEach(p => {
       if (p.didNotAttend) keys.add(`${p.collaboratorId}|${p.functionId}`);
     });
     return keys;
@@ -1192,8 +1192,8 @@ export default function BudgetPlannedPage() {
   // Registros indexados por "colaborador|função" — evita .find() O(n) por card/linha.
   // O primeiro registro vence, preservando a semântica do Array.find original.
   const plannedByCollabFunc = useMemo(() => {
-    const m = new Map<string, any>();
-    (allBudgetPlanned || []).forEach((p: any) => {
+    const m = new Map<string, BudgetPlannedRow>();
+    (allBudgetPlanned || []).forEach(p => {
       const key = `${p.collaboratorId}|${p.functionId}`;
       if (!m.has(key)) m.set(key, p);
     });
@@ -1201,8 +1201,8 @@ export default function BudgetPlannedPage() {
   }, [allBudgetPlanned]);
 
   const actualsByCollabFunc = useMemo(() => {
-    const m = new Map<string, any>();
-    (existingActuals || []).forEach((a: any) => {
+    const m = new Map<string, BudgetActual>();
+    (existingActuals || []).forEach(a => {
       if (a.splitParentId) return;
       const key = `${a.collaboratorId}|${a.functionId}`;
       if (!m.has(key)) m.set(key, a);
@@ -1247,7 +1247,7 @@ export default function BudgetPlannedPage() {
       }
     });
     return Array.from(funcs).sort();
-  }, [calculatedBudgets, functions]);
+  }, [calculatedBudgets, getFunctionName]);
 
   // Filtrar e ordenar budgets
   const filteredBudgets = useMemo(() => {
@@ -1294,7 +1294,7 @@ export default function BudgetPlannedPage() {
     });
     
     return result;
-  }, [calculatedBudgets, buscaAplicada, filterFunction, filterType, sortBy, collaboratorNamesById, functionNamesById]);
+  }, [calculatedBudgets, buscaAplicada, filterFunction, filterType, sortBy, getCollaboratorName, getFunctionName]);
 
   // Seleção × filtro (23/09): antes CADA tecla na busca zerava a seleção.
   // Agora só saem da seleção os itens que o filtro escondeu — item selecionado
@@ -1392,8 +1392,8 @@ export default function BudgetPlannedPage() {
       alimEstimada: budget.alimEstimada,
       voa: !!budget.inclusion.needsTicket,
       isAtend: isAtendimentoFunction(getFunctionName(budget.inclusion.functionId)),
-      atendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
-      savedAtendimentoTipo: ((budget.inclusion as any).atendimentoTipo ?? null) as AtendimentoTipo | null,
+      atendimentoTipo: (budget.inclusion.atendimentoTipo ?? null) as AtendimentoTipo | null,
+      savedAtendimentoTipo: (budget.inclusion.atendimentoTipo ?? null) as AtendimentoTipo | null,
       isPercurso: budget.isPercurso,
       funcaoLocal: budget.funcaoLocal,
       percurseiroTipo: budget.percurseiroTipo,
@@ -1449,7 +1449,7 @@ export default function BudgetPlannedPage() {
       editVals.jantarFds !== defaultVals.jantarFds
     );
     const planRec = allBudgetPlanned?.find(
-      (p: any) => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
+      p => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
     );
     setEditingBudgetPlannedId(planRec?.id ?? null);
     setModalViewMode(viewMode);
@@ -1546,15 +1546,15 @@ export default function BudgetPlannedPage() {
 
     // Reutiliza registro planejado já existente (ex: marcado como "não participou" antes de enviar)
     const existingPlan = allBudgetPlanned?.find(
-      (p: any) => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
+      p => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
     );
 
-    let savedPlanned: any;
+    let savedPlanned: BudgetPlannedRow;
     if (existingPlan) {
       const patchRes = await apiRequest("PATCH", `/api/budget-planned/${existingPlan.id}`, {
         ...plannedData,
-        didNotAttend: (existingPlan as any).didNotAttend,
-        didNotAttendReason: (existingPlan as any).didNotAttendReason,
+        didNotAttend: existingPlan.didNotAttend,
+        didNotAttendReason: existingPlan.didNotAttendReason,
       });
       savedPlanned = await patchRes.json();
     } else {
@@ -1574,10 +1574,10 @@ export default function BudgetPlannedPage() {
   // Resposta imediata após o envio SEM estado paralelo: grava o registro
   // criado no cache de `existingActuals` (fonte única de `sentToActual`) e a
   // invalidação logo depois confirma com o servidor.
-  const marcarEnviados = (enviados: { id: string; result: any }[]) => {
+  const marcarEnviados = (enviados: { id: string; result: BudgetActual }[]) => {
     const novos = enviados.map(e => e.result).filter(r => r && r.collaboratorId);
     if (novos.length === 0) return;
-    qc.setQueryData<any[]>(["/api/budget-actual", selectedEventId], (old) => [...(old ?? []), ...novos]);
+    qc.setQueryData<BudgetActual[]>(["/api/budget-actual", selectedEventId], (old) => [...(old ?? []), ...novos]);
   };
 
   const sendToActualMutation = useMutation({
@@ -1588,7 +1588,7 @@ export default function BudgetPlannedPage() {
       marcarEnviados([data]);
       clearDraftEntries([data.id]);
       setConfirmSend(null);
-      const wasEdited = !!(variables as any).hasOverride;
+      const wasEdited = !!variables.hasOverride;
       // O envio individual JÁ cria o registro no Realizado — o texto diz isso.
       toast({
         title: "Enviado para o Realizado!",
@@ -1611,7 +1611,7 @@ export default function BudgetPlannedPage() {
       const toSend = calculatedBudgets.filter(b =>
         selectedIds.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id) && !isCardNotAttended(b)
       );
-      const results: { id: string; result: any }[] = [];
+      const results: { id: string; result: BudgetActual }[] = [];
       let failedCount = 0;
       for (const budget of toSend) {
         try {
@@ -1636,12 +1636,14 @@ export default function BudgetPlannedPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
     onError: (err) => {
-      const sent = ((err as any)?.sent ?? []) as { id: string }[];
-      const failedCount = ((err as any)?.failedCount ?? 0) as number;
+      // Erro "Envio parcial" montado acima com os sucessos anexados.
+      const parcial = err as Partial<{ sent: { id: string; result: BudgetActual }[]; failedCount: number }>;
+      const sent = parcial.sent ?? [];
+      const failedCount = parcial.failedCount ?? 0;
       if (sent.length > 0) {
         // Sucessos parciais contam: marca como enviados e tira da seleção para
         // que uma nova tentativa reenvie apenas os que falharam.
-        marcarEnviados(sent as { id: string; result: any }[]);
+        marcarEnviados(sent);
         clearDraftEntries(sent.map(d => d.id));
         setSelectedIds(prev => { const s = new Set(Array.from(prev)); sent.forEach(d => s.delete(d.id)); return s; });
         qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
@@ -1827,13 +1829,13 @@ export default function BudgetPlannedPage() {
       toast({ title: "Valor inválido", description: "Informe um valor igual ou maior que zero.", variant: "destructive" });
       return;
     }
-    const domainField = field === 'vdia' ? 'valorDia' : field === 'alim' ? 'alimentacao' : 'mobilidade';
+    const domainField: SheetField = field === 'vdia' ? 'valorDia' : field === 'alim' ? 'alimentacao' : 'mobilidade';
     const prevOverrides = { ...budgetOverrides };
     // Linha enviada ou ausente NUNCA recebe override em lote
     const targets = filteredBudgets.filter(b =>
       !isCardNotAttended(b) && !sentToActual.has(b.inclusion.id)
     );
-    targets.forEach(b => handleSheetEdit(b, domainField as any, rawValue));
+    targets.forEach(b => handleSheetEdit(b, domainField, rawValue));
     setBatchApplied(prev => { const next = new Set(prev); next.add(field); return next; });
     setBatchHistory({ fields: [field], prev: prevOverrides });
   };
@@ -1859,7 +1861,7 @@ export default function BudgetPlannedPage() {
       toast({ title: "Valor inválido", description: "Informe um valor igual ou maior que zero.", variant: "destructive" });
       return;
     }
-    const domainField =
+    const domainField: SheetField =
       field === 'vdia' ? 'valorDia' :
       field === 'alimUtil' ? 'alimentacaoUtil' :
       field === 'alimFds' ? 'alimentacaoFds' : 'mobilidade';
@@ -1874,7 +1876,7 @@ export default function BudgetPlannedPage() {
     });
     if (targets.length === 0) return;
     const prevOverrides = { ...budgetOverrides };
-    targets.forEach(b => handleSheetEdit(b, domainField as any, value));
+    targets.forEach(b => handleSheetEdit(b, domainField, value));
     // Marca o flag do campo realmente editado — antes era sempre 'vdia',
     // mesmo em edições de alimentação/mobilidade.
     const batchFlag: 'vdia' | 'alim' | 'mob' =
@@ -2548,9 +2550,9 @@ export default function BudgetPlannedPage() {
                             <div className="flex items-center gap-1 overflow-hidden flex-wrap">
                               <span className="text-2xs font-semibold text-slate-600 bg-border px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
                               {isAtendimentoFunction(getFunctionName(budget.inclusion.functionId)) && (
-                                (budget.inclusion as any).atendimentoTipo ? (
+                                budget.inclusion.atendimentoTipo ? (
                                   <span className="text-2xs font-semibold text-primary bg-brand-soft px-2 py-0.5 rounded-full shrink-0" title="Tipo de atendimento — troque no modal de edição">
-                                    {(budget.inclusion as any).atendimentoTipo === 'key_account' ? 'Key Account' : 'Exec. Contas'}
+                                    {budget.inclusion.atendimentoTipo === 'key_account' ? 'Key Account' : 'Exec. Contas'}
                                   </span>
                                 ) : (
                                   <span className="text-2xs font-semibold text-warning bg-warning-soft px-2 py-0.5 rounded-full shrink-0" title="Defina Key Account ou Executivo de Contas no modal de edição">
@@ -3490,7 +3492,7 @@ export default function BudgetPlannedPage() {
                       <div className="flex rounded-lg border border-primary/25 overflow-hidden">
                         {ATENDIMENTO_TIPOS.map(op => {
                           const ativo = editingBudgetInfo.atendimentoTipo === op.value;
-                          const valor = atendimentoDailyCents(op.value, systemSettings as any);
+                          const valor = atendimentoDailyCents(op.value, systemSettings);
                           return (
                             <button
                               key={op.value}
@@ -3525,7 +3527,7 @@ export default function BudgetPlannedPage() {
                       <div className="flex rounded-lg border border-primary/25 overflow-hidden">
                         {PERCURSEIRO_TIPOS.map(op => {
                           const ativo = editingBudgetInfo.percurseiroTipo === op.value;
-                          const valor = percurseiroDiariaCents(op.value, systemSettings as any)?.total;
+                          const valor = percurseiroDiariaCents(op.value, systemSettings)?.total;
                           return (
                             <button
                               key={op.value}

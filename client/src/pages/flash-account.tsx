@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import type { InsertFlashMovement } from "@shared/schema";
+import type { LucideIcon } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
-import { isRhOrAdmin } from "@/lib/permissions";
+import { isRhOrAdmin } from "@/lib/role-utils";
 import { parseBrNumber } from "@/lib/utils";
 import { isAutomaticFlashMovement, flashSourceLabel } from "@shared/flash-rules";
 import { Button } from "@/components/ui/button";
@@ -124,15 +126,16 @@ export default function FlashAccountPage() {
   const qCollaborators = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const qEvents = useQuery<EventItem[]>({ queryKey: ["/api/events"] });
   const qMovements = useQuery<FlashMovement[]>({ queryKey: ["/api/flash-movements"] });
-  const collaborators = qCollaborators.data ?? [];
-  const events = qEvents.data ?? [];
-  const movements = qMovements.data ?? [];
+  // `?? []` criaria um array novo a cada render e invalidaria os memos abaixo.
+  const collaborators = useMemo(() => qCollaborators.data ?? [], [qCollaborators.data]);
+  const events = useMemo(() => qEvents.data ?? [], [qEvents.data]);
+  const movements = useMemo(() => qMovements.data ?? [], [qMovements.data]);
   // Erro/carregando das três consultas (23/09): antes uma falha virava
   // "Nenhum lançamento ainda" — sem aviso e sem botão para tentar de novo.
   const estado = useQueriesState([qCollaborators, qEvents, qMovements]);
   const isLoading = estado.isLoading;
 
-  const getCollabName = (id: string) => collaborators.find(c => c.id === id)?.fullName || "—";
+  const getCollabName = useCallback((id: string) => collaborators.find(c => c.id === id)?.fullName || "—", [collaborators]);
   const getEventName = (id?: string | null) => events.find(e => e.id === id)?.name || "";
 
   // Saldo por colaborador: créditos somam, débitos subtraem
@@ -161,7 +164,7 @@ export default function FlashAccountPage() {
     return rows
       .filter(r => !q || r.name.toLowerCase().includes(q))
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  }, [balances, collaborators, search]);
+  }, [balances, getCollabName, search]);
 
   const totals = useMemo(() => {
     let food = 0, mobility = 0, below = 0;
@@ -225,7 +228,7 @@ export default function FlashAccountPage() {
       qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
       toast({ title: "Lançamento excluído" });
     },
-    onError: (e: any) => toast({ title: "Não foi possível excluir o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Não foi possível excluir o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
 
   // Campo CSV seguro: aspas duplas quando houver ; aspas ou quebra de linha
@@ -569,7 +572,7 @@ export default function FlashAccountPage() {
   );
 }
 
-function SummaryCard({ label, value, icon: Icon, color, bg }: any) {
+function SummaryCard({ label, value, icon: Icon, color, bg }: { label: string; value: string | number; icon: LucideIcon; color: string; bg: string }) {
   return (
     <div className="bg-card rounded-xl border border-border px-4 py-3.5 flex items-center gap-3">
       <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
@@ -671,7 +674,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
     setMovementDate(todayISO()); setEventId(""); setDescription(""); setCollabSearch("");
   };
 
-  const post = (body: any) => apiRequest("POST", "/api/flash-movements", body).then(r => r.json());
+  const post = (body: Partial<InsertFlashMovement>) => apiRequest("POST", "/api/flash-movements", body).then(r => r.json());
 
   const save = async (initialCredit: boolean) => {
     if (!collaboratorId) { setErros({ collaborator: "Selecione o colaborador." }); document.getElementById("fm-collaborator")?.focus(); return; }
@@ -703,7 +706,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
       onCreated(collaboratorId);
       reset();
       onClose();
-    } catch (e: any) {
+    } catch (e) {
       toast({ title: "Não foi possível registrar o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     } finally {
       setSaving(false);
@@ -745,7 +748,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
               className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary"
             >
               <option value="">Selecione…</option>
-              {optionCollabs.map((c: any) => (
+              {optionCollabs.map(c => (
                 <option key={c.id} value={c.id}>{toTitleCase(c.fullName)}</option>
               ))}
             </select>
@@ -769,14 +772,14 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="fm-category" className={lbl}>Categoria</label>
-              <select id="fm-category" value={category} onChange={e => setCategory(e.target.value as any)} className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary">
+              <select id="fm-category" value={category} onChange={e => setCategory(e.target.value === "mobilidade" ? "mobilidade" : "alimentacao")} className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary">
                 <option value="alimentacao">Alimentação</option>
                 <option value="mobilidade">Mobilidade</option>
               </select>
             </div>
             <div>
               <label htmlFor="fm-type" className={lbl}>Tipo</label>
-              <select id="fm-type" value={type} onChange={e => setType(e.target.value as any)} className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary">
+              <select id="fm-type" value={type} onChange={e => setType(e.target.value === "debito" ? "debito" : "credito")} className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary">
                 <option value="credito">Crédito (reembolso/recarga)</option>
                 <option value="debito">Débito (consumo/ajuste)</option>
               </select>

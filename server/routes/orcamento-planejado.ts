@@ -15,7 +15,7 @@ import {
 import { eq, inArray, sql as drizzleSql } from "drizzle-orm";
 import { isEventBlockedForActor } from "../event-guard";
 import { calcularPlanejadoDaVaga, linhaDoPlanejado } from "@shared/budget-engine";
-import { createAuditLog, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
+import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
 
 export function registrarOrcamentoPlanejado(app: Express): void {
   // Budget Planned — Apply system defaults to all pending (not-yet-sent) records
@@ -115,7 +115,7 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       if (ids.length === 0) return res.json([]);
       const evts = await db.select().from(eventsTable).where(inArray(eventsTable.id, ids));
       res.json(evts);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar eventos com planejamento" });
     }
   });
@@ -156,18 +156,16 @@ export function registrarOrcamentoPlanejado(app: Express): void {
     const actorId = await requireFinWrite(req, res);
     if (!actorId) return;
     try {
-      const data: any = insertBudgetPlannedSchema.parse(req.body);
       // Campos de workflow não nascem pela API — têm rotas dedicadas
-      delete data.status;
-      delete data.didNotAttend;
+      const { status: _st, didNotAttend: _dna, ...data } = insertBudgetPlannedSchema.parse(req.body);
       const planned = await storage.createBudgetPlanned(data);
       const actor = usuarioDaSessao(req);
       await createAuditLog('create', 'budget_planned', planned.id, planned, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(planned);
-    } catch (error: any) {
+    } catch (error) {
       // 23505 = unique_violation (constraint criada na migração de 13/08):
       // já existe planejado para este colaborador+função neste evento
-      if (error?.code === '23505') {
+      if (ehViolacaoDeUnicidade(error)) {
         return res.status(409).json({ message: "Já existe um planejamento para este colaborador e função neste evento." });
       }
       console.error("Error creating budget planned:", error);
@@ -182,12 +180,9 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       const prev = await storage.getBudgetPlannedById(req.params.id);
       if (!prev) return res.status(404).json({ message: "Planejamento não encontrado" });
       // Validação + allowlist: campos de workflow só mudam pelas rotas dedicadas
-      const data: any = insertBudgetPlannedSchema.partial().parse(req.body);
-      delete data.status;
-      delete data.didNotAttend;
-      delete data.didNotAttendReason;
+      const { status: _st, didNotAttend: _dna, didNotAttendReason: _dnr, ...data } = insertBudgetPlannedSchema.partial().parse(req.body);
       const actor = usuarioDaSessao(req);
-      const planned = await storage.updateBudgetPlanned(req.params.id, { ...data, updatedBy: actorId } as any);
+      const planned = await storage.updateBudgetPlanned(req.params.id, { ...data, updatedBy: actorId });
       await createAuditLog('update', 'budget_planned', req.params.id, planned, actorId, actor?.name || 'Sistema', prev, req);
       res.json(planned);
     } catch (error) {
@@ -219,11 +214,11 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       const { reason } = req.body as { reason?: string };
       const item = await storage.getBudgetPlannedById(req.params.id);
       if (!item) return res.status(404).json({ message: "Item não encontrado" });
-      const toggled = !(item as any).didNotAttend;
+      const toggled = !item.didNotAttend;
       const updated = await storage.updateBudgetPlanned(req.params.id, {
         didNotAttend: toggled,
         didNotAttendReason: toggled ? (reason || null) : null,
-      } as any);
+      });
       const actorId = finUser.id;
       const actor = finUser;
       await createAuditLog('update', 'budget_planned', req.params.id, updated, actorId, actor?.name || 'Sistema', item, req);

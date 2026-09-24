@@ -38,20 +38,6 @@ export const validateCPF = (cpf: string): boolean => {
 };
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
-const AVATAR_COLORS = [
-  "bg-primary", "bg-primary", "bg-success-strong", "bg-warning-strong",
-  "bg-primary", "bg-info", "bg-warning-strong", "bg-danger-strong",
-];
-function avatarColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 function toTitleCase(str: string) {
   return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
@@ -251,8 +237,6 @@ export default function CollaboratorModal({
   const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(form.formState.isDirty, { salvando: collaboratorMutation.isPending });
   const handleClose = () => pedirParaFechar(() => { form.reset(); onClose(); });
 
-  const nameValue = form.watch("fullName");
-  const showAvatar = isEdit && collaborator;
 
   const modalTitle = isEdit ? "Editar colaborador" : isEmergency ? "Colaborador emergencial" : "Novo colaborador";
 

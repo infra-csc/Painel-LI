@@ -4,19 +4,19 @@
  * sincronizam ou estornam o crédito automático da Conta Corrente Flash.
  * Papéis: financeiro (admin/RH).
  */
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { budgetComparison as budgetComparisonTable, insertBudgetComparisonSchema } from "@shared/schema";
+import { budgetComparison as budgetComparisonTable, insertBudgetComparisonSchema, type BudgetActual, type BudgetPlanned } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { safeSyncFlashFromComparison, safeReverseFlashFromComparison, type FlashSyncActor } from "../flash-credit";
-import { createAuditLog, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
+import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
 
 export function registrarOrcamentoComparativo(app: Express): void {
   // Ator + trilha de auditoria para o crédito automático no Flash
   // (server/flash-credit.ts). O audit log usa entityType 'financial' — mesmo
   // bucket dos lançamentos manuais da Conta Corrente Flash.
-  const flashActorFor = async (req: any): Promise<FlashSyncActor> => {
+  const flashActorFor = async (req: Request): Promise<FlashSyncActor> => {
     const u = usuarioDaSessao(req) ?? undefined;
     return {
       userId: u?.id ?? null,
@@ -50,8 +50,8 @@ export function registrarOrcamentoComparativo(app: Express): void {
       const data = insertBudgetComparisonSchema.parse(req.body);
       const comparison = await storage.createBudgetComparison(data);
       res.status(201).json(comparison);
-    } catch (error: any) {
-      if (error?.code === '23505') {
+    } catch (error) {
+      if (ehViolacaoDeUnicidade(error)) {
         return res.status(409).json({ message: "Já existe um comparativo para este evento." });
       }
       console.error("Error creating budget comparison:", error);
@@ -72,22 +72,22 @@ export function registrarOrcamentoComparativo(app: Express): void {
       // processa só os pais enviados; o total do grupo é pai(já reduzido pelo
       // split) + TODOS os filhos; "não participou" (no planejado) zera o grupo.
       // A versão anterior excluía os filhos de split e subcontava o realizado.
-      const splitChildren = new Map<string, any[]>();
-      for (const a of allActual as any[]) {
+      const splitChildren = new Map<string, BudgetActual[]>();
+      for (const a of allActual) {
         if (a.splitParentId) {
           const arr = splitChildren.get(a.splitParentId) || [];
           arr.push(a);
           splitChildren.set(a.splitParentId, arr);
         }
       }
-      const parents = (allActual as any[]).filter(a => a.sentForReview && !a.splitParentId);
-      const matchPlanned = (a: any) => a.plannedId
-        ? planned.find((pl: any) => pl.id === a.plannedId)
-        : planned.find((pl: any) => pl.collaboratorId === a.collaboratorId && pl.functionId === a.functionId && pl.eventId === a.eventId);
+      const parents = allActual.filter(a => a.sentForReview && !a.splitParentId);
+      const matchPlanned = (a: BudgetActual): BudgetPlanned | undefined => a.plannedId
+        ? planned.find((pl) => pl.id === a.plannedId)
+        : planned.find((pl) => pl.collaboratorId === a.collaboratorId && pl.functionId === a.functionId && pl.eventId === a.eventId);
       let totalActual = 0;
       let totalPlanned = 0;
       for (const p of parents) {
-        const mp: any = matchPlanned(p);
+        const mp = matchPlanned(p);
         const notAttended = !!mp?.didNotAttend;
         const kids = splitChildren.get(p.id) || [];
         totalActual += notAttended ? 0 : (p.totalValue || 0) + kids.reduce((s, c) => s + (c.totalValue || 0), 0);
@@ -102,8 +102,8 @@ export function registrarOrcamentoComparativo(app: Express): void {
       // Changes log: só os pais enviados com planejado (filhos de split são
       // frações — comparar cada um contra o planejado cheio seria enganoso)
       const changesLog = parents
-        .filter((a: any) => a.plannedId)
-        .map((a: any) => {
+        .filter((a) => a.plannedId)
+        .map((a) => {
           const p = planned.find(pl => pl.id === a.plannedId);
           if (!p) return null;
 
@@ -151,13 +151,8 @@ export function registrarOrcamentoComparativo(app: Express): void {
     if (!finUser) return;
     try {
       // Allowlist: decisão (status/approvedBy/motivos) só pelas rotas dedicadas
-      const data: any = insertBudgetComparisonSchema.partial().parse(req.body);
-      delete data.status;
-      delete data.approvedBy;
-      delete data.approvedAt;
-      delete data.approvalObservation;
-      delete data.rejectionReason;
-      delete data.returnReason;
+      const { status: _s, approvedBy: _ab, approvedAt: _aa, approvalObservation: _ao, rejectionReason: _rr, returnReason: _re, ...data } =
+        insertBudgetComparisonSchema.partial().parse(req.body);
       const comparison = await storage.updateBudgetComparison(req.params.id, data);
       res.json(comparison);
     } catch (error) {
@@ -176,7 +171,8 @@ export function registrarOrcamentoComparativo(app: Express): void {
     id: string, de: readonly string[], patch: Record<string, unknown>,
   ) => {
     const [row] = await db.update(budgetComparisonTable)
-      .set({ ...patch, updatedAt: new Date() } as any)
+      // patch: colunas de decisão (status/approvedBy/...) montadas pelas rotas abaixo
+      .set({ ...(patch as Partial<typeof budgetComparisonTable.$inferInsert>), updatedAt: new Date() })
       .where(and(eq(budgetComparisonTable.id, id), inArray(budgetComparisonTable.status, [...de])))
       .returning();
     return row;
@@ -187,7 +183,7 @@ export function registrarOrcamentoComparativo(app: Express): void {
     if (!finUser) return;
     try {
       const { approvalObservation } = req.body;
-      const anterior = await storage.getAllBudgetComparisons().then((all) => all.find((c) => c.id === req.params.id));
+      const anterior = await storage.getBudgetComparisonById(req.params.id);
       if (!anterior) return res.status(404).json({ message: "Comparativo não encontrado" });
       const comparison = await decidirComparativo(req.params.id, ['pendente', 'devolvido', 'rejeitado'], {
         status: 'aprovado',
@@ -218,7 +214,7 @@ export function registrarOrcamentoComparativo(app: Express): void {
     try {
       const rejectionReason = typeof req.body?.rejectionReason === "string" ? req.body.rejectionReason.trim() : "";
       if (!rejectionReason) return res.status(400).json({ message: "Informe o motivo da recusa do comparativo." });
-      const anterior = await storage.getAllBudgetComparisons().then((all) => all.find((c) => c.id === req.params.id));
+      const anterior = await storage.getBudgetComparisonById(req.params.id);
       if (!anterior) return res.status(404).json({ message: "Comparativo não encontrado" });
       const comparison = await decidirComparativo(req.params.id, ['pendente', 'aprovado', 'devolvido'], {
         status: 'rejeitado',
@@ -243,7 +239,7 @@ export function registrarOrcamentoComparativo(app: Express): void {
     if (!finUser) return;
     try {
       const { returnReason } = req.body;
-      const anterior = await storage.getAllBudgetComparisons().then((all) => all.find((c) => c.id === req.params.id));
+      const anterior = await storage.getBudgetComparisonById(req.params.id);
       if (!anterior) return res.status(404).json({ message: "Comparativo não encontrado" });
       const comparison = await decidirComparativo(req.params.id, ['pendente', 'aprovado', 'rejeitado'], {
         status: 'devolvido',

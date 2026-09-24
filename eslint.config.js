@@ -4,8 +4,8 @@
 //  1. react-hooks: dependências de useEffect/useMemo e ordem dos hooks.
 //  2. Design system: cores hex, `style={{}}` e tamanhos de fonte arbitrários
 //     em .tsx contornam os tokens (940 hex e 2.387 `text-[Npx]` na auditoria).
-//     Começam como AVISO para não travar o time; viram erro quando a base
-//     estiver limpa.
+//     Base limpa em 24/09 (0 avisos): o script `lint` roda com --max-warnings=0,
+//     então qualquer aviso novo bloqueia o CI.
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 
@@ -52,7 +52,7 @@ export default tseslint.config(
     rules: { "no-console": "off" },
   },
   {
-    files: ["**/*.test.{ts,tsx}", "scripts/**/*.ts"],
+    files: ["**/*.test.{ts,tsx}", "server/test/**/*.ts", "scripts/**/*.ts"],
     rules: { "@typescript-eslint/no-explicit-any": "off", "no-console": "off" },
   },
 );

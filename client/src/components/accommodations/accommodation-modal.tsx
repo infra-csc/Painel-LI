@@ -177,7 +177,7 @@ function AccommodationModalContent({
       const meus: Partial<AccommodationDraft> = {};
       const foraDaqui: string[] = [];
       for (const [k, v] of Object.entries(campos)) {
-        if (k in EMPTY_DRAFT && k !== "attachmentIds") (meus as Record<string, string>)[k] = v;
+        if (k in EMPTY_DRAFT && k !== "attachmentIds") (meus as Record<string, string>)[k] = typeof v === "string" ? v : String(v ?? "");
         else foraDaqui.push(ROTULO_FORA[k] ?? k);
       }
       setDraft((d) => ({ ...d, ...meus }));

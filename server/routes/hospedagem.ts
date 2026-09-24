@@ -25,7 +25,7 @@ export function registrarHospedagem(app: Express): void {
       const accommodations = await storage.getAccommodations(eventId);
       res.set("Cache-Control", "no-store"); // dados do hóspede
       res.json(accommodations);
-    } catch (error) {
+    } catch {
       res.status(500).json({ message: "Erro ao buscar hospedagens" });
     }
   });

@@ -41,7 +41,7 @@ import { LegChip, NeedChips, legValue } from "@/components/scaling-validation/lo
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { buildReadDateList } from "@/components/scaling-validation/scaling-grid-utils";
 import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
-import { RequestStatusBadge, RequestTypeBadge, ageLabel, formatDateTimeBr } from "@/components/scaling-approval/request-badges";
+import { RequestStatusBadge, RequestTypeBadge, formatDateTimeBr } from "@/components/scaling-approval/request-badges";
 import { APPROVAL_QUERY_KEYS } from "@/components/scaling-approval/types";
 
 const ALL = "all";
@@ -151,11 +151,6 @@ function fmtShort(v: string | Date | null | undefined): string {
 /** Alguma perna da viagem tem modal, data ou hora? (Mesmo critério do LegChip: sem nada, ele não desenha.) */
 const hasLeg = (mode: string | null | undefined, date: string | Date | null | undefined, time: string | null | undefined) =>
   !!(legValue(mode) || legValue(date) || legValue(time));
-const DAY_MS = 86_400_000;
-function daysSince(v: unknown): number {
-  const d = toDate(v);
-  return d ? Math.max(0, Math.floor((Date.now() - d.getTime()) / DAY_MS)) : 0;
-}
 /**
  * Adapta a linha da API ao formato que SuggestionsList/ScheduleBoard esperam.
  * `canEdit: true` é proposital: o ScheduleBoard usa `canEdit=false` só para

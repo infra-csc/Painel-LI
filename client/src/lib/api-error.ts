@@ -36,6 +36,13 @@ function pareceErroTecnico(err: Error): boolean {
   return /^\d{3}:\s/.test(m) || /failed to fetch|networkerror|load failed|unexpected token|is not a function|cannot read propert/i.test(m);
 }
 
+/** Status HTTP do erro (ApiError ou objeto no mesmo formato), se houver. */
+export function apiErrorStatus(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null) return undefined;
+  const s = (err as ApiErrorLike).status;
+  return typeof s === "number" ? s : undefined;
+}
+
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (err === null || err === undefined) return fallback;
 

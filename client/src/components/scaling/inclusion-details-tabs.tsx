@@ -318,7 +318,8 @@ function HistoricoDaVaga({ historico, carregando }: { historico: EntradaDoHistor
                         <span className="text-xs font-semibold text-foreground break-words">{e.titulo}</span>
                         <span className="ml-auto text-2xs tabular-nums text-muted-foreground whitespace-nowrap">{hora ?? "dia"}</span>
                       </div>
-                      {e.detalhe && <p className="mt-0.5 text-2xs text-slate-600 break-words">{e.detalhe}</p>}
+                      {/* `whitespace-pre-line`: o log de validação traz a observação da área numa linha própria ("Observação: …"). */}
+                      {e.detalhe && <p className="mt-0.5 text-2xs text-slate-600 whitespace-pre-line break-words">{e.detalhe}</p>}
                       {e.linhas.length > 0 && (
                         <ul className="mt-0.5 space-y-0.5 text-2xs text-slate-600">
                           {e.linhas.map((l) => <li key={l} className="break-words">{l}</li>)}

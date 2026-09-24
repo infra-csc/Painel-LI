@@ -3,7 +3,7 @@
  * pré-sistema por colaborador × CIA.
  * Papéis: admin e Compras.
  */
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
 import { insertBaggageRequestSchema } from "@shared/schema";
@@ -15,7 +15,7 @@ export function registrarBagagem(app: Express): void {
   // Contagens por CIA são derivadas dos registros no client — o servidor só
   // guarda as solicitações. Exclusão é soft delete (deleted_at/deleted_by).
 
-  const requireBagagem = (req: any, res: any) =>
+  const requireBagagem = (req: Request, res: Response) =>
     requireRoles(req, res, ['admin', 'purchasing'] as const);
 
   // Campos que o PATCH aceita — nada de mass assignment de created_by/deleted_at

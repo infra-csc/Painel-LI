@@ -2,6 +2,7 @@
  * Helpers puros da tela de Escalação (sem estado, sem React).
  * Extraídos de pages/scaling.tsx — comportamento preservado.
  */
+import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { parseISO } from "date-fns";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import type { TeamInclusion } from "@shared/schema";
@@ -43,20 +44,20 @@ export const parseDay = (value: string | null | undefined): Date | null => {
 
 // Mensagem de erro amigável para falhas de carregamento (distingue sessão expirada
 // de "não há dados": uma falha de rede nunca pode virar estado vazio).
-export const describeLoadError = (err: any): string => {
-  if (err?.status === 401) return "Sua sessão expirou. Atualize a página e entre novamente.";
-  if (err?.status === 403) return "Você não tem permissão para ver estes registros.";
-  return err?.body?.message || "Não foi possível carregar os dados. Verifique sua conexão e tente novamente.";
+export const describeLoadError = (err: unknown): string => {
+  if (apiErrorStatus(err) === 401) return "Sua sessão expirou. Atualize a página e entre novamente.";
+  if (apiErrorStatus(err) === 403) return "Você não tem permissão para ver estes registros.";
+  return apiErrorMessage(err, "Não foi possível carregar os dados. Verifique sua conexão e tente novamente.");
 };
 
 /** Escalação concluída (colaborador + status pós-confirmação). */
 // Empreita por empresa (10/09) preenche a vaga sem colaborador.
 export const isEscalated = (inclusion: TeamInclusion): boolean =>
-  (!!inclusion.collaboratorId || vagaComEmpreita(inclusion as any)) && ESCALATED_STATUSES.has(inclusion.status);
+  (!!inclusion.collaboratorId || vagaComEmpreita(inclusion)) && ESCALATED_STATUSES.has(inclusion.status);
 
 /** Escalação confirmada (igual a isEscalated, mas SEM aguardando_producao). */
 export const isEscalationConfirmed = (inclusion: TeamInclusion): boolean =>
-  (!!inclusion.collaboratorId || vagaComEmpreita(inclusion as any)) &&
+  (!!inclusion.collaboratorId || vagaComEmpreita(inclusion)) &&
   inclusion.status !== "aguardando_producao" &&
   ESCALATED_STATUSES.has(inclusion.status);
 
@@ -205,14 +206,14 @@ export const modalDataFromInclusion = (inclusion: TeamInclusion): ModalData => {
     collaboratorId: inclusion.collaboratorId || "",
     observations: inclusion.observations || "",
     dailyValue: 0,
-    empreitaModo: vagaComEmpreita(inclusion as any),
-    empreitaEmpresa: (inclusion as any).empreitaEmpresa ?? "",
-    empreitaPessoas: (inclusion as any).empreitaPessoas != null ? String((inclusion as any).empreitaPessoas) : "",
-    empreitaValor: (inclusion as any).empreitaValor != null ? String(Math.round(Number((inclusion as any).empreitaValor) / 100)) : "",
+    empreitaModo: vagaComEmpreita(inclusion),
+    empreitaEmpresa: inclusion.empreitaEmpresa ?? "",
+    empreitaPessoas: inclusion.empreitaPessoas != null ? String(inclusion.empreitaPessoas) : "",
+    empreitaValor: inclusion.empreitaValor != null ? String(Math.round(Number(inclusion.empreitaValor) / 100)) : "",
     city,
     departureFromSP: isCityFromSP(city),
-    atendimentoTipo: (inclusion as any).atendimentoTipo || "",
-    percurseiroTipo: (inclusion as any).percurseiroTipo || "",
+    atendimentoTipo: inclusion.atendimentoTipo || "",
+    percurseiroTipo: inclusion.percurseiroTipo || "",
   };
 };
 
