@@ -19,8 +19,8 @@ export interface LogisticsPanelProps {
   workDays?: string[];
 }
 
-const GROUP = "text-[10px] font-bold uppercase tracking-wide text-slate-500";
-const FIELD_LABEL = "block text-[11px] font-medium text-slate-500 mb-1";
+const GROUP = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
+const FIELD_LABEL = "block text-2xs font-medium text-muted-foreground mb-1";
 // Mesmo placeholder/title do TimeField dos pedidos (travel-fields.tsx): o
 // horário sugerido é texto livre com faixa, e as duas telas têm de dizer isso
 // com as mesmas palavras.
@@ -28,8 +28,8 @@ const TIME_PLACEHOLDER = "ex.: 8-14h, 22h";
 const TIME_TITLE = "Opcional — pode ser uma faixa (8-14h) ou uma hora (22h)";
 const inputCls = (filled: boolean) =>
   cn(
-    "h-8 text-xs rounded-lg transition-colors focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-slate-400",
-    filled ? "bg-brand-soft/60 border-primary/30" : "bg-white border-slate-200",
+    "h-8 text-xs rounded-lg transition-colors focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground",
+    filled ? "bg-brand-soft/60 border-primary/30" : "bg-card border-border",
   );
 
 function Toggle({ label, on, disabled, onToggle, rowName }: {
@@ -44,7 +44,7 @@ function Toggle({ label, on, disabled, onToggle, rowName }: {
       onClick={() => onToggle(!on)}
       className={cn(
         "h-8 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
-        on ? "bg-brand-soft border-primary/30 text-primary" : "bg-white border-slate-200 text-slate-600 hover:border-primary/30",
+        on ? "bg-brand-soft border-primary/30 text-primary" : "bg-card border-border text-slate-600 hover:border-primary/30",
       )}
     >
       {label}
@@ -136,20 +136,20 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: Logisti
       {/* Avisos de viagem × diárias: aviso, não erro — o envio segue. A frase
           "dá para enviar" aparece UMA vez, no rodapé, e não em cada item. */}
       {avisos.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800" role="status" data-testid="sug-logistics-avisos">
+        <div className="rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-2xs text-warning" role="status" data-testid="sug-logistics-avisos">
           <ul className="space-y-0.5">
             {avisos.map((a) => (
               <li key={a} className="flex items-start gap-1.5">
-                <TriangleAlert className="mt-px h-3 w-3 shrink-0 text-amber-600" aria-hidden="true" />
+                <TriangleAlert className="mt-px h-3 w-3 shrink-0 text-warning" aria-hidden="true" />
                 <span>{a}</span>
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-amber-700">Só um aviso — dá para enviar assim mesmo.</p>
+          <p className="mt-1 text-warning">Só um aviso — dá para enviar assim mesmo.</p>
         </div>
       )}
 
-      <p className="text-[11px] text-slate-500">
+      <p className="text-2xs text-muted-foreground">
         Horário é uma faixa ou janela para Compras (ex.: "8-14h", "20h+"), não a hora exata do voo — quem compra confirma na tela de Passagens.
       </p>
     </div>

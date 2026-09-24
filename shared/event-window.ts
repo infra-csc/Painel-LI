@@ -21,6 +21,7 @@
  * papéis — é sobre a janela de tempo do evento cruzada com o papel.
  */
 import { normalizeRole } from "./roles";
+import { hojeISO } from "./hoje-sp";
 
 /** Mensagem única de bloqueio — servidor (403) e client usam esta string. */
 export const PAST_EVENT_BLOCK_MSG =
@@ -38,15 +39,12 @@ export const PAST_EVENT_BANNER_MSG =
  */
 export const APP_TIMEZONE = "America/Sao_Paulo";
 
-/** "Hoje" no fuso da operação, no formato YYYY-MM-DD. */
+/**
+ * "Hoje" no fuso da operação, no formato YYYY-MM-DD. Delegado a
+ * shared/hoje-sp.ts (24/09) — era o mesmo cálculo escrito duas vezes.
+ */
 export function todayIsoDate(now: Date = new Date()): string {
-  // "en-CA" formata como YYYY-MM-DD
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+  return hojeISO(APP_TIMEZONE, now);
 }
 
 /**

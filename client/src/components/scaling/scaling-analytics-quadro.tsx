@@ -39,12 +39,12 @@ const dmIso = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5,
 type Tom = SituacaoDoPrazo | "neutro";
 
 const TOM: Record<Tom, { celula: string; data: string }> = {
-  atrasado: { celula: "bg-[#FEF2F2]", data: "font-semibold text-[#B91C1C]" },
-  vence_logo: { celula: "bg-[#FFFBEB]", data: "font-semibold text-[#B45309]" },
-  cumprido: { celula: "", data: "text-[#047857]" },
-  no_prazo: { celula: "", data: "text-slate-500" },
-  sem_data: { celula: "", data: "text-slate-400" },
-  neutro: { celula: "", data: "text-slate-400" },
+  atrasado: { celula: "bg-danger-soft", data: "font-semibold text-danger" },
+  vence_logo: { celula: "bg-warning-soft", data: "font-semibold text-warning" },
+  cumprido: { celula: "", data: "text-success" },
+  no_prazo: { celula: "", data: "text-muted-foreground" },
+  sem_data: { celula: "", data: "text-muted-foreground" },
+  neutro: { celula: "", data: "text-muted-foreground" },
 };
 
 function textoDaSituacao(tom: Tom, prazo: Date | null, hoje: Date): string {
@@ -62,10 +62,10 @@ function Celula({ valor, sub, prazo, tom, hoje, testId }: {
 }) {
   const texto = textoDaSituacao(tom, prazo, hoje);
   return (
-    <td className={`border-l border-slate-100 px-3 py-2 text-center align-top ${TOM[tom].celula}`} title={texto} data-testid={testId}>
-      <div className="text-[15px] font-semibold leading-tight tabular-nums text-slate-900">{valor}</div>
-      {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
-      <div className={`mt-0.5 whitespace-nowrap text-[11px] ${TOM[tom].data}`}>{texto}</div>
+    <td className={`border-l border-border px-3 py-2 text-center align-top ${TOM[tom].celula}`} title={texto} data-testid={testId}>
+      <div className="text-base font-semibold leading-tight tabular-nums text-foreground">{valor}</div>
+      {sub && <div className="text-2xs text-muted-foreground">{sub}</div>}
+      <div className={`mt-0.5 whitespace-nowrap text-2xs ${TOM[tom].data}`}>{texto}</div>
     </td>
   );
 }
@@ -85,15 +85,15 @@ export function QuadroDePrazos({ eventos, hoje, dias, podeEditar, onVerVagasDoEv
         <table className="w-full min-w-[860px] border-collapse text-left">
           <caption className="sr-only">Quantidade e prazo de cada etapa, por evento</caption>
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/60 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+            <tr className="border-b border-border bg-surface-muted/60 text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
               <th scope="col" className="px-4 py-2">Evento</th>
               <th scope="col" className="px-3 py-2 text-center" title="Dia da prova — o domingo dentro do período cadastrado do evento (ou o sábado)">
                 Data do evento
               </th>
               {ETAPAS_COM_PRAZO.map((etapa) => (
-                <th key={etapa} scope="col" className="border-l border-slate-100 px-3 py-2 text-center">
+                <th key={etapa} scope="col" className="border-l border-border px-3 py-2 text-center">
                   {ROTULO_DA_ETAPA[etapa]}
-                  <span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">{dias[etapa]} dias antes</span>
+                  <span className="block text-2xs font-normal normal-case tracking-normal text-muted-foreground">{dias[etapa]} dias antes</span>
                 </th>
               ))}
             </tr>
@@ -105,19 +105,19 @@ export function QuadroDePrazos({ eventos, hoje, dias, podeEditar, onVerVagasDoEv
               const semNome = e.naEscalacao.semNome;
               const passagens = e.logistica.passagens;
               return (
-                <tr key={e.eventId} className={`border-b border-slate-50 last:border-b-0 hover:bg-[#FBFCFE] ${e.jaTerminou ? "opacity-65" : ""}`}>
+                <tr key={e.eventId} className={`border-b border-border last:border-b-0 hover:bg-surface-muted ${e.jaTerminou ? "opacity-65" : ""}`}>
                   <th scope="row" className="max-w-[260px] px-4 py-2 align-top font-normal">
                     <button
                       type="button"
                       onClick={() => onVerVagasDoEvento(e.eventId)}
-                      className="block max-w-full truncate text-left text-[13px] font-semibold text-slate-900 hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                      className="block max-w-full truncate text-left text-sm font-semibold text-foreground hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                       title={`Ver as vagas de ${e.nome}`}
                     >
                       {e.nome}
                     </button>
-                    <span className="block text-[11px] text-muted-foreground">{e.total} {e.total === 1 ? "vaga" : "vagas"}</span>
+                    <span className="block text-2xs text-muted-foreground">{e.total} {e.total === 1 ? "vaga" : "vagas"}</span>
                   </th>
-                  <td className="whitespace-nowrap px-3 py-2 text-center align-top text-[13px] font-semibold tabular-nums text-slate-800">
+                  <td className="whitespace-nowrap px-3 py-2 text-center align-top text-sm font-semibold tabular-nums text-foreground">
                     {dmIso(e.dataEvento)}
                   </td>
                   {/* Registros: o total — o prazo é informativo (não dá para saber o que ainda falta registrar). */}
@@ -155,13 +155,13 @@ export function QuadroDePrazos({ eventos, hoje, dias, podeEditar, onVerVagasDoEv
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 px-4 py-2.5 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-red-200 bg-[#FEF2F2]" />prazo passou e ainda há pendência</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-amber-200 bg-[#FFFBEB]" />vence em até 3 dias</span>
-        <span className="inline-flex items-center gap-1.5"><span className="text-[#047857]">ok</span> etapa concluída</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-4 py-2.5 text-2xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-danger/25 bg-danger-soft" />prazo passou e ainda há pendência</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-warning/25 bg-warning-soft" />vence em até 3 dias</span>
+        <span className="inline-flex items-center gap-1.5"><span className="text-success">ok</span> etapa concluída</span>
         <span>Prazos contados da data do evento.</span>
         {podeEditar && (
-          <Button type="button" variant="outline" size="sm" className="ml-auto h-7 gap-1.5 text-[12px]" onClick={() => setEditando(true)} data-testid="button-editar-prazos">
+          <Button type="button" variant="outline" size="sm" className="ml-auto h-7 gap-1.5 text-xs" onClick={() => setEditando(true)} data-testid="button-editar-prazos">
             <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Editar prazos
           </Button>
         )}
@@ -220,23 +220,23 @@ function EditarPrazos({ aberto, onFechar, dias }: { aberto: boolean; onFechar: (
             const prazo = !invalido(v) ? prazoDaEtapa(exemploIso, etapa, { ...DIAS_PADRAO, [etapa]: Number(v) }) : null;
             return (
               <div key={etapa} className="grid grid-cols-[1fr_88px_1fr] items-center gap-3">
-                <label htmlFor={`prazo-${etapa}`} className="text-[13px] font-medium text-slate-700">{ROTULO_DA_ETAPA[etapa]}</label>
+                <label htmlFor={`prazo-${etapa}`} className="text-sm font-medium text-slate-700">{ROTULO_DA_ETAPA[etapa]}</label>
                 <Input
                   id={`prazo-${etapa}`}
                   inputMode="numeric"
                   value={v}
                   onChange={(ev) => setValores((atual) => ({ ...atual, [etapa]: ev.target.value }))}
                   aria-invalid={invalido(v)}
-                  className={`h-9 text-right tabular-nums ${invalido(v) ? "border-red-400" : ""}`}
+                  className={`h-9 text-right tabular-nums ${invalido(v) ? "border-danger-strong" : ""}`}
                   data-testid={`input-prazo-${etapa}`}
                 />
-                <span className="text-[12px] text-muted-foreground">
-                  {invalido(v) ? <span className="text-red-600">0 a {DIAS_MAXIMO}</span> : <>dias antes · ex.: até {dm(prazo)}</>}
+                <span className="text-xs text-muted-foreground">
+                  {invalido(v) ? <span className="text-danger">0 a {DIAS_MAXIMO}</span> : <>dias antes · ex.: até {dm(prazo)}</>}
                 </span>
               </div>
             );
           })}
-          <p className="pt-1 text-[11px] text-muted-foreground">Exemplo calculado para um evento em {dm(exemplo)}.</p>
+          <p className="pt-1 text-2xs text-muted-foreground">Exemplo calculado para um evento em {dm(exemplo)}.</p>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onFechar}>Cancelar</Button>

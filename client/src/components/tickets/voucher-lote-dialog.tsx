@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { fixEncoding } from "@/lib/utils";
 import type { TicketFormValues } from "@/lib/ticket-form";
 import type { TeamInclusion } from "@shared/schema";
@@ -56,7 +57,7 @@ export default function VoucherLoteDialog({
   onRegistrar: (inclusion: TeamInclusion, form: TicketFormValues) => Promise<void>;
   registrando: boolean;
   /** Passagem já gravada da vaga, no formato do formulário — para completar ida/volta. */
-  getPassagemAtual?: (inclusionId: string) => Record<string, any> | null;
+  getPassagemAtual?: (inclusionId: string) => TicketFormValues | null;
 }) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,8 +100,8 @@ export default function VoucherLoteDialog({
         }),
       ]);
     },
-    onError: (e: Error) =>
-      toast({ title: "Erro ao ler os vouchers", description: e.message, variant: "destructive" }),
+    onError: (e: unknown) =>
+      toast({ title: "Erro ao ler os vouchers", description: apiErrorMessage(e, "Não foi possível ler os arquivos. Tente de novo."), variant: "destructive" }),
   });
 
   const escolher = (arquivos: FileList | null) => {
@@ -142,11 +143,11 @@ export default function VoucherLoteDialog({
       const vaga = vagaById.get(vagaId);
       if (!vaga) continue;
       const gravada = getPassagemAtual?.(vagaId) ?? null;
-      let form: Record<string, any> | null = null;
+      let form: TicketFormValues | null = null;
       const resumos: string[] = [];
       for (const i of indices) {
         const linha = atualizadas[i];
-        const base: Record<string, any> | null = form ?? gravada;
+        const base: TicketFormValues | null = form ?? gravada;
         const junto: IdaEVoltaJuntas | null = base ? juntarIdaEVolta(base, { campos: linha.campos, trechoUnico: linha.trechoUnico }) : null;
         if (junto) {
           form = { ...base, ...junto.campos };
@@ -191,8 +192,8 @@ export default function VoucherLoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setLinhas([]); }}>
-      <DialogContent className="max-w-5xl p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-2xl">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 pr-12">
+      <DialogContent className="max-w-5xl p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-xl">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border pr-12">
           <DialogTitle className="flex items-center gap-2">
             <FileUp className="w-5 h-5 text-primary" aria-hidden="true" />
             Registrar passagens pelos vouchers
@@ -207,7 +208,7 @@ export default function VoucherLoteDialog({
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); escolher(e.dataTransfer.files); }}
-            className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-6 py-8 text-center"
+            className="rounded-xl border-2 border-dashed border-border bg-surface-muted/60 px-6 py-8 text-center"
           >
             <input
               ref={inputRef} type="file" accept="application/pdf" multiple className="hidden"
@@ -222,10 +223,10 @@ export default function VoucherLoteDialog({
               data-testid="button-escolher-vouchers"
             >
               {ler.isPending
-                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Lendo…</>
+                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" />Lendo…</>
                 : "Escolher arquivos"}
             </Button>
-            <p className="mt-2 text-[11px] text-slate-400">Até 30 arquivos por vez.</p>
+            <p className="mt-2 text-2xs text-muted-foreground">Até 30 arquivos por vez.</p>
           </div>
 
           {linhas.length > 0 && (
@@ -236,27 +237,27 @@ export default function VoucherLoteDialog({
                   <li
                     key={`${l.arquivo}-${idx}`}
                     className={`rounded-xl border px-4 py-3 ${
-                      l.resultado === "ok" ? "border-green-200 bg-green-50/50"
-                      : l.resultado === "erro" ? "border-red-200 bg-red-50/50"
-                      : aproveitavel ? "border-slate-200 bg-white" : "border-amber-200 bg-amber-50/40"
+                      l.resultado === "ok" ? "border-success/25 bg-success-soft/50"
+                      : l.resultado === "erro" ? "border-danger/25 bg-danger-soft/50"
+                      : aproveitavel ? "border-border bg-card" : "border-warning/25 bg-warning-soft/40"
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold text-slate-800 truncate">{l.arquivo}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">{l.arquivo}</p>
                         {aproveitavel ? (
                           <>
-                            <p className="text-[12px] text-slate-500">
+                            <p className="text-xs text-muted-foreground">
                               {l.pessoa ? <>Passageiro: <strong>{l.pessoa}</strong> · </> : null}
                               {resumoCampos(l.campos)}
                             </p>
                             {l.trechoUnico && !l.resultado && l.inclusionId && (vezesNaVaga.get(l.inclusionId) ?? 0) > 1 && (
-                              <p className="mt-1 text-[11px] font-medium text-primary">
+                              <p className="mt-1 text-2xs font-medium text-primary">
                                 Outro voucher desta vaga: ida e volta serão juntadas numa passagem e os valores somados.
                               </p>
                             )}
                             <div className="mt-2 flex items-center gap-2">
-                              <span className="text-[11px] text-slate-500 shrink-0">Vaga:</span>
+                              <span className="text-2xs text-muted-foreground shrink-0">Vaga:</span>
                               <VagaCombobox
                                 vagas={vagas}
                                 valor={l.inclusionId}
@@ -268,12 +269,12 @@ export default function VoucherLoteDialog({
                                 }
                               />
                               {!l.inclusionId && (
-                                <span className="text-[11px] text-amber-700">não achei a vaga pelo nome — escolha</span>
+                                <span className="text-2xs text-warning">não achei a vaga pelo nome — escolha</span>
                               )}
                             </div>
                           </>
                         ) : (
-                          <p className="text-[12px] text-amber-800">
+                          <p className="text-xs text-warning">
                             {l.tipo === "hospedagem"
                               ? `Isto é um voucher de hotel${l.pessoa ? ` (${l.pessoa})` : ""} — registre pela tela de Hospedagens.`
                               : l.avisos[0] ?? "Não reconheci este arquivo."}
@@ -282,29 +283,29 @@ export default function VoucherLoteDialog({
                         {l.avisos.length > 0 && aproveitavel && (
                           <ul className="mt-1 space-y-0.5">
                             {l.avisos.map((a, i) => (
-                              <li key={i} className="text-[11px] text-amber-700 flex items-start gap-1">
+                              <li key={i} className="text-2xs text-warning flex items-start gap-1">
                                 <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />{a}
                               </li>
                             ))}
                           </ul>
                         )}
                         {l.mensagem && (
-                          <p className={`mt-1 text-[11px] font-medium ${l.resultado === "ok" ? "text-green-700" : "text-red-600"}`}>
+                          <p className={`mt-1 text-2xs font-medium ${l.resultado === "ok" ? "text-success" : "text-danger"}`}>
                             {l.mensagem}
                           </p>
                         )}
                       </div>
                       {l.resultado === "ok" ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" aria-hidden="true" />
+                        <CheckCircle2 className="w-5 h-5 text-success shrink-0" aria-hidden="true" />
                       ) : (
                         <button
                           type="button"
                           onClick={() => setLinhas((atuais) => atuais.filter((_, i) => i !== idx))}
                           disabled={gravando}
-                          className="text-slate-300 hover:text-red-500 shrink-0"
+                          className="text-muted-foreground hover:text-danger-strong shrink-0"
                           aria-label={`Tirar ${l.arquivo} da lista`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
                         </button>
                       )}
                     </div>
@@ -315,14 +316,14 @@ export default function VoucherLoteDialog({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-3 flex items-center gap-3">
-          <p className="text-[12px] text-slate-500 mr-auto">
+        <div className="shrink-0 border-t border-border bg-surface-muted/60 px-6 py-3 flex items-center gap-3">
+          <p className="text-xs text-muted-foreground mr-auto">
             {prontas.length > 0
               ? `${prontas.length} pronta(s) para registrar`
               : linhas.length > 0 ? "Nenhuma linha pronta — confira as vagas acima." : "Nenhum arquivo ainda."}
           </p>
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={gravando}>
-            <X className="w-4 h-4 mr-1.5" />Fechar
+            <X className="w-4 h-4 mr-1.5" aria-hidden="true" />Fechar
           </Button>
           <Button
             type="button"
@@ -332,7 +333,7 @@ export default function VoucherLoteDialog({
             data-testid="button-registrar-lote-vouchers"
           >
             {gravando
-              ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Registrando…</>
+              ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" />Registrando…</>
               : `Registrar ${prontas.length || ""}`.trim()}
           </Button>
         </div>

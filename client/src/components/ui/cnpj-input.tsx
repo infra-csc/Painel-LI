@@ -82,10 +82,10 @@ export const CnpjInput = forwardRef<HTMLInputElement, CnpjInputProps>(
         />
         {/* Ícone de status */}
         {isInvalid && (
-          <XCircle className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400 pointer-events-none" />
+          <XCircle className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400 pointer-events-none" aria-hidden="true" />
         )}
         {isOk && (
-          <CheckCircle2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" />
+          <CheckCircle2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" aria-hidden="true" />
         )}
       </div>
     );

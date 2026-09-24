@@ -1,4 +1,6 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
+import typography from "@tailwindcss/typography";
 
 /**
  * Os tokens em index.css são cores completas (`hsl(...)`), não canais soltos.
@@ -58,6 +60,13 @@ export default {
           DEFAULT: token("destructive"),
           foreground: token("destructive-foreground"),
         },
+        // Semânticos (23/09): bg-success-soft text-success, bg-warning-soft text-warning...
+        success: { DEFAULT: token("success"), soft: token("success-soft"), strong: token("success-strong") },
+        warning: { DEFAULT: token("warning"), soft: token("warning-soft"), strong: token("warning-strong") },
+        info: { DEFAULT: token("info"), soft: token("info-soft"), strong: token("info-strong") },
+        danger: { DEFAULT: token("danger"), soft: token("danger-soft"), strong: token("danger-strong") },
+        neutral: { DEFAULT: token("neutral"), soft: token("neutral-soft") },
+        surface: { muted: token("surface-muted") },
         border: token("border"),
         input: token("input"),
         ring: token("ring"),
@@ -78,6 +87,17 @@ export default {
           border: token("sidebar-border"),
           ring: token("sidebar-ring"),
         },
+      },
+      // Elevação em 3 níveis (23/09) — substitui 25 sombras arbitrárias com 6 cores-base.
+      boxShadow: {
+        1: "var(--elevation-1)",
+        2: "var(--elevation-2)",
+        3: "var(--elevation-3)",
+      },
+      // Tamanho mínimo legível (23/09): text-2xs = 11px substitui os 898 usos de text-[11px].
+      // Os demais tamanhos ficam no padrão do Tailwind para não mexer no app inteiro.
+      fontSize: {
+        "2xs": ["11px", { lineHeight: "16px" }],
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
@@ -108,5 +128,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [tailwindcssAnimate, typography],
 } satisfies Config;

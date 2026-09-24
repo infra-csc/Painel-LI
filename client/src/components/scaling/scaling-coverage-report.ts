@@ -117,7 +117,7 @@ export function montarRelatorioDeCobertura(
     const naEscalacao = doEvento.filter((i) => !ehSugestao(i));
     const abertas = naEscalacao.filter((i) => !ctx.temNome(i));
     // Nome salvo, escalação não confirmada (18/09).
-    const salvas = naEscalacao.filter((i) => ctx.temNome(i) && getScalingStatusKey(i as any) === "salvo");
+    const salvas = naEscalacao.filter((i) => ctx.temNome(i) && getScalingStatusKey(i) === "salvo");
     const validacao = doEvento.filter((i) => ehSugestao(i) && i.status !== "sugestao_validada");
     const aprovacao = doEvento.filter((i) => i.status === "sugestao_validada");
     if (abertas.length === 0 && salvas.length === 0 && validacao.length === 0 && aprovacao.length === 0) return; // nada falta neste evento

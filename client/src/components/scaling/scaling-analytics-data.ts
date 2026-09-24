@@ -79,17 +79,17 @@ export type BucketKey = "escalado" | "salvo" | "gestor" | "vaga" | "aprovacao" |
  */
 export const BUCKETS: { key: BucketKey; label: string; cor: string }[] = [
   // Sem "Aprovado" (15/09): confirmada é Escalado; com nome sem confirmar é Salvo.
-  { key: "escalado", label: "Escalado", cor: "#10B981" },
-  { key: "salvo", label: "Salvo · falta confirmar", cor: "#6366F1" },
-  { key: "gestor", label: "Com o gestor", cor: "#EF4444" },
-  { key: "vaga", label: "Vaga aberta", cor: "#FBBF24" },
-  { key: "aprovacao", label: "Em aprovação", cor: "#C084FC" },
-  { key: "validacao", label: "Em validação", cor: "#94A3B8" },
+  { key: "escalado", label: "Escalado", cor: "var(--success-strong)" },
+  { key: "salvo", label: "Salvo · falta confirmar", cor: "var(--primary)" },
+  { key: "gestor", label: "Com o gestor", cor: "var(--danger-strong)" },
+  { key: "vaga", label: "Vaga aberta", cor: "var(--warning-strong)" },
+  { key: "aprovacao", label: "Em aprovação", cor: "var(--primary)" },
+  { key: "validacao", label: "Em validação", cor: "var(--neutral)" },
 ];
 
 /** A vaga ainda está na Validação/Aprovação de Escala (antes da escalação). */
 export const ehSugestao = (i: TeamInclusion): boolean =>
-  (i as any).phase === "sugestao" || String(i.status ?? "").startsWith("sugestao_");
+  i.phase === "sugestao" || String(i.status ?? "").startsWith("sugestao_");
 
 /** As quatro etapas do caminho da vaga, na ordem em que ela anda. */
 export type Etapa = "validacao" | "aprovacao" | "escalacao" | "completa";
@@ -342,7 +342,7 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
     const comum = {
       inclusion: i,
       id: `#${i.inclusionNumber ?? ""}`,
-      nome: (i as any).empreitaEmpresa ? `Empreita · ${(i as any).empreitaEmpresa}` : ctx.temNome(i) ? ctx.getCollaboratorName(i.collaboratorId) : "Vaga sem nome",
+      nome: i.empreitaEmpresa ? `Empreita · ${i.empreitaEmpresa}` : ctx.temNome(i) ? ctx.getCollaboratorName(i.collaboratorId) : "Vaga sem nome",
       funcao: ctx.getFunctionName(i.functionId),
     };
     if (i.status === "aguardando_producao") {
@@ -370,7 +370,7 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
   }
   grupos.forEach((g) => {
     const desde = (i: TeamInclusion) =>
-      dias(g.etapa === "aprovacao" ? ((i as any).validatedAt ?? (i as any).suggestionSentAt ?? i.updatedAt) : ((i as any).suggestionSentAt ?? i.updatedAt));
+      dias(g.etapa === "aprovacao" ? (i.validatedAt ?? i.suggestionSentAt ?? i.updatedAt) : (i.suggestionSentAt ?? i.updatedAt));
     const diasList = g.linhas.map(desde).filter((d): d is number => d !== null);
     const funcoes = Array.from(new Set(g.linhas.map((i) => ctx.getFunctionName(i.functionId))));
     const n = g.linhas.length;

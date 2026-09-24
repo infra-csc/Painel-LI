@@ -9,7 +9,7 @@ export function isReadOnly(inclusion: { status?: string }, user?: { role?: strin
   return purchasedStatuses.includes(inclusion.status || '');
 }
 
-export function canView(inclusion: { status?: string }): boolean {
+export function canView(_inclusion: { status?: string }): boolean {
   return true; // Can always view records
 }
 

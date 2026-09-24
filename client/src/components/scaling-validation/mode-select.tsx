@@ -25,7 +25,7 @@ export interface ModeSelectProps {
 export const ModeSelect = memo(function ModeSelect({ value, onChange, label, disabled, className, id, emptyLabel = "Sem modal" }: ModeSelectProps) {
   return (
     <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : (v as TransportMode))} disabled={disabled}>
-      <SelectTrigger id={id} aria-label={label} className={cn("h-8 w-[104px] text-xs rounded-lg", value ? "bg-brand-soft/60 border-primary/30" : "bg-white border-slate-200", className)}>
+      <SelectTrigger id={id} aria-label={label} className={cn("h-8 w-[104px] text-xs rounded-lg", value ? "bg-brand-soft/60 border-primary/30" : "bg-card border-border", className)}>
         <SelectValue placeholder={emptyLabel} />
       </SelectTrigger>
       <SelectContent>

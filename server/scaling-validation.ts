@@ -53,11 +53,12 @@ import { db } from "./db";
 import { storage, type FunctionManagerRole } from "./storage";
 import {
   budgetNotes,
-  insertTeamInclusionSchema,
+  teamInclusionRowSchema,
   insertScalingChangeRequestSchema,
   type InsertTeamInclusion,
   type TeamInclusion,
   type TeamInclusionLog,
+  type InsertTeamInclusionLog,
   type ScalingChangeRequest,
   type User,
 } from "@shared/schema";
@@ -77,13 +78,11 @@ import {
   diffInclusion,
   daysPending,
   canValidateInclusion,
-  canApproveRequest,
   canApproveInFunction,
   DEFAULT_APPROVER_SETTING_KEY,
   ALL_EVENTS_ROW_LIMIT,
   requestStatusForAction,
   isRealYmd,
-  isValidHhmm,
   VAGA_STATE_CHANGED_MSG,
   PROPOSED_FIELD_LABELS,
   type ProposedChanges,
@@ -109,30 +108,29 @@ import { effectiveUserId } from "./simulation";
 
 // ── Dependências injetadas por routes.ts (evita import circular) ─────────────
 export interface ScalingValidationDeps {
-  requireRoles: (req: any, res: any, roles: readonly CanonicalRole[]) => Promise<User | null>;
+  requireRoles: (req: Request, res: Response, roles: readonly CanonicalRole[]) => Promise<User | null>;
   createAuditLog: (
     action: string,
     entityType: string,
     entityId: string,
-    entityData: any,
+    entityData: unknown,
     userId?: string,
     userName?: string,
-    oldData?: any,
-    req?: any,
+    oldData?: unknown,
+    req?: Request,
   ) => Promise<void>;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
-// Formato E existência real da data/horário (o mesmo refine do shared —
-// "2027-02-29" / "24:00" passam no regex mas não existem no calendário/relógio).
+// Formato E existência real da data (o mesmo refine do shared — "2027-02-29"
+// passa no regex mas não existe no calendário). Os horários usam
+// `horarioSugeridoSchema` do shared.
 const ymd = z.string().regex(YMD, "Data inválida (use AAAA-MM-DD)").refine(isRealYmd, "Data inexistente");
-const hhmm = z.string().regex(/^\d{2}:\d{2}$/, "Horário inválido (use HH:MM)")
-  .refine(isValidHhmm, "Horário inexistente (use HH:MM entre 00:00 e 23:59)");
 
 /** "" → null nos campos de data/hora (mesmo tratamento do /bulk histórico). */
-function blankToNull<T extends Record<string, any>>(obj: T, keys: string[]): T {
-  const out: Record<string, any> = { ...obj };
+function blankToNull<T extends Record<string, unknown>>(obj: T, keys: string[]): T {
+  const out: Record<string, unknown> = { ...obj };
   for (const k of keys) if (out[k] === "") out[k] = null;
   return out as T;
 }
@@ -178,7 +176,7 @@ async function getActor(req: Request, res: Response): Promise<User | null> {
   // Usuário EFETIVO (server/simulation.ts): no modo "Ver como usuário" os GETs
   // respondem como o usuário simulado — a fila que ele aprova, as funções que
   // valida. As mutações nem chegam aqui (guard global de somente leitura).
-  const userId = effectiveUserId(req as any);
+  const userId = effectiveUserId(req);
   if (!userId) { res.status(401).json({ message: "Não autenticado" }); return null; }
   const user = await storage.getUser(userId);
   if (!user) { res.status(401).json({ message: "Usuário não encontrado" }); return null; }
@@ -472,6 +470,21 @@ function detailsWithComment(detail: string, comment: string | null): string {
   return comment ? `${detail}${LOG_COMMENT_MARK}${comment}` : detail;
 }
 
+/** Texto fixo do log de validação pela área. */
+export const VALIDATION_LOG_DETAIL = "Vaga validada pela área — segue para aprovação do aprovador";
+/** Prefixo da linha da observação no `details` do log de validação (24/09). */
+export const VALIDATION_NOTE_LOG_PREFIX = "\nObservação: ";
+
+/**
+ * `details` do log `suggestion_validated`: texto fixo + "\nObservação: <texto>"
+ * quando quem validou deixou uma observação. Linha própria (não a marca
+ * ". Comentário: " do aprovador) porque é OUTRA pessoa falando — o Histórico
+ * da vaga mostra as duas sem confundir.
+ */
+export function validationDetails(validationNote: string | null): string {
+  return validationNote ? `${VALIDATION_LOG_DETAIL}${VALIDATION_NOTE_LOG_PREFIX}${validationNote}` : VALIDATION_LOG_DETAIL;
+}
+
 /** Volta do `details` só o comentário do aprovador (null quando não há). */
 export function commentFromLogDetails(details: string | null | undefined): string | null {
   if (!details) return null;
@@ -614,6 +627,19 @@ const idsArray = z.array(z.string().min(1))
 
 const idsSchema = z.object({ inclusionIds: idsArray });
 
+/**
+ * Observação opcional de quem valida (dono, 24/09): um texto só, para TODO o
+ * lote — é assim que o botão "Validar (N)" funciona. Vazio/só espaços vira
+ * null; o teto evita um payload sem fim no `details` do log e na coluna.
+ */
+const VALIDATION_NOTE_MAX = 1000;
+const validateSchema = idsSchema.extend({
+  validationNote: z.string()
+    .trim()
+    .max(VALIDATION_NOTE_MAX, `A observação da validação pode ter no máximo ${VALIDATION_NOTE_MAX} caracteres`)
+    .nullish(),
+});
+
 /** Comentários livres: teto generoso para o texto humano, sem aceitar um payload sem fim. */
 const COMMENT_MAX = 2000;
 const COMMENT_MAX_MSG = "Comentário pode ter no máximo 2000 caracteres";
@@ -651,7 +677,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     try {
       const parsed = bulkSuggestionSchema.safeParse({
         ...req.body,
-        rows: Array.isArray(req.body?.rows) ? req.body.rows.map((r: any) => blankToNull(r ?? {}, DATE_KEYS)) : req.body?.rows,
+        rows: Array.isArray(req.body?.rows) ? req.body.rows.map((r: Record<string, unknown> | null) => blankToNull(r ?? {}, DATE_KEYS)) : req.body?.rows,
       });
       if (!parsed.success) {
         return res.status(400).json({ message: "Dados inválidos na escala sugerida", errors: parsed.error.flatten() });
@@ -701,22 +727,28 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           userId: actor.id,
           updatedBy: actor.id,
         };
-        inserts.push(insertTeamInclusionSchema.parse(candidate));
+        // teamInclusionRowSchema (23/09): o schema PÚBLICO omite status/phase e o
+        // .parse() descartava em silêncio — a sugestão nascia planejado/inclusao.
+        inserts.push(teamInclusionRowSchema.parse(candidate));
       }
 
       const eventUpdate = eventObservations !== undefined
         ? { eventId, observations: eventObservations ?? null }
         : undefined;
-      const created = await storage.createScalingSuggestionsBatch(inserts, eventUpdate);
+      // Registro de cada vaga DENTRO da transação (23/09) — antes era um INSERT
+      // por vaga depois do commit, e uma falha no meio deixava vaga sem histórico.
+      const created = await storage.createScalingSuggestionsBatch(inserts, eventUpdate, (c) => ({
+        teamInclusionId: c.id, action: "suggestion_sent",
+        details: "Vaga sugerida pela logística — aguardando validação da área",
+        previousValue: null, newValue: SUGESTAO_STATUS.PENDENTE,
+        userId: actor.id, userName: actor.name ?? "Usuário",
+      }));
 
       await createAuditLog(
         "suggestion_sent", "team_inclusion", created[0]?.id ?? "bulk",
         { count: created.length, eventId, eventName: event.name },
         actor.id, actor.name, undefined, req,
       );
-      for (const c of created) {
-        await inclusionLog(c.id, "suggestion_sent", "Vaga sugerida pela logística — aguardando validação da área", null, SUGESTAO_STATUS.PENDENTE, actor);
-      }
       if (eventUpdate) {
         await createAuditLog("update", "event", eventId, { observations: eventUpdate.observations }, actor.id, actor.name, { observations: event.observations }, req);
       }
@@ -934,11 +966,21 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   // POST /api/scaling-suggestions/validate — validador da função (ou admin)
   // valida vagas em lote. A validação é o PRIMEIRO passo: a vaga vai para
   // 'sugestao_validada' e fica AGUARDANDO O APROVADOR (PATCH /:id/aprovar).
+  // Corpo: { inclusionIds: string[], validationNote?: string } — a observação
+  // (opcional, ≤ 1000 caracteres) vale para todas as vagas do lote e fica em
+  // `team_inclusions.validation_note`, visível ao aprovador nas listas.
   app.post("/api/scaling-suggestions/validate", async (req, res) => {
     const actor = await getActor(req, res);
     if (!actor) return;
-    const parsed = idsSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
+    const parsed = validateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      // A observação longa demais merece a mensagem dela (o client mostra
+      // `message`); os demais erros de forma continuam em `errors`.
+      const noteIssue = parsed.error.issues.find((i) => i.path[0] === "validationNote");
+      return res.status(400).json({ message: noteIssue?.message ?? "Dados inválidos", errors: parsed.error.flatten() });
+    }
+    // Só espaços → null: observação vazia não existe.
+    const validationNote = parsed.data.validationNote?.trim() || null;
     try {
       const admin = isAdmin(actor);
       const ok: string[] = [];
@@ -979,12 +1021,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const next = rule(() => nextSuggestionState({ phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE }, "validar"));
         updated = await storage.validateScalingSuggestionsBatch(
           candidates.map((c) => c.id),
-          { phase: next.phase, status: next.status, validatedAt: now, validatedBy: actor.id, updatedBy: actor.id },
+          { phase: next.phase, status: next.status, validatedAt: now, validatedBy: actor.id, validationNote, updatedBy: actor.id },
           { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE },
           (row) => ({
             teamInclusionId: row.id,
             action: "suggestion_validated",
-            details: "Vaga validada pela área — segue para aprovação do aprovador",
+            details: validationDetails(validationNote),
             previousValue: `${SUGESTAO_PHASE}/${SUGESTAO_STATUS.PENDENTE}`,
             newValue: stateLabel(row),
             userId: actor.id,
@@ -1089,9 +1131,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     // aprovador, que não é da área.
     if (kind === "devolver" || kind === "reprovar") {
       patch.suggestionSentAt = now;
-      // Volta a ser vaga "não validada": a área revalida do zero.
+      // Volta a ser vaga "não validada": a área revalida do zero — inclusive a
+      // observação, que era desta validação e não vale para a próxima.
       patch.validatedAt = null;
       patch.validatedBy = null;
+      patch.validationNote = null;
     }
     return patch;
   }
@@ -1487,7 +1531,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       : { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.PENDENTE };
     const rows: InsertTeamInclusion[] = [];
     for (let i = 0; i < quantity; i++) {
-      rows.push(insertTeamInclusionSchema.parse({
+      rows.push(teamInclusionRowSchema.parse({
         eventId: request.eventId,
         functionId: request.functionId,
         collaboratorId: null,
@@ -1526,7 +1570,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     } catch { return ""; }
   }
 
-  async function logCreatedFromRequest(created: TeamInclusion[], request: ScalingChangeRequest, actor: User, target: "inclusao" | "sugestao", approverComment?: string | null) {
+  function logsCreatedFromRequest(created: TeamInclusion[], request: ScalingChangeRequest, actor: User, target: "inclusao" | "sugestao", approverComment?: string | null): InsertTeamInclusionLog[] {
     // O detalhe carrega a história inteira (27/08 — "quando volta para o
     // validador tem que ter mais detalhes"): quem pediu e por quê, e o que o
     // aprovador comentou. É o que o drawer da Validação mostra no Histórico.
@@ -1538,9 +1582,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     ];
     if (approverComment?.trim()) partes.push(`Comentário do aprovador: "${approverComment.trim()}"`);
     const detail = partes.join(" — ");
-    for (const c of created) {
-      await inclusionLog(c.id, "created_from_change_request", detail, null, stateLabel(c), actor);
-    }
+    // Devolve as linhas para o storage gravar DENTRO da transação que cria as
+    // vagas (23/09) — antes eram N inserts depois do commit.
+    return created.map((c) => ({
+      teamInclusionId: c.id, action: "created_from_change_request", details: detail,
+      previousValue: null, newValue: stateLabel(c), userId: actor.id, userName: actor.name ?? "Usuário",
+    }));
   }
 
   // PATCH /api/scaling-change-requests/:id/approve — aprovador aceita o pedido
@@ -1557,7 +1604,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         return res.status(400).json({ message: parsedComment.error.issues[0]?.message ?? "Dados inválidos" });
       }
       const comment = parsedComment.data.comment?.trim() || null;
-      const proposed = rule(() => parseProposedChanges(request.proposedChanges, request.requestType as any));
+      const proposed = rule(() => parseProposedChanges(request.proposedChanges, request.requestType as ChangeRequestType));
       const now = new Date();
       let inclusionResult: TeamInclusion | TeamInclusion[] | null = null;
       const requestUpdates = {
@@ -1569,10 +1616,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       if (request.requestType === "inclusao") {
         // Cria as N vagas + decide o pedido numa única transação (storage).
         const rows = await buildInclusionRowsFromRequest(request, proposed, actor, "inclusao", now);
-        const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, { inclusionInserts: rows });
+        const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
+          inclusionInserts: rows,
+          logsForCreated: (created) => logsCreatedFromRequest(created, request, actor, "inclusao", comment),
+        });
         updatedRequest = result.request;
         inclusionResult = result.createdInclusions;
-        await logCreatedFromRequest(result.createdInclusions, request, actor, "inclusao", comment);
       } else {
         const inclusion = await storage.getTeamInclusion(request.teamInclusionId!);
         if (!inclusion) return res.status(404).json({ message: "Vaga do pedido não encontrada" });
@@ -1588,7 +1637,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const patch: Partial<InsertTeamInclusion> = postScaling
           ? { ...proposedToPatch(proposed), updatedBy: actor.id }
           : (() => {
-              const next = rule(() => nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as any }));
+              const next = rule(() => nextSuggestionState(inclusion, "aprovar_pedido", { requestType: request.requestType as ChangeRequestType }));
               return isAjuste
                 ? {
                     ...proposedToPatch(proposed),
@@ -1701,11 +1750,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const result = await storage.resolveScalingChangeRequest(
           request.id,
           then === "reenviar_validacao" ? { ...requestUpdates, status: CHANGE_REQUEST_STATUS.REENVIADO_VALIDACAO } : requestUpdates,
-          rows.length ? { inclusionInserts: rows } : {},
+          rows.length && target
+            ? { inclusionInserts: rows, logsForCreated: (created) => logsCreatedFromRequest(created, request, actor, target!, comment) }
+            : {},
         );
         updatedRequest = result.request;
         if (target && result.createdInclusions.length) {
-          await logCreatedFromRequest(result.createdInclusions, request, actor, target, comment);
           inclusionResult = result.createdInclusions;
         }
       } else {
@@ -1735,7 +1785,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
                 // Reenvio para validação: a vaga volta a sugestao_pendente e o
                 // contador de atraso REINICIA (suggestionSentAt = agora, mesmo
                 // instante do reviewedAt — o GET usa isso para casar a decisão).
+                // A observação de uma validação anterior (vaga validada → pedido
+                // → reenvio) não vale para a nova rodada.
                 p.suggestionSentAt = now;
+                p.validationNote = null;
               }
               return p;
             })();
@@ -1844,19 +1897,25 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const ids = Array.from(new Set(brutos.map((v) => String(v ?? "")).filter(Boolean)));
       if (ids.length === 0) return res.status(400).json({ message: "Nenhuma vaga informada." });
       if (ids.length > 500) return res.status(400).json({ message: "No máximo 500 vagas por vez." });
-      const ok: string[] = [];
-      const skipped: { id: string; reason: string }[] = [];
       const agora = new Date();
-      for (const id of ids) {
-        const updated = await storage.updateTeamInclusionIfState(
-          id,
-          { deletedAt: agora, deletedBy: actor.id, updatedBy: actor.id } as Partial<InsertTeamInclusion>,
-          { phase: SUGESTAO_PHASE, statuses: [SUGESTAO_STATUS.NEGADA] },
-        );
-        if (!updated) { skipped.push({ id, reason: "a vaga não está negada ou já foi excluída" }); continue; }
-        ok.push(id);
-        await inclusionLog(id, "deleted", "Vaga negada excluída da lista pelo administrador (limpeza das Decididas)", SUGESTAO_STATUS.NEGADA, null, actor);
-        await createAuditLog("delete", "team_inclusion", id, updated, actor.id, actor.name, undefined, req);
+      // Em lote (23/09): UM UPDATE guardado por phase/status + logs na mesma
+      // transação (validateScalingSuggestionsBatch) — antes eram 3 idas ao banco
+      // por vaga. O que não voltou no RETURNING não estava negado (ou já saiu).
+      const updated = await storage.validateScalingSuggestionsBatch(
+        ids,
+        { deletedAt: agora, deletedBy: actor.id, updatedBy: actor.id } as Partial<InsertTeamInclusion>,
+        { phase: SUGESTAO_PHASE, status: SUGESTAO_STATUS.NEGADA },
+        (row) => ({
+          teamInclusionId: row.id, action: "deleted",
+          details: "Vaga negada excluída da lista pelo administrador (limpeza das Decididas)",
+          previousValue: SUGESTAO_STATUS.NEGADA, newValue: null, userId: actor.id, userName: actor.name ?? "Usuário",
+        }),
+      );
+      const okSet = new Set(updated.map((u) => u.id));
+      const ok = ids.filter((id) => okSet.has(id));
+      const skipped = ids.filter((id) => !okSet.has(id)).map((id) => ({ id, reason: "a vaga não está negada ou já foi excluída" }));
+      for (const row of updated) {
+        await createAuditLog("delete", "team_inclusion", row.id, row, actor.id, actor.name, undefined, req);
       }
       res.json({ ok, skipped });
     } catch (error) {

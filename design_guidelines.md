@@ -1,144 +1,99 @@
-# Event Production Management System - Design Guidelines
+# Guia de design do Painel LI
 
-## Design Approach
-**Design System Foundation:** Linear-inspired productivity interface with Carbon Design data table patterns  
-**Rationale:** Administrative productivity tools require clarity, efficiency, and familiar patterns for data-heavy workflows. Drawing from Linear's refined aesthetics and Carbon's robust data display conventions.
+Reescrito em 23/09/2026 a partir do que o código **realmente** usa. O guia
+anterior pedia botão h-10, menu de 256px e toast no topo; nada disso existia.
+Regra: este arquivo descreve o sistema em vigor e o ESLint garante que ele não
+regrida (`npm run lint`).
 
-## Core Design Elements
+## 1. Tokens (client/src/index.css → tailwind.config.ts)
 
-### Typography
-- **Primary Font:** Inter (Google Fonts)
-- **Headings:** 
-  - H1: text-2xl font-semibold (Dashboard titles)
-  - H2: text-xl font-semibold (Section headers)
-  - H3: text-base font-medium (Card headers, table headers)
-- **Body:** text-sm font-normal (Table content, form labels, descriptions)
-- **Meta:** text-xs (Timestamps, status badges, helper text)
+| Uso | Classe | Valor claro |
+|---|---|---|
+| Marca / ação primária | `bg-primary text-primary-foreground hover:bg-primary-hover` | #0033CC / #0029A3 |
+| Destaque suave da marca | `bg-brand-soft text-primary` | #EEF2FF |
+| Superfícies | `bg-background`, `bg-card`, `bg-surface-muted` (cabeçalho de tabela) | #F7F8FB, #FFF, #F8FAFC |
+| Texto | `text-foreground`, `text-muted-foreground` | — |
+| Bordas | `border-border`, `border-input` | — |
+| **Semânticos** (estado, não tela) | `bg-success-soft text-success`, `bg-warning-soft text-warning`, `bg-info-soft text-info`, `bg-danger-soft text-danger`, `bg-neutral-soft text-neutral`; ponto/ícone com `bg-*-strong` | — |
+| Elevação | `shadow-1` (linha), `shadow-2` (popover, card em foco), `shadow-3` (modal) | uma cor de sombra só |
+| Raio | `rounded-md` (6) controles, `rounded-lg` (8) cards e inputs, `rounded-xl` (12) modais e popovers, `rounded-full` pílulas | `--radius: 8px` |
 
-### Layout System
-**Spacing Primitives:** Tailwind units of 2, 4, 6, 8, 12, 16 only
-- Micro spacing (p-2, gap-2): Between related elements
-- Standard spacing (p-4, gap-4): Card padding, form field spacing
-- Section spacing (p-6, gap-6): Component separation
-- Page spacing (p-8): Main content padding
-- Large gaps (gap-12, gap-16): Between major sections
+**Proibido em `.tsx`:** cor hex, `rgba(`, `style={{}}` para cor, `text-[10px]`
+ou menor, `rounded-[Npx]`, sombras arbitrárias. Se faltar um token, crie-o no
+`index.css` e exponha no `tailwind.config.ts`.
 
-**Grid Structure:**
-- Sidebar: 256px fixed width (w-64)
-- Main content: Remaining flex space with max-w-7xl container
-- Table layouts: w-full with responsive scroll
-- Form layouts: max-w-2xl for optimal readability
+### Significado das cores
 
-### Component Library
+- **warning** — pendente, aguardando alguém, em análise, vaga aberta.
+- **primary** — ação sua, em andamento, selecionado.
+- **success** — escalado, aprovado, concluído, comprado, ativo.
+- **danger** — negado, rejeitado, bloqueio, erro, atrasado.
+- **neutral** — cancelado, inativo, encerrado.
+- **info** — informação sem juízo (origem, tipo).
 
-**Navigation & Layout:**
-- **Sidebar Navigation:** Fixed left sidebar with logo at top, grouped navigation items with icons, user profile at bottom
-- **Top Bar:** Search bar (w-96), action buttons, notifications, user avatar in right corner
-- **Breadcrumbs:** Below top bar showing current location hierarchy
+Nunca use cor para diferenciar telas ou módulos (o menu não é um arco-íris).
 
-**Data Display:**
-- **Tables:** 
-  - Row height: h-12
-  - Hover states on rows
-  - Sticky headers
-  - Column sorting indicators
-  - Pagination at bottom (showing "1-10 of 234 results")
-  - Bulk action checkboxes in first column
-  - Action menu (3-dot) in last column
-  
-- **Cards:** 
-  - Border treatment with rounded-lg
-  - Padding p-6
-  - Shadow: shadow-sm
-  - Stats cards: Grid of 4 (grid-cols-4) showing KPIs with large numbers and trend indicators
+## 2. Tipografia
 
-**Forms & Inputs:**
-- **Input Fields:** 
-  - Height: h-10
-  - Padding: px-3
-  - Border: border with rounded-md
-  - Labels: text-sm font-medium mb-1.5
-  - Helper text: text-xs below field
-  
-- **Search Bar:**
-  - Icon on left (magnifying glass)
-  - Placeholder text
-  - Rounded-full design
-  - Backdrop blur effect
+Fonte Inter. Escala do Tailwind mais `text-2xs` (11px), o **mínimo legível**:
 
-**Filters & Controls:**
-- **Filter Panel:** 
-  - Collapsible sidebar (w-72) or top horizontal bar
-  - Group filters by category with dividers
-  - Checkbox groups, date pickers, select dropdowns
-  - "Clear all" and "Apply filters" actions at bottom
-  
-- **Quick Filters:** 
-  - Pill-style buttons above tables
-  - Active state with filled background
-  - Count badges showing filtered results
+| Papel | Classe |
+|---|---|
+| Rótulo miúdo / metadado | `text-2xs` (11px), `uppercase tracking-[0.06em]` só quando é um rótulo de seção |
+| Corpo denso (tabelas, pílulas) | `text-xs` (12px) |
+| Corpo | `text-sm` (14px) |
+| Subtítulo de página | `text-sm text-muted-foreground` (≤ 90 caracteres) |
+| Título de página (h1) | `text-lg font-bold` (18px) — sempre via `PageHeader` |
+| Título de modal | `text-base font-semibold` |
 
-**Buttons:**
-- **Primary:** h-10 px-4 rounded-md font-medium
-- **Secondary:** h-10 px-4 rounded-md with border
-- **Ghost:** h-10 px-4 text button
-- **Icon Buttons:** w-10 h-10 rounded-md centered icon
+Contraste: texto de 11–12px nunca em `slate-300/400`; use `text-muted-foreground`.
 
-**Status Badges:**
-- Pill-shaped with rounded-full
-- Small text (text-xs)
-- Padding: px-2.5 py-0.5
-- Variants for: Active, Pending, Completed, Cancelled
+## 3. Layout
 
-**Modals & Overlays:**
-- **Modal:** max-w-2xl centered with backdrop blur
-- **Dropdown Menus:** Elevation shadow-lg, rounded-lg, min-w-48
-- **Toast Notifications:** Fixed top-right, stacked vertically with gap-2
+- Menu lateral de **248px**; em `< 1024px` vira gaveta.
+- Gutter da página: `--page-gutter` (16 / 24 / 32px por breakpoint) definido no
+  `MainLayout`. Barras de contexto usam `-mx-[var(--page-gutter)]`.
+- Barras fixas: `sticky top-[var(--sticky-top)] z-30`. Nunca `top-0`, nunca
+  `z-25` (não existe), nunca `z-50` fora de modais.
+- Tabelas largas ficam em contêiner com `overflow-x-auto`; a página nunca rola
+  na horizontal. Em `< 768px`, tabelas operacionais têm modo cartão.
+- Alvo mínimo de toque **24px**; botões `h-9` (default) e `h-8` (sm).
 
-### Page Layouts
+## 4. Kit (client/src/components/common)
 
-**Dashboard View:**
-- Stats cards grid at top (4 columns)
-- Recent activity table below
-- Quick actions panel on right (w-80)
+| Componente | Quando | Nunca |
+|---|---|---|
+| `PageHeader` (`variant="default" | "bar"`) | toda página: título, subtítulo curto, ações, contexto (seletor de evento), abas | h1 manual |
+| `StatusBadge` / `StatusDaVagaBadge` | qualquer status | CSS `.status-*`, pílula própria |
+| `ConfirmDialog` | ações destrutivas ou irreversíveis (tone `danger`) e confirmações | `window.confirm`, Dialog caseiro |
+| `QueryState` / `QueryError` / `useQueriesState` | toda tela com dados: loading, vazio com orientação, erro com "Tentar de novo" | erro virando lista vazia |
+| `EmptyState` | lista vazia: diga o que fazer e ofereça a ação | texto solto "Nenhum item" |
+| `LoadingState` | carregando (esqueleto quando a forma é conhecida) | texto "Carregando..." |
+| Toast (`useToast`) | resultado de ação: título descritivo ("Escalação confirmada"), `variant="success" | "destructive"`, ação "Desfazer" quando fizer sentido | modal "Sucesso" com OK; título "Erro"/"Sucesso" |
+| `useConfirmarDescarte` | modal com formulário sujo | fechar e perder o que foi digitado |
 
-**List/Table View:**
-- Filter panel collapsible on left
-- Search + bulk actions bar
-- Data table with sorting/pagination
-- Empty states with illustrations and CTAs when no data
+Modais: Radix `Dialog`/`AlertDialog` sempre (Esc, foco preso, `aria`). Larguras:
+`max-w-md` (formulário curto), `max-w-2xl` (formulário), `max-w-5xl` (grade).
+Rodapé: **Cancelar → Confirmar**, confirmar com spinner e `disabled` durante o envio.
 
-**Detail/Edit View:**
-- Two-column layout on large screens
-- Form fields on left (max-w-2xl)
-- Related information panel on right (w-80)
-- Action buttons fixed at bottom or top-right
+## 5. Texto
 
-**Create/New View:**
-- Single column centered form (max-w-2xl)
-- Multi-step wizard with progress indicator for complex forms
-- Action buttons at bottom (Cancel + Save/Create)
+- Caixa de frase em botões e títulos: "Novo evento", "Salvar alterações".
+- Um nome por conceito: **vaga** (linha da escalação), **escalação** (a tela
+  e a ação de confirmar), **pedido** (Validação de Escala), **troca**.
+- Recusa: "Negada" (sugestão/pedido), "Rejeitada" (troca). Vaga é feminina:
+  "Cancelada". Pedido: "Cancelado".
+- Erros dizem o que aconteceu e o que fazer, sem código HTTP nem inglês.
+- Nada de "Pelotão".
 
-### Images
-**No hero images** - Administrative interface focuses on efficiency over marketing visuals.
+## 6. Acessibilidade mínima
 
-**Supporting Images:**
-- **Empty States:** Illustration-style graphics (300x200px) when tables/lists are empty
-- **User Avatars:** 32px circular in navigation, 40px in profiles, 24px in table rows
-- **Event Thumbnails:** 120x80px in table rows, 240x160px in detail views
-- **Team Logos:** Square 48x48px in lists, 96x96px in detail headers
+`lang="pt-BR"`; skip link; um `h1` por página; ícones decorativos com
+`aria-hidden`; botão só com ícone tem `aria-label`; combobox via `cmdk`
+(teclado completo); foco visível (`focus-visible:ring-2 ring-ring`); zoom
+liberado (sem `maximum-scale`); `prefers-reduced-motion` respeitado em animações.
 
-### Animations
-**Minimal Motion:**
-- Hover transitions: transition-colors duration-150
-- Modal/dropdown appearance: Fade + scale (200ms)
-- Loading states: Subtle pulse animation
-- No scroll-driven or complex animations
+## 7. Ícones
 
-### Accessibility
-- All interactive elements minimum 44px touch target
-- Focus rings on all focusable elements (ring-2 ring-offset-2)
-- ARIA labels on icon-only buttons
-- Semantic HTML structure (nav, main, aside, section)
-- Skip to main content link
-- Form validation with clear error messages below fields
+Só `lucide-react`, tamanho `h-4 w-4` em botões e `h-5 w-5` em títulos. Material
+Symbols está sendo removido.

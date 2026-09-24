@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDayMonthBr } from "@/lib/dates";
@@ -8,6 +7,8 @@ import type { Event, TeamInclusion } from "@shared/schema";
 import { diffInclusion, type ChangeRequestType, type ProposedChanges } from "@shared/scaling-validation-rules";
 import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "@/components/scaling-validation/travel-fields";
 import { WorkDaysPicker } from "@/components/scaling-validation/work-days-picker";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 /** Rascunho editável dos campos propostos (usado no "Reajustar" do aprovador). */
 export interface ProposedDraft {
@@ -153,7 +154,7 @@ function divergenciaDeDias(escolhidos: string[], pedidos: string[]): string {
  * Formulário dos campos propostos (mesmo conjunto do pedido de ajuste/inclusão
  * da área), reaproveitando WorkDaysPicker + TravelFields da Validação de Escala.
  */
-export function ProposedChangesForm({ type, value, onChange, event, disabled, idPrefix = "rev", diasPedidos }: ProposedChangesFormProps) {
+export function ProposedChangesForm({ value, onChange, event, disabled, idPrefix = "rev", diasPedidos }: ProposedChangesFormProps) {
   const set = (patch: Partial<ProposedDraft>) => onChange({ ...value, ...patch });
   // Diárias são 1 por dia de trabalho — acompanham os dias, sempre.
   const onDays = (days: string[]) => set({ workDays: days, dailyRates: String(days.length) });
@@ -165,20 +166,22 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
           de UMA vaga; o valor segue no rascunho como veio do pedido. */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-red-400">*</span></Label>
+          <Label className="text-xs text-slate-600">Dias de trabalho<RequiredMark /></Label>
           {pedidos.length > 0 && (
-            <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={disabled || !divergencia}
-              title="Devolve a seleção para exatamente os dias que a área pediu"
+            <MotivoDesabilitado motivo="Devolve a seleção para exatamente os dias que a área pediu" desabilitado={disabled || !divergencia}>
+              <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={disabled || !divergencia}
+             
               onClick={() => onDays([...pedidos].sort())}>
               Voltar ao pedido
             </Button>
+            </MotivoDesabilitado>
           )}
         </div>
         <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={value.workDays} onChange={onDays} disabled={disabled} pedidos={pedidos} />
         {/* Divergência ao vivo: sem ela, o aprovador mexe nos dias e perde a
             conta do que já mudou em relação ao que foi pedido. */}
         {pedidos.length > 0 && (
-          <p className={divergencia ? "text-[11px] text-amber-700" : "text-[11px] text-slate-500"} aria-live="polite">
+          <p className={divergencia ? "text-2xs text-warning" : "text-2xs text-muted-foreground"} aria-live="polite">
             {divergencia ? `Você alterou o pedido: ${divergencia}.` : "Igual ao que a área pediu — nenhum dia alterado por você."}
           </p>
         )}

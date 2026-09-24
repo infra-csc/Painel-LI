@@ -9,6 +9,7 @@
  * nada é preenchido. O arquivo continua anexado (pode ser proposital), mas os
  * campos não são sobrescritos com dados de outra pessoa.
  */
+import type { TicketFormValues } from "@/lib/ticket-form";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { pontuarSemelhanca } from "./voucher-match";
@@ -62,8 +63,8 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
    * O que o formulário já tem (15/09). Com um trecho preenchido e um voucher
    * de outro trecho, os dois viram ida e volta e os valores somam.
    */
-  atual?: Record<string, any>;
-  onPreencher: (campos: Record<string, any>) => void;
+  atual?: TicketFormValues;
+  onPreencher: (campos: Partial<TicketFormValues>) => void;
 }) {
   const { toast } = useToast();
   const [lendo, setLendo] = useState(false);

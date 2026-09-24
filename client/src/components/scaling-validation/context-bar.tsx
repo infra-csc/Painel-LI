@@ -7,6 +7,7 @@ import EventCombobox from "@/components/ui/event-combobox";
 import { cn, formatDateRange } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import { PERIOD_MARGIN_DAYS } from "./scaling-grid-utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 export interface ContextBarProps {
   events: Event[];
@@ -36,7 +37,7 @@ export interface ContextBarProps {
   eventTriggerRef?: Ref<HTMLButtonElement>;
 }
 
-const CHIP_BTN = "inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
+const CHIP_BTN = "inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
 const PERIOD_HINT = `A grade pode começar até ${PERIOD_MARGIN_DAYS} dias antes e terminar até ${PERIOD_MARGIN_DAYS} dias depois do evento.`;
 
 /**
@@ -58,11 +59,11 @@ export const ContextBar = memo(function ContextBar({
   const periodDisabled = !eventId || disabled;
 
   return (
-    <section aria-label="Evento e período da grade" className="rounded-2xl border border-slate-200 bg-white p-3">
+    <section aria-label="Evento e período da grade" className="rounded-xl border border-border bg-card p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
-            <CalendarDays className="w-4 h-4" />
+            <CalendarDays className="w-4 h-4" aria-hidden="true" />
           </span>
           <div className="w-[250px] max-w-full shrink-0">
             {/* Travado durante o envio: trocar de evento no meio do POST fazia o
@@ -77,17 +78,17 @@ export const ContextBar = memo(function ContextBar({
             />
           </div>
           {selectedEvent && (
-            <p className="text-xs text-slate-500 truncate max-w-[280px]" title={`Período do evento: ${formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}`}>
+            <p className="text-xs text-muted-foreground truncate max-w-[280px]" title={`Período do evento: ${formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}`}>
               {selectedEvent.location ? `${selectedEvent.location} · ` : ""}
               <span className="font-mono">{formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}</span>
             </p>
           )}
         </div>
 
-        <span className="hidden md:block h-6 w-px bg-slate-200" aria-hidden="true" />
+        <span className="hidden md:block h-6 w-px bg-border" aria-hidden="true" />
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Dias na grade</span>
+          <span className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">Dias na grade</span>
           <Label htmlFor="sug-period-start" className="sr-only">Início da grade</Label>
           <Input
             id="sug-period-start" type="date" value={periodStart} disabled={periodDisabled}
@@ -97,7 +98,7 @@ export const ContextBar = memo(function ContextBar({
             onChange={(e) => onPeriodChange(e.target.value, periodEnd)}
             className="h-8 w-[138px] rounded-lg text-xs"
           />
-          <span className="text-xs text-slate-400" aria-hidden="true">–</span>
+          <span className="text-xs text-muted-foreground" aria-hidden="true">–</span>
           <Label htmlFor="sug-period-end" className="sr-only">Fim da grade</Label>
           <Input
             id="sug-period-end" type="date" value={periodEnd} disabled={periodDisabled}
@@ -112,20 +113,26 @@ export const ContextBar = memo(function ContextBar({
               {daysCount} {daysCount === 1 ? "dia" : "dias"}
             </span>
           )}
-          <button type="button" className={CHIP_BTN} disabled={periodDisabled} onClick={onEventPeriod}
-            title="Voltar a grade para o período do evento">
+          <MotivoDesabilitado motivo="Voltar a grade para o período do evento" desabilitado={periodDisabled}>
+            <button type="button" className={CHIP_BTN} disabled={periodDisabled} onClick={onEventPeriod}
+           >
             Período do evento
           </button>
+          </MotivoDesabilitado>
           {/* Par simétrico: tirar/acrescentar um dia no FIM da grade. */}
-          <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canShrink} onClick={onShrink}
-            title="Tirar o último dia da grade" aria-label="Tirar o último dia da grade">
+          <MotivoDesabilitado motivo="Tirar o último dia da grade" desabilitado={periodDisabled || !canShrink}>
+            <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canShrink} onClick={onShrink}
+            aria-label="Tirar o último dia da grade">
             −1 dia
           </button>
-          <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canGrow} onClick={onGrow}
-            title={canGrow ? "Acrescentar um dia ao fim da grade" : `A grade já está no limite (${PERIOD_MARGIN_DAYS} dias depois do evento)`}
+          </MotivoDesabilitado>
+          <MotivoDesabilitado motivo={canGrow ? "Acrescentar um dia ao fim da grade" : `A grade já está no limite (${PERIOD_MARGIN_DAYS} dias depois do evento)`} desabilitado={periodDisabled || !canGrow}>
+            <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canGrow} onClick={onGrow}
+           
             aria-label="Acrescentar um dia ao fim da grade">
             +1 dia
           </button>
+          </MotivoDesabilitado>
         </div>
 
         {/* Último chip da linha — o textarea abre abaixo, em linha própria. */}
@@ -145,13 +152,13 @@ export const ContextBar = memo(function ContextBar({
             </>
           )}
           {showComments
-            ? <ChevronUp className="w-3 h-3 text-slate-400" aria-hidden="true" />
-            : <ChevronDown className="w-3 h-3 text-slate-400" aria-hidden="true" />}
+            ? <ChevronUp className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
+            : <ChevronDown className="w-3 h-3 text-muted-foreground" aria-hidden="true" />}
         </button>
       </div>
 
       {showComments && (
-        <div id={obsId} className="mt-2.5 border-t border-slate-100 pt-2.5 space-y-1">
+        <div id={obsId} className="mt-2.5 border-t border-border pt-2.5 space-y-1">
           <Label htmlFor="sug-event-obs" className="text-xs font-semibold text-slate-600">Recado para as áreas</Label>
           <Textarea
             id="sug-event-obs" value={observations} disabled={!eventId || disabled} rows={2} maxLength={2000}
@@ -159,7 +166,7 @@ export const ContextBar = memo(function ContextBar({
             onChange={(e) => onObservationsChange(e.target.value)}
             className={cn("w-full rounded-lg text-sm min-h-0", observations && "bg-brand-soft/40 border-primary/20")}
           />
-          <p className="text-[11px] text-slate-500">Salvos nas observações do evento junto com o envio da escala.</p>
+          <p className="text-2xs text-muted-foreground">Salvos nas observações do evento junto com o envio da escala.</p>
         </div>
       )}
     </section>

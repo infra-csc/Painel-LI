@@ -14,6 +14,13 @@
  * havia seis famílias de cor competindo na mesma célula.
  */
 import type { TeamInclusion } from "@shared/schema";
+// Só o TIPO: import de tipo é apagado na compilação, não cria ciclo com o
+// status-badge (que importa STATUS_META daqui em runtime).
+import type { Tone } from "@/components/common/status-badge";
+// Lista de "confirmada" vem do vocabulário compartilhado (23/09): a cópia
+// local aqui era uma das cinco listas divergentes — esta não tinha
+// `aguardando_producao` e o servidor não tinha `hospedagem_passagem_comprada`.
+import { ACTIVE_CONFLICT_STATUSES, CONFIRMED_STATUSES } from "@shared/vaga-status";
 
 /**
  * Estados da vaga na Escalação (dono, 15/09: "esse aprovado não deve aparecer
@@ -29,21 +36,6 @@ export type ScalingStatusKey =
   | "escalado"
   | "cancelado";
 
-/** Status gravados que significam escalação CONFIRMADA. */
-const CONFIRMED_STATUSES = new Set([
-  "escalado",
-  "aguardando_passagem",
-  "aguardando_hospedagem",
-  "passagem",
-  "passagem_comprada",
-  "hospedagem",
-  "hospedagem_comprada",
-  "hospedagem_passagem_comprada",
-  "aprovacao",
-  "aprovado",
-  "concluido",
-]);
-
 export function getScalingStatusKey(
   inclusion: Pick<TeamInclusion, "status" | "collaboratorId"> & { empreitaEmpresa?: string | null },
 ): ScalingStatusKey {
@@ -53,29 +45,36 @@ export function getScalingStatusKey(
   // Sem colaborador nunca é "escalado", independentemente do status gravado
   // (empreita por empresa, 10/09, também preenche a vaga).
   if (!inclusion.collaboratorId && !inclusion.empreitaEmpresa) return "pendente";
-  if (CONFIRMED_STATUSES.has(status)) return "escalado";
+  // Legados de confirmação (`confirmado`, `aguardando_*`) de linhas antigas
+  // também contam como escalado — antes só os dois `aguardando_*` contavam.
+  if (CONFIRMED_STATUSES.has(status) || ACTIVE_CONFLICT_STATUSES.includes(status)) return "escalado";
   // Tem nome mas não foi confirmada (planejado, pendente, reaberto…).
   return "salvo";
 }
 
 export interface StatusMeta {
   label: string;
-  /** Classes da pílula: fundo e texto. Sem borda — a cor já é o sinal. */
-  wrap: string;
-  dot: string;
+  /**
+   * Tom semântico (23/09) — a pílula é o `StatusBadge` de components/common;
+   * as classes de cor moram lá, uma vez só. Antes cada chave carregava hex
+   * próprio e "Aguardando gestor" era vermelho (parecia erro, é espera).
+   */
+  tone: Tone;
 }
 
 /**
  * Uma cor por significado. "Pendente" virou **Vaga aberta**: o nome diz o que
  * falta fazer, não que o registro está num limbo.
+ *   warning = alguém precisa agir (vaga aberta, gestor) · primary = ação sua
+ *   (salvo, falta confirmar) · success = escalado · neutral = cancelada.
  */
 export const STATUS_META: Record<ScalingStatusKey, StatusMeta> = {
-  pendente: { label: "Vaga aberta", wrap: "bg-[#FEF3C7] text-[#92400E]", dot: "bg-[#D97706]" },
+  pendente: { label: "Vaga aberta", tone: "warning" },
   // Pílula curta (cabe numa linha); o "falta confirmar" vai no detalhe embaixo.
-  salvo: { label: "Salvo", wrap: "bg-[#EEF2FF] text-[#3730A3]", dot: "bg-[#6366F1]" },
-  aguardando_producao: { label: "Aguardando gestor", wrap: "bg-[#FEF2F2] text-[#B91C1C]", dot: "bg-[#EF4444]" },
-  escalado: { label: "Escalado", wrap: "bg-[#ECFDF5] text-[#047857]", dot: "bg-[#10B981]" },
-  cancelado: { label: "Cancelada", wrap: "bg-[#F1F5F9] text-[#64748B]", dot: "bg-[#94A3B8]" },
+  salvo: { label: "Salvo", tone: "primary" },
+  aguardando_producao: { label: "Aguardando gestor", tone: "warning" },
+  escalado: { label: "Escalado", tone: "success" },
+  cancelado: { label: "Cancelada", tone: "neutral" },
 };
 
 export function getScalingStatusLabel(

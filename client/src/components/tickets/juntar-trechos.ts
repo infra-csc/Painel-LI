@@ -16,7 +16,7 @@
  */
 import { toCents } from "@/lib/ticket-form";
 
-type Campos = Record<string, any>;
+type Campos = Record<string, unknown>;
 
 /** Campos de um trecho, no nome da IDA → nome equivalente na VOLTA. */
 const IDA_PARA_VOLTA: Record<string, string> = {

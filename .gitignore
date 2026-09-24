@@ -21,3 +21,6 @@ npm-debug.log*
 # Arquivos temporários de editor
 *~
 .*.sw?
+
+# Anexos colados no Replit (prints e planilhas com dados pessoais) — nunca versionar
+attached_assets/

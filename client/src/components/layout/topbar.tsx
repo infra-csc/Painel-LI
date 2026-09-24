@@ -11,9 +11,8 @@
 import { useLocation } from "wouter";
 import logoImg from "@assets/image_1776349526988.png";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import { TOPBAR_H } from "@/contexts/sidebar-context";
-import { MI } from "./mi";
+import { X, Menu, PanelLeftClose, PanelLeftOpen, Search, CircleHelp } from "lucide-react";
 import { useShellMode } from "./use-shell-mode";
 import { breadcrumbFor } from "./nav-items";
 import NotificationsMenu from "./notifications-menu";
@@ -42,9 +41,9 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
   const toggleLabel = !isDesktop
     ? (isMobileOpen ? "Fechar menu" : "Abrir menu")
     : isOpen ? "Recolher o menu" : mode === "compacto" ? "Expandir o menu" : "Abrir o menu";
-  const toggleIcon = !isDesktop
-    ? (isMobileOpen ? "close" : "menu")
-    : isOpen ? "left_panel_close" : "left_panel_open";
+  const ToggleIcon = !isDesktop
+    ? (isMobileOpen ? X : Menu)
+    : isOpen ? PanelLeftClose : PanelLeftOpen;
 
   return (
     <header
@@ -59,9 +58,9 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
             aria-label={toggleLabel}
             aria-expanded={isVisibleToAT}
             aria-controls="app-sidebar"
-            className="flex items-center justify-center w-[34px] h-[34px] shrink-0 rounded-lg border-0 bg-transparent text-slate-600 cursor-pointer transition-colors hover:bg-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="flex items-center justify-center w-[34px] h-[34px] shrink-0 rounded-lg border-0 bg-transparent text-slate-600 cursor-pointer transition-colors hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
-            <MI name={toggleIcon} size={20} />
+            <ToggleIcon className="w-5 h-5" aria-hidden="true" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}>{toggleLabel}{isDesktop ? ` (${MOD}\\)` : ""}</TooltipContent>
@@ -79,15 +78,16 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
       <nav aria-label="Onde você está" className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
         {crumb && (
           <>
-            <span className={cn("shrink-0", crumb.iconClass)}>
-              <MI name={crumb.icon} filled size={16} />
+            {/* Mesma cor do item ativo no menu (sem cor por grupo, 23/09). */}
+            <span className="shrink-0 text-primary">
+              <crumb.icon className="w-4 h-4" aria-hidden="true" />
             </span>
             {crumb.trail.length > 0 && (
-              <span className="hidden md:inline min-w-0 truncate text-xs text-slate-400">
+              <span className="hidden md:inline min-w-0 truncate text-xs text-muted-foreground">
                 {crumb.trail.join(" / ")} /
               </span>
             )}
-            <span className="shrink truncate text-sm font-semibold text-slate-900 max-w-[260px]">{crumb.label}</span>
+            <span className="shrink truncate text-sm font-semibold text-foreground max-w-[260px]">{crumb.label}</span>
           </>
         )}
       </nav>
@@ -99,11 +99,11 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
             type="button"
             onClick={onOpenPalette}
             aria-label={`Buscar tela ou evento (${MOD}K)`}
-            className="hidden lg:flex items-center justify-center gap-2 w-[220px] h-[34px] shrink-0 px-2.5 rounded-lg border border-border bg-background text-slate-400 cursor-pointer overflow-hidden transition-colors hover:border-primary/30 hover:text-slate-500 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="hidden lg:flex items-center justify-center gap-2 w-[220px] h-[34px] shrink-0 px-2.5 rounded-lg border border-border bg-background text-muted-foreground cursor-pointer overflow-hidden transition-colors hover:border-primary/30 hover:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
-            <MI name="search" size={16} className="shrink-0" />
-            <span className="flex-1 min-w-0 text-left text-[13px] truncate">Buscar tela ou evento</span>
-            <kbd className="shrink-0 border border-border bg-card rounded-md px-1.5 py-px font-mono text-[10px] text-slate-500">{MOD}K</kbd>
+            <Search className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span className="flex-1 min-w-0 text-left text-sm truncate">Buscar tela ou evento</span>
+            <kbd className="shrink-0 border border-border bg-card rounded-md px-1.5 py-px font-mono text-2xs text-muted-foreground">{MOD}K</kbd>
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}>Buscar tela ou evento ({MOD}K)</TooltipContent>
@@ -116,9 +116,9 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
               type="button"
               onClick={onOpenPalette}
               aria-label={`Buscar tela ou evento (${MOD}K)`}
-              className="flex lg:hidden items-center justify-center w-[34px] h-[34px] rounded-lg border-0 bg-transparent text-slate-600 cursor-pointer hover:bg-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="flex lg:hidden items-center justify-center w-[34px] h-[34px] rounded-lg border-0 bg-transparent text-slate-600 cursor-pointer hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             >
-              <MI name="search" size={19} />
+              <Search className="w-[19px] h-[19px]" aria-hidden="true" />
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={6}>Buscar tela ou evento ({MOD}K)</TooltipContent>
@@ -130,9 +130,9 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
               type="button"
               onClick={onOpenShortcuts}
               aria-label="Ajuda e atalhos do teclado"
-              className="hidden sm:flex items-center justify-center w-[34px] h-[34px] rounded-lg border-0 bg-transparent text-slate-500 cursor-pointer transition-colors hover:bg-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="hidden sm:flex items-center justify-center w-[34px] h-[34px] rounded-lg border-0 bg-transparent text-muted-foreground cursor-pointer transition-colors hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             >
-              <MI name="help" size={19} />
+              <CircleHelp className="w-[19px] h-[19px]" aria-hidden="true" />
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={6}>Ajuda e atalhos do teclado ({MOD}/)</TooltipContent>

@@ -19,6 +19,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 import { totalDeAlteracoes, type LinhaImportada, type ResultadoDaLeitura, type ValorImportado } from "@shared/mirror-import";
 
+import { formatarMoeda } from "@/lib/format";
 /** Rótulo humano de cada campo — a planilha fala em colunas, a tela em campos. */
 const ROTULO: Record<string, string> = {
   "schedule.startDate": "Início", "schedule.departureDate": "Data ida",
@@ -46,7 +47,7 @@ const EH_DINHEIRO = new Set([
 function texto(campo: string, v: ValorImportado): string {
   if (v === null || v === undefined || v === "") return "vazio";
   if (typeof v === "boolean") return v ? "sim" : "não";
-  if (EH_DINHEIRO.has(campo) && typeof v === "number") return (v / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  if (EH_DINHEIRO.has(campo) && typeof v === "number") return formatarMoeda(v);
   return String(v);
 }
 
@@ -102,7 +103,7 @@ export function ImportarPlanilha({ eventId, aoAplicar }: {
       </Button>
 
       <Dialog open={aberto} onOpenChange={(o) => { if (!aplicar.isPending) { setAberto(o); if (!o) { setLeitura(null); setNomeDoArquivo(""); } } }}>
-        <DialogContent className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-2xl !flex !flex-col p-0 gap-0 overflow-hidden">
+        <DialogContent className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden">
           <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-3 pr-12 text-left">
             <DialogTitle>Importar planilha do espelho</DialogTitle>
             <DialogDescription>
@@ -128,13 +129,13 @@ export function ImportarPlanilha({ eventId, aoAplicar }: {
             </div>
 
             {ler.error && (
-              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+              <p role="alert" className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">
                 {(ler.error as Error).message}
               </p>
             )}
 
             {leitura?.avisos?.map((a) => (
-              <p key={a} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              <p key={a} className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-xs text-warning">
                 <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {a}
               </p>
             ))}
@@ -152,7 +153,7 @@ export function ImportarPlanilha({ eventId, aoAplicar }: {
                   <ul className="divide-y rounded-xl border" data-testid="import-preview">
                     {comMudanca.map((l) => (
                       <li key={l.teamInclusionId} className="px-3 py-2">
-                        <p className="text-[13px] font-semibold">{l.nome}</p>
+                        <p className="text-sm font-semibold">{l.nome}</p>
                         <ul className="mt-1 space-y-0.5">
                           {l.alteracoes.map((a) => (
                             <li key={a.campo} className="flex flex-wrap items-baseline gap-x-2 text-xs">
@@ -169,13 +170,13 @@ export function ImportarPlanilha({ eventId, aoAplicar }: {
                 )}
 
                 {deFora.length > 0 && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/20">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                  <div className="rounded-xl border border-warning/25 bg-warning-soft/60 px-3 py-2">
+                    <p className="text-2xs font-bold uppercase tracking-wide text-warning">
                       Fora da importação
                     </p>
                     <ul className="mt-1 space-y-0.5">
                       {deFora.map((l) => (
-                        <li key={l.nome} className="text-xs text-amber-900 dark:text-amber-200">
+                        <li key={l.nome} className="text-xs text-warning">
                           <span className="font-medium">{l.nome}</span> — {l.problema}
                         </li>
                       ))}

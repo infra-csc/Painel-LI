@@ -48,12 +48,12 @@ function Opcao({ label, n, ativo, onClick, testid }: {
       onClick={onClick}
       aria-pressed={ativo}
       data-testid={testid}
-      className={`flex items-center gap-2 min-h-[30px] px-2 rounded-[7px] text-[13px] text-left transition-colors ${
-        ativo ? "bg-brand-soft text-primary font-semibold" : "text-slate-700 font-normal hover:bg-slate-100"
+      className={`flex items-center gap-2 min-h-[30px] px-2 rounded-md text-sm text-left transition-colors ${
+        ativo ? "bg-brand-soft text-primary font-semibold" : "text-slate-700 font-normal hover:bg-muted"
       }`}
     >
       <span className="flex-1 min-w-0 truncate">{label}</span>
-      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{n}</span>
+      <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">{n}</span>
     </button>
   );
 }
@@ -85,25 +85,25 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
           type="button"
           data-testid="button-filtro-periodo"
           title={valor.base === "evento" ? "Filtrar pela data do evento" : "Filtrar pelo período da escala"}
-          className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-[13px] font-medium text-slate-700 max-w-[240px] hover:bg-slate-100 transition-colors ${
-            ativo ? "border-[rgba(0,51,204,0.35)]" : "border-border"
+          className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-sm font-medium text-slate-700 max-w-[240px] hover:bg-muted transition-colors ${
+            ativo ? "border-primary/40" : "border-border"
           }`}
         >
           <CalendarRange className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
           <span className="truncate">{rotuloDoPeriodo(valor)}</span>
-          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
         </button>
       </PopoverTrigger>
 
       <PopoverContent align="start" className="w-[460px] p-0 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100">
-          <span className="text-[13px] font-semibold text-slate-900">{datasDoEvento ? "Período" : "Período da escala"}</span>
-          <span className="text-[12px] text-muted-foreground truncate">{hojeBr}</span>
+        <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-border">
+          <span className="text-sm font-semibold text-foreground">{datasDoEvento ? "Período" : "Período da escala"}</span>
+          <span className="text-xs text-muted-foreground truncate">{hojeBr}</span>
           {ativo && (
             <button
               type="button"
               onClick={() => onChange({ preset: "todos", de: "", ate: "", semana: "todos", inicioFds: false, base: valor.base })}
-              className="ml-auto h-[26px] px-2.5 rounded-md text-[12px] font-medium text-primary hover:bg-brand-soft shrink-0"
+              className="ml-auto h-[26px] px-2.5 rounded-md text-xs font-medium text-primary hover:bg-brand-soft shrink-0"
               data-testid="button-limpar-periodo"
             >
               Limpar
@@ -113,8 +113,8 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
 
         {/* Medir pela data da escala ou do evento (22/09) — a escala começa dias antes. */}
         {datasDoEvento && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3.5 py-2.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Medir por</span>
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
+            <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Medir por</span>
             <div role="radiogroup" aria-label="Medir por qual data" className="inline-flex rounded-lg border border-border bg-background p-0.5">
               {(["escala", "evento"] as BaseDaData[]).map((b) => {
                 const ativo = (valor.base ?? "escala") === b;
@@ -125,24 +125,24 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
                     role="radio"
                     aria-checked={ativo}
                     onClick={() => onChange({ ...valor, base: b })}
-                    className={`h-7 rounded-md px-2.5 text-[12px] font-medium ${ativo ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-slate-700"}`}
+                    className={`h-7 rounded-md px-2.5 text-xs font-medium ${ativo ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700"}`}
                     data-testid={`periodo-base-${b}`}
                   >
                     {BASE_LABEL[b]}
-                    <span className="ml-1.5 text-[11px] font-normal tabular-nums text-muted-foreground">{conta({ base: b })}</span>
+                    <span className="ml-1.5 text-2xs font-normal tabular-nums text-muted-foreground">{conta({ base: b })}</span>
                   </button>
                 );
               })}
             </div>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               A escala começa dias antes (montagem). A data do evento é o dia da prova — o domingo do período, ou o sábado.
             </span>
           </div>
         )}
 
         <div className="flex">
-          <div className="w-[228px] shrink-0 p-2.5 border-r border-slate-100">
-            <p className="mb-1.5 ml-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <div className="w-[228px] shrink-0 p-2.5 border-r border-border">
+            <p className="mb-1.5 ml-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
               Quando acontece
             </p>
             <div className="flex flex-col gap-px">
@@ -158,10 +158,10 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
               ))}
             </div>
 
-            <div className={`mt-2 rounded-lg border p-2 ${custom ? "border-[rgba(0,51,204,0.35)] bg-[#F5F7FF]" : "border-border bg-card"}`}>
-              <p className="mb-1.5 text-[11px] font-semibold text-[#475569]">Datas exatas</p>
+            <div className={`mt-2 rounded-lg border p-2 ${custom ? "border-primary/40 bg-brand-soft" : "border-border bg-card"}`}>
+              <p className="mb-1.5 text-2xs font-semibold text-slate-600">Datas exatas</p>
               <div className="flex flex-col gap-1.5">
-                <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="w-[26px] shrink-0">De</span>
                   <input
                     type="date"
@@ -169,10 +169,10 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
                     onChange={(e) => escolheData("de", e.target.value)}
                     aria-label="A partir de"
                     data-testid="input-periodo-de"
-                    className="flex-1 min-w-0 h-[30px] rounded-md border border-border bg-card px-1.5 text-[12px] text-slate-700 tabular-nums outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+                    className="flex-1 min-w-0 h-[30px] rounded-md border border-border bg-card px-1.5 text-xs text-slate-700 tabular-nums outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
                   />
                 </label>
-                <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="w-[26px] shrink-0">Até</span>
                   <input
                     type="date"
@@ -180,7 +180,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
                     onChange={(e) => escolheData("ate", e.target.value)}
                     aria-label="Até"
                     data-testid="input-periodo-ate"
-                    className="flex-1 min-w-0 h-[30px] rounded-md border border-border bg-card px-1.5 text-[12px] text-slate-700 tabular-nums outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+                    className="flex-1 min-w-0 h-[30px] rounded-md border border-border bg-card px-1.5 text-xs text-slate-700 tabular-nums outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
                   />
                 </label>
               </div>
@@ -188,7 +188,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
           </div>
 
           <div className="flex-1 min-w-0 p-2.5">
-            <p className="mb-1.5 ml-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="mb-1.5 ml-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
               Dias da semana
             </p>
             <div className="flex flex-col gap-px">
@@ -204,7 +204,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
               ))}
             </div>
 
-            <div className="my-2.5 border-t border-slate-100" />
+            <div className="my-2.5 border-t border-border" />
 
             <label className="flex items-start gap-2.5 px-2 cursor-pointer">
               <input
@@ -212,18 +212,18 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
                 checked={valor.inicioFds}
                 onChange={(e) => onChange({ ...valor, inicioFds: e.target.checked })}
                 data-testid="checkbox-inicio-fds"
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#0033CC]"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
               />
               <span className="min-w-0">
-                <span className="block text-[13px] text-slate-700">Começa no fim de semana</span>
-                <span className="block text-[11px] text-muted-foreground tabular-nums">
+                <span className="block text-sm text-slate-700">Começa no fim de semana</span>
+                <span className="block text-2xs text-muted-foreground tabular-nums">
                   {conta({ inicioFds: !valor.inicioFds })} vagas
                 </span>
               </span>
             </label>
             {/* A frase existe porque o filtro não é óbvio: sem ela, "começa no
                 fim de semana" parece curiosidade e não critério de compra. */}
-            <p className="mt-2 px-2 text-[11px] leading-relaxed text-muted-foreground">
+            <p className="mt-2 px-2 text-2xs leading-relaxed text-muted-foreground">
               Quem chega no sábado ou domingo precisa de passagem e hotel no fim de semana — é onde a tarifa muda.
             </p>
           </div>

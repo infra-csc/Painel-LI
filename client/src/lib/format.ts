@@ -79,3 +79,80 @@ export function avatarClasses(name: string | null | undefined): readonly [string
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
+
+// ─── Moeda ─────────────────────────────────────────────────────────────────
+// Um único formatador (23/09): havia 19 cópias locais de
+// `new Intl.NumberFormat("pt-BR", { style: "currency" … })` nas telas do
+// Financeiro — instanciar o Intl a cada célula é caro e as cópias divergiam
+// (uma arredondava os centavos, outra não).
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Centavos inteiros → "R$ 1.234,56". Centavos fracionários são arredondados antes. */
+export function formatarMoeda(centavos: number | null | undefined): string {
+  const c = Number(centavos);
+  if (!Number.isFinite(c)) return BRL.format(0);
+  return BRL.format(Math.round(c) / 100);
+}
+
+/** Reais (número decimal) → "R$ 1.234,56". */
+export function formatarMoedaReais(reais: number | null | undefined): string {
+  const r = Number(reais);
+  return BRL.format(Number.isFinite(r) ? r : 0);
+}
+
+// ─── Dias úteis × fins de semana ───────────────────────────────────────────
+// Antes duplicado em budget-actual.tsx e budget-planned.tsx (com assinaturas
+// diferentes). Datas "YYYY-MM-DD" lidas em horário local — nunca via UTC, que
+// deslocava o dia no fuso do Brasil.
+function dataLocal(iso: string): Date | null {
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const dt = new Date(y, m - 1, d);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+/**
+ * Conta dias úteis e de fim de semana no intervalo FECHADO [inicio, fim].
+ * Intervalo invertido é corrigido; datas inválidas/ausentes → { 0, 0 }.
+ */
+export function contarDiasUteisEFds(
+  inicio: string | null | undefined,
+  fim: string | null | undefined,
+): { weekdays: number; weekends: number } {
+  if (!inicio || !fim) return { weekdays: 0, weekends: 0 };
+  let a = dataLocal(inicio);
+  let b = dataLocal(fim);
+  if (!a || !b) return { weekdays: 0, weekends: 0 };
+  if (b < a) { const t = a; a = b; b = t; }
+  let weekdays = 0, weekends = 0;
+  const cur = new Date(a);
+  while (cur <= b) {
+    const dow = cur.getDay();
+    if (dow === 0 || dow === 6) weekends++;
+    else weekdays++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return { weekdays, weekends };
+}
+
+/**
+ * Variante por QUANTIDADE: conta `qtdDias` dias corridos a partir de `inicio`
+ * (uso do Planejado quando a vaga só tem data inicial + nº de diárias).
+ */
+export function contarDiasUteisEFdsPorQuantidade(
+  inicio: string | null | undefined,
+  qtdDias: number,
+): { weekdays: number; weekends: number } {
+  if (!inicio || !Number.isFinite(qtdDias) || qtdDias <= 0) return { weekdays: 0, weekends: 0 };
+  const a = dataLocal(inicio);
+  if (!a) return { weekdays: 0, weekends: 0 };
+  let weekdays = 0, weekends = 0;
+  const cur = new Date(a);
+  for (let i = 0; i < qtdDias; i++) {
+    const dow = cur.getDay();
+    if (dow === 0 || dow === 6) weekends++;
+    else weekdays++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return { weekdays, weekends };
+}

@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { fetchJson } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation } from "@shared/schema";
-import type { AccommodationFilters, AccSortConfig, AccSortField, ApiError, NormalizedSwap, TicketLite, UserLite } from "./types";
-import { fetchSwaps } from "./utils";
+import { useSwapRequests } from "@/hooks/use-swap-requests";
+import type { AccommodationFilters, AccSortConfig, AccSortField, ApiError, TicketLite, UserLite } from "./types";
 import { passaNosFiltros, precisaDeHospedagem } from "./accommodations-filtering";
 
 export interface UseAccommodationsDataParams {
@@ -18,19 +21,32 @@ export interface UseAccommodationsDataParams {
  * Não tem estado próprio: recebe filtros/ordenação e devolve dados derivados.
  */
 export function useAccommodationsData({ filters, sortConfig, showOnlyPendingSwaps }: UseAccommodationsDataParams) {
-  const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
+  const { user } = useAuth();
+  // Recorte por evento (24/09): com evento selecionado a lista vem só dele
+  // (`?eventId=`); sem evento, Compras/admin/produção/RH leem a fila inteira
+  // (Hospedagem é multi-evento por natureza) e a área cai em `?phase=all`.
+  const recorte = recorteDaListaDeVagas({ eventId: filters.eventId, user });
+  const eventoSelecionado = recorte.eventId;
+  const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>(listaDeVagasQuery(recorte));
   const { data: events, isLoading: isLoadingEvents, error: eventsError } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
   const { data: functions, isLoading: isLoadingFunctions, error: functionsError } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
   const { data: collaborators, isLoading: isLoadingCollaborators, error: collaboratorsError } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000 });
-  const { data: accommodations, isLoading: isLoadingAccommodations, error: accommodationsError } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
-  const { data: tickets } = useQuery<TicketLite[]>({ queryKey: ["/api/tickets"] });
+  // Hospedagens e passagens também aceitam `?eventId=`; a chave
+  // `["/api/accommodations", { eventId }]` mantém o prefixo das invalidações.
+  const { data: accommodations, isLoading: isLoadingAccommodations, error: accommodationsError } = useQuery<Accommodation[]>({
+    queryKey: eventoSelecionado ? ["/api/accommodations", { eventId: eventoSelecionado }] : ["/api/accommodations"],
+    queryFn: ({ signal }) => fetchJson<Accommodation[]>(eventoSelecionado ? `/api/accommodations?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/accommodations", signal),
+  });
+  const { data: tickets } = useQuery<TicketLite[]>({
+    queryKey: eventoSelecionado ? ["/api/tickets", { eventId: eventoSelecionado }] : ["/api/tickets"],
+    queryFn: ({ signal }) => fetchJson<TicketLite[]>(eventoSelecionado ? `/api/tickets?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/tickets", signal),
+  });
   const { data: users } = useQuery<UserLite[]>({ queryKey: ["/api/users"], staleTime: 300_000 });
 
-  // Lista global de trocas — alimenta o banner e o selo "Troca pendente" das linhas.
-  const { data: allSwapRequests } = useQuery<NormalizedSwap[]>({
-    queryKey: ["/api/swap-requests"],
-    queryFn: () => fetchSwaps("/api/swap-requests"),
-  });
+  // Lista global de trocas — alimenta o banner e o selo "Troca pendente" das
+  // linhas. Hook único (23/09): mesmo cache normalizado da casca e das outras
+  // telas — antes cada tela gravava um formato diferente na mesma chave.
+  const { data: allSwapRequests } = useSwapRequests();
 
   // Esqueleto espera o conteúdo principal da tabela — inclusões, evento,
   // função, colaborador e a própria hospedagem.

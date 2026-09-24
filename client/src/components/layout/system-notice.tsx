@@ -14,7 +14,7 @@
  * troque a constante por uma consulta e mantenha o resto igual.
  */
 import { useEffect, useState } from "react";
-import { MI } from "./mi";
+import { Megaphone, X } from "lucide-react";
 
 export interface SystemNotice {
   id: string;
@@ -47,17 +47,17 @@ export default function SystemNoticeBar() {
   };
 
   return (
-    <div role="status" className="flex flex-wrap items-center gap-2.5 px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-900">
-      <MI name="campaign" size={16} className="text-amber-600" />
+    <div role="status" className="flex flex-wrap items-center gap-2.5 px-4 py-2 bg-warning-soft border-b border-warning/25 text-xs text-warning">
+      <Megaphone className="h-4 w-4 text-warning" aria-hidden="true" />
       <span><span className="font-semibold">{notice.title}</span> — {notice.text}</span>
       <div className="flex-1" />
       <button
         type="button"
         onClick={dismiss}
         aria-label="Dispensar aviso"
-        className="inline-flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-amber-700 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="inline-flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-warning cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
-        <MI name="close" size={15} />
+        <X className="h-[15px] w-[15px]" aria-hidden="true" />
       </button>
     </div>
   );

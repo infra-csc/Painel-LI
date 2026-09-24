@@ -136,6 +136,7 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   emergencyRecord: "Registro emergencial", approvedByProduction: "Aprovada pelo gestor",
   approvedByProductionAt: "Aprovada pelo gestor em", deletedAt: "Excluída em", deletedBy: "Excluída por",
   suggestionSentAt: "Sugestão enviada em", validatedAt: "Validada em", validatedBy: "Validada por",
+  validationNote: "Observação da validação",
   empreitaEmpresa: "Empresa da empreita", empreitaPessoas: "Pessoas da empreita", empreitaValor: "Valor da empreita",
   cenoFreelaTipo: "Tipo de freela", atendimentoTipo: "Tipo de atendimento", percurseiroTipo: "Tipo de percurseiro",
   emitsNf: "Emite nota fiscal", transportModeIda: "Transporte da ida", transportModeVolta: "Transporte da volta",
@@ -282,7 +283,8 @@ function dataHoraBr(iso: string): string {
   }).replace(",", " às");
 }
 
-const reais = (centavos: number) =>
+/** Centavos → "R$ 1.234,56" (mesma escrita do histórico da vaga em server/storage/vagas-historico.ts). */
+export const reais = (centavos: number) =>
   `R$ ${(centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function formatarValor(campo: string, valor: unknown, nomes: NomesParaLog = {}): string {
@@ -374,7 +376,7 @@ const nomeQuebrado = (nome: string | null | undefined, entityType: string) =>
 export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogDescrito {
   const antes = lerJson(log.previousData);
   const depois = lerJson(log.newData);
-  const dado = { ...(antes ?? {}), ...(depois ?? {}) } as Record<string, any>;
+  const dado: Record<string, unknown> = { ...(antes ?? {}), ...(depois ?? {}) };
   const modulo = moduloDe(log.entityType);
   let acao = acaoDe(log.action);
 

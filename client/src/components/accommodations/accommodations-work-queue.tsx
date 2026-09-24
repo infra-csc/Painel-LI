@@ -22,10 +22,10 @@ interface Def {
 }
 
 const BLOCOS: Def[] = [
-  { key: "reservar",    label: "Reservar",    icone: BedDouble,      cor: "#D97706" },
-  { key: "urgente",     label: "Urgente",     icone: TriangleAlert,  cor: "#EF4444" },
-  { key: "troca",       label: "Troca",       icone: ArrowLeftRight, cor: "#A855F7" },
-  { key: "registradas", label: "Registradas", icone: CheckCircle2,   cor: "#10B981" },
+  { key: "reservar",    label: "Reservar",    icone: BedDouble,      cor: "var(--warning)" },
+  { key: "urgente",     label: "Urgente",     icone: TriangleAlert,  cor: "var(--danger-strong)" },
+  { key: "troca",       label: "Troca",       icone: ArrowLeftRight, cor: "var(--primary)" },
+  { key: "registradas", label: "Registradas", icone: CheckCircle2,   cor: "var(--success-strong)" },
 ];
 
 /**
@@ -71,8 +71,8 @@ export default function AccommodationsWorkQueue({ resumo, ativo, onEscolher }: {
         // Em 2×2 a borda esquerda cai nos ímpares e a de cima na segunda linha,
         // senão sobra um traço solto na borda do card.
         const divisorias = emQuatro
-          ? "border-l border-slate-100 first:border-l-0"
-          : `${i % 2 === 1 ? "border-l border-slate-100" : ""} ${i >= 2 ? "border-t border-slate-100" : ""}`;
+          ? "border-l border-border first:border-l-0"
+          : `${i % 2 === 1 ? "border-l border-border" : ""} ${i >= 2 ? "border-t border-border" : ""}`;
 
         return (
           <button
@@ -89,15 +89,15 @@ export default function AccommodationsWorkQueue({ resumo, ativo, onEscolher }: {
           >
             <span className="flex items-center gap-[7px]">
               <Icone className="w-[15px] h-[15px] shrink-0" style={{ color: cor }} aria-hidden="true" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate" title={label}>
+              <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate" title={label}>
                 {label}
               </span>
             </span>
             <span className="flex items-baseline gap-[7px] mt-1.5">
-              <span className={`text-[20px] font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-slate-400" : "text-slate-900"}`}>
+              <span className={`text-xl font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-muted-foreground" : "text-foreground"}`}>
                 {n}
               </span>
-              <span className="text-[12px] text-muted-foreground truncate" title={sub[key]}>{sub[key]}</span>
+              <span className="text-xs text-muted-foreground truncate" title={sub[key]}>{sub[key]}</span>
             </span>
           </button>
         );

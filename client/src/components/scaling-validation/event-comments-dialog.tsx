@@ -68,7 +68,7 @@ export function EventCommentsButton({ eventId, eventName, className }: {
       <Button
         type="button" variant="outline" size="sm"
         onClick={() => setOpen(true)}
-        className={className ?? "h-9 rounded-lg border-slate-200 bg-white text-xs hover:bg-brand-soft hover:text-primary"}
+        className={className ?? "h-9 rounded-lg border-border bg-card text-xs hover:bg-brand-soft hover:text-primary"}
         data-testid="event-comments-button"
       >
         <MessageSquare className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -76,8 +76,8 @@ export function EventCommentsButton({ eventId, eventName, className }: {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg p-0 gap-0 flex flex-col max-h-[85vh] overflow-hidden rounded-2xl">
-          <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100 pr-12">
+        <DialogContent className="max-w-lg p-0 gap-0 flex flex-col max-h-[85vh] overflow-hidden rounded-xl">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border pr-12">
             <DialogTitle>Comentários do evento</DialogTitle>
             <DialogDescription>
               {eventName ?? "Evento"} — mural aberto: todo mundo lê e escreve.
@@ -86,15 +86,15 @@ export function EventCommentsButton({ eventId, eventName, className }: {
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {query.isLoading ? (
-              <p className="text-sm text-slate-500">Carregando…</p>
+              <p className="text-sm text-muted-foreground">Carregando…</p>
             ) : comments.length === 0 ? (
-              <p className="text-sm italic text-slate-400">Nenhum comentário ainda — o primeiro conta o que o resto do time precisa saber.</p>
+              <p className="text-sm italic text-muted-foreground">Nenhum comentário ainda — o primeiro conta o que o resto do time precisa saber.</p>
             ) : (
               <ul className="space-y-3">
                 {comments.map((c) => (
-                  <li key={c.id} className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
-                    <p className="whitespace-pre-wrap break-words text-sm text-slate-800">{c.content}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">
+                  <li key={c.id} className="rounded-xl border border-border bg-surface-muted/60 px-3 py-2">
+                    <p className="whitespace-pre-wrap break-words text-sm text-foreground">{c.content}</p>
+                    <p className="mt-1 text-2xs text-muted-foreground">
                       {c.userName ?? "Usuário"}{c.createdAt ? ` · ${formatDateBr(c.createdAt)}` : ""}
                     </p>
                   </li>
@@ -103,7 +103,7 @@ export function EventCommentsButton({ eventId, eventName, className }: {
             )}
           </div>
 
-          <div className="shrink-0 border-t border-slate-200 bg-slate-50/60 px-5 py-3">
+          <div className="shrink-0 border-t border-border bg-surface-muted/60 px-5 py-3">
             <div className="flex items-end gap-2">
               <Textarea
                 rows={2} maxLength={2000} value={texto}
@@ -112,7 +112,7 @@ export function EventCommentsButton({ eventId, eventName, className }: {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && texto.trim()) enviar.mutate();
                 }}
-                className="rounded-lg bg-white text-sm"
+                className="rounded-lg bg-card text-sm"
                 aria-label="Novo comentário do evento"
               />
               <Button
@@ -124,7 +124,7 @@ export function EventCommentsButton({ eventId, eventName, className }: {
                 <Send className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
-            <p className="mt-1 text-[10px] text-slate-400">Ctrl+Enter envia.</p>
+            <p className="mt-1 text-2xs text-muted-foreground">Ctrl+Enter envia.</p>
           </div>
         </DialogContent>
       </Dialog>

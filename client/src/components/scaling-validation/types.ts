@@ -7,6 +7,7 @@ import {
   type LastDecisionInfo, type LastDecisionTone, type LastVagaDecisionInfo,
 } from "@shared/scaling-validation-rules";
 import { toIsoDate } from "@/lib/dates";
+import type { Tone } from "@/components/common/status-badge";
 
 /** Linha devolvida por GET /api/scaling-suggestions (com ou sem `?eventId=`) */
 export type SuggestionRow = Omit<TeamInclusion, "workDays"> & {
@@ -181,9 +182,18 @@ export function describeVagaDecision(info: LastVagaDecisionInfo | null | undefin
   return splitDecision(title, tone, info.comment);
 }
 
+/** Tom semântico do StatusBadge por tom de decisão (23/09). */
+export const DECISION_TONE: Record<DecisionTone, Tone> = {
+  warn: "warning",
+  danger: "danger",
+  ok: "success",
+  info: "info",
+};
+
+/** Classes de PAINEL (fundo + texto + borda) da decisão — só tokens (23/09). */
 export const DECISION_TONE_CLASS: Record<DecisionTone, string> = {
-  warn: "bg-amber-50 text-amber-800 border-amber-300",
-  danger: "bg-red-50 text-red-700 border-red-200",
-  ok: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  info: "bg-violet-50 text-violet-700 border-violet-200",
+  warn: "bg-warning-soft text-warning border-warning/30",
+  danger: "bg-danger-soft text-danger border-danger/30",
+  ok: "bg-success-soft text-success border-success/30",
+  info: "bg-info-soft text-info border-info/30",
 };

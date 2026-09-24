@@ -1,14 +1,17 @@
-import { Fragment, useState, useRef, useEffect, useMemo } from "react";
+import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { isRhOrAdmin } from "@/lib/permissions";
+import { apiErrorMessage } from "@/lib/api-error";
+import { isRhOrAdmin } from "@/lib/role-utils";
 import { EventSearchSelect } from "@/components/event-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { LoadingState } from "@/components/common/loading-state";
+import { QueryError, useQueriesState } from "@/components/common/query-state";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -17,24 +20,31 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
-  ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
+  ChevronDown, ChevronUp, Paperclip, Building2,
   FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CircleDot, Ban
 } from "lucide-react";
 import { Link, useSearch } from "wouter";
-import type { Event, Invoice } from "@shared/schema";
+import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
+import { campo, useUrlState } from "@/lib/use-url-state";
+import type { BudgetActual, Collaborator, Event, Function as FunctionRow, Invoice, PaymentCompany, TeamInclusion } from "@shared/schema";
+import type { QueryClient } from "@tanstack/react-query";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 
-// Mesma implementação da tela Controle de Prestações (rh-control.tsx) — manter idênticas.
-function toTitleCase(str: string): string {
-  if (!str || str === "—" || str === "-") return str;
-  return str.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
+import { formatarMoeda, toTitleCase } from "@/lib/format";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
+import { campoComErro } from "@/lib/campo-com-erro";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
+const formatCurrency = formatarMoeda;
+/** Timestamps do schema são `Date` no tipo, mas chegam como ISO pelo JSON — aceita os dois. */
+function iso(v: string | Date | null | undefined): string | null {
+  if (v == null || v === "") return null;
+  return v instanceof Date ? v.toISOString() : v;
 }
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
-}
-function fmtDate(d?: string | null) {
+function fmtDate(raw?: string | Date | null) {
+  const d = iso(raw);
   if (!d) return "—";
-  // Aceita "YYYY-MM-DD" e timestamps ISO ("YYYY-MM-DDTHH:mm:ss...")
+  // Aceita "YYYY-MM-DD" e timestamps ISO ("YYYY-MM-DDTHH:mm:ss…")
   const [y, m, day] = d.split("T")[0].split("-");
   return `${day}/${m}/${y}`;
 }
@@ -42,7 +52,7 @@ function fmtDate(d?: string | null) {
 // Effective status for display (aprovada splits into checkin-pendente / checkin-realizado)
 type EffStatus = "pendente" | "enviada" | "devolvida" | "recusada" | "aprovada" | "checkin-pendente" | "checkin-realizado";
 
-function getEffectiveStatus(inv: any): EffStatus {
+function getEffectiveStatus(inv: Invoice | null | undefined): EffStatus {
   if (!inv) return "pendente";
   if (inv.status === "aprovada") {
     // "Concluído" = checkin realizado (checkinAt set); otherwise waiting for physical check-in
@@ -54,22 +64,22 @@ function getEffectiveStatus(inv: any): EffStatus {
 type StatusCfg = { label: string; pill: string; border: string; avatarCls: string };
 
 const STATUS_CFG: Record<EffStatus, StatusCfg> = {
-  pendente:          { label: "Pendente",            pill: "bg-gray-100 text-gray-500",                              border: "#e5e7eb", avatarCls: "bg-slate-100 text-slate-500" },
-  enviada:           { label: "Aguardando RH",        pill: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",       border: "#f59e0b", avatarCls: "bg-amber-100 text-amber-700" },
-  devolvida:         { label: "Devolvida",            pill: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",    border: "#f97316", avatarCls: "bg-orange-100 text-orange-600" },
-  recusada:          { label: "NF recusada",          pill: "bg-red-100 text-red-900 ring-1 ring-red-200",            border: "#991b1b", avatarCls: "bg-red-100 text-red-800" },
-  aprovada:          { label: "Aprovada",             pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "#10b981", avatarCls: "bg-emerald-100 text-emerald-700" },
-  "checkin-pendente":{ label: "Aguard. Check-in",    pill: "bg-blue-50 text-primary ring-1 ring-blue-200",         border: "var(--primary)", avatarCls: "bg-blue-100 text-primary" },
-  "checkin-realizado":{ label: "Check-in Realizado", pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300", border: "#059669", avatarCls: "bg-emerald-100 text-emerald-700" },
+  pendente:          { label: "Pendente",            pill: "bg-muted text-muted-foreground",                              border: "var(--border)", avatarCls: "bg-muted text-muted-foreground" },
+  enviada:           { label: "Aguardando RH",        pill: "bg-warning-soft text-warning ring-1 ring-warning/25",       border: "var(--warning-strong)", avatarCls: "bg-warning-soft text-warning" },
+  devolvida:         { label: "Devolvida",            pill: "bg-warning-soft text-warning ring-1 ring-warning/25",    border: "var(--warning-strong)", avatarCls: "bg-warning-soft text-warning" },
+  recusada:          { label: "NF recusada",          pill: "bg-danger-soft text-danger ring-1 ring-danger/25",            border: "var(--danger)", avatarCls: "bg-danger-soft text-danger" },
+  aprovada:          { label: "Aprovada",             pill: "bg-success-soft text-success ring-1 ring-success/25", border: "var(--success-strong)", avatarCls: "bg-success-soft text-success" },
+  "checkin-pendente":{ label: "Aguard. Check-in",    pill: "bg-brand-soft text-primary ring-1 ring-primary/25",         border: "var(--primary)", avatarCls: "bg-brand-soft text-primary" },
+  "checkin-realizado":{ label: "Check-in Realizado", pill: "bg-success-soft text-success ring-1 ring-success/25", border: "var(--success)", avatarCls: "bg-success-soft text-success" },
 };
 
 // Fallback defensivo: um status desconhecido vindo do servidor não pode
 // derrubar a tela inteira (foi o que aconteceu quando "recusada" surgiu).
 const STATUS_CFG_FALLBACK: StatusCfg = {
   label: "Status desconhecido",
-  pill: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
-  border: "#94a3b8",
-  avatarCls: "bg-slate-100 text-slate-500",
+  pill: "bg-muted text-slate-600 ring-1 ring-border",
+  border: "var(--neutral)",
+  avatarCls: "bg-muted text-muted-foreground",
 };
 
 function getStatusCfg(st: string): StatusCfg {
@@ -91,22 +101,22 @@ function InvoiceStepper({ counts }: { counts: StepperCounts }) {
     <div className="flex items-center gap-0 h-9 flex-wrap">
       {steps.map((step, i) => {
         const done  = step.count === 0;
-        const color = done ? "#059669" : "var(--primary)";
+        const color = done ? "var(--success)" : "var(--primary)";
         return (
           <div key={step.id} className="flex items-center">
             <div className="flex items-center gap-1.5">
               <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 shrink-0`}
                 style={{ borderColor: color, background: color }}>
                 {done
-                  ? <CheckCircle2 className="w-2 h-2 text-white" strokeWidth={3} />
-                  : <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  ? <CheckCircle2 className="w-2 h-2 text-white" strokeWidth={3} aria-hidden="true" />
+                  : <div className="w-1.5 h-1.5 rounded-full bg-card" />}
               </div>
-              <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color }}>
+              <span className="text-2xs font-semibold whitespace-nowrap" style={{ color }}>
                 {step.label}
               </span>
               {step.count > 0 && (
                 <span
-                  className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-blue-50 text-primary ring-1 ring-blue-200 whitespace-nowrap"
+                  className="text-2xs font-bold leading-none px-1.5 py-0.5 rounded-full bg-brand-soft text-primary ring-1 ring-primary/25 whitespace-nowrap"
                   title={`${step.count} ite${step.count === 1 ? "m aguardando" : "ns aguardando"} nesta etapa`}
                 >
                   {step.count} aguardando
@@ -141,20 +151,20 @@ function FilterPills({ filters, active, countFor, onChange, alertFor }: {
           <button
             key={id}
             onClick={() => onChange(id)}
-            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
+            className={`inline-flex items-center gap-1.5 text-2xs font-semibold px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
               isActive
-                ? `${activeBg} border-transparent shadow-sm`
-                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                ? `${activeBg} border-transparent shadow-1`
+                : "bg-card border-border text-muted-foreground hover:border-slate-300 hover:text-slate-700"
             }`}
           >
             {label}
             {cnt > 0 && (
-              <span className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+              <span className={`text-2xs font-bold leading-none px-1.5 py-0.5 rounded-full ${isActive ? "bg-card/20 text-white" : "bg-muted text-muted-foreground"}`}>
                 {cnt}
               </span>
             )}
             {alertCnt > 0 && (
-              <span className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-amber-500 text-white"
+              <span className="text-2xs font-bold leading-none px-1.5 py-0.5 rounded-full bg-warning-strong text-white"
                 title={`${alertCnt} aguardando há mais de 3 dias`}>
                 {alertCnt}⚠
               </span>
@@ -168,22 +178,29 @@ function FilterPills({ filters, active, countFor, onChange, alertFor }: {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function InvoicesPage() {
-  usePageTitle("Notas Fiscais");
+  usePageTitle("Notas fiscais");
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // Read URL params via wouter's useSearch — reprocessa quando a querystring muda
-  const search = useSearch();
-  const urlParams = useMemo(() => new URLSearchParams(search), [search]);
-  const paramEvent  = urlParams.get("event") || "";
-  const paramTab    = urlParams.get("tab") as "lancamento" | "aprovacao" | null;
-  const paramFilter = urlParams.get("filter") || "";
-  const paramActual = urlParams.get("actual") || "";
+  // Evento em foco (23/09): o mesmo do Planejado/Realizado/Comparativo — `?event=`
+  // com memória por usuário; trocar de tela não pede o evento de novo.
+  const { eventId: selectedEventId, setEventId: setSelectedEventId, sanitize: sanearEventoEmFoco } = useEventoEmFoco();
+  // Aba e filtro de status na URL (23/09): voltar para a tela devolve o recorte;
+  // `?tab=`/`?filter=` continuam sendo os nomes dos links vindos do Controle RH.
+  const [urlState, setUrlState] = useUrlState({
+    tab: campo.opcao<"lancamento" | "aprovacao">("lancamento"),
+    filter: campo.texto(""),
+  });
+  const activeTab = urlState.tab;
+  // Os ids de filtro diferem entre as abas — trocar de aba zera o filtro.
+  const setActiveTab = useCallback((tab: "lancamento" | "aprovacao") => setUrlState({ tab, filter: "" }), [setUrlState]);
+  const filterStatus = urlState.filter || "all";
+  const setFilterStatus = (v: string) => setUrlState({ filter: v === "all" ? "" : v });
 
-  const [selectedEventId, setSelectedEventId] = useState<string>(paramEvent);
-  const [activeTab, setActiveTab] = useState<"lancamento" | "aprovacao">(paramTab || "lancamento");
-  const [initialFilter, setInitialFilter] = useState<string>(paramFilter);
+  // `?actual=` destaca uma linha (uma vez) — continua lido à parte.
+  const search = useSearch();
+  const paramActual = useMemo(() => new URLSearchParams(search).get("actual") || "", [search]);
   const [highlightActualId, setHighlightActualId] = useState<string>(paramActual);
 
   // Company confirmation state (for the CNPJ blocking screen)
@@ -195,34 +212,34 @@ export default function InvoicesPage() {
 
   const canRH = isRhOrAdmin(user);
 
-  const { data: events = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
+  const qEvents = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const activeEvents = useMemo(() => (qEvents.data ?? []).filter(e => e.status !== "excluído"), [qEvents.data]);
+  // Evento em foco excluído é descartado assim que a lista chega (23/09).
+  useEffect(() => {
+    if (qEvents.data?.length) sanearEventoEmFoco(qEvents.data.filter(e => e.status !== "excluído").map(e => e.id));
+  }, [qEvents.data, sanearEventoEmFoco]);
 
-  const { data: paymentCompanies = [] } = useQuery<any[]>({ queryKey: ["/api/payment-companies"] });
+  const { data: paymentCompanies = [] } = useQuery<PaymentCompany[]>({ queryKey: ["/api/payment-companies"] });
 
   // Sync from URL params when navigating from another page
   useEffect(() => {
-    if (paramEvent)  setSelectedEventId(paramEvent);
-    if (paramTab)    setActiveTab(paramTab);
-    if (paramFilter) setInitialFilter(paramFilter);
     if (paramActual) setHighlightActualId(paramActual);
-  }, [paramEvent, paramTab, paramFilter, paramActual]);
+  }, [paramActual]);
 
   // Papel sem RH com aba "aprovacao" ativa (ex.: ?tab=aprovacao na URL) renderizaria
   // um corpo vazio — cai para "lancamento".
   useEffect(() => {
     if (activeTab === "aprovacao" && !canRH) setActiveTab("lancamento");
-  }, [activeTab, canRH]);
+  }, [activeTab, canRH, setActiveTab]);
 
   // Auto-select the first active event when the list loads (if nothing is selected yet)
   useEffect(() => {
     if (!selectedEventId && activeEvents.length > 0) {
       setSelectedEventId(activeEvents[0].id);
     }
-  }, [activeEvents.length]);
+  }, [activeEvents, selectedEventId, setSelectedEventId]);
 
-  const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
-  const selectedEvent = activeEvents.find((e: any) => e.id === selectedEventId);
+  const selectedEvent = activeEvents.find(e => e.id === selectedEventId);
 
   const setEventCompanyMutation = useMutation({
     mutationFn: async ({ name, cnpj }: { name: string; cnpj: string }) => {
@@ -237,44 +254,51 @@ export default function InvoicesPage() {
       qc.invalidateQueries({ queryKey: ["/api/events"] });
       toast({ title: "Empresa pagadora configurada com sucesso" });
     },
-    onError: () => toast({ title: "Erro ao salvar empresa pagadora", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível salvar a empresa pagadora", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
-  const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
+  const qInvoices = useQuery<Invoice[]>({
     queryKey: ["/api/invoices", selectedEventId],
     queryFn: () => apiRequest("GET", `/api/invoices?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
+  const invoices = qInvoices.data ?? [];
 
-  const { data: budgetActuals = [], isLoading: actualsLoading } = useQuery<any[]>({
+  const qActuals = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: () => apiRequest("GET", `/api/budget-actual?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
+  const budgetActuals = qActuals.data ?? [];
 
-  const { data: collaborators = [] } = useQuery<any[]>({ queryKey: ["/api/collaborators"] });
-  const { data: functions   = [] }   = useQuery<any[]>({ queryKey: ["/api/functions"] });
+  const qCollaborators = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const qFunctions = useQuery<FunctionRow[]>({ queryKey: ["/api/functions"] });
+  const collaborators = qCollaborators.data ?? [];
+  const functions = qFunctions.data ?? [];
 
   // Escalação do evento — fonte da flag "emite NF" de cada escalado
-  const { data: teamInclusions = [], isLoading: inclusionsLoading } = useQuery<any[]>({
+  const qInclusions = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", selectedEventId, "invoices"],
     queryFn: () => apiRequest("GET", `/api/team-inclusions?eventId=${selectedEventId}`).then(r => r.json()),
     enabled: !!selectedEventId,
   });
+  const teamInclusions = qInclusions.data ?? [];
 
-  // Enquanto os dados do evento carregam, mostra skeleton em vez do empty
-  // state falso ("Nenhum colaborador com Realizado enviado").
-  const dataLoading = !!selectedEventId && (invoicesLoading || actualsLoading || inclusionsLoading);
+  // Erro/carregando (23/09): eram 9 consultas sem tratamento — a falha virava
+  // "Nenhum colaborador com Realizado enviado". Um só aviso; "Tentar de novo"
+  // refaz apenas o que falhou. Enquanto carrega, skeleton em vez do vazio falso.
+  const estado = useQueriesState([qEvents, qCollaborators, qFunctions, qInvoices, qActuals, qInclusions]);
+  const dataLoading = !!selectedEventId && estado.isLoading;
 
-  const getName     = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
-  const getFuncName = (id?: string | null) => (functions     as any[]).find(f => f.id === id)?.name     || "—";
+  const getName     = (id?: string | null) => collaborators.find(c => c.id === id)?.fullName || "—";
+  const getFuncName = (id?: string | null) => functions.find(f => f.id === id)?.name     || "—";
 
   // Definido na escalação: se false, a tela não cobra NF deste colaborador.
   // Regra única em @shared/prestacao-rules — mesma da tela Controle de
   // Prestações (as cópias locais tinham divergido).
-  const emitsNfFor = (actual: any): boolean =>
+  const emitsNfFor = (actual: BudgetActual): boolean =>
     !nfIsentaPorEscalacao(
-      teamInclusions as any[],
+      teamInclusions,
       actual.collaboratorId,
       actual.functionId,
       actual.eventId ?? selectedEventId,
@@ -282,15 +306,15 @@ export default function InvoicesPage() {
 
   // Elegibilidade da NF vem de @shared/prestacao-rules — a mesma regra que o
   // servidor aplica. Antes cada tela tinha sua cópia e elas divergiram.
-  const approvedActuals = (budgetActuals as any[]).filter(
+  const approvedActuals = budgetActuals.filter(
     a => isNfEligible(a) && !a.splitParentId
   );
 
   const getInvoice = (actualId: string) =>
-    (invoices as any[]).find(inv => inv.budgetActualId === actualId);
+    invoices.find(inv => inv.budgetActualId === actualId);
 
   // Ids dos itens NF-elegíveis do Realizado — mesmo recorte do Controle RH (rh-control).
-  const eligibleActualIds = new Set(approvedActuals.map((a: any) => a.id));
+  const eligibleActualIds = new Set(approvedActuals.map(a => a.id));
 
   // "Lançamento": itens NF-elegíveis que ainda dependem do colaborador — sem NF enviada
   // ("Aguardando lançamento") ou com NF devolvida. Equivale a "Aguardando lançamento"
@@ -301,17 +325,17 @@ export default function InvoicesPage() {
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
   }).length;
   // "Aprovação RH" (em análise): NFs enviadas de itens NF-elegíveis — mesmo critério do Controle RH.
-  const rhPendingCount = (invoices as any[]).filter(i => i.status === "enviada" && eligibleActualIds.has(i.budgetActualId)).length;
+  const rhPendingCount = invoices.filter(i => i.status === "enviada" && eligibleActualIds.has(i.budgetActualId ?? "")).length;
   // "Check-in": NFs aprovadas de itens NF-elegíveis ainda sem check-in financeiro.
-  const checkinPendingCount = (invoices as any[]).filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId)).length;
+  const checkinPendingCount = invoices.filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId ?? "")).length;
 
   const tabs = [
-    { id: "lancamento" as const, label: "Lançamento",   count: pendingCount,   countCls: "bg-amber-100 text-amber-700" },
-    ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH", count: rhPendingCount, countCls: "bg-orange-100 text-orange-700" }] : []),
+    { id: "lancamento" as const, label: "Lançamento",   count: pendingCount,   countCls: "bg-warning-soft text-warning" },
+    ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH", count: rhPendingCount, countCls: "bg-warning-soft text-warning" }] : []),
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6">
+    <div className="min-h-screen bg-surface-muted p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header — flex-wrap: em ~375px o select de evento quebra em vez de estourar */}
         <PageHeader
@@ -323,7 +347,7 @@ export default function InvoicesPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button type="button" aria-label="Regra de liberação da nota fiscal" className="cursor-default">
-                      <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" aria-hidden="true" />
+                      <Info className="w-3.5 h-3.5 text-muted-foreground hover:text-slate-600 transition-colors" aria-hidden="true" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-[300px] text-xs font-normal">
@@ -337,11 +361,11 @@ export default function InvoicesPage() {
             <>
               Envio e aprovação de notas por colaborador
               {selectedEvent?.paymentCompanyName && (
-                <span className="inline-flex items-center gap-1.5 ml-2 text-slate-500">
-                  <Building2 className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
+                <span className="inline-flex items-center gap-1.5 ml-2 text-muted-foreground">
+                  <Building2 className="w-3 h-3 text-muted-foreground shrink-0" aria-hidden="true" />
                   <span className="font-medium text-slate-700">{selectedEvent.paymentCompanyName}</span>
                   {selectedEvent.paymentCompanyCnpj && (
-                    <span className="text-slate-400">· CNPJ {selectedEvent.paymentCompanyCnpj}</span>
+                    <span className="text-muted-foreground">· CNPJ {selectedEvent.paymentCompanyCnpj}</span>
                   )}
                 </span>
               )}
@@ -357,28 +381,34 @@ export default function InvoicesPage() {
           )}
         />
 
-        {activeEvents.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-7 h-7 text-gray-300" />
+        {/* Erro/carregando dos eventos (23/09): antes, enquanto a lista vinha
+            — ou quando falhava — a tela dizia "Nenhum evento ativo encontrado". */}
+        {qEvents.isError ? (
+          <QueryError error={qEvents.error} onRetry={() => qEvents.refetch()} title="Não foi possível carregar os eventos" />
+        ) : qEvents.isLoading ? (
+          <LoadingState count={4} label="Carregando eventos…" />
+        ) : activeEvents.length === 0 ? (
+          <div className="bg-card rounded-xl border border-border p-16 text-center">
+            <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-7 h-7 text-muted-foreground" aria-hidden="true" />
             </div>
-            <p className="text-sm font-semibold text-gray-600">Nenhum evento ativo encontrado</p>
-            <p className="text-xs text-gray-400 mt-1.5 max-w-xs mx-auto">Crie ou reative um evento para gerenciar as notas fiscais.</p>
+            <p className="text-sm font-semibold text-slate-600">Nenhum evento ativo encontrado</p>
+            <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">Crie ou reative um evento para gerenciar as notas fiscais.</p>
             <Link href="/events">
-              <a className="inline-flex items-center gap-1.5 mt-5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors">
-                <ExternalLink className="w-3.5 h-3.5" /> Ir para Eventos
+              <a className="inline-flex items-center gap-1.5 mt-5 px-4 py-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-xl shadow-1 transition-colors">
+                <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Ir para Eventos
               </a>
             </Link>
           </div>
         ) : !selectedEventId ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
-            <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">Selecione um evento para gerenciar as notas fiscais</p>
+          <div className="bg-card rounded-xl border border-border p-16 text-center">
+            <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">Selecione um evento para gerenciar as notas fiscais</p>
           </div>
         ) : !selectedEvent?.paymentCompanyCnpj?.trim() && canRH ? (
           // Definir a empresa pagadora é ação do RH/admin — só eles veem o formulário
           (() => {
-            const pcs = paymentCompanies as any[];
+            const pcs = paymentCompanies;
             const selectedPc = pcs.find(c => String(c.id) === confirmCompanyId);
             const isManual = confirmCompanyId === "__manual__" || pcs.length === 0;
             const canConfirm = isManual
@@ -392,14 +422,14 @@ export default function InvoicesPage() {
               setEventCompanyMutation.mutate({ name: chosenName, cnpj: chosenCnpj });
             };
             return (
-              <div className="bg-white rounded-2xl border border-amber-200 p-8 max-w-md mx-auto">
+              <div className="bg-card rounded-xl border border-warning/25 p-8 max-w-md mx-auto">
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                    <Building2 className="w-5 h-5 text-amber-500" />
+                  <div className="w-10 h-10 rounded-xl bg-warning-soft flex items-center justify-center shrink-0">
+                    <Building2 className="w-5 h-5 text-warning-strong" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">Confirme a empresa pagadora</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Necessária para emissão das notas fiscais</p>
+                    <p className="text-sm font-semibold text-foreground">Confirme a empresa pagadora</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Necessária para emissão das notas fiscais</p>
                   </div>
                 </div>
 
@@ -407,21 +437,21 @@ export default function InvoicesPage() {
                 <div className="space-y-3">
                   {pcs.length > 0 && (
                     <div>
-                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
+                      <label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
                         Empresa cadastrada
                       </label>
                       <select
                         value={confirmCompanyId}
                         onChange={e => setConfirmCompanyId(e.target.value)}
-                        className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400"
+                        className="w-full h-9 rounded-lg border border-border px-3 text-sm text-slate-700 bg-card focus:outline-none focus:ring-2 focus:ring-warning/50 focus:border-warning-strong"
                       >
-                        <option value="" disabled>Selecione a empresa pagadora...</option>
+                        <option value="" disabled>Selecione a empresa pagadora…</option>
                         {pcs.map(c => (
                           <option key={c.id} value={c.id}>
                             {c.name} — {c.cnpj}
                           </option>
                         ))}
-                        <option value="__manual__">Inserir manualmente...</option>
+                        <option value="__manual__">Inserir manualmente…</option>
                       </select>
                     </div>
                   )}
@@ -430,7 +460,7 @@ export default function InvoicesPage() {
                   {(isManual || pcs.length === 0) && (
                     <div className="space-y-2 pt-1">
                       <div>
-                        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                        <label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
                           Nome da empresa
                         </label>
                         <input
@@ -438,11 +468,11 @@ export default function InvoicesPage() {
                           value={confirmCustomName}
                           onChange={e => setConfirmCustomName(e.target.value)}
                           placeholder="Ex.: Produtora XYZ Ltda"
-                          className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400"
+                          className="w-full h-9 rounded-lg border border-border px-3 text-sm text-slate-700 bg-card focus:outline-none focus:ring-2 focus:ring-warning/50 focus:border-warning-strong"
                         />
                       </div>
                       <div>
-                        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                        <label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
                           CNPJ
                         </label>
                         <input
@@ -450,7 +480,7 @@ export default function InvoicesPage() {
                           value={confirmCustomCnpj}
                           onChange={e => setConfirmCustomCnpj(e.target.value)}
                           placeholder="00.000.000/0000-00"
-                          className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400"
+                          className="w-full h-9 rounded-lg border border-border px-3 text-sm text-slate-700 bg-card focus:outline-none focus:ring-2 focus:ring-warning/50 focus:border-warning-strong"
                         />
                       </div>
                     </div>
@@ -458,19 +488,19 @@ export default function InvoicesPage() {
 
                   {/* Preview when company selected from list */}
                   {!isManual && selectedPc && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
-                      <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                      <span className="text-xs text-amber-800 font-medium">{selectedPc.name}</span>
-                      <span className="text-xs text-amber-500 ml-auto">{selectedPc.cnpj}</span>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning-soft border border-warning/25">
+                      <Building2 className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />
+                      <span className="text-xs text-warning font-medium">{selectedPc.name}</span>
+                      <span className="text-xs text-warning-strong ml-auto">{selectedPc.cnpj}</span>
                     </div>
                   )}
 
                   <button
                     disabled={!canConfirm || setEventCompanyMutation.isPending}
                     onClick={() => setCompanyDialogOpen(true)}
-                    className="w-full h-10 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-semibold transition-colors mt-1"
+                    className="w-full h-10 rounded-xl bg-warning-strong hover:bg-warning/90 disabled:opacity-40 text-white text-sm font-semibold transition-colors mt-1"
                   >
-                    {setEventCompanyMutation.isPending ? 'Salvando...' : 'Confirmar e Continuar'}
+                    {setEventCompanyMutation.isPending ? 'Salvando…' : 'Confirmar e Continuar'}
                   </button>
 
                   <AlertDialog open={companyDialogOpen} onOpenChange={setCompanyDialogOpen}>
@@ -492,16 +522,18 @@ export default function InvoicesPage() {
               </div>
             );
           })()
+        ) : estado.isError ? (
+          <QueryError error={estado.error} onRetry={estado.retry} title="Não foi possível carregar as notas fiscais deste evento" />
         ) : dataLoading ? (
-          <div className="space-y-3" aria-busy="true" aria-label="Carregando notas fiscais">
+          <div className="space-y-3" role="status" aria-busy="true" aria-label="Carregando notas fiscais">
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 px-5 py-4 animate-pulse flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-gray-200 shrink-0" />
+              <div key={i} className="bg-card rounded-xl border border-border px-5 py-4 animate-pulse motion-reduce:animate-none flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-border shrink-0" />
                 <div className="flex-1 space-y-2 min-w-0">
-                  <div className="h-3 bg-gray-200 rounded w-40 max-w-full" />
-                  <div className="h-2.5 bg-gray-100 rounded w-24" />
+                  <div className="h-3 bg-border rounded w-40 max-w-full" />
+                  <div className="h-2.5 bg-muted rounded w-24" />
                 </div>
-                <div className="h-6 w-24 bg-gray-100 rounded-full shrink-0" />
+                <div className="h-6 w-24 bg-muted rounded-full shrink-0" />
               </div>
             ))}
           </div>
@@ -510,8 +542,8 @@ export default function InvoicesPage() {
             {/* Empresa pagadora indefinida + papel sem RH: aviso somente-leitura,
                 sem bloquear a visualização das NFs */}
             {!selectedEvent?.paymentCompanyCnpj?.trim() && (
-              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                <Building2 className="w-4 h-4 text-amber-500 shrink-0" />
+              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-warning-soft border border-warning/25 text-xs text-warning">
+                <Building2 className="w-4 h-4 text-warning-strong shrink-0" aria-hidden="true" />
                 A empresa pagadora deste evento ainda não foi definida pelo RH. As notas fiscais continuam disponíveis para consulta.
               </div>
             )}
@@ -520,20 +552,20 @@ export default function InvoicesPage() {
             <InvoiceStepper counts={{ lancamento: pendingCount, aprovacao: rhPendingCount, checkin: checkinPendingCount }} />
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+            <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                     activeTab === tab.id
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-card text-foreground shadow-1"
+                      : "text-muted-foreground hover:text-slate-700"
                   }`}
                 >
                   {tab.label}
                   {tab.count > 0 && (
-                    <span className={`${tab.countCls} px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none`}>
+                    <span className={`${tab.countCls} px-1.5 py-0.5 rounded-full text-2xs font-bold leading-none`}>
                       {tab.count}
                     </span>
                   )}
@@ -552,21 +584,23 @@ export default function InvoicesPage() {
                 selectedEventId={selectedEventId}
                 qc={qc}
                 toast={toast}
-                initialFilter={initialFilter}
+                filterStatus={filterStatus}
+                onFilterStatus={setFilterStatus}
                 highlightActualId={highlightActualId}
               />
             )}
 
             {activeTab === "aprovacao" && canRH && (
               <AprovacaoTab
-                invoices={invoices as any[]}
+                invoices={invoices}
                 getName={getName}
                 getFuncName={getFuncName}
-                budgetActuals={budgetActuals as any[]}
+                budgetActuals={budgetActuals}
                 selectedEventId={selectedEventId}
                 qc={qc}
                 toast={toast}
-                initialFilter={initialFilter}
+                filterStatus={filterStatus}
+                onFilterStatus={setFilterStatus}
                 highlightActualId={highlightActualId}
               />
             )}
@@ -580,23 +614,40 @@ export default function InvoicesPage() {
 // ── Lançamento Tab ────────────────────────────────────────────────────────────
 const LANC_FILTERS = [
   { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
-  { id: "pendente",          label: "Pendente",           activeBg: "bg-gray-500 text-white" },
-  { id: "enviada",           label: "Aguardando RH",      activeBg: "bg-amber-500 text-white" },
-  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
-  { id: "recusada",          label: "NF recusada",        activeBg: "bg-red-800 text-white" },
-  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-white" },
-  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
+  { id: "pendente",          label: "Pendente",           activeBg: "bg-slate-500 text-white" },
+  { id: "enviada",           label: "Aguardando RH",      activeBg: "bg-warning-strong text-white" },
+  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-warning-strong text-white" },
+  { id: "recusada",          label: "NF recusada",        activeBg: "bg-danger text-white" },
+  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-primary-foreground" },
+  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-success text-white" },
   { id: "sem-nf",            label: "Não emite NF",       activeBg: "bg-slate-500 text-white" },
 ];
 
-function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
-  const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
-  const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
+type ToastFn = ReturnType<typeof useToast>["toast"];
 
-  // When initialFilter changes (e.g. navigating from another page), apply it
-  useEffect(() => {
-    if (initialFilter) setFilterStatus(initialFilter);
-  }, [initialFilter]);
+/** Props comuns das abas e do card: resolvedores de nome e infra da página. */
+interface AbaBaseProps {
+  getName: (id?: string | null) => string;
+  getFuncName: (id?: string | null) => string;
+  selectedEventId: string;
+  qc: QueryClient;
+  toast: ToastFn;
+  filterStatus: string;
+  onFilterStatus: (v: string) => void;
+  highlightActualId: string;
+}
+
+interface LancamentoTabProps extends AbaBaseProps {
+  approvedActuals: BudgetActual[];
+  emitsNfFor: (actual: BudgetActual) => boolean;
+  getInvoice: (actualId: string) => Invoice | undefined;
+  selectedEvent: Event | undefined;
+}
+
+// Filtro de status controlado pela página (vive na URL desde 23/09).
+function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: LancamentoTabProps) {
+  const setFilterStatus = onFilterStatus;
+  const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
 
   // When highlightActualId arrives, update and clear after animation
   useEffect(() => {
@@ -624,7 +675,7 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
     return () => clearTimeout(t);
   }, [highlightedId, filterStatus, approvedActuals?.length]);
 
-  function getEffStatus(actual: any) {
+  function getEffStatus(actual: BudgetActual) {
     if (!emitsNfFor(actual)) return "sem-nf"; // definido na escalação
     return getEffectiveStatus(getInvoice(actual.id));
   }
@@ -632,18 +683,18 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
   const countFor = (id: string) =>
     id === "all"
       ? approvedActuals.length
-      : approvedActuals.filter((a: any) => getEffStatus(a) === id).length;
+      : approvedActuals.filter(a => getEffStatus(a) === id).length;
 
   const filtered = filterStatus === "all"
     ? approvedActuals
-    : approvedActuals.filter((a: any) => getEffStatus(a) === filterStatus);
+    : approvedActuals.filter(a => getEffStatus(a) === filterStatus);
 
   if (approvedActuals.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
-        <AlertCircle className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-        <p className="text-sm text-gray-400">Nenhum colaborador com Realizado enviado para este evento.</p>
-        <p className="text-xs text-gray-300 mt-1">O lançamento de notas é liberado assim que o Realizado é enviado. Itens devolvidos ou rejeitados ficam pausados até a regularização.</p>
+      <div className="bg-card rounded-xl border border-border p-16 text-center">
+        <AlertCircle className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground">Nenhum colaborador com Realizado enviado para este evento.</p>
+        <p className="text-xs text-muted-foreground mt-1">O lançamento de notas é liberado assim que o Realizado é enviado. Itens devolvidos ou rejeitados ficam pausados até a regularização.</p>
       </div>
     );
   }
@@ -653,28 +704,28 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
       <FilterPills filters={LANC_FILTERS} active={filterStatus} countFor={countFor} onChange={setFilterStatus} />
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-          <p className="text-sm text-gray-400">Nenhum item com este status.</p>
+        <div className="bg-card rounded-xl border border-border p-12 text-center">
+          <p className="text-sm text-muted-foreground">Nenhum item com este status.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
-          {filtered.map((actual: any) => {
+          {filtered.map(actual => {
             const isTarget = actual.id === highlightedId;
             if (!emitsNfFor(actual)) {
               // Definido na escalação: não emite NF — mostra o item sem cobrar nota
               return (
-                <div key={actual.id} data-actual-id={actual.id} className="rounded-2xl bg-slate-50 border border-slate-200 px-5 py-4 flex items-center gap-4">
-                  <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                <div key={actual.id} data-actual-id={actual.id} className="rounded-xl bg-surface-muted border border-border px-5 py-4 flex items-center gap-4">
+                  <div className="w-9 h-9 rounded-full bg-border flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
                     {(getName(actual.collaboratorId) || "?").charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-600 truncate">{getName(actual.collaboratorId)}</p>
-                    <p className="text-[11px] text-slate-400">{getFuncName(actual.functionId)}</p>
+                    <p className="text-2xs text-muted-foreground">{getFuncName(actual.functionId)}</p>
                   </div>
-                  <span className="text-sm font-mono font-semibold text-slate-500">
-                    {((actual.totalValue || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  <span className="text-sm font-mono font-semibold text-muted-foreground">
+                    {formatarMoeda(actual.totalValue || 0)}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-200 text-slate-600 text-[11px] font-bold whitespace-nowrap" title="Definido na escalação — nenhuma nota fiscal será cobrada deste colaborador">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-border text-slate-600 text-2xs font-bold whitespace-nowrap" title="Definido na escalação — nenhuma nota fiscal será cobrada deste colaborador">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                     Não emite NF
                   </span>
@@ -685,7 +736,7 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
               <div
                 key={actual.id}
                 data-actual-id={actual.id}
-                className={`rounded-2xl transition-all duration-700 ${isTarget ? "ring-2 ring-violet-400 ring-offset-2 shadow-lg shadow-violet-100" : ""}`}
+                className={`rounded-xl transition-all duration-700 ${isTarget ? "ring-2 ring-ring ring-offset-2 shadow-2 " : ""}`}
               >
                 <InvoiceCard
                   actual={actual}
@@ -707,11 +758,18 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
 }
 
 // ── Invoice Card (collaborator view) ─────────────────────────────────────────
-function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
+interface InvoiceCardProps extends Pick<AbaBaseProps, "getName" | "getFuncName" | "selectedEventId" | "qc" | "toast"> {
+  actual: BudgetActual;
+  invoice: Invoice | undefined;
+  selectedEvent: Event | undefined;
+}
+
+function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: InvoiceCardProps) {
   const effStatus = getEffectiveStatus(invoice);
   const cfg = getStatusCfg(effStatus);
 
   const [oc, setOc] = useState(invoice?.oc || "");
+  const [erros, setErros] = useState<{ oc?: string; anexo?: string }>({});
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -763,8 +821,9 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         setUploading(false);
       }
 
-      if (!oc.trim()) throw new Error("OC obrigatória");
-      if (!attachmentUrl) throw new Error("Nota em anexo obrigatória");
+      if (!oc.trim()) { setErros({ oc: "Informe o número da OC." }); document.getElementById(`nf-oc-${actual.id}`)?.focus(); throw new Error("Informe o número da OC."); }
+      if (!attachmentUrl) { setErros({ anexo: "Anexe o arquivo da nota fiscal." }); document.getElementById(`nf-file-btn-${actual.id}`)?.focus(); throw new Error("Anexe o arquivo da nota fiscal."); }
+      setErros({});
 
       if (invoice) {
         return apiRequest("PATCH", `/api/invoices/${invoice.id}`, { oc, attachmentUrl, attachmentName, paymentText, status: "enviada" }).then(r => r.json());
@@ -783,38 +842,38 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
       // A nota só documenta o pagamento, então nada de aviso de Flash aqui.
       toast({ title: "Nota enviada!", description: "Aguardando análise do RH." });
     },
-    onError: (e: any) => {
+    onError: (e: unknown) => {
       setUploading(false);
       // e.body vem do apiRequest enriquecido — mostra a mensagem real do
       // servidor (ex.: validação de OC repetida) em vez do texto genérico
-      toast({ title: "Erro", description: e?.body?.message || e.message || "Erro ao enviar nota", variant: "destructive" });
+      toast({ title: "Não foi possível enviar a nota", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     },
   });
 
   return (
     <div
-      className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-shadow hover:shadow-md"
+      className="bg-card rounded-xl border border-border overflow-hidden shadow-1 transition-shadow hover:shadow-2"
       style={{ borderLeft: `3px solid ${historyOpen ? "var(--primary)" : cfg.border}` }}
     >
       {/* Header row */}
-      <div className={`flex items-center justify-between px-5 py-4 transition-colors ${historyOpen ? "bg-blue-50/30" : ""}`}>
+      <div className={`flex items-center justify-between px-5 py-4 transition-colors ${historyOpen ? "bg-brand-soft/30" : ""}`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${cfg.avatarCls}`}>
             {initial}
           </div>
           <div className="min-w-0">
-            <div className="text-[14px] font-semibold text-slate-800 truncate">{displayName}</div>
+            <div className="text-sm font-semibold text-foreground truncate">{displayName}</div>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="text-[11px] text-slate-400 truncate">{funcName}</div>
-              {hasReturn && <span title="Houve devolução" className="text-[10px] text-orange-500 font-bold leading-none">↩</span>}
+              <div className="text-2xs text-muted-foreground truncate">{funcName}</div>
+              {hasReturn && <span title="Houve devolução" className="text-2xs text-warning-strong font-bold leading-none">↩</span>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[18px] font-bold text-violet-600 tabular-nums font-mono">
+          <span className="text-lg font-bold text-primary tabular-nums font-mono">
             {formatCurrency(actual.totalValue)}
           </span>
-          <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${cfg.pill}`}>
+          <span className={`text-2xs font-semibold px-2.5 py-1 rounded-full ${cfg.pill}`}>
             {cfg.label}
           </span>
           {invoice && history.length > 0 && (
@@ -824,11 +883,11 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
               aria-expanded={historyOpen}
               aria-label={historyOpen ? "Fechar histórico" : `Abrir histórico (${history.length} eventos)`}
               className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
-                historyOpen ? "text-primary bg-blue-100" : "text-slate-400 hover:text-primary hover:bg-blue-50"
+                historyOpen ? "text-primary bg-brand-soft" : "text-muted-foreground hover:text-primary hover:bg-brand-soft"
               }`}
             >
-              <Clock className="w-3.5 h-3.5" />
-              {!historyOpen && <span className="text-[10px] font-semibold leading-none tabular-nums">{history.length}</span>}
+              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+              {!historyOpen && <span className="text-2xs font-semibold leading-none tabular-nums">{history.length}</span>}
             </button>
           )}
           {effStatus === "devolvida" && (
@@ -836,9 +895,9 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
               onClick={() => setExpanded(e => !e)}
               aria-expanded={expanded}
               aria-label={expanded ? "Recolher motivo da devolução" : "Ver motivo da devolução"}
-              className="text-slate-400 hover:text-slate-600 transition-colors"
+              className="text-muted-foreground hover:text-slate-600 transition-colors"
             >
-              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {expanded ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
             </button>
           )}
         </div>
@@ -850,60 +909,64 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         {canEdit && (
           <div className="flex flex-wrap items-end gap-3 mb-3">
             <div className="flex-1 min-w-[180px]">
-              <label htmlFor={`nf-oc-${actual.id}`} className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
-                Número OC <span className="text-red-400">*</span>
+              <label htmlFor={`nf-oc-${actual.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+                Número OC<RequiredMark />
               </label>
               <Input
                 id={`nf-oc-${actual.id}`}
                 value={oc}
-                onChange={e => setOc(e.target.value)}
+                aria-required="true"
+                {...campoComErro(`nf-oc-${actual.id}`, erros.oc)}
+                onChange={e => { setOc(e.target.value); if (erros.oc) setErros(p => ({ ...p, oc: undefined })); }}
                 placeholder="OC-0000"
-                className="h-9 text-sm rounded-xl border-[#e5e7eb] focus:border-primary"
+                className="h-9 text-sm rounded-xl border-border focus:border-primary"
               />
-              <p className="text-[10px] text-slate-400 mt-0.5">OCs repetidas no evento devem usar o mesmo anexo.</p>
+              <MensagemDeErro id={`nf-oc-${actual.id}`} erro={erros.oc} />
+              <p className="text-2xs text-muted-foreground mt-0.5">OCs repetidas no evento devem usar o mesmo anexo.</p>
             </div>
             <div className="flex-1 min-w-[180px]">
-              <label htmlFor={`nf-file-${actual.id}`} className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
-                Nota fiscal <span className="text-red-400">*</span>
+              <label htmlFor={`nf-file-${actual.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+                Nota fiscal<RequiredMark />
               </label>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
+                  id={`nf-file-btn-${actual.id}`}
+                  {...campoComErro(`nf-file-btn-${actual.id}`, erros.anexo)}
                   onClick={() => fileRef.current?.click()}
-                  className="flex-1 h-9 flex items-center gap-1.5 px-3 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
+                  className="flex-1 h-9 flex items-center gap-1.5 px-3 border border-dashed border-slate-300 rounded-xl text-xs text-muted-foreground hover:border-success-strong hover:bg-success-soft/40 transition-all min-w-0"
                 >
                   {file ? (
-                    <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
+                    <><FileCheck className="w-3.5 h-3.5 text-success shrink-0" aria-hidden="true" /><span className="truncate text-success font-medium">{file.name}</span></>
                   ) : invoice?.attachmentUrl && !clearedAttachment ? (
-                    <><Paperclip className="w-3.5 h-3.5 shrink-0" /><span className="truncate">Substituir nota</span></>
+                    <><Paperclip className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span className="truncate">Substituir nota</span></>
                   ) : (
-                    <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Anexar nota</span></>
+                    <><Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span>Anexar nota</span></>
                   )}
                 </button>
                 {(file || (invoice?.attachmentUrl && !clearedAttachment)) && (
                   <button type="button" onClick={removeAttachment} aria-label="Remover anexo"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                    <X className="w-3 h-3" />
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors shrink-0">
+                    <X className="w-3 h-3" aria-hidden="true" />
                   </button>
                 )}
               </div>
               <input ref={fileRef} id={`nf-file-${actual.id}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
               {invoice?.attachmentUrl && !file && !clearedAttachment && (
                 <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                  className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-blue-500 hover:underline">
-                  <Eye className="w-2.5 h-2.5" /> Ver atual
+                  className="mt-0.5 inline-flex items-center gap-0.5 text-2xs text-primary hover:underline">
+                  <Eye className="w-2.5 h-2.5" aria-hidden="true" /> Ver atual
                 </a>
               )}
             </div>
             <Button
               size="sm"
-              className="rounded-xl text-white px-5 h-9 text-sm shadow-sm shrink-0"
-              style={{ background: "#059669" }}
+              className="rounded-xl text-white px-5 h-9 text-sm shadow-1 shrink-0 bg-success"
               onClick={() => submitMutation.mutate()}
               disabled={submitMutation.isPending || uploading}
             >
-              <Send className="w-3.5 h-3.5 mr-1.5" />
-              {submitMutation.isPending || uploading ? "Enviando..." : effStatus === "devolvida" ? "Reenviar" : "Enviar nota"}
+              <Send className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+              {submitMutation.isPending || uploading ? "Enviando…" : effStatus === "devolvida" ? "Reenviar" : "Enviar nota"}
             </Button>
           </div>
         )}
@@ -912,13 +975,13 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         {!canEdit && effStatus === "enviada" && invoice?.oc && (
           <div className="flex items-center gap-4 mb-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OC</span>
-              <span className="text-[13px] font-mono font-semibold text-slate-700">{invoice.oc}</span>
+              <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</span>
+              <span className="text-sm font-mono font-semibold text-slate-700">{invoice.oc}</span>
             </div>
             {invoice?.attachmentUrl && (
               <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
-                <FileText className="w-3.5 h-3.5" /> Ver nota
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
+                <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
               </a>
             )}
           </div>
@@ -929,14 +992,14 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
           <div className="flex items-center gap-4 mb-2">
             {invoice?.oc && (
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OC</span>
-                <span className="text-[13px] font-mono font-semibold text-slate-700">{invoice.oc}</span>
+                <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</span>
+                <span className="text-sm font-mono font-semibold text-slate-700">{invoice.oc}</span>
               </div>
             )}
             {invoice?.attachmentUrl && (
               <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
-                <FileText className="w-3.5 h-3.5" /> Ver nota
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
+                <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
               </a>
             )}
           </div>
@@ -944,8 +1007,8 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 
         {/* Check-in realizado */}
         {effStatus === "checkin-realizado" && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-success-soft text-success border border-success/25">
+            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
             Check-in Realizado
             {invoice?.checkinAt && <span className="font-normal opacity-75">· {fmtDate(invoice.checkinAt)}</span>}
             {invoice?.paymentDate && (
@@ -958,19 +1021,19 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 
         {/* Aguardando Check-in — apenas badge estático no Lançamento */}
         {effStatus === "checkin-pendente" && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-primary border border-blue-200">
-            <Clock className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-brand-soft text-primary border border-primary/25">
+            <Clock className="w-3.5 h-3.5" aria-hidden="true" />
             Aprovada · Aguardando Check-in Financeiro
           </div>
         )}
 
         {/* Devolvida — motivo */}
         {expanded && effStatus === "devolvida" && (
-          <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-2">
-            <RotateCcw className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
+          <div className="mt-3 bg-warning-soft border border-warning/25 rounded-xl px-4 py-3 flex items-start gap-2">
+            <RotateCcw className="w-3.5 h-3.5 text-warning-strong mt-0.5 shrink-0" aria-hidden="true" />
             <div>
-              <p className="text-[10px] font-semibold text-orange-600 mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
-              <p className="text-xs text-orange-700">{invoice?.returnComment || "Sem comentário."}</p>
+              <p className="text-2xs font-semibold text-warning mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
+              <p className="text-xs text-warning">{invoice?.returnComment || "Sem comentário."}</p>
             </div>
           </div>
         )}
@@ -982,23 +1045,23 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
               <div className="flex items-center gap-4 mb-2">
                 {invoice?.oc && (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OC</span>
-                    <span className="text-[13px] font-mono font-semibold text-slate-700">{invoice.oc}</span>
+                    <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</span>
+                    <span className="text-sm font-mono font-semibold text-slate-700">{invoice.oc}</span>
                   </div>
                 )}
                 {invoice?.attachmentUrl && (
                   <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
-                    <FileText className="w-3.5 h-3.5" /> Ver nota
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
+                    <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
                   </a>
                 )}
               </div>
             )}
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
-              <Ban className="w-3.5 h-3.5 text-red-600 mt-0.5 shrink-0" />
+            <div className="bg-danger-soft border border-danger/25 rounded-xl px-4 py-3 flex items-start gap-2">
+              <Ban className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" aria-hidden="true" />
               <div>
-                <p className="text-[10px] font-semibold text-red-700 mb-0.5 uppercase tracking-wide">NF recusada — decisão definitiva, sem reenvio</p>
-                <p className="text-xs text-red-700">{invoice?.returnComment || "Sem motivo informado."}</p>
+                <p className="text-2xs font-semibold text-danger mb-0.5 uppercase tracking-wide">NF recusada — decisão definitiva, sem reenvio</p>
+                <p className="text-xs text-danger">{invoice?.returnComment || "Sem motivo informado."}</p>
               </div>
             </div>
           </>
@@ -1007,8 +1070,8 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 
       {/* History panel */}
       {historyOpen && history.length > 0 && (
-        <div style={{ background: "#F8FAFC", borderTop: "1px solid #DBEAFE", padding: "12px 20px 14px 48px" }}>
-          <HistoryPanel events={history} collabName={name} />
+        <div className="bg-surface-muted border-t border-t-primary/25" style={{ padding: "12px 20px 14px 48px" }}>
+          <HistoryPanel events={history} />
         </div>
       )}
     </div>
@@ -1018,17 +1081,18 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 // ── Aprovação Tab ─────────────────────────────────────────────────────────────
 const APROV_FILTERS = [
   { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
-  { id: "enviada",           label: "Aguardando",         activeBg: "bg-amber-500 text-white" },
-  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-white" },
-  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
-  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
-  { id: "recusada",          label: "NF recusada",        activeBg: "bg-red-800 text-white" },
+  { id: "enviada",           label: "Aguardando",         activeBg: "bg-warning-strong text-white" },
+  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-primary-foreground" },
+  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-success text-white" },
+  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-warning-strong text-white" },
+  { id: "recusada",          label: "NF recusada",        activeBg: "bg-danger text-white" },
 ];
 
 // ── History helpers ───────────────────────────────────────────────────────────
-function fmtDateTime(iso?: string | null) {
-  if (!iso) return null;
-  const d = new Date(iso);
+function fmtDateTime(raw?: string | Date | null) {
+  const s = iso(raw);
+  if (!s) return null;
+  const d = new Date(s);
   if (isNaN(d.getTime())) return null;
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -1053,17 +1117,33 @@ type HistEvent = {
 const HIST_CFG: Record<HistEvent["type"], { label: string; color: string; by: "colaborador" | "rh" }> = {
   enviado:   { label: "Enviado",   color: "var(--primary)", by: "colaborador" },
   reenviado: { label: "Reenviado", color: "var(--primary)", by: "colaborador" },
-  devolvido: { label: "Devolvido", color: "#D97706", by: "rh" },
-  recusado:  { label: "Recusado",  color: "#B91C1C", by: "rh" },
-  aprovado:  { label: "Aprovado",  color: "#16A34A", by: "rh" },
-  checkin:   { label: "Check-in",  color: "#7C3AED", by: "rh" },
+  devolvido: { label: "Devolvido", color: "var(--warning)", by: "rh" },
+  recusado:  { label: "Recusado",  color: "var(--danger)", by: "rh" },
+  aprovado:  { label: "Aprovado",  color: "var(--success)", by: "rh" },
+  checkin:   { label: "Check-in",  color: "var(--primary)", by: "rh" },
 };
 
-function buildHistory(inv: any, collabName: string): HistEvent[] {
+/** Entrada do JSON gravado em `invoices.history` (texto livre do servidor). */
+interface StoredHistEntry {
+  type?: string;
+  at?: string | null;
+  oc?: string | null;
+  attachmentName?: string | null;
+  comment?: string | null;
+  paymentDate?: string | null;
+}
+
+function parseStoredHistory(raw: string | null | undefined): StoredHistEntry[] {
+  if (!raw) return [];
+  const parsed: unknown = JSON.parse(raw);
+  return Array.isArray(parsed) ? (parsed as StoredHistEntry[]) : [];
+}
+
+function buildHistory(inv: Invoice, collabName: string): HistEvent[] {
   // Use stored history if available
   if (inv.history) {
     try {
-      const stored: any[] = JSON.parse(inv.history);
+      const stored = parseStoredHistory(inv.history);
       if (stored.length > 0) {
         return stored.map(e => {
           const cfg = HIST_CFG[e.type as HistEvent["type"]] || HIST_CFG.enviado;
@@ -1086,33 +1166,33 @@ function buildHistory(inv: any, collabName: string): HistEvent[] {
   const events: HistEvent[] = [];
   events.push({ type: "enviado", label: "Enviado", color: "var(--primary)", at: fmtDateTime(inv.createdAt), by: toTitleCase(collabName) });
   if (inv.returnComment) {
-    events.push({ type: "devolvido", label: "Devolvido", color: "#D97706", at: null, by: "RH", comment: inv.returnComment });
+    events.push({ type: "devolvido", label: "Devolvido", color: "var(--warning)", at: null, by: "RH", comment: inv.returnComment });
   }
   if (inv.approvedAt) {
-    events.push({ type: "aprovado", label: "Aprovado", color: "#16A34A", at: fmtDateTime(inv.approvedAt), by: "RH" });
+    events.push({ type: "aprovado", label: "Aprovado", color: "var(--success)", at: fmtDateTime(inv.approvedAt), by: "RH" });
   }
   if (inv.paymentDate) {
-    events.push({ type: "checkin", label: "Check-in", color: "#7C3AED", at: null, by: "RH", paymentDate: inv.paymentDate });
+    events.push({ type: "checkin", label: "Check-in", color: "var(--primary)", at: null, by: "RH", paymentDate: inv.paymentDate });
   }
   return events;
 }
 
-function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName: string }) {
+function HistoryPanel({ events }: { events: HistEvent[] }) {
   if (events.length === 0) return null;
   if (events.length === 1) {
     const e = events[0];
     return (
-      <div className="text-[11px] text-slate-500 italic">
+      <div className="text-2xs text-muted-foreground italic">
         Enviado em {e.at || "—"} por {e.by}
         {e.oc && <span className="not-italic text-slate-600 ml-1">· OC: <span className="font-mono font-semibold">{e.oc}</span></span>}
-        {e.attachmentName && <span className="not-italic text-slate-500 ml-1">· Nota: {e.attachmentName}</span>}
+        {e.attachmentName && <span className="not-italic text-muted-foreground ml-1">· Nota: {e.attachmentName}</span>}
       </div>
     );
   }
   return (
     <div className="relative pl-4">
       {/* vertical dotted line */}
-      <div className="absolute left-[7px] top-3 bottom-3 w-px border-l-2 border-dotted border-slate-200" />
+      <div className="absolute left-[7px] top-3 bottom-3 w-px border-l-2 border-dotted border-border" />
       <div className="space-y-3">
         {events.map((ev, i) => (
           <div key={i} className="relative flex items-start gap-3">
@@ -1120,33 +1200,33 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
             <div className="absolute -left-4 top-[5px] w-2 h-2 rounded-full ring-2 ring-white shrink-0" style={{ background: ev.color }} />
             <div className="min-w-0 w-full">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[12px] font-semibold" style={{ color: ev.color }}>{ev.label}</span>
-                {ev.at && <span className="text-[11px] text-[#888]">{ev.at}</span>}
-                <span className="text-[11px] text-[#666] italic">por {ev.by}</span>
+                <span className="text-xs font-semibold" style={{ color: ev.color }}>{ev.label}</span>
+                {ev.at && <span className="text-2xs text-muted-foreground">{ev.at}</span>}
+                <span className="text-2xs text-muted-foreground italic">por {ev.by}</span>
               </div>
               {/* OC and attachment for sent/resent */}
               {(ev.type === "enviado" || ev.type === "reenviado") && (ev.oc || ev.attachmentName) && (
                 <div className="mt-1 ml-0 flex items-center gap-3 flex-wrap">
                   {ev.oc && (
-                    <span className="text-[11px] text-slate-600">
-                      OC: <span className="font-mono font-semibold text-slate-800">{ev.oc}</span>
+                    <span className="text-2xs text-slate-600">
+                      OC: <span className="font-mono font-semibold text-foreground">{ev.oc}</span>
                     </span>
                   )}
                   {ev.attachmentName && (
-                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                      <Paperclip className="w-2.5 h-2.5" /> {ev.attachmentName}
+                    <span className="text-2xs text-muted-foreground flex items-center gap-1">
+                      <Paperclip className="w-2.5 h-2.5" aria-hidden="true" /> {ev.attachmentName}
                     </span>
                   )}
                 </div>
               )}
               {ev.comment && (
-                <div className="mt-1 text-[11px] text-amber-800"
-                  style={{ background: "#FEF3C7", borderLeft: "2px solid #D97706", padding: "4px 8px", borderRadius: "0 4px 4px 0" }}>
+                <div className="mt-1 text-2xs text-warning bg-warning-soft border-l-2 border-l-warning py-1 px-2"
+                  style={{ borderRadius: "0 4px 4px 0" }}>
                   {ev.comment}
                 </div>
               )}
               {ev.paymentDate && (
-                <div className="mt-1 text-[11px] text-violet-700 italic">
+                <div className="mt-1 text-2xs text-primary italic">
                   Pagamento previsto: {fmtDate(ev.paymentDate)}
                 </div>
               )}
@@ -1161,18 +1241,20 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
 type AprovAction = "approve" | "return" | "reject" | "checkin";
 type ActiveAprovAction = { invId: string; type: AprovAction } | null;
 
-function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
+interface AprovacaoTabProps extends AbaBaseProps {
+  invoices: Invoice[];
+  budgetActuals: BudgetActual[];
+}
+
+// Filtro de status controlado pela página (vive na URL desde 23/09).
+function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: AprovacaoTabProps) {
   const [active, setActive]             = useState<ActiveAprovAction>(null);
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
   const [comment, setComment]           = useState("");
+  const [tocouMotivo, setTocouMotivo]   = useState(false);
   const [checkinDate, setCheckinDate]   = useState("");
-  const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
+  const setFilterStatus = onFilterStatus;
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
-
-  // Mesmo padrão da LancamentoTab: aplica o filtro vindo da URL quando ele muda
-  useEffect(() => {
-    if (initialFilter) setFilterStatus(initialFilter);
-  }, [initialFilter]);
 
   // Param `actual` → destaca a linha e limpa após a animação (padrão da LancamentoTab)
   useEffect(() => {
@@ -1226,7 +1308,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       closeAction();
       toast({ title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao aprovar nota", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível aprovar a nota", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const returnMutation = useMutation({
@@ -1239,7 +1321,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       closeAction();
       toast({ title: "Nota devolvida para ajuste." });
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao devolver nota", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível devolver a nota", description: apiErrorMessage(err, "Informe o motivo da devolução e tente novamente."), variant: "destructive" }),
   });
 
   const rejectMutation = useMutation({
@@ -1253,7 +1335,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       // aprovado; para estornar, rejeite/devolva o comparativo do evento.
       toast({ title: "Nota recusada.", description: "A recusa é definitiva — esta nota não poderá ser reenviada." });
     },
-    onError: (e: any) => toast({ title: "Erro", description: e?.body?.message || "Erro ao recusar nota", variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Não foi possível recusar a nota", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
 
   const checkinMutation = useMutation({
@@ -1267,27 +1349,27 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       closeAction();
       toast({ title: "Check-in realizado!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao realizar check-in", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível fazer o check-in", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   if (invoices.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
-        <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-        <p className="text-sm text-gray-400">Nenhuma nota enviada ainda para este evento.</p>
+      <div className="bg-card rounded-xl border border-border p-16 text-center">
+        <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground">Nenhuma nota enviada ainda para este evento.</p>
       </div>
     );
   }
 
-  const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
+  const getActual = (id: string | null) => budgetActuals.find(a => a.id === id);
 
-  function daysSince(inv: any) {
+  function daysSince(inv: Invoice) {
     // Conta a partir do último envio/reenvio registrado no histórico
     // (após uma devolução + reenvio, o prazo reinicia). Fallback: createdAt.
-    let ref: string | null = inv.createdAt || null;
+    let ref: string | null = iso(inv.createdAt);
     if (inv.history) {
       try {
-        const stored: any[] = JSON.parse(inv.history);
+        const stored = parseStoredHistory(inv.history);
         for (const e of stored) {
           if ((e?.type === "enviado" || e?.type === "reenviado") && e?.at) ref = e.at;
         }
@@ -1300,24 +1382,24 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   const aprovCountFor = (id: string) => {
     if (id === "all") return invoices.length;
-    return invoices.filter((i: any) => getEffectiveStatus(i) === id).length;
+    return invoices.filter(i => getEffectiveStatus(i) === id).length;
   };
   const alertFor = (id: string): number => {
     if (id !== "enviada") return 0;
-    return invoices.filter((i: any) => i.status === "enviada" && daysSince(i) > 3).length;
+    return invoices.filter(i => i.status === "enviada" && daysSince(i) > 3).length;
   };
 
   const filteredInvoices = filterStatus === "all"
     ? invoices
-    : invoices.filter((i: any) => getEffectiveStatus(i) === filterStatus);
+    : invoices.filter(i => getEffectiveStatus(i) === filterStatus);
 
   // Totals footer
-  const approvedTotal = invoices.reduce((sum: number, inv: any) => {
+  const approvedTotal = invoices.reduce((sum: number, inv) => {
     if (inv.status !== "aprovada") return sum;
     const actual = getActual(inv.budgetActualId);
     return sum + (actual?.totalValue || 0);
   }, 0);
-  const waitingTotal = invoices.reduce((sum: number, inv: any) => {
+  const waitingTotal = invoices.reduce((sum: number, inv) => {
     if (inv.status !== "enviada") return sum;
     const actual = getActual(inv.budgetActualId);
     return sum + (actual?.totalValue || 0);
@@ -1328,9 +1410,10 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     <div className="space-y-3">
       <FilterPills filters={APROV_FILTERS} active={filterStatus} countFor={aprovCountFor} onChange={setFilterStatus} alertFor={alertFor} />
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full" style={{ tableLayout: "fixed", minWidth: "760px" }}>
+          <caption className="sr-only">Notas fiscais: colaborador, evento, valor, competência e situação da nota</caption>
           <colgroup>
             <col style={{ width: "210px" }} />
             <col style={{ width: "120px" }} />
@@ -1341,25 +1424,25 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
             <col />
           </colgroup>
           <thead>
-            <tr className="border-b border-gray-100 bg-slate-50/60">
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Colaborador</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Função</th>
-              <th className="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Valor</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">OC</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Nota</th>
-              <th className="px-2 py-3" />
-              <th className="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
+            <tr className="border-b border-border bg-surface-muted/60">
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Colaborador</th>
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Função</th>
+              <th scope="col" className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Valor</th>
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</th>
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Nota</th>
+              <th scope="col" className="px-2 py-3" />
+              <th scope="col" className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
             </tr>
           </thead>
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   Nenhum item com este status.
                 </td>
               </tr>
             ) : null}
-            {filteredInvoices.map((inv: any) => {
+            {filteredInvoices.map(inv => {
               const actual   = getActual(inv.budgetActualId);
               const name     = getName(inv.collaboratorId);
               const effSt        = getEffectiveStatus(inv);
@@ -1378,20 +1461,20 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                 <Fragment key={inv.id}>
                   <tr
                     data-actual-id={inv.budgetActualId}
-                    className={`hover:bg-gray-50/60 transition-colors duration-700 ${
+                    className={`hover:bg-surface-muted/60 transition-colors duration-700 ${
                       isTarget
-                        ? "bg-violet-50/70"
+                        ? "bg-brand-soft/70"
                         : isActive && active?.type === "approve"
-                        ? "bg-white"
+                        ? "bg-card"
                         : isHistOpen
-                        ? "bg-blue-50/30"
+                        ? "bg-brand-soft/30"
                         : isActive
-                        ? "bg-gray-50"
-                        : "border-b border-gray-50"
+                        ? "bg-surface-muted"
+                        : "border-b border-border"
                     }`}
                     style={{
                       borderLeft: `3px solid ${borderColor}`,
-                      ...(isTarget ? { boxShadow: "inset 0 0 0 2px #a78bfa" } : {}),
+                      ...(isTarget ? { boxShadow: "inset 0 0 0 2px var(--primary)" } : {}),
                     }}
                   >
                     {/* Colaborador */}
@@ -1401,17 +1484,17 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                           {initial}
                         </div>
                         <div className="min-w-0">
-                          <span className="text-[13px] font-medium text-slate-800 truncate block" title={toTitleCase(name)}>{toTitleCase(name)}</span>
+                          <span className="text-sm font-medium text-foreground truncate block" title={toTitleCase(name)}>{toTitleCase(name)}</span>
                           <div className="flex items-center gap-1 flex-wrap">
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
+                            <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
                             {hasReturn && (
-                              <span title="Houve devolução" className="text-[10px] text-orange-500 font-bold leading-none">↩</span>
+                              <span title="Houve devolução" className="text-2xs text-warning-strong font-bold leading-none">↩</span>
                             )}
                             {effSt === "enviada" && (() => {
                               const d = daysSince(inv);
-                              const color = d <= 2 ? "#6b7280" : d <= 5 ? "#D97706" : "#DC2626";
+                              const color = d <= 2 ? "var(--muted-foreground)" : d <= 5 ? "var(--warning)" : "var(--danger)";
                               return (
-                                <span className="text-[10px] font-medium leading-none" style={{ color }}>
+                                <span className="text-2xs font-medium leading-none" style={{ color }}>
                                   há {d} {d === 1 ? "dia" : "dias"}{d > 5 ? " ⚠" : ""}
                                 </span>
                               );
@@ -1422,11 +1505,11 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                     </td>
                     {/* Função */}
                     <td className="px-4 py-3.5 overflow-hidden">
-                      <span className="text-xs text-slate-500 truncate block">{getFuncName(inv.functionId)}</span>
+                      <span className="text-xs text-muted-foreground truncate block">{getFuncName(inv.functionId)}</span>
                     </td>
                     {/* Valor */}
                     <td className="px-4 py-3.5 text-right">
-                      <span className="text-[13px] font-bold text-violet-600 tabular-nums font-mono">
+                      <span className="text-sm font-bold text-primary tabular-nums font-mono">
                         {actual ? formatCurrency(actual.totalValue) : "—"}
                       </span>
                     </td>
@@ -1438,10 +1521,10 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                     <td className="px-4 py-3.5">
                       {inv.attachmentUrl ? (
                         <a href={inv.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                          <FileText className="w-3.5 h-3.5" /> Ver nota
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                          <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
                         </a>
-                      ) : <span className="text-slate-300 text-xs">—</span>}
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
                     {/* Histórico toggle */}
                     <td className="px-2 py-3.5 text-center">
@@ -1452,13 +1535,13 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         aria-label={isHistOpen ? "Fechar histórico" : `Abrir histórico (${history.length} eventos)`}
                         className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
                           isHistOpen
-                            ? "text-primary bg-blue-100"
-                            : "text-slate-400 hover:text-primary hover:bg-blue-50"
+                            ? "text-primary bg-brand-soft"
+                            : "text-muted-foreground hover:text-primary hover:bg-brand-soft"
                         }`}
                       >
-                        <Clock className="w-3.5 h-3.5" />
+                        <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                         {!isHistOpen && (
-                          <span className="text-[10px] font-semibold leading-none tabular-nums">{history.length}</span>
+                          <span className="text-2xs font-semibold leading-none tabular-nums">{history.length}</span>
                         )}
                       </button>
                     </td>
@@ -1469,46 +1552,48 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                           <>
                             {actualBlocked && (
                               <span
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-200 whitespace-nowrap"
+                                className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-1 rounded-full bg-warning-soft text-warning border border-warning/25 whitespace-nowrap"
                                 title="Realizado devolvido — aguarde o reenvio"
                               >
-                                <AlertTriangle className="w-3 h-3" /> Realizado devolvido
+                                <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Realizado devolvido
                               </span>
                             )}
-                            <button
+                            <MotivoDesabilitado motivo={actualBlocked ? "Realizado devolvido — aguarde o reenvio" : undefined} desabilitado={actualBlocked}>
+                              <button
                               onClick={() => openAction(inv.id, "approve")}
                               disabled={actualBlocked}
-                              title={actualBlocked ? "Realizado devolvido — aguarde o reenvio" : undefined}
+                             
                               className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
                                 actualBlocked
-                                  ? "text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed opacity-60"
+                                  ? "text-muted-foreground bg-surface-muted border-border cursor-not-allowed opacity-60"
                                   : isActive && active?.type === "approve"
-                                  ? "bg-emerald-600 text-white border-emerald-600"
-                                  : "text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                                  ? "bg-success text-white border-success"
+                                  : "text-success bg-success-soft border-success/25 hover:bg-success-soft"
                               }`}
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
+                              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Aprovar
                             </button>
+                            </MotivoDesabilitado>
                             <button
                               onClick={() => openAction(inv.id, "return")}
                               className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
                                 isActive && active?.type === "return"
-                                  ? "bg-amber-600 text-white border-amber-600"
-                                  : "text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
+                                  ? "bg-warning text-white border-warning"
+                                  : "text-warning bg-warning-soft border-warning/25 hover:bg-warning-soft"
                               }`}
                             >
-                              <RotateCcw className="w-3.5 h-3.5" /> Devolver
+                              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Devolver
                             </button>
                             <button
                               onClick={() => openAction(inv.id, "reject")}
                               title="Recusar em definitivo — a nota não poderá ser reenviada"
                               className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
                                 isActive && active?.type === "reject"
-                                  ? "bg-red-700 text-white border-red-700"
-                                  : "text-red-700 bg-red-50 border-red-200 hover:bg-red-100"
+                                  ? "bg-danger text-white border-danger"
+                                  : "text-danger bg-danger-soft border-danger/25 hover:bg-danger-soft"
                               }`}
                             >
-                              <Ban className="w-3.5 h-3.5" /> Recusar
+                              <Ban className="w-3.5 h-3.5" aria-hidden="true" /> Recusar
                             </button>
                           </>
                         )}
@@ -1517,26 +1602,26 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                             onClick={() => openAction(inv.id, "checkin")}
                             className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
                               isActive && active?.type === "checkin"
-                                ? "bg-primary text-white border-primary"
-                                : "text-primary bg-blue-50 border-blue-200 hover:bg-blue-100"
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "text-primary bg-brand-soft border-primary/25 hover:bg-brand-soft"
                             }`}
                           >
-                            <CircleDot className="w-3.5 h-3.5" /> Fazer Check-in
+                            <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Fazer Check-in
                           </button>
                         )}
                         {effSt === "checkin-realizado" && (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> {fmtDate(inv.paymentDate)}
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success bg-success-soft border border-success/25 px-2.5 py-1.5 rounded-lg">
+                            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> {fmtDate(inv.paymentDate)}
                           </span>
                         )}
                         {effSt === "devolvida" && (
-                          <span className="text-[11px] text-slate-400 italic truncate max-w-[180px]" title={inv.returnComment || undefined}>
+                          <span className="text-2xs text-muted-foreground italic truncate max-w-[180px]" title={inv.returnComment || undefined}>
                             {inv.returnComment || "Devolvida"}
                           </span>
                         )}
                         {effSt === "recusada" && (
                           <span
-                            className="text-[11px] text-red-600 italic truncate max-w-[180px]"
+                            className="text-2xs text-danger italic truncate max-w-[180px]"
                             title={inv.returnComment ? `Recusada: ${inv.returnComment}` : "Recusada"}
                           >
                             {inv.returnComment || "Recusada"}
@@ -1550,44 +1635,37 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                   {isActive && active && (
                     <tr
                       key={`${inv.id}-panel`}
-                      className={active.type === "approve" ? "" : "bg-slate-50 border-b border-slate-100"}
+                      className={active.type === "approve" ? "" : "bg-surface-muted border-b border-border"}
                       style={active.type === "approve" ? { borderLeft: `3px solid ${cfg.border}` } : {}}
                     >
                       <td
                         colSpan={7}
-                        className={active.type === "approve" ? "" : "px-5 py-3"}
-                        style={active.type === "approve" ? {
-                          background: "#F0FDF4",
-                          borderTop: "1px solid #86EFAC",
-                          padding: "10px 16px",
-                          borderRadius: "0 0 8px 8px",
-                        } : {}}
+                        className={active.type === "approve" ? "bg-success-soft border-t border-t-success-strong py-2.5 px-4 rounded-b-lg" : "px-5 py-3"}
                       >
 
                         {/* ── Aprovar ── */}
                         {active.type === "approve" && (
                           <div className="flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                              <span className="text-[13px] font-semibold text-emerald-700">Confirmar aprovação</span>
+                              <CheckCircle2 className="w-4 h-4 text-success" aria-hidden="true" />
+                              <span className="text-sm font-semibold text-success">Confirmar aprovação</span>
                             </div>
-                            <p className="text-xs text-emerald-700/70 flex-1">
+                            <p className="text-xs text-success/70 flex-1">
                               Confirmar aprovação desta nota? O RH deverá fazer o Check-in em seguida.
                             </p>
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={closeAction}
-                                className="h-8 px-3 text-xs font-medium text-slate-500 hover:text-slate-700 rounded-lg transition-colors"
+                                className="h-8 px-3 text-xs font-medium text-muted-foreground hover:text-slate-700 rounded-lg transition-colors"
                               >
                                 Cancelar
                               </button>
                               <button
                                 onClick={() => approveMutation.mutate(inv.id)}
                                 disabled={approveMutation.isPending}
-                                className="h-8 px-4 text-xs font-semibold text-white rounded-lg transition-colors disabled:opacity-50"
-                                style={{ background: "#16A34A" }}
+                                className="h-8 px-4 text-xs font-semibold text-white rounded-lg transition-colors disabled:opacity-50 bg-success"
                               >
-                                {approveMutation.isPending ? "Aprovando..." : "✓ Confirmar"}
+                                {approveMutation.isPending ? "Aprovando…" : "✓ Confirmar"}
                               </button>
                             </div>
                           </div>
@@ -1596,33 +1674,38 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {/* ── Devolver ── */}
                         {active.type === "return" && (
                           <div className="space-y-2.5">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg">
-                              <RotateCcw className="w-3.5 h-3.5" /> Devolver para ajuste
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning bg-warning-soft border border-warning/25 px-2.5 py-1.5 rounded-lg">
+                              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Devolver para ajuste
                             </span>
                             <div>
-                              <label htmlFor={`nf-return-${inv.id}`} className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
-                                Motivo da devolução <span className="text-red-400">*</span>
+                              <label htmlFor={`nf-return-${inv.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+                                Motivo da devolução<RequiredMark />
                               </label>
                               <Textarea
                                 id={`nf-return-${inv.id}`}
                                 rows={3}
                                 value={comment}
+                                aria-required="true"
+                                {...campoComErro(`nf-return-${inv.id}`, tocouMotivo && !comment.trim() ? "Informe o motivo da devolução." : undefined)}
                                 onChange={e => setComment(e.target.value)}
-                                placeholder="Descreva o que precisa ser corrigido (nota fiscal ou número OC)..."
-                                className="text-xs rounded-xl border-slate-200 resize-none w-full"
+                                onBlur={() => setTocouMotivo(true)}
+                                placeholder="Descreva o que precisa ser corrigido (nota fiscal ou número OC)…"
+                                className="text-xs rounded-xl border-border resize-none w-full"
                                 autoFocus
                               />
+                              <MensagemDeErro id={`nf-return-${inv.id}`} erro={tocouMotivo && !comment.trim() ? "Informe o motivo da devolução." : undefined} />
                             </div>
                             <div className="flex items-center justify-end gap-2">
-                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
-                                <X className="w-3 h-3" /> Cancelar
+                              <button onClick={closeAction} className="h-8 px-3 text-xs text-muted-foreground hover:bg-border rounded-lg flex items-center gap-1">
+                                <X className="w-3 h-3" aria-hidden="true" /> Cancelar
                               </button>
                               <button
-                                onClick={() => returnMutation.mutate(inv.id)}
+                                onClick={() => { setTocouMotivo(true); if (comment.trim()) returnMutation.mutate(inv.id); }}
                                 disabled={!comment.trim() || returnMutation.isPending}
-                                className="h-8 px-4 text-xs font-semibold bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                                aria-busy={returnMutation.isPending}
+                                className="h-8 px-4 text-xs font-semibold bg-warning hover:bg-warning/90 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                               >
-                                {returnMutation.isPending ? "Devolvendo..." : "↩ Confirmar Devolução"}
+                                {returnMutation.isPending ? "Devolvendo…" : "Confirmar devolução"}
                               </button>
                             </div>
                           </div>
@@ -1631,36 +1714,36 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {/* ── Recusar (terminal) ── */}
                         {active.type === "reject" && (
                           <div className="space-y-2.5">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg">
-                              <Ban className="w-3.5 h-3.5" /> Recusar nota fiscal
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-danger bg-danger-soft border border-danger/25 px-2.5 py-1.5 rounded-lg">
+                              <Ban className="w-3.5 h-3.5" aria-hidden="true" /> Recusar nota fiscal
                             </span>
-                            <p className="text-[11px] text-red-600">
+                            <p className="text-2xs text-danger">
                               A recusa é definitiva: a nota não poderá ser corrigida nem reenviada. Para pedir ajustes, use <strong>Devolver</strong>.
                             </p>
                             <div>
-                              <label htmlFor={`nf-reject-${inv.id}`} className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
-                                Motivo da recusa <span className="text-red-400">*</span>
+                              <label htmlFor={`nf-reject-${inv.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+                                Motivo da recusa<RequiredMark />
                               </label>
                               <Textarea
                                 id={`nf-reject-${inv.id}`}
                                 rows={3}
                                 value={comment}
                                 onChange={e => setComment(e.target.value)}
-                                placeholder="Explique por que esta nota está sendo recusada em definitivo..."
-                                className="text-xs rounded-xl border-slate-200 resize-none w-full"
+                                placeholder="Explique por que esta nota está sendo recusada em definitivo…"
+                                className="text-xs rounded-xl border-border resize-none w-full"
                                 autoFocus
                               />
                             </div>
                             <div className="flex items-center justify-end gap-2">
-                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
-                                <X className="w-3 h-3" /> Cancelar
+                              <button onClick={closeAction} className="h-8 px-3 text-xs text-muted-foreground hover:bg-border rounded-lg flex items-center gap-1">
+                                <X className="w-3 h-3" aria-hidden="true" /> Cancelar
                               </button>
                               <button
                                 onClick={() => rejectMutation.mutate(inv.id)}
                                 disabled={!comment.trim() || rejectMutation.isPending}
-                                className="h-8 px-4 text-xs font-semibold bg-red-700 hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                                className="h-8 px-4 text-xs font-semibold bg-danger hover:bg-danger/90 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                               >
-                                {rejectMutation.isPending ? "Recusando..." : "Confirmar Recusa"}
+                                {rejectMutation.isPending ? "Recusando…" : "Confirmar Recusa"}
                               </button>
                             </div>
                           </div>
@@ -1669,13 +1752,13 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {/* ── Check-in ── */}
                         {active.type === "checkin" && (
                           <div className="space-y-2.5">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg">
-                              <CircleDot className="w-3.5 h-3.5" /> Check-in Financeiro
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-brand-soft border border-primary/25 px-2.5 py-1.5 rounded-lg">
+                              <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Check-in Financeiro
                             </span>
                             <div className="flex items-center gap-3 flex-wrap">
                               <div>
-                                <label htmlFor={`nf-checkin-${inv.id}`} className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
-                                  Data de pagamento <span className="text-red-400">*</span>
+                                <label htmlFor={`nf-checkin-${inv.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+                                  Data de pagamento<RequiredMark />
                                 </label>
                                 <input
                                   id={`nf-checkin-${inv.id}`}
@@ -1683,19 +1766,19 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                   value={checkinDate}
                                   onChange={e => setCheckinDate(e.target.value)}
                                   autoFocus
-                                  className="h-9 text-sm border-2 border-blue-200 rounded-xl px-3 text-slate-700 bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-100"
+                                  className="h-9 text-sm border-2 border-primary/25 rounded-xl px-3 text-slate-700 bg-card focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
                                 />
                               </div>
                               <div className="flex items-center gap-2 mt-5">
-                                <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
-                                  <X className="w-3 h-3" /> Cancelar
+                                <button onClick={closeAction} className="h-8 px-3 text-xs text-muted-foreground hover:bg-border rounded-lg flex items-center gap-1">
+                                  <X className="w-3 h-3" aria-hidden="true" /> Cancelar
                                 </button>
                                 <button
                                   onClick={() => checkinMutation.mutate(inv.id)}
                                   disabled={!checkinDate || checkinMutation.isPending}
-                                  className="h-8 px-4 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors bg-primary hover:bg-primary-hover"
+                                  className="h-8 px-4 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground rounded-lg transition-colors bg-primary hover:bg-primary-hover"
                                 >
-                                  {checkinMutation.isPending ? "Salvando..." : "Confirmar Check-in"}
+                                  {checkinMutation.isPending ? "Salvando…" : "Confirmar Check-in"}
                                 </button>
                               </div>
                             </div>
@@ -1707,16 +1790,14 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
                   {/* History panel */}
                   {isHistOpen && (
-                    <tr key={`${inv.id}-history`} className="border-b border-blue-100">
+                    <tr key={`${inv.id}-history`} className="border-b border-primary/25">
                       <td
                         colSpan={7}
-                        style={{
-                          background: "#F8FAFC",
-                          borderTop: "1px solid #DBEAFE",
+                        className="bg-surface-muted border-t border-t-primary/25" style={{
                           padding: "12px 16px 12px 48px",
                         }}
                       >
-                        <HistoryPanel events={history} collabName={name} />
+                        <HistoryPanel events={history} />
                       </td>
                     </tr>
                   )}
@@ -1727,27 +1808,27 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
           {/* Totals footer */}
           {(approvedTotal > 0 || waitingTotal > 0) && (
             <tfoot>
-              <tr style={{ background: "#F8FAFC", borderTop: "2px solid #e5e7eb" }}>
+              <tr className="bg-surface-muted border-t-2 border-t-border">
                 <td className="px-4 py-3" colSpan={2}>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total do Evento</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Total do Evento</span>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-5">
                     {approvedTotal > 0 && (
                       <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Aprovado</span>
-                        <span className="text-[13px] font-bold text-emerald-600 tabular-nums font-mono">{formatCurrency(approvedTotal)}</span>
+                        <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Aprovado</span>
+                        <span className="text-sm font-bold text-success tabular-nums font-mono">{formatCurrency(approvedTotal)}</span>
                       </div>
                     )}
                     {waitingTotal > 0 && (
                       <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Aguardando</span>
-                        <span className="text-[13px] font-bold text-amber-600 tabular-nums font-mono">{formatCurrency(waitingTotal)}</span>
+                        <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Aguardando</span>
+                        <span className="text-sm font-bold text-warning tabular-nums font-mono">{formatCurrency(waitingTotal)}</span>
                       </div>
                     )}
-                    <div className="flex flex-col items-end border-l border-slate-200 pl-5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total</span>
-                      <span className="text-[13px] font-bold tabular-nums font-mono text-primary">{formatCurrency(grandTotal)}</span>
+                    <div className="flex flex-col items-end border-l border-border pl-5">
+                      <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Total</span>
+                      <span className="text-sm font-bold tabular-nums font-mono text-primary">{formatCurrency(grandTotal)}</span>
                     </div>
                   </div>
                 </td>

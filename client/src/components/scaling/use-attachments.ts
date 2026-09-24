@@ -4,6 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { isImageFile, isPdfFile } from "./scaling-utils";
 
 export interface AttachmentMeta { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }
@@ -33,7 +34,7 @@ export function useAttachments(opts: {
           const data = await res.json();
           if (alive) setAttachmentMeta(prev => ({ ...prev, [id]: data }));
         }
-      } catch (_) {}
+      } catch { /* sem storage */ }
     });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +65,7 @@ export function useAttachments(opts: {
         window.open(`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`, "_blank", "noopener,noreferrer");
       }
     } catch (err) {
-      toast({ title: "Erro", description: `Não foi possível abrir o anexo: ${err instanceof Error ? err.message : "Erro desconhecido"}`, variant: "destructive" });
+      toast({ title: "Não foi possível abrir o anexo", description: apiErrorMessage(err, "Tente de novo em instantes."), variant: "destructive" });
     }
   };
 

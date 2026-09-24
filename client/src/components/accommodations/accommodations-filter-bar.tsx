@@ -15,6 +15,7 @@ import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "
 import type { AccommodationFilters, AccSortConfig, AccSortField } from "./types";
 import ScalingPeriodFilter from "@/components/scaling/scaling-period-filter";
 import type { TeamInclusion } from "@shared/schema";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 interface Props {
   filters: AccommodationFilters;
@@ -39,7 +40,7 @@ interface Props {
   total: number;
 }
 
-const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-[13px] font-medium text-slate-700";
+const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-sm font-medium text-slate-700";
 
 /** Os mesmos valores dos `<select>` que estavam aqui — nada mudou de opção. */
 const STATUS_DA_HOSPEDAGEM = [
@@ -83,14 +84,14 @@ export default function AccommodationsFilterBar({
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <div className="relative flex-[1_1_260px] max-w-[320px]">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
         <input
           type="text"
           placeholder="Buscar por nome ou número…"
           aria-label="Buscar por nome ou número da inclusão"
           value={filters.searchId}
           onChange={(e) => onChange({ searchId: e.target.value })}
-          className={`w-full ${CONTROLE} pl-[33px] pr-3 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
+          className={`w-full ${CONTROLE} pl-[33px] pr-3 placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
           data-testid="input-search-id"
         />
       </div>
@@ -158,31 +159,33 @@ export default function AccommodationsFilterBar({
           testid="filter-sort"
         />
       </div>
-      <button
+      <MotivoDesabilitado motivo={ascendente ? "Ordem crescente — clique para inverter" : "Ordem decrescente — clique para inverter"} desabilitado={!sortConfig}>
+        <button
         type="button"
         // Sem campo escolhido não há o que inverter — desabilitar diz isso
         // melhor do que um botão que não faz nada ao ser clicado.
         disabled={!sortConfig}
         onClick={() => sortConfig && onSortChange({ ...sortConfig, direction: ascendente ? "desc" : "asc" })}
-        title={ascendente ? "Ordem crescente — clique para inverter" : "Ordem decrescente — clique para inverter"}
+       
         aria-label={ascendente ? "Ordem crescente, inverter" : "Ordem decrescente, inverter"}
-        className={`${CONTROLE} w-[34px] shrink-0 inline-flex items-center justify-center text-muted-foreground hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-card transition-colors`}
+        className={`${CONTROLE} w-[34px] shrink-0 inline-flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-card transition-colors`}
         data-testid="button-sort-direction"
       >
         {ascendente ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
       </button>
+      </MotivoDesabilitado>
 
       <button
         type="button"
         onClick={onClear}
-        className={`${CONTROLE} inline-flex items-center gap-1.5 px-3 text-muted-foreground hover:border-[#FECACA] hover:bg-[#FEF2F2] hover:text-[#B91C1C] transition-colors whitespace-nowrap shrink-0`}
+        className={`${CONTROLE} inline-flex items-center gap-1.5 px-3 text-muted-foreground hover:border-danger/25 hover:bg-danger-soft hover:text-danger transition-colors whitespace-nowrap shrink-0`}
         data-testid="button-clear-filters"
       >
         <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar filtros
       </button>
 
       <span
-        className="ml-auto text-[12px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
+        className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
         data-testid="contagem-hospedagens"
       >
         {contagem}

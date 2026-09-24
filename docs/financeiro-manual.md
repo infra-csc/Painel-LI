@@ -228,17 +228,28 @@ esperar a aprovação do Comparativo. Regras:
 
 ## Perfis de Acesso
 
-| Tela | RH | Responsável de Função | Outros |
-|------|----|----------------------|--------|
-| Planejado | ✅ Criar e editar | ✅ Visualizar | ❌ |
-| Realizado | ✅ Visualizar | ✅ Preencher e enviar | ❌ |
-| Comparativo | ✅ Aprovar/Devolver/Recusar | ✅ Visualizar resultado | ❌ |
-| Controle RH | ✅ Acesso total | ❌ | ❌ |
-| Notas Fiscais | ✅ Aprovar/Devolver/Check-in | ✅ Enviar nota | ❌ |
-| Conta Corrente Flash | ✅ Lançar/excluir | 👁 Consultar | ❌ |
+> **Atualizado em 24/09/2026 a partir do código.** Desde 23/09 **toda** rota do
+> módulo financeiro — leitura e escrita — exige papel `admin` ou `financial`
+> (RH): `requireFinSession`/`requireFinanceUser` em `server/routes/_compartilhado.ts`.
+> O "Responsável de Função" citado ao longo deste manual descreve o **papel no
+> processo** (quem preenche o Realizado); na prática, quem opera as telas é
+> uma pessoa com papel RH ou administrador — um usuário `function_area`
+> recebe 403 em `/api/budget-*`, `/api/invoices` e `/api/flash-movements`.
 
-> Desde 13/08/2026 essas permissões são **verificadas também no servidor**
-> (sessão obrigatória + papel nas ações de decisão), não apenas na interface.
+| Tela / API | Administrador e RH | Demais papéis |
+|------|----|----|
+| Planejado | ✅ Criar, editar, excluir, "não participou", reaplicar valores padrão | ❌ 403 (inclusive leitura) |
+| Realizado | ✅ Criar, duplicar, dividir, editar, enviar para revisão, decidir (aprovar/devolver/recusar) | ❌ |
+| Comparativo | ✅ Calcular, editar, aprovar/devolver/recusar (sincroniza/estorna o Flash) | ❌ |
+| Controle RH | ✅ (lê a fila inteira de vagas) | ❌ |
+| Notas Fiscais | ✅ Enviar, reenviar, aprovar, devolver, recusar, check-in | ❌ |
+| Conta Corrente Flash | ✅ Ler, lançar, crédito inicial, editar, excluir (automáticos são intocáveis) | ❌ |
+| Valores Padrão (`/api/system-settings`) | ✅ | ❌ |
+| Valores por função (`/api/function-values`) | ✅ escrever | 👁 leitura para qualquer sessão |
+| Observações do orçamento (`/api/budget-notes`) | ✅ | ✅ qualquer sessão lê e escreve |
+| Histórico por entidade (`/api/activity-logs`) | 👁 | ❌ |
+
+Matriz completa, rota a rota: [`seguranca-e-permissoes.md`](seguranca-e-permissoes.md) §3.13.
 
 ---
 

@@ -1,3 +1,4 @@
+import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
   Toast,
@@ -14,8 +15,12 @@ export function Toaster() {
   return (
     <ToastProvider>
       {toasts.map(function ({ id, title, description, action, ...props }) {
+        // Ícone pela variante (23/09): sucesso e erro se distinguem também
+        // pela forma, não só pela cor.
+        const Icone = props.variant === "success" ? CheckCircle2 : props.variant === "destructive" ? AlertCircle : null
         return (
           <Toast key={id} {...props}>
+            {Icone && <Icone className="h-5 w-5 shrink-0 self-start" aria-hidden="true" />}
             {/* min-w-0: sem isto o texto não encolhe e o botão de ação
                 espremia o título em três linhas. */}
             <div className="grid gap-1 min-w-0 flex-1">

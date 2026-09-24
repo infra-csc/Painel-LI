@@ -71,7 +71,7 @@ export const CENO_FREELA_MISSING_MSG = "Cenotécnica sem tipo de freela — defi
  * dedicada, e nunca fica pendente no formulário do modal.
  */
 export const isCenoFreelaTipoMissing = (inclusion: TeamInclusion, rules: Rules): boolean =>
-  isCenoEmpreitaFunction(rules.getFunctionName(inclusion.functionId)) && !(inclusion as any).cenoFreelaTipo;
+  isCenoEmpreitaFunction(rules.getFunctionName(inclusion.functionId)) && !inclusion.cenoFreelaTipo;
 
 /** Aviso não bloqueante da escalação (null = nada a avisar). */
 export const getScalingWarning = (inclusion: TeamInclusion | null, rules: Rules): string | null => {
@@ -83,8 +83,8 @@ export const getScalingWarning = (inclusion: TeamInclusion | null, rules: Rules)
 /** Valores gravados na escalação (sem edição) no formato da validação. */
 export const valuesFromInclusion = (inclusion: TeamInclusion): ValidationValues => ({
   collaboratorId: inclusion.collaboratorId || "",
-  atendimentoTipo: (inclusion as any).atendimentoTipo || "",
-  percurseiroTipo: (inclusion as any).percurseiroTipo || "",
+  atendimentoTipo: inclusion.atendimentoTipo || "",
+  percurseiroTipo: inclusion.percurseiroTipo || "",
   city: inclusion.city ?? "",
 });
 
@@ -155,7 +155,7 @@ export const getBulkConfirmBlockReason = (inclusion: TeamInclusion, rules: Rules
   if (inclusion.status === "cancelado") return "Escalação cancelada";
   if (isEscalated(inclusion)) return "Já confirmada";
   if (!rules.canConfirmEscalation(inclusion)) return "Sem permissão (apenas o responsável pela função)";
-  if (!inclusion.collaboratorId && !vagaComEmpreita(inclusion as any)) return "Sem colaborador";
+  if (!inclusion.collaboratorId && !vagaComEmpreita(inclusion)) return "Sem colaborador";
   const values = valuesFromInclusion(inclusion);
   if (isSaiDeMissing(values, rules)) return "Sem cidade de saída (Sai de)";
   if (isAtendimentoMissing(inclusion, values, rules)) return "Sem tipo de atendimento";

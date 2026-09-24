@@ -31,7 +31,7 @@ export default function BaggageWorkQueue({ contagens, ativa, onEscolher }: {
     <section
       ref={ref}
       aria-label="Bagagens por companhia aérea"
-      className={`grid rounded-[14px] border border-border bg-card overflow-hidden ${emQuatro ? "grid-cols-4" : "grid-cols-2"}`}
+      className={`grid rounded-xl border border-border bg-card overflow-hidden ${emQuatro ? "grid-cols-4" : "grid-cols-2"}`}
     >
       {CIA_ORDEM.map((cia, i) => {
         const r = contagens[cia];
@@ -39,8 +39,8 @@ export default function BaggageWorkQueue({ contagens, ativa, onEscolher }: {
         // Em 2×2 a borda esquerda cai nos ímpares e a de cima na segunda linha,
         // senão sobra um traço solto na borda do card.
         const divisorias = emQuatro
-          ? "border-l border-slate-100 first:border-l-0"
-          : `${i % 2 === 1 ? "border-l border-slate-100" : ""} ${i >= 2 ? "border-t border-slate-100" : ""}`;
+          ? "border-l border-border first:border-l-0"
+          : `${i % 2 === 1 ? "border-l border-border" : ""} ${i >= 2 ? "border-t border-border" : ""}`;
 
         const sub = r.bags === 0
           ? "nenhuma bagagem"
@@ -61,15 +61,15 @@ export default function BaggageWorkQueue({ contagens, ativa, onEscolher }: {
           >
             <span className="flex items-center gap-[7px]">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CIA_COR[cia] }} aria-hidden="true" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate" title={cia}>
+              <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate" title={cia}>
                 {cia}
               </span>
             </span>
             <span className="flex items-baseline gap-[7px] mt-1.5">
-              <span className={`text-[20px] font-semibold tabular-nums tracking-[-0.02em] ${r.bags === 0 ? "text-slate-400" : "text-slate-900"}`}>
+              <span className={`text-xl font-semibold tabular-nums tracking-[-0.02em] ${r.bags === 0 ? "text-muted-foreground" : "text-foreground"}`}>
                 {r.bags}
               </span>
-              <span className="text-[12px] text-muted-foreground truncate" title={sub}>{sub}</span>
+              <span className="text-xs text-muted-foreground truncate" title={sub}>{sub}</span>
             </span>
           </button>
         );

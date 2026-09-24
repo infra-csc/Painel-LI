@@ -1,6 +1,7 @@
 import { Clock, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateBr, formatDayMonthBr } from "@/lib/dates";
+import { StatusBadge, toneDoStatus, type Tone } from "@/components/common/status-badge";
 import {
   CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS, TRANSPORT_MODE_LABELS,
   DANGER_DAYS, STALLED_DAYS, PROPOSED_FIELD_LABELS, pendingSeverity,
@@ -17,19 +18,23 @@ export function formatDateTimeBr(v: string | Date | null | undefined): string {
 }
 
 // ── Tipo do pedido ───────────────────────────────────────────────────────────
+// Todas as pílulas deste módulo são o `StatusBadge` único (23/09): antes cada
+// uma tinha borda e paleta própria (violeta para "Pendente", ciano para "Já
+// escalado"), diferentes das da Validação para o mesmo estado.
 
-export const REQUEST_TYPE_CLASS: Record<ChangeRequestType, string> = {
-  ajuste: "bg-amber-50 text-amber-800 border-amber-200",
-  inclusao: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  exclusao: "bg-red-50 text-red-700 border-red-200",
+/** Tom do TIPO do pedido: ajuste = atenção, inclusão = cresce a escala, exclusão = tira gente. */
+export const REQUEST_TYPE_TONE: Record<ChangeRequestType, Tone> = {
+  ajuste: "warning",
+  inclusao: "success",
+  exclusao: "danger",
 };
 
 export function RequestTypeBadge({ type, className }: { type: string; className?: string }) {
   const t = type as ChangeRequestType;
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap", REQUEST_TYPE_CLASS[t] ?? "bg-slate-100 text-slate-600 border-slate-200", className)}>
+    <StatusBadge tone={REQUEST_TYPE_TONE[t] ?? "neutral"} className={cn("uppercase tracking-wide", className)}>
       {CHANGE_REQUEST_TYPE_LABELS[t] ?? type}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -42,33 +47,32 @@ export function RequestTypeBadge({ type, className }: { type: string; className?
  */
 export function PostScalingBadge({ className }: { className?: string }) {
   return (
-    <span
-      className={cn("inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 whitespace-nowrap", className)}
+    <StatusBadge
+      tone="info"
+      icon={UserCheck}
+      className={className}
       title="A pessoa já está escalada — a decisão é aplicada direto na escalação."
       data-testid="badge-ja-escalado"
     >
-      <UserCheck className="h-3 w-3" aria-hidden="true" />
       Já escalado
-    </span>
+    </StatusBadge>
   );
 }
 
 // ── Status do pedido ─────────────────────────────────────────────────────────
 
-const REQUEST_STATUS_CLASS: Record<ChangeRequestStatus, string> = {
-  pendente: "bg-violet-50 text-violet-700 border-violet-200",
-  aprovado: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  reajustado: "bg-sky-50 text-sky-700 border-sky-200",
-  negado: "bg-slate-100 text-slate-600 border-slate-200",
-  reenviado_validacao: "bg-amber-50 text-amber-700 border-amber-200",
-};
-
+/**
+ * Tom do STATUS do pedido — pelo dicionário semântico (`toneDoStatus`):
+ * pendente/reenviado = warning, aprovado = success, reajustado = info,
+ * negado = danger. Rótulo de recusa do pedido: "Negado" (shared; o pedido é
+ * masculino) — a sugestão é "Negada" e a troca "Rejeitada".
+ */
 export function RequestStatusBadge({ status, className }: { status: string; className?: string }) {
   const s = status as ChangeRequestStatus;
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap", REQUEST_STATUS_CLASS[s] ?? "bg-slate-100 text-slate-500 border-slate-200", className)}>
+    <StatusBadge tone={toneDoStatus(status)} className={className}>
       {CHANGE_REQUEST_STATUS_LABELS[s] ?? status}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -83,28 +87,28 @@ export function ageLabel(days: number): string {
 export function RequestAgeBadge({ days, className }: { days: number; className?: string }) {
   const sev = pendingSeverity(days);
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-        sev === "danger" ? "bg-red-50 text-red-700 border-red-200" : sev === "warn" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-500 border-slate-200",
-        className,
-      )}
+    <StatusBadge
+      tone={toneDaSeveridade(sev)}
+      icon={Clock}
+      className={className}
       title={sev === "danger" ? `Aguardando decisão há ${DANGER_DAYS} dias ou mais` : sev === "warn" ? `Aguardando decisão há ${STALLED_DAYS} dias ou mais` : undefined}
     >
-      <Clock className="w-3 h-3" aria-hidden="true" /> {ageLabel(days)}
-    </span>
+      {ageLabel(days)}
+    </StatusBadge>
   );
 }
 
-/** "Você decide" — o usuário logado é aprovador da função deste pedido (ou admin). */
+/** Severidade de atraso (shared `pendingSeverity`) → tom: ok = neutral, warn = warning, danger = danger. */
+export function toneDaSeveridade(sev: ReturnType<typeof pendingSeverity>): Tone {
+  return sev === "danger" ? "danger" : sev === "warn" ? "warning" : "neutral";
+}
+
+/** "Você decide" — o usuário logado é aprovador da função deste pedido (ou admin). Ação sua = primary. */
 export function CanDecideBadge({ className }: { className?: string }) {
   return (
-    <span
-      className={cn("inline-flex items-center gap-1 rounded-full border border-primary/30 bg-brand-soft/60 px-2 py-0.5 text-[11px] font-semibold text-primary whitespace-nowrap", className)}
-      title="Você é aprovador desta função: a decisão é sua."
-    >
-      <UserCheck className="w-3 h-3" aria-hidden="true" /> Você decide
-    </span>
+    <StatusBadge tone="primary" icon={UserCheck} className={className} title="Você é aprovador desta função: a decisão é sua.">
+      Você decide
+    </StatusBadge>
   );
 }
 

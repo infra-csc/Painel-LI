@@ -1,22 +1,24 @@
 import type { Event } from "@shared/schema";
+import type { Tone } from "@/components/common/status-badge";
 
 /**
  * Status de evento — fonte única para Eventos e Calendário.
  *
  * Chaves são as MESMAS strings gravadas em `events.status`
  * ("planejado", "em andamento", "concluído", "excluído").
+ *
+ * Cores (23/09): só tokens semânticos. Antes cada status tinha hex próprio
+ * (usado em `style={{}}`) e "Planejado" era violeta aqui e laranja no CSS
+ * global. Agora: planejado = info (agendado), em andamento = primary (ao
+ * vivo), concluído = success, excluído = neutral.
  */
 export type EventStatusKey = "planejado" | "em andamento" | "concluído" | "excluído";
 
 export interface EventStatusStyle {
   label: string;
-  /** cores hex (usadas em style={{}} na tela de Eventos) */
-  dot: string;
-  bg: string;
-  text: string;
-  bar: string;
-  border: string;
-  /** classes tailwind equivalentes (usadas no Calendário) */
+  /** Tom semântico — o `StatusBadge` de components/common desenha a pílula. */
+  tone: Tone;
+  /** classes tailwind (Calendário: chips, barras, painéis) */
   tw: {
     bg: string;
     text: string;
@@ -30,9 +32,6 @@ export interface EventStatusStyle {
     /** borda lateral do card da Semana */
     edge: string;
   };
-  /** ícone material-symbols (Lista do Calendário) */
-  iconName: string;
-  iconFill: boolean;
   /** animação de "ao vivo" nas listas */
   pulse: boolean;
 }
@@ -40,43 +39,43 @@ export interface EventStatusStyle {
 export const STATUS: Record<string, EventStatusStyle> = {
   planejado: {
     label: "Planejado",
-    dot: "#8B5CF6", bg: "#F5F3FF", text: "#6D28D9", bar: "#8B5CF6", border: "#DDD6FE",
+    tone: "info",
     tw: {
-      bg: "bg-violet-100", text: "text-violet-800", border: "border-violet-200",
-      bar: "bg-violet-500", barText: "text-white", dot: "bg-violet-500", iconText: "text-violet-600",
-      panelBg: "bg-violet-50", panelBorder: "border-violet-200", edge: "border-violet-500",
+      bg: "bg-info-soft", text: "text-info", border: "border-info/20",
+      bar: "bg-info-strong", barText: "text-white", dot: "bg-info-strong", iconText: "text-info",
+      panelBg: "bg-info-soft", panelBorder: "border-info/20", edge: "border-info-strong",
     },
-    iconName: "schedule", iconFill: false, pulse: false,
+    pulse: false,
   },
   "em andamento": {
     label: "Em andamento",
-    dot: "#F97316", bg: "#FFF7ED", text: "#C2410C", bar: "#F97316", border: "#FED7AA",
+    tone: "primary",
     tw: {
-      bg: "bg-orange-100", text: "text-orange-800", border: "border-orange-200",
-      bar: "bg-orange-500", barText: "text-white", dot: "bg-orange-500", iconText: "text-orange-600",
-      panelBg: "bg-orange-50", panelBorder: "border-orange-200", edge: "border-orange-500",
+      bg: "bg-brand-soft", text: "text-primary", border: "border-primary/20",
+      bar: "bg-primary", barText: "text-white", dot: "bg-primary", iconText: "text-primary",
+      panelBg: "bg-brand-soft", panelBorder: "border-primary/20", edge: "border-primary",
     },
-    iconName: "play_circle", iconFill: true, pulse: true,
+    pulse: true,
   },
   concluído: {
     label: "Concluído",
-    dot: "#22C55E", bg: "#F0FDF4", text: "#15803D", bar: "#22C55E", border: "#BBF7D0",
+    tone: "success",
     tw: {
-      bg: "bg-green-100", text: "text-green-800", border: "border-green-200",
-      bar: "bg-green-500", barText: "text-white", dot: "bg-green-500", iconText: "text-green-600",
-      panelBg: "bg-green-50", panelBorder: "border-green-200", edge: "border-green-500",
+      bg: "bg-success-soft", text: "text-success", border: "border-success/20",
+      bar: "bg-success-strong", barText: "text-white", dot: "bg-success-strong", iconText: "text-success",
+      panelBg: "bg-success-soft", panelBorder: "border-success/20", edge: "border-success-strong",
     },
-    iconName: "check_circle", iconFill: true, pulse: false,
+    pulse: false,
   },
   excluído: {
     label: "Excluído",
-    dot: "#94A3B8", bg: "#F8FAFC", text: "#64748B", bar: "#CBD5E1", border: "#E2E8F0",
+    tone: "neutral",
     tw: {
-      bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200",
-      bar: "bg-slate-300", barText: "text-slate-700", dot: "bg-slate-400", iconText: "text-slate-500",
-      panelBg: "bg-slate-50", panelBorder: "border-slate-200", edge: "border-slate-300",
+      bg: "bg-neutral-soft", text: "text-neutral", border: "border-border",
+      bar: "bg-neutral/40", barText: "text-foreground", dot: "bg-neutral", iconText: "text-neutral",
+      panelBg: "bg-surface-muted", panelBorder: "border-border", edge: "border-neutral/40",
     },
-    iconName: "cancel", iconFill: false, pulse: false,
+    pulse: false,
   },
 };
 

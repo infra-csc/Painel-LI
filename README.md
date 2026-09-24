@@ -11,7 +11,7 @@ o app roda dentro de um iframe do portal.
 
 ```bash
 npm install
-cp .env.example .env   # preencha DATABASE_URL, SESSION_SECRET e SSO_SECRET
+cp .env.example .env   # preencha DATABASE_URL, SESSION_SECRET, SSO_SECRET e PORTAL_ORIGIN
 npm run dev            # sobe API + client em http://localhost:5000
 ```
 
@@ -22,6 +22,9 @@ npm run dev            # sobe API + client em http://localhost:5000
 | `npm start` | Roda o build de produção |
 | `npm run check` | Type-check do projeto inteiro (`tsc`) |
 | `npm test` | Suíte de testes (vitest) |
+| `npm run lint` | ESLint: erros bloqueiam; avisos são a dívida do design system |
+
+O CI (`.github/workflows/ci.yml`) roda tipos, lint, testes, build e `npm audit` em todo push.
 
 > **Nunca rode `npm run db:push`.** O schema é aplicado por scripts de migração
 > manuais — ver "Banco de dados" abaixo.
@@ -32,9 +35,17 @@ npm run dev            # sobe API + client em http://localhost:5000
 client/src     React 18 + wouter + TanStack Query + Tailwind/shadcn
 server/        Express + Drizzle ORM (Neon Postgres serverless)
 shared/        Schema Drizzle/Zod + regras de negócio puras (usadas pelos dois)
-docs/          Manual do módulo financeiro e modelo de segurança
+docs/          Arquitetura, segurança/permissões, migrações e manual do financeiro
 scripts/       Migrações manuais e utilitários de dados
 ```
+
+Documentação:
+
+- [`docs/arquitetura.md`](docs/arquitetura.md) — onde cada coisa mora e por quê (camadas, máquina de estados da vaga, regras compartilhadas)
+- [`docs/seguranca-e-permissoes.md`](docs/seguranca-e-permissoes.md) — autenticação, matriz de permissões por rota e pendências operacionais
+- [`docs/migracoes.md`](docs/migracoes.md) — runbook de migrações de banco
+- [`docs/financeiro-manual.md`](docs/financeiro-manual.md) — passo a passo do fluxo financeiro por tela
+- [`design_guidelines.md`](design_guidelines.md) — tokens, componentes e regras visuais do client
 
 O diretório `shared/` é o que mantém client e servidor coerentes:
 
@@ -49,6 +60,10 @@ uma tela divergirem da lista de outra.
 
 ## Segurança
 
+Modelo em camadas (headers, sessão em Postgres, SSO com JWT estrito, gate global
+com `req.user`, CSRF fail-closed, autorização por papel e escopo, `asyncHandler`
+em toda rota). Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md).
+
 Toda rota `/api` exige sessão (exceto `/api/auth/`, `/api/integration/` e
 `/api/portal/`), a identidade vem **somente** do cookie de sessão, e as ações
 sensíveis exigem papel verificado no servidor.
@@ -59,20 +74,24 @@ Detalhes, matriz de permissões e pendências de rotação de segredos:
 ## Banco de dados
 
 Postgres (Neon serverless). O schema vive em `shared/schema.ts` e as mudanças
-são aplicadas por **scripts manuais e idempotentes** em `scripts/migrations/`:
+são aplicadas por **scripts manuais e idempotentes** em `scripts/migrations/`
+— nunca por `drizzle-kit push` (um push de checkout antigo já apagou colunas
+de produção duas vezes):
 
 ```bash
-DATABASE_URL='...' npx tsx scripts/migrations/<arquivo>.ts
+DATABASE_URL='...' npx tsx scripts/check-schema-drift.ts        # antes
+DATABASE_URL='...' npx tsx scripts/migrations/<arquivo>.ts      # a migração
+DATABASE_URL='...' npx tsx scripts/check-schema-drift.ts        # depois
 ```
 
-Por quê e não `drizzle-kit push`: o `db:push` produz diffs falso-positivos na
-tabela `session` e em defaults de timestamp, e chega a oferecer recriação de
-colunas — risco de perda de dados. O snapshot em `migrations/0000_*.sql` está
-desatualizado e não reproduz o banco atual; **o banco vivo é a fonte de
-verdade**, espelhada em `shared/schema.ts`.
+Desenvolvimento e produção são **bancos diferentes**; o banco vivo é a fonte
+de verdade, espelhada em `shared/schema.ts`. `server/ensure-schema.ts` repõe
+no boot só o que o app não sobrevive sem — é rede de segurança, não migração.
 
-Ao adicionar um campo: escreva o `ALTER TABLE ... IF NOT EXISTS` num script
-novo, rode contra o banco e espelhe a coluna em `shared/schema.ts`.
+Runbook completo (como escrever um script, `CONCURRENTLY`/`NOT VALID`, ordem do
+que está pendente, baseline com `pg_dump`, proposta de `drizzle-kit generate`):
+[`docs/migracoes.md`](docs/migracoes.md). Índice cronológico dos scripts:
+[`scripts/migrations/README.md`](scripts/migrations/README.md).
 
 ## Fluxo financeiro
 
@@ -85,7 +104,9 @@ o reenvio. Passo a passo por tela em
 
 ## Testes
 
-`npm test` roda a suíte do vitest, concentrada nas regras puras de `shared/`
-(cálculo de diárias com deflação, papéis e autorização, transições do fluxo de
-prestação, parsing monetário pt-BR). Testes ficam ao lado do código, como
-`*.test.ts`.
+`npm test` roda o vitest: regras puras de `shared/` (status e transições da vaga,
+conflito de agenda, diárias e deflação, papéis, prestação de contas, parse de
+voucher), módulos puros do client (filtros, relatórios, formulários) e as funções
+puras do servidor (espelho, Flash). Testes ficam ao lado do código, como
+`*.test.ts`. Cenários manuais por deploy: seção 12 do relatório de auditoria
+de 23/09 (link em `docs/arquitetura.md`).

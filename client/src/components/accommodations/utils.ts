@@ -1,7 +1,10 @@
 import { fixEncoding } from "@/lib/utils";
+import { fetchJson } from "@/lib/queryClient";
+import { normalizeSwaps, type NormalizedSwap } from "@/lib/swap-types";
 import type { Accommodation, TeamInclusion } from "@shared/schema";
-import { EMPTY_DRAFT, type AccommodationDraft, type NormalizedSwap } from "./types";
+import { EMPTY_DRAFT, type AccommodationDraft } from "./types";
 
+import { formatarMoeda } from "@/lib/format";
 // Status de inclusão em que a hospedagem já foi registrada — a partir daí só
 // Compras/admin alteram (decisão do usuário; espelha isReadOnly em lib/interactions).
 export const POST_PURCHASE_STATUSES = ["hospedagem_comprada", "hospedagem_passagem_comprada"];
@@ -54,7 +57,7 @@ export function initials(name: string | null | undefined): string {
 
 export function brl(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return "—";
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return formatarMoeda(cents);
 }
 
 /**
@@ -76,42 +79,12 @@ export function draftFrom(acc: Accommodation | undefined | null, inclusion: Team
   };
 }
 
-// A API de trocas devolve SQL cru (snake_case + joins). Aceita também camelCase
-// para o caso de a rota passar a usar o ORM.
-type RawSwap = Record<string, unknown>;
-const pick = (r: RawSwap, ...keys: string[]): unknown => {
-  for (const k of keys) if (r[k] !== undefined && r[k] !== null) return r[k];
-  return null;
-};
-const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
+// Normalização das trocas: uma só para o client (client/src/lib/swap-types.ts,
+// 23/09). A lista GLOBAL vem do hook useSwapRequests; `fetchSwaps` fica só
+// para a consulta por vaga do modal.
+export { normalizeSwap } from "@/lib/swap-types";
 
-export function normalizeSwap(raw: RawSwap): NormalizedSwap {
-  return {
-    id: String(pick(raw, "id") ?? ""),
-    teamInclusionId: String(pick(raw, "team_inclusion_id", "teamInclusionId") ?? ""),
-    status: String(pick(raw, "status") ?? "pendente"),
-    currentCollaboratorId: str(pick(raw, "current_collaborator_id", "currentCollaboratorId")),
-    newCollaboratorId: str(pick(raw, "new_collaborator_id", "newCollaboratorId")),
-    currentCollaboratorName: str(pick(raw, "current_collaborator_name", "currentCollaboratorName")),
-    newCollaboratorName: str(pick(raw, "new_collaborator_name", "newCollaboratorName")),
-    requestedByName: str(pick(raw, "requested_by_name", "requestedByName")),
-    reason: str(pick(raw, "reason")),
-    reviewComment: str(pick(raw, "review_comment", "reviewComment")),
-    createdAt: str(pick(raw, "created_at", "createdAt")),
-    newCity: str(pick(raw, "new_city", "newCity")),
-    swapKind: String(pick(raw, "swap_kind", "swapKind") ?? "substituicao"),
-    pairedInclusionId: str(pick(raw, "paired_inclusion_id", "pairedInclusionId")),
-    pairedNewCity: str(pick(raw, "paired_new_city", "pairedNewCity")),
-    inclusionNumber: pick(raw, "inclusion_number", "inclusionNumber") != null ? String(pick(raw, "inclusion_number", "inclusionNumber")) : null,
-    eventName: str(pick(raw, "event_name", "eventName")),
-    pairedInclusionNumber: pick(raw, "paired_inclusion_number", "pairedInclusionNumber") != null ? String(pick(raw, "paired_inclusion_number", "pairedInclusionNumber")) : null,
-    pairedEventName: str(pick(raw, "paired_event_name", "pairedEventName")),
-  };
-}
-
-export async function fetchSwaps(url: string): Promise<NormalizedSwap[]> {
-  const r = await fetch(url, { credentials: "include" });
-  if (!r.ok) return [];
-  const rows: unknown = await r.json();
-  return Array.isArray(rows) ? rows.map((x) => normalizeSwap(x as RawSwap)) : [];
+export async function fetchSwaps(url: string, signal?: AbortSignal): Promise<NormalizedSwap[]> {
+  // Erro (sessão, rede) sobe como ApiError em vez de virar lista vazia muda.
+  return normalizeSwaps(await fetchJson<unknown>(url, signal));
 }

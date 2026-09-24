@@ -42,7 +42,7 @@ async function main() {
     let via = "cpf";
     if (!match) { match = byName.get(norm(e.nome)); via = "nome"; }
     if (match) {
-      via === "cpf" ? porCpf++ : porNome++;
+      if (via === "cpf") porCpf++; else porNome++;
       console.log(`OK   [${via}]  ${e.nome}  ->  ${match.full_name} (${match.id.slice(0, 8)}…, ${match.active ? "ativo" : "inativo"})`);
     } else {
       semMatch.push(e.nome);

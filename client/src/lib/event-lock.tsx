@@ -118,11 +118,11 @@ export function PastEventBanner(
   if (!show) return null;
   return (
     <div
-      className={`flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-800 ${className}`}
+      className={`flex items-center gap-2 rounded-xl border border-warning/25 bg-warning-soft px-3 py-2 text-xs font-medium text-warning ${className}`}
       role="status"
       data-testid="banner-evento-encerrado"
     >
-      <Lock className="w-3.5 h-3.5 shrink-0" />
+      <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
       <span>{message || PAST_EVENT_BANNER_MSG}</span>
     </div>
   );

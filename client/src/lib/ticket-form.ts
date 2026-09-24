@@ -69,12 +69,12 @@ export function trechoDaViagem(form: TicketFormData | null | undefined): TrechoD
 }
 
 /** Valor monetário em centavos. Aceita "1.500,00" e "1500.00"; vazio vira null. */
-export function toCents(raw: any): number | null {
+export function toCents(raw: unknown): number | null {
   if (raw === undefined || raw === null || String(raw).trim() === "") return null;
-  return Math.round(parseBrNumber(raw) * 100);
+  return Math.round(parseBrNumber(String(raw)) * 100);
 }
 
-export function normalizeTransportType(value: any): TransportType {
+export function normalizeTransportType(value: unknown): TransportType {
   return value === "rodoviario" || value === "van" ? value : "aereo";
 }
 
@@ -86,7 +86,7 @@ export function normalizeTransportType(value: any): TransportType {
  * não sabe se o colaborador tem direito a almoço/jantar no dia da chegada nem
  * se a mobilidade cai na janela de madrugada. Van não tem horário de chegada.
  */
-export function getRequiredFields(transportType: any, isOneWay: boolean, isReturnOnly = false): RequiredField[] {
+export function getRequiredFields(transportType: unknown, isOneWay: boolean, isReturnOnly = false): RequiredField[] {
   const type = normalizeTransportType(transportType);
   if (type === "van") {
     return [{ field: "purchaseOrderNumber", label: "Nome da Empresa" }];
@@ -120,11 +120,11 @@ export function getRequiredFields(transportType: any, isOneWay: boolean, isRetur
   ];
 }
 
-export function isFieldRequired(transportType: any, isOneWay: boolean, field: string, isReturnOnly = false): boolean {
+export function isFieldRequired(transportType: unknown, isOneWay: boolean, field: string, isReturnOnly = false): boolean {
   return getRequiredFields(transportType, isOneWay, isReturnOnly).some(f => f.field === field);
 }
 
-const isBlank = (v: any) => v === undefined || v === null || String(v).trim() === "";
+const isBlank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
 
 /** Devolve os campos obrigatórios não preenchidos (com rótulo). */
 export function getMissingRequiredFields(form: TicketFormData): RequiredField[] {
@@ -156,15 +156,15 @@ export function getInvalidFields(form: TicketFormData): RequiredField[] {
 export function buildTicketPayload(
   form: TicketFormData,
   opts: { teamInclusionId?: string; today?: string } = {},
-): Record<string, any> {
+): Record<string, unknown> {
   const type = normalizeTransportType(form?.transportType);
   const isVan = type === "van";
   const trecho = trechoDaViagem(form);
-  const orNull = (v: any) => (isBlank(v) ? null : v);
+  const orNull = (v: unknown) => (isBlank(v) ? null : v);
   // leg = campos da IDA; ret = campos da VOLTA. Cada recorte apaga o trecho
   // que não lhe pertence, para o registro não afirmar o que não aconteceu.
-  const leg = (v: any) => (isVan || trecho === "so_volta" ? null : orNull(v));
-  const ret = (v: any) => (isVan || trecho === "so_ida" ? null : orNull(v));
+  const leg = (v: unknown) => (isVan || trecho === "so_volta" ? null : orNull(v));
+  const ret = (v: unknown) => (isVan || trecho === "so_ida" ? null : orNull(v));
   const today = opts.today ?? new Date().toISOString().split("T")[0];
 
   return {
@@ -213,13 +213,13 @@ export interface ChronologyResult {
   warnings: string[];
 }
 
-const dateOnly = (v: any): string | null => {
+const dateOnly = (v: unknown): string | null => {
   if (isBlank(v)) return null;
   const s = String(v).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 };
 
-const timeOnly = (v: any): string | null => {
+const timeOnly = (v: unknown): string | null => {
   if (isBlank(v)) return null;
   const m = String(v).match(/^(\d{1,2}):(\d{2})/);
   if (!m) return null;

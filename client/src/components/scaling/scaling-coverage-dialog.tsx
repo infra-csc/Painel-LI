@@ -73,8 +73,8 @@ export default function ScalingCoverageDialog({ open, onOpenChange, linhas, ctx,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[720px] w-[95vw] max-h-[88vh] !rounded-[14px] !flex !flex-col p-0 gap-0 overflow-hidden">
-        <DialogHeader className="shrink-0 border-b border-slate-100 px-6 pt-6 pb-3 pr-12 text-left">
+      <DialogContent className="!max-w-[720px] w-[95vw] max-h-[88vh] !rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="shrink-0 border-b border-border px-6 pt-6 pb-3 pr-12 text-left">
           <DialogTitle>O que falta escalar e confirmar</DialogTitle>
           <DialogDescription>
             {partes.length === 0
@@ -87,13 +87,13 @@ export default function ScalingCoverageDialog({ open, onOpenChange, linhas, ctx,
           <pre
             id="previa-cobertura"
             data-testid="previa-cobertura"
-            className="whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-4 font-mono text-[12px] leading-relaxed text-slate-700"
+            className="whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-4 font-mono text-xs leading-relaxed text-slate-700"
           >
             {texto}
           </pre>
         </div>
 
-        <DialogFooter className="shrink-0 border-t border-slate-100 bg-background px-6 py-3">
+        <DialogFooter className="shrink-0 border-t border-border bg-background px-6 py-3">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
           <Button type="button" variant="outline" onClick={baixar} data-testid="button-baixar-cobertura">
             <Download className="h-4 w-4 mr-2" aria-hidden="true" /> Baixar .txt

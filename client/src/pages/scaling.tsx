@@ -26,11 +26,15 @@ import { buildDateList } from "@/components/scaling-validation/scaling-grid-util
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
 import type { SuggestionRow } from "@/components/scaling-validation/types";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import { usePageTitle } from "@/components/common/use-page-title";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { canView } from "@/lib/permissions";
+import { hasPermission } from "@/lib/role-utils";
+import { isRhOrAdmin } from "@/lib/role-utils";
 import { PastEventBanner } from "@/lib/event-lock";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
+import { avisarAgenda } from "@/hooks/use-vaga-acoes";
 import { useQuery } from "@tanstack/react-query";
 import type { TeamInclusion, Comment } from "@shared/schema";
 import ScalingTable from "@/components/scaling/scaling-table";
@@ -38,11 +42,11 @@ import ScalingWorkQueue from "@/components/scaling/scaling-work-queue";
 import ScalingFilterBar from "@/components/scaling/scaling-filter-bar";
 import ScalingAnalytics from "@/components/scaling/scaling-analytics";
 import InclusionDetailsDialog, { type DetailsTab } from "@/components/scaling/inclusion-details-dialog";
-import ScalingSuccessDialog, { type ScalingSuccessInfo } from "@/components/scaling/scaling-success-dialog";
+import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
 import { SentToProductionDialog, type SentToProductionInfo } from "@/components/scaling/production-approval-card";
 import AttachmentLightbox from "@/components/scaling/attachment-lightbox";
 import ScalingCoverageDialog from "@/components/scaling/scaling-coverage-dialog";
-import ConfirmDialog from "@/components/scaling/confirm-dialog";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import BulkConfirmBar from "@/components/scaling/bulk-confirm-bar";
 import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
 import { useScalingMutations, confirmInclusionRequest, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
@@ -68,15 +72,16 @@ function EstadoVazio({ icone, titulo, texto, acao }: {
 }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-card px-8 py-11 text-center">
-      <div className="flex justify-center text-slate-400" aria-hidden="true">{icone}</div>
-      <p className="mt-2.5 text-[15px] font-semibold text-slate-900">{titulo}</p>
-      <p className="mx-auto mt-1.5 max-w-[440px] text-[13px] leading-relaxed text-muted-foreground">{texto}</p>
+      <div className="flex justify-center text-muted-foreground" aria-hidden="true">{icone}</div>
+      <p className="mt-2.5 text-base font-semibold text-foreground">{titulo}</p>
+      <p className="mx-auto mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">{texto}</p>
       {acao && <div className="mt-4">{acao}</div>}
     </div>
   );
 }
 
 export default function Scaling() {
+  usePageTitle("Escalação");
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -118,7 +123,6 @@ export default function Scaling() {
   const [modalInitialTab, setModalInitialTab] = useState<DetailsTab>("resumo");
   const [modalData, setModalData] = useState<ModalData>(EMPTY_MODAL);
   const [abrirEscolhaDeColaborador, setAbrirEscolhaDeColaborador] = useState(false);
-  const [successInfo, setSuccessInfo] = useState<ScalingSuccessInfo | null>(null);
   const [sentToProductionInfo, setSentToProductionInfo] = useState<SentToProductionInfo | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -143,7 +147,7 @@ export default function Scaling() {
   const readSeen = () => {
     if (!user) return new Set<string>();
     const state = getSeenState(user.id);
-    return new Set(Object.entries(state).filter(([, v]: [string, any]) => v.pendingSeen).map(([k]) => k));
+    return new Set(Object.entries(state).filter(([, v]) => v.pendingSeen).map(([k]) => k));
   };
   const [seenSwapIds, setSeenSwapIds] = useState<Set<string>>(readSeen);
   useEffect(() => {
@@ -203,7 +207,7 @@ export default function Scaling() {
   );
 
   const queueContext = useMemo<QueueContext>(() => ({
-    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i as any),
+    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i),
     temTroca: (i) => pendingSwapByInclusion.has(i.id),
     temPedido: (i) => !!data.pendingChangeByInclusion?.get(i.id),
     bloqueioParaConfirmar: getSelectBlockReason,
@@ -262,7 +266,6 @@ export default function Scaling() {
       const podeVer = data.isAdminRole || veemTodasAsFuncoes.includes(String(user?.role ?? "")) || data.userFunctionIds.has(i.functionId);
       return podeVer && testePeriodo(i) && testeRecorte(i) && testeFuncao(i);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sugestoesRaw, data.eventById, data.isAdminRole, data.userFunctionIds, user?.role, eventosMarcados, testePeriodo, testeRecorte, testeFuncao]);
 
   // Opções de função: base com tudo aplicado menos a própria função.
@@ -452,17 +455,18 @@ export default function Scaling() {
       // manda cenotécnica para o gestor. A mensagem precisa dizer isso, senão
       // a pessoa fecha o modal achando que escalou.
       const salvouSemConfirmar = action !== "confirm" && !!updated.collaboratorId && !isEscalated(updated);
-      setSuccessInfo({
-        message: action === "confirm"
-          ? "Escalação confirmada com sucesso!"
-          : salvouSemConfirmar
-            ? "Colaborador salvo — a vaga continua ABERTA até você clicar em Confirmar Escalação."
-            : "Alterações salvas com sucesso!",
-        inclusionNumber,
-        eventName: data.eventById.get(updated.eventId || selectedInclusion?.eventId || "")?.name ?? "—",
-        collaboratorName: collabName,
-        functionName: funcName,
-      });
+      // Toast de sucesso (23/09) no lugar do modal bloqueante "Sucesso" + OK:
+      // título diz O QUE aconteceu; o aviso da vaga aberta continua explícito.
+      toastSucessoDaVaga(
+        action === "confirm" ? "Escalação confirmada" : salvouSemConfirmar ? "Colaborador salvo — vaga ainda aberta" : "Alterações salvas",
+        {
+          inclusionNumber,
+          eventName: data.eventById.get(updated.eventId || selectedInclusion?.eventId || "")?.name ?? "—",
+          collaboratorName: collabName,
+          functionName: funcName,
+        },
+        salvouSemConfirmar ? "A vaga continua aberta até você clicar em Confirmar Escalação." : undefined,
+      );
       setShowModal(false);
     },
   });
@@ -488,12 +492,17 @@ export default function Scaling() {
       payload.empreitaValor = Math.round(Number(modalData.empreitaValor) * 100);
       payload.needsTicket = false;
       payload.needsAccommodation = false;
-    } else if ((inclusion as any).empreitaEmpresa) {
+    } else if (inclusion.empreitaEmpresa) {
       payload.empreitaEmpresa = null;
       payload.empreitaPessoas = null;
       payload.empreitaValor = null;
     }
-    if (modalData.dailyValue && modalData.dailyValue > 0) payload.dailyValue = Math.round(modalData.dailyValue * 100);
+    // Valor da diária é dinheiro (24/09): o PATCH responde 403 se ele MUDAR por
+    // quem não é RH/admin. Só entra no corpo quando o usuário pode e alterou.
+    if (modalData.dailyValue && modalData.dailyValue > 0 && isRhOrAdmin(user)) {
+      const centavos = Math.round(modalData.dailyValue * 100);
+      if (centavos !== Number(inclusion.dailyValue ?? 0)) payload.dailyValue = centavos;
+    }
     return payload;
   };
 
@@ -539,7 +548,7 @@ export default function Scaling() {
       return;
     }
     if (visibleRows.length === 0) {
-      toast({ title: "Erro", description: "Não há escalações para exportar", variant: "destructive" });
+      toast({ title: "Nada para exportar", description: "Não há escalações no recorte atual.", variant: "destructive" });
       return;
     }
     const noScope = (i: TeamInclusion) =>
@@ -593,7 +602,7 @@ export default function Scaling() {
       return;
     }
     const { fileName, rowCount } = await exportScalingXlsxColunas(entrada, colunas);
-    toast({ title: "Sucesso", description: `Arquivo ${fileName} exportado com ${rowCount} escalações ativas!` });
+    toast({ variant: "success", title: "Exportação concluída", description: `Arquivo ${fileName} com ${rowCount} escalações ativas.` });
   };
 
   // ── Seleção múltipla ────────────────────────────────────────────────────
@@ -612,41 +621,13 @@ export default function Scaling() {
     [teamInclusions, selectedIds],
   );
 
-  // Permissão de acesso à tela — depois de todos os hooks
-  if (!canView(user, "scaling")) {
-    return (
-      <div className="rounded-xl border border-border bg-card px-8 py-12 text-center">
-        <div className="flex justify-center text-slate-400" aria-hidden="true"><Lock className="w-7 h-7" /></div>
-        <p className="mt-3 text-[16px] font-semibold text-slate-900">Acesso negado</p>
-        <p className="mx-auto mt-1.5 max-w-[440px] text-[13px] leading-relaxed text-muted-foreground">
-          Seu papel não tem permissão para abrir a Escalação. Se você precisa desta tela para trabalhar,
-          peça acesso ao administrador do painel.
-        </p>
-      </div>
-    );
-  }
-
-  const eventoEncerrado = eventosMarcados.length === 1 && !data.podeAgirEmEventoPassado && data.isPastEvent(eventosMarcados[0]);
-  const somenteLeitura = eventoEncerrado;
-
-  // O resumo do topo e a contagem da barra falam do MESMO universo (o recorte
-  // de evento, período e excluídas). Contar vivas aqui e todas ali punha dois
-  // números diferentes na mesma tela para o mesmo recorte.
-  const resumoTopo = (() => {
-    if (comPeriodo.length === 0) return "nenhuma vaga no recorte";
-    const semNome = comPeriodo.filter(i => !i.collaboratorId && !vagaComEmpreita(i as any) && i.status !== "cancelado").length;
-    const nEventos = new Set(comPeriodo.map(i => i.eventId)).size;
-    return [
-      `${comPeriodo.length} ${comPeriodo.length === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
-      semNome > 0 ? `${semNome} sem nome` : null,
-    ].filter(Boolean).join(" · ");
-  })();
-
   /**
    * Quadro função × dia (04/09) — o mesmo da Validação, sobre as vagas do
    * recorte. Quem escala abria a Validação para saber "quantas pessoas por
    * dia" e voltava aqui para escalar; agora a visão mora nas duas telas.
    * Vaga sem dias listados usa o período de trabalho; cancelada não soma.
+   * (23/09: movido para ANTES do gate de permissão — hook depois de um
+   * `return` condicional quebra a ordem dos hooks do React.)
    */
   const linhasDoQuadro = useMemo<SuggestionRow[]>(() => comFlags.map((i) => {
     const listados = (i.workDays ?? []).map((d) => String(d).slice(0, 10)).filter(Boolean);
@@ -664,6 +645,39 @@ export default function Scaling() {
     () => new Map(Array.from(data.functionById.values()).map((f) => [f.id, f.name] as const)),
     [data.functionById],
   );
+  // Estado do "confirmar direto da linha" (ver `confirmarRapido` abaixo).
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+
+  // Permissão de acesso à tela — depois de todos os hooks
+  if (!hasPermission(user, "canAccessScreen2")) {
+    return (
+      <div className="rounded-xl border border-border bg-card px-8 py-12 text-center">
+        <div className="flex justify-center text-muted-foreground" aria-hidden="true"><Lock className="w-7 h-7" aria-hidden="true" /></div>
+        <p className="mt-3 text-base font-semibold text-foreground">Acesso negado</p>
+        <p className="mx-auto mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
+          Seu papel não tem permissão para abrir a Escalação. Se você precisa desta tela para trabalhar,
+          peça acesso ao administrador do painel.
+        </p>
+      </div>
+    );
+  }
+
+  const eventoEncerrado = eventosMarcados.length === 1 && !data.podeAgirEmEventoPassado && data.isPastEvent(eventosMarcados[0]);
+  const somenteLeitura = eventoEncerrado;
+
+  // O resumo do topo e a contagem da barra falam do MESMO universo (o recorte
+  // de evento, período e excluídas). Contar vivas aqui e todas ali punha dois
+  // números diferentes na mesma tela para o mesmo recorte.
+  const resumoTopo = (() => {
+    if (comPeriodo.length === 0) return "nenhuma vaga no recorte";
+    const semNome = comPeriodo.filter(i => !i.collaboratorId && !vagaComEmpreita(i) && i.status !== "cancelado").length;
+    const nEventos = new Set(comPeriodo.map(i => i.eventId)).size;
+    return [
+      `${comPeriodo.length} ${comPeriodo.length === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
+      semNome > 0 ? `${semNome} sem nome` : null,
+    ].filter(Boolean).join(" · ");
+  })();
+
   const eventoUnico = eventosMarcados.length === 1 ? data.eventById.get(eventosMarcados[0]) : undefined;
 
   /*
@@ -709,9 +723,8 @@ export default function Scaling() {
    * decide status/fase (cenotécnica → gestor). Sem diálogo de confirmação:
    * o botão só aparece em vaga com nome, não confirmada e sem bloqueio.
    */
-  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const podeConfirmarRapido = (i: TeamInclusion) =>
-    (!!i.collaboratorId || vagaComEmpreita(i as any)) && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
+    (!!i.collaboratorId || vagaComEmpreita(i)) && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
   const confirmarRapido = async (e: React.MouseEvent, inclusion: TeamInclusion) => {
     e.stopPropagation();
     if (confirmandoId) return;
@@ -722,8 +735,8 @@ export default function Scaling() {
         collaboratorId: inclusion.collaboratorId || "",
         observations: inclusion.observations || "",
         city: isCityFromSP(inclusion.city) ? "São Paulo - SP" : (inclusion.city || ""),
-        atendimentoTipo: (inclusion as any).atendimentoTipo || null,
-        percurseiroTipo: (inclusion as any).percurseiroTipo || null,
+        atendimentoTipo: inclusion.atendimentoTipo || null,
+        percurseiroTipo: inclusion.percurseiroTipo || null,
         needsTicket: inclusion.needsTicket,
         needsAccommodation: inclusion.needsAccommodation,
       });
@@ -733,8 +746,11 @@ export default function Scaling() {
       } else {
         toast({ title: "Escalação confirmada", description: `#${inclusion.inclusionNumber ?? "—"} · ${nome}` });
       }
-    } catch (err: any) {
-      toast({ title: "Não foi possível confirmar", description: err?.body?.message || err?.message || "Erro desconhecido", variant: "destructive" });
+      // Duas viagens no mesmo dia: aviso, não erro — a confirmação valeu.
+      avisarAgenda(toast, updated.avisosDeAgenda);
+    } catch (err: unknown) {
+      // 409 (já confirmada, conflito de agenda) vem com a explicação do servidor.
+      toast({ title: "Não foi possível confirmar", description: apiErrorMessage(err, "Erro desconhecido"), variant: "destructive" });
     } finally {
       setConfirmandoId(null);
     }
@@ -772,15 +788,20 @@ export default function Scaling() {
   };
 
   return (
-    <div className="-mx-6 -mt-6">
+    // Margens pela variável do layout (23/09): `-mx-6` fixo estourava a largura
+    // em 375px (o layout dá 16px ali) e deixava fresta em 1024+.
+    <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
       {/* Barra de contexto: 56px no lugar dos 76px de cabeçalho que repetiam o
-          que o breadcrumb já dizia. Aqui mora o resumo REAL do recorte. */}
-      <div className="sticky top-0 z-25 flex items-center gap-4 h-14 px-6 bg-card border-b border-border">
-        <span className="text-[15px] font-semibold text-slate-900 whitespace-nowrap">Escalação</span>
+          que o breadcrumb já dizia. Aqui mora o resumo REAL do recorte.
+          `flex-wrap` + altura mínima (23/09): em 375px título, abas e Exportar
+          quebram linha em vez de estourar. Fica abaixo da barra do topo
+          (`--sticky-top`) — `z-25` não existe no Tailwind, por isso não fixava. */}
+      <div className="sticky top-[var(--sticky-top)] z-30 flex flex-wrap items-center gap-x-4 gap-y-2 min-h-14 py-2 px-[var(--page-gutter)] bg-card border-b border-border">
+        <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Escalação</h1>
         <div aria-hidden="true" className="w-px h-5 bg-border" />
-        <span className="min-w-0 text-[12px] text-muted-foreground truncate" data-testid="resumo-topo">{resumoTopo}</span>
+        <span className="min-w-0 text-xs text-muted-foreground truncate" data-testid="resumo-topo">{resumoTopo}</span>
 
-        <div role="tablist" aria-label="Modo da tela" className="inline-flex gap-0.5 p-[3px] rounded-[9px] border border-border bg-background shrink-0">
+        <div role="tablist" aria-label="Modo da tela" className="inline-flex gap-0.5 p-[3px] rounded-lg border border-border bg-background shrink-0">
           {([["fila", "Fila de trabalho", List], ["escala", "Escala", CalendarDays], ["analises", "Análises", TrendingUp]] as const).map(([k, label, Icone]) => (
             <button
               key={k}
@@ -789,9 +810,9 @@ export default function Scaling() {
               aria-selected={aba === k}
               onClick={() => setAba(k)}
               data-testid={`aba-${k}`}
-              className={`inline-flex items-center gap-1.5 h-7 px-[11px] rounded-md text-[13px] whitespace-nowrap transition-colors ${
+              className={`inline-flex items-center gap-1.5 h-7 px-[11px] rounded-md text-sm whitespace-nowrap transition-colors ${
                 aba === k
-                  ? "bg-card border border-border shadow-[0_1px_2px_rgba(2,8,23,.06)] text-primary font-semibold"
+                  ? "bg-card border border-border shadow-1 text-primary font-semibold"
                   : "border border-transparent text-muted-foreground font-medium hover:text-primary"
               }`}
             >
@@ -808,20 +829,21 @@ export default function Scaling() {
               ? "Gera a lista do que falta escalar, por evento e função, pronta para colar."
               : "Escolha as colunas e o formato (Excel ou PDF). O arquivo pode conter dados pessoais dos colaboradores."}
             data-testid="button-export-excel"
-            className="ml-auto inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg bg-primary text-[13px] font-medium text-white hover:bg-primary-hover shrink-0"
+            className="ml-auto inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover shrink-0"
           >
             <Download className="w-4 h-4" aria-hidden="true" /> Exportar
           </button>
         )}
       </div>
 
-      <main className="px-6 pt-5">
+      {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}
+      <div className="px-[var(--page-gutter)] pt-5">
         <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">
           <PastEventBanner show={eventoEncerrado} />
 
           {isErrorInclusions && !teamInclusions ? (
             <EstadoVazio
-              icone={<CloudOff className="w-7 h-7" />}
+              icone={<CloudOff className="w-7 h-7" aria-hidden="true" />}
               titulo="Não foi possível carregar as escalações"
               texto={`${describeLoadError(inclusionsError)} Nada do que você escalou foi perdido.`}
             />
@@ -830,11 +852,11 @@ export default function Scaling() {
                fica na tela enquanto a nova chega — trocar um filtro não pode
                apagar os controles que a pessoa está usando. */
             <div className="flex flex-col gap-4" aria-busy="true" aria-label="Carregando escalações">
-              <div className="h-[84px] rounded-xl border border-border bg-card animate-pulse" />
+              <div className="h-[84px] rounded-xl border border-border bg-card animate-pulse motion-reduce:animate-none" />
               <div className="rounded-xl border border-border bg-card overflow-hidden">
                 <div className="h-[34px] bg-background border-b border-border" />
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-[52px] border-b border-slate-100 animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+                  <div key={i} className="h-[52px] border-b border-border animate-pulse motion-reduce:animate-none" style={{ animationDelay: `${i * 60}ms` }} />
                 ))}
               </div>
             </div>
@@ -866,7 +888,7 @@ export default function Scaling() {
                   rangeStart={eventoUnico?.startDate ?? undefined}
                   rangeEnd={eventoUnico?.endDate ?? undefined}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Quadro do recorte atual, somente leitura — vagas canceladas não entram na soma.
                   {eventosMarcados.length !== 1 ? " Escolha um evento no filtro para ver o período inteiro dele." : ""}
                 </p>
@@ -896,7 +918,7 @@ export default function Scaling() {
               {isFetchingInclusions && (
                 <p
                   role="status"
-                  className="flex items-center gap-2 rounded-lg border border-border bg-brand-soft px-3 py-1.5 text-[12px] text-primary"
+                  className="flex items-center gap-2 rounded-lg border border-border bg-brand-soft px-3 py-1.5 text-xs text-primary"
                   data-testid="aviso-recarregando"
                 >
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />
@@ -906,20 +928,20 @@ export default function Scaling() {
 
               {scalingInclusions.length === 0 && !temRecorte ? (
                 <EstadoVazio
-                  icone={<Users className="w-7 h-7" />}
+                  icone={<Users className="w-7 h-7" aria-hidden="true" />}
                   titulo="Nenhuma vaga para escalar"
                   texto="As vagas chegam da Inclusão de Equipe quando as funções do evento abrem. Assim que uma for criada, ela aparece aqui."
                 />
               ) : visibleRows.length === 0 ? (
                 <EstadoVazio
-                  icone={<FilterX className="w-7 h-7" />}
+                  icone={<FilterX className="w-7 h-7" aria-hidden="true" />}
                   titulo="Nenhuma escalação nesse recorte"
                   texto={`Filtrando por ${nomesDosFiltrosAtivos || "este recorte"} não sobra nenhuma linha.`}
                   acao={
                     <button
                       type="button"
                       onClick={limpaFiltros}
-                      className="h-[34px] px-3.5 rounded-lg bg-primary text-[13px] font-medium text-white hover:bg-primary-hover"
+                      className="h-[34px] px-3.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover"
                       data-testid="button-limpar-filtros"
                     >
                       Limpar filtros
@@ -947,12 +969,12 @@ export default function Scaling() {
             </>
           )}
         </div>
-      </main>
+      </div>
 
       <InclusionDetailsDialog
         open={showModal}
         onOpenChange={setShowModal}
-        modal={!successInfo}
+        modal
         inclusion={selectedInclusion}
         initialTab={modalInitialTab}
         abrirEscolhaDeColaborador={abrirEscolhaDeColaborador}
@@ -982,7 +1004,6 @@ export default function Scaling() {
           finally { setExporting(false); }
         }}
       />
-      <ScalingSuccessDialog info={successInfo} onClose={() => setSuccessInfo(null)} />
       <SentToProductionDialog info={sentToProductionInfo} onClose={() => setSentToProductionInfo(null)} />
       <AttachmentLightbox item={lightbox} onClose={() => setLightbox(null)} />
 
@@ -998,14 +1019,13 @@ export default function Scaling() {
       <ConfirmDialog
         open={descartePendente !== null}
         onOpenChange={(o) => { if (!o) setDescartePendente(null); }}
-        icon={(props) => <AlertTriangle {...props} />}
-        tone="orange"
+        icon={(props) => <AlertTriangle {...props} aria-hidden="true" />}
+        tone="danger"
         title="Descartar alterações?"
         description="Você mudou esta escalação e ainda não salvou. Ir para a próxima descarta o que foi digitado."
         cancelLabel="Continuar editando"
         confirmLabel="Descartar e sair"
-        pendingLabel="Descartando…"
-        isPending={false}
+        pending={false}
         onConfirm={confirmarDescarte}
         testId="dialog-descartar-alteracoes"
       />

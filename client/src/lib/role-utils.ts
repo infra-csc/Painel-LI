@@ -2,14 +2,41 @@
  * FONTE ÚNICA das flags de permissão do client, espelhadas do servidor.
  * NOVAS PERMISSÕES VÃO AQUI (com o comentário da rota que espelham).
  *
- * `permissions.ts` é a matriz feature × nível ('none' | 'view' | 'edit')
- * usada por telas legadas — convivem por enquanto; não unificar sem
- * revisar cada tela.
+ * A matriz legada `permissions.ts` (feature × 'none' | 'view' | 'edit') foi
+ * absorvida aqui em 24/09: team_inclusion → canAccessScreen1/canEditScreen1,
+ * scaling → canAccessScreen2, tickets → canAccessScreen3/canRegisterTickets,
+ * accommodations → canAccessScreen3/canEditScreen4.
  */
 import type { User } from "@shared/schema";
-import { normalizeRole } from "@shared/roles";
+import { normalizeRole, type CanonicalRole } from "@shared/roles";
 
 export type UserRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
+
+// ── Helpers de papel (23/09) ────────────────────────────────────────────────
+// `normalizeRole` (@shared/roles) é a ÚNICA tabela de aliases: "administrador",
+// "compras", "financeiro"... viram o papel canônico. As telas comparavam
+// `user.role === "admin"` cru e listas locais de aliases — quem tinha papel
+// legado no banco via os botões sumirem enquanto o servidor (que normaliza)
+// aceitava. Sempre use estes helpers em vez de comparar a string.
+export { normalizeRole };
+
+/** Qualquer objeto com `role` (User do auth, linha de /api/users, sessão simulada). */
+export type ComPapel = { role?: string | null } | null | undefined;
+
+/** O usuário tem um destes papéis (aceitando aliases legados)? */
+export function hasRole(user: ComPapel, ...roles: CanonicalRole[]): boolean {
+  const r = normalizeRole(user?.role);
+  return !!r && roles.includes(r);
+}
+
+export function isAdmin(user: ComPapel): boolean {
+  return hasRole(user, "admin");
+}
+
+/** RH (financial) ou administrador — quem decide no fluxo financeiro. */
+export function isRhOrAdmin(user: ComPapel): boolean {
+  return hasRole(user, "admin", "financial");
+}
 
 /**
  * Flags de permissão do client. Cada uma ESPELHA a regra real de uma rota em
@@ -37,7 +64,7 @@ export interface RolePermissions {
   canEditCollaborators: boolean; // espelha POST/PATCH /api/collaborators e /bulk (CADASTRO_ROLES + function_area)
   canManageFunctions: boolean;   // espelha POST/PATCH/DELETE /api/functions e /:id/managers (CADASTRO_ROLES: admin, purchasing, production)
   canCreateUsers: boolean;       // espelha POST /api/users (admin, financial, purchasing)
-  canManageUserAccounts: boolean;// espelha PATCH /api/users/:id/toggle-active e POST /:id/reset-password (admin, purchasing, production)
+  canManageUserAccounts: boolean;// espelha PATCH /api/users/:id/toggle-active, /:id/approval e POST /:id/reset-password — SÓ admin (23/09)
   canChangeUserRole: boolean;    // espelha PATCH /api/users/:id — role/area só admin (allowedFieldsForAdmin)
   canAccessCalendar: boolean;
   canAccessBaggage: boolean;     // controle de bagagem — admin e compras
@@ -122,7 +149,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditCollaborators: true,
         canManageFunctions: true,
         canCreateUsers: false,        // POST /api/users recusa production
-        canManageUserAccounts: true,
+        canManageUserAccounts: false, // toggle-active/approval/reset-password são só admin (23/09)
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
@@ -196,7 +223,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditCollaborators: true,
         canManageFunctions: true,
         canCreateUsers: true,
-        canManageUserAccounts: true,
+        canManageUserAccounts: false, // toggle-active/approval/reset-password são só admin (23/09)
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: true,

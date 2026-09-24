@@ -1,16 +1,22 @@
+import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { useState, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { hasRole } from "@/lib/role-utils";
+import { Eye } from "lucide-react";
+import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
+import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import {
   Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown,
-  RotateCcw, Search, ChevronLeft, ChevronRight, CalendarDays, CalendarX2, CloudOff,
+  RotateCcw, Search, ChevronLeft, ChevronRight, CalendarDays, CalendarX2, CloudOff, MapPin, FilterX, AlignJustify, List, CalendarRange, Calendar, CalendarCheck, CalendarX,
 } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
-import ConfirmModal from "@/components/common/confirm-modal";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { StatusBadge as StatusBadgeBase } from "@/components/common/status-badge";
 import { PageHeader } from "@/components/common/page-header";
 import { PageContainer } from "@/components/common/page-container";
 import { EmptyState } from "@/components/common/empty-state";
@@ -35,7 +41,7 @@ const SELECT_CLASS = "h-8 text-xs px-2 border border-input rounded-md bg-muted/4
 /** Botão-ícone de navegação (mês/semana). */
 const NAV_BTN = "flex items-center justify-center w-8 h-8 rounded-full text-foreground hover:bg-brand-soft transition-colors";
 /** Botão-ícone de ação nas linhas. */
-const ACTION_BTN = "flex items-center justify-center w-7 h-7 rounded-md text-slate-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+const ACTION_BTN = "flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 // STATUS, getEventStatus e parseLocalDate vivem em @/lib/event-status —
@@ -63,23 +69,23 @@ type SortDir  = "asc" | "desc";
 type ViewMode = "table" | "list" | "week" | "calendar";
 
 // ─── StatusBadge ──────────────────────────────────────────────────────────────
+// StatusBadge único (23/09): o tom vem de lib/event-status (planejado = info,
+// em andamento = primary, concluído = success, excluído = neutral).
 function StatusBadge({ ds }: { ds: string }) {
   const sc = STATUS[ds] ?? STATUS["planejado"];
-  const isPulsing = ds === "em andamento";
   return (
-    <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-[3px] rounded-full border text-[10px] font-bold whitespace-nowrap", sc.tw.bg, sc.tw.text, sc.tw.border)}>
-      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", sc.tw.dot, isPulsing && "animate-pulse")} />
+    <StatusBadgeBase tone={sc.tone} dot pulse={sc.pulse}>
       {sc.label}
-    </span>
+    </StatusBadgeBase>
   );
 }
 
 // ─── SortBtn ──────────────────────────────────────────────────────────────────
 function SortBtn({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ChevronsUpDown size={10} className="ml-1 inline opacity-20" />;
+  if (col !== sortKey) return <ChevronsUpDown size={10} className="ml-1 inline opacity-20" aria-hidden="true" />;
   return sortDir === "asc"
-    ? <ChevronUp   size={10} className="ml-1 inline text-primary" />
-    : <ChevronDown size={10} className="ml-1 inline text-primary" />;
+    ? <ChevronUp   size={10} className="ml-1 inline text-primary" aria-hidden="true" />
+    : <ChevronDown size={10} className="ml-1 inline text-primary" aria-hidden="true" />;
 }
 
 // ─── EventChip ────────────────────────────────────────────────────────────────
@@ -91,7 +97,7 @@ function EventChip({ ev, onClick }: { ev: Event; onClick: () => void }) {
       onClick={onClick}
       title={`${ev.name} · ${ev.location}`}
       className={cn(
-        "block w-full text-left px-[7px] py-[3px] rounded-[5px] border-l-[3px] text-[10px] font-semibold leading-4 truncate cursor-pointer",
+        "block w-full text-left px-[7px] py-[3px] rounded-md border-l-[3px] text-2xs font-semibold leading-4 truncate cursor-pointer",
         sc.tw.bg, sc.tw.text, sc.tw.edge,
       )}
     >
@@ -112,8 +118,8 @@ function PeriodNav({ label, onPrev, onNext, onToday, prevLabel, nextLabel, size 
           {label}
         </h2>
         <div className="flex gap-0.5 shrink-0">
-          <button type="button" onClick={onPrev} aria-label={prevLabel} className={NAV_BTN}><ChevronLeft size={16} /></button>
-          <button type="button" onClick={onNext} aria-label={nextLabel} className={NAV_BTN}><ChevronRight size={16} /></button>
+          <button type="button" onClick={onPrev} aria-label={prevLabel} className={NAV_BTN}><ChevronLeft size={16} aria-hidden="true" /></button>
+          <button type="button" onClick={onNext} aria-label={nextLabel} className={NAV_BTN}><ChevronRight size={16} aria-hidden="true" /></button>
         </div>
       </div>
       <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-bold hover:border-primary hover:text-primary hover:bg-brand-soft" onClick={onToday}>
@@ -134,7 +140,7 @@ function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
   const today      = new Date();
 
   return (
-    <div className="bg-card rounded-2xl overflow-hidden shadow-[0_20px_40px_rgba(20,27,43,0.05)] border border-border">
+    <div className="bg-card rounded-xl overflow-hidden shadow-2 border border-border">
       <PeriodNav
         label={format(currentDate, "MMMM yyyy", { locale: ptBR })}
         onPrev={() => setCurrentDate(subMonths(currentDate, 1))}
@@ -148,7 +154,7 @@ function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
           {/* Weekday headers */}
           <div className="grid grid-cols-7 border-b border-border bg-muted/30">
             {WEEK_SHORT.map((d) => (
-              <div key={d} className="py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em]">{d}</div>
+              <div key={d} className="py-2.5 text-center text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]">{d}</div>
             ))}
           </div>
 
@@ -172,15 +178,15 @@ function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
                   {isToday ? (
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="flex items-center justify-center w-6 h-6 rounded-full shrink-0 text-xs font-bold bg-primary text-primary-foreground">{format(day, "d")}</span>
-                      <span className="text-[9px] font-bold text-primary uppercase tracking-[0.08em]">Hoje</span>
+                      <span className="text-2xs font-bold text-primary uppercase tracking-[0.08em]">Hoje</span>
                     </div>
                   ) : (
-                    <span className={cn("block mb-1.5 text-xs font-medium", inMonth ? "text-slate-500" : "text-slate-300")}>{format(day, "d")}</span>
+                    <span className={cn("block mb-1.5 text-xs font-medium", inMonth ? "text-muted-foreground" : "text-muted-foreground")}>{format(day, "d")}</span>
                   )}
                   <div className="flex flex-col gap-0.5">
                     {chips.slice(0, MAX).map(ev => <EventChip key={ev.id} ev={ev} onClick={() => onEdit(ev)} />)}
                     {chips.length > MAX && (
-                      <span className="text-[9px] text-slate-400 font-bold pl-1">+ {chips.length - MAX} mais</span>
+                      <span className="text-2xs text-muted-foreground font-bold pl-1">+ {chips.length - MAX} mais</span>
                     )}
                   </div>
                 </div>
@@ -207,7 +213,7 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
     : `${format(weekStart, "d MMM", { locale: ptBR })} – ${format(weekEnd, "d MMM yyyy", { locale: ptBR })}`;
 
   return (
-    <div className="bg-card rounded-2xl overflow-hidden shadow-[0_20px_40px_rgba(20,27,43,0.05)] border border-border">
+    <div className="bg-card rounded-xl overflow-hidden shadow-2 border border-border">
       <PeriodNav
         label={rangeLabel}
         onPrev={() => setCurrentDate(subWeeks(currentDate, 1))}
@@ -226,7 +232,7 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
               <div key={i} className={cn("min-h-[180px]", i < 6 && "border-r border-border")}>
                 {/* Column header */}
                 <div className={cn("py-3 px-2 text-center border-b border-border", isToday ? "bg-brand-soft/60" : "bg-muted/30")}>
-                  <div className={cn("text-[9px] font-bold uppercase tracking-[0.08em] mb-1.5", isToday ? "text-primary" : "text-slate-400")}>
+                  <div className={cn("text-2xs font-bold uppercase tracking-[0.08em] mb-1.5", isToday ? "text-primary" : "text-muted-foreground")}>
                     {WEEK_SHORT[i]}
                   </div>
                   <div className={cn(
@@ -249,15 +255,15 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
 }
 
 // ─── ActionBtns ───────────────────────────────────────────────────────────────
-function ActionBtns({ event, onEdit, onDelete, onRestore, busy }: {
-  event: Event; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void; busy?: boolean;
+function ActionBtns({ event, onEdit, onDelete, onRestore, busy, podeEditar = true }: {
+  event: Event; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void; busy?: boolean; podeEditar?: boolean;
 }) {
   const ds = getEventStatus(event);
   if (ds === "excluído") return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button type="button" onClick={() => onRestore(event)} disabled={busy} aria-label={`Restaurar evento ${event.name}`}
-          className={cn(ACTION_BTN, "hover:bg-emerald-50 hover:text-emerald-600")}><RotateCcw size={13} /></button>
+          className={cn(ACTION_BTN, "hover:bg-success-soft hover:text-success")}><RotateCcw size={13} aria-hidden="true" /></button>
       </TooltipTrigger><TooltipContent>Restaurar</TooltipContent>
     </Tooltip>
   );
@@ -265,15 +271,15 @@ function ActionBtns({ event, onEdit, onDelete, onRestore, busy }: {
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" onClick={() => onEdit(event)} aria-label={`Editar evento ${event.name}`}
-            className={cn(ACTION_BTN, "hover:bg-brand-soft hover:text-primary")}><Edit size={13} /></button>
-        </TooltipTrigger><TooltipContent>Editar</TooltipContent>
+          <button type="button" onClick={() => onEdit(event)} aria-label={podeEditar ? `Editar evento ${event.name}` : `Ver evento ${event.name}`}
+            className={cn(ACTION_BTN, "hover:bg-brand-soft hover:text-primary")}>{podeEditar ? <Edit size={13} aria-hidden="true" /> : <Eye size={13} aria-hidden="true" />}</button>
+        </TooltipTrigger><TooltipContent>{podeEditar ? "Editar" : "Ver"}</TooltipContent>
       </Tooltip>
       {/* Excluir: só administrador (18/09). Sem a função, o botão não aparece. */}
       {onDelete && <Tooltip>
         <TooltipTrigger asChild>
           <button type="button" onClick={() => onDelete?.(event)} disabled={busy} aria-label={`Excluir evento ${event.name}`}
-            className={cn(ACTION_BTN, "hover:bg-red-50 hover:text-red-500")}><Trash2 size={13} /></button>
+            className={cn(ACTION_BTN, "hover:bg-danger-soft hover:text-danger-strong")}><Trash2 size={13} aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent>Excluir</TooltipContent>
       </Tooltip>}
     </>
@@ -295,15 +301,15 @@ function EventsEmpty({ hasFilters, onClear, onNew }: { hasFilters: boolean; onCl
       icon={CalendarDays}
       title="Nenhum evento cadastrado"
       description="Crie o primeiro evento para começar a montar o cronograma logístico."
-      action={<Button size="sm" onClick={onNew}><Plus className="w-4 h-4" /> Novo Evento</Button>}
+      action={<Button size="sm" onClick={onNew}><Plus className="w-4 h-4" aria-hidden="true" /> Novo Evento</Button>}
     />
   );
 }
 
 // ─── ListView ─────────────────────────────────────────────────────────────────
-function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty }: {
+function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty, podeEditar }: {
   events: Event[]; onEdit: (e: Event) => void; onDelete?: (e: Event) => void;
-  onRestore: (e: Event) => void; escalacoes: Record<string, number>; busy?: boolean; empty: React.ReactNode;
+  onRestore: (e: Event) => void; escalacoes: Record<string, number>; busy?: boolean; empty: React.ReactNode; podeEditar?: boolean;
 }) {
   if (events.length === 0) return <>{empty}</>;
   return (
@@ -316,29 +322,29 @@ function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty
           <div
             key={ev.id}
             className={cn(
-              "group flex items-stretch bg-card rounded-[10px] overflow-hidden border border-border shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-px",
+              "group flex items-stretch bg-card rounded-lg overflow-hidden border border-border shadow-1 transition-[box-shadow,transform] hover:shadow-2 hover:-translate-y-px",
               ds === "excluído" && "opacity-60",
             )}
           >
             <div className={cn("w-1 shrink-0", sc.tw.bar)} />
             <div className="flex-1 flex flex-wrap sm:flex-nowrap items-center gap-x-3.5 gap-y-2 min-w-0 px-3.5 py-[11px]">
-              <span className="text-[11px] font-bold text-slate-300 shrink-0 tabular-nums">#{ev.eventNumber}</span>
+              <span className="text-2xs font-bold text-muted-foreground shrink-0 tabular-nums">#{ev.eventNumber}</span>
               <div className="flex-1 min-w-0 basis-full sm:basis-auto order-last sm:order-none">
                 <div className="flex items-center gap-1.5">
-                  {ds === "em andamento" && <span className="animate-pulse w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />}
-                  <span className="text-[13px] font-bold text-foreground truncate">{ev.name}</span>
+                  {ds === "em andamento" && <span className="animate-pulse motion-reduce:animate-none w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0" />}
+                  <span className="text-sm font-bold text-foreground truncate">{ev.name}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                  <span className="flex items-center gap-[3px] text-[11px] text-slate-400">
-                    <span className="material-symbols-outlined text-[12px] [font-variation-settings:'FILL'_1]">location_on</span>
+                  <span className="flex items-center gap-[3px] text-2xs text-muted-foreground">
+                    <MapPin className="h-3 w-3" aria-hidden="true" />
                     {ev.location}
                   </span>
-                  <span className="flex items-center gap-[3px] text-[11px] text-slate-400">
-                    <span className="material-symbols-outlined text-[12px] [font-variation-settings:'FILL'_1]">calendar_month</span>
+                  <span className="flex items-center gap-[3px] text-2xs text-muted-foreground">
+                    <CalendarDays className="h-3 w-3" aria-hidden="true" />
                     {formatPeriod(ev.startDate, ev.endDate)}
                   </span>
                   {esc > 0 && (
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-2xs text-muted-foreground">
                       <b className="text-slate-700">{esc}</b> escal.
                     </span>
                   )}
@@ -346,7 +352,7 @@ function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty
               </div>
               <StatusBadge ds={ds} />
               <div className="flex gap-px shrink-0 ml-auto sm:ml-0">
-                <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} />
+                <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} podeEditar={podeEditar} />
               </div>
             </div>
           </div>
@@ -368,20 +374,20 @@ const COLUMNS: ColDef[] = [
   { key: null,          label: "",             w: 75,  right: true },
 ];
 
-function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort, busy, empty }: {
+function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort, busy, empty, podeEditar }: {
   events: Event[]; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void;
   escalacoes: Record<string, number>; sortKey: SortKey; sortDir: SortDir; handleSort: (k: SortKey) => void; busy?: boolean;
-  empty: React.ReactNode;
+  empty: React.ReactNode; podeEditar?: boolean;
 }) {
   if (events.length === 0) return <>{empty}</>;
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-1">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[720px]">
           <thead>
             <tr className="bg-muted/40 border-b-2 border-border">
               {COLUMNS.map((col, i) => (
-                <th key={i}
+                <th scope="col" key={i}
                   onClick={() => col.key && handleSort(col.key)}
                   onKeyDown={col.key ? (e: ReactKeyboardEvent) => {
                     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSort(col.key!); }
@@ -392,7 +398,7 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
                   aria-sort={col.key ? (col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
                   style={{ width: col.w ?? undefined }}
                   className={cn(
-                    "px-3.5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em] whitespace-nowrap select-none",
+                    "px-3.5 py-2.5 text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em] whitespace-nowrap select-none",
                     col.center ? "text-center" : col.right ? "text-right" : "text-left",
                     col.key ? "cursor-pointer hover:text-primary focus-visible:outline-none focus-visible:text-primary" : "cursor-default",
                   )}>
@@ -410,22 +416,22 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
               return (
                 <tr key={ev.id} className={cn("group border-t border-border/60 hover:bg-muted/40 transition-colors", ds === "excluído" && "opacity-50")}>
                   <td className="px-3.5 py-3 text-center">
-                    <span className="text-[11px] font-bold text-slate-300 tabular-nums">#{ev.eventNumber}</span>
+                    <span className="text-2xs font-bold text-muted-foreground tabular-nums">#{ev.eventNumber}</span>
                   </td>
                   <td className="px-3.5 py-3">
                     <div className="flex items-center gap-2">
-                      {ds === "em andamento" && <span className="animate-pulse w-[7px] h-[7px] rounded-full bg-orange-500 shrink-0" />}
-                      <span className="text-[13px] font-semibold text-foreground">{ev.name}</span>
+                      {ds === "em andamento" && <span className="animate-pulse motion-reduce:animate-none w-[7px] h-[7px] rounded-full bg-warning-strong shrink-0" />}
+                      <span className="text-sm font-semibold text-foreground">{ev.name}</span>
                     </div>
                   </td>
                   <td className="px-3.5 py-3">
-                    <span className="flex items-center gap-[5px] text-xs text-slate-500">
-                      <span className="material-symbols-outlined text-[13px] text-slate-300 [font-variation-settings:'FILL'_1]">location_on</span>
+                    <span className="flex items-center gap-[5px] text-xs text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                       {ev.location}
                     </span>
                   </td>
                   <td className="px-3.5 py-3">
-                    <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
+                    <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
                       {formatPeriod(ev.startDate, ev.endDate)}
                     </span>
                   </td>
@@ -437,7 +443,7 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
                   </td>
                   <td className="px-3.5 py-3">
                     <div className="flex items-center justify-end gap-px opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
-                      <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} />
+                      <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} podeEditar={podeEditar} />
                     </div>
                   </td>
                 </tr>
@@ -451,10 +457,15 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+/** Um select de filtro da barra (valor, setter, opções [valor, rótulo]). */
+type SelectDeFiltro = { val: string; set: (v: string) => void; opts: string[][]; test?: string; label: string };
 export default function Events() {
   // Excluir evento: só administrador (dono, 18/09). Os demais só reativam.
   const { user } = useAuth();
   const isAdmin = ["admin", "administrator", "administrador"].includes(String(user?.role ?? ""));
+  // POST/PATCH /api/events: CADASTRO_ROLES (admin, Compras, Logística). RH vê a
+  // lista, mas não cria nem edita — o botão some (é ação de outro módulo).
+  const podeCadastrar = hasRole(user, "admin", "purchasing", "production");
   usePageTitle("Eventos");
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -475,16 +486,19 @@ export default function Events() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: events, isLoading, isError, error, refetch } = useQuery<Event[]>({ queryKey: ["/api/events?includeDeleted=true"] });
-  const { data: inclusions }        = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
+  // Contagem de escalações por evento (todos os eventos): admin/produção/
+  // compras/RH leem a fila inteira; quem não pode cai em `?phase=all` (24/09)
+  // e as sugestões são descontadas abaixo.
+  const { data: inclusions }        = useQuery<TeamInclusion[]>(listaDeVagasQuery(recorteDaListaDeVagas({ user })));
 
-  const loadErrorMsg = (err: any) =>
-    err?.status === 401 ? "Sua sessão expirou. Entre novamente para ver os eventos."
-    : err?.status === 403 ? "Você não tem permissão para ver os eventos."
-    : err?.body?.message || "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.";
+  const loadErrorMsg = (err: unknown) =>
+    apiErrorStatus(err) === 401 ? "Sua sessão expirou. Entre novamente para ver os eventos."
+    : apiErrorStatus(err) === 403 ? "Você não tem permissão para ver os eventos."
+    : apiErrorMessage(err, "Não foi possível carregar os eventos. Verifique sua conexão e tente novamente.");
 
   const escalacoes = useMemo(() => {
     const map: Record<string, number> = {};
-    (inclusions ?? []).forEach(i => { if (i.eventId) map[i.eventId] = (map[i.eventId] ?? 0) + 1; });
+    (inclusions ?? []).forEach(i => { if (i.eventId && !isSuggestionInclusion(i)) map[i.eventId] = (map[i.eventId] ?? 0) + 1; });
     return map;
   }, [inclusions]);
 
@@ -529,7 +543,7 @@ export default function Events() {
       });
     } else {
       list.sort((a, b) => {
-        let va: any, vb: any;
+        let va: string | number, vb: string | number;
         if (sortKey === "eventNumber") { va = a.eventNumber ?? 0; vb = b.eventNumber ?? 0; }
         else if (sortKey === "name")   { va = a.name;              vb = b.name;             }
         else if (sortKey === "period") { va = a.startDate;         vb = b.startDate;        }
@@ -547,20 +561,17 @@ export default function Events() {
     await qc.invalidateQueries({ queryKey: ["/api/events?includeDeleted=true"] });
   };
 
-  const mutationErrorMsg = (err: any, fallback: string) =>
-    err?.status === 401 ? "Sua sessão expirou. Entre novamente para continuar."
-    : err?.status === 403 ? "Você não tem permissão para esta ação."
-    : err?.body?.message || fallback;
+  const mutationErrorMsg = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
 
   const deleteMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento marcado como excluído." }); },
-    onError: (err: any) => toast({ title: "Erro ao excluir", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao excluir", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const restoreMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "planejado" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento restaurado." }); },
-    onError: (err: any) => toast({ title: "Erro ao restaurar", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Erro ao restaurar", description: mutationErrorMsg(err, "Tente novamente."), variant: "destructive" }),
   });
   const isMutating = deleteMutation.isPending || restoreMutation.isPending;
 
@@ -574,10 +585,10 @@ export default function Events() {
   const clearFilters = () => { setSearch(""); setStatusFilter("default"); setMonthFilter("all"); setYearFilter("all"); setSortKey("eventNumber"); setSortDir("desc"); setDefaultSort(true); };
 
   const VIEWS = [
-    { key: "table"    as ViewMode, icon: "format_align_justify", title: "Tabela"  },
-    { key: "list"     as ViewMode, icon: "view_list",            title: "Lista"   },
-    { key: "week"     as ViewMode, icon: "calendar_view_week",   title: "Semana"  },
-    { key: "calendar" as ViewMode, icon: "calendar_month",       title: "Mês"     },
+    { key: "table"    as ViewMode, icon: AlignJustify,  title: "Tabela"  },
+    { key: "list"     as ViewMode, icon: List,          title: "Lista"   },
+    { key: "week"     as ViewMode, icon: CalendarRange, title: "Semana"  },
+    { key: "calendar" as ViewMode, icon: CalendarDays,  title: "Mês"     },
   ];
 
   const activeEvents = useMemo(() => (events ?? []).filter(e => e.status !== "excluído"), [events]);
@@ -588,10 +599,10 @@ export default function Events() {
 
   // Stat cards: cores semânticas por status (não são a cor de marca).
   const STAT_CARDS = [
-    { label: "Total",        value: stats.total,       icon: "view_list",       filter: "active",       tw: { text: "text-blue-500",   border: "border-t-blue-500",   activeBg: "bg-blue-50",   ring: "ring-blue-500/25"   } },
-    { label: "Planejados",   value: stats.planejado,   icon: "calendar_today",  filter: "planejado",    tw: { text: "text-violet-500", border: "border-t-violet-500", activeBg: "bg-violet-50", ring: "ring-violet-500/25" } },
-    { label: "Em andamento", value: stats.emAndamento, icon: "event_available", filter: "em andamento", tw: { text: "text-orange-500", border: "border-t-orange-500", activeBg: "bg-orange-50", ring: "ring-orange-500/25" } },
-    { label: "Concluídos",   value: stats.concluido,   icon: "event_busy",      filter: "concluído",    tw: { text: "text-green-500",  border: "border-t-green-500",  activeBg: "bg-green-50",  ring: "ring-green-500/25"  } },
+    { label: "Total",        value: stats.total,       icon: List,          filter: "active",       tw: { text: "text-primary",   border: "border-t-primary",   activeBg: "bg-brand-soft",   ring: "ring-ring/25"   } },
+    { label: "Planejados",   value: stats.planejado,   icon: Calendar,      filter: "planejado",    tw: { text: "text-primary", border: "border-t-primary", activeBg: "bg-brand-soft", ring: "ring-ring/25" } },
+    { label: "Em andamento", value: stats.emAndamento, icon: CalendarCheck, filter: "em andamento", tw: { text: "text-warning-strong", border: "border-t-warning-strong", activeBg: "bg-warning-soft", ring: "ring-warning-strong/25" } },
+    { label: "Concluídos",   value: stats.concluido,   icon: CalendarX,     filter: "concluído",    tw: { text: "text-success-strong",  border: "border-t-success-strong",  activeBg: "bg-success-soft",  ring: "ring-success-strong/25"  } },
   ];
 
   const emptyNode = <EventsEmpty hasFilters={hasFilters} onClear={clearFilters} onNew={() => openModal()} />;
@@ -603,11 +614,11 @@ export default function Events() {
           icon={CalendarDays}
           title="Eventos"
           subtitle="Controle e acompanhamento de cronogramas logísticos"
-          actions={
-            <Button onClick={() => openModal()} data-testid="button-add-event" className="h-9 text-[13px] font-semibold shadow-md shadow-primary/25 hover:bg-primary-hover">
-              <Plus size={15} strokeWidth={2.5} /> Novo Evento
+          actions={podeCadastrar ? (
+            <Button onClick={() => openModal()} data-testid="button-add-event" className="h-9 text-sm font-semibold shadow-2 hover:bg-primary-hover">
+              <Plus size={15} strokeWidth={2.5} aria-hidden="true" /> Novo evento
             </Button>
-          }
+          ) : undefined}
         />
 
         {/* ── Stat cards ── (escondidos em erro: zeros dariam a impressão de "não há eventos") */}
@@ -625,14 +636,14 @@ export default function Events() {
                   className={cn(
                     "w-full text-left rounded-xl overflow-hidden border-t-[3px] px-4 sm:px-5 py-4 flex justify-between items-start transition-all duration-[180ms] hover:-translate-y-0.5",
                     c.tw.border,
-                    isActive ? cn(c.tw.activeBg, "ring-2", c.tw.ring, "shadow-md") : "bg-card shadow-sm hover:shadow-md",
+                    isActive ? cn(c.tw.activeBg, "ring-2", c.tw.ring, "shadow-2") : "bg-card shadow-1 hover:shadow-2",
                   )}
                 >
                   <div>
-                    <p className={cn("text-[10px] font-bold uppercase tracking-[0.08em] mb-1 transition-colors", isActive ? c.tw.text : "text-slate-400")}>{c.label}</p>
-                    <p className={cn("text-[26px] font-extrabold leading-none tabular-nums", c.tw.text)}>{c.value}</p>
+                    <p className={cn("text-2xs font-bold uppercase tracking-[0.08em] mb-1 transition-colors", isActive ? c.tw.text : "text-muted-foreground")}>{c.label}</p>
+                    <p className={cn("text-2xl font-extrabold leading-none tabular-nums", c.tw.text)}>{c.value}</p>
                   </div>
-                  <span className={cn("material-symbols-outlined text-[32px] [font-variation-settings:'FILL'_1] transition-opacity", c.tw.text, isActive ? "opacity-60" : "opacity-20")}>{c.icon}</span>
+                  <c.icon aria-hidden="true" className={cn("h-8 w-8 transition-opacity", c.tw.text, isActive ? "opacity-60" : "opacity-20")} />
                 </button>
               );
             })}
@@ -640,23 +651,24 @@ export default function Events() {
         )}
 
         {/* ── Filter + view bar ── */}
-        <div className="bg-card rounded-[10px] border border-border px-3 py-2.5 shadow-sm">
+        <div className="bg-card rounded-lg border border-border px-3 py-2.5 shadow-1">
           <div className="flex items-center gap-2 flex-wrap">
 
             {/* Search */}
             <div className="relative flex-[1_1_180px] min-w-[150px]">
-              <Search size={12} className="absolute left-[9px] top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+              <Search size={12} className="absolute left-[9px] top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
               <input
                 id="events-search"
                 aria-label="Buscar evento ou cidade"
-                placeholder="Buscar evento ou cidade..."
+                placeholder="Buscar evento ou cidade…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 data-testid="input-search-event"
-                className={cn("w-full h-8 text-xs pl-7 border border-input rounded-md bg-muted/40 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground", search ? "pr-7" : "pr-2")}
+                className={cn("w-full h-8 text-xs pl-7 border border-input rounded-md bg-muted/40 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground", search ? "pr-8" : "pr-2")}
               />
+              {/* Alvo de 24px (23/09): o ícone de 11px sozinho era difícil de acertar no toque. */}
               {search && (
-                <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-[7px] top-1/2 -translate-y-1/2 flex text-slate-300 hover:text-slate-500"><X size={11} /></button>
+                <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X size={12} aria-hidden="true" /></button>
               )}
             </div>
 
@@ -671,21 +683,21 @@ export default function Events() {
               { val: yearFilter, set: setYearFilter,
                 opts: [["all","Todos os anos"], ...availableYears.map(y => [String(y), String(y)])],
                 test: undefined, label: "Filtrar por ano" },
-            ] as any[]).map((s, i) => (
+            ] satisfies SelectDeFiltro[]).map((s, i) => (
               <select key={i} value={s.val} onChange={e => s.set(e.target.value)} data-testid={s.test} aria-label={s.label} className={SELECT_CLASS}>
-                {s.opts.map(([v, l]: [string, string]) => <option key={v} value={v}>{l}</option>)}
+                {s.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             ))}
 
             {hasFilters && (
               <button type="button" onClick={clearFilters} data-testid="button-clear-filters"
                 className="h-8 px-2.5 rounded-md text-primary text-xs font-bold flex items-center gap-1 hover:text-primary-hover hover:bg-brand-soft transition-colors">
-                <span className="material-symbols-outlined text-[15px]">filter_alt_off</span>
+                <FilterX className="h-4 w-4" aria-hidden="true" />
                 Limpar Filtros
               </button>
             )}
 
-            <span className="text-[11px] text-slate-400 ml-auto whitespace-nowrap" aria-live="polite">
+            <span className="text-2xs text-muted-foreground ml-auto whitespace-nowrap" aria-live="polite">
               {visibleCount} evento{visibleCount !== 1 ? "s" : ""}
               {isCalendarLike && " (todos os ativos)"}
             </span>
@@ -705,11 +717,11 @@ export default function Events() {
                         aria-label={`Visualização: ${v.title}`}
                         aria-pressed={active}
                         className={cn(
-                          "flex items-center justify-center w-7 h-7 rounded-[5px] transition-all duration-150",
-                          active ? "bg-card text-primary shadow-sm" : "bg-transparent text-slate-400 hover:text-slate-600",
+                          "flex items-center justify-center w-7 h-7 rounded-md transition-all duration-150",
+                          active ? "bg-card text-primary shadow-1" : "bg-transparent text-muted-foreground hover:text-slate-600",
                         )}
                       >
-                        <span className="material-symbols-outlined text-base">{v.icon}</span>
+                        <v.icon className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent>{v.title}</TooltipContent>
@@ -725,18 +737,18 @@ export default function Events() {
           <LoadingState count={6} label="Carregando eventos…" />
         ) : (isError && !events) ? (
           /* Sem este ramo, uma falha de rede/sessão expirada aparecia como "nenhum evento". */
-          <div role="alert" className="bg-card rounded-xl border border-red-200 px-6 py-12 text-center">
-            <CloudOff className="w-8 h-8 text-red-400 mx-auto mb-2.5" />
+          <div role="alert" className="bg-card rounded-xl border border-danger/25 px-6 py-12 text-center">
+            <CloudOff className="w-8 h-8 text-danger-strong mx-auto mb-2.5" aria-hidden="true" />
             <p className="text-sm font-bold text-foreground mb-1">Não foi possível carregar os eventos</p>
-            <p className="text-xs text-slate-500 mb-4">{loadErrorMsg(error)}</p>
+            <p className="text-xs text-muted-foreground mb-4">{loadErrorMsg(error)}</p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar novamente</Button>
           </div>
         ) : viewMode === "table" ? (
           <TableView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
-            escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} busy={isMutating} empty={emptyNode} />
+            escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} busy={isMutating} empty={emptyNode} podeEditar={podeCadastrar} />
         ) : viewMode === "list" ? (
           <ListView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
-            escalacoes={escalacoes} busy={isMutating} empty={emptyNode} />
+            escalacoes={escalacoes} busy={isMutating} empty={emptyNode} podeEditar={podeCadastrar} />
         ) : viewMode === "calendar" ? (
           <CalendarView events={activeEvents} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
         ) : (
@@ -745,11 +757,12 @@ export default function Events() {
       </PageContainer>
 
       <EventModal open={isModalOpen} onClose={closeModal} event={editingEvent} />
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmState.open}
-        onCancel={() => setConfirmState(p => ({ ...p, open: false }))}
-        title={confirmState.title} message={confirmState.message}
-        confirmLabel={confirmState.confirmLabel} variant={confirmState.variant}
+        onOpenChange={(o) => { if (!o) setConfirmState(p => ({ ...p, open: false })); }}
+        title={confirmState.title} description={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        tone={confirmState.variant === "delete" ? "danger" : "default"}
         onConfirm={confirmState.onConfirm}
       />
     </TooltipProvider>
