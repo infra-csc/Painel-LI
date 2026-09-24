@@ -29,10 +29,6 @@ process.on("uncaughtException", (err) => {
 // erros) é montada por `createApp` em server/app.ts — a MESMA fábrica que os
 // testes de rota usam. Aqui fica só o que é boot do processo.
 (async () => {
-  // Antes de aceitar tráfego: repõe a estrutura que um db:push a partir de
-  // um checkout antigo já apagou do banco (ver server/ensure-schema.ts).
-  await garantirEstrutura();
-
   const { app, server } = await createApp();
 
   // importantly only setup vite in development and after
@@ -58,5 +54,15 @@ process.on("uncaughtException", (err) => {
     ...(process.platform === "linux" ? { reusePort: true } : {}),
   }, () => {
     log(`serving on port ${port}`);
+
+    // Não bloquear a abertura da porta com DDL. Em produção, uma conexão lenta
+    // ou um lock fazia o boot ultrapassar o healthcheck do Autoscale e o domínio
+    // acabava respondendo "Rate exceeded." antes de a requisição chegar ao app.
+    void garantirEstrutura().catch((erro) => {
+      console.error(
+        "[estrutura] falha inesperada na manutenção assíncrona —",
+        erro instanceof Error ? erro.message : erro,
+      );
+    });
   });
 })();
