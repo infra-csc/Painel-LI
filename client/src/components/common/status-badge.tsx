@@ -69,7 +69,7 @@ export function StatusBadge({ tone, size = "sm", dot = false, pulse = false, ico
       )}
       {...rest}
     >
-      {dot && <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", t.dot, pulse && "animate-pulse")} />}
+      {dot && <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", t.dot, pulse && "animate-pulse motion-reduce:animate-none")} />}
       {Icon && <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />}
       {children}
     </span>

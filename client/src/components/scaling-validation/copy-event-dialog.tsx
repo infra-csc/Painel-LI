@@ -15,6 +15,7 @@ import {
   pasteConflicts, rowsFromSuggestions,
   type CopyFromEventResult, type SuggestionGridRow,
 } from "./scaling-grid-utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 export interface CopyEventDialogProps {
   open: boolean;
@@ -223,10 +224,11 @@ export function CopyEventDialog({
 
         <DialogFooter className="px-5 py-3 border-t border-border bg-surface-muted/60 gap-2">
           <Button type="button" variant="outline" className="rounded-lg" onClick={() => close(false)}>Cancelar</Button>
-          <Button
+          <MotivoDesabilitado motivo={applyHint} desabilitado={applyDisabled}>
+            <Button
             type="button" disabled={applyDisabled}
             className={cn("rounded-lg bg-primary hover:bg-primary-hover")}
-            title={applyHint}
+           
             onClick={() => {
               if (!converted || !sourceEvent) return;
               onApply(converted, sourceEvent.name);
@@ -237,6 +239,7 @@ export function CopyEventDialog({
               ? `Copiar ${converted.rows.length} ${converted.rows.length === 1 ? "linha" : "linhas"}`
               : "Copiar para a grade"}
           </Button>
+          </MotivoDesabilitado>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -48,7 +48,7 @@ export default function TicketsTable({
     return (
       <div className="border border-dashed border-slate-300 rounded-xl px-8 py-11 text-center">
         <div className="flex justify-center text-muted-foreground mb-2.5" aria-hidden="true">
-          <Plane className="w-7 h-7" />
+          <Plane className="w-7 h-7" aria-hidden="true" />
         </div>
         <h3 className="text-base font-semibold text-foreground mb-1.5">
           {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" :
@@ -127,9 +127,10 @@ export default function TicketsTable({
       `}</style>
       <div ref={refLargura} className={`overflow-x-auto ${modoCartao ? "passagens-cartao" : ""}`}>
       <table className="w-full text-left border-collapse">
+        <caption className="sr-only">Passagens: colaborador, evento, trechos, datas e situação da compra</caption>
         <thead className="bg-surface-muted border-b-2 border-b-border">
           <tr>
-            <th className="px-4 py-3 w-10">
+            <th scope="col" className="px-4 py-3 w-10">
               <input
                 type="checkbox"
                 checked={allSelectableSelected}
@@ -141,19 +142,19 @@ export default function TicketsTable({
                 data-testid="checkbox-select-all"
               />
             </th>
-            <th className={`px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground w-[64px] whitespace-nowrap`}>
+            <th scope="col" className={`px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground w-[64px] whitespace-nowrap`}>
               {sortBtn("id", "ID")}
             </th>
             {/* Evento e Função ordenam separadamente */}
-            <th className={`${TH} whitespace-nowrap`}>
+            <th scope="col" className={`${TH} whitespace-nowrap`}>
               {sortBtn("event", "Evento")}<span className="mx-1 text-muted-foreground">/</span>{sortBtn("function", "Função")}
             </th>
             <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={onSort}>Colaborador</SortableHeader>
-            <th className={TH}>Destino</th>
+            <th scope="col" className={TH}>Destino</th>
             <SortableHeader field="diarias" sortConfig={sortConfig} onSort={onSort}>Datas e Horários</SortableHeader>
-            <th className={TH}>Sugestões</th>
-            <th className={`${TH} text-center`}>Status</th>
-            <th className="py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground text-center w-[72px]">Ações</th>
+            <th scope="col" className={TH}>Sugestões</th>
+            <th scope="col" className={`${TH} text-center`}>Status</th>
+            <th scope="col" className="py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground text-center w-[72px]">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">

@@ -224,7 +224,7 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
         className="w-full flex items-center justify-between px-5 py-3 hover:bg-surface-muted transition-colors"
       >
         <div className="flex items-center gap-2">
-          <History className="w-4 h-4 text-muted-foreground" />
+          <History className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
           <span className="text-sm font-semibold text-slate-600">Histórico</span>
           {count > 0 && (
             <span className="text-2xs font-bold text-white bg-slate-400 rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
@@ -232,15 +232,15 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
             </span>
           )}
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" aria-hidden="true" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" aria-hidden="true" />}
       </button>
 
       {open && (
         <div className="px-5 pb-4">
           {isLoading && (
             <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
-              <Clock className="w-3.5 h-3.5 animate-spin" />
-              Carregando histórico...
+              <Clock className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+              Carregando histórico…
             </div>
           )}
 
@@ -282,7 +282,7 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
                         {/* Autor */}
                         {log.user_name && (
                           <div className="flex items-center gap-1 mt-0.5">
-                            <User className="w-2.5 h-2.5 text-muted-foreground" />
+                            <User className="w-2.5 h-2.5 text-muted-foreground" aria-hidden="true" />
                             <span className="text-2xs font-semibold text-slate-600">{log.user_name}</span>
                           </div>
                         )}

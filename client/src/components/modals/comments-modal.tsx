@@ -63,16 +63,16 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
     },
     onSuccess: () => {
       toast({
-        title: "Sucesso",
-        description: "Comentário adicionado com sucesso",
+        title: "Comentário adicionado",
+        variant: "success",
       });
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/comments", teamInclusionId] });
     },
     onError: (err: unknown) => {
       toast({
-        title: "Erro",
-        description: apiErrorMessage(err, "Erro ao adicionar comentário"),
+        title: "Não foi possível adicionar o comentário",
+        description: apiErrorMessage(err, "Tente novamente."),
         variant: "destructive",
       });
     },
@@ -126,7 +126,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
           {isLoading ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="animate-pulse space-y-2">
+                <div key={i} className="animate-pulse motion-reduce:animate-none space-y-2">
                   <div className="h-3 bg-muted rounded w-1/3"></div>
                   <div className="h-12 bg-muted rounded"></div>
                 </div>
@@ -162,7 +162,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
                 <FormItem>
                   <FormControl>
                     <Textarea
-                      placeholder="Adicionar comentário..."
+                      placeholder="Adicionar comentário…"
                       className="border border-border rounded-xl bg-card focus:ring-2 focus:ring-primary/25 focus:border-primary text-sm p-3 w-full resize-none min-h-[80px] transition-all"
                       {...field}
                       data-testid="textarea-comment"
@@ -178,7 +178,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
                 className="bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg px-5 py-2 text-sm font-semibold shadow-1 transition-all"
                 data-testid="button-add-comment"
               >
-                {createCommentMutation.isPending ? "Enviando..." : "Enviar"}
+                {createCommentMutation.isPending ? "Enviando…" : "Enviar"}
               </Button>
             </div>
           </form>

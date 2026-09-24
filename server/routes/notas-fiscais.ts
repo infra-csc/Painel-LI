@@ -235,6 +235,10 @@ export function registrarNotasFiscais(app: Express): void {
       const permissao = podeDevolverNota(inv);
       if (!permissao.ok) return res.status(inv ? 400 : 404).json({ message: permissao.motivo });
       const { comment } = req.body;
+      // Devolver sem dizer o motivo deixa o colaborador sem saber o que corrigir (24/09).
+      if (typeof comment !== "string" || !comment.trim()) {
+        return res.status(400).json({ message: "Informe o motivo da devolução para o colaborador saber o que corrigir." });
+      }
       const invoice = await decidirNota(req.params.id, "enviada", {
         status: "devolvida",
         returnComment: comment ?? null,

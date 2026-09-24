@@ -86,7 +86,7 @@ export function EscolherVagaDaPermuta({ candidatas, getCollaboratorName, getEven
           placeholder="Buscar por colaborador, evento ou #vaga…"
           aria-label="Buscar a vaga do outro colaborador"
           data-testid="input-busca-vaga-permuta"
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-muted-foreground"
+          className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground"
         />
       </div>
       <ul className="max-h-[260px] overflow-y-auto divide-y divide-border">

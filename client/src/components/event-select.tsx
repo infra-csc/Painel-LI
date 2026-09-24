@@ -201,7 +201,7 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
         role="dialog"
         aria-modal="true"
         aria-label="Buscar evento"
-        className="flex w-full max-w-[560px] max-h-[80vh] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-3 animate-in fade-in-0 zoom-in-95 duration-150"
+        className="flex w-full max-w-[560px] max-h-[80vh] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-3 animate-in motion-reduce:animate-none fade-in-0 zoom-in-95 duration-150"
         onMouseDown={e => e.stopPropagation()}
       >
         {/* Campo de busca: o anel de foco vai no contêiner (focus-within) —
@@ -219,8 +219,8 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder="Buscar evento..."
-            className="flex-1 min-w-0 border-0 bg-transparent text-base font-medium text-foreground caret-primary outline-none placeholder:text-muted-foreground"
+            placeholder="Buscar evento…"
+            className="flex-1 min-w-0 border-0 bg-transparent text-base font-medium text-foreground caret-primary outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground"
           />
           {search ? (
             <button

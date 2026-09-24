@@ -31,13 +31,13 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations, block
     <div className="mt-5">
       <div className="border border-danger/25 rounded-xl overflow-hidden">
         <div className="bg-danger-soft border-b border-danger/25 px-4 py-2.5 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-danger" />
+          <AlertCircle className="w-4 h-4 text-danger" aria-hidden="true" />
           <span className="text-2xs font-black text-danger uppercase tracking-[0.12em]">Aprovação do gestor</span>
         </div>
         <div className="p-4">
           {blockReason ? (
             <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2.5" role="status" data-testid="text-production-block-reason">
-              <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
+              <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-xs text-warning leading-snug">{blockReason}</p>
             </div>
           ) : canApprove ? (
@@ -52,23 +52,23 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations, block
                   variant="outline"
                   className="flex-1 flex items-center justify-center gap-2 border-danger/25 text-danger hover:bg-danger-soft rounded-xl h-9 text-sm font-semibold"
                 >
-                  <XCircle className="w-3.5 h-3.5" />
-                  {rejectProduction.isPending ? "Reprovando..." : "Reprovar"}
+                  <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                  {rejectProduction.isPending ? "Reprovando…" : "Reprovar"}
                 </Button>
                 <Button
                   onClick={() => setShowApprove(true)}
                   disabled={busy}
                   className="flex-1 flex items-center justify-center gap-2 bg-danger hover:bg-danger/90 text-white rounded-xl h-9 text-sm font-semibold"
                 >
-                  <Check className="w-3.5 h-3.5" />
-                  {approveProduction.isPending ? "Aprovando..." : "Aprovar"}
+                  <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                  {approveProduction.isPending ? "Aprovando…" : "Aprovar"}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-3 py-2">
               <div className="w-8 h-8 rounded-full bg-danger-soft flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 text-danger-strong" />
+                <Clock className="w-4 h-4 text-danger-strong" aria-hidden="true" />
               </div>
               <div>
                 <p className="text-xs font-semibold text-slate-700">Aguardando aprovação do gestor</p>
@@ -116,7 +116,7 @@ export function SentToProductionDialog({ info, onClose }: { info: SentToProducti
         <div className="px-6 pt-7 pb-6 space-y-5">
           <div className="flex flex-col items-center text-center gap-3">
             <div className="w-14 h-14 rounded-full bg-warning-soft border-2 border-warning/25 flex items-center justify-center">
-              <AlertCircle className="w-7 h-7 text-warning-strong" />
+              <AlertCircle className="w-7 h-7 text-warning-strong" aria-hidden="true" />
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-foreground leading-tight">Aguardando aprovação do gestor</DialogTitle>

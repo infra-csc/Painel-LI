@@ -1,5 +1,5 @@
 // Aba "Complementos e Histórico": comentários e log da inclusão, com estado
-// de carregamento (antes mostrava "Nenhum..." enquanto ainda buscava).
+// de carregamento (antes mostrava "Nenhum…" enquanto ainda buscava).
 import { useState } from "react";
 import { MessageCircle, History, Loader2 } from "lucide-react";
 import type { Comment, TeamInclusionLog } from "@shared/schema";
@@ -33,7 +33,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 const Loading = ({ label }: { label: string }) => (
   <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8" role="status" aria-live="polite">
-    <Loader2 className="w-5 h-5 text-muted-foreground mx-auto mb-2 animate-spin" />
+    <Loader2 className="w-5 h-5 text-muted-foreground mx-auto mb-2 animate-spin" aria-hidden="true" />
     <div className="text-xs text-muted-foreground">{label}</div>
   </div>
 );
@@ -51,20 +51,20 @@ export default function TicketExtrasTab({ comments, commentsLoading, logs, logsL
         <div className="border border-border rounded-xl overflow-hidden">
           <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-muted-foreground" />
+              <MessageCircle className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
               <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Comentários</span>
               {comments && comments.length > 0 && (
                 <span className="bg-primary text-primary-foreground text-2xs font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
               )}
             </div>
             <button onClick={onOpenComments} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors">
-              <MessageCircle className="w-3.5 h-3.5" />
+              <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" />
               {readOnly ? "Ver" : "Ver/Adicionar"}
             </button>
           </div>
           <div className="p-4">
             {commentsLoading && !comments ? (
-              <Loading label="Carregando comentários..." />
+              <Loading label="Carregando comentários…" />
             ) : comments && comments.length > 0 ? (
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {comments.map((comment) => {
@@ -87,7 +87,7 @@ export default function TicketExtrasTab({ comments, commentsLoading, logs, logsL
               </div>
             ) : (
               <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8">
-                <MessageCircle className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                <MessageCircle className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
                 <div className="text-xs text-muted-foreground">Nenhum comentário registrado.</div>
               </div>
             )}
@@ -98,15 +98,15 @@ export default function TicketExtrasTab({ comments, commentsLoading, logs, logsL
       {/* Histórico */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <History className="w-4 h-4 text-muted-foreground" />
+          <History className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
           <span className="text-xs font-black text-slate-600 uppercase tracking-[0.1em]">Histórico</span>
           {logs && logs.length > 0 && <span className="text-2xs text-muted-foreground">{logs.length} entr.</span>}
         </div>
         {logsLoading && !logs ? (
-          <Loading label="Carregando histórico..." />
+          <Loading label="Carregando histórico…" />
         ) : sortedLogs.length === 0 ? (
           <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8">
-            <History className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+            <History className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
             <div className="text-xs text-muted-foreground">Nenhum histórico encontrado.</div>
           </div>
         ) : (

@@ -234,7 +234,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
           <div
             className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-primary shadow-2"
           >
-            <Upload className="w-4 h-4 text-white" />
+            <Upload className="w-4 h-4 text-white" aria-hidden="true" />
           </div>
           <div className="flex-1 min-w-0">
             <DialogTitle className="text-sm font-bold text-foreground leading-tight">Importar colaboradores em lote</DialogTitle>
@@ -247,7 +247,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
             disabled={bulkUploadMutation.isPending}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted disabled:opacity-40 transition-colors"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
 
@@ -256,7 +256,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
           {step === "upload" && (
             <div className="space-y-4">
               <div className="border-2 border-dashed border-border rounded-xl p-8 text-center bg-surface-muted/50">
-                <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+                <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground" aria-hidden="true" />
                 <p className="text-sm font-semibold text-slate-700 mb-1">Selecione seu arquivo CSV</p>
                 <p className="text-xs text-muted-foreground mb-4">O arquivo deve conter as colunas especificadas no modelo</p>
                 <input
@@ -274,7 +274,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                     className="flex items-center gap-1.5 h-9 px-4 text-primary-foreground text-xs font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover"
                     data-testid="button-select-csv"
                   >
-                    <Upload className="w-3.5 h-3.5" /> Selecionar Arquivo
+                    <Upload className="w-3.5 h-3.5" aria-hidden="true" /> Selecionar Arquivo
                   </button>
                   <button
                     type="button"
@@ -282,7 +282,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                     className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-slate-600 border border-border bg-card rounded-lg hover:bg-surface-muted transition-colors"
                     data-testid="button-download-template"
                   >
-                    <Download className="w-3.5 h-3.5" /> Baixar Modelo
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" /> Baixar Modelo
                   </button>
                 </div>
               </div>
@@ -321,14 +321,14 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 <table className="w-full text-xs">
                   <thead className="bg-surface-muted sticky top-0">
                     <tr className="text-2xs font-bold tracking-widest text-muted-foreground uppercase">
-                      <th className="px-3 py-2.5 text-left">Status</th>
-                      <th className="px-3 py-2.5 text-left">Nome</th>
-                      <th className="px-3 py-2.5 text-left">Tipo</th>
-                      <th className="px-3 py-2.5 text-left">RG</th>
-                      <th className="px-3 py-2.5 text-left">Telefone</th>
-                      <th className="px-3 py-2.5 text-left">Cidade</th>
-                      <th className="px-3 py-2.5 text-left">Nascimento</th>
-                      <th className="px-3 py-2.5 text-left">Erros</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">Status</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">Nome</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">Tipo</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">RG</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">Telefone</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">Cidade</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">Nascimento</th>
+                      <th scope="col" className="px-3 py-2.5 text-left">Erros</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -358,7 +358,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
             <div className="space-y-4">
               <div className="text-center">
                 <div className="w-14 h-14 bg-success-soft rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Check className="w-7 h-7 text-success" strokeWidth={3} />
+                  <Check className="w-7 h-7 text-success" strokeWidth={3} aria-hidden="true" />
                 </div>
                 <h3 className="text-sm font-bold text-foreground mb-4">Importação concluída</h3>
                 <div className="grid grid-cols-3 gap-3">
@@ -378,7 +378,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
               {uploadResult.errors.length > 0 && (
                 <div className="bg-danger-soft border border-danger/25 rounded-xl p-4">
                   <p className="text-xs font-bold text-danger mb-2 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5" /> Linhas com erro
+                    <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> Linhas com erro
                   </p>
                   <div className="space-y-1 max-h-36 overflow-y-auto">
                     {uploadResult.errors.map((error, index) => (
@@ -416,8 +416,8 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 data-testid="button-confirm-upload"
               >
                 {bulkUploadMutation.isPending
-                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Importando...</>
-                  : <><Check className="w-3.5 h-3.5" strokeWidth={3} /> Importar {validCount} colaborador{validCount !== 1 ? "es" : ""}</>}
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Importando…</>
+                  : <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Importar {validCount} colaborador{validCount !== 1 ? "es" : ""}</>}
               </button>
             </>
           )}

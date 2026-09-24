@@ -36,6 +36,7 @@ import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/aliment
 import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, CENO_FREELA_SHORT, type NormalizedSwap } from "./scaling-utils";
 import { getScalingStatusKey } from "./scaling-status";
 import { StatusBadge, StatusDaVagaBadge } from "@/components/common/status-badge";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 // O vocabulário de status mora em scaling-status.ts (módulo sem JSX, para a
 // fila e as Análises poderem usá-lo). Reexportado aqui porque a tela e o modal
@@ -363,6 +364,7 @@ export default function ScalingTable({
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="overflow-x-auto">
         <table className={`table-fixed w-full ${onConfirmarRapido ? "min-w-[1300px]" : "min-w-[1180px]"}`}>
+          <caption className="sr-only">Escalação: vagas do evento com colaborador, função, dias e status</caption>
           <colgroup>
             <col style={{ width: "44px" }} />
             <col style={{ width: "84px" }} />
@@ -612,18 +614,20 @@ export default function ScalingTable({
                   <td className="px-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-0.5">
                       {onConfirmarRapido && podeGerir && podeConfirmarRapido?.(inclusion) && (
-                        <button
+                        <MotivoDesabilitado motivo={`Confirmar a escalação de ${nomeDoColaborador} — o servidor decide o status (cenotécnica vai ao gestor)`} desabilitado={confirmandoId === inclusion.id}>
+                          <button
                           type="button"
                           onClick={(e) => onConfirmarRapido(e, inclusion)}
                           disabled={confirmandoId === inclusion.id}
                           className="inline-flex h-[30px] items-center gap-1 rounded-lg bg-success px-2.5 text-xs font-semibold text-white hover:bg-success/90 transition-colors disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
-                          title={`Confirmar a escalação de ${nomeDoColaborador} — o servidor decide o status (cenotécnica vai ao gestor)`}
+                         
                           aria-label={`Confirmar escalação ${idLabel}`}
                           data-testid={`button-confirmar-rapido-${inclusion.id}`}
                         >
                           <Check className="h-3.5 w-3.5" aria-hidden="true" />
                           {confirmandoId === inclusion.id ? "Confirmando…" : "Confirmar"}
                         </button>
+                        </MotivoDesabilitado>
                       )}
                       {(() => {
                         const nComments = commentCountByInclusion?.get(inclusion.id) ?? 0;

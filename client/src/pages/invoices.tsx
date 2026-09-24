@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { EventSearchSelect } from "@/components/event-select";
 import { Button } from "@/components/ui/button";
@@ -29,10 +30,14 @@ import type { Event, Invoice } from "@shared/schema";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 
 import { formatarMoeda, toTitleCase } from "@/lib/format";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
+import { campoComErro } from "@/lib/campo-com-erro";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 const formatCurrency = formatarMoeda;
 function fmtDate(d?: string | null) {
   if (!d) return "—";
-  // Aceita "YYYY-MM-DD" e timestamps ISO ("YYYY-MM-DDTHH:mm:ss...")
+  // Aceita "YYYY-MM-DD" e timestamps ISO ("YYYY-MM-DDTHH:mm:ss…")
   const [y, m, day] = d.split("T")[0].split("-");
   return `${day}/${m}/${y}`;
 }
@@ -96,7 +101,7 @@ function InvoiceStepper({ counts }: { counts: StepperCounts }) {
               <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 shrink-0`}
                 style={{ borderColor: color, background: color }}>
                 {done
-                  ? <CheckCircle2 className="w-2 h-2 text-white" strokeWidth={3} />
+                  ? <CheckCircle2 className="w-2 h-2 text-white" strokeWidth={3} aria-hidden="true" />
                   : <div className="w-1.5 h-1.5 rounded-full bg-card" />}
               </div>
               <span className="text-2xs font-semibold whitespace-nowrap" style={{ color }}>
@@ -166,7 +171,7 @@ function FilterPills({ filters, active, countFor, onChange, alertFor }: {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function InvoicesPage() {
-  usePageTitle("Notas Fiscais");
+  usePageTitle("Notas fiscais");
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -244,7 +249,7 @@ export default function InvoicesPage() {
       qc.invalidateQueries({ queryKey: ["/api/events"] });
       toast({ title: "Empresa pagadora configurada com sucesso" });
     },
-    onError: () => toast({ title: "Erro ao salvar empresa pagadora", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível salvar a empresa pagadora", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const qInvoices = useQuery<Invoice[]>({
@@ -380,19 +385,19 @@ export default function InvoicesPage() {
         ) : activeEvents.length === 0 ? (
           <div className="bg-card rounded-xl border border-border p-16 text-center">
             <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-7 h-7 text-muted-foreground" />
+              <FileText className="w-7 h-7 text-muted-foreground" aria-hidden="true" />
             </div>
             <p className="text-sm font-semibold text-slate-600">Nenhum evento ativo encontrado</p>
             <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">Crie ou reative um evento para gerenciar as notas fiscais.</p>
             <Link href="/events">
               <a className="inline-flex items-center gap-1.5 mt-5 px-4 py-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-xl shadow-1 transition-colors">
-                <ExternalLink className="w-3.5 h-3.5" /> Ir para Eventos
+                <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Ir para Eventos
               </a>
             </Link>
           </div>
         ) : !selectedEventId ? (
           <div className="bg-card rounded-xl border border-border p-16 text-center">
-            <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+            <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">Selecione um evento para gerenciar as notas fiscais</p>
           </div>
         ) : !selectedEvent?.paymentCompanyCnpj?.trim() && canRH ? (
@@ -415,7 +420,7 @@ export default function InvoicesPage() {
               <div className="bg-card rounded-xl border border-warning/25 p-8 max-w-md mx-auto">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-10 h-10 rounded-xl bg-warning-soft flex items-center justify-center shrink-0">
-                    <Building2 className="w-5 h-5 text-warning-strong" />
+                    <Building2 className="w-5 h-5 text-warning-strong" aria-hidden="true" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">Confirme a empresa pagadora</p>
@@ -435,13 +440,13 @@ export default function InvoicesPage() {
                         onChange={e => setConfirmCompanyId(e.target.value)}
                         className="w-full h-9 rounded-lg border border-border px-3 text-sm text-slate-700 bg-card focus:outline-none focus:ring-2 focus:ring-warning/50 focus:border-warning-strong"
                       >
-                        <option value="" disabled>Selecione a empresa pagadora...</option>
+                        <option value="" disabled>Selecione a empresa pagadora…</option>
                         {pcs.map(c => (
                           <option key={c.id} value={c.id}>
                             {c.name} — {c.cnpj}
                           </option>
                         ))}
-                        <option value="__manual__">Inserir manualmente...</option>
+                        <option value="__manual__">Inserir manualmente…</option>
                       </select>
                     </div>
                   )}
@@ -479,7 +484,7 @@ export default function InvoicesPage() {
                   {/* Preview when company selected from list */}
                   {!isManual && selectedPc && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning-soft border border-warning/25">
-                      <Building2 className="w-3.5 h-3.5 text-warning-strong shrink-0" />
+                      <Building2 className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />
                       <span className="text-xs text-warning font-medium">{selectedPc.name}</span>
                       <span className="text-xs text-warning-strong ml-auto">{selectedPc.cnpj}</span>
                     </div>
@@ -490,7 +495,7 @@ export default function InvoicesPage() {
                     onClick={() => setCompanyDialogOpen(true)}
                     className="w-full h-10 rounded-xl bg-warning-strong hover:bg-warning/90 disabled:opacity-40 text-white text-sm font-semibold transition-colors mt-1"
                   >
-                    {setEventCompanyMutation.isPending ? 'Salvando...' : 'Confirmar e Continuar'}
+                    {setEventCompanyMutation.isPending ? 'Salvando…' : 'Confirmar e Continuar'}
                   </button>
 
                   <AlertDialog open={companyDialogOpen} onOpenChange={setCompanyDialogOpen}>
@@ -517,7 +522,7 @@ export default function InvoicesPage() {
         ) : dataLoading ? (
           <div className="space-y-3" role="status" aria-busy="true" aria-label="Carregando notas fiscais">
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-card rounded-xl border border-border px-5 py-4 animate-pulse flex items-center gap-4">
+              <div key={i} className="bg-card rounded-xl border border-border px-5 py-4 animate-pulse motion-reduce:animate-none flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-border shrink-0" />
                 <div className="flex-1 space-y-2 min-w-0">
                   <div className="h-3 bg-border rounded w-40 max-w-full" />
@@ -533,7 +538,7 @@ export default function InvoicesPage() {
                 sem bloquear a visualização das NFs */}
             {!selectedEvent?.paymentCompanyCnpj?.trim() && (
               <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-warning-soft border border-warning/25 text-xs text-warning">
-                <Building2 className="w-4 h-4 text-warning-strong shrink-0" />
+                <Building2 className="w-4 h-4 text-warning-strong shrink-0" aria-hidden="true" />
                 A empresa pagadora deste evento ainda não foi definida pelo RH. As notas fiscais continuam disponíveis para consulta.
               </div>
             )}
@@ -661,7 +666,7 @@ function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFu
   if (approvedActuals.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-16 text-center">
-        <AlertCircle className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+        <AlertCircle className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">Nenhum colaborador com Realizado enviado para este evento.</p>
         <p className="text-xs text-muted-foreground mt-1">O lançamento de notas é liberado assim que o Realizado é enviado. Itens devolvidos ou rejeitados ficam pausados até a regularização.</p>
       </div>
@@ -732,6 +737,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
   const cfg = getStatusCfg(effStatus);
 
   const [oc, setOc] = useState(invoice?.oc || "");
+  const [erros, setErros] = useState<{ oc?: string; anexo?: string }>({});
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -783,8 +789,9 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         setUploading(false);
       }
 
-      if (!oc.trim()) throw new Error("OC obrigatória");
-      if (!attachmentUrl) throw new Error("Nota em anexo obrigatória");
+      if (!oc.trim()) { setErros({ oc: "Informe o número da OC." }); document.getElementById(`nf-oc-${actual.id}`)?.focus(); throw new Error("Informe o número da OC."); }
+      if (!attachmentUrl) { setErros({ anexo: "Anexe o arquivo da nota fiscal." }); document.getElementById(`nf-file-btn-${actual.id}`)?.focus(); throw new Error("Anexe o arquivo da nota fiscal."); }
+      setErros({});
 
       if (invoice) {
         return apiRequest("PATCH", `/api/invoices/${invoice.id}`, { oc, attachmentUrl, attachmentName, paymentText, status: "enviada" }).then(r => r.json());
@@ -807,7 +814,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
       setUploading(false);
       // e.body vem do apiRequest enriquecido — mostra a mensagem real do
       // servidor (ex.: validação de OC repetida) em vez do texto genérico
-      toast({ title: "Erro", description: e?.body?.message || e.message || "Erro ao enviar nota", variant: "destructive" });
+      toast({ title: "Não foi possível enviar a nota", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     },
   });
 
@@ -847,7 +854,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
                 historyOpen ? "text-primary bg-brand-soft" : "text-muted-foreground hover:text-primary hover:bg-brand-soft"
               }`}
             >
-              <Clock className="w-3.5 h-3.5" />
+              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
               {!historyOpen && <span className="text-2xs font-semibold leading-none tabular-nums">{history.length}</span>}
             </button>
           )}
@@ -858,7 +865,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
               aria-label={expanded ? "Recolher motivo da devolução" : "Ver motivo da devolução"}
               className="text-muted-foreground hover:text-slate-600 transition-colors"
             >
-              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {expanded ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
             </button>
           )}
         </div>
@@ -871,39 +878,44 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
           <div className="flex flex-wrap items-end gap-3 mb-3">
             <div className="flex-1 min-w-[180px]">
               <label htmlFor={`nf-oc-${actual.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
-                Número OC <span className="text-danger-strong">*</span>
+                Número OC<RequiredMark />
               </label>
               <Input
                 id={`nf-oc-${actual.id}`}
                 value={oc}
-                onChange={e => setOc(e.target.value)}
+                aria-required="true"
+                {...campoComErro(`nf-oc-${actual.id}`, erros.oc)}
+                onChange={e => { setOc(e.target.value); if (erros.oc) setErros(p => ({ ...p, oc: undefined })); }}
                 placeholder="OC-0000"
                 className="h-9 text-sm rounded-xl border-border focus:border-primary"
               />
+              <MensagemDeErro id={`nf-oc-${actual.id}`} erro={erros.oc} />
               <p className="text-2xs text-muted-foreground mt-0.5">OCs repetidas no evento devem usar o mesmo anexo.</p>
             </div>
             <div className="flex-1 min-w-[180px]">
               <label htmlFor={`nf-file-${actual.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
-                Nota fiscal <span className="text-danger-strong">*</span>
+                Nota fiscal<RequiredMark />
               </label>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
+                  id={`nf-file-btn-${actual.id}`}
+                  {...campoComErro(`nf-file-btn-${actual.id}`, erros.anexo)}
                   onClick={() => fileRef.current?.click()}
                   className="flex-1 h-9 flex items-center gap-1.5 px-3 border border-dashed border-slate-300 rounded-xl text-xs text-muted-foreground hover:border-success-strong hover:bg-success-soft/40 transition-all min-w-0"
                 >
                   {file ? (
-                    <><FileCheck className="w-3.5 h-3.5 text-success shrink-0" /><span className="truncate text-success font-medium">{file.name}</span></>
+                    <><FileCheck className="w-3.5 h-3.5 text-success shrink-0" aria-hidden="true" /><span className="truncate text-success font-medium">{file.name}</span></>
                   ) : invoice?.attachmentUrl && !clearedAttachment ? (
-                    <><Paperclip className="w-3.5 h-3.5 shrink-0" /><span className="truncate">Substituir nota</span></>
+                    <><Paperclip className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span className="truncate">Substituir nota</span></>
                   ) : (
-                    <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Anexar nota</span></>
+                    <><Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span>Anexar nota</span></>
                   )}
                 </button>
                 {(file || (invoice?.attachmentUrl && !clearedAttachment)) && (
                   <button type="button" onClick={removeAttachment} aria-label="Remover anexo"
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors shrink-0">
-                    <X className="w-3 h-3" />
+                    <X className="w-3 h-3" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -911,7 +923,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
               {invoice?.attachmentUrl && !file && !clearedAttachment && (
                 <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
                   className="mt-0.5 inline-flex items-center gap-0.5 text-2xs text-primary hover:underline">
-                  <Eye className="w-2.5 h-2.5" /> Ver atual
+                  <Eye className="w-2.5 h-2.5" aria-hidden="true" /> Ver atual
                 </a>
               )}
             </div>
@@ -921,8 +933,8 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
               onClick={() => submitMutation.mutate()}
               disabled={submitMutation.isPending || uploading}
             >
-              <Send className="w-3.5 h-3.5 mr-1.5" />
-              {submitMutation.isPending || uploading ? "Enviando..." : effStatus === "devolvida" ? "Reenviar" : "Enviar nota"}
+              <Send className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+              {submitMutation.isPending || uploading ? "Enviando…" : effStatus === "devolvida" ? "Reenviar" : "Enviar nota"}
             </Button>
           </div>
         )}
@@ -937,7 +949,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
             {invoice?.attachmentUrl && (
               <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
-                <FileText className="w-3.5 h-3.5" /> Ver nota
+                <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
               </a>
             )}
           </div>
@@ -955,7 +967,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
             {invoice?.attachmentUrl && (
               <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
-                <FileText className="w-3.5 h-3.5" /> Ver nota
+                <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
               </a>
             )}
           </div>
@@ -964,7 +976,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         {/* Check-in realizado */}
         {effStatus === "checkin-realizado" && (
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-success-soft text-success border border-success/25">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
             Check-in Realizado
             {invoice?.checkinAt && <span className="font-normal opacity-75">· {fmtDate(invoice.checkinAt)}</span>}
             {invoice?.paymentDate && (
@@ -978,7 +990,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         {/* Aguardando Check-in — apenas badge estático no Lançamento */}
         {effStatus === "checkin-pendente" && (
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-brand-soft text-primary border border-primary/25">
-            <Clock className="w-3.5 h-3.5" />
+            <Clock className="w-3.5 h-3.5" aria-hidden="true" />
             Aprovada · Aguardando Check-in Financeiro
           </div>
         )}
@@ -986,7 +998,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         {/* Devolvida — motivo */}
         {expanded && effStatus === "devolvida" && (
           <div className="mt-3 bg-warning-soft border border-warning/25 rounded-xl px-4 py-3 flex items-start gap-2">
-            <RotateCcw className="w-3.5 h-3.5 text-warning-strong mt-0.5 shrink-0" />
+            <RotateCcw className="w-3.5 h-3.5 text-warning-strong mt-0.5 shrink-0" aria-hidden="true" />
             <div>
               <p className="text-2xs font-semibold text-warning mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
               <p className="text-xs text-warning">{invoice?.returnComment || "Sem comentário."}</p>
@@ -1008,13 +1020,13 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
                 {invoice?.attachmentUrl && (
                   <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
-                    <FileText className="w-3.5 h-3.5" /> Ver nota
+                    <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
                   </a>
                 )}
               </div>
             )}
             <div className="bg-danger-soft border border-danger/25 rounded-xl px-4 py-3 flex items-start gap-2">
-              <Ban className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" />
+              <Ban className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" aria-hidden="true" />
               <div>
                 <p className="text-2xs font-semibold text-danger mb-0.5 uppercase tracking-wide">NF recusada — decisão definitiva, sem reenvio</p>
                 <p className="text-xs text-danger">{invoice?.returnComment || "Sem motivo informado."}</p>
@@ -1153,7 +1165,7 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
                   )}
                   {ev.attachmentName && (
                     <span className="text-2xs text-muted-foreground flex items-center gap-1">
-                      <Paperclip className="w-2.5 h-2.5" /> {ev.attachmentName}
+                      <Paperclip className="w-2.5 h-2.5" aria-hidden="true" /> {ev.attachmentName}
                     </span>
                   )}
                 </div>
@@ -1185,6 +1197,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
   const [active, setActive]             = useState<ActiveAprovAction>(null);
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
   const [comment, setComment]           = useState("");
+  const [tocouMotivo, setTocouMotivo]   = useState(false);
   const [checkinDate, setCheckinDate]   = useState("");
   const setFilterStatus = onFilterStatus as (v: string) => void;
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
@@ -1241,7 +1254,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       closeAction();
       toast({ title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao aprovar nota", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível aprovar a nota", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const returnMutation = useMutation({
@@ -1254,7 +1267,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       closeAction();
       toast({ title: "Nota devolvida para ajuste." });
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao devolver nota", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível devolver a nota", description: apiErrorMessage(err, "Informe o motivo da devolução e tente novamente."), variant: "destructive" }),
   });
 
   const rejectMutation = useMutation({
@@ -1268,7 +1281,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       // aprovado; para estornar, rejeite/devolva o comparativo do evento.
       toast({ title: "Nota recusada.", description: "A recusa é definitiva — esta nota não poderá ser reenviada." });
     },
-    onError: (e: any) => toast({ title: "Erro", description: e?.body?.message || "Erro ao recusar nota", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Não foi possível recusar a nota", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
 
   const checkinMutation = useMutation({
@@ -1282,13 +1295,13 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       closeAction();
       toast({ title: "Check-in realizado!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao realizar check-in", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível fazer o check-in", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   if (invoices.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-16 text-center">
-        <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+        <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">Nenhuma nota enviada ainda para este evento.</p>
       </div>
     );
@@ -1346,6 +1359,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full" style={{ tableLayout: "fixed", minWidth: "760px" }}>
+          <caption className="sr-only">Notas fiscais: colaborador, evento, valor, competência e situação da nota</caption>
           <colgroup>
             <col style={{ width: "210px" }} />
             <col style={{ width: "120px" }} />
@@ -1357,13 +1371,13 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
           </colgroup>
           <thead>
             <tr className="border-b border-border bg-surface-muted/60">
-              <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Colaborador</th>
-              <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Função</th>
-              <th className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Valor</th>
-              <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</th>
-              <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Nota</th>
-              <th className="px-2 py-3" />
-              <th className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Colaborador</th>
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Função</th>
+              <th scope="col" className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Valor</th>
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</th>
+              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Nota</th>
+              <th scope="col" className="px-2 py-3" />
+              <th scope="col" className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -1454,7 +1468,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       {inv.attachmentUrl ? (
                         <a href={inv.attachmentUrl} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                          <FileText className="w-3.5 h-3.5" /> Ver nota
+                          <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
                         </a>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
@@ -1471,7 +1485,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                             : "text-muted-foreground hover:text-primary hover:bg-brand-soft"
                         }`}
                       >
-                        <Clock className="w-3.5 h-3.5" />
+                        <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                         {!isHistOpen && (
                           <span className="text-2xs font-semibold leading-none tabular-nums">{history.length}</span>
                         )}
@@ -1487,13 +1501,14 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                 className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-1 rounded-full bg-warning-soft text-warning border border-warning/25 whitespace-nowrap"
                                 title="Realizado devolvido — aguarde o reenvio"
                               >
-                                <AlertTriangle className="w-3 h-3" /> Realizado devolvido
+                                <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Realizado devolvido
                               </span>
                             )}
-                            <button
+                            <MotivoDesabilitado motivo={actualBlocked ? "Realizado devolvido — aguarde o reenvio" : undefined} desabilitado={actualBlocked}>
+                              <button
                               onClick={() => openAction(inv.id, "approve")}
                               disabled={actualBlocked}
-                              title={actualBlocked ? "Realizado devolvido — aguarde o reenvio" : undefined}
+                             
                               className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
                                 actualBlocked
                                   ? "text-muted-foreground bg-surface-muted border-border cursor-not-allowed opacity-60"
@@ -1502,8 +1517,9 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                   : "text-success bg-success-soft border-success/25 hover:bg-success-soft"
                               }`}
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
+                              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Aprovar
                             </button>
+                            </MotivoDesabilitado>
                             <button
                               onClick={() => openAction(inv.id, "return")}
                               className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
@@ -1512,7 +1528,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                   : "text-warning bg-warning-soft border-warning/25 hover:bg-warning-soft"
                               }`}
                             >
-                              <RotateCcw className="w-3.5 h-3.5" /> Devolver
+                              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Devolver
                             </button>
                             <button
                               onClick={() => openAction(inv.id, "reject")}
@@ -1523,7 +1539,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                   : "text-danger bg-danger-soft border-danger/25 hover:bg-danger-soft"
                               }`}
                             >
-                              <Ban className="w-3.5 h-3.5" /> Recusar
+                              <Ban className="w-3.5 h-3.5" aria-hidden="true" /> Recusar
                             </button>
                           </>
                         )}
@@ -1536,12 +1552,12 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                 : "text-primary bg-brand-soft border-primary/25 hover:bg-brand-soft"
                             }`}
                           >
-                            <CircleDot className="w-3.5 h-3.5" /> Fazer Check-in
+                            <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Fazer Check-in
                           </button>
                         )}
                         {effSt === "checkin-realizado" && (
                           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success bg-success-soft border border-success/25 px-2.5 py-1.5 rounded-lg">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> {fmtDate(inv.paymentDate)}
+                            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> {fmtDate(inv.paymentDate)}
                           </span>
                         )}
                         {effSt === "devolvida" && (
@@ -1577,7 +1593,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {active.type === "approve" && (
                           <div className="flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4 text-success" />
+                              <CheckCircle2 className="w-4 h-4 text-success" aria-hidden="true" />
                               <span className="text-sm font-semibold text-success">Confirmar aprovação</span>
                             </div>
                             <p className="text-xs text-success/70 flex-1">
@@ -1595,7 +1611,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                                 disabled={approveMutation.isPending}
                                 className="h-8 px-4 text-xs font-semibold text-white rounded-lg transition-colors disabled:opacity-50 bg-success"
                               >
-                                {approveMutation.isPending ? "Aprovando..." : "✓ Confirmar"}
+                                {approveMutation.isPending ? "Aprovando…" : "✓ Confirmar"}
                               </button>
                             </div>
                           </div>
@@ -1605,32 +1621,37 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {active.type === "return" && (
                           <div className="space-y-2.5">
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning bg-warning-soft border border-warning/25 px-2.5 py-1.5 rounded-lg">
-                              <RotateCcw className="w-3.5 h-3.5" /> Devolver para ajuste
+                              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Devolver para ajuste
                             </span>
                             <div>
                               <label htmlFor={`nf-return-${inv.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
-                                Motivo da devolução <span className="text-danger-strong">*</span>
+                                Motivo da devolução<RequiredMark />
                               </label>
                               <Textarea
                                 id={`nf-return-${inv.id}`}
                                 rows={3}
                                 value={comment}
+                                aria-required="true"
+                                {...campoComErro(`nf-return-${inv.id}`, tocouMotivo && !comment.trim() ? "Informe o motivo da devolução." : undefined)}
                                 onChange={e => setComment(e.target.value)}
-                                placeholder="Descreva o que precisa ser corrigido (nota fiscal ou número OC)..."
+                                onBlur={() => setTocouMotivo(true)}
+                                placeholder="Descreva o que precisa ser corrigido (nota fiscal ou número OC)…"
                                 className="text-xs rounded-xl border-border resize-none w-full"
                                 autoFocus
                               />
+                              <MensagemDeErro id={`nf-return-${inv.id}`} erro={tocouMotivo && !comment.trim() ? "Informe o motivo da devolução." : undefined} />
                             </div>
                             <div className="flex items-center justify-end gap-2">
                               <button onClick={closeAction} className="h-8 px-3 text-xs text-muted-foreground hover:bg-border rounded-lg flex items-center gap-1">
-                                <X className="w-3 h-3" /> Cancelar
+                                <X className="w-3 h-3" aria-hidden="true" /> Cancelar
                               </button>
                               <button
-                                onClick={() => returnMutation.mutate(inv.id)}
+                                onClick={() => { setTocouMotivo(true); if (comment.trim()) returnMutation.mutate(inv.id); }}
                                 disabled={!comment.trim() || returnMutation.isPending}
+                                aria-busy={returnMutation.isPending}
                                 className="h-8 px-4 text-xs font-semibold bg-warning hover:bg-warning/90 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                               >
-                                {returnMutation.isPending ? "Devolvendo..." : "↩ Confirmar Devolução"}
+                                {returnMutation.isPending ? "Devolvendo…" : "Confirmar devolução"}
                               </button>
                             </div>
                           </div>
@@ -1640,35 +1661,35 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {active.type === "reject" && (
                           <div className="space-y-2.5">
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-danger bg-danger-soft border border-danger/25 px-2.5 py-1.5 rounded-lg">
-                              <Ban className="w-3.5 h-3.5" /> Recusar nota fiscal
+                              <Ban className="w-3.5 h-3.5" aria-hidden="true" /> Recusar nota fiscal
                             </span>
                             <p className="text-2xs text-danger">
                               A recusa é definitiva: a nota não poderá ser corrigida nem reenviada. Para pedir ajustes, use <strong>Devolver</strong>.
                             </p>
                             <div>
                               <label htmlFor={`nf-reject-${inv.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
-                                Motivo da recusa <span className="text-danger-strong">*</span>
+                                Motivo da recusa<RequiredMark />
                               </label>
                               <Textarea
                                 id={`nf-reject-${inv.id}`}
                                 rows={3}
                                 value={comment}
                                 onChange={e => setComment(e.target.value)}
-                                placeholder="Explique por que esta nota está sendo recusada em definitivo..."
+                                placeholder="Explique por que esta nota está sendo recusada em definitivo…"
                                 className="text-xs rounded-xl border-border resize-none w-full"
                                 autoFocus
                               />
                             </div>
                             <div className="flex items-center justify-end gap-2">
                               <button onClick={closeAction} className="h-8 px-3 text-xs text-muted-foreground hover:bg-border rounded-lg flex items-center gap-1">
-                                <X className="w-3 h-3" /> Cancelar
+                                <X className="w-3 h-3" aria-hidden="true" /> Cancelar
                               </button>
                               <button
                                 onClick={() => rejectMutation.mutate(inv.id)}
                                 disabled={!comment.trim() || rejectMutation.isPending}
                                 className="h-8 px-4 text-xs font-semibold bg-danger hover:bg-danger/90 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                               >
-                                {rejectMutation.isPending ? "Recusando..." : "Confirmar Recusa"}
+                                {rejectMutation.isPending ? "Recusando…" : "Confirmar Recusa"}
                               </button>
                             </div>
                           </div>
@@ -1678,12 +1699,12 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         {active.type === "checkin" && (
                           <div className="space-y-2.5">
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-brand-soft border border-primary/25 px-2.5 py-1.5 rounded-lg">
-                              <CircleDot className="w-3.5 h-3.5" /> Check-in Financeiro
+                              <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Check-in Financeiro
                             </span>
                             <div className="flex items-center gap-3 flex-wrap">
                               <div>
                                 <label htmlFor={`nf-checkin-${inv.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
-                                  Data de pagamento <span className="text-danger-strong">*</span>
+                                  Data de pagamento<RequiredMark />
                                 </label>
                                 <input
                                   id={`nf-checkin-${inv.id}`}
@@ -1696,14 +1717,14 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                               </div>
                               <div className="flex items-center gap-2 mt-5">
                                 <button onClick={closeAction} className="h-8 px-3 text-xs text-muted-foreground hover:bg-border rounded-lg flex items-center gap-1">
-                                  <X className="w-3 h-3" /> Cancelar
+                                  <X className="w-3 h-3" aria-hidden="true" /> Cancelar
                                 </button>
                                 <button
                                   onClick={() => checkinMutation.mutate(inv.id)}
                                   disabled={!checkinDate || checkinMutation.isPending}
                                   className="h-8 px-4 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground rounded-lg transition-colors bg-primary hover:bg-primary-hover"
                                 >
-                                  {checkinMutation.isPending ? "Salvando..." : "Confirmar Check-in"}
+                                  {checkinMutation.isPending ? "Salvando…" : "Confirmar Check-in"}
                                 </button>
                               </div>
                             </div>

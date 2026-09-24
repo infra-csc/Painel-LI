@@ -114,9 +114,10 @@ export default function AccommodationsTable({
 
       <div ref={refLargura} className={`overflow-x-auto ${modoCartao ? "hospedagem-cartao" : ""}`}>
         <table className="w-full text-left border-collapse">
+          <caption className="sr-only">Hospedagens: colaborador, evento, hotel, período e situação da reserva</caption>
           <thead className="bg-surface-muted border-b border-border">
             <tr>
-              <th className="px-3.5 py-2.5 w-11 text-center">
+              <th scope="col" className="px-3.5 py-2.5 w-11 text-center">
                 <label className={ALVO_DA_CAIXA} title="Selecionar todas as pendentes">
                   <input
                     type="checkbox"
@@ -289,7 +290,7 @@ export default function AccommodationsTable({
                           className={`${PILULA} bg-warning-soft text-warning border border-warning/25`}
                           data-testid={`badge-swap-pending-${inclusion.inclusionNumber}`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0 animate-pulse" aria-hidden="true" />Troca pendente
+                          <span className="w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0 animate-pulse motion-reduce:animate-none" aria-hidden="true" />Troca pendente
                         </span>
                       )}
                       {hasApprovedSwap && !isCanceled && (

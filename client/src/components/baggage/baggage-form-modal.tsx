@@ -28,6 +28,7 @@ import {
 } from "./baggage-core";
 import { validate, type AgregadoDoColaborador } from "./baggage-logic";
 import { CollaboratorCombobox, EventCombobox } from "./baggage-comboboxes";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 const LBL = "text-2xs font-bold text-muted-foreground uppercase tracking-widest block mb-1.5";
 const INPUT = "h-9 text-xs rounded-lg border-border";
@@ -124,13 +125,13 @@ export default function BaggageFormModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="bg-event" className={LBL}>Evento *</label>
+                <label htmlFor="bg-event" className={LBL}>Evento<RequiredMark /></label>
                 <EventCombobox
                   id="bg-event"
                   events={eventOptions}
                   value={form.eventId}
                   onChange={eventId => setForm(f => ({ ...f, eventId }))}
-                  placeholder="Buscar evento por nome ou cidade..."
+                  placeholder="Buscar evento por nome ou cidade…"
                   invalid={!!errors.eventId}
                   describedBy={errors.eventId ? "bg-event-err" : undefined}
                 />
@@ -138,7 +139,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-collab" className={LBL}>Colaborador *</label>
+                <label htmlFor="bg-collab" className={LBL}>Colaborador<RequiredMark /></label>
                 <CollaboratorCombobox
                   id="bg-collab"
                   collaborators={colaboradoresAtivos}
@@ -181,7 +182,7 @@ export default function BaggageFormModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
               <div>
-                <label htmlFor="bg-loc" className={LBL}>LOC *</label>
+                <label htmlFor="bg-loc" className={LBL}>LOC<RequiredMark /></label>
                 <Input
                   id="bg-loc"
                   value={form.loc}
@@ -195,7 +196,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-cia" className={LBL}>CIA *</label>
+                <label htmlFor="bg-cia" className={LBL}>CIA<RequiredMark /></label>
                 <select
                   id="bg-cia"
                   value={form.ciaSelect}
@@ -221,7 +222,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-value" className={LBL}>Valor (R$) *</label>
+                <label htmlFor="bg-value" className={LBL}>Valor (R$)<RequiredMark /></label>
                 <Input
                   id="bg-value"
                   value={form.valueText}
@@ -241,7 +242,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-os" className={LBL}>OS *</label>
+                <label htmlFor="bg-os" className={LBL}>OS<RequiredMark /></label>
                 <Input
                   id="bg-os"
                   value={form.os}
@@ -255,7 +256,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-qty" className={LBL}>Quantidade *</label>
+                <label htmlFor="bg-qty" className={LBL}>Quantidade<RequiredMark /></label>
                 <Input
                   id="bg-qty"
                   type="number"
@@ -271,7 +272,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-agency" className={LBL}>Agência *</label>
+                <label htmlFor="bg-agency" className={LBL}>Agência<RequiredMark /></label>
                 <select
                   id="bg-agency"
                   value={form.agencySelect}
@@ -297,7 +298,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-request-date" className={LBL}>Data da solicitação *</label>
+                <label htmlFor="bg-request-date" className={LBL}>Data da solicitação<RequiredMark /></label>
                 <Input
                   id="bg-request-date"
                   type="date"
@@ -311,7 +312,7 @@ export default function BaggageFormModal({
               </div>
 
               <div>
-                <label htmlFor="bg-boarding-date" className={LBL}>Data do embarque *</label>
+                <label htmlFor="bg-boarding-date" className={LBL}>Data do embarque<RequiredMark /></label>
                 <Input
                   id="bg-boarding-date"
                   type="date"
@@ -378,7 +379,7 @@ export default function BaggageFormModal({
                 data-testid="button-submit-baggage"
               >
                 <Save className="w-4 h-4 mr-1.5" aria-hidden="true" />
-                {salvando ? "Salvando..." : editing ? "Salvar alterações" : "Registrar solicitação"}
+                {salvando ? "Salvando…" : editing ? "Salvar alterações" : "Registrar solicitação"}
               </Button>
             </div>
           </div>

@@ -466,7 +466,7 @@ export default function Tickets() {
   }
   if (data.isLoading) {
     return (
-      <div className="animate-pulse">
+      <div className="animate-pulse motion-reduce:animate-none">
         <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
         <div className="h-64 bg-muted rounded"></div>
       </div>
@@ -476,7 +476,7 @@ export default function Tickets() {
     const isAuthError = data.loadError.status === 401 || data.loadError.status === 403;
     return (
       <div className="bg-card rounded-xl border border-danger/25 shadow-1 p-8 text-center">
-        <div className="w-14 h-14 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-danger-strong" /></div>
+        <div className="w-14 h-14 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-danger-strong" aria-hidden="true" /></div>
         <h3 className="text-base font-bold text-slate-700 mb-1">{isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as passagens"}</h3>
         <p className="text-sm text-muted-foreground mb-4">
           {isAuthError ? "Entre novamente para continuar. Nenhum dado foi perdido." : (data.loadError.body?.message || "Verifique sua conexão e tente novamente.")}
@@ -496,7 +496,7 @@ export default function Tickets() {
             nenhum número se perdeu. Fica abaixo da barra do topo (`--sticky-top`)
             — `z-25` não existe no Tailwind, por isso ela não fixava (23/09). */}
         <div className="sticky top-[var(--sticky-top)] z-30 flex flex-wrap items-center gap-x-4 gap-y-2 min-h-14 py-2 px-[var(--page-gutter)] bg-card border-b border-border">
-          <span className="text-base font-semibold text-foreground whitespace-nowrap">Passagens</span>
+          <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Passagens</h1>
           <div aria-hidden="true" className="w-px h-5 bg-border" />
           <span className="min-w-0 text-xs text-muted-foreground truncate" data-testid="resumo-passagens">{resumoTopo}</span>
           {canEdit && (

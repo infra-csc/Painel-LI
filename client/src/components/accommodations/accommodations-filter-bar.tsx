@@ -15,6 +15,7 @@ import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "
 import type { AccommodationFilters, AccSortConfig, AccSortField } from "./types";
 import ScalingPeriodFilter from "@/components/scaling/scaling-period-filter";
 import type { TeamInclusion } from "@shared/schema";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 interface Props {
   filters: AccommodationFilters;
@@ -158,19 +159,21 @@ export default function AccommodationsFilterBar({
           testid="filter-sort"
         />
       </div>
-      <button
+      <MotivoDesabilitado motivo={ascendente ? "Ordem crescente — clique para inverter" : "Ordem decrescente — clique para inverter"} desabilitado={!sortConfig}>
+        <button
         type="button"
         // Sem campo escolhido não há o que inverter — desabilitar diz isso
         // melhor do que um botão que não faz nada ao ser clicado.
         disabled={!sortConfig}
         onClick={() => sortConfig && onSortChange({ ...sortConfig, direction: ascendente ? "desc" : "asc" })}
-        title={ascendente ? "Ordem crescente — clique para inverter" : "Ordem decrescente — clique para inverter"}
+       
         aria-label={ascendente ? "Ordem crescente, inverter" : "Ordem decrescente, inverter"}
         className={`${CONTROLE} w-[34px] shrink-0 inline-flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-card transition-colors`}
         data-testid="button-sort-direction"
       >
         {ascendente ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
       </button>
+      </MotivoDesabilitado>
 
       <button
         type="button"

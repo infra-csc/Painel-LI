@@ -43,7 +43,7 @@ export default function BaggageList({
         {carregando ? (
           <div className="space-y-3" aria-hidden="true">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
+              <div key={i} className="h-24 rounded-xl bg-muted animate-pulse motion-reduce:animate-none" />
             ))}
           </div>
         ) : erro ? (

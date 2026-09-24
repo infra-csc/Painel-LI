@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import type { User } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 import { hasPermission } from "@/lib/role-utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { PageHeader } from "@/components/common/page-header";
 import { PageContainer } from "@/components/common/page-container";
 import { EmptyState } from "@/components/common/empty-state";
@@ -134,8 +135,11 @@ export default function AdminUsers() {
   const hasAccess = hasPermission(user, "canAccessAdminUsers");
   // POST /api/users: admin, financial, purchasing (produção não cria)
   const canCreate = hasPermission(user, "canCreateUsers");
-  // toggle-active / reset-password: admin, purchasing, production (RH não)
+  // toggle-active / approval / reset-password: SÓ admin (23/09). RH e Compras
+  // veem a lista e criam usuário; as ações de conta aparecem desabilitadas
+  // com o motivo (a pessoa está a um clique da ação — não some sem explicar).
   const canManageAccounts = hasPermission(user, "canManageUserAccounts");
+  const SO_ADMIN = "Só administradores podem fazer isso.";
 
   // Mensagem de erro padronizada: erro de rede/sessão nunca pode virar "lista vazia".
   const errorText = (e: any, fallback: string) => {
@@ -151,22 +155,22 @@ export default function AdminUsers() {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (userId: string) => (await apiRequest("PATCH", `/api/users/${userId}/toggle-active`)).json(),
-    onSuccess: () => { toast({ title: "Sucesso", description: "Status da conta atualizado" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
-    onError: (e: any) => toast({ title: "Erro ao alterar status", description: errorText(e, "Não foi possível alterar o status da conta."), variant: "destructive" }),
+    onSuccess: () => { toast({ variant: "success", title: "Status da conta atualizado" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
+    onError: (e: any) => toast({ title: "Não foi possível alterar o status da conta", description: errorText(e, "Não foi possível alterar o status da conta."), variant: "destructive" }),
   });
 
   const resetPasswordMutation = useMutation({
     mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) =>
       (await apiRequest("POST", `/api/users/${userId}/reset-password`, { newPassword })).json(),
-    onSuccess: () => { toast({ title: "Sucesso", description: "Senha resetada. O usuário deverá trocá-la no próximo login." }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
-    onError: (e: any) => toast({ title: "Erro ao resetar senha", description: errorText(e, "Não foi possível resetar a senha."), variant: "destructive" }),
+    onSuccess: () => { toast({ variant: "success", title: "Senha redefinida", description: "O usuário deverá trocá-la no próximo login." }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
+    onError: (e: any) => toast({ title: "Não foi possível redefinir a senha", description: errorText(e, "Não foi possível resetar a senha."), variant: "destructive" }),
   });
 
   const approveUserMutation = useMutation({
     mutationFn: async ({ userId, status }: { userId: string; status: "approved" | "rejected" }) =>
       (await apiRequest("PATCH", `/api/users/${userId}/approval`, { status })).json(),
-    onSuccess: () => { toast({ title: "Sucesso", description: "Status do usuário atualizado" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
-    onError: (e: any) => toast({ title: "Erro", description: errorText(e, "Não foi possível atualizar o usuário."), variant: "destructive" }),
+    onSuccess: () => { toast({ variant: "success", title: "Aprovação do usuário atualizada" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
+    onError: (e: any) => toast({ title: "Não foi possível atualizar a aprovação", description: errorText(e, "Tente novamente."), variant: "destructive" }),
   });
 
   const toggleCenotecnicaMutation = useMutation({
@@ -177,7 +181,7 @@ export default function AdminUsers() {
       toast({ title: "Permissão atualizada", description: `Aprovação de cenotécnica ${label} para este usuário.` });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
-    onError: (e: any) => toast({ title: "Erro", description: errorText(e, "Não foi possível alterar a permissão."), variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Não foi possível alterar a permissão", description: errorText(e, "Tente novamente."), variant: "destructive" }),
   });
 
   const handleResetPassword = (u: User) => {
@@ -294,7 +298,7 @@ export default function AdminUsers() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center max-w-md">
-          <AlertCircle className="w-10 h-10 text-danger-strong mx-auto mb-3" />
+          <AlertCircle className="w-10 h-10 text-danger-strong mx-auto mb-3" aria-hidden="true" />
           <h2 className="text-lg font-bold text-foreground mb-1">Não foi possível carregar os usuários</h2>
           <p className="text-sm text-muted-foreground mb-4">{errorText(error, "Verifique sua conexão e tente novamente.")}</p>
           <button
@@ -302,7 +306,7 @@ export default function AdminUsers() {
             disabled={isFetching}
             className="px-4 py-2 text-xs font-semibold rounded-lg border border-border text-slate-600 hover:border-slate-300 disabled:opacity-50"
           >
-            {isFetching ? "Tentando..." : "Tentar novamente"}
+            {isFetching ? "Tentando…" : "Tentar novamente"}
           </button>
         </div>
       </div>
@@ -333,7 +337,7 @@ export default function AdminUsers() {
               onClick={() => setLocation("/user-registration")}
               className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg shadow-1 hover:shadow-2 transition-all"
             >
-              <UserPlus className="w-3.5 h-3.5" /> Novo Usuário
+              <UserPlus className="w-3.5 h-3.5" aria-hidden="true" /> Novo Usuário
             </button>
           )}
         />
@@ -349,9 +353,9 @@ export default function AdminUsers() {
         {/* ── Search + Filters ── */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
             <Input
-              placeholder="Buscar por nome ou e-mail..."
+              placeholder="Buscar por nome ou e-mail…"
               aria-label="Buscar usuários por nome ou e-mail"
               value={searchQuery}
               onChange={e => setUrlState({ q: e.target.value, pagina: 1 })}
@@ -360,7 +364,7 @@ export default function AdminUsers() {
             />
             {searchQuery && (
               <button type="button" aria-label="Limpar busca" onClick={() => setUrlState({ q: "", pagina: 1 })} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
-                <X className="w-3 h-3" />
+                <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -383,7 +387,7 @@ export default function AdminUsers() {
           {(searchQuery || statusFilter !== "all" || roleFilter !== "all") && (
             <button onClick={clearAll}
               className="flex items-center gap-1 h-9 px-3 text-xs text-muted-foreground border border-border rounded-lg hover:border-slate-300 transition-colors">
-              <X className="w-3 h-3" /> Limpar
+              <X className="w-3 h-3" aria-hidden="true" /> Limpar
             </button>
           )}
           <span className="text-xs text-muted-foreground ml-auto tabular-nums">
@@ -397,12 +401,12 @@ export default function AdminUsers() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-surface-muted/80 border-b border-border">
-                  <th className="text-left px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Usuário</th>
-                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">E-mail</th>
-                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Perfil</th>
-                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Cadastro</th>
-                  <th className="text-right px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Ações</th>
+                  <th scope="col" className="text-left px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Usuário</th>
+                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">E-mail</th>
+                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Perfil</th>
+                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Cadastro</th>
+                  <th scope="col" className="text-right px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -487,7 +491,7 @@ export default function AdminUsers() {
                                   className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors"
                                   data-testid={`button-edit-${u.id}`}
                                 >
-                                  <Edit className="w-3.5 h-3.5" />
+                                  <Edit className="w-3.5 h-3.5" aria-hidden="true" />
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>Editar Usuário</TooltipContent>
@@ -496,79 +500,66 @@ export default function AdminUsers() {
                             {/* Pending: approve / reject */}
                             {isPending && (
                               <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                <MotivoDesabilitado motivo={canManageAccounts ? "Aprovar" : SO_ADMIN} desabilitado={!canManageAccounts}>
                                     <button
                                       onClick={() => handleApprove(u.id, "approved")}
-                                      disabled={approveUserMutation.isPending}
+                                      disabled={approveUserMutation.isPending || !canManageAccounts}
                                       aria-label={`Aprovar usuário ${u.name}`}
                                       className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
                                       data-testid={`button-approve-${u.id}`}
                                     >
-                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
                                     </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Aprovar</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                </MotivoDesabilitado>
+                                <MotivoDesabilitado motivo={canManageAccounts ? "Rejeitar" : SO_ADMIN} desabilitado={!canManageAccounts}>
                                     <button
                                       onClick={() => handleApprove(u.id, "rejected")}
-                                      disabled={approveUserMutation.isPending}
+                                      disabled={approveUserMutation.isPending || !canManageAccounts}
                                       aria-label={`Rejeitar usuário ${u.name}`}
                                       className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft disabled:opacity-40 transition-colors"
                                       data-testid={`button-reject-${u.id}`}
                                     >
-                                      <XCircle className="w-3.5 h-3.5" />
+                                      <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
                                     </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Rejeitar</TooltipContent>
-                                </Tooltip>
+                                </MotivoDesabilitado>
                               </>
                             )}
 
                             {/* Rejected: reactivate */}
                             {u.status === "rejected" && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
+                              <MotivoDesabilitado motivo={canManageAccounts ? "Reativar" : SO_ADMIN} desabilitado={!canManageAccounts}>
                                   <button
                                     onClick={() => handleApprove(u.id, "approved")}
-                                    disabled={approveUserMutation.isPending}
+                                    disabled={approveUserMutation.isPending || !canManageAccounts}
                                     aria-label={`Reativar usuário ${u.name}`}
                                     className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
                                     data-testid={`button-reactivate-${u.id}`}
                                   >
-                                    <UserCheck className="w-3.5 h-3.5" />
+                                    <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
                                   </button>
-                                </TooltipTrigger>
-                                <TooltipContent>Reativar</TooltipContent>
-                              </Tooltip>
+                              </MotivoDesabilitado>
                             )}
 
-                            {/* Approved: reset password + toggle active — só para quem o
-                                servidor aceita (admin, compras, produção; RH não) */}
-                            {u.status === "approved" && canManageAccounts && (
+                            {/* Approved: reset password + toggle active — o servidor só aceita
+                                admin; os outros papéis veem o botão desabilitado com o motivo. */}
+                            {u.status === "approved" && (
                               <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                <MotivoDesabilitado motivo={canManageAccounts ? "Redefinir senha" : SO_ADMIN} desabilitado={!canManageAccounts}>
                                     <button
                                       onClick={() => handleResetPassword(u)}
-                                      disabled={resetPasswordMutation.isPending}
+                                      disabled={resetPasswordMutation.isPending || !canManageAccounts}
                                       aria-label={`Resetar senha de ${u.name}`}
                                       className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-warning hover:bg-warning-soft disabled:opacity-40 transition-colors"
                                       data-testid={`button-reset-pwd-${u.id}`}
                                     >
-                                      <Key className="w-3.5 h-3.5" />
+                                      <Key className="w-3.5 h-3.5" aria-hidden="true" />
                                     </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Resetar Senha</TooltipContent>
-                                </Tooltip>
+                                </MotivoDesabilitado>
 
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                <MotivoDesabilitado motivo={canManageAccounts ? (u.isActive !== false ? "Desativar usuário" : "Reativar usuário") : SO_ADMIN} desabilitado={!canManageAccounts}>
                                     <button
                                       onClick={() => handleToggleActive(u)}
-                                      disabled={toggleActiveMutation.isPending}
+                                      disabled={toggleActiveMutation.isPending || !canManageAccounts}
                                       aria-label={u.isActive !== false ? `Desativar usuário ${u.name}` : `Reativar usuário ${u.name}`}
                                       className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
                                         u.isActive !== false
@@ -578,14 +569,10 @@ export default function AdminUsers() {
                                       data-testid={`button-toggle-active-${u.id}`}
                                     >
                                       {u.isActive !== false
-                                        ? <UserMinus className="w-3.5 h-3.5" />
-                                        : <UserCheck className="w-3.5 h-3.5" />}
+                                        ? <UserMinus className="w-3.5 h-3.5" aria-hidden="true" />
+                                        : <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />}
                                     </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    {u.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
-                                  </TooltipContent>
-                                </Tooltip>
+                                </MotivoDesabilitado>
 
                                 {/* Admin-only: toggle cenotécnica approval permission */}
                                 {isAdmin && (
@@ -604,7 +591,7 @@ export default function AdminUsers() {
                                         }`}
                                         data-testid={`button-toggle-cenotecnica-${u.id}`}
                                       >
-                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                        <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
                                       </button>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -645,7 +632,7 @@ export default function AdminUsers() {
                     aria-label="Página anterior"
                     className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
-                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <span className="text-xs text-muted-foreground px-2 tabular-nums">{page} / {totalPages}</span>
                   <button
@@ -654,7 +641,7 @@ export default function AdminUsers() {
                     aria-label="Próxima página"
                     className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
               )}

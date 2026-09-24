@@ -274,7 +274,7 @@ export function AwaitingApproval({
             </span>
           </div>
           <Button type="button" size="sm" variant="ghost" className={cn(ICON_BTN, "text-muted-foreground")} onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </Button>
           <Tooltip>
             <TooltipTrigger asChild>

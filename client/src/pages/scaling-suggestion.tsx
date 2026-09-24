@@ -42,6 +42,7 @@ import {
   type CopyFromEventResult, type PasteFormat, type PeriodExpansion, type RowValidation, type SuggestionGridRow,
 } from "@/components/scaling-validation/scaling-grid-utils";
 import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type ApiError, type SuggestionRow } from "@/components/scaling-validation/types";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 interface DraftPayload {
   rows: SuggestionGridRow[];
@@ -95,7 +96,7 @@ function writeDraft(key: string, payload: Omit<DraftPayload, "timestamp">, hasCo
 }
 
 export default function ScalingSuggestionPage() {
-  usePageTitle("Sugestão de Escala");
+  usePageTitle("Sugestão de escala");
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -922,7 +923,7 @@ export default function ScalingSuggestionPage() {
       {/* h1 = nome da tela (o mesmo do menu e da aba); "nova" é o que se faz nela, vai no subtítulo. */}
       <PageHeader
         icon={ListPlus}
-        title="Sugestão de Escala"
+        title="Sugestão de escala"
         subtitle="Nova sugestão: monte a escala por função e dia e envie para as áreas validarem. Cada pessoa vira 1 vaga com seus dias de trabalho."
         actions={<ScalingModuleNav current="suggestion" eventId={eventId} />}
       />
@@ -1246,7 +1247,7 @@ export default function ScalingSuggestionPage() {
               /* Estado vazio com saída: escolher evento ou copiar de um anterior. */
               <div className="rounded-xl border border-dashed border-slate-300 bg-card px-6 py-12 text-center">
                 <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-primary" aria-hidden="true">
-                  <CalendarDays className="w-5 h-5" />
+                  <CalendarDays className="w-5 h-5" aria-hidden="true" />
                 </span>
                 <p className="mt-3 text-sm font-semibold text-slate-700">Escolha o evento para abrir a grade</p>
                 <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
@@ -1263,14 +1264,16 @@ export default function ScalingSuggestionPage() {
                   <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" onClick={focusEventPicker}>
                     Selecionar evento
                   </Button>
-                  <Button
+                  <MotivoDesabilitado motivo={readOnly ? "Modo leitura — só Produção e Admin montam a grade" : undefined} desabilitado={busy || !!functionsError}>
+                    <Button
                     type="button" variant="outline" size="sm" className="rounded-lg"
                     disabled={busy || !!functionsError}
-                    title={readOnly ? "Modo leitura — só Produção e Admin montam a grade" : undefined}
+                   
                     onClick={() => setShowCopyEvent(true)}
                   >
                     <FolderInput className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Copiar de um evento anterior
                   </Button>
+                  </MotivoDesabilitado>
                 </div>
                 {readOnly && (
                   <p className={cn(HINT, "mt-3")}>Em modo leitura dá para consultar a tela, mas não montar nem enviar a grade.</p>
@@ -1402,26 +1405,30 @@ export default function ScalingSuggestionPage() {
                 )}
                 {/* No celular: motivo (order-2) acima, botões (order-3) por último, largura toda. */}
                 <div className="order-3 flex w-full items-center gap-2 sm:order-none sm:w-auto">
-                  <Button
+                  <MotivoDesabilitado motivo={previewOpen ? "Fechar prévia das vagas" : "Ver prévia das vagas"} desabilitado={records.length === 0}>
+                    <Button
                     type="button" variant="outline" size="sm" className="rounded-lg h-9 shrink-0 px-2.5 sm:px-3"
                     disabled={records.length === 0}
                     aria-expanded={previewOpen} aria-controls="sug-previa"
                     aria-label={previewOpen ? "Fechar prévia das vagas" : "Ver prévia das vagas"}
-                    title={previewOpen ? "Fechar prévia das vagas" : "Ver prévia das vagas"}
+                   
                     onClick={() => setPreviewOpen((v) => !v)}
                   >
                     <Eye className="w-3.5 h-3.5 sm:mr-1.5" aria-hidden="true" />
                     <span className="hidden sm:inline">{previewOpen ? "Fechar prévia" : "Ver prévia das vagas"}</span>
                   </Button>
-                  <Button
+                  </MotivoDesabilitado>
+                  <MotivoDesabilitado motivo={sentCheckFailed ? "Bloqueado: não foi possível verificar as vagas já enviadas deste evento." : undefined} desabilitado={sendDisabled}>
+                    <Button
                     type="button" onClick={openConfirmSend}
                     disabled={sendDisabled}
-                    title={sentCheckFailed ? "Bloqueado: não foi possível verificar as vagas já enviadas deste evento." : undefined}
+                   
                     className="rounded-xl bg-primary hover:bg-primary-hover w-full sm:w-auto"
                   >
                     <Send className="w-4 h-4 mr-2" aria-hidden="true" />
                     {sendLabel}
                   </Button>
+                  </MotivoDesabilitado>
                 </div>
               </div>
             </div>
@@ -1449,7 +1456,7 @@ export default function ScalingSuggestionPage() {
                   return (
                     <CommandItem key={f.id} value={f.name} onSelect={() => toggleToAdd(f.id)} data-checked={checked || undefined} className="gap-2">
                       <span aria-hidden="true" className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded border", checked ? "bg-primary border-primary text-primary-foreground" : "border-slate-300 bg-card")}>
-                        {checked && <Check className="h-3 w-3" />}
+                        {checked && <Check className="h-3 w-3" aria-hidden="true" />}
                       </span>
                       <span className="flex-1 truncate">{f.name}</span>
                       {/* Badge, não texto solto: "na grade" lia como parte do nome da função. */}

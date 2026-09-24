@@ -205,7 +205,7 @@ function EsqueletoHistorico({ linhas = 3 }: { linhas?: number }) {
       {Array.from({ length: linhas }).map((_, i) => (
         <div
           key={i}
-          className="h-14 rounded-lg border border-border bg-background animate-pulse"
+          className="h-14 rounded-lg border border-border bg-background animate-pulse motion-reduce:animate-none"
           style={{ animationDelay: `${i * 90}ms` }}
         />
       ))}
@@ -411,7 +411,7 @@ export function ComentariosTab({
               <div className="pt-1 space-y-2">
                 <Textarea
                   rows={2}
-                  placeholder="Escreva um comentário..."
+                  placeholder="Escreva um comentário…"
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   className="w-full border border-border rounded-lg bg-card text-sm p-3 resize-none min-h-[70px] focus:ring-[3px] focus:ring-primary/12 focus:border-primary transition-all"
@@ -426,7 +426,7 @@ export function ComentariosTab({
                     data-testid="button-add-comment-inline"
                   >
                     <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
-                    {addComment.isPending ? "Enviando..." : "Enviar"}
+                    {addComment.isPending ? "Enviando…" : "Enviar"}
                   </Button>
                 </div>
               </div>

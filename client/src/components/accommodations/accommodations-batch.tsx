@@ -28,6 +28,7 @@ import {
 import type { Collaborator, TeamInclusion } from "@shared/schema";
 import type { BatchDraft } from "./types";
 import { isCheckOutAfterCheckIn, toDateInput, toTitleCase } from "./utils";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 const INPUT = "h-10 bg-surface-muted border-border rounded-xl text-sm";
 const LBL = "text-2xs font-semibold text-muted-foreground uppercase tracking-tight";
@@ -133,12 +134,12 @@ export function BatchConfirmDialog({
         <div className="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="batch-hotel-name" className={LBL}>Nome do Hotel *</Label>
+              <Label htmlFor="batch-hotel-name" className={LBL}>Nome do Hotel<RequiredMark /></Label>
               <Input id="batch-hotel-name" placeholder="Hotel Copacabana" value={draft.hotelName || ""}
                 onChange={(e) => onChange("hotelName", e.target.value)} className={INPUT} data-testid="input-quick-hotel-name" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="batch-hotel-location" className={LBL}>Localização *</Label>
+              <Label htmlFor="batch-hotel-location" className={LBL}>Localização<RequiredMark /></Label>
               <Input id="batch-hotel-location" placeholder="Rio de Janeiro, RJ" value={draft.hotelLocation || ""}
                 onChange={(e) => onChange("hotelLocation", e.target.value)} className={INPUT} data-testid="input-quick-hotel-location" />
             </div>

@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { hasRole } from "@/lib/role-utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { Event, PaymentCompany } from "@shared/schema";
@@ -63,6 +65,10 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const isEditing = !!event;
   // "Excluído" no status: só administrador (18/09) — ou para manter o que já está.
   const { user } = useAuth();
+  // Espelha o servidor (eventos.ts): POST/PATCH só CADASTRO_ROLES; a empresa
+  // pagadora só o financeiro/admin altera (PATCH devolve 403 para os demais).
+  const podeEditarEvento = hasRole(user, "admin", "purchasing", "production");
+  const podeAlterarPagadora = hasRole(user, "admin", "financial");
   const podeExcluir = ["admin", "administrator", "administrador"].includes(String(user?.role ?? "")) || event?.status === "excluído";
   const [, navegar] = useLocation();
 
@@ -199,7 +205,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
             </div>
             <button type="button" onClick={handleClose} aria-label="Fechar"
               className="flex items-center justify-center w-[34px] h-[34px] rounded-full text-muted-foreground hover:bg-muted hover:text-slate-700 transition-colors">
-              <X size={16} />
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
 
@@ -291,10 +297,14 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                         {isNew   && <span className="text-2xs font-bold text-primary bg-brand-soft px-2 py-0.5 rounded-full uppercase tracking-[0.05em]">Nova</span>}
                         {!isSaved && !isNew && <span className="text-2xs text-muted-foreground italic">opcional</span>}
                       </div>
-                      <button type="button" onClick={() => setShowManage(true)}
-                        className="flex items-center gap-1 text-2xs font-bold text-primary bg-card border border-primary/15 rounded-md px-3 py-[5px] hover:bg-brand-soft transition-colors">
-                        Gerenciar{companies.length > 0 ? ` (${companies.length})` : ""}
-                      </button>
+                      {podeAlterarPagadora ? (
+                        <button type="button" onClick={() => setShowManage(true)}
+                          className="flex items-center gap-1 text-2xs font-bold text-primary bg-card border border-primary/15 rounded-md px-3 py-[5px] hover:bg-brand-soft transition-colors">
+                          Gerenciar{companies.length > 0 ? ` (${companies.length})` : ""}
+                        </button>
+                      ) : (
+                        <span className="text-2xs text-muted-foreground">Só o financeiro altera a empresa pagadora.</span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-2.5">
@@ -303,10 +313,11 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                           <label htmlFor="event-company-name" className={LABEL_SM}>Nome da empresa</label>
                           <FormControl>
                             <div className="relative">
-                              <input id="event-company-name" placeholder="Digite para buscar..." autoComplete="off"
+                              <input id="event-company-name" placeholder="Digite para buscar…" autoComplete="off"
                                 role="combobox" aria-expanded={showSugg && filtered.length > 0} aria-autocomplete="list"
                                 className="h-[38px] w-full text-sm px-3 border border-input rounded-lg bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/25 placeholder:text-muted-foreground"
                                 {...field}
+                                disabled={!podeAlterarPagadora}
                                 ref={nameRef}
                                 onFocus={() => setShowSugg(true)}
                                 onChange={e => { field.onChange(e); setShowSugg(true); }} />
@@ -332,6 +343,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                           <label htmlFor="event-company-cnpj" className={LABEL_SM}>CNPJ</label>
                           <FormControl>
                             <CnpjInput id="event-company-cnpj" value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} name={field.name}
+                              disabled={!podeAlterarPagadora}
                               className="h-[38px] text-sm border-input rounded-lg bg-card" />
                           </FormControl>
                           <FormMessage className="text-2xs mt-1" />
@@ -350,7 +362,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                         <span className="text-2xs text-muted-foreground">{obsLen}/500</span>
                       </div>
                       <FormControl>
-                        <Textarea id="event-observations" rows={3} maxLength={500} placeholder="Notas adicionais, requisitos específicos..."
+                        <Textarea id="event-observations" rows={3} maxLength={500} placeholder="Notas adicionais, requisitos específicos…"
                           data-testid="textarea-event-observations"
                           className="text-sm resize-none rounded-lg border-0 bg-brand-soft focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:ring-offset-0 px-4 py-3"
                           {...field} onChange={e => { field.onChange(e); setObsLen(e.target.value.length); }} />
@@ -369,13 +381,15 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
             <Button type="button" variant="ghost" onClick={handleClose} data-testid="button-cancel-event" className="h-[38px] px-[18px] text-sm font-bold text-muted-foreground hover:text-foreground">
               Cancelar
             </Button>
-            <Button type="submit" form="event-form" disabled={saveEvent.isPending} data-testid="button-save-event"
+            <MotivoDesabilitado motivo={podeEditarEvento ? undefined : "Só administradores, Compras e Logística Interna alteram eventos."} desabilitado={!podeEditarEvento}>
+            <Button type="submit" form="event-form" disabled={saveEvent.isPending || !podeEditarEvento} aria-busy={saveEvent.isPending} data-testid="button-save-event"
               className="h-[38px] px-[22px] text-sm font-bold shadow-2 hover:bg-primary-hover disabled:shadow-none">
               {saveEvent.isPending
-                ? <><Loader2 size={13} className="animate-spin" /> Salvando...</>
-                : <><Check size={13} strokeWidth={3} /> {isEditing ? "Salvar alterações" : "Criar evento"}</>
+                ? <><Loader2 size={13} className="animate-spin" aria-hidden="true" /> Salvando…</>
+                : <><Check size={13} strokeWidth={3} aria-hidden="true" /> {isEditing ? "Salvar alterações" : "Criar evento"}</>
               }
             </Button>
+            </MotivoDesabilitado>
           </div>
         </DialogContent>
       </Dialog>
@@ -389,7 +403,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
             <DialogTitle className="text-sm font-extrabold text-foreground m-0">Empresas salvas</DialogTitle>
             <span className="text-2xs font-bold bg-muted text-muted-foreground px-[7px] py-px rounded-lg">{companies.length}</span>
             <button type="button" onClick={() => setShowManage(false)} aria-label="Fechar empresas salvas"
-              className="ml-auto flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted transition-colors"><X size={14} /></button>
+              className="ml-auto flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted transition-colors"><X size={14} aria-hidden="true" /></button>
           </div>
 
           <div className="flex-1 overflow-y-auto px-[18px] py-2.5">
@@ -409,7 +423,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                     <button type="button" onClick={() => delCompany.mutate(c.id)} disabled={delCompany.isPending}
                       aria-label={`Remover empresa ${c.name}`}
                       className="flex items-center justify-center w-[26px] h-[26px] rounded-md text-muted-foreground shrink-0 hover:bg-danger-soft hover:text-danger-strong transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-40">
-                      <Trash2 size={12} />
+                      <Trash2 size={12} aria-hidden="true" />
                     </button>
                   </div>
                 ))}
@@ -446,7 +460,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                 "flex items-center gap-[5px] h-[33px] px-3.5 rounded-md bg-success text-white text-xs font-semibold hover:bg-success/90 transition-colors",
                 "disabled:opacity-40 disabled:cursor-not-allowed",
               )}>
-              {addCompany.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Cadastrar
+              {addCompany.isPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Plus size={12} aria-hidden="true" />} Cadastrar
             </button>
           </div>
         </DialogContent>

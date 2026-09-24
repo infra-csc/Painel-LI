@@ -53,7 +53,7 @@ const TABS = [
 ] as const;
 
 export default function CalculationRulesPage() {
-  usePageTitle("Regras de Cálculo");
+  usePageTitle("Regras de cálculo");
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("casa");
 
   // Valores vigentes: mesmos settings que o motor de cálculo usa (Valores Padrão)
@@ -95,13 +95,13 @@ export default function CalculationRulesPage() {
         {/* Header */}
         <PageHeader
           icon={Calculator}
-          title="Regras de Cálculo"
+          title="Regras de cálculo"
           subtitle="Valores vigentes (Valores Padrão, base 2026) de diárias, alimentação e mobilidade"
         />
 
         {/* Fonte dos valores aplicados */}
         <div className="bg-brand-soft border border-primary/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
-          <Settings className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+          <Settings className="w-4 h-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-xs text-primary">
             Esta página é referência. Os valores aplicados no cálculo vêm dos{" "}
             <Link href="/system-settings" className="font-bold underline underline-offset-2 hover:text-primary-hover">
@@ -183,7 +183,7 @@ function RateTable({ rows, headers }: { rows: ReactNode[][]; headers: string[] }
         <thead className="bg-surface-muted text-2xs uppercase tracking-wider text-muted-foreground">
           <tr>
             {headers.map((h, i) => (
-              <th key={h} className={`font-bold px-4 py-2.5 ${i === 0 ? "text-left" : "text-right"}`}>{h}</th>
+              <th scope="col" key={h} className={`font-bold px-4 py-2.5 ${i === 0 ? "text-left" : "text-right"}`}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -215,7 +215,7 @@ function deflationTiersDisplay(factors: DeflationFactors) {
 function DeflationBanner({ factors }: { factors: DeflationFactors }) {
   return (
     <div className="bg-warning-soft border border-warning/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
-      <TrendingDown className="w-4 h-4 text-warning-strong shrink-0 mt-0.5" />
+      <TrendingDown className="w-4 h-4 text-warning-strong shrink-0 mt-0.5" aria-hidden="true" />
       <div className="text-xs text-warning">
         <p className="font-bold mb-1">Regra de deflação por período (aplicada por dia trabalhado)</p>
         <div className="flex flex-wrap gap-x-5 gap-y-1">
@@ -404,7 +404,7 @@ function EmpreitaTab({ settings }: { settings?: SystemSettings }) {
   return (
     <div className="space-y-4">
       <div className="bg-brand-soft border border-primary/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
-        <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+        <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
         <p className="text-xs text-primary">
           Cenotécnicos em regime de <span className="font-bold">empreita</span> recebem <span className="font-bold">valor fechado</span> conforme
           a modalidade e o número de dias — não é diária × dias, e a deflação por período <span className="font-bold">não se aplica</span> (já está embutida na proposta).
@@ -467,7 +467,7 @@ function PercurseiroTab({ settings }: { settings?: SystemSettings }) {
   return (
     <div className="space-y-4">
       <div className="bg-brand-soft border border-primary/25 rounded-xl px-5 py-3.5 flex items-start gap-3">
-        <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+        <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
         <p className="text-xs text-primary">
           Motoqueiros: pacote <span className="font-bold">fixo por tipo</span> e sempre com emissão de NF. Em <span className="font-bold">viagem</span> (com passagem) são sempre 2 diárias, independente do período; <span className="font-bold">local</span> (SP/Grande SP) é 1 diária. Alimentação e mobilidade já estão dentro do pacote (não entram no Planejado).
         </p>
@@ -482,7 +482,7 @@ function PercurseiroTab({ settings }: { settings?: SystemSettings }) {
           ]}
         />
         <div className="flex items-start gap-2 px-4 py-3 border-t border-border bg-warning-soft/50">
-          <Info className="w-3.5 h-3.5 text-warning-strong shrink-0 mt-0.5" />
+          <Info className="w-3.5 h-3.5 text-warning-strong shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-2xs text-warning">
             Os 16% de NF não são deriváveis das demais parcelas (16% do subtotal daria R$ 153,12) — o valor da NF
             vem da tabela confirmada em 17/08 e é editável nos Valores Padrão, junto com as demais parcelas.

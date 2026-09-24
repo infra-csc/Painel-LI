@@ -102,7 +102,7 @@ function Caixa({ on }: { on: boolean }) {
         on ? "bg-primary border-primary text-primary-foreground" : "bg-card border-slate-300 text-transparent"
       }`}
     >
-      <Check className="w-3 h-3" strokeWidth={3} />
+      <Check className="w-3 h-3" strokeWidth={3} aria-hidden="true" />
     </span>
   );
 }
@@ -149,7 +149,7 @@ function PopoverDeMarcacao({ icone, rotulo, vazio, placeholder, testid, marcados
             placeholder={placeholder}
             aria-label={placeholder.replace("…", "")}
             data-testid={`input-busca-${testid}`}
-            className="flex-1 min-w-0 h-[26px] bg-transparent text-sm text-foreground outline-none"
+            className="flex-1 min-w-0 h-[26px] bg-transparent text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
           />
           {ids.length > 0 && (
             <button

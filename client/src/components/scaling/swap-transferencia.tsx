@@ -19,6 +19,7 @@ import { cidadeDeSaida, validarSaiDe } from "@shared/swap-sai-de";
 import { CampoSaiDe, saiDeInicial } from "./swap-request-panel";
 import { periodoCurto } from "./swap-permuta";
 import type { ScalingMutations } from "./use-scaling-mutations";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 export interface TransferRequestDialogProps {
   open: boolean;
@@ -124,7 +125,7 @@ export function TransferRequestDialog({
           </div>
 
           <div className="space-y-1.5">
-            <span className={LABEL}>Sai da vaga <span className="text-danger-strong">*</span></span>
+            <span className={LABEL}>Sai da vaga<RequiredMark /></span>
             {origens.length === 0 ? (
               <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs text-slate-600">
                 Não achei a outra vaga desta pessoa no período. Recarregue a página e tente de novo.
@@ -172,7 +173,7 @@ export function TransferRequestDialog({
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="transferencia-motivo" className={LABEL}>Motivo <span className="text-danger-strong">*</span></label>
+              <label htmlFor="transferencia-motivo" className={LABEL}>Motivo<RequiredMark /></label>
               <span className={`text-2xs ${motivo.length >= 10 ? "text-success" : "text-muted-foreground"}`}>{motivo.length}/10</span>
             </div>
             <Textarea
@@ -204,7 +205,7 @@ export function TransferRequestDialog({
             onClick={enviar}
             data-testid="button-enviar-transferencia"
           >
-            {createSwapRequest.isPending ? "Enviando..." : "Enviar para aprovação"}
+            {createSwapRequest.isPending ? "Enviando…" : "Enviar para aprovação"}
           </Button>
         </div>
       </DialogContent>

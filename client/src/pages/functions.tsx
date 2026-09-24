@@ -25,6 +25,7 @@ import { LoadingState } from "@/components/common/loading-state";
 import { usePageTitle } from "@/components/common/use-page-title";
 import type { Function, User as UserType } from "@shared/schema";
 import { apiErrorMessage } from "@/lib/api-error";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 /** Responsável como vem embutido em GET /api/functions. */
 type ManagerSummary = { userId: string; userName: string };
@@ -101,7 +102,7 @@ function ManagersPopover({
 
   return (
     <div className="fixed inset-0 z-[70]" role="presentation" onClick={onClose}>
-      <div className="absolute bg-popover overflow-hidden animate-in fade-in zoom-in-95 duration-150 rounded-xl border border-border shadow-3"
+      <div className="absolute bg-popover overflow-hidden animate-in motion-reduce:animate-none fade-in zoom-in-95 duration-150 rounded-xl border border-border shadow-3"
         role="dialog" aria-label={`Responsáveis por ${functionName}`}
         style={{ width: MGPOP_W, left, top }}
         onClick={e => e.stopPropagation()}>
@@ -199,7 +200,7 @@ function FunctionManagersCell({ functionId, functionName, managers: managersProp
     <div className="flex items-center gap-2">
       {managers.length === 0 && (
         <span className="flex items-center gap-1.5 text-2xs text-muted-foreground italic">
-          <AlertTriangle className="w-3 h-3 text-warning-strong" />
+          <AlertTriangle className="w-3 h-3 text-warning-strong" aria-hidden="true" />
           Nenhum responsável
         </span>
       )}
@@ -267,7 +268,7 @@ function FunctionManagersCell({ functionId, functionName, managers: managersProp
               <p className="text-2xs text-muted-foreground mt-[3px] capitalize">{functionName}</p>
             </div>
             <button type="button" onClick={() => setIsOpen(false)} aria-label="Fechar" className={CLOSE_BTN}>
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
@@ -275,7 +276,7 @@ function FunctionManagersCell({ functionId, functionName, managers: managersProp
             <label htmlFor={`select-function-manager-${functionId}`} className={LABEL}>Usuário</label>
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
               <SelectTrigger id={`select-function-manager-${functionId}`} aria-label="Selecionar usuário responsável" className="h-10 text-sm border-0 bg-brand-soft rounded-lg focus:ring-2 focus:ring-ring/25" data-testid={`select-function-manager-${functionId}`}>
-                <SelectValue placeholder="Selecione um usuário..." />
+                <SelectValue placeholder="Selecione um usuário…" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 {availableUsers.length === 0 ? (
@@ -305,8 +306,8 @@ function FunctionManagersCell({ functionId, functionName, managers: managersProp
               className="flex-1 h-[38px] text-sm font-bold shadow-2 hover:bg-primary-hover"
               data-testid={`button-submit-add-manager-${functionId}`}>
               {addManagerMutation.isPending
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                : <><Check className="w-3.5 h-3.5" strokeWidth={3} /> Adicionar</>}
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                : <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Adicionar</>}
             </Button>
           </div>
         </DialogContent>
@@ -435,10 +436,10 @@ export default function Functions() {
                         <FormField control={form.control} name="name" render={({ field }) => (
                           <div>
                             <label htmlFor="function-name" className={LABEL}>
-                              Nome da Função <span className="text-destructive">*</span>
+                              Nome da Função<RequiredMark />
                             </label>
                             <FormControl>
-                              <input id="function-name" placeholder="Ex: Atendimento, Palco, Som..."
+                              <input id="function-name" placeholder="Ex: Atendimento, Palco, Som…"
                                 data-testid="input-function-name"
                                 className={cn(SOFT_INPUT, "h-[42px] text-sm px-4")}
                                 {...field} />
@@ -471,8 +472,8 @@ export default function Functions() {
                           <Button type="submit" disabled={isPending} data-testid="button-save-function"
                             className="flex-1 h-10 text-sm font-bold shadow-2 hover:bg-primary-hover">
                             {isPending
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <><Check className="w-3.5 h-3.5" strokeWidth={3} /> {editingFunction ? "Atualizar" : "Salvar"} Função</>}
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                              : <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> {editingFunction ? "Atualizar" : "Salvar"} Função</>}
                           </Button>
                         </div>
                       </form>
@@ -491,10 +492,10 @@ export default function Functions() {
           {canSeeEscalaTab && (
             <TabsList className="mb-4 h-11 rounded-xl bg-muted/70 p-1">
               <TabsTrigger value="catalogo" data-testid="tab-funcoes" className="rounded-lg px-4 text-sm font-bold gap-1.5">
-                <Tag className="w-3.5 h-3.5" /> Funções
+                <Tag className="w-3.5 h-3.5" aria-hidden="true" /> Funções
               </TabsTrigger>
               <TabsTrigger value="escala" data-testid="tab-validacao-escala" className="rounded-lg px-4 text-sm font-bold gap-1.5">
-                <ClipboardCheck className="w-3.5 h-3.5" /> Validação de Escala
+                <ClipboardCheck className="w-3.5 h-3.5" aria-hidden="true" /> Validação de Escala
               </TabsTrigger>
             </TabsList>
           )}
@@ -517,10 +518,10 @@ export default function Functions() {
               {/* A busca filtra apenas o nome da função; o texto antigo prometia
                   também "responsável", que não é filtrado aqui. */}
               <input id="functions-search" aria-label="Buscar função pelo nome"
-                placeholder="Buscar função pelo nome..." value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar função pelo nome…" value={search} onChange={e => setSearch(e.target.value)}
                 className={cn(SOFT_INPUT, "h-10 text-sm pl-10 transition-shadow", search ? "pr-9" : "pr-3.5")} />
               {search && (
-                <button onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-muted-foreground hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-muted-foreground hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" aria-hidden="true" /></button>
               )}
             </div>
             <div className="flex items-center gap-1">
@@ -542,7 +543,7 @@ export default function Functions() {
             <div className="px-6 py-14 text-center" role="alert">
               <div className="flex flex-col items-center gap-2.5">
                 <div className="flex items-center justify-center w-14 h-14 rounded-full bg-danger-soft">
-                  <AlertTriangle className="w-6 h-6 text-danger-strong" />
+                  <AlertTriangle className="w-6 h-6 text-danger-strong" aria-hidden="true" />
                 </div>
                 <h4 className="text-base font-extrabold text-foreground m-0">Não foi possível carregar as funções</h4>
                 <p className="text-sm text-muted-foreground m-0 max-w-[320px] leading-normal">
@@ -582,7 +583,7 @@ export default function Functions() {
                 <thead>
                   <tr className="bg-muted/40 border-b border-border">
                     {["#","Nome da Função","Responsáveis","Ações"].map((h, i) => (
-                      <th key={h}
+                      <th scope="col" key={h}
                         className={cn("px-4 sm:px-6 py-3.5 text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]", i === 3 ? "text-right" : "text-left", i === 0 && "w-[60px]")}>
                         {h}
                       </th>

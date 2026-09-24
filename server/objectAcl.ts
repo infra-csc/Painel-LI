@@ -141,6 +141,7 @@ export function sanitizarNomeDeArquivo(nome: string | undefined, tipo: TipoDeArq
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 120);
-  const semExt = base.replace(/\.[A-Za-z0-9]{1,5}$/, "") || "anexo";
+  // Tira TODAS as extensões ("nota.pdf.exe" → "nota"), não só a última (24/09).
+  const semExt = base.replace(/(\.[A-Za-z0-9]{1,5})+$/, "") || "anexo";
   return `${semExt}.${tipo.extensao}`;
 }

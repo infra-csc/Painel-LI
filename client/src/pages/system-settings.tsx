@@ -8,6 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
 import { parseBrNumber } from "@/lib/utils";
 import { Link } from "wouter";
@@ -36,6 +37,7 @@ import {
   CENO_EMPREITA_DEFAULTS, CENO_EMPREITA_SETTING_KEYS, cenoEmpreitaSettingKey,
   type CenoFreelaTipo, type CenoEmpreitaTableDay,
 } from "@shared/cenotecnica-empreita";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 // Validação numérica no client, entendendo o formato pt-BR completo (vírgula
 // decimal E ponto de milhar): "1.500,00" e "1.500" valem 1500 — a conversão
@@ -378,7 +380,7 @@ function SectionHeader({ icon: Icon, iconBg, title, subtitle }: { icon: LucideIc
 }
 
 export default function SystemSettingsPage() {
-  usePageTitle("Valores Padrão");
+  usePageTitle("Valores padrão");
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -445,7 +447,7 @@ export default function SystemSettingsPage() {
       setShowAddCompany(false);
       toast({ title: "Empresa cadastrada com sucesso." });
     },
-    onError: () => toast({ title: "Erro ao cadastrar empresa.", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível cadastrar a empresa", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const deleteCompanyMutation = useMutation({
@@ -455,8 +457,8 @@ export default function SystemSettingsPage() {
       toast({ title: "Empresa removida." });
     },
     onError: (e: any) => toast({
-      title: "Erro ao remover empresa.",
-      description: e?.body?.message,
+      title: "Não foi possível remover a empresa",
+      description: apiErrorMessage(e, "Tente novamente."),
       variant: "destructive",
     }),
   });
@@ -832,8 +834,8 @@ export default function SystemSettingsPage() {
           : "Nenhum orçamento pendente encontrado",
         description: count > 0 ? "Valores padrão aplicados aos orçamentos pendentes." : undefined,
       });
-    } catch {
-      toast({ title: "Erro ao atualizar o Planejado", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Não foi possível atualizar o Planejado", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     } finally {
       setIsApplyingPending(false);
     }
@@ -871,7 +873,7 @@ export default function SystemSettingsPage() {
       <div className="p-6">
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
           <div className="w-16 h-16 rounded-full bg-danger-soft flex items-center justify-center">
-            <ShieldAlert className="w-8 h-8 text-danger-strong" />
+            <ShieldAlert className="w-8 h-8 text-danger-strong" aria-hidden="true" />
           </div>
           <h2 className="text-xl font-semibold text-foreground">Acesso restrito</h2>
           <p className="text-muted-foreground max-w-xs">Apenas administradores e RH podem acessar os valores padrão do sistema.</p>
@@ -927,8 +929,8 @@ export default function SystemSettingsPage() {
             disabled={isSavingAny || saveMutation.isPending}
             className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-primary-foreground shadow-2 transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-slate-600"
           >
-            <Save className="h-3.5 w-3.5" />
-            {(isSavingAny || saveMutation.isPending) ? 'Salvando...' : 'Salvar'}
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+            {(isSavingAny || saveMutation.isPending) ? 'Salvando…' : 'Salvar'}
           </button>
           <button
             type="button"
@@ -937,7 +939,7 @@ export default function SystemSettingsPage() {
             title="Descartar alterações"
             aria-label="Descartar alterações"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -945,7 +947,7 @@ export default function SystemSettingsPage() {
       {/* ── Cabeçalho (padrão pastel das páginas irmãs — flash/regras) ── */}
       <PageHeader
         icon={Calculator}
-        title="Valores Padrão"
+        title="Valores padrão"
         subtitle="Defina os valores base utilizados no cálculo de novos eventos"
       />
 
@@ -1071,7 +1073,7 @@ export default function SystemSettingsPage() {
               <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2">
                 <div>
                   <p className="mb-2 flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-primary">
-                    <Building2 className="h-3 w-3" /> Casa
+                    <Building2 className="h-3 w-3" aria-hidden="true" /> Casa
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <MoneyField control={form.control} name="default_mobility_ida" label="Ida" />
@@ -1084,7 +1086,7 @@ export default function SystemSettingsPage() {
                 </div>
                 <div>
                   <p className="mb-2 flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-primary">
-                    <Users className="h-3 w-3" /> Freela
+                    <Users className="h-3 w-3" aria-hidden="true" /> Freela
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <MoneyField control={form.control} name="default_mobility_ida_freela" label="Ida" />
@@ -1117,7 +1119,7 @@ export default function SystemSettingsPage() {
                     <div key={tipo}>
                       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                         <p className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-warning">
-                          <Hammer className="h-3 w-3" /> {CENO_FREELA_TIPO_LABELS[tipo]}
+                          <Hammer className="h-3 w-3" aria-hidden="true" /> {CENO_FREELA_TIPO_LABELS[tipo]}
                         </p>
                         <span className="text-2xs text-muted-foreground">
                           Incremento{' '}
@@ -1152,7 +1154,7 @@ export default function SystemSettingsPage() {
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
             <div className="flex items-center justify-between gap-2.5 border-b border-border bg-surface-muted px-5 py-4">
               <div className="flex items-center gap-2.5">
-                <Building2 className="w-4 h-4 text-success" />
+                <Building2 className="w-4 h-4 text-success" aria-hidden="true" />
                 <span className="text-sm font-semibold text-slate-700">Empresas Pagadoras</span>
                 <span className="text-xs text-muted-foreground font-normal">(usadas nas Notas Fiscais)</span>
               </div>
@@ -1162,7 +1164,7 @@ export default function SystemSettingsPage() {
                   onClick={() => setShowAddCompany(true)}
                   className="flex items-center gap-1.5 rounded-lg border border-success/25 bg-success-soft px-3 py-1.5 text-xs font-semibold text-success transition-colors hover:bg-success-soft hover:text-success"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                   Adicionar empresa
                 </button>
               )}
@@ -1185,10 +1187,10 @@ export default function SystemSettingsPage() {
                           type="button"
                           onClick={() => setCompanyToDelete(c)}
                           disabled={deleteCompanyMutation.isPending}
-                          className="rounded-lg p-1.5 text-danger-strong transition-colors hover:bg-danger-soft hover:text-danger"
-                          title="Remover empresa"
+                          className="rounded-lg p-1.5 text-danger-strong transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={`Remover empresa ${c.name}`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
                       )}
                     </div>
@@ -1202,7 +1204,7 @@ export default function SystemSettingsPage() {
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-success">Nova empresa</p>
                     <button type="button" aria-label="Fechar formulário de nova empresa" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-muted-foreground hover:text-slate-600">
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
                   {/* Enter aqui não deve submeter o formulário de tarifas da página */}
@@ -1231,7 +1233,7 @@ export default function SystemSettingsPage() {
                       onClick={() => createCompanyMutation.mutate({ name: newCompanyName.trim(), cnpj: newCompanyCnpj })}
                       className="h-8 bg-success px-4 text-xs text-white hover:bg-success/90"
                     >
-                      <Plus className="w-3.5 h-3.5 mr-1.5" />
+                      <Plus className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
                       Cadastrar empresa
                     </Button>
                     <button type="button" onClick={() => { setShowAddCompany(false); setNewCompanyName(""); setNewCompanyCnpj(""); }} className="text-xs text-muted-foreground hover:text-slate-600">
@@ -1258,7 +1260,7 @@ export default function SystemSettingsPage() {
                     Legado — usado só como fallback/override
                   </span>
                 </div>
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -1275,14 +1277,14 @@ export default function SystemSettingsPage() {
                       onClick={() => setActiveTab('casa')}
                       className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${activeTab === 'casa' ? 'bg-card text-primary shadow-1' : 'text-muted-foreground hover:text-muted-foreground'}`}
                     >
-                      <Building2 className="h-3.5 w-3.5" /> Casa
+                      <Building2 className="h-3.5 w-3.5" aria-hidden="true" /> Casa
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveTab('freela')}
                       className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${activeTab === 'freela' ? 'bg-card text-primary shadow-1' : 'text-muted-foreground hover:text-muted-foreground'}`}
                     >
-                      <Users className="h-3.5 w-3.5" /> Freela
+                      <Users className="h-3.5 w-3.5" aria-hidden="true" /> Freela
                     </button>
                   </div>
                   <span className="text-2xs text-muted-foreground">
@@ -1380,7 +1382,7 @@ export default function SystemSettingsPage() {
                       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft">
-                            <BadgeCheck className="w-4 h-4 text-primary" />
+                            <BadgeCheck className="w-4 h-4 text-primary" aria-hidden="true" />
                           </div>
                           <div>
                             <p className="text-sm font-semibold leading-tight text-foreground">Diária por Função (legado)</p>
@@ -1399,11 +1401,11 @@ export default function SystemSettingsPage() {
                       {allFunctions.length > 0 && (
                         <div className="border-b border-border px-5 py-3">
                           <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                             <input
                               type="text"
                               aria-label="Buscar função"
-                              placeholder="Buscar função..."
+                              placeholder="Buscar função…"
                               value={functionSearch}
                               onChange={e => setFunctionSearch(e.target.value)}
                               onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
@@ -1415,11 +1417,11 @@ export default function SystemSettingsPage() {
 
                       {allFunctions.length === 0 ? (
                         <div className="px-6 py-12 text-center">
-                          <BadgeCheck className="mx-auto mb-3 h-8 w-8 text-slate-200" />
+                          <BadgeCheck className="mx-auto mb-3 h-8 w-8 text-slate-200" aria-hidden="true" />
                           <p className="mb-1 text-sm font-medium text-muted-foreground">Nenhuma função cadastrada.</p>
                           <p className="mb-4 text-xs text-muted-foreground">Acesse a página de Funções para adicionar.</p>
                           <Link href="/functions" className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
-                            Ir para Funções <ExternalLink className="w-3 h-3" />
+                            Ir para Funções <ExternalLink className="w-3 h-3" aria-hidden="true" />
                           </Link>
                         </div>
                       ) : visibleFns.length === 0 ? (
@@ -1491,7 +1493,7 @@ export default function SystemSettingsPage() {
                                           />
                                         </div>
                                         <button type="button" aria-label="Cancelar edição" onClick={cancelEditFunction} className="flex items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-slate-600 group-hover/cell:opacity-100">
-                                          <X className="w-3 h-3" />
+                                          <X className="w-3 h-3" aria-hidden="true" />
                                         </button>
                                       </div>
                                     ) : (
@@ -1516,7 +1518,7 @@ export default function SystemSettingsPage() {
                                             {`R$ ${parseBrNumber(currentVal).toFixed(2).replace('.', ',')}`}
                                           </span>
                                         )}
-                                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100" />
+                                        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100" aria-hidden="true" />
                                       </div>
                                     )}
                                   </div>
@@ -1566,7 +1568,7 @@ export default function SystemSettingsPage() {
                           <div className="flex items-center justify-between border-t border-border px-5 py-3">
                             <span className="text-2xs text-muted-foreground">{allFunctions.length} {allFunctions.length === 1 ? 'função' : 'funções'} cadastradas</span>
                             <Link href="/functions" className="inline-flex items-center gap-1 text-2xs font-medium text-primary hover:text-primary-hover hover:underline">
-                              Gerenciar funções <ExternalLink className="w-3 h-3" />
+                              Gerenciar funções <ExternalLink className="w-3 h-3" aria-hidden="true" />
                             </Link>
                           </div>
                         </div></div>
@@ -1581,7 +1583,7 @@ export default function SystemSettingsPage() {
           {/* ── Rodapé informativo (o salvamento acontece na barra flutuante) ── */}
           <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border py-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Lock className="w-4 h-4 flex-shrink-0" />
+              <Lock className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
               <span>Administradores e Financeiro/RH podem alterar estes valores</span>
             </div>
             <div className="flex items-center gap-3">
@@ -1592,16 +1594,18 @@ export default function SystemSettingsPage() {
               )}
               {/* Ação secundária: reaplica os valores JÁ SALVOS ao Planejado pendente
                   (ao salvar pela barra flutuante isso já acontece automaticamente) */}
-              <button
+              <MotivoDesabilitado motivo="Aplica os valores padrão já salvos a todos os orçamentos planejados ainda não enviados. Ao salvar alterações, isso já é feito automaticamente." desabilitado={isApplyingPending}>
+                <button
                 type="button"
                 onClick={handleApplyToPending}
                 disabled={isApplyingPending}
-                title="Aplica os valores padrão já salvos a todos os orçamentos planejados ainda não enviados. Ao salvar alterações, isso já é feito automaticamente."
+               
                 className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-300 bg-card px-3.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary-hover disabled:cursor-not-allowed disabled:text-muted-foreground"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${isApplyingPending ? 'animate-spin' : ''}`} />
-                {isApplyingPending ? 'Aplicando...' : 'Atualizar Planejado'}
+                <RefreshCw className={`h-3.5 w-3.5 ${isApplyingPending ? 'animate-spin' : ''}`} aria-hidden="true" />
+                {isApplyingPending ? 'Aplicando…' : 'Atualizar Planejado'}
               </button>
+              </MotivoDesabilitado>
             </div>
           </div>
         </form>
@@ -1636,7 +1640,7 @@ export default function SystemSettingsPage() {
       <div className="overflow-hidden rounded-xl border border-border">
         {groupedHistory.length === 0 ? (
           <div className="flex items-center gap-2.5 px-5 py-4 text-sm text-muted-foreground">
-            <Clock className="w-4 h-4 text-muted-foreground" />
+            <Clock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <span>Histórico deste navegador</span>
             <span className="text-muted-foreground">·</span>
             <span className="font-normal text-muted-foreground">Nenhuma alteração registrada neste navegador</span>
@@ -1649,7 +1653,7 @@ export default function SystemSettingsPage() {
               className="flex w-full items-center justify-between bg-surface-muted px-5 py-4 transition-colors hover:bg-muted"
             >
               <div className="flex flex-wrap items-center gap-2.5 text-sm font-semibold text-slate-700">
-                <Clock className="w-4 h-4 text-primary" />
+                <Clock className="w-4 h-4 text-primary" aria-hidden="true" />
                 Histórico deste navegador
                 <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-bold text-primary">
                   {groupedHistory.length}
@@ -1658,7 +1662,7 @@ export default function SystemSettingsPage() {
                   registrado localmente — outros usuários não veem estas entradas
                 </span>
               </div>
-              {historyOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              {historyOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" aria-hidden="true" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" aria-hidden="true" />}
             </button>
             {historyOpen && (
               <div className="divide-y divide-border bg-card">

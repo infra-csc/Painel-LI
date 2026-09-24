@@ -14,7 +14,7 @@ export default function TeamInclusion() {
   const [showEventModal, setShowEventModal] = useState(false);
   const [tableReady, setTableReady] = useState(false);
 
-  usePageTitle("Inclusão de Equipe");
+  usePageTitle("Inclusão de equipe");
 
   // Adia a montagem da tabela pesada para a página aparecer imediatamente
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function TeamInclusion() {
       <PageHeader
         className="mb-6"
         icon={UserPlus}
-        title="Inclusão de Equipe"
+        title="Inclusão de equipe"
         subtitle="Monte a grade de funções e gerencie as inclusões do evento"
         actions={
           canEdit(user as any, 'team_inclusion') && (
@@ -70,7 +70,7 @@ export default function TeamInclusion() {
         ) : (
           <div className="rounded-xl border border-border bg-card p-6 flex items-center gap-3 text-slate-400 text-sm" role="status" aria-live="polite">
             <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />
-            Carregando lista de inclusões...
+            Carregando lista de inclusões…
           </div>
         )}
       </div>

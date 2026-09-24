@@ -9,7 +9,7 @@
  *
  * Rodar: `npm run test:rotas` (ou `npx vitest run server/test`).
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import {
@@ -27,16 +27,10 @@ import {
 
 let ctx: Contexto;
 
+// O boot do banco/app e o silêncio do console.log/warn acontecem em
+// ./setup.ts (setupFiles do projeto "rotas"); aqui só se pega a instância.
 beforeAll(async () => {
-  // O app loga cada request e cada bloqueio (AuthAudit/CSRF) — ruído no
-  // relatório do vitest. console.error continua visível (500 de verdade).
-  vi.spyOn(console, "log").mockImplementation(() => {});
-  vi.spyOn(console, "warn").mockImplementation(() => {});
   ctx = await criarApp();
-}, 60_000);
-
-afterAll(() => {
-  vi.restoreAllMocks();
 });
 
 // ── Segurança ───────────────────────────────────────────────────────────────

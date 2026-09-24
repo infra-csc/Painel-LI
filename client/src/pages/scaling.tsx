@@ -653,7 +653,7 @@ export default function Scaling() {
   if (!canView(user, "scaling")) {
     return (
       <div className="rounded-xl border border-border bg-card px-8 py-12 text-center">
-        <div className="flex justify-center text-muted-foreground" aria-hidden="true"><Lock className="w-7 h-7" /></div>
+        <div className="flex justify-center text-muted-foreground" aria-hidden="true"><Lock className="w-7 h-7" aria-hidden="true" /></div>
         <p className="mt-3 text-base font-semibold text-foreground">Acesso negado</p>
         <p className="mx-auto mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
           Seu papel não tem permissão para abrir a Escalação. Se você precisa desta tela para trabalhar,
@@ -798,7 +798,7 @@ export default function Scaling() {
           quebram linha em vez de estourar. Fica abaixo da barra do topo
           (`--sticky-top`) — `z-25` não existe no Tailwind, por isso não fixava. */}
       <div className="sticky top-[var(--sticky-top)] z-30 flex flex-wrap items-center gap-x-4 gap-y-2 min-h-14 py-2 px-[var(--page-gutter)] bg-card border-b border-border">
-        <span className="text-base font-semibold text-foreground whitespace-nowrap">Escalação</span>
+        <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Escalação</h1>
         <div aria-hidden="true" className="w-px h-5 bg-border" />
         <span className="min-w-0 text-xs text-muted-foreground truncate" data-testid="resumo-topo">{resumoTopo}</span>
 
@@ -844,7 +844,7 @@ export default function Scaling() {
 
           {isErrorInclusions && !teamInclusions ? (
             <EstadoVazio
-              icone={<CloudOff className="w-7 h-7" />}
+              icone={<CloudOff className="w-7 h-7" aria-hidden="true" />}
               titulo="Não foi possível carregar as escalações"
               texto={`${describeLoadError(inclusionsError)} Nada do que você escalou foi perdido.`}
             />
@@ -853,11 +853,11 @@ export default function Scaling() {
                fica na tela enquanto a nova chega — trocar um filtro não pode
                apagar os controles que a pessoa está usando. */
             <div className="flex flex-col gap-4" aria-busy="true" aria-label="Carregando escalações">
-              <div className="h-[84px] rounded-xl border border-border bg-card animate-pulse" />
+              <div className="h-[84px] rounded-xl border border-border bg-card animate-pulse motion-reduce:animate-none" />
               <div className="rounded-xl border border-border bg-card overflow-hidden">
                 <div className="h-[34px] bg-background border-b border-border" />
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-[52px] border-b border-border animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+                  <div key={i} className="h-[52px] border-b border-border animate-pulse motion-reduce:animate-none" style={{ animationDelay: `${i * 60}ms` }} />
                 ))}
               </div>
             </div>
@@ -929,13 +929,13 @@ export default function Scaling() {
 
               {scalingInclusions.length === 0 && !temRecorte ? (
                 <EstadoVazio
-                  icone={<Users className="w-7 h-7" />}
+                  icone={<Users className="w-7 h-7" aria-hidden="true" />}
                   titulo="Nenhuma vaga para escalar"
                   texto="As vagas chegam da Inclusão de Equipe quando as funções do evento abrem. Assim que uma for criada, ela aparece aqui."
                 />
               ) : visibleRows.length === 0 ? (
                 <EstadoVazio
-                  icone={<FilterX className="w-7 h-7" />}
+                  icone={<FilterX className="w-7 h-7" aria-hidden="true" />}
                   titulo="Nenhuma escalação nesse recorte"
                   texto={`Filtrando por ${nomesDosFiltrosAtivos || "este recorte"} não sobra nenhuma linha.`}
                   acao={
@@ -1020,7 +1020,7 @@ export default function Scaling() {
       <ConfirmDialog
         open={descartePendente !== null}
         onOpenChange={(o) => { if (!o) setDescartePendente(null); }}
-        icon={(props) => <AlertTriangle {...props} />}
+        icon={(props) => <AlertTriangle {...props} aria-hidden="true" />}
         tone="danger"
         title="Descartar alterações?"
         description="Você mudou esta escalação e ainda não salvou. Ir para a próxima descarta o que foi digitado."

@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { MessageSquare, Send, Loader2 } from "lucide-react";
 import type { BudgetNote } from "@shared/schema";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 interface BudgetChatProps {
   /** Tipo da entidade em budget_notes ('planned' | 'actual' no Financeiro; outros módulos usam o próprio). */
@@ -131,14 +132,14 @@ export function BudgetChat({
       {/* Header */}
       <div className="flex items-center gap-2 px-5 pt-4 pb-2">
         <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center" aria-hidden="true">
-          <MessageSquare className="w-3 h-3 text-primary-foreground" />
+          <MessageSquare className="w-3 h-3 text-primary-foreground" aria-hidden="true" />
         </div>
         <h3 id={`${inputId}-title`} className="text-2xs font-semibold text-primary uppercase tracking-wide">
           {title}
         </h3>
         {allNotes.length > 0 && (
-          <span className="ml-auto text-2xs bg-primary/10 text-primary font-semibold px-1.5 py-0.5 rounded-full" aria-label={`${allNotes.length} mensagem(ns)`}>
-            {allNotes.length}
+          <span className="ml-auto text-2xs bg-primary/10 text-primary font-semibold px-1.5 py-0.5 rounded-full">
+            {allNotes.length}<span className="sr-only"> mensagem(ns)</span>
           </span>
         )}
       </div>
@@ -215,12 +216,13 @@ export function BudgetChat({
             aria-describedby={submitOnEnter ? undefined : `${inputId}-hint`}
             className={`flex-1 text-xs rounded-xl border border-border bg-card px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary placeholder:text-muted-foreground ${createMutation.isPending ? "opacity-60" : ""}`}
           />
-          <button
+          <MotivoDesabilitado motivo="Enviar" desabilitado={!text.trim() || createMutation.isPending}>
+            <button
             type="button"
             onClick={send}
             disabled={!text.trim() || createMutation.isPending}
             aria-label="Enviar mensagem"
-            title="Enviar"
+           
             className="h-9 w-9 self-end rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {createMutation.isPending ? (
@@ -229,6 +231,7 @@ export function BudgetChat({
               <Send className="w-3.5 h-3.5 text-primary-foreground" aria-hidden="true" />
             )}
           </button>
+          </MotivoDesabilitado>
         </div>
         {!submitOnEnter && (
           <p id={`${inputId}-hint`} className="mt-1 text-2xs text-muted-foreground">Ctrl+Enter envia · Enter quebra linha</p>
@@ -250,7 +253,7 @@ export function BudgetNotesBadge({ notes, entityId }: { notes: BudgetNote[]; ent
   if (entityNotes.length === 0) return null;
   return (
     <div className="relative flex items-center">
-      <MessageSquare className="w-3.5 h-3.5 text-primary" />
+      <MessageSquare className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
       <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-primary text-primary-foreground text-2xs font-bold rounded-full flex items-center justify-center leading-none">
         {entityNotes.length > 9 ? "9+" : entityNotes.length}
       </span>
@@ -267,7 +270,7 @@ export function BudgetNotesSnippet({ notes, entityId }: { notes: BudgetNote[]; e
   if (!last) return null;
   return (
     <div className="flex items-start gap-1.5 mt-1 px-0">
-      <MessageSquare className="w-3 h-3 text-primary/70 flex-shrink-0 mt-0.5" />
+      <MessageSquare className="w-3 h-3 text-primary/70 flex-shrink-0 mt-0.5" aria-hidden="true" />
       <p className="text-2xs text-muted-foreground leading-snug line-clamp-1 flex-1">
         <span className="font-medium text-primary">{last.authorName.split(" ")[0]}: </span>
         {last.content}

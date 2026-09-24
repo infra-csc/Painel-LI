@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Lock, X, Eye, EyeOff, Check, AlertCircle, ShieldCheck } from "lucide-react";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -79,7 +80,7 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
             <div className="flex items-start gap-4">
               {/* Lock icon circle */}
               <div className="w-10 h-10 rounded-xl bg-brand-soft flex items-center justify-center shrink-0 mt-0.5">
-                <Lock className="w-5 h-5 text-primary" />
+                <Lock className="w-5 h-5 text-primary" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="text-sm font-bold text-foreground">Redefinir senha</h2>
@@ -97,10 +98,12 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
               </div>
             </div>
             <button
+              type="button"
+              aria-label="Fechar"
               onClick={handleClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors shrink-0"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -112,10 +115,10 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
             {/* Nova Senha */}
             <div>
               <label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
-                Nova senha <span className="text-danger" aria-hidden="true">*</span><span className="sr-only"> (obrigatório)</span>
+                Nova senha<RequiredMark />
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
                 <input
                   type={showPwd ? "text" : "password"}
                   value={password}
@@ -130,10 +133,11 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
                 <button
                   type="button"
                   onClick={() => setShowPwd(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600 transition-colors"
-                  tabIndex={-1}
+                  aria-label={showPwd ? "Ocultar senha" : "Mostrar senha"}
+                  aria-pressed={showPwd}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPwd ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                 </button>
               </div>
 
@@ -156,10 +160,10 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
             {/* Confirmar Senha */}
             <div>
               <label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
-                Confirmar Senha <span className="text-danger-strong">*</span>
+                Confirmar Senha<RequiredMark />
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
                 <input
                   type={showCfm ? "text" : "password"}
                   value={confirm}
@@ -174,21 +178,22 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
                   data-testid="input-confirm-password"
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  {cfmOk && <Check className="w-3.5 h-3.5 text-success-strong" strokeWidth={3} />}
-                  {cfmBad && <AlertCircle className="w-3.5 h-3.5 text-danger-strong" />}
+                  {cfmOk && <Check className="w-3.5 h-3.5 text-success-strong" strokeWidth={3} aria-hidden="true" />}
+                  {cfmBad && <AlertCircle className="w-3.5 h-3.5 text-danger-strong" aria-hidden="true" />}
                   <button
                     type="button"
                     onClick={() => setShowCfm(v => !v)}
-                    className="ml-1 text-muted-foreground hover:text-slate-600 transition-colors"
-                    tabIndex={-1}
+                    aria-label={showCfm ? "Ocultar confirmação da senha" : "Mostrar confirmação da senha"}
+                    aria-pressed={showCfm}
+                    className="ml-1 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {showCfm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showCfm ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                   </button>
                 </div>
               </div>
               {cfmBad && (
                 <p className="text-2xs text-danger-strong mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" /> As senhas não coincidem
+                  <AlertCircle className="w-3 h-3" aria-hidden="true" /> As senhas não coincidem
                 </p>
               )}
             </div>
@@ -215,18 +220,18 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
                 {isPending ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Redefinindo...
+                    Redefinindo…
                   </>
                 ) : (
                   <>
-                    <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                    <Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" />
                     Redefinir Senha
                   </>
                 )}
               </button>
             </div>
             <p className="text-2xs text-muted-foreground text-center flex items-center justify-center gap-1">
-              <ShieldCheck className="w-3 h-3" />
+              <ShieldCheck className="w-3 h-3" aria-hidden="true" />
               O usuário deverá usar a nova senha no próximo acesso
             </p>
           </div>

@@ -86,18 +86,18 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
           <caption className="sr-only">Quadro de vagas por função e dia (todas as áreas)</caption>
           <thead className="bg-surface-muted sticky top-0 z-20">
             <tr>
-              <th className={cn(TH, "text-left px-3 sticky left-0 bg-surface-muted z-30 w-[200px] min-w-[200px] border-r-border")}>Função</th>
-              <th className={TH}>Vagas</th>
+              <th scope="col" className={cn(TH, "text-left px-3 sticky left-0 bg-surface-muted z-30 w-[200px] min-w-[200px] border-r-border")}>Função</th>
+              <th scope="col" className={TH}>Vagas</th>
               {dates.map((d) => {
                 const { date, dayName, isWeekend } = formatDateHeader(d);
                 return (
-                  <th key={d} className={cn(TH, "w-14", isWeekend ? "bg-warning-soft text-warning" : "bg-brand-soft/50")}>
+                  <th scope="col" key={d} className={cn(TH, "w-14", isWeekend ? "bg-warning-soft text-warning" : "bg-brand-soft/50")}>
                     <div className="leading-none font-bold">{date}</div>
                     <div className="text-2xs mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
                   </th>
                 );
               })}
-              <th className={cn(TH, "border-r-0 border-l border-l-border")}>Pessoas-dia</th>
+              <th scope="col" className={cn(TH, "border-r-0 border-l border-l-border")}>Pessoas-dia</th>
             </tr>
           </thead>
           <tbody>

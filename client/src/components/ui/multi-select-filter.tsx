@@ -37,7 +37,7 @@ export default function MultiSelectFilter({
   onChange,
   placeholder,
   searchable = false,
-  searchPlaceholder = "Buscar...",
+  searchPlaceholder = "Buscar…",
   testId = "multi-select-filter",
 }: MultiSelectFilterProps) {
   const [open, setOpen] = useState(false);
@@ -80,7 +80,7 @@ export default function MultiSelectFilter({
               </span>
             )}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-2" />
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-2" aria-hidden="true" />
         </button>
       </PopoverTrigger>
 
@@ -94,14 +94,14 @@ export default function MultiSelectFilter({
           <div className="flex items-center gap-2 bg-surface-muted border-b border-border px-3 py-2.5">
             {searchable ? (
               <>
-                <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                 <input
                   autoFocus
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground text-slate-700"
+                  className="w-full text-sm bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground text-slate-700"
                 />
               </>
             ) : (
@@ -111,17 +111,18 @@ export default function MultiSelectFilter({
             )}
             {selected.length > 0 && (
               <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); onChange([]); }}
-                className="text-muted-foreground hover:text-danger-strong flex-shrink-0 transition-colors"
-                title="Limpar seleção"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-danger-strong flex-shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Limpar seleção"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
         )}
 
-        <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent" role="listbox" aria-multiselectable="true">
           {filtered.length === 0 ? (
             <div className="px-4 py-4 text-sm text-muted-foreground text-center">
               Nada encontrado.
@@ -130,9 +131,12 @@ export default function MultiSelectFilter({
             filtered.map((option) => {
               const isSelected = selected.includes(option.value);
               return (
-                <div
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   key={option.value}
-                  className={`flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors whitespace-normal border-b border-border last:border-0 ${
+                  className={`w-full text-left flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors whitespace-normal border-b border-border last:border-0 focus-visible:outline-none focus-visible:bg-brand-soft ${
                     isSelected
                       ? "bg-brand-soft text-primary font-medium"
                       : "text-slate-700 hover:bg-brand-soft hover:text-primary-hover"
@@ -145,13 +149,13 @@ export default function MultiSelectFilter({
                     }`}
                   >
                     {isSelected && (
-                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                         <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </div>
                   {option.label}
-                </div>
+                </button>
               );
             })
           )}

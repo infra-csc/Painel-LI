@@ -39,7 +39,7 @@ export function ChronologyWarningsDialog({ warnings, onCancel, onConfirm }: { wa
       <AlertDialogContent className="max-w-[480px] border-warning/25">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-warning">
-            <AlertCircle className="w-5 h-5 text-warning-strong" />Confira as datas antes de continuar
+            <AlertCircle className="w-5 h-5 text-warning-strong" aria-hidden="true" />Confira as datas antes de continuar
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2">
@@ -122,8 +122,8 @@ export function BatchResultDialog({ result, onClose }: { result: BatchResult | n
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {result && result.failures.length === 0
-              ? <><CheckCircle className="w-5 h-5 text-success-strong" /> Lote concluído</>
-              : <><AlertCircle className="w-5 h-5 text-warning-strong" /> Lote concluído com falhas</>}
+              ? <><CheckCircle className="w-5 h-5 text-success-strong" aria-hidden="true" /> Lote concluído</>
+              : <><AlertCircle className="w-5 h-5 text-warning-strong" aria-hidden="true" /> Lote concluído com falhas</>}
           </DialogTitle>
           <DialogDescription>
             {result && (

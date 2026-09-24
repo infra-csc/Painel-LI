@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { normalizeRole } from "@shared/roles";
 import { fixEncoding } from "@/lib/utils";
 import { usePageTitle } from "@/components/common/use-page-title";
@@ -33,6 +34,7 @@ import {
   BaggageByCollaborator, BaggageByEvent,
   type LinhaDeColaborador, type LinhaDeEvento,
 } from "@/components/baggage/baggage-reports";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 const ABAS: { id: TabId; label: string; icon: typeof ClipboardList }[] = [
   { id: "solicitacoes", label: "Solicitações", icon: ClipboardList },
@@ -52,7 +54,7 @@ function baixarCsv(nome: string, header: string, linhas: string[]) {
 const aspas = (s: string) => `"${String(s ?? "").replace(/"/g, '""')}"`;
 
 export default function BaggageControlPage() {
-  usePageTitle("Controle de Bagagem");
+  usePageTitle("Controle de bagagem");
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -285,8 +287,8 @@ export default function BaggageControlPage() {
       fecharForm();
     },
     onError: (e: any) => toast({
-      title: "Erro",
-      description: e?.body?.message || "Erro ao salvar a solicitação",
+      title: "Não foi possível salvar a solicitação",
+      description: apiErrorMessage(e, "Tente novamente."),
       variant: "destructive",
     }),
   });
@@ -298,8 +300,8 @@ export default function BaggageControlPage() {
       toast({ title: "Solicitação excluída" });
     },
     onError: (e: any) => toast({
-      title: "Erro",
-      description: e?.body?.message || "Erro ao excluir a solicitação",
+      title: "Não foi possível excluir a solicitação",
+      description: apiErrorMessage(e, "Tente novamente."),
       variant: "destructive",
     }),
   });
@@ -318,7 +320,7 @@ export default function BaggageControlPage() {
     },
     onError: (e: any, _p, ctxMut) => {
       if (ctxMut?.prev) qc.setQueryData(["/api/baggage-history"], ctxMut.prev);
-      toast({ title: "Erro ao ajustar o histórico", description: e?.body?.message || "Tente novamente.", variant: "destructive" });
+      toast({ title: "Não foi possível ajustar o histórico", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["/api/baggage-history"] }),
   });
@@ -492,7 +494,7 @@ export default function BaggageControlPage() {
       */}
       <PageHeader
         variant="bar"
-        title="Controle de Bagagem"
+        title="Controle de bagagem"
         subtitle={<span data-testid="resumo-do-recorte">{resumoDoTopo}</span>}
         tabs={
           <div
@@ -535,17 +537,19 @@ export default function BaggageControlPage() {
           </div>
         }
         actions={<>
-          <button
+          <MotivoDesabilitado motivo="Exportar a visão atual em CSV" desabilitado={csvVazio}>
+            <button
             type="button"
             onClick={csvDaVisao}
             disabled={csvVazio}
-            title="Exportar a visão atual em CSV"
+           
             aria-label="Exportar a visão atual em CSV"
             className="h-[34px] px-3 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card text-sm font-medium text-slate-700 hover:bg-surface-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             data-testid="button-csv"
           >
             <Download className="w-4 h-4" aria-hidden="true" /> CSV
           </button>
+          </MotivoDesabilitado>
 
           <button
             type="button"

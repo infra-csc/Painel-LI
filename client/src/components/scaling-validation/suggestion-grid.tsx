@@ -188,15 +188,15 @@ const GridRow = memo(function GridRow({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="ghost" size="sm" disabled={disabled} aria-label={`Ações da linha ${row.functionName}`} className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground rounded-lg">
-              <MoreHorizontal className="w-4 h-4" />
+              <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => onDuplicateRow(row.rowId)}>
-              <Copy className="w-3.5 h-3.5 mr-2" /> Duplicar linha
+              <Copy className="w-3.5 h-3.5 mr-2" aria-hidden="true" /> Duplicar linha
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onRemoveRow(row.rowId)} className="text-destructive">
-              <Trash2 className="w-3.5 h-3.5 mr-2" /> Remover
+              <Trash2 className="w-3.5 h-3.5 mr-2" aria-hidden="true" /> Remover
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

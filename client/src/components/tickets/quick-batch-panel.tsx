@@ -77,7 +77,7 @@ export default function QuickBatchPanel({
   const selectionStatus: S = selectedCount > 0 ? "done" : "empty";
   const dot = (status: S) => {
     const map = { done: "bg-success-strong", partial: "bg-warning-strong", empty: "bg-danger-strong" };
-    return <div className={`w-2 h-2 rounded-full shrink-0 ${map[status]} ${status === "partial" ? "animate-pulse" : ""}`} />;
+    return <div className={`w-2 h-2 rounded-full shrink-0 ${map[status]} ${status === "partial" ? "animate-pulse motion-reduce:animate-none" : ""}`} />;
   };
   const textColor = (status: S) => (status === "done" ? "text-slate-700" : status === "partial" ? "text-warning" : "text-muted-foreground");
 
@@ -97,7 +97,7 @@ export default function QuickBatchPanel({
       >
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-8 h-8 rounded-lg bg-warning-soft flex items-center justify-center shrink-0">
-            <FileText className="w-4 h-4 text-warning-strong" />
+            <FileText className="w-4 h-4 text-warning-strong" aria-hidden="true" />
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">Aplicar em Lote</p>
@@ -106,7 +106,7 @@ export default function QuickBatchPanel({
         </div>
         <div className="pr-4">
           <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${expanded ? "bg-warning-soft text-warning-strong" : "bg-surface-muted text-muted-foreground"}`}>
-            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {expanded ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronRight className="w-4 h-4" aria-hidden="true" />}
           </div>
         </div>
       </div>
@@ -182,7 +182,7 @@ export default function QuickBatchPanel({
             <div className="col-span-12 lg:col-span-4 space-y-2">
               <section className="rounded-xl border border-border overflow-hidden bg-card">
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-surface-muted border-b border-border">
-                  <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center shrink-0"><Paperclip className="w-3 h-3 text-white" /></div>
+                  <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center shrink-0"><Paperclip className="w-3 h-3 text-white" aria-hidden="true" /></div>
                   <h4 className="text-2xs font-black uppercase tracking-widest text-slate-600">Anexos</h4>
                 </div>
                 <div className="p-3">
@@ -196,12 +196,12 @@ export default function QuickBatchPanel({
 
               <section className="rounded-xl border border-border overflow-hidden bg-card">
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-surface-muted border-b border-border">
-                  <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center shrink-0"><NotebookPen className="w-3 h-3 text-white" /></div>
+                  <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center shrink-0"><NotebookPen className="w-3 h-3 text-white" aria-hidden="true" /></div>
                   <h4 className="text-2xs font-black uppercase tracking-widest text-slate-600">Observações</h4>
                 </div>
                 <div className="p-3">
                   <Textarea
-                    placeholder="Adicione notas relevantes sobre este lote de passagens..."
+                    placeholder="Adicione notas relevantes sobre este lote de passagens…"
                     value={q?.ticketObservations || ""}
                     onChange={(e) => handlers.onFieldChange("quick", "ticketObservations", e.target.value)}
                     className="text-xs resize-none bg-surface-muted border-border rounded-lg"
@@ -213,7 +213,7 @@ export default function QuickBatchPanel({
 
               <div className="rounded-xl border border-border overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-surface-muted border-b border-border">
-                  <div className="w-5 h-5 rounded-md bg-slate-500 flex items-center justify-center shrink-0"><ClipboardCheck className="w-3 h-3 text-white" /></div>
+                  <div className="w-5 h-5 rounded-md bg-slate-500 flex items-center justify-center shrink-0"><ClipboardCheck className="w-3 h-3 text-white" aria-hidden="true" /></div>
                   <h4 className="text-2xs font-black uppercase tracking-widest text-slate-600">Status da Operação</h4>
                 </div>
                 <ul className="p-3 space-y-2 bg-card">
@@ -267,11 +267,11 @@ export default function QuickBatchPanel({
               <div className="h-7 w-px bg-border" />
               {ready ? (
                 <span className="flex items-center gap-1.5 px-4 py-1.5 bg-success-soft text-success rounded-full text-2xs font-bold uppercase tracking-wide">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success-strong animate-pulse" />Pronto para processar
+                  <span className="w-1.5 h-1.5 rounded-full bg-success-strong animate-pulse motion-reduce:animate-none" />Pronto para processar
                 </span>
               ) : partial ? (
                 <span className="flex items-center gap-1.5 px-4 py-1.5 bg-warning-soft text-warning rounded-full text-2xs font-bold uppercase tracking-wide">
-                  <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse" />Em andamento
+                  <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse motion-reduce:animate-none" />Em andamento
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 px-4 py-1.5 bg-muted text-muted-foreground rounded-full text-2xs font-bold uppercase tracking-wide">
@@ -299,7 +299,7 @@ export default function QuickBatchPanel({
                     className={cn("h-[34px] px-5 font-bold rounded-lg text-xs flex items-center gap-2 transition-all", (selectedCount === 0 ? "bg-border" : "bg-primary"), (selectedCount === 0 ? "text-muted-foreground" : "text-white"), (selectedCount > 0 ? "shadow-2" : "shadow-none"), (selectedCount === 0 ? "cursor-not-allowed" : "cursor-pointer"))}
                   >
                     <Rocket className="h-[18px] w-[18px]" aria-hidden="true" />
-                    {isPending ? "Aplicando..." : `Aplicar a ${selectedCount} Passageiro${selectedCount !== 1 ? "s" : ""}`}
+                    {isPending ? "Aplicando…" : `Aplicar a ${selectedCount} Passageiro${selectedCount !== 1 ? "s" : ""}`}
                   </Button>
                 </>
               )}

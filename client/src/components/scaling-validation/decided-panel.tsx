@@ -26,6 +26,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { periodLabel } from "./suggestions-list";
 import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
 import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type SuggestionRow } from "./types";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 /** Como a vaga foi decidida — o servidor lê do log mais recente que decide a vaga (11/09). */
 interface DecisaoDaVaga {
@@ -230,17 +231,19 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
                 <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{formatDateBr(row.decisao?.at ?? row.updatedAt) || "Sem data"}</td>
                 <td className="px-2 py-2 text-right whitespace-nowrap">
                   {podeLimpar && decisao === "negada" && (
-                    <button
+                    <MotivoDesabilitado motivo="Excluir da lista" desabilitado={limparMutation.isPending}>
+                      <button
                       type="button"
                       onClick={() => setLimpar([row.id])}
                       disabled={limparMutation.isPending}
                       className="mr-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                       aria-label={"Excluir da lista a vaga negada #" + row.inclusionNumber}
-                      title="Excluir da lista"
+                     
                       data-testid={"decidida-excluir-" + row.id}
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
+                    </MotivoDesabilitado>
                   )}
                   <button
                     type="button"

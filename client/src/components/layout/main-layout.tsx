@@ -85,8 +85,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <Sidebar />
 
       <div
-        className="flex min-h-dvh flex-col transition-[margin] duration-300"
+        className="flex min-h-dvh flex-col transition-[margin] duration-300 motion-reduce:transition-none"
         style={{ marginLeft: sidebarWidth }}
+        // Gaveta mobile aberta (24/09): a página vira inerte — sem foco, sem
+        // clique, fora da árvore do leitor de tela — até o menu fechar.
+        // (`inert` ainda não está nos tipos do React 18; o atributo é passado
+        // como string vazia, que é a forma válida no HTML.)
+        {...(isMobileOpen ? ({ inert: "" } as Record<string, string>) : {})}
       >
         <Topbar
           topOffset={simActive ? SIMULATION_BANNER_H : 0}

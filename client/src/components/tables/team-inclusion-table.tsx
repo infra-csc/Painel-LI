@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, memo, forwardRef } from "react"
 import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { rotuloEmpreita, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight, AlertCircle, Lock } from "lucide-react";
+import { Edit, MessageCircle, Check, X, Trash2, Copy, Ban, LayoutGrid, Save, ArrowLeftRight, AlertCircle, Lock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,9 @@ import { hasPermission, hasRole } from "@/lib/role-utils";
 import { StatusBadge, StatusPorChaveBadge } from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
+import { RequiredMark } from "@/components/forms/required-mark";
 // Variante do pedido de confirmação (23/09): delete/cancel = destrutivo, confirm = neutro.
 type ConfirmVariant = "delete" | "cancel" | "confirm";
 import UniversalFilters from "@/components/common/universal-filters";
@@ -109,13 +112,13 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
           <Button
             size="sm"
             variant="ghost"
-            className="p-1 h-5 w-5 flex-shrink-0"
+            className="p-1 h-7 w-7 flex-shrink-0"
             title="Copiar ID"
             aria-label={`Copiar ID da inclusão #${numero}`}
             onClick={() => onCopyId(inclusionNumber?.toString() || id)}
             data-testid={`button-copy-id-${id}`}
           >
-            <Copy className="w-3 h-3" />
+            <Copy className="w-3 h-3" aria-hidden="true" />
           </Button>
         </div>
       </td>
@@ -162,22 +165,22 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
       <td className="px-2 py-3 text-center">
         {needsTicket ? (
           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-success-soft" title="Precisa de passagem">
-            <Check className="w-3 h-3 text-success shrink-0" />
+            <Check className="w-3 h-3 text-success shrink-0" aria-hidden="true" />
           </span>
         ) : (
           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted" title="Não precisa de passagem">
-            <X className="w-3 h-3 text-muted-foreground shrink-0" />
+            <X className="w-3 h-3 text-muted-foreground shrink-0" aria-hidden="true" />
           </span>
         )}
       </td>
       <td className="px-2 py-3 text-center">
         {needsAccommodation ? (
           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-success-soft" title="Precisa de hospedagem">
-            <Check className="w-3 h-3 text-success shrink-0" />
+            <Check className="w-3 h-3 text-success shrink-0" aria-hidden="true" />
           </span>
         ) : (
           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted" title="Não precisa de hospedagem">
-            <X className="w-3 h-3 text-muted-foreground shrink-0" />
+            <X className="w-3 h-3 text-muted-foreground shrink-0" aria-hidden="true" />
           </span>
         )}
       </td>
@@ -193,7 +196,7 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
             aria-label={`Ver comentários da inclusão #${numero}`}
             data-testid={`button-comments-${id}`}
           >
-            <MessageCircle className="w-4 h-4" />
+            <MessageCircle className="w-4 h-4" aria-hidden="true" />
           </Button>
           {canEditScreen && locked && (
             <span
@@ -202,7 +205,7 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
               aria-label={lockReason ?? PAST_EVENT_BLOCK_MSG}
               data-testid={`lock-past-event-${id}`}
             >
-              <Lock className="w-4 h-4" />
+              <Lock className="w-4 h-4" aria-hidden="true" />
             </span>
           )}
           {canEditScreen && !locked && (
@@ -220,7 +223,7 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
                     title="Excluir registro"
                     aria-label={`Excluir inclusão #${numero}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 )}
                 {canCancel && cancelByRole && (
@@ -233,7 +236,7 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
                     title="Cancelar Escalação"
                     aria-label={`Cancelar escalação da inclusão #${numero}`}
                   >
-                    <Ban className="w-4 h-4" />
+                    <Ban className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 )}
               </>
@@ -249,7 +252,7 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
                   title="Editar inclusão"
                   aria-label={`Editar inclusão #${numero}`}
                 >
-                  <Edit className="w-4 h-4" />
+                  <Edit className="w-4 h-4" aria-hidden="true" />
                 </Button>
                 {canDelete && (
                   <Button
@@ -261,7 +264,7 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
                     title="Excluir registro"
                     aria-label={`Excluir inclusão #${numero}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 )}
                 {canCancel && (
@@ -274,7 +277,7 @@ const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowProps>(fun
                     title="Cancelar Escalação"
                     aria-label={`Cancelar escalação da inclusão #${numero}`}
                   >
-                    <Ban className="w-4 h-4" />
+                    <Ban className="w-4 h-4" aria-hidden="true" />
                   </Button>
                 )}
               </>
@@ -294,6 +297,9 @@ export default function TeamInclusionTable() {
   const [editStartDate, setEditStartDate] = useState("");
   const [editEndDate, setEditEndDate] = useState("");
   const [editSelectedDays, setEditSelectedDays] = useState<Set<string>>(new Set());
+  // O formulário de edição é não controlado (FormData): a "sujeira" vem de
+  // qualquer `change` no <form> ou de clique nos dias — protege o Esc/clique fora.
+  const [editDirty, setEditDirty] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   // Seleção múltipla (28/08): listas; vazia = todos. Também conserta o filtro
   // de Funções, que comparava string com a lista do multi-select e zerava a tela.
@@ -460,9 +466,16 @@ export default function TeamInclusionTable() {
         setEditSelectedDays(new Set(generateDaysInRange(start, end)));
       }
       setEditingInclusion(inclusion);
+      setEditDirty(false);
       setShowEditModal(true);
     }
   };
+
+  const fecharEdicao = useCallback(() => {
+    setShowEditModal(false);
+    setEditingInclusion(null);
+    setEditDirty(false);
+  }, []);
 
   const updateTeamInclusionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
@@ -580,6 +593,18 @@ export default function TeamInclusionTable() {
     }
     batchSaveDiariasMutation.mutate(changes);
   };
+
+  // A grade em lote está "suja" quando algum dia difere do salvo.
+  const batchDirty = useMemo(() => batchTargetIds.some(id => {
+    const inc = inclusionById.get(id);
+    if (!inc) return false;
+    const newDays = [...(batchDiariasSelections[id] ?? [])].sort();
+    const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
+    return newDays.join(',') !== origDays.join(',');
+  }), [batchTargetIds, batchDiariasSelections, inclusionById]);
+
+  const descarteEdicao = useConfirmarDescarte(editDirty, { salvando: updateTeamInclusionMutation.isPending });
+  const descarteLote = useConfirmarDescarte(batchDirty, { salvando: batchSaveDiariasMutation.isPending });
   // ────────────────────────────────────────────────────────────────────────────
 
   const canDeleteInclusion = (inclusion: TeamInclusion) => {
@@ -938,7 +963,7 @@ export default function TeamInclusionTable() {
   if (isLoading) {
     return (
       <div className="bg-card rounded-lg shadow-1 border border-border p-6">
-        <div className="animate-pulse space-y-4">
+        <div className="animate-pulse motion-reduce:animate-none space-y-4">
           <div className="h-4 bg-muted rounded w-1/3"></div>
           <div className="space-y-3">
             {[...Array(5)].map((_, i) => (
@@ -955,7 +980,7 @@ export default function TeamInclusionTable() {
     return (
       <div className="bg-card rounded-xl border border-danger/25 p-8 text-center">
         <div className="w-12 h-12 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-3">
-          <AlertCircle className="w-6 h-6 text-danger-strong" />
+          <AlertCircle className="w-6 h-6 text-danger-strong" aria-hidden="true" />
         </div>
         <h3 className="text-base font-bold text-slate-700 mb-1">Não foi possível carregar as inclusões</h3>
         <p className="text-sm text-muted-foreground">{apiErrorMessage(error, "Verifique sua conexão e tente novamente.")}</p>
@@ -1054,7 +1079,7 @@ export default function TeamInclusionTable() {
                 className="border-primary text-primary hover:bg-brand-soft gap-1.5"
                 data-testid="button-bulk-diarias"
               >
-                <LayoutGrid className="w-4 h-4" />
+                <LayoutGrid className="w-4 h-4" aria-hidden="true" />
                 Editar diárias
               </Button>
               <Button
@@ -1063,7 +1088,7 @@ export default function TeamInclusionTable() {
                 onClick={handleBulkDelete}
                 data-testid="button-bulk-delete"
               >
-                <Trash2 className="w-4 h-4 mr-2" />
+                <Trash2 className="w-4 h-4 mr-2" aria-hidden="true" />
                 Excluir Selecionadas
               </Button>
               <Button
@@ -1073,7 +1098,7 @@ export default function TeamInclusionTable() {
                 className="border-warning-strong text-warning hover:bg-warning-soft"
                 data-testid="button-bulk-cancel"
               >
-                <Ban className="w-4 h-4 mr-2" />
+                <Ban className="w-4 h-4 mr-2" aria-hidden="true" />
                 Cancelar Selecionadas
               </Button>
             </div>
@@ -1097,7 +1122,7 @@ export default function TeamInclusionTable() {
               onClick={openBatchDiarias}
               className="h-7 px-2.5 text-2xs font-semibold text-primary border-primary/25 hover:bg-brand-soft gap-1.5"
             >
-              <LayoutGrid className="w-3 h-3" />
+              <LayoutGrid className="w-3 h-3" aria-hidden="true" />
               Editar diárias em lote
             </Button>
           )}
@@ -1111,9 +1136,10 @@ export default function TeamInclusionTable() {
           data-testid="team-inclusion-scroll"
         >
           <table className="table-fixed w-full">
+          <caption className="sr-only">Inclusões de equipe: colaborador, função, período, diárias e status de cada vaga</caption>
             <thead className="bg-surface-muted sticky top-0 z-10 shadow-[inset_0_-2px_0_0_var(--border)]">
               <tr>
-                <th className="w-[40px] px-2 py-3">
+                <th scope="col" className="w-[40px] px-2 py-3">
                   <Checkbox
                     checked={allVisibleSelected}
                     onCheckedChange={toggleSelectAll}
@@ -1127,13 +1153,13 @@ export default function TeamInclusionTable() {
                 <SortableHeader field="collaborator" className="w-[18%] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                 <SortableHeader field="date" className="w-[100px] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
                 <SortableHeader field="status" className="w-[130px] !px-2 text-2xs uppercase tracking-widest text-muted-foreground font-semibold" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
-                <th className="w-[48px] px-2 py-3 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
+                <th scope="col" className="w-[48px] px-2 py-3 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
                   Pass.
                 </th>
-                <th className="w-[64px] px-2 py-3 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
+                <th scope="col" className="w-[64px] px-2 py-3 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
                   Hosp.
                 </th>
-                <th className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
+                <th scope="col" className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-2xs font-semibold text-muted-foreground uppercase tracking-widest">
                   Ações
                 </th>
               </tr>
@@ -1203,23 +1229,28 @@ export default function TeamInclusionTable() {
         teamInclusionId={selectedInclusion || ""}
       />
       
-      {/* Modal de Edição */}
-      {showEditModal && editingInclusion && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl shadow-3 max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
-
+      {/* Modal de Edição — Radix Dialog (Esc, foco preso, aria) com proteção de descarte */}
+      <Dialog open={showEditModal && !!editingInclusion} onOpenChange={(v) => { if (!v) descarteEdicao.pedirParaFechar(fecharEdicao); }}>
+        {editingInclusion && (
+        <DialogContent
+          className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl p-6 gap-0"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            (document.getElementById("edit-function-id") as HTMLSelectElement | null)?.focus();
+          }}
+        >
             {/* Header */}
-            <div className="-mx-6 -mt-6 px-6 py-4 rounded-t-xl mb-6 flex items-center gap-3 bg-surface-muted border-b-2 border-border">
+            <DialogHeader className="-mx-6 -mt-6 px-6 py-4 rounded-t-xl mb-6 flex flex-row items-center gap-3 space-y-0 bg-surface-muted border-b-2 border-border text-left">
               <div className="w-9 h-9 rounded-lg bg-primary shadow-2 flex items-center justify-center shrink-0">
-                <Edit className="w-4 h-4 text-white" />
+                <Edit className="w-4 h-4 text-white" aria-hidden="true" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-foreground leading-tight">Editar Inclusão</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">#{editingInclusion.inclusionNumber}</p>
+                <DialogTitle className="text-base font-bold text-foreground leading-tight">Editar inclusão</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">Inclusão #{editingInclusion.inclusionNumber}</DialogDescription>
               </div>
-            </div>
+            </DialogHeader>
 
-            <form onSubmit={(e) => {
+            <form onChange={() => setEditDirty(true)} onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               const selectedDaysArr = Array.from(editSelectedDays).sort();
@@ -1251,7 +1282,7 @@ export default function TeamInclusionTable() {
                 {/* Coluna Esquerda */}
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="edit-function-id" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Função *</label>
+                    <label htmlFor="edit-function-id" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Função<RequiredMark /></label>
                     <select
                       id="edit-function-id"
                       name="functionId"
@@ -1277,7 +1308,7 @@ export default function TeamInclusionTable() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label htmlFor="edit-start-date" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Data Início *</label>
+                      <label htmlFor="edit-start-date" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Data de início<RequiredMark /></label>
                       <input
                         id="edit-start-date"
                         type="date"
@@ -1300,7 +1331,7 @@ export default function TeamInclusionTable() {
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-end-date" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Data Fim *</label>
+                      <label htmlFor="edit-end-date" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Data de fim<RequiredMark /></label>
                       <input
                         id="edit-end-date"
                         type="date"
@@ -1342,10 +1373,11 @@ export default function TeamInclusionTable() {
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-primary bg-brand-soft rounded-lg px-2 py-0.5">{selectedCount} dia{selectedCount !== 1 ? 's' : ''}</span>
                             <button type="button" onClick={() => {
+                              setEditDirty(true);
                               setEditSelectedDays(new Set(allDays));
                             }}
                               className="text-2xs text-muted-foreground hover:text-primary-hover underline">todos</button>
-                            <button type="button" onClick={() => setEditSelectedDays(new Set())}
+                            <button type="button" onClick={() => { setEditDirty(true); setEditSelectedDays(new Set()); }}
                               className="text-2xs text-muted-foreground hover:text-danger-strong underline">nenhum</button>
                           </div>
                         </div>
@@ -1361,11 +1393,12 @@ export default function TeamInclusionTable() {
                               <button
                                 key={day}
                                 type="button"
-                                onClick={() => setEditSelectedDays(prev => {
+                                aria-pressed={isSelected}
+                                onClick={() => { setEditDirty(true); setEditSelectedDays(prev => {
                                   const next = new Set(prev);
                                   if (next.has(day)) next.delete(day); else next.add(day);
                                   return next;
-                                })}
+                                }); }}
                                 className={`flex flex-col items-center px-2 py-1 rounded-lg border text-2xs font-semibold transition-all min-w-[38px] ${
                                   isSelected
                                     ? isWeekend ? 'bg-warning-strong text-primary-foreground border-warning-strong' : 'bg-primary text-primary-foreground border-primary'
@@ -1482,30 +1515,32 @@ export default function TeamInclusionTable() {
 
               {/* Rodapé */}
               <div className="border-t border-border pt-4 mt-4 flex gap-2 justify-end">
-                <button
+                <Button
                   type="button"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditingInclusion(null);
-                  }}
-                  className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-6 py-2.5 text-sm font-medium transition-colors"
+                  variant="outline"
+                  onClick={() => descarteEdicao.pedirParaFechar(fecharEdicao)}
+                  className="rounded-xl px-6"
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={updateTeamInclusionMutation.isPending}
-                  className="text-primary-foreground rounded-lg px-6 py-2.5 text-sm font-semibold transition-all disabled:opacity-50 bg-primary hover:bg-primary-hover shadow-1"
+                  aria-busy={updateTeamInclusionMutation.isPending}
+                  className="rounded-lg px-6 font-semibold shadow-1"
                 >
-                  {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
-                </button>
+                  {updateTeamInclusionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  {updateTeamInclusionMutation.isPending ? 'Salvando…' : 'Salvar alterações'}
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+        )}
+      </Dialog>
+      {descarteEdicao.Dialogo}
 
-      {/* ── Grade de diárias em lote ── */}
+      {/* ── Grade de diárias em lote (Radix Dialog: Esc, foco preso, aria) ── */}
+      <Dialog open={showBatchDiarias} onOpenChange={(v) => { if (!v) descarteLote.pedirParaFechar(() => setShowBatchDiarias(false)); }}>
       {showBatchDiarias && (() => {
         const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
         const targets = batchTargetIds
@@ -1513,32 +1548,20 @@ export default function TeamInclusionTable() {
           .filter(Boolean) as TeamInclusion[];
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-card rounded-xl shadow-3 w-full max-w-5xl flex flex-col max-h-[90vh]">
+            <DialogContent className="max-w-5xl flex flex-col max-h-[90vh] rounded-xl p-0 gap-0">
 
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-                <div className="flex items-center gap-2.5">
+              <DialogHeader className="flex flex-row items-center gap-2.5 space-y-0 px-6 py-4 pr-12 border-b border-border shrink-0 text-left">
                   <div className="w-8 h-8 rounded-xl bg-brand-soft flex items-center justify-center shrink-0">
-                    <LayoutGrid className="w-4 h-4 text-primary" />
+                    <LayoutGrid className="w-4 h-4 text-primary" aria-hidden="true" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-foreground leading-tight">Edição de Diárias em Lote</h2>
-                    <p className="text-2xs text-muted-foreground mt-0.5">
+                    <DialogTitle className="text-sm font-bold text-foreground leading-tight">Edição de diárias em lote</DialogTitle>
+                    <DialogDescription className="text-2xs text-muted-foreground mt-0.5">
                       {targets.length} inclusão(ões) — selecione os dias de cada uma; a quantidade será calculada automaticamente
-                    </p>
+                    </DialogDescription>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Fechar edição de diárias em lote"
-                  title="Fechar"
-                  onClick={() => setShowBatchDiarias(false)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-slate-600 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              </DialogHeader>
 
               {/* Rows */}
               <div className="overflow-y-auto flex-1 divide-y divide-border">
@@ -1630,27 +1653,34 @@ export default function TeamInclusionTable() {
                   Linhas em <span className="text-primary font-semibold">azul</span> têm dias alterados. Status das escalações não será modificado.
                 </p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowBatchDiarias(false)}
-                    className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium transition-colors"
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => descarteLote.pedirParaFechar(() => setShowBatchDiarias(false))}
+                    className="rounded-xl px-5"
                   >
                     Cancelar
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    type="button"
                     onClick={handleSaveBatchDiarias}
                     disabled={batchSaveDiariasMutation.isPending}
-                    className="flex items-center gap-2 text-primary-foreground rounded-xl px-5 py-2 text-sm font-semibold transition-all disabled:opacity-50 bg-primary hover:bg-primary-hover shadow-1"
+                    aria-busy={batchSaveDiariasMutation.isPending}
+                    className="rounded-xl px-5 font-semibold shadow-1"
                   >
-                    <Save className="w-3.5 h-3.5" />
-                    {batchSaveDiariasMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
-                  </button>
+                    {batchSaveDiariasMutation.isPending
+                      ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      : <Save className="w-3.5 h-3.5" aria-hidden="true" />}
+                    {batchSaveDiariasMutation.isPending ? 'Salvando…' : 'Salvar alterações'}
+                  </Button>
                 </div>
               </div>
 
-            </div>
-          </div>
+            </DialogContent>
         );
       })()}
+      </Dialog>
+      {descarteLote.Dialogo}
 
       <ConfirmDialog
         open={confirmState.open}

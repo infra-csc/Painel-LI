@@ -63,7 +63,7 @@ export interface RolePermissions {
   canEditCollaborators: boolean; // espelha POST/PATCH /api/collaborators e /bulk (CADASTRO_ROLES + function_area)
   canManageFunctions: boolean;   // espelha POST/PATCH/DELETE /api/functions e /:id/managers (CADASTRO_ROLES: admin, purchasing, production)
   canCreateUsers: boolean;       // espelha POST /api/users (admin, financial, purchasing)
-  canManageUserAccounts: boolean;// espelha PATCH /api/users/:id/toggle-active e POST /:id/reset-password (admin, purchasing, production)
+  canManageUserAccounts: boolean;// espelha PATCH /api/users/:id/toggle-active, /:id/approval e POST /:id/reset-password — SÓ admin (23/09)
   canChangeUserRole: boolean;    // espelha PATCH /api/users/:id — role/area só admin (allowedFieldsForAdmin)
   canAccessCalendar: boolean;
   canAccessBaggage: boolean;     // controle de bagagem — admin e compras
@@ -148,7 +148,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditCollaborators: true,
         canManageFunctions: true,
         canCreateUsers: false,        // POST /api/users recusa production
-        canManageUserAccounts: true,
+        canManageUserAccounts: false, // toggle-active/approval/reset-password são só admin (23/09)
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
@@ -222,7 +222,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditCollaborators: true,
         canManageFunctions: true,
         canCreateUsers: true,
-        canManageUserAccounts: true,
+        canManageUserAccounts: false, // toggle-active/approval/reset-password são só admin (23/09)
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: true,

@@ -864,7 +864,7 @@ export default function RhControlPage() {
                           : isCurrent ? 'bg-card border-2 border-primary'
                           : 'bg-muted border border-border'
                         }`}>
-                          {isCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                          {isCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} aria-hidden="true" />}
                           {isCurrent && <div className="w-2 h-2 rounded-full bg-primary" />}
                         </div>
                       </div>
@@ -903,8 +903,8 @@ export default function RhControlPage() {
                       : nfAwaitingSubmission ? 'bg-card border-2 border-warning-strong'
                       : 'bg-border border border-slate-300'
                     }`}>
-                      {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                      {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
+                      {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} aria-hidden="true" />}
+                      {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} aria-hidden="true" />}
                       {nfEnviada && <div className="w-2 h-2 rounded-full bg-warning-strong" />}
                       {nfDevolvida && <div className="w-2 h-2 rounded-full bg-warning-strong" />}
                       {nfAwaitingSubmission && <div className="w-2 h-2 rounded-full bg-warning/20" />}
@@ -946,7 +946,7 @@ export default function RhControlPage() {
                     : checkinEligible ? 'bg-card border-2 border-primary'
                     : 'bg-muted border border-border'
                   }`}>
-                    {checkinDone && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                    {checkinDone && <Check className="w-3 h-3 text-white" strokeWidth={3} aria-hidden="true" />}
                     {checkinEligible && !checkinDone && <div className="w-2 h-2 rounded-full bg-primary/40" />}
                   </div>
                 </div>
@@ -1127,7 +1127,7 @@ export default function RhControlPage() {
                     const dAgo = Math.floor((today.getTime() - evEnd.getTime()) / 864e5);
                     return (
                       <span className="text-2xs font-semibold text-danger-strong flex items-center gap-0.5 shrink-0">
-                        <AlertTriangle className="w-2.5 h-2.5" /> Evento encerrado há {dAgo} dia{dAgo !== 1 ? 's' : ''}
+                        <AlertTriangle className="w-2.5 h-2.5" aria-hidden="true" /> Evento encerrado há {dAgo} dia{dAgo !== 1 ? 's' : ''}
                       </span>
                     );
                   }
@@ -1136,7 +1136,7 @@ export default function RhControlPage() {
                     if (dUntil <= 14) {
                       return (
                         <span className="text-2xs font-semibold text-warning-strong flex items-center gap-0.5 shrink-0">
-                          <AlertTriangle className="w-2.5 h-2.5" /> Evento em {dUntil <= 0 ? 'andamento' : `${dUntil} dia${dUntil !== 1 ? 's' : ''}`}
+                          <AlertTriangle className="w-2.5 h-2.5" aria-hidden="true" /> Evento em {dUntil <= 0 ? 'andamento' : `${dUntil} dia${dUntil !== 1 ? 's' : ''}`}
                         </span>
                       );
                     }
@@ -1146,7 +1146,7 @@ export default function RhControlPage() {
                 if (days > 30) {
                   return (
                     <span className="text-2xs font-semibold text-danger-strong flex items-center gap-0.5 shrink-0">
-                      <AlertTriangle className="w-2.5 h-2.5" /> {timeInStatus(item.lastActivityDate)}
+                      <AlertTriangle className="w-2.5 h-2.5" aria-hidden="true" /> {timeInStatus(item.lastActivityDate)}
                     </span>
                   );
                 }
@@ -1267,7 +1267,7 @@ export default function RhControlPage() {
               }
               return <span className="text-2xs font-semibold rounded-md px-2 py-1 border bg-warning-soft text-warning border-warning/25">Ag. Nota Fiscal</span>;
             })()}
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
           </div>
         </div>
 
@@ -1315,7 +1315,7 @@ export default function RhControlPage() {
                     </div>
                     {isZero ? (
                       <span className="inline-flex items-center gap-1 text-2xs font-medium px-1.5 py-0.5 rounded bg-success-soft text-success">
-                        <Check className="w-3 h-3" strokeWidth={3} /> Idênticos · {fmt(item.planned.totalValue)}
+                        <Check className="w-3 h-3" strokeWidth={3} aria-hidden="true" /> Idênticos · {fmt(item.planned.totalValue)}
                       </span>
                     ) : (
                       <span className={`text-2xs font-semibold tabular-nums ${isNegative ? 'text-success' : 'text-danger'}`}>
@@ -1326,7 +1326,7 @@ export default function RhControlPage() {
                       className="ml-auto text-2xs text-primary hover:text-primary-hover font-medium flex items-center gap-0.5 shrink-0"
                       onClick={() => toggleDetails(item.id)}
                     >
-                      {showDetails ? 'Ocultar' : 'Ver detalhes'} <ChevronRight className={`w-3 h-3 transition-transform ${showDetails ? 'rotate-90' : ''}`} />
+                      {showDetails ? 'Ocultar' : 'Ver detalhes'} <ChevronRight className={`w-3 h-3 transition-transform ${showDetails ? 'rotate-90' : ''}`} aria-hidden="true" />
                     </button>
                   </div>
 
@@ -1359,7 +1359,7 @@ export default function RhControlPage() {
                   {nfInvFin?.checkinAt && (
                     <div className="rounded-lg bg-success-soft border border-success/25 px-3 py-2 flex items-center justify-between">
                       <span className="text-2xs text-success font-semibold flex items-center gap-1.5">
-                        <CheckCircle className="w-3.5 h-3.5" /> Check-in Financeiro Realizado
+                        <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Check-in Financeiro Realizado
                       </span>
                       {checkinPayStr && <span className="text-2xs text-success font-medium">💳 Pagamento: {checkinPayStr}</span>}
                     </div>
@@ -1391,7 +1391,7 @@ export default function RhControlPage() {
                   if (nfStatus === "pendente" && !itemEmitsNf) {
                     return (
                       <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-                        <FileText className="w-3.5 h-3.5" />
+                        <FileText className="w-3.5 h-3.5" aria-hidden="true" />
                         Não emite NF — definido na escalação
                       </span>
                     );
@@ -1399,7 +1399,7 @@ export default function RhControlPage() {
                   if (nfStatus === "pendente") {
                     return (
                       <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-                        <FileText className="w-3.5 h-3.5" />
+                        <FileText className="w-3.5 h-3.5" aria-hidden="true" />
                         Aguardando envio da nota fiscal
                       </span>
                     );
@@ -1408,7 +1408,7 @@ export default function RhControlPage() {
                   if (nfStatus === "recusada") {
                     return (
                       <span className="flex items-center gap-1.5 text-2xs text-danger font-medium">
-                        <Ban className="w-3.5 h-3.5" />
+                        <Ban className="w-3.5 h-3.5" aria-hidden="true" />
                         NF recusada — decisão definitiva, sem reenvio
                       </span>
                     );
@@ -1416,7 +1416,7 @@ export default function RhControlPage() {
                   if (nfStatus === "devolvida") {
                     return (
                       <span className="flex items-center gap-1.5 text-2xs text-warning-strong font-medium">
-                        <FileText className="w-3.5 h-3.5" />
+                        <FileText className="w-3.5 h-3.5" aria-hidden="true" />
                         Nota devolvida
                       </span>
                     );
@@ -1439,7 +1439,7 @@ export default function RhControlPage() {
                         style={isPrimary ? { background: bg } : undefined}
                       >
                         {item.status === "prestacao_recebida" ? "Analisar comparativo" : navTarget.label}
-                        <ArrowRight className="w-3 h-3" />
+                        <ArrowRight className="w-3 h-3" aria-hidden="true" />
                       </button>
                     );
                   })()}
@@ -1455,9 +1455,9 @@ export default function RhControlPage() {
                           onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao`)}
                           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-1 transition-colors bg-primary-hover"
                         >
-                          <FileText className="w-3 h-3" />
+                          <FileText className="w-3 h-3" aria-hidden="true" />
                           Aprovar nota fiscal
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3" aria-hidden="true" />
                         </button>
                       );
                     }
@@ -1468,7 +1468,7 @@ export default function RhControlPage() {
                           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-warning/25 text-warning hover:bg-warning-soft transition-colors"
                         >
                           Ver notas fiscais
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3" aria-hidden="true" />
                         </button>
                       );
                     }
@@ -1482,9 +1482,9 @@ export default function RhControlPage() {
                           onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao&filter=checkin-pendente&actual=${actualId}`)}
                           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-primary-foreground shadow-1 transition-colors bg-primary"
                         >
-                          <CircleDot className="w-3 h-3" />
+                          <CircleDot className="w-3 h-3" aria-hidden="true" />
                           Ir para Check-in
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3" aria-hidden="true" />
                         </button>
                       );
                     }
@@ -1495,9 +1495,9 @@ export default function RhControlPage() {
                           onClick={() => navigate(`/invoices?event=${item.event.id}`)}
                           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-success/25 text-success hover:bg-success-soft transition-colors"
                         >
-                          <FileCheck className="w-3 h-3" />
+                          <FileCheck className="w-3 h-3" aria-hidden="true" />
                           Ver nota fiscal
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3" aria-hidden="true" />
                         </button>
                       );
                     }
@@ -1628,7 +1628,7 @@ export default function RhControlPage() {
                 <span className="text-xs font-semibold text-slate-600">{title}</span>
               </div>
               <div className="text-4xl font-bold tabular-nums mt-1 mb-3" style={{ color: iconColor }}>
-                {isLoading ? <span className="inline-block w-12 h-9 bg-border rounded animate-pulse" /> : value}
+                {isLoading ? <span className="inline-block w-12 h-9 bg-border rounded animate-pulse motion-reduce:animate-none" /> : value}
               </div>
               <div className="space-y-1">
                 {children}
@@ -1755,9 +1755,9 @@ export default function RhControlPage() {
         {/* flex-wrap: em ~375px a linha busca+toggle quebra em vez de estourar */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
             <Input
-              placeholder="Buscar por colaborador..."
+              placeholder="Buscar por colaborador…"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="h-8 pl-9 text-xs border-border"
@@ -1783,7 +1783,7 @@ export default function RhControlPage() {
             className={`h-8 text-xs gap-1.5 ${hasActiveFilters ? 'border-primary/40 text-primary bg-brand-soft' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter className="w-3.5 h-3.5" />
+            <Filter className="w-3.5 h-3.5" aria-hidden="true" />
             Filtros
             {hasActiveFilters && (
               <span className="bg-primary text-primary-foreground text-2xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
@@ -1860,21 +1860,21 @@ export default function RhControlPage() {
 
       {isRhFilterActive && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-muted border border-border text-xs text-muted-foreground">
-          <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+          <Shield className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
           Mostrando apenas pendências do RH ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
           <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
         </div>
       )}
       {filterCheckinOnly && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-brand-soft border border-primary/25 text-xs text-primary">
-          <CircleDot className="w-3.5 h-3.5 text-primary" />
+          <CircleDot className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
           Mostrando apenas check-ins pendentes ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
           <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => setFilterCheckinOnly(false)}>Limpar</button>
         </div>
       )}
       {(filterStatus !== "all" && filterStatus !== "rh_action") && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-muted border border-border text-xs text-muted-foreground">
-          <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+          <Shield className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
           Filtro ativo: {statusConfig[filterStatus].label} ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
           <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
         </div>
@@ -1886,7 +1886,7 @@ export default function RhControlPage() {
       ) : isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map(i => (
-            <div key={i} className="rounded-lg border border-border bg-card px-4 py-3 animate-pulse flex items-center gap-3">
+            <div key={i} className="rounded-lg border border-border bg-card px-4 py-3 animate-pulse motion-reduce:animate-none flex items-center gap-3">
               <div className="w-8 h-8 bg-border rounded-full shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3 bg-border rounded w-32" />
@@ -1897,7 +1897,7 @@ export default function RhControlPage() {
         </div>
       ) : filteredItems.length === 0 ? (
         <div id="rh-listing" className="rounded-xl border border-dashed border-border bg-card p-12 text-center">
-          <Shield className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+          <Shield className="w-8 h-8 text-muted-foreground mx-auto mb-2" aria-hidden="true" />
           <p className="text-sm font-medium text-muted-foreground">Nenhum item encontrado</p>
           <p className="text-xs text-muted-foreground mt-1">
             {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
@@ -1921,7 +1921,7 @@ export default function RhControlPage() {
           {/* Section header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+              <Calendar className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
               <span className="text-xs font-medium text-slate-600">Por evento</span>
               <span className="text-2xs text-muted-foreground" aria-live="polite">
                 {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
@@ -1967,7 +1967,7 @@ export default function RhControlPage() {
                   onClick={() => toggleEventExpand(group.event.id)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
+                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
                     <div className="text-left min-w-0">
                       <p className="text-sm font-bold text-foreground truncate">{group.event.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">

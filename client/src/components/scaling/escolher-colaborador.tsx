@@ -21,6 +21,7 @@ import { AlertTriangle, Check, Search, X } from "lucide-react";
 import { fixEncoding } from "@/lib/utils";
 import type { Collaborator, TeamInclusion } from "@shared/schema";
 import { normalizarBusca as normalizar } from "./scaling-queue";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 /** Quantos candidatos a lista mostra antes de pedir a busca. */
 const POR_VEZ = 4;
@@ -94,7 +95,7 @@ export default function EscolherColaborador({
           placeholder="Buscar colaborador…"
           aria-label="Buscar colaborador"
           data-testid="input-busca-colaborador"
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-muted-foreground"
+          className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground"
         />
         {onCancelar && (
           <button
@@ -151,18 +152,19 @@ export default function EscolherColaborador({
           }
           return (
             <li key={c.id}>
-              <button
+              <MotivoDesabilitado motivo={conflito
+                  ? `${nome} já tem escalação no mesmo período${ondeConflita ? ` (${ondeConflita})` : ""}. Libere a outra antes.`
+                  : avisoMesmoDia
+                  ? `Escalar ${nome} — atenção: também viaja no mesmo dia (${ondeMesmoDia}). Confira os horários das passagens.`
+                  : `Escalar ${nome} nesta vaga`} desabilitado={conflito}>
+                <button
                 type="button"
                 disabled={conflito}
                 onClick={() => onEscolher(c.id)}
                 // "já tem escalação" em vez de "já está escalado": a frase
                 // carrega o nome de uma pessoa real, e a forma neutra serve
                 // para qualquer uma delas.
-                title={conflito
-                  ? `${nome} já tem escalação no mesmo período${ondeConflita ? ` (${ondeConflita})` : ""}. Libere a outra antes.`
-                  : avisoMesmoDia
-                  ? `Escalar ${nome} — atenção: também viaja no mesmo dia (${ondeMesmoDia}). Confira os horários das passagens.`
-                  : `Escalar ${nome} nesta vaga`}
+               
                 data-testid={`opcao-colaborador-${c.id}`}
                 className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${
                   conflito ? "cursor-not-allowed bg-warning-soft" : "hover:bg-brand-soft"
@@ -191,6 +193,7 @@ export default function EscolherColaborador({
                   <Check className="w-4 h-4 shrink-0 text-primary opacity-0 group-hover:opacity-100" aria-hidden="true" />
                 )}
               </button>
+              </MotivoDesabilitado>
             </li>
           );
         })}

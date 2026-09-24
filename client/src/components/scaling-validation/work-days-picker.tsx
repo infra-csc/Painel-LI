@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { addDaysYmd, buildReadDateList, formatDateHeader } from "./scaling-grid-utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 interface WorkDaysPickerProps {
   /** Período base (normalmente o do evento). Dias selecionados fora dele também aparecem. */
@@ -76,12 +77,14 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
     <div id={id} role="group" aria-label="Dias de trabalho" className="space-y-1.5">
     {eventDays.length > 0 && (
       <div className="flex flex-wrap items-center gap-1.5">
-        <button
+        <MotivoDesabilitado motivo="Marca todos os dias do período do evento (dias já marcados fora dele continuam)" desabilitado={disabled || allEventSelected}>
+          <button
           type="button" className={ATALHO} disabled={disabled || allEventSelected} onClick={marcarEvento}
-          title="Marca todos os dias do período do evento (dias já marcados fora dele continuam)"
+         
         >
           Todos os dias do evento <span className="tabular-nums text-muted-foreground">({eventDays.length})</span>
         </button>
+        </MotivoDesabilitado>
         <button type="button" className={ATALHO} disabled={disabled || value.length === 0} onClick={() => onChange([])}>
           Limpar
         </button>
@@ -97,13 +100,14 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
           ? `A área pediu este dia · ${on ? "marcado" : "desmarcado por você"}`
           : inEvent ? undefined : "Fora do período do evento";
         return (
-          <button
+          <MotivoDesabilitado motivo={titulo} desabilitado={disabled}>
+            <button
             key={d}
             type="button"
             disabled={disabled}
             aria-pressed={on}
             onClick={(e) => toggle(d, e.shiftKey)}
-            title={titulo}
+           
             className={cn(
               "relative flex flex-col items-center min-w-[52px] px-2 py-1 rounded-lg border text-2xs leading-tight transition-colors",
               "focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed",
@@ -123,6 +127,7 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
             <span className="font-semibold tabular-nums">{date}</span>
             <span className={cn("text-2xs", on ? "text-white/80" : isWeekend ? "text-warning" : "text-muted-foreground")}>{dayName}</span>
           </button>
+          </MotivoDesabilitado>
         );
       })}
     </div>

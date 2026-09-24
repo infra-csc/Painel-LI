@@ -329,10 +329,13 @@ export function useScalingData(opts: {
   // Exportação XLSX carrega CPF/telefone/nascimento — só admin, Compras e RH/Financeiro
   const canExport = hasRole(user, "admin", "purchasing", "financial");
 
-  // Admins and purchasing can manage all functions; else manager of the function
+  // Espelha `podeEditarVagaAsync` do servidor (PATCH e /confirm da vaga):
+  // admin, Compras e Logística Interna (production) editam qualquer função;
+  // Área de Função só as funções em que é responsável (function_managers).
+  // Antes `production` ficava de fora e o "Confirmar" sumia para a Logística.
   const canManageFunction = (functionId: string): boolean => {
     if (!user) return false;
-    if (isAdminRole || hasRole(user, "purchasing")) return true;
+    if (isAdminRole || hasRole(user, "purchasing", "production")) return true;
     return userFunctionIds.has(functionId);
   };
 
@@ -362,12 +365,13 @@ export function useScalingData(opts: {
   const isEventLocked = (inclusion: TeamInclusion): boolean =>
     !podeAgirEmEventoPassado && isPastEvent(inclusion.eventId);
 
-  // Alterar colaborador: admin/function_area/purchasing ou responsável, e só até
-  // haver passagem comprada (se needsTicket) ou hospedagem reservada (se needsAccommodation)
+  // Alterar colaborador: a mesma permissão do PATCH (admin/Compras/Logística,
+  // ou Área de Função responsável por AQUELA função — a API exige o cadastro em
+  // function_managers, não basta o papel), e só até haver passagem comprada
+  // (se needsTicket) ou hospedagem reservada (se needsAccommodation).
   const canEditCollaborator = (inclusion: TeamInclusion): boolean => {
     if (!user) return false;
-    const temPapel = hasRole(user, "admin", "function_area", "purchasing");
-    if (!temPapel && !canManageFunction(inclusion.functionId)) return false;
+    if (!canManageFunction(inclusion.functionId)) return false;
     const ticketPurchased = inclusion.needsTicket ? purchasedTicketByInclusion.has(inclusion.id) : false;
     const accommodationReserved = inclusion.needsAccommodation ? accommodationByInclusion.has(inclusion.id) : false;
     return !(ticketPurchased || accommodationReserved);

@@ -8,6 +8,7 @@ import {
   suggestionTimeToHHMM,
   type TravelSuggestion,
 } from "@/lib/ticket-form";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 interface SuggestedDatesProps {
   suggestion: TravelSuggestion;
@@ -32,20 +33,22 @@ export default function SuggestedDates({ suggestion, hideWhenEmpty, hint, onUseS
   return (
     <div className="border border-primary/25 rounded-xl overflow-hidden" data-testid="suggested-dates">
       <div className="bg-brand-soft border-b border-primary/25 px-4 py-2.5 flex items-center gap-2">
-        <Plane className="w-3.5 h-3.5 text-primary" />
+        <Plane className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
         <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Datas Sugeridas</span>
         {hint && <span className="ml-auto text-2xs text-primary/70 font-medium">{hint}</span>}
         {onUseSuggestion && (
-          <button
+          <MotivoDesabilitado motivo="Preenche data e horários de ida/volta a partir da sugestão da escalação (não sobrescreve o que já foi digitado)" desabilitado={useDisabled || !hasAnySuggestion(suggestion)}>
+            <button
             type="button"
             onClick={onUseSuggestion}
             disabled={useDisabled || !hasAnySuggestion(suggestion)}
             className={`${hint ? "ml-2" : "ml-auto"} inline-flex items-center gap-1 text-2xs font-semibold text-primary bg-card border border-primary/25 hover:bg-brand-soft rounded-lg px-2 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
-            title="Preenche data e horários de ida/volta a partir da sugestão da escalação (não sobrescreve o que já foi digitado)"
+           
             data-testid="button-use-suggestion"
           >
-            <Wand2 className="w-3 h-3" />Usar sugestão
+            <Wand2 className="w-3 h-3" aria-hidden="true" />Usar sugestão
           </button>
+          </MotivoDesabilitado>
         )}
       </div>
       <div className={`${compact ? "p-3" : "p-4"} grid grid-cols-2 gap-2`}>

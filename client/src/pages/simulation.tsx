@@ -108,7 +108,7 @@ export default function SimulationPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome ou e-mail..."
+              placeholder="Buscar por nome ou e-mail…"
               aria-label="Buscar usuário por nome ou e-mail"
               className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/40"
             />
@@ -116,7 +116,7 @@ export default function SimulationPage() {
         </div>
 
         {isLoading ? (
-          <div className="p-6 space-y-3 animate-pulse">
+          <div className="p-6 space-y-3 animate-pulse motion-reduce:animate-none">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="h-12 bg-muted rounded" />
             ))}
@@ -156,7 +156,7 @@ export default function SimulationPage() {
                     className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground transition-colors"
                   >
                     <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-                    {starting ? "Iniciando..." : "Ver como"}
+                    {starting ? "Iniciando…" : "Ver como"}
                   </button>
                 </li>
               );

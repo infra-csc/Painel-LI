@@ -3,12 +3,13 @@ import { cn, formatDiasUteis, formatFds, fixEncoding, parseBrNumber } from "@/li
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { ActivityTimeline } from "@/components/activity-timeline";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
 import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Sun, Search, Home, UserCheck, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Eye } from "lucide-react";
 import { isRhOrAdmin } from "@/lib/permissions";
@@ -34,6 +35,7 @@ import { useLinhasVirtuais, useCardsVirtuais, useMediaQuery, EspacadorLinha } fr
 import { CurrencyInput } from "@/components/common/currency-input";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 interface BudgetEdit {
   inclusionId: string;
   qtdDiarias: number;
@@ -216,7 +218,7 @@ const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(function Sh
 
   // A11y: indicador NÃO cromático de célula editada (além da cor/negrito)
   const editedMark = (
-    <span aria-label="Valor editado manualmente" title="Valor editado manualmente"
+    <span role="img" aria-label="Valor editado manualmente" title="Valor editado manualmente"
       className="text-2xs font-bold text-muted-foreground shrink-0 select-none">✱</span>
   );
 
@@ -356,7 +358,7 @@ const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(function Sh
             <div className="mt-0.5">
               {isSent ? (
                 <span className="inline-flex items-center gap-1 text-2xs font-semibold px-1.5 py-px rounded-full bg-success-soft text-success">
-                  <Check className="w-2 h-2" />Enviado
+                  <Check className="w-2 h-2" aria-hidden="true" />Enviado
                 </span>
               ) : !isNotAttended ? (
                 <span className="inline-flex items-center text-2xs font-semibold px-1.5 py-px rounded-full bg-warning-soft text-warning">
@@ -796,6 +798,9 @@ export default function BudgetPlannedPage() {
     field: 'vdia'|'alimUtil'|'alimFds'|'mob';
     value: string;
   } | null>(null);
+  const batchValueRef = useRef<HTMLInputElement>(null);
+  // Só pergunta "Descartar?" se já há um valor digitado no lote.
+  const descarteLote = useConfirmarDescarte(!!advancedBatch?.value);
   // Buffer de digitação dos inputs do modal — permite "540,50" sem o controlled
   // input engolir a vírgula (mesmo padrão do SheetRow)
   const [modalBufs, setModalBufs] = useState<Record<string, string>>({});
@@ -953,12 +958,12 @@ export default function BudgetPlannedPage() {
         const plan = allBudgetPlanned?.find((p: any) => p.id === id);
         const budget = plan && calculatedBudgets.find(b => b.inclusion.collaboratorId === plan.collaboratorId && b.inclusion.functionId === plan.functionId);
         if (budget) setSelectedIds(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
-        toast({ title: "Colaborador marcado como não participou", className: "bg-surface-muted border-border text-foreground" });
+        toast({ title: "Colaborador marcado como não participou" });
       } else {
-        toast({ title: "Participação restaurada", className: "bg-success-soft border-success/25 text-success" });
+        toast({ title: "Participação restaurada", variant: "success" });
       }
     },
-    onError: () => toast({ title: "Erro ao atualizar participação", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível atualizar a participação", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const createAndMarkNotAttendedMutation = useMutation({
@@ -997,9 +1002,9 @@ export default function BudgetPlannedPage() {
       setNotAttendedModal(null);
       setNotAttendedReason("");
       setSelectedIds(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
-      toast({ title: "Colaborador marcado como não participou", className: "bg-surface-muted border-border text-foreground" });
+      toast({ title: "Colaborador marcado como não participou" });
     },
-    onError: () => toast({ title: "Erro ao marcar como não participou", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível marcar como não participou", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   // Busca diretamente os eventos que têm escalação — sem carregar todas as escalações
@@ -1670,8 +1675,8 @@ export default function BudgetPlannedPage() {
           ? "Valores padrão aplicados aos orçamentos ainda não enviados."
           : "Todos os orçamentos já foram enviados ou não há registros pendentes.",
       });
-    } catch {
-      toast({ title: "Erro ao aplicar valores", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Não foi possível aplicar os valores", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     } finally {
       setIsApplyingDefaults(false);
     }
@@ -1950,17 +1955,19 @@ export default function BudgetPlannedPage() {
         subtitle="Orçamento planejado por colaborador — cálculo automático das escalações confirmadas"
         actions={<>
           {isRhOrAdmin(user) && (
-            <Button
+            <MotivoDesabilitado motivo="Aplica os valores padrão configurados em Sistema a todos os orçamentos ainda não enviados" desabilitado={isApplyingDefaults}>
+              <Button
               variant="outline"
               size="sm"
               onClick={handleApplyDefaults}
               disabled={isApplyingDefaults}
-              title="Aplica os valores padrão configurados em Sistema a todos os orçamentos ainda não enviados"
+             
               className="gap-1.5 text-xs font-semibold rounded-lg whitespace-nowrap hover:text-primary hover:border-primary"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isApplyingDefaults ? 'animate-spin' : ''}`} />
-              {isApplyingDefaults ? 'Atualizando...' : 'Atualizar padrões'}
+              <RefreshCw className={`w-3.5 h-3.5 ${isApplyingDefaults ? 'animate-spin' : ''}`} aria-hidden="true" />
+              {isApplyingDefaults ? 'Atualizando…' : 'Atualizar padrões'}
             </Button>
+            </MotivoDesabilitado>
           )}
           {selectedEventId && (
             /* Tokens no lugar de `style={{}}`/hex (23/09), ao ligar o seletor ao evento em foco. */
@@ -2008,7 +2015,7 @@ export default function BudgetPlannedPage() {
                   <p className="text-2xs font-extrabold uppercase tracking-[0.14em] text-white/75 relative">Total Planejado</p>
                   {selectedEvent?.startDate && (
                     <p className="flex items-center gap-1 text-2xs text-white/70 relative">
-                      <Calendar className="w-2.5 h-2.5 shrink-0" />
+                      <Calendar className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
                       {formatEventDate(selectedEvent.startDate)}
                     </p>
                   )}
@@ -2026,7 +2033,7 @@ export default function BudgetPlannedPage() {
                   <div className="flex-1 min-w-[110px] flex flex-col items-center gap-1 px-4">
                     <div className="text-2xl font-black leading-none tracking-tight text-primary">{stats.total}</div>
                     <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-                      <Users className="w-3 h-3" />Colaboradores
+                      <Users className="w-3 h-3" aria-hidden="true" />Colaboradores
                     </div>
                   </div>
 
@@ -2036,7 +2043,7 @@ export default function BudgetPlannedPage() {
                   <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
                     <div className="text-2xl font-black leading-none tracking-tight text-primary">{stats.totalCasa}</div>
                     <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-                      <Home className="w-3 h-3" />Casa
+                      <Home className="w-3 h-3" aria-hidden="true" />Casa
                     </div>
                   </div>
 
@@ -2046,7 +2053,7 @@ export default function BudgetPlannedPage() {
                   <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
                     <div className="text-2xl font-black leading-none tracking-tight text-warning">{stats.totalFreela}</div>
                     <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-                      <UserCheck className="w-3 h-3" />Freela
+                      <UserCheck className="w-3 h-3" aria-hidden="true" />Freela
                     </div>
                   </div>
 
@@ -2068,7 +2075,7 @@ export default function BudgetPlannedPage() {
                       <div className="text-sm font-black leading-none tracking-tight text-muted-foreground">—</div>
                     )}
                     <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-                      <Calendar className="w-3 h-3" />Período
+                      <Calendar className="w-3 h-3" aria-hidden="true" />Período
                     </div>
                   </div>
                 </div>
@@ -2160,7 +2167,7 @@ export default function BudgetPlannedPage() {
                       <div className="px-5 py-4 pb-4">
                         <div className="flex items-center gap-2.5 mb-3">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-primary/8">
-                            <Home className="text-primary" style={{ width:13, height:13 }} />
+                            <Home className="text-primary" style={{ width:13, height:13 }} aria-hidden="true" />
                           </div>
                           <span className="text-2xs font-semibold tracking-widest uppercase text-muted-foreground">Casa</span>
                         </div>
@@ -2185,7 +2192,7 @@ export default function BudgetPlannedPage() {
                       <div className="px-5 py-4 pb-4">
                         <div className="flex items-center gap-2.5 mb-3">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-warning/8">
-                            <UserCheck className="text-warning" style={{ width:13, height:13 }} />
+                            <UserCheck className="text-warning" style={{ width:13, height:13 }} aria-hidden="true" />
                           </div>
                           <span className="text-2xs font-semibold tracking-widest uppercase text-muted-foreground">Freela</span>
                         </div>
@@ -2210,7 +2217,7 @@ export default function BudgetPlannedPage() {
                       <div className="px-5 py-4 pb-4">
                         <div className="flex items-center gap-2.5 mb-3">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-primary/8">
-                            <Users className="text-primary" style={{ width:13, height:13 }} />
+                            <Users className="text-primary" style={{ width:13, height:13 }} aria-hidden="true" />
                           </div>
                           <span className="text-2xs font-semibold tracking-widest uppercase text-muted-foreground">Médio / Pessoa</span>
                         </div>
@@ -2235,7 +2242,7 @@ export default function BudgetPlannedPage() {
                       <div className="px-5 py-4 pb-4">
                         <div className="flex items-center gap-2.5 mb-3">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-info/8">
-                            <BarChart3 className="text-info" style={{ width:13, height:13 }} />
+                            <BarChart3 className="text-info" style={{ width:13, height:13 }} aria-hidden="true" />
                           </div>
                           <span className="text-2xs font-semibold tracking-widest uppercase text-muted-foreground">Médio / Dia</span>
                         </div>
@@ -2300,10 +2307,10 @@ export default function BudgetPlannedPage() {
 
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" aria-hidden="true" />
                 <input
                   type="text"
-                  placeholder="Buscar por nome..."
+                  placeholder="Buscar por nome…"
                   aria-label="Buscar colaborador por nome"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -2359,11 +2366,11 @@ export default function BudgetPlannedPage() {
             {/* ── Cards de Colaboradores ── */}
             {isLoadingInclusions || isLoadingFunctionValues ? (
               <div className="flex items-center justify-center py-20">
-                <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+                <RefreshCw className="w-8 h-8 animate-spin text-primary" aria-hidden="true" />
               </div>
             ) : (isErrorInclusions || isErrorFunctionValues) ? (
               <div className="flex flex-col items-center justify-center py-20 bg-card rounded-xl border border-border">
-                <RefreshCw className="w-16 h-16 text-slate-200 mb-4" />
+                <RefreshCw className="w-16 h-16 text-slate-200 mb-4" aria-hidden="true" />
                 <h3 className="text-base font-semibold text-slate-700">Erro ao carregar os dados</h3>
                 <p className="text-sm text-muted-foreground mt-1">Não foi possível buscar as escalações deste evento</p>
                 <Button
@@ -2371,13 +2378,13 @@ export default function BudgetPlannedPage() {
                   className="mt-4 gap-2"
                   onClick={() => { if (isErrorInclusions) refetchInclusions(); if (isErrorFunctionValues) refetchFunctionValues(); }}
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-4 h-4" aria-hidden="true" />
                   Tentar novamente
                 </Button>
               </div>
             ) : filteredBudgets.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 bg-card rounded-xl border border-border">
-                <Users className="w-16 h-16 text-slate-200 mb-4" />
+                <Users className="w-16 h-16 text-slate-200 mb-4" aria-hidden="true" />
                 <h3 className="text-base font-semibold text-slate-700">
                   {calculatedBudgets.length === 0 ? 'Nenhuma escalação confirmada' : 'Nenhum resultado encontrado'}
                 </h3>
@@ -2449,7 +2456,7 @@ export default function BudgetPlannedPage() {
                                 })}
                                 disabled={toggleNotAttendedMutation.isPending}
                               >
-                                <Undo2 style={{width:14, height:14}} />
+                                <Undo2 style={{width:14, height:14}} aria-hidden="true" />
                                 Restaurar
                               </button>
                             )}
@@ -2460,7 +2467,7 @@ export default function BudgetPlannedPage() {
                             {/* Data do período */}
                             {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted text-2xs font-normal text-muted-foreground">
-                                <Calendar className="text-muted-foreground shrink-0" style={{ width:10, height:10 }} />
+                                <Calendar className="text-muted-foreground shrink-0" style={{ width:10, height:10 }} aria-hidden="true" />
                                 {new Date(budget.inclusion.scheduleStartDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
                                 <span className="text-muted-foreground">–</span>
                                 {new Date(budget.inclusion.scheduleEndDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
@@ -2468,7 +2475,7 @@ export default function BudgetPlannedPage() {
                             )}
                             {/* Badge ausência */}
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-medium bg-warning-soft text-warning border border-warning/25">
-                              <UserX style={{width:10, height:10}} />
+                              <UserX style={{width:10, height:10}} aria-hidden="true" />
                               Não participou
                             </span>
                             {/* Motivo */}
@@ -2496,7 +2503,7 @@ export default function BudgetPlannedPage() {
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Lock className="w-4 h-4 text-primary/70 shrink-0 cursor-default" />
+                                  <Lock className="w-4 h-4 text-primary/70 shrink-0 cursor-default" aria-hidden="true" />
                                 </TooltipTrigger>
                                 <TooltipContent side="right" className="text-xs">
                                   Aguardando prestação de contas
@@ -2531,7 +2538,7 @@ export default function BudgetPlannedPage() {
                             {/* Linha 2: badge de data */}
                             {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
                               <span className="inline-flex items-center gap-1 self-start px-1.5 py-0.5 rounded-md bg-muted text-2xs font-normal text-muted-foreground tracking-[0.01em]">
-                                <Calendar className="text-muted-foreground shrink-0" style={{ width:10, height:10 }} />
+                                <Calendar className="text-muted-foreground shrink-0" style={{ width:10, height:10 }} aria-hidden="true" />
                                 {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
                                 <span className="text-muted-foreground">–</span>
                                 {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
@@ -2581,7 +2588,7 @@ export default function BudgetPlannedPage() {
                               <span className={`text-2xs font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-brand-soft text-primary' : 'bg-warning-soft text-warning'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                               {isSent && (
                                 <span className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap bg-brand-soft text-primary border border-primary/25">
-                                  <CheckCheck style={{width:10,height:10}} />
+                                  <CheckCheck style={{width:10,height:10}} aria-hidden="true" />
                                   Salvo
                                 </span>
                               )}
@@ -2596,13 +2603,14 @@ export default function BudgetPlannedPage() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-danger-strong hover:bg-danger-soft rounded-lg"
+                                    aria-label={`Marcar ${name} como não participou`}
                                     onClick={() => setNotAttendedModal({
                                       id: planRecord?.id,
                                       budget: planRecord ? undefined : budget,
                                       name,
                                       functionName: getFunctionName(budget.inclusion.functionId)
                                     })}>
-                                    <UserX className="w-3.5 h-3.5" />
+                                    <UserX className="w-3.5 h-3.5" aria-hidden="true" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="left" className="text-xs">Marcar como não participou</TooltipContent>
@@ -2612,15 +2620,15 @@ export default function BudgetPlannedPage() {
                           <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
                           {canEdit && !isSent && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary-hover hover:bg-brand-soft rounded-lg" title="Editar valores" aria-label={`Editar valores de ${name}`} onClick={() => openEditModal(budget)}>
-                              <Edit className="w-3.5 h-3.5" />
+                              <Edit className="w-3.5 h-3.5" aria-hidden="true" />
                             </Button>
                           )}
                           {isSent && (
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-primary/70 hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => openEditModal(budget, true)}>
-                                    <Eye className="w-3.5 h-3.5" />
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-primary/70 hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => openEditModal(budget, true)} aria-label={`Visualizar detalhes de ${name}`}>
+                                    <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="left" className="text-xs">Visualizar detalhes e observações</TooltipContent>
@@ -2635,7 +2643,7 @@ export default function BudgetPlannedPage() {
                               aria-label={`Enviar ${name} para o Realizado`}
                               onClick={() => setConfirmSend({ ids: [budget.inclusion.id], source: 'single' })}
                             >
-                              <Send className="w-3.5 h-3.5" />
+                              <Send className="w-3.5 h-3.5" aria-hidden="true" />
                             </Button>
                           )}
                           <Button
@@ -2645,7 +2653,7 @@ export default function BudgetPlannedPage() {
                             aria-label={isCollapsed ? `Expandir card de ${name}` : `Recolher card de ${name}`}
                             onClick={() => toggleCollapse(budget.inclusion.id)}
                           >
-                            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                            {isCollapsed ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronUp className="w-4 h-4" aria-hidden="true" />}
                           </Button>
                           </div>
                         </div>
@@ -2663,7 +2671,7 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center px-3 py-2.5 shrink-0" style={{minWidth: 112}}>
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
-                                    <Calendar className="w-2.5 h-2.5 shrink-0 text-primary" />
+                                    <Calendar className="w-2.5 h-2.5 shrink-0 text-primary" aria-hidden="true" />
                                     <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-primary">Diárias</span>
                                   </div>
                                   <span className={cn("tabular-nums font-medium text-sm leading-none text-foreground tracking-[-0.01em]", (isNotAttended ? "line-through" : "no-underline"))}>{formatCurrency(budget.subtotalDiarias)}</span>
@@ -2751,7 +2759,7 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center px-3 py-2.5 shrink-0" style={{minWidth: 112}}>
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
-                                    <Utensils className="w-2.5 h-2.5 shrink-0 text-warning" />
+                                    <Utensils className="w-2.5 h-2.5 shrink-0 text-warning" aria-hidden="true" />
                                     <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-warning">Alimentação</span>
                                     {budget.alimEstimada && (
                                       <span className="inline-flex items-center px-1 py-px rounded-full text-2xs font-semibold shrink-0 bg-warning-soft text-warning"
@@ -2792,7 +2800,7 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center px-3 py-2.5 shrink-0" style={{minWidth: 112}}>
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
-                                    <Car className="w-2.5 h-2.5 shrink-0 text-primary" />
+                                    <Car className="w-2.5 h-2.5 shrink-0 text-primary" aria-hidden="true" />
                                     <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-primary">Mobilidade</span>
                                   </div>
                                   <span className={cn("tabular-nums font-medium text-sm leading-none text-foreground tracking-[-0.01em]", (isNotAttended ? "line-through" : "no-underline"))}>{formatCurrency(budget.mobilidade)}</span>
@@ -2897,7 +2905,7 @@ export default function BudgetPlannedPage() {
                             onClick={() => setConfirmReset(true)}
                             className="text-2xs px-3 py-1.5 rounded-lg text-primary bg-brand-soft hover:bg-brand-soft border border-primary/25 transition-colors flex items-center gap-1.5 font-medium"
                           >
-                            <RotateCcw className="w-3 h-3" />
+                            <RotateCcw className="w-3 h-3" aria-hidden="true" />
                             Restaurar Padrão em Todos
                           </button>
                         </TooltipTrigger>
@@ -2910,71 +2918,76 @@ export default function BudgetPlannedPage() {
                 )}
               </div>
 
-              {/* Advanced Batch Modal */}
+              {/* Edição em lote — Radix Dialog (Esc, foco preso, aria); pergunta antes de descartar um valor digitado */}
+              <Dialog open={!!advancedBatch} onOpenChange={(v) => { if (!v) descarteLote.pedirParaFechar(() => setAdvancedBatch(null)); }}>
               {advancedBatch && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35">
-                  <div className="bg-card rounded-xl shadow-3 border border-border p-6 w-[420px] max-w-[95vw]">
-                    <div className="flex items-center justify-between mb-5">
-                      <span className="text-base font-bold text-foreground">Edição em Lote</span>
-                      <button onClick={() => setAdvancedBatch(null)} className="text-muted-foreground hover:text-slate-600">✕</button>
-                    </div>
+                <DialogContent
+                  className="max-w-md rounded-xl p-6 gap-0"
+                  onOpenAutoFocus={(e) => { e.preventDefault(); batchValueRef.current?.focus(); }}
+                >
+                    <DialogHeader className="mb-5 text-left">
+                      <DialogTitle className="text-base font-bold text-foreground">Edição em lote</DialogTitle>
+                      <DialogDescription className="text-xs text-muted-foreground">
+                        Aplica um mesmo valor a várias vagas de uma vez.
+                      </DialogDescription>
+                    </DialogHeader>
                     {/* Target */}
-                    <div className="mb-4">
-                      <div className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Quem será afetado</div>
+                    <fieldset className="mb-4">
+                      <legend className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Quem será afetado</legend>
                       <div className="grid grid-cols-2 gap-2">
                         {(['all','casa','freela','selected'] as const).map(t => (
-                          <button key={t} onClick={() => setAdvancedBatch(p => p ? {...p, target: t} : p)}
-                            className={`text-xs px-3 py-2 rounded-lg border font-medium transition-colors ${advancedBatch.target === t ? 'border-primary bg-brand-soft text-primary' : 'border-border text-slate-600 hover:bg-surface-muted'}`}>
+                          <button key={t} type="button" aria-pressed={advancedBatch.target === t} onClick={() => setAdvancedBatch(p => p ? {...p, target: t} : p)}
+                            className={`text-xs px-3 py-2 rounded-lg border font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${advancedBatch.target === t ? 'border-primary bg-brand-soft text-primary' : 'border-border text-slate-600 hover:bg-surface-muted'}`}>
                             {t === 'all' ? 'Todos' : t === 'casa' ? 'Somente CASA' : t === 'freela' ? 'Somente FREELA' : `Selecionados (${selectedIds.size})`}
                           </button>
                         ))}
                       </div>
-                    </div>
+                    </fieldset>
                     {/* Field */}
-                    <div className="mb-4">
-                      <div className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">O que alterar</div>
+                    <fieldset className="mb-4">
+                      <legend className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">O que alterar</legend>
                       <div className="grid grid-cols-2 gap-2">
                         {([
-                          ['vdia','Diária (R$/dia)','var(--primary)'],
-                          ['alimUtil','Alimentação Útil','var(--primary)'],
-                          ['alimFds','Alimentação FDS','var(--warning-strong)'],
-                          ['mob','Mobilidade','var(--primary)'],
-                        ] as const).map(([f, label, color]) => (
-                          <button key={f} onClick={() => setAdvancedBatch(p => p ? {...p, field: f} : p)}
-                            className={`text-xs px-3 py-2 rounded-lg border font-medium transition-colors text-left ${advancedBatch.field === f ? 'border-current' : 'border-border text-slate-600 hover:bg-surface-muted'}`}
-                            style={advancedBatch.field === f ? {borderColor: color, background:'var(--surface-muted)', color} : {}}>
+                          ['vdia','Diária (R$/dia)','border-primary bg-surface-muted text-primary'],
+                          ['alimUtil','Alimentação útil','border-primary bg-surface-muted text-primary'],
+                          ['alimFds','Alimentação FDS','border-warning-strong bg-surface-muted text-warning'],
+                          ['mob','Mobilidade','border-primary bg-surface-muted text-primary'],
+                        ] as const).map(([f, label, ativo]) => (
+                          <button key={f} type="button" aria-pressed={advancedBatch.field === f} onClick={() => setAdvancedBatch(p => p ? {...p, field: f} : p)}
+                            className={`text-xs px-3 py-2 rounded-lg border font-medium transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${advancedBatch.field === f ? ativo : 'border-border text-slate-600 hover:bg-surface-muted'}`}>
                             {label}
                           </button>
                         ))}
                       </div>
-                    </div>
+                    </fieldset>
                     {/* Value */}
                     <div className="mb-5">
-                      <div className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                        {advancedBatch.field === 'mob' ? 'Novo valor (R$ total Ida+Volta)' : 'Novo valor (R$/dia)'}
-                      </div>
+                      <label htmlFor="batch-novo-valor" className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        {advancedBatch.field === 'mob' ? 'Novo valor (R$ total ida+volta)' : 'Novo valor (R$/dia)'}
+                      </label>
                       <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
-                        <span className="text-muted-foreground text-sm font-medium">R$</span>
+                        <span className="text-muted-foreground text-sm font-medium" aria-hidden="true">R$</span>
                         <input
+                          id="batch-novo-valor"
+                          ref={batchValueRef}
                           type="text" inputMode="decimal" placeholder="0,00"
                           value={advancedBatch.value}
                           onChange={e => setAdvancedBatch(p => p ? {...p, value: e.target.value} : p)}
                           onKeyDown={e => { if (e.key === 'Enter') applyAdvancedBatch(); }}
-                          autoFocus
                           className="flex-1 text-right text-sm font-mono font-semibold outline-none bg-transparent text-foreground"
                         />
                       </div>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={() => setAdvancedBatch(null)} className="flex-1 h-10 text-sm border border-border rounded-xl text-muted-foreground hover:bg-surface-muted font-medium transition-colors">Cancelar</button>
-                      <button onClick={applyAdvancedBatch}
-                        className="flex-1 h-10 text-sm rounded-xl text-primary-foreground font-bold transition-colors bg-primary">
-                        Aplicar Ajuste
-                      </button>
+                      <Button type="button" variant="outline" onClick={() => descarteLote.pedirParaFechar(() => setAdvancedBatch(null))} className="flex-1 h-10 rounded-xl">Cancelar</Button>
+                      <Button type="button" onClick={applyAdvancedBatch} className="flex-1 h-10 rounded-xl font-bold">
+                        Aplicar ajuste
+                      </Button>
                     </div>
-                  </div>
-                </div>
+                </DialogContent>
               )}
+              </Dialog>
+              {descarteLote.Dialogo}
 
               {/* Tabela */}
               {(() => {
@@ -2987,7 +3000,7 @@ export default function BudgetPlannedPage() {
                       <thead className="sticky top-0 z-10 bg-surface-muted">
                         <tr className="border-b border-border">
                           {/* Checkbox select-all */}
-                          <th className="w-10 px-3 py-2.5 bg-surface-muted/80">
+                          <th scope="col" className="w-10 px-3 py-2.5 bg-surface-muted/80">
                             <Checkbox
                               checked={selectableFiltered.length > 0 && selectableFiltered.every(b => selectedIds.has(b.inclusion.id))}
                               onCheckedChange={v => {
@@ -3002,18 +3015,18 @@ export default function BudgetPlannedPage() {
                             />
                           </th>
                           {/* Colaborador / Função / Período */}
-                          <th className="text-left px-4 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] min-w-[260px] bg-surface-muted/80 text-muted-foreground">Colaborador · Função · Período</th>
+                          <th scope="col" className="text-left px-4 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] min-w-[260px] bg-surface-muted/80 text-muted-foreground">Colaborador · Função · Período</th>
 
                           {/* Diárias (qty) — read-only */}
-                          <th className="text-center px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-20 bg-muted text-muted-foreground">
+                          <th scope="col" className="text-center px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-20 bg-muted text-muted-foreground">
                             <div className="flex items-center justify-center gap-1">
-                              <Lock className="text-muted-foreground shrink-0" style={{ width:10, height:10 }} />
+                              <Lock className="text-muted-foreground shrink-0" style={{ width:10, height:10 }} aria-hidden="true" />
                               <span>Dias</span>
                             </div>
                           </th>
 
                           {/* Diária R$/dia — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-36 relative bg-surface-muted text-slate-700">
+                          <th scope="col" className="text-right px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-36 relative bg-surface-muted text-slate-700">
                             <div className="flex items-center justify-end gap-1">
                               <span className="text-2xs font-semibold text-slate-600">Diária R$/dia</span>
                               <button
@@ -3037,7 +3050,7 @@ export default function BudgetPlannedPage() {
                           </th>
 
                           {/* Alim. R$/dia — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-36 relative bg-surface-muted text-slate-700">
+                          <th scope="col" className="text-right px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-36 relative bg-surface-muted text-slate-700">
                             <div className="flex items-center justify-end gap-1">
                               <div className="flex flex-col items-end leading-tight gap-0.5">
                                 <span className="text-2xs font-semibold text-slate-600">Alim. R$/dia</span>
@@ -3067,7 +3080,7 @@ export default function BudgetPlannedPage() {
                           </th>
 
                           {/* Mobilidade — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-28 relative bg-surface-muted text-slate-700">
+                          <th scope="col" className="text-right px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-28 relative bg-surface-muted text-slate-700">
                               <div className="flex items-center justify-end gap-1">
                                 <span className="text-slate-600">Mob. R$ total</span>
                                 <button
@@ -3089,7 +3102,7 @@ export default function BudgetPlannedPage() {
                                 />
                               )}
                             </th>
-                          <th className="text-right px-4 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-28 bg-brand-soft/60 text-primary">Subtotal</th>
+                          <th scope="col" className="text-right px-4 py-2.5 text-2xs font-semibold uppercase tracking-[0.07em] w-28 bg-brand-soft/60 text-primary">Subtotal</th>
                         </tr>
 
                         {/* Banner de edição em lote */}
@@ -3242,7 +3255,7 @@ export default function BudgetPlannedPage() {
                               : 'bg-slate-300 cursor-not-allowed opacity-50 shadow-none'}
                           `}
                         >
-                          <Send className="w-4 h-4" />
+                          <Send className="w-4 h-4" aria-hidden="true" />
                           Enviar Planejamento
                           {hasPending && (
                             <span className="ml-1 w-5 h-5 rounded-full bg-card/25 flex items-center justify-center text-2xs font-bold leading-none">
@@ -3380,7 +3393,7 @@ export default function BudgetPlannedPage() {
               >↩</button>
             );
             const modalEditedMark = (
-              <span aria-label="Valor editado manualmente" title="Valor editado manualmente"
+              <span role="img" aria-label="Valor editado manualmente" title="Valor editado manualmente"
                 className="text-2xs font-bold text-muted-foreground shrink-0 select-none">✱</span>
             );
 
@@ -3401,17 +3414,17 @@ export default function BudgetPlannedPage() {
                         {editingBudgetInfo.type}
                       </span>
                       <span className="inline-flex items-center gap-1 h-[22px] text-2xs text-white/70">
-                        <Calendar className="w-3 h-3" />
+                        <Calendar className="w-3 h-3" aria-hidden="true" />
                         {editingBudgetInfo.period}
                       </span>
                       <span className="inline-flex items-center gap-1 h-[22px] text-2xs px-2 rounded-md bg-card/12 text-white/85">
-                        <Briefcase className="w-3 h-3" />
+                        <Briefcase className="w-3 h-3" aria-hidden="true" />
                         {editingBudgetInfo.weekdays}d úteis
                         {editingBudgetInfo.regraDiaria === 'fds' && <span className="opacity-70">· sem diária (CLT)</span>}
                         {editingBudgetInfo.regraDiaria === 'nenhuma' && <span className="opacity-70">· sem diária (ceno CLT)</span>}
                       </span>
                       <span className="inline-flex items-center gap-1 h-[22px] text-2xs px-2 rounded-md bg-warning-strong/20 text-warning-soft">
-                        <Sun className="w-3 h-3" />
+                        <Sun className="w-3 h-3" aria-hidden="true" />
                         {editingBudgetInfo.weekends} fds
                       </span>
                     </div>
@@ -3422,7 +3435,7 @@ export default function BudgetPlannedPage() {
               {/* ── Banner modo visualização ── */}
               {modalViewMode && (
                 <div className="flex items-center gap-2.5 px-5 py-2.5 bg-warning-soft border-b border-warning/25 shrink-0">
-                  <Eye className="w-3.5 h-3.5 text-warning shrink-0" />
+                  <Eye className="w-3.5 h-3.5 text-warning shrink-0" aria-hidden="true" />
                   <p className="text-2xs font-semibold text-warning">
                     Modo de Visualização — Edição de valores bloqueada para esta fase
                   </p>
@@ -3461,7 +3474,7 @@ export default function BudgetPlannedPage() {
                   <div className="flex items-center justify-between px-3.5 py-2 bg-brand-soft border-b border-primary/25">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-md bg-primary flex items-center justify-center">
-                        <Calendar className="w-2.5 h-2.5 text-white" />
+                        <Calendar className="w-2.5 h-2.5 text-white" aria-hidden="true" />
                       </div>
                       <span className="text-2xs font-bold text-primary uppercase tracking-wider">Diárias</span>
                     </div>
@@ -3578,7 +3591,7 @@ export default function BudgetPlannedPage() {
                     {/* Diária PLANA — um único valor para todos os dias */}
                     <div className="flex items-center px-3.5 py-2 gap-3">
                       <div className="flex items-center gap-1.5 flex-1">
-                        <Briefcase className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <Briefcase className="w-3 h-3 text-muted-foreground shrink-0" aria-hidden="true" />
                         <span className="text-xs font-medium text-slate-700">{empreitaModal ? 'Diárias (empreita)' : 'Diária'}</span>
                         <span className="text-2xs text-muted-foreground">
                           {/* Empreita: mostra os dias da EMPREITA (dias efetivamente
@@ -3627,7 +3640,7 @@ export default function BudgetPlannedPage() {
                   <div className="flex items-center justify-between px-3.5 py-2 bg-brand-soft border-b border-primary/25">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-md bg-primary flex items-center justify-center">
-                        <Car className="w-2.5 h-2.5 text-white" />
+                        <Car className="w-2.5 h-2.5 text-white" aria-hidden="true" />
                       </div>
                       <span className="text-2xs font-bold text-primary uppercase tracking-wider">Mobilidade</span>
                       <span className="text-2xs text-primary/70">ida e volta</span>
@@ -3674,7 +3687,7 @@ export default function BudgetPlannedPage() {
                   <div className="flex items-center justify-between px-3.5 py-2 bg-warning-soft border-b border-warning/25">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-md bg-warning-strong flex items-center justify-center">
-                        <Utensils className="w-2.5 h-2.5 text-white" />
+                        <Utensils className="w-2.5 h-2.5 text-white" aria-hidden="true" />
                       </div>
                       <span className="text-2xs font-bold text-warning uppercase tracking-wider">Alimentação</span>
                     </div>
@@ -3764,7 +3777,7 @@ export default function BudgetPlannedPage() {
                       className="w-full flex items-center justify-center gap-1 px-3.5 py-1.5 text-2xs font-semibold text-muted-foreground hover:text-slate-700 hover:bg-surface-muted border-t border-border transition-colors"
                     >
                       {alimExpanded ? 'Ocultar detalhe por refeição' : 'Detalhar por refeição (almoço e jantar)'}
-                      <ChevronDown className={`w-3 h-3 transition-transform ${alimExpanded ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-3 h-3 transition-transform ${alimExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
                     </button>
                   )}
 
@@ -3772,7 +3785,7 @@ export default function BudgetPlannedPage() {
                   {/* Sub-seção: Dias Úteis */}
                   <div className="px-3.5 pt-2 pb-1.5">
                     <div className="flex items-center gap-1.5 mb-1.5">
-                      <Briefcase className="w-3 h-3 text-muted-foreground" />
+                      <Briefcase className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
                       <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Dias Úteis ({editingBudgetInfo.weekdays})</span>
                     </div>
                     <div className="space-y-1.5 pl-3">
@@ -3818,7 +3831,7 @@ export default function BudgetPlannedPage() {
                   {/* Sub-seção: Fins de Semana */}
                   <div className="px-3.5 pt-2 pb-2.5 bg-warning-soft/30">
                     <div className="flex items-center gap-1.5 mb-1.5">
-                      <Sun className="w-3 h-3 text-warning-strong" />
+                      <Sun className="w-3 h-3 text-warning-strong" aria-hidden="true" />
                       <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Fim de Semana ({editingBudgetInfo.weekends})</span>
                     </div>
                     <div className="space-y-1.5 pl-3">
@@ -3928,7 +3941,7 @@ export default function BudgetPlannedPage() {
                         title="Volta aos valores da regra atual (atendimento/freela/casa + deflação + voo)"
                         className="flex items-center gap-1 text-2xs font-medium text-primary hover:text-primary-hover transition-colors"
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <RotateCcw className="w-3 h-3" aria-hidden="true" />
                         Restaurar padrão
                       </button>
                     )}
@@ -3948,7 +3961,7 @@ export default function BudgetPlannedPage() {
                         disabled={!hasChanges || savingTipo}
                         className={`h-9 px-5 text-primary-foreground font-semibold rounded-lg gap-2 text-sm ${hasChanges ? 'bg-primary hover:bg-primary-hover shadow-2' : ''}`}
                       >
-                        <CheckCheck className="w-4 h-4" />
+                        <CheckCheck className="w-4 h-4" aria-hidden="true" />
                         {savingTipo ? 'Salvando…' : hasChanges && diff !== 0 ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
                       </Button>
                     )}
@@ -4015,7 +4028,7 @@ export default function BudgetPlannedPage() {
                   ) : (
                     <div className="flex items-center justify-between px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-muted-foreground" />
+                        <Users className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                         <span className="text-xs font-normal text-muted-foreground">Colaboradores</span>
                       </div>
                       <span className="text-sm font-medium text-slate-700">{targets.length} {targets.length === 1 ? 'pessoa' : 'pessoas'}</span>
@@ -4041,9 +4054,9 @@ export default function BudgetPlannedPage() {
                     className="rounded-xl text-sm gap-1.5 text-white bg-success"
                   >
                     {isSending ? (
-                      <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />Enviando…</>
                     ) : (
-                      <><Check className="w-3.5 h-3.5" />Confirmar Envio</>
+                      <><Check className="w-3.5 h-3.5" aria-hidden="true" />Confirmar Envio</>
                     )}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -4065,7 +4078,7 @@ export default function BudgetPlannedPage() {
 
               {/* Ícone — círculo azul claro */}
               <div className="w-11 h-11 rounded-full flex items-center justify-center bg-brand-soft border border-primary/25">
-                <Undo2 className="text-primary" style={{ width:18, height:18 }} />
+                <Undo2 className="text-primary" style={{ width:18, height:18 }} aria-hidden="true" />
               </div>
 
               {/* Título + subtítulo */}
@@ -4074,7 +4087,7 @@ export default function BudgetPlannedPage() {
                 <p className="text-xs font-normal text-muted-foreground">{restoreModal.name} · {restoreModal.functionName}</p>
                 {restoreModal.startDate && restoreModal.endDate && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md mt-1 bg-brand-soft text-2xs font-medium text-primary border border-primary/25">
-                    <Calendar style={{width:10, height:10}} />
+                    <Calendar style={{width:10, height:10}} aria-hidden="true" />
                     {new Date(restoreModal.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
                     {' – '}
                     {new Date(restoreModal.endDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
@@ -4103,8 +4116,8 @@ export default function BudgetPlannedPage() {
                   }}
                   disabled={toggleNotAttendedMutation.isPending}
                 >
-                  <Undo2 className="w-3.5 h-3.5" />
-                  {toggleNotAttendedMutation.isPending ? 'Restaurando...' : 'Restaurar'}
+                  <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  {toggleNotAttendedMutation.isPending ? 'Restaurando…' : 'Restaurar'}
                 </button>
               </div>
             </div>
@@ -4124,7 +4137,7 @@ export default function BudgetPlannedPage() {
 
               {/* Ícone centralizado — círculo rose claro */}
               <div className="w-11 h-11 rounded-full flex items-center justify-center bg-danger-soft border border-danger/25">
-                <UserX className="w-4.5 h-4.5 text-danger-strong" style={{ width:18, height:18 }} />
+                <UserX className="w-4.5 h-4.5 text-danger-strong" style={{ width:18, height:18 }} aria-hidden="true" />
               </div>
 
               {/* Título + subtítulo */}
@@ -4172,8 +4185,8 @@ export default function BudgetPlannedPage() {
                   }}
                   disabled={toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending}
                 >
-                  <UserX className="w-3.5 h-3.5" />
-                  {(toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending) ? 'Confirmando...' : 'Confirmar'}
+                  <UserX className="w-3.5 h-3.5" aria-hidden="true" />
+                  {(toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending) ? 'Confirmando…' : 'Confirmar'}
                 </button>
               </div>
             </div>
@@ -4227,7 +4240,7 @@ export default function BudgetPlannedPage() {
               <div className="flex items-center gap-2 rounded-xl bg-success-soft border border-success/25 shrink-0" style={{
                 padding: '8px 18px',
               }}>
-                <CheckCheck className="w-4 h-4 text-success" />
+                <CheckCheck className="w-4 h-4 text-success" aria-hidden="true" />
                 <span className="text-sm font-bold text-success">Todos Enviados</span>
               </div>
             ) : (
@@ -4242,7 +4255,7 @@ export default function BudgetPlannedPage() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Send style={{width: 14, height: 14}} />
+                <Send style={{width: 14, height: 14}} aria-hidden="true" />
                 {selectedIds.size > 0
                   ? `Enviar Planejamento (${selectedIds.size})`
                   : 'Selecione colaboradores'}

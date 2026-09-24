@@ -128,7 +128,7 @@ const KPI_MATCH: Record<KpiFiltro, (r: SuggestionRow) => boolean> = {
 const AFTER_VALIDATE_MSG = "Depois de validar, a vaga fica com o aprovador e não muda mais — se faltar gente, use Incluir escalação.";
 
 export default function ScalingValidationPage() {
-  usePageTitle("Validação de Escala");
+  usePageTitle("Validação de escala");
   const { user } = useAuth();
   const { toast } = useToast();
   // Nomes dos responsáveis: o cadastro da Escala guarda ids.
@@ -630,7 +630,7 @@ export default function ScalingValidationPage() {
   const includeButton = (
     <ActionWithHint hint={includeDisabledReason} disabled={!!includeDisabledReason} side="bottom">
       <Button type="button" size="sm" className="rounded-lg bg-primary hover:bg-primary-hover" disabled={!!includeDisabledReason} onClick={() => setIncludeOpen(true)}>
-        <Plus className="w-4 h-4 mr-1.5" /> Incluir escalação
+        <Plus className="w-4 h-4 mr-1.5" aria-hidden="true" /> Incluir escalação
       </Button>
     </ActionWithHint>
   );
@@ -870,7 +870,7 @@ export default function ScalingValidationPage() {
               resto — nem sabia em qual evento estava. */}
           <div className="w-[260px] max-w-full shrink-0 lg:w-auto lg:min-w-[260px] lg:max-w-[420px] lg:flex-1">
             {loadingEvents ? (
-              <div className="h-8 rounded-lg bg-muted animate-pulse" aria-hidden="true" />
+              <div className="h-8 rounded-lg bg-muted animate-pulse motion-reduce:animate-none" aria-hidden="true" />
             ) : (
               <EventCombobox
                 events={activeEvents} value={eventId || ALL} showAllOption
@@ -1119,14 +1119,14 @@ export default function ScalingValidationPage() {
           </div>
           <div className="flex flex-nowrap items-center gap-2 sm:flex-shrink-0">
           <Button type="button" size="sm" variant="ghost" className="shrink-0 rounded-lg text-muted-foreground" onClick={() => setSelected(new Set())} aria-label="Limpar seleção">
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </Button>
           <ActionWithHint
             disabled={!singleSelected} wrapClassName="flex-1 sm:flex-none"
             hint={singleSelected ? "Pedido para a vaga selecionada" : "Selecione apenas uma vaga para pedir ajuste"}
           >
             <Button type="button" size="sm" variant="outline" className="w-full flex-1 rounded-lg sm:w-auto sm:flex-none" disabled={!singleSelected} onClick={() => singleSelected && openAdjust(singleSelected)}>
-              <PencilLine className="w-4 h-4 sm:mr-1.5" /> <span className="sr-only sm:not-sr-only">Pedir ajuste</span>
+              <PencilLine className="w-4 h-4 sm:mr-1.5" aria-hidden="true" /> <span className="sr-only sm:not-sr-only">Pedir ajuste</span>
             </Button>
           </ActionWithHint>
           <ActionWithHint
@@ -1134,14 +1134,14 @@ export default function ScalingValidationPage() {
             hint={singleSelected ? "Pedido para a vaga selecionada" : "Selecione apenas uma vaga para pedir exclusão"}
           >
             <Button type="button" size="sm" variant="outline" className="w-full flex-1 rounded-lg border-danger/25 text-danger hover:bg-danger-soft sm:w-auto sm:flex-none" disabled={!singleSelected} onClick={() => singleSelected && openDelete(singleSelected)}>
-              <Trash2 className="w-4 h-4 sm:mr-1.5" /> <span className="sr-only sm:not-sr-only">Pedir exclusão</span>
+              <Trash2 className="w-4 h-4 sm:mr-1.5" aria-hidden="true" /> <span className="sr-only sm:not-sr-only">Pedir exclusão</span>
             </Button>
           </ActionWithHint>
           {/* Sem dica de "já validada": pela regra de 26/08 uma vaga validada
               nem entra na seleção — o caso não existe mais. */}
           <Button type="button" size="sm" className="flex-1 rounded-lg bg-success text-white hover:bg-success/90 sm:flex-none"
             onClick={() => { setValidateTargetIds(null); setConfirmValidate(true); }} disabled={nVal === 0 || validateMutation.isPending}>
-            <CheckCheck className="w-4 h-4 mr-1.5" /> Validar ({nVal})
+            <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar ({nVal})
           </Button>
           </div>
         </div>

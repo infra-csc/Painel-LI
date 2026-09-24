@@ -38,7 +38,7 @@ export default function AttachmentLightbox({ item, onClose }: { item: LightboxIt
                   onClick={download}
                   className="border border-border text-slate-600 hover:bg-surface-muted rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4" aria-hidden="true" />
                   Baixar
                 </button>
                 <button
@@ -46,7 +46,7 @@ export default function AttachmentLightbox({ item, onClose }: { item: LightboxIt
                   onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
                   className="border border-primary/25 text-primary bg-brand-soft hover:bg-brand-soft rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
                 >
-                  <ExternalLink className="w-4 h-4" />
+                  <ExternalLink className="w-4 h-4" aria-hidden="true" />
                   Abrir em outra aba
                 </button>
               </div>

@@ -102,7 +102,7 @@ export default function NotificationsMenu() {
                 {n.text && <span className="block text-2xs text-muted-foreground">{n.text}</span>}
                 <span className="block mt-0.5 text-2xs text-muted-foreground">{[n.when, n.screen].filter(Boolean).join(" · ")}</span>
               </span>
-              {n.isNew && <span aria-label="novo" className="w-[7px] h-[7px] mt-1 shrink-0 rounded-full bg-danger-strong" />}
+              {n.isNew && <span className="w-[7px] h-[7px] mt-1 shrink-0 rounded-full bg-danger-strong" aria-hidden="true" />}{n.isNew && <span className="sr-only">Novo</span>}
             </Link>
           ))}
         </div>

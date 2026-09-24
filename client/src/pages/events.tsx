@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { hasRole } from "@/lib/role-utils";
+import { Eye } from "lucide-react";
 import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
 import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
 import { apiRequest } from "@/lib/queryClient";
@@ -79,10 +81,10 @@ function StatusBadge({ ds }: { ds: string }) {
 
 // ─── SortBtn ──────────────────────────────────────────────────────────────────
 function SortBtn({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ChevronsUpDown size={10} className="ml-1 inline opacity-20" />;
+  if (col !== sortKey) return <ChevronsUpDown size={10} className="ml-1 inline opacity-20" aria-hidden="true" />;
   return sortDir === "asc"
-    ? <ChevronUp   size={10} className="ml-1 inline text-primary" />
-    : <ChevronDown size={10} className="ml-1 inline text-primary" />;
+    ? <ChevronUp   size={10} className="ml-1 inline text-primary" aria-hidden="true" />
+    : <ChevronDown size={10} className="ml-1 inline text-primary" aria-hidden="true" />;
 }
 
 // ─── EventChip ────────────────────────────────────────────────────────────────
@@ -115,8 +117,8 @@ function PeriodNav({ label, onPrev, onNext, onToday, prevLabel, nextLabel, size 
           {label}
         </h2>
         <div className="flex gap-0.5 shrink-0">
-          <button type="button" onClick={onPrev} aria-label={prevLabel} className={NAV_BTN}><ChevronLeft size={16} /></button>
-          <button type="button" onClick={onNext} aria-label={nextLabel} className={NAV_BTN}><ChevronRight size={16} /></button>
+          <button type="button" onClick={onPrev} aria-label={prevLabel} className={NAV_BTN}><ChevronLeft size={16} aria-hidden="true" /></button>
+          <button type="button" onClick={onNext} aria-label={nextLabel} className={NAV_BTN}><ChevronRight size={16} aria-hidden="true" /></button>
         </div>
       </div>
       <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-bold hover:border-primary hover:text-primary hover:bg-brand-soft" onClick={onToday}>
@@ -252,15 +254,15 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
 }
 
 // ─── ActionBtns ───────────────────────────────────────────────────────────────
-function ActionBtns({ event, onEdit, onDelete, onRestore, busy }: {
-  event: Event; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void; busy?: boolean;
+function ActionBtns({ event, onEdit, onDelete, onRestore, busy, podeEditar = true }: {
+  event: Event; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void; busy?: boolean; podeEditar?: boolean;
 }) {
   const ds = getEventStatus(event);
   if (ds === "excluído") return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button type="button" onClick={() => onRestore(event)} disabled={busy} aria-label={`Restaurar evento ${event.name}`}
-          className={cn(ACTION_BTN, "hover:bg-success-soft hover:text-success")}><RotateCcw size={13} /></button>
+          className={cn(ACTION_BTN, "hover:bg-success-soft hover:text-success")}><RotateCcw size={13} aria-hidden="true" /></button>
       </TooltipTrigger><TooltipContent>Restaurar</TooltipContent>
     </Tooltip>
   );
@@ -268,15 +270,15 @@ function ActionBtns({ event, onEdit, onDelete, onRestore, busy }: {
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" onClick={() => onEdit(event)} aria-label={`Editar evento ${event.name}`}
-            className={cn(ACTION_BTN, "hover:bg-brand-soft hover:text-primary")}><Edit size={13} /></button>
-        </TooltipTrigger><TooltipContent>Editar</TooltipContent>
+          <button type="button" onClick={() => onEdit(event)} aria-label={podeEditar ? `Editar evento ${event.name}` : `Ver evento ${event.name}`}
+            className={cn(ACTION_BTN, "hover:bg-brand-soft hover:text-primary")}>{podeEditar ? <Edit size={13} aria-hidden="true" /> : <Eye size={13} aria-hidden="true" />}</button>
+        </TooltipTrigger><TooltipContent>{podeEditar ? "Editar" : "Ver"}</TooltipContent>
       </Tooltip>
       {/* Excluir: só administrador (18/09). Sem a função, o botão não aparece. */}
       {onDelete && <Tooltip>
         <TooltipTrigger asChild>
           <button type="button" onClick={() => onDelete?.(event)} disabled={busy} aria-label={`Excluir evento ${event.name}`}
-            className={cn(ACTION_BTN, "hover:bg-danger-soft hover:text-danger-strong")}><Trash2 size={13} /></button>
+            className={cn(ACTION_BTN, "hover:bg-danger-soft hover:text-danger-strong")}><Trash2 size={13} aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent>Excluir</TooltipContent>
       </Tooltip>}
     </>
@@ -298,15 +300,15 @@ function EventsEmpty({ hasFilters, onClear, onNew }: { hasFilters: boolean; onCl
       icon={CalendarDays}
       title="Nenhum evento cadastrado"
       description="Crie o primeiro evento para começar a montar o cronograma logístico."
-      action={<Button size="sm" onClick={onNew}><Plus className="w-4 h-4" /> Novo Evento</Button>}
+      action={<Button size="sm" onClick={onNew}><Plus className="w-4 h-4" aria-hidden="true" /> Novo Evento</Button>}
     />
   );
 }
 
 // ─── ListView ─────────────────────────────────────────────────────────────────
-function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty }: {
+function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty, podeEditar }: {
   events: Event[]; onEdit: (e: Event) => void; onDelete?: (e: Event) => void;
-  onRestore: (e: Event) => void; escalacoes: Record<string, number>; busy?: boolean; empty: React.ReactNode;
+  onRestore: (e: Event) => void; escalacoes: Record<string, number>; busy?: boolean; empty: React.ReactNode; podeEditar?: boolean;
 }) {
   if (events.length === 0) return <>{empty}</>;
   return (
@@ -328,7 +330,7 @@ function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty
               <span className="text-2xs font-bold text-muted-foreground shrink-0 tabular-nums">#{ev.eventNumber}</span>
               <div className="flex-1 min-w-0 basis-full sm:basis-auto order-last sm:order-none">
                 <div className="flex items-center gap-1.5">
-                  {ds === "em andamento" && <span className="animate-pulse w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0" />}
+                  {ds === "em andamento" && <span className="animate-pulse motion-reduce:animate-none w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0" />}
                   <span className="text-sm font-bold text-foreground truncate">{ev.name}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
@@ -349,7 +351,7 @@ function ListView({ events, onEdit, onDelete, onRestore, escalacoes, busy, empty
               </div>
               <StatusBadge ds={ds} />
               <div className="flex gap-px shrink-0 ml-auto sm:ml-0">
-                <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} />
+                <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} podeEditar={podeEditar} />
               </div>
             </div>
           </div>
@@ -371,10 +373,10 @@ const COLUMNS: ColDef[] = [
   { key: null,          label: "",             w: 75,  right: true },
 ];
 
-function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort, busy, empty }: {
+function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort, busy, empty, podeEditar }: {
   events: Event[]; onEdit: (e: Event) => void; onDelete?: (e: Event) => void; onRestore: (e: Event) => void;
   escalacoes: Record<string, number>; sortKey: SortKey; sortDir: SortDir; handleSort: (k: SortKey) => void; busy?: boolean;
-  empty: React.ReactNode;
+  empty: React.ReactNode; podeEditar?: boolean;
 }) {
   if (events.length === 0) return <>{empty}</>;
   return (
@@ -384,7 +386,7 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
           <thead>
             <tr className="bg-muted/40 border-b-2 border-border">
               {COLUMNS.map((col, i) => (
-                <th key={i}
+                <th scope="col" key={i}
                   onClick={() => col.key && handleSort(col.key)}
                   onKeyDown={col.key ? (e: ReactKeyboardEvent) => {
                     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSort(col.key!); }
@@ -417,7 +419,7 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
                   </td>
                   <td className="px-3.5 py-3">
                     <div className="flex items-center gap-2">
-                      {ds === "em andamento" && <span className="animate-pulse w-[7px] h-[7px] rounded-full bg-warning-strong shrink-0" />}
+                      {ds === "em andamento" && <span className="animate-pulse motion-reduce:animate-none w-[7px] h-[7px] rounded-full bg-warning-strong shrink-0" />}
                       <span className="text-sm font-semibold text-foreground">{ev.name}</span>
                     </div>
                   </td>
@@ -440,7 +442,7 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, s
                   </td>
                   <td className="px-3.5 py-3">
                     <div className="flex items-center justify-end gap-px opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
-                      <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} />
+                      <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} busy={busy} podeEditar={podeEditar} />
                     </div>
                   </td>
                 </tr>
@@ -458,6 +460,9 @@ export default function Events() {
   // Excluir evento: só administrador (dono, 18/09). Os demais só reativam.
   const { user } = useAuth();
   const isAdmin = ["admin", "administrator", "administrador"].includes(String(user?.role ?? ""));
+  // POST/PATCH /api/events: CADASTRO_ROLES (admin, Compras, Logística). RH vê a
+  // lista, mas não cria nem edita — o botão some (é ação de outro módulo).
+  const podeCadastrar = hasRole(user, "admin", "purchasing", "production");
   usePageTitle("Eventos");
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -609,11 +614,11 @@ export default function Events() {
           icon={CalendarDays}
           title="Eventos"
           subtitle="Controle e acompanhamento de cronogramas logísticos"
-          actions={
+          actions={podeCadastrar ? (
             <Button onClick={() => openModal()} data-testid="button-add-event" className="h-9 text-sm font-semibold shadow-2 hover:bg-primary-hover">
-              <Plus size={15} strokeWidth={2.5} /> Novo Evento
+              <Plus size={15} strokeWidth={2.5} aria-hidden="true" /> Novo evento
             </Button>
-          }
+          ) : undefined}
         />
 
         {/* ── Stat cards ── (escondidos em erro: zeros dariam a impressão de "não há eventos") */}
@@ -651,11 +656,11 @@ export default function Events() {
 
             {/* Search */}
             <div className="relative flex-[1_1_180px] min-w-[150px]">
-              <Search size={12} className="absolute left-[9px] top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Search size={12} className="absolute left-[9px] top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
               <input
                 id="events-search"
                 aria-label="Buscar evento ou cidade"
-                placeholder="Buscar evento ou cidade..."
+                placeholder="Buscar evento ou cidade…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 data-testid="input-search-event"
@@ -733,17 +738,17 @@ export default function Events() {
         ) : (isError && !events) ? (
           /* Sem este ramo, uma falha de rede/sessão expirada aparecia como "nenhum evento". */
           <div role="alert" className="bg-card rounded-xl border border-danger/25 px-6 py-12 text-center">
-            <CloudOff className="w-8 h-8 text-danger-strong mx-auto mb-2.5" />
+            <CloudOff className="w-8 h-8 text-danger-strong mx-auto mb-2.5" aria-hidden="true" />
             <p className="text-sm font-bold text-foreground mb-1">Não foi possível carregar os eventos</p>
             <p className="text-xs text-muted-foreground mb-4">{loadErrorMsg(error)}</p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar novamente</Button>
           </div>
         ) : viewMode === "table" ? (
           <TableView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
-            escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} busy={isMutating} empty={emptyNode} />
+            escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} busy={isMutating} empty={emptyNode} podeEditar={podeCadastrar} />
         ) : viewMode === "list" ? (
           <ListView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
-            escalacoes={escalacoes} busy={isMutating} empty={emptyNode} />
+            escalacoes={escalacoes} busy={isMutating} empty={emptyNode} podeEditar={podeCadastrar} />
         ) : viewMode === "calendar" ? (
           <CalendarView events={activeEvents} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
         ) : (

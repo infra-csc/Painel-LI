@@ -16,6 +16,8 @@ import { PostScalingBadge, RequestTypeBadge } from "./request-badges";
 import { DiffTable, ProposedList, VagaCompleta } from "./request-detail";
 import { targetLabel } from "./request-queue";
 import { ProposedChangesForm, draftFromProposed, draftToProposed, fullFromDraft, validateDraft, type ProposedDraft } from "./proposed-changes-form";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 // ── Aprovar (confirmação com resumo) ─────────────────────────────────────────
 
@@ -387,18 +389,22 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
                     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Começar a edição a partir de">
                       <span className="text-2xs text-muted-foreground">Começar de:</span>
                       <div className="inline-flex rounded-lg border border-border bg-surface-muted p-0.5">
-                        <button type="button" disabled={pending}
+                        <MotivoDesabilitado motivo="Volta os campos para o que a área pediu" desabilitado={pending}>
+                          <button type="button" disabled={pending}
                           className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-card hover:shadow-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          title="Volta os campos para o que a área pediu"
+                         
                           onClick={() => setDraft(draftFromProposed(request?.proposed ?? null, inclusion))}>
                           Valores do pedido
                         </button>
-                        <button type="button" disabled={pending || !inclusion}
+                        </MotivoDesabilitado>
+                        <MotivoDesabilitado motivo="Volta os campos para como a vaga está hoje — enviar assim resolve o pedido sem mudar nada" desabilitado={pending || !inclusion}>
+                          <button type="button" disabled={pending || !inclusion}
                           className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-card hover:shadow-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                          title="Volta os campos para como a vaga está hoje — enviar assim resolve o pedido sem mudar nada"
+                         
                           onClick={() => setDraft(draftFromProposed(null, inclusion))}>
                           Vaga como está hoje
                         </button>
+                        </MotivoDesabilitado>
                       </div>
                     </div>
                   )}
@@ -453,7 +459,7 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
           <div className="space-y-1.5">
             <Label htmlFor="rev-comment" className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <span className={passoCls} aria-hidden="true">{canEditFields ? 3 : 2}</span>
-              Comentário para a área <span className="text-danger-strong" aria-hidden="true">*</span>
+              Comentário para a área<RequiredMark />
             </Label>
             <Textarea
               ref={commentRef}

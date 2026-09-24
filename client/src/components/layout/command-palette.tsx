@@ -72,7 +72,7 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
               value={query}
               onValueChange={setQuery}
               placeholder={eventTarget ? "Buscar tela ou evento" : "Buscar tela"}
-              className="flex-1 h-7 border-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              className="flex-1 h-7 border-0 bg-transparent text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground"
             />
             <kbd className="border border-border bg-background rounded-md px-1.5 py-px font-mono text-2xs text-muted-foreground">esc</kbd>
           </div>

@@ -5,6 +5,7 @@
 import { useMemo, type ReactNode } from "react";
 import { Plane, Bus, Truck, CreditCard, AlertTriangle, Calculator } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { RequiredMark } from "@/components/forms/required-mark";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -56,7 +57,7 @@ export function ArrivalHint() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand-soft text-primary text-2xs font-bold cursor-help ml-1 normal-case" aria-label="Por que é obrigatório?">?</span>
+        <button type="button" className="inline-flex items-center justify-center w-6 h-6 -my-1 rounded-full text-primary text-2xs font-bold cursor-help ml-0.5 normal-case focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Por que é obrigatório?"><span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand-soft" aria-hidden="true">?</span></button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[260px] text-2xs leading-snug">
         Horário em que o colaborador chega ao destino. Define alimentação (almoço até 11h, jantar até 19h) e mobilidade (madrugada 20h–5h) no Planejado.
@@ -71,7 +72,7 @@ export function PlannedImpactLine({ form, ctx, className = "" }: { form: TicketF
   if (lines.length === 0) return null;
   return (
     <div className={`flex items-start gap-1.5 text-2xs leading-snug text-muted-foreground ${className}`} data-testid="planned-impact" aria-live="polite">
-      <Calculator className="w-3 h-3 text-muted-foreground shrink-0 mt-[1px]" />
+      <Calculator className="w-3 h-3 text-muted-foreground shrink-0 mt-[1px]" aria-hidden="true" />
       <span>
         <span className="font-semibold text-slate-600">Impacto no Planejado:</span>{" "}
         {lines.map((l, i) => (
@@ -88,7 +89,7 @@ export function SuggestionDivergenceNotice({ form, suggestion }: { form: TicketF
   if (warnings.length === 0) return null;
   return (
     <div className="flex items-start gap-2 bg-warning-soft border border-warning/25 rounded-xl px-3 py-2" role="status" data-testid="suggestion-divergence">
-      <AlertTriangle className="w-3.5 h-3.5 text-warning-strong shrink-0 mt-[1px]" />
+      <AlertTriangle className="w-3.5 h-3.5 text-warning-strong shrink-0 mt-[1px]" aria-hidden="true" />
       <div className="text-2xs text-warning leading-snug">
         <span className="font-semibold">Difere da sugestão da escalação</span> — confira se está correto:
         <ul className="list-disc pl-4 mt-0.5 space-y-0.5">
@@ -111,7 +112,7 @@ export default function TicketFormFields({
   const isBatch = variant === "batch";
 
   const set = (field: string, value: unknown) => handlers.onFieldChange(scope, field, value);
-  const R = (field: string) => (isFieldRequired(type, oneWay, field, returnOnly) ? <span className="text-danger-strong"> *</span> : null);
+  const R = (field: string) => (isFieldRequired(type, oneWay, field, returnOnly) ? <RequiredMark /> : null);
   const E = (field: string) => helpers.errCls(scope, field);
   const M = (field: string) => helpers.fieldErrorMsg(scope, field);
   const val = (field: keyof TicketFormValues & string) => (form[field] as string | undefined) || "";
@@ -175,7 +176,7 @@ export default function TicketFormFields({
       <div className={isBatch ? "space-y-3" : "bg-card border border-border rounded-xl p-4 space-y-4"}>
         <section className={isBatch ? card : ""}>
           {isBatch
-            ? sectionHeader({ title: "Dados da Van", tone: "slate", icon: <Truck className="w-3 h-3 text-white" /> })
+            ? sectionHeader({ title: "Dados da Van", tone: "slate", icon: <Truck className="w-3 h-3 text-white" aria-hidden="true" /> })
             : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados da Van</div>}
           <div className={isBatch ? "p-3 bg-card space-y-3" : "mt-3 space-y-3"}>
             <div className={fieldWrap}>
@@ -195,7 +196,7 @@ export default function TicketFormFields({
               <div className={fieldWrap}>
                 <Label className={L}>Observação</Label>
                 <Textarea
-                  placeholder="Horário de saída, ponto de encontro, número de vagas..."
+                  placeholder="Horário de saída, ponto de encontro, número de vagas…"
                   value={val("ticketObservations")}
                   onChange={(e) => set("ticketObservations", e.target.value)}
                   className="text-xs resize-none bg-surface-muted border-border rounded-lg"
@@ -270,7 +271,7 @@ export default function TicketFormFields({
       {sectionHeader({
         title: isBatch ? (isRodo ? "Embarque" : "Trecho de Ida") : "IDA",
         tone: "blue",
-        icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white" />) : (isRodo ? "🚌" : "🛫"),
+        icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" aria-hidden="true" /> : <Plane className="w-3 h-3 text-white" aria-hidden="true" />) : (isRodo ? "🚌" : "🛫"),
       })}
       <div className={isBatch ? "p-3 bg-card space-y-2" : "space-y-3"}>
         {legPlace("ida")}
@@ -288,7 +289,7 @@ export default function TicketFormFields({
       {sectionHeader({
         title: isBatch ? (isRodo ? "Desembarque" : "Trecho de Volta") : "VOLTA",
         tone: "orange",
-        icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white rotate-180" />) : (isRodo ? "🚌" : "🛬"),
+        icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" aria-hidden="true" /> : <Plane className="w-3 h-3 text-white rotate-180" aria-hidden="true" />) : (isRodo ? "🚌" : "🛬"),
       })}
       <div className={isBatch ? "p-3 bg-card space-y-2" : "space-y-3"}>
         {legPlace("volta")}
@@ -325,7 +326,7 @@ export default function TicketFormFields({
       {/* Financeiro / Informações da Compra */}
       <section className={card}>
         {isBatch
-          ? sectionHeader({ title: "Dados Financeiros", tone: "slate", icon: <CreditCard className="w-3 h-3 text-white" /> })
+          ? sectionHeader({ title: "Dados Financeiros", tone: "slate", icon: <CreditCard className="w-3 h-3 text-white" aria-hidden="true" /> })
           : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Informações da Compra</div>}
         <div className={isBatch ? "p-3 bg-card grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
           <div className={fieldWrap}>

@@ -106,7 +106,7 @@ export default function EventCombobox({
             onClick={e => { e.stopPropagation(); onValueChange("all"); }}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded disabled:pointer-events-none disabled:opacity-50"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         ) : (
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
@@ -121,39 +121,43 @@ export default function EventCombobox({
       >
         {/* Search field */}
         <div className="flex items-center gap-2 bg-surface-muted border-b border-border px-3 py-2.5">
-          <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
           <input
             autoFocus
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar evento..."
-            className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground text-slate-700"
+            placeholder="Buscar evento…"
+            className="w-full text-sm bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground text-slate-700"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="text-muted-foreground hover:text-slate-600 flex-shrink-0"
+              aria-label="Limpar busca"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-slate-600 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
         </div>
 
-        <div className="max-h-[260px] overflow-y-auto">
+        <div className="max-h-[260px] overflow-y-auto" role="listbox" aria-label="Eventos">
           {/* "Todos" option */}
           {showAllOption && !search && (
-            <div
-              className={`px-3 py-2.5 text-sm font-medium border-b border-border cursor-pointer transition-colors ${
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === "all"}
+              className={`w-full text-left px-3 py-2.5 text-sm font-medium border-b border-border cursor-pointer transition-colors focus-visible:outline-none focus-visible:bg-brand-soft ${
                 value === "all"
                   ? "bg-brand-soft text-primary"
                   : "text-muted-foreground hover:bg-brand-soft hover:text-primary"
               }`}
               onClick={() => { onValueChange("all"); close(); }}
             >
-              Todos os Eventos
-            </div>
+              Todos os eventos
+            </button>
           )}
 
           {filtered.length === 0 ? (
@@ -165,24 +169,27 @@ export default function EventCombobox({
               const isSelected = value === event.id;
               const dateLabel = fmtEventDate(event.startDate, event.endDate);
               return (
-                <div
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   key={event.id}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors border-b border-border last:border-0 ${
+                  className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors border-b border-border last:border-0 focus-visible:outline-none focus-visible:bg-brand-soft ${
                     isSelected
                       ? "bg-brand-soft text-primary"
                       : "text-slate-700 hover:bg-brand-soft hover:text-primary"
                   }`}
                   onClick={() => { onValueChange(event.id); close(); }}
                 >
-                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                  <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} aria-hidden="true" />
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
                     {dateLabel && (
                       <div className={`text-2xs mt-0.5 ${isSelected ? "text-primary/70" : "text-muted-foreground"}`}>{dateLabel}</div>
                     )}
                   </div>
-                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
-                </div>
+                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" aria-hidden="true" />}
+                </button>
               );
             })
           )}

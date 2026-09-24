@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { PageContainer } from "@/components/common/page-container";
 import { LoadingState } from "@/components/common/loading-state";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 const schema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -51,7 +52,7 @@ const FieldError = ({ msg }: { msg?: string }) =>
   msg ? <p role="alert" className="text-2xs text-destructive mt-[3px] ml-0.5">{msg}</p> : null;
 
 export default function UserRegistration() {
-  usePageTitle("Cadastro de Usuários");
+  usePageTitle("Cadastro de usuários");
   const { toast } = useToast();
   const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -132,7 +133,7 @@ export default function UserRegistration() {
       {/* Page header */}
       <PageHeader
         icon={UserPlus}
-        title="Cadastro de Usuários"
+        title="Cadastro de usuários"
         subtitle="O acesso ao sistema é feito exclusivamente pelo Portal Norte (Microsoft)"
         actions={
           <div className="flex items-center gap-1.5 px-3 py-1 bg-warning-soft rounded-full text-2xs font-bold text-warning uppercase tracking-[0.05em]">
@@ -169,7 +170,7 @@ export default function UserRegistration() {
                 {/* Nome */}
                 <div>
                   <label htmlFor="user-name" className={FIELD_LABEL}>
-                    Nome completo <span className="text-destructive">*</span>
+                    Nome completo<RequiredMark />
                   </label>
                   <div className="relative">
                     <User className="h-[18px] w-[18px] absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
@@ -188,7 +189,7 @@ export default function UserRegistration() {
                 {/* Email */}
                 <div>
                   <label htmlFor="user-email" className={FIELD_LABEL}>
-                    E-mail corporativo <span className="text-destructive">*</span>
+                    E-mail corporativo<RequiredMark />
                   </label>
                   <div className="relative">
                     <Mail className={cn("absolute left-2.5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] pointer-events-none", emailVal && isEmailValid ? "text-success-strong" : "text-muted-foreground")} aria-hidden="true" />
@@ -218,8 +219,8 @@ export default function UserRegistration() {
                 {errors.role && <span role="alert" className="ml-auto text-2xs text-destructive font-semibold">{errors.role.message}</span>}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {/* POST /api/users: só admin cria outro Administrador */}
-                {ROLES.filter(r => r.value !== "admin" || normalizeRole(user?.role) === "admin").map(role => {
+                {/* POST /api/users: quem não é admin só cria Logística Interna ou Área de Função (o servidor recusa o resto). */}
+                {ROLES.filter(r => normalizeRole(user?.role) === "admin" || r.value === "production" || r.value === "function_area").map(role => {
                   const isSelected = roleVal === role.value;
                   return (
                     <button key={role.value} type="button"
@@ -253,7 +254,7 @@ export default function UserRegistration() {
               <input
                 id="user-area"
                 list="user-area-options"
-                placeholder="Ex.: Técnica, Cenografia, Logística Interna..."
+                placeholder="Ex.: Técnica, Cenografia, Logística Interna…"
                 data-testid="input-area"
                 aria-label="Área específica do usuário"
                 maxLength={80}
@@ -277,7 +278,7 @@ export default function UserRegistration() {
                 {mutation.isPending ? (
                   <>
                     <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Criando...
+                    Criando…
                   </>
                 ) : (
                   <>

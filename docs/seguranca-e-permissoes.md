@@ -1,193 +1,470 @@
 # Segurança e Permissões — Painel LI
 
-> Atualizado em 13/08/2026, quando a autenticação passou a ser **exigida no
-> servidor** em todas as rotas da API. Antes disso a autorização vivia apenas
-> no navegador e a identidade podia ser declarada pelo próprio cliente.
-> Revisado em 23/09/2026 (Fase 1 de segurança do servidor): gate global com
-> estado da conta, SSO obrigatório em produção, CSRF fail-closed, rotas de
-> usuário e anexos endurecidas.
+> Reescrito em 24/09/2026 a partir do código (`server/app.ts`,
+> `server/auth-guards.ts`, `server/routes/_compartilhado.ts`, `shared/roles.ts`
+> e os 27 routers em `server/routes/*.ts` + `server/scaling-validation.ts` +
+> `server/simulation.ts`). Quando este documento e o código divergirem, **o
+> código vale** — e o documento precisa ser corrigido.
+>
+> Convenção de nomes na UI: `admin` = Administrador · `production` = Logística
+> Interna · `purchasing` = Compras/Viagens · `function_area` = Área
+> responsável por funções · `financial` = RH.
 
-## Como a identidade é estabelecida
+## 1. Modelo de autenticação
 
-1. **SSO do Portal Norte (produção)** — o portal abre o app com
-   `?portal_sso=<JWT>`. Um middleware valida a assinatura (`SSO_SECRET`), cria
-   o usuário se ainda não existir, grava a sessão e redireciona para `/` com a
-   URL limpa. O JWT precisa ter `iss=norte-portal`, algoritmo HS256, `exp`,
-   `iat` e `email`, idade máxima de 10 min; não há mais fallback para "token
-   legado sem issuer". Um token só cria sessão **uma vez** (anti-reuso por
-   `jti`/hash, em memória por instância). `portal_return` só é aceito em
-   `https` e para um host de `PORTAL_ORIGIN`. A lógica é única
-   (`server/auth-guards.ts`) e serve ao middleware e a `GET /api/auth/sso`.
-2. **Login por e-mail e senha (somente desenvolvimento)** —
-   `POST /api/auth/login`. Em produção responde **403** ("Em produção o acesso
-   é pelo Portal Norte").
+### 1.1 Cadeia de middlewares (`server/app.ts`, `createApp`)
 
-Em ambos os casos o resultado é o mesmo: um **cookie de sessão** (`sessionId`,
-`httpOnly`, `Secure` + `SameSite=None` em produção por causa do iframe do
-portal). A sessão é guardada no Postgres (tabela `session`) e é sempre criada
-com `session.regenerate` (fixação de sessão). Expira em 7 dias ou após 12 h
-sem uso.
+A ordem importa — cada regra só enxerga o que a anterior deixou passar:
 
-> **A identidade vem exclusivamente da sessão.** Nenhuma rota aceita `_userId`,
-> `_userRole` ou qualquer campo de identidade vindo do corpo da requisição.
+| # | Middleware | O que faz |
+|---|---|---|
+| 0 | Checagem de configuração | Em produção (`NODE_ENV=production` ou `modoSeguro`) **aborta o boot** sem `SESSION_SECRET`/`SSO_SECRET`. Em dev usa o fallback público com aviso. Avisa se `PORTAL_ORIGIN` ou `PORTAL_API_TOKEN` faltarem. |
+| 1 | `trust proxy` + `compression` | Replit está atrás de proxy; gzip nas respostas. |
+| 2 | Request-id e log | `X-Request-Id` (8 chars) em toda resposta; log de método/rota/status/duração com prefixo do `userId` — **nunca o corpo** (PII). |
+| 3 | Headers de segurança | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` (o token de SSO viaja na query string), `Content-Security-Policy: frame-ancestors 'self' <PORTAL_ORIGIN…>`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, HSTS só em produção. **Sem** `X-Frame-Options` (não aceita lista de origens; quebraria o iframe do portal). |
+| 4 | Sessão (`express-session` + `connect-pg-simple`) | Tabela `session`, `disableTouch: true`, cookie `sessionId` `httpOnly`, `Secure` + `SameSite=None` em produção (iframe cross-site), `Lax` em dev. `maxAge` **7 dias** absolutos. Testes (`PAINEL_DB=pglite`) usam MemoryStore. |
+| 5 | `express.json({ limit: '2mb' })` | `express.urlencoded` foi **removido** (era o formato que um `<form>` de outro site consegue enviar). |
+| 6 | Rate limit | `/api/auth/login`: 30 req / 15 min. `/api/auth/forgot-password` e `/reset-password`: 10 req / 1 h. Estado **em memória, por instância**. |
+| 7 | SSO middleware | Intercepta `?portal_sso=<JWT>` antes do React; valida, cria sessão, redireciona para `/`. `not_approved` → `/auth?sso_error=not_approved`; token inválido → segue para o client tratar via `GET /api/auth/sso`. |
+| 8 | **Gate global de `/api`** | Ver 1.3. |
+| 9 | `simulationReadOnlyGuard` | Com `session.simulatedUserId`, toda mutação em `/api` responde **403**, exceto `POST /api/simulation/start|stop` e `POST /api/auth/logout`. |
+| 10 | **CSRF fail-closed** | Ver 1.4. |
+| 11 | `registerRoutes` | `protegerRotas` (asyncHandler em tudo), `etag` desligado, routers na ordem de `server/routes.ts`. |
+| 12 | `tratadorGlobalDeErros` | multer → 413/415, zod → 400, Postgres 23503/23505 → 409, resto → 500 "Erro interno" (detalhe só no log). Nunca devolve `err.message` cru. |
 
-## Autenticação: bloqueio global
+### 1.2 SSO do Portal Norte (`server/auth-guards.ts`)
 
-`server/index.ts` tem um middleware que responde **401** para qualquer rota
-`/api` sem sessão. Desde 23/09 ele também carrega o usuário da sessão (cache
-de 60 s por instância, invalidado pelas rotas que alteram usuário) e:
+Único caminho de autenticação em produção. O portal abre o app com
+`?portal_sso=<JWT>&portal_return=<URL>`.
 
-- nega **401** e destrói a sessão se a conta está inativa ou não aprovada;
-- em produção, nega **401** (`requirePortal: true`) para sessão que não veio
-  do SSO — vale para a API inteira, não só para `/api/auth/me`;
-- nega **401** após 12 h de inatividade (`lastSeen`, gravado no máximo a cada
-  5 min);
-- com `mustChangePassword`, responde **403** `{ mustChangePassword: true }`
-  para tudo que não seja `/api/auth/*` ou a troca da própria senha
-  (`PATCH /api/users/:id` do próprio usuário);
-- guarda o usuário real em `req.user` (os guards de rota o reutilizam).
+- **Verificação (`verificarTokenSso`)**: `jwtVerify` com `issuer: "norte-portal"`,
+  `algorithms: ["HS256"]`, `requiredClaims: ["exp", "iat", "email"]`,
+  `maxTokenAge: "10m"`. Não há mais fallback "token legado sem issuer". Claim
+  `app`, quando presente, precisa ser `painel-li` ou `logistica-interna`.
+  `aud` não é exigido (o payload documentado não tem).
+- **Anti-reuso**: um token cria sessão **uma vez**. Chave = `jti` ou sha256
+  do token, guardada num `Map` **em memória, por instância** até o `exp`.
+- **Conta (`usuarioDoSso`)**: inexistente → criada `approved`/ativa com o
+  papel do token (`papelDoPortal`: tabela de aliases de `shared/roles.ts`,
+  depois heurísticas por trecho; default `production`). Rejeitada, inativa ou
+  `pending` → `not_approved` (o SSO nunca reverte decisão de admin). Nome é
+  sincronizado com o token; papel do banco é preservado se válido, corrigido
+  se for lixo.
+- **Sessão (`iniciarSessao`)**: sempre `session.regenerate` (anti-fixação),
+  grava `userId`, `user` (sem segredos), `ssoAuthenticated: true`, `lastSeen`
+  e `portalReturnUrl` (só `https` e host de `PORTAL_ORIGIN` — senão vira
+  redirecionador aberto).
+- A rota `GET /api/auth/sso?token=` usa a **mesma** função (`autenticarPorSso`);
+  só muda a resposta (JSON em vez de redirect).
 
-Prefixos públicos (únicos):
+**Login por senha** (`POST /api/auth/login`) responde **403 em produção**. Em
+dev cria sessão com `ssoAuthenticated: false`, checa `status=approved` e
+`isActive`, e devolve `{ mustChangePassword: true }` quando aplicável.
+`POST /api/auth/register` não existe desde 17/08.
 
-| Prefixo | Por quê |
+### 1.3 Gate global de `/api` (`server/app.ts`)
+
+Comparação de path **em minúsculas** (o Express roteia case-insensitive —
+`/API/x` casaria o handler e escaparia do gate). Prefixos públicos:
+`/api/auth/`, `/api/integration/`, `/api/portal/`.
+
+Para o resto, em ordem:
+
+1. Sem `session.userId` → **401** (log `[AuthAudit] BLOQUEADO … bypass=SIM|nao`,
+   detectando `_userId` no corpo).
+2. Em produção, `ssoAuthenticated !== true` → **401** `{ requirePortal: true }`
+   e a sessão é destruída. Vale para a API inteira, não só `/api/auth/me`.
+3. `lastSeen` com mais de **12 h** → **401** "Sessão expirada por inatividade".
+   `lastSeen` é regravado no máximo a cada 5 min.
+4. Carrega o usuário (`carregarUsuario`: cache **60 s por instância**,
+   invalidado pelas rotas que alteram usuário). Não existe → 401. `isActive ===
+   false` ou `status !== 'approved'` → **401** + sessão destruída.
+5. `mustChangePassword` → **403** `{ mustChangePassword: true }` para tudo,
+   exceto `PATCH /api/users/<próprio id>` (troca da própria senha).
+6. Guarda o usuário REAL em `req.user`.
+
+`GET /api/auth/me` (fora do gate) repete as checagens de SSO e de conta por
+conta própria e, com simulação ativa, devolve o usuário simulado + metadados.
+
+Inativar/rejeitar uma conta chama `destruirSessoesDoUsuario` (DELETE em
+`session` por `sess->>'userId'`), então a pessoa cai na hora, não ao fim dos 7
+dias.
+
+### 1.4 CSRF fail-closed
+
+O cookie é `SameSite=None` em produção, logo o navegador o envia em qualquer
+request cross-site. Para **toda mutação** em `/api` (POST/PUT/PATCH/DELETE):
+
+1. **Content-Type** precisa ser `application/json` ou `multipart/form-data`.
+   Sem header mas com corpo → **415**. Sem corpo (logout, `simulation/stop`)
+   passa.
+2. **Origin** precisa existir, ser uma URL válida, diferente de `"null"` e com
+   host na allowlist = `X-Forwarded-Host`/`Host` da própria requisição +
+   `hostsDoPortal()` (de `PORTAL_ORIGIN`). Sem `Origin`, só passa com
+   `Sec-Fetch-Site: same-origin|none`. Caso contrário **403**.
+3. Exceção: `Authorization: Bearer …` em `/api/integration/*` e
+   `/api/portal/*` (server-to-server, sem cookie).
+
+Se `PORTAL_ORIGIN` não estiver definido em produção, o iframe do portal não
+carrega (`frame-ancestors 'self'`) **e** mutações originadas do portal podem
+cair no 403 do CSRF.
+
+### 1.5 Variáveis de ambiente (`.env.example`)
+
+| Env | Uso | Se faltar |
+|---|---|---|
+| `DATABASE_URL` | Neon Postgres (usar endpoint `-pooler`) | não sobe |
+| `SESSION_SECRET` | assina o cookie de sessão | prod: aborta; dev: fallback público versionado |
+| `SSO_SECRET` | verifica o JWT do portal | prod: aborta; dev: herda `SESSION_SECRET` |
+| `PORTAL_ORIGIN` | CSP `frame-ancestors`, allowlist do CSRF, `portal_return` (lista separada por vírgula) | prod: aviso; iframe não carrega |
+| `PORTAL_API_TOKEN` | Bearer de `/api/portal/*` | aviso "DEPRECIADO"; `/api/portal/*` aceita `SSO_SECRET` |
+| `MARATONA_API_TOKEN` | Bearer de `/api/integration/*` | rotas respondem **503** |
+| `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS` | Object Storage (anexos) | upload/download de anexo falha |
+| `NODE_ENV=production` | liga `Secure`+`SameSite=None`, HSTS, SSO obrigatório, login por senha desligado | — |
+| `PAINEL_DB=pglite` | testes: MemoryStore de sessão | — |
+
+## 2. Autorização
+
+### 2.1 Papéis e aliases (`shared/roles.ts`)
+
+Papéis canônicos: `admin`, `production`, `function_area`, `purchasing`,
+`financial`. O banco ainda tem aliases (`administrador`, `administrator`,
+`logistica_interna`, `logistica`, `area_funcional`, `area_responsavel`,
+`function_manager`, `compras`, `viagens`, `compras_viagens`, `purchase`,
+`travel`, `financeiro`, `finance`). **Toda** comparação passa por
+`normalizeRole` — no servidor e no client. Papel fora da tabela = sem papel
+(`null`): `requireRoles` responde 403.
+
+Grupos (`ROLE_GROUPS`): `cadastro` = admin, purchasing, production ·
+`financeiro` = admin, financial · `logistica` = admin, purchasing, production.
+
+### 2.2 Helpers do servidor (`server/routes/_compartilhado.ts`)
+
+| Helper | Regra |
 |---|---|
-| `/api/auth/` | login (só dev), logout, recuperação de senha, `/me`, `/sso` — **não há registro público** |
-| `/api/integration/` | API consumida pela Maratona — autenticada por Bearer `MARATONA_API_TOKEN` |
-| `/api/portal/` | chamadas server-to-server do Portal Norte — Bearer `PORTAL_API_TOKEN` (cai em `SSO_SECRET` com aviso de depreciação) |
+| `requireRoles(req, res, papéis)` | usuário **efetivo** (`effectiveUserId`: simulado ?? real); reutiliza `req.user` quando é o mesmo; papel normalizado tem de estar na lista, senão 403. |
+| `requireFinanceUser` / `requireFinSession` / `requireFinWrite` | os três exigem `isFinanceRole` (admin ou financial). Desde 23/09 **leitura** do financeiro também exige papel. |
+| `requireQualquerSessao` | só sessão (usado em `GET /api/payment-companies`). |
+| `atorDaVaga` | usuário real da sessão para rotas que decidem a permissão por escopo. |
+| `podeEditarVagaAsync` | admin/production/purchasing sempre; senão responsável da função em `function_managers` **(qualquer role)** ou `functions.userId` legado. |
+| `ehAdminOuCompras` | decide trocas. |
+| `podeMudarValorDaDiaria` (`server/vaga-guards.ts`) | admin ou financial. |
+| `assertEventEditable` / `assertInclusionEventEditable` (`server/event-guard.ts`) | evento com `endDate` anterior a hoje (America/Sao_Paulo) → só **admin** age (403 `PAST_EVENT_BLOCK_MSG`). Vale para escalação, passagem, hospedagem, troca, espelho, Validação de Escala e `apply-defaults`. Não vale para Realizado/Comparativo/NF/Flash. |
 
-Requisições bloqueadas são registradas como
-`[AuthAudit] BLOQUEADO <método> <rota>` para facilitar o diagnóstico caso
-alguma tela legítima passe a falhar. Todo request recebe `X-Request-Id`, que
-aparece no log ao lado do prefixo do `userId`.
+Duas tabelas de "responsável" convivem e **não são a mesma coisa**:
 
-## CSRF (fail-closed desde 23/09)
+- `function_managers` (Cadastros → Funções → responsáveis): dá poder de
+  **editar/confirmar vaga e abrir troca** (`isUserFunctionManager`).
+- `scaling_function_managers` (aba "Responsáveis da Escala", só admin): dá
+  poder de **validar** (`role = validador`) e **decidir** (`role = aprovador`)
+  na Validação de Escala e de **aprovar cenotécnica** (`isUserFunctionApprover`,
+  usada em `approve-production`). O aprovador padrão
+  (`system_settings.escala_aprovador_padrao`) decide em qualquer função.
 
-O cookie é `SameSite=None` em produção, então o navegador o envia em requests
-iniciados por qualquer site. Para toda mutação em `/api` (POST/PUT/PATCH/
-DELETE) o servidor exige:
+## 3. Matriz de permissões
 
-1. `Content-Type: application/json` ou `multipart/form-data` (upload). Um
-   `<form method=post>` de outro site só produz urlencoded/text — recusado com
-   **415**. `express.urlencoded` foi removido. Requests sem corpo (logout)
-   passam sem Content-Type.
-2. Header `Origin` presente, válido, diferente de `null` e com host na
-   allowlist (hosts do próprio app + `PORTAL_ORIGIN`). Sem `Origin`, só passa
-   com `Sec-Fetch-Site: same-origin|none`. Caso contrário **403**.
+Legenda: ✅ permitido · ❌ 403 · 👁 leitura · 🔒 depende de escopo (ver
+observação) · — não se aplica. "Qualquer sessão" = todos os cinco papéis.
+Evento encerrado (🕓) = só admin, mesmo que a coluna diga ✅.
 
-Exceção: `Authorization: Bearer` em `/api/integration` e `/api/portal`
-(server-to-server, sem cookie).
+### 3.1 Autenticação e sessão (fora do gate)
 
-Headers de resposta: `Content-Security-Policy: frame-ancestors 'self'
-<PORTAL_ORIGIN>` (X-Frame-Options não é usado: quebraria o iframe do portal),
-`Strict-Transport-Security` em produção, `Permissions-Policy`, `nosniff` e
-`Referrer-Policy: no-referrer`.
+| Ação | Rota | Quem | Observação |
+|---|---|---|---|
+| SSO por JSON | `GET /api/auth/sso?token=` | anônimo | mesma regra do middleware; 401/403/400 |
+| Sair | `POST /api/auth/logout` | sessão | liberado mesmo em simulação |
+| Sessão atual | `GET /api/auth/me` | sessão | prod exige SSO; devolve usuário simulado se houver |
+| Login por senha | `POST /api/auth/login` | anônimo | **403 em produção**; rate limit |
+| Esqueci a senha | `POST /api/auth/forgot-password` | anônimo | resposta sempre genérica; token guardado como sha256; envio de e-mail **não implementado** |
+| Redefinir senha | `POST /api/auth/reset-password` | anônimo com token | mínimo 8; derruba as sessões do usuário |
 
-No cliente, um 401 em qualquer tela interna leva o usuário para
-`/auth?sessao=expirada`, que exibe "Sessão expirada" em vez de um erro genérico.
+### 3.2 Usuários (`server/routes/usuarios.ts`)
 
-## Autorização: papéis
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Criar usuário | `POST /api/users` | ✅ | ❌ | 🔒 | ❌ | 🔒 | RH/Compras só criam `production`/`function_area`; corpo `strict`; nasce `approved` |
+| Listar usuários | `GET /api/users` | 👁 | 👁 | 👁 | ❌ | 👁 | sem `password`/`resetToken` |
+| Editar usuário | `PATCH /api/users/:id` | 🔒 | 🔒 | 🔒 | 🔒 | 🔒 | próprio: name, email, senha (com a atual); RH/Compras em terceiros: só name; admin em terceiros: name, email, role, status, area; **ninguém** muda o próprio role/status |
+| Aprovar/rejeitar | `PATCH /api/users/:id/approval` | ✅ | ❌ | ❌ | ❌ | ❌ | não em si mesmo; rejeitar derruba sessões |
+| Inativar/reativar | `PATCH /api/users/:id/toggle-active` | ✅ | ❌ | ❌ | ❌ | ❌ | não em si mesmo; inativar remove das funções e derruba sessões. ⚠️ ver §4 |
+| Permissão de cenotécnica | `PATCH /api/users/:id/toggle-cenotecnica-approval` | ✅ | ❌ | ❌ | ❌ | ❌ | flag `canApproveCenotecnica` |
+| Reset de senha por admin | `POST /api/users/:id/reset-password` | 🔒 | ❌ | ❌ | ❌ | ❌ | nunca contra **outro** admin; força `mustChangePassword`. ⚠️ ver §4 |
+| Simular usuário | `POST /api/simulation/start` | ✅ | ❌ | ❌ | ❌ | ❌ | admin **real** da sessão; alvo ativo/aprovado; auditado |
+| Sair da simulação | `POST /api/simulation/stop` | ✅ | — | — | — | — | qualquer sessão com simulação ativa |
 
-Os papéis canônicos são `admin`, `production`, `function_area`, `purchasing` e
-`financial`. O banco contém papéis legados (`administrador`, `financeiro`,
-`compras`, `logistica`, …) — por isso **toda comparação passa por
-`normalizeRole`** (`shared/roles.ts`), fonte única usada pelo client e pelo
-servidor. Comparar a string crua fazia um usuário com papel legado ver o botão
-na tela e receber 403 da API.
+### 3.3 Eventos (`eventos.ts`, `empresas-pagadoras.ts`)
 
-### Grupos de autorização (`shared/roles.ts` → `ROLE_GROUPS`)
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Listar / com vagas | `GET /api/events`, `GET /api/events-with-inclusions` | 👁 | 👁 | 👁 | 👁 | 👁 | `?includeDeleted=true` |
+| Criar evento | `POST /api/events` | ✅ | ✅ | ✅ | ❌ | ❌ | empresa pagadora do corpo é descartada. ⚠️ ver §4 |
+| Editar evento | `PUT /api/events/:id` | ✅ | ✅ | ✅ | ❌ | ❌ | mudar pagadora sem ser financeiro → 403; `status: "excluído"` só admin; Compras pode **reativar** excluído |
+| Empresa pagadora | `PATCH /api/events/:id/payment-company` | ✅ | ❌ | ❌ | ❌ | ✅ | nome + CNPJ obrigatórios |
+| Excluir evento | `DELETE /api/events/:id` | ✅ | ❌ | ❌ | ❌ | ❌ | soft delete; **409** se houver vaga não cancelada |
+| Mural do evento | `GET/POST /api/events/:id/comments` | ✅ | ✅ | ✅ | ✅ | ✅ | até 2000 chars; autoria da sessão |
+| Empresas pagadoras: listar | `GET /api/payment-companies` | 👁 | 👁 | 👁 | 👁 | 👁 | catálogo sem custo |
+| Empresas pagadoras: criar | `POST /api/payment-companies` | ✅ | ❌ | ✅ | ❌ | ✅ | — |
+| Empresas pagadoras: excluir | `DELETE /api/payment-companies/:id` | ✅ | ❌ | ❌ | ❌ | ❌ | — |
 
-| Grupo | Papéis | Usado em |
+### 3.4 Funções e responsáveis (`funcoes-e-responsaveis.ts`)
+
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Listar funções (+managers) | `GET /api/functions`, `GET /api/function-collaborator-types`, `GET /api/functions/:id/users`, `GET /api/functions/:id/managers`, `GET /api/function-managers/all` | 👁 | 👁 | 👁 | 👁 | 👁 | cache 60 s |
+| Minhas funções | `GET /api/functions/my-functions` | 👁 | 👁 | 👁 | 👁 | 👁 | do usuário efetivo (simulação) |
+| Criar/editar/excluir função | `POST /api/functions`, `PATCH /api/functions/:id`, `DELETE /api/functions/:id` | ✅ | ✅ | ✅ | ❌ | ❌ | — |
+| Vincular usuário à função | `POST /api/functions/:id/users`, `DELETE /api/functions/:functionId/users/:userId` | ✅ | ✅ | ✅ | 🔒 | 🔒 | function_area/financial só se forem responsáveis (`function_managers`) daquela função |
+| Responsáveis da função (validador/aprovador) | `POST /api/functions/:id/managers`, `DELETE /api/functions/:functionId/managers/:userId` | ✅ | ✅ | ✅ | ❌ | ❌ | grava em `function_managers`; `role` default `validador` |
+| Trocar papel do responsável | `PATCH /api/functions/:functionId/managers/:userId` | ✅ | ✅ | ✅ | ❌ | ❌ | `validador` ↔ `aprovador` |
+| Responsáveis da **Escala**: listar | `GET /api/scaling-function-managers` | 👁 | 👁 | 👁 | 👁 | 👁 | tabela `scaling_function_managers` |
+| Responsáveis da **Escala**: cadastrar/remover | `POST /api/scaling-function-managers`, `DELETE /api/scaling-function-managers/:functionId/:userId` | ✅ | ❌ | ❌ | ❌ | ❌ | permissão própria (decisão 26/08) |
+
+### 3.5 Colaboradores (`colaboradores.ts`)
+
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Listar | `GET /api/collaborators[?eventId=]` | 👁 | 👁 (projetado) | 👁 | 👁 (projetado) | 👁 | production e function_area **não recebem** CPF/RG, nascimento, telefone, endereço nem `documentAttachmentId`; `Cache-Control: no-store` |
+| Criar / em lote | `POST /api/collaborators`, `POST /api/collaborators/bulk` | ✅ | ✅ | ✅ | ✅ | ❌ | function_area nasce **aprovado** (auto-aprovação); os demais `pendente`; 409 por documento duplicado |
+| Editar (inclui aprovar/rejeitar via `status`) | `PATCH /api/collaborators/:id` | ✅ | ✅ | ✅ | ✅ | ❌ | `active`/`inactiveReason`/`createdBy` descartados; `approvedBy/At` vêm da sessão |
+| Inativar | `POST /api/collaborators/:id/inactivate` | ✅ | ❌ | ✅ | ❌ | ❌ | motivo obrigatório. ⚠️ ver §4 |
+| Reativar | `POST /api/collaborators/:id/reactivate` | ✅ | ❌ | ✅ | ❌ | ❌ | ⚠️ ver §4 |
+
+### 3.6 Vagas / Escalação (`escalacao.ts`)
+
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Listar vagas | `GET /api/team-inclusions` | 👁 | 👁 | 👁 | 🔒 | 👁 | sem recorte (`eventId`/`phase`/`status`) só admin/purchasing/production/financial; function_area recebe **400** sem recorte; `phase=sugestao` excluída por padrão |
+| Uma vaga / histórico / logs | `GET /api/team-inclusions/:id`, `/:id/timeline`, `/:id/logs` | 👁 | 👁 | 👁 | 👁 | 👁 | — |
+| Criar vaga (emergência) | `POST /api/team-inclusions` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | nasce `planejado/inclusao`; colaborador ativo/aprovado + conflito de agenda (409) |
+| Criar em lote (grade) | `POST /api/team-inclusions/bulk` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | ≤ 500; transação |
+| Editar vaga | `PATCH /api/team-inclusions/:id` | ✅🕓 | ✅🕓 | ✅🕓 | 🔒🕓 | 🔒🕓 | function_area e financial só se **responsável da função** (`function_managers`, qualquer role, ou `functions.userId`); status/fase recusados (400); `dailyValue` só admin/financial (403); trocar função só cadastro (vaga com colaborador só admin); troca direta de colaborador só em vaga não confirmada e sem logística viva (403); pedido de ajuste pendente → 409; vaga em Validação → 400 |
+| Confirmar | `POST /api/team-inclusions/:id/confirm` | ✅🕓 | ✅🕓 | ✅🕓 | 🔒🕓 | 🔒🕓 | mesma permissão do PATCH; `podeConfirmar` (409); "Sai de" obrigatório; tipo de atendimento obrigatório; servidor decide status/fase |
+| Cancelar | `POST /api/team-inclusions/:id/cancel` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | com passagem **emitida** só admin (403); 409 se já cancelada |
+| Reativar cancelada | `PATCH /api/team-inclusions/:id/reactivate` | ✅ | ❌ | ❌ | ❌ | ❌ | → `reaberto`; 409 se não estiver cancelada |
+| Excluir (soft) | `DELETE /api/team-inclusions/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | vaga em Validação → 400 |
+| Tipo de atendimento | `PATCH /api/team-inclusions/:id/atendimento-tipo` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ✅🕓 | função precisa ser de atendimento |
+| Tipo de percurseiro | `PATCH /api/team-inclusions/:id/percurseiro-tipo` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ✅🕓 | — |
+| Modalidade freela cenotécnica | `PATCH /api/team-inclusions/:id/ceno-freela-tipo` | ✅🕓 | ✅🕓 | ✅🕓 | 🔒🕓 | ✅🕓 | function_area só se responsável da função |
+| Aprovar/reprovar cenotécnica (gestor) | `PATCH /api/team-inclusions/:id/approve-production`, `/reject-production` | ✅🕓 | 🔒🕓 | 🔒🕓 | 🔒🕓 | 🔒🕓 | admin **ou** `canApproveCenotecnica` **ou** `aprovador` da função em `scaling_function_managers`; status precisa ser `aguardando_producao` (409) |
+| Dispensar do Uber | `PATCH /api/team-inclusions/:id/skip-uber` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | (em `espelho-operacional.ts`) |
+| Correção admin de cenotécnicas | `POST /api/admin/fix-cenotecnica-statuses` | ✅ | ❌ | ❌ | ❌ | ❌ | — |
+| Migrar horários das observações | `POST /api/team-inclusions/migrate-flight-times` | ✅ | ❌ | ❌ | ❌ | ❌ | — |
+| Contador "aguardando gestor" | `GET /api/shell/aguardando-gestor` | 👁 | 👁 | 👁 | 👁 | 👁 | devolve `0` para quem não é admin nem `canApproveCenotecnica` (aprovador de escala **não** entra aqui) |
+
+### 3.7 Validação de Escala (`server/scaling-validation.ts`)
+
+Regra do dono (20/08): o **cadastro** manda. Validador = `scaling_function_managers.role = validador`;
+aprovador = `role = aprovador`, o **aprovador padrão** (`system_settings.escala_aprovador_padrao`)
+ou admin — **qualquer que seja o papel global**. Lotes nunca viram 403 inteiro:
+a vaga sem permissão/estado entra em `skipped`.
+
+| Ação | Rota | Quem | Observação |
+|---|---|---|---|
+| Enviar escala sugerida | `POST /api/scaling-suggestions/bulk` | admin, production 🕓 | ≤ 500 linhas; nasce `sugestao/sugestao_pendente` |
+| Cancelar envio | `DELETE /api/scaling-suggestions?eventId=` | admin, production 🕓 | soft delete das não decididas; pedidos pendentes viram negados |
+| Listar sugestões | `GET /api/scaling-suggestions[?eventId=]` | qualquer sessão | por linha: `canEdit` (admin ou validador), `canDecide` (admin, aprovador, padrão); sem `eventId` teto `ALL_EVENTS_ROW_LIMIT` (header `X-Scaling-Truncated`) |
+| Validar (lote) | `POST /api/scaling-suggestions/validate` | admin ou **validador** da função | por vaga; evento encerrado → skipped |
+| Aprovar / reprovar / devolver vaga validada | `PATCH /api/scaling-suggestions/:id/aprovar|reprovar|devolver` | admin, **aprovador** da função, aprovador padrão | reprovar/devolver exigem comentário; 409 se estado mudou |
+| Aprovar em lote | `POST /api/scaling-suggestions/aprovar-lote` | idem | `ids` ou `inclusionIds` |
+| Bypass (vaga nunca validada) | `PATCH /api/scaling-suggestions/:id/bypass-approve|bypass-reject` | idem | 403 antes de sondar estado |
+| Abrir pedido (ajuste/inclusão/exclusão) | `POST /api/scaling-change-requests` | admin ou **validador** da função | janela de ajuste (`changeRequestWindow`: passagem emitida fecha) → 403 |
+| Listar pedidos | `GET /api/scaling-change-requests` | qualquer sessão | admin/purchasing/production/financial/aprovador padrão veem tudo; demais veem só as funções em que são aprovador **ou** os próprios pedidos |
+| Decidir pedido | `PATCH /api/scaling-change-requests/:id/approve|reajustar|negar` | admin, aprovador da função, aprovador padrão | 409 se já decidido |
+| Limpar negadas | `POST /api/scaling-suggestions/limpar-negadas` | admin | soft delete só de `sugestao_negada` |
+| Histórico do evento | `GET /api/scaling-suggestions/event-view` | qualquer sessão | leitura |
+| Aprovador padrão | `GET /api/scaling-default-approver` | qualquer sessão | leitura |
+| Pedidos pendentes por vaga | `GET /api/scaling-change-requests/pending-by-inclusion` | qualquer sessão | leitura |
+| Janela de ajuste da vaga | `GET /api/team-inclusions/:id/change-window` | qualquer sessão | `canRequest` só para validador/admin |
+| Prazos das etapas | `GET /api/escala/prazos` / `PUT /api/escala/prazos` | ler: qualquer sessão / gravar: **admin** | em `system_settings` |
+
+### 3.8 Trocas de colaborador (`trocas.ts`)
+
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Listar / por vaga | `GET /api/swap-requests[?status=&eventId=]`, `GET /api/swap-requests/inclusion/:id` | 👁 | 👁 | 👁 | 👁 | 👁 | — |
+| Abrir (substituição/permuta/transferência) | `POST /api/swap-requests` | ✅🕓 | ✅🕓 | ✅🕓 | 🔒🕓 | 🔒🕓 | quem pode editar a vaga (`podeEditarVagaAsync`: cadastro ou responsável da função); "Sai de" obrigatório; 409 se já há pedido pendente em qualquer vaga envolvida |
+| Aprovar | `PATCH /api/swap-requests/:id/approve` | ✅🕓 | ❌ | ✅🕓 | ❌ | ❌ | transação; revalida vaga/colaborador/agenda; passagem/hospedagem **não** são apagadas (`logisticaParaRevisar`) |
+| Rejeitar | `PATCH /api/swap-requests/:id/reject` | ✅🕓 | ❌ | ✅🕓 | ❌ | ❌ | comentário obrigatório |
+| Cancelar | `PATCH /api/swap-requests/:id/cancel` | ✅🕓 | 🔒 | ✅🕓 | 🔒 | 🔒 | admin/Compras **ou o solicitante** |
+
+### 3.9 Passagens e hospedagem (`passagens.ts`, `hospedagem.ts`, `anexos.ts`)
+
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Listar passagens / hospedagens | `GET /api/tickets[?eventId=]`, `GET /api/accommodations[?eventId=]` | 👁 | 👁 | 👁 | 👁 | 👁 | `no-store` (dados do passageiro) |
+| Registrar / editar passagem | `POST /api/tickets`, `PATCH /api/tickets/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | status da vaga **derivado** pelo servidor; `teamInclusionId` do PATCH ignorado |
+| Marcar/desmarcar **emitida** (lote) | `POST /api/tickets/emitidas` | ✅🕓 | ❌ | ✅🕓 | ❌ | ❌ | ≤ 200 vagas; cria linha de passagem se não houver. ⚠️ ver §4 |
+| Registrar / editar hospedagem | `POST /api/accommodations`, `PATCH /api/accommodations/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | mover para outra vaga → 400 |
+| Ler vouchers (PDF) | `POST /api/vouchers/ler` | ✅ | ✅ | ✅ | ❌ | ❌ | só interpretação; não grava |
+
+### 3.10 Espelho operacional, quartos, Uber e custos extras (`espelho-operacional.ts`)
+
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Ver espelho / exportar XLSX | `GET /api/events/:eventId/operational-mirror`, `…/export` | 👁 | 👁 | 👁 | 👁 | 👁 | — |
+| Editar célula | `PATCH …/operational-mirror/rows/:rowId` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | datas travadas por pedido de ajuste pendente (409) |
+| Recalcular sugestões | `POST …/recalculate-logistics-suggestions` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | — |
+| Importar planilha (preview / aplicar) | `POST …/operational-mirror/import/preview`, `…/aplicar` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | preview não grava |
+| Quartos: confirmar, separar, mover, editar | `POST /api/hotel-room-groups/:id/confirm`, `…/separar`, `POST /api/hotel-room-groups/mover`, `PATCH /api/hotel-room-groups/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | destino no mesmo evento |
+| Estadia por pessoa | `PATCH /api/hotel-room-group-members/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | — |
+| Uber: confirmar, reabrir, mover, editar | `POST /api/uber-groups/:id/confirm`, `…/reabrir`, `POST /api/uber-groups/mover`, `PATCH /api/uber-groups/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | — |
+| Custos extras | `POST /api/logistics-extra-costs`, `PATCH /:id`, `DELETE /:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | DELETE físico, auditado com o registro |
+
+### 3.11 Bagagem (`bagagem.ts`)
+
+| Ação | Rota | admin | production | purchasing | function_area | financial |
+|---|---|---|---|---|---|---|
+| Tudo (listar, histórico, ajustar histórico, criar, editar, excluir) | `GET /api/baggage-requests`, `GET/PUT /api/baggage-history`, `POST /api/baggage-requests`, `PATCH /:id`, `DELETE /:id` | ✅ | ❌ | ✅ | ❌ | ❌ |
+
+### 3.12 Comentários, anexos, logs
+
+| Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
+|---|---|---|---|---|---|---|---|
+| Comentários por vaga | `GET /api/comments/counts`, `GET /api/comments/:id`, `POST /api/comments`, `GET /api/all-comments` | ✅ | ✅ | ✅ | ✅ | ✅ | autoria da sessão |
+| Observações do orçamento | `GET/POST /api/budget-notes`, `GET /api/budget-notes/by-event` | ✅ | ✅ | ✅ | ✅ | ✅ | qualquer sessão (chat de auditoria) |
+| Enviar anexo | `POST /api/upload` | ✅ | ✅ | ✅ | ✅ | ✅ | magic number (PDF/PNG/JPG/XLSX/CSV), nome sanitizado, dono gravado; lote inteiro ou nada |
+| Confirmar anexo | `POST /api/attachments/:id/confirm` | 🔒 | 🔒 | 🔒 | 🔒 | 🔒 | só o **dono** (anexo antigo sem dono: quem confirma vira dono) |
+| Metadados / download / view | `GET /api/attachments/:id`, `/download`, `/view` | ✅ | ✅ | ✅ | 🔒 | ✅ | `podeAcessarAnexo`: admin/purchasing/production/financial veem tudo; function_area só o que enviou e **nunca** documento (CPF/RG) de colaborador |
+| URL assinada de upload | `POST /api/attachments/upload` | — | — | — | — | — | **410** (removida) |
+| Logs do sistema | `GET /api/system-logs` | 👁 | ❌ | ❌ | ❌ | ❌ | paginado |
+| Histórico por entidade | `GET /api/activity-logs`, `/by-event` | 👁 | ❌ | ❌ | ❌ | 👁 | Planejado/Realizado/Comparativo |
+
+### 3.13 Financeiro (todas em `requireFin*`/`FINANCE_ROLES` = admin, financial)
+
+| Ação | Rota | admin | financial | outros | Observação |
+|---|---|---|---|---|---|
+| Financeiro legado (valores por vaga) | `GET/POST /api/financial`, `PATCH /api/financial/:id` | ✅ | ✅ | ❌ | PATCH com allowlist `strict` |
+| Valores por função: ler | `GET /api/function-values`, `/:functionId` | 👁 | 👁 | 👁 | qualquer sessão |
+| Valores por função: escrever | `POST /api/function-values`, `PATCH /:id`, `POST /generate-defaults` | ✅ | ✅ | ❌ | — |
+| Eventos com planejado | `GET /api/events-with-planned` | 👁 | 👁 | 👁 | qualquer sessão |
+| Planejado: ler | `GET /api/budget-planned[?eventId=]`, `/:id` | 👁 | 👁 | ❌ | — |
+| Planejado: criar/editar/excluir | `POST`, `PATCH /:id`, `DELETE /:id` | ✅ | ✅ | ❌ | `status`/`didNotAttend` só por rota dedicada |
+| Planejado: não participou | `POST /api/budget-planned/:id/toggle-not-attended` | ✅ | ✅ | ❌ | — |
+| Reaplicar valores padrão | `POST /api/budget-planned/apply-defaults?eventId=` | ✅ | ✅🕓 | ❌ | evento encerrado só admin |
+| Realizado: ler | `GET /api/budget-actual[?eventId=]`, `/:id` | 👁 | 👁 | ❌ | — |
+| Realizado: criar, duplicar, dividir, editar, excluir | `POST`, `POST /duplicate-from-planned/:eventId`, `POST /:id/duplicate`, `POST /:id/split`, `PATCH /:id`, `DELETE /:id` | ✅ | ✅ | ❌ | item em análise/aprovado só RH/admin ajusta (na prática todos que chegam aqui são RH/admin); aprovado não se exclui; NF vinculada bloqueia exclusão |
+| Realizado: não participou | `POST /api/budget-actual/:id/toggle-not-attended` | ✅ | ✅ | ❌ | — |
+| Enviar para revisão | `POST /api/budget-actual/send-for-review` | ✅ | ✅ | ❌ | UPDATE guardado por estado |
+| Decisão do RH (lote) | `POST /api/budget-actual/rh-action` | ✅ | ✅ | ❌ | `aprovado`/`rejeitado`/`devolvido`; ≤ 500; só itens `sentForReview && pendente` |
+| Comparativo: ler | `GET /api/budget-comparison[?eventId=]` | 👁 | 👁 | ❌ | — |
+| Comparativo: criar, calcular, editar | `POST`, `POST /calculate/:eventId`, `PATCH /:id` | ✅ | ✅ | ❌ | decisão só por rota dedicada |
+| Comparativo: aprovar / recusar / devolver | `POST /api/budget-comparison/:id/approve`, `/reject`, `/return` | ✅ | ✅ | ❌ | aprovar sincroniza o Flash; recusar/devolver estornam; recusar exige motivo; 409 por estado |
+| NF: ler, enviar, reenviar | `GET /api/invoices[?eventId=]`, `POST /api/invoices`, `PATCH /api/invoices/:id` | ✅ | ✅ | ❌ | `attachmentUrl` só `/api/attachments/ATT-…/(view\|download)`; aprovada imutável; recusada terminal |
+| NF: aprovar, devolver, recusar, check-in | `POST /api/invoices/:id/approve`, `/return`, `/reject`, `/checkin` | ✅ | ✅ | ❌ | histórico anexado no banco; check-in único |
+| Flash: ler | `GET /api/flash-movements[?collaboratorId=]` | 👁 | 👁 | ❌ | — |
+| Flash: lançar, crédito inicial, editar, excluir | `POST /api/flash-movements`, `POST /initial-credit`, `PATCH /:id`, `DELETE /:id` | ✅ | ✅ | ❌ | lançamentos automáticos (comparativo) → 409 |
+| Configurações financeiras | `GET/PUT /api/system-settings` | ✅ | ✅ | ❌ | allowlist de chaves; percentuais 0–100 |
+
+### 3.14 Integrações (Bearer, fora do gate e do CSRF)
+
+| Ação | Rota | Autenticação | Observação |
+|---|---|---|---|
+| Maratona: colaboradores, eventos, participações | `GET /api/integration/employees`, `/events`, `/participations` | `Authorization: Bearer <MARATONA_API_TOKEN>` (comparação em tempo constante) | somente leitura; 503 sem a env; entrega CPF/telefone dos colaboradores |
+| Portal Norte: listar/criar/editar/desativar usuário | `GET/POST /api/portal/users`, `PATCH/DELETE /api/portal/users/:email` | `Bearer <PORTAL_API_TOKEN>` (fallback **depreciado**: `SSO_SECRET`) | papel via `papelDoPortal`; desativar/rejeitar derruba sessões; resposta sem segredos |
+
+**Total coberto:** ~197 rotas (6 auth + 9 usuários/simulação + 9 eventos + 17
+funções + 6 colaboradores + 19 escalação + 20 Validação de Escala/prazos + 6
+trocas + 7 passagens/hospedagem/vouchers + 19 espelho + 6 bagagem + 13
+comentários/notas/anexos/logs + 43 financeiro + 7 integrações).
+
+## 4. Divergências client × API (⚠️)
+
+Encontradas lendo `client/src/lib/role-utils.ts`, `client/src/lib/permissions.ts`,
+`client/src/components/scaling/use-scaling-data.ts` e o ponto de uso de cada
+flag. "Botão a mais" = a tela mostra e a API recusa com 403 (a pessoa vê um
+erro); "botão a menos" = a API aceitaria, mas a tela esconde.
+
+| # | Onde | O que | Efeito |
+|---|---|---|---|
+| ⚠️ 1 | `role-utils.ts` `canManageUserAccounts` = true para **production e purchasing**; `admin-users.tsx:550` usa a flag para mostrar inativar/reset de senha | API: `PATCH /api/users/:id/toggle-active` e `POST /api/users/:id/reset-password` são **só admin** | botão a mais (Compras e Logística tomam 403). O comentário da flag ainda diz "admin, purchasing, production" — está desatualizado. |
+| ⚠️ 2 | `role-utils.ts` `canAccessCadastros` = true para **financial**; `App.tsx`/`nav-items.ts` liberam `/events` e `/functions` para RH; `events.tsx` não tem gate de papel em criar/editar | API: `POST /api/events` e `PUT /api/events/:id` são `CADASTRO_ROLES` (RH recebe 403; RH só pode `PATCH …/payment-company`) | botão a mais para RH em Eventos (criar/editar). Funções está correto (`canManageFunctions` false para RH). |
+| ⚠️ 3 | `tickets.tsx` "Marcar como emitida" sem gate de papel (tela aberta a admin/production/purchasing/financial via `canAccessScreen3`) | API: `POST /api/tickets/emitidas` é **admin + purchasing** | botão a mais para Logística Interna (e RH, que vê a tela). |
+| ⚠️ 4 | `collaborator-management.tsx` mostra inativar/reativar sob `canEditCollaborators` (admin, production, purchasing, function_area) | API: `POST /api/collaborators/:id/inactivate|reactivate` é **admin + purchasing** | botão a mais para Logística Interna e Área de Função. |
+| ⚠️ 5 | `use-scaling-data.ts` `canEditCollaborator`: qualquer **function_area** passa por `temPapel` sem ser responsável da função | API: `PATCH /api/team-inclusions/:id` exige `podeEditarVagaAsync` (function_area só se responsável em `function_managers`) | botão a mais para Área de Função em vagas de funções alheias. |
+| ⚠️ 6 | `use-scaling-data.ts` `canManageFunction`/`canConfirmEscalation` liberam admin, purchasing e responsável — **não** `production` | API: `PATCH`/`/confirm` aceitam `production` sempre | botão a menos para Logística Interna (mais restritivo que a API; sem erro, só ausência). |
+| ⚠️ 7 | `permissions.ts` (matriz legada) `scaling.production = 'view'` e `team_inclusion.function_area = 'none'` | API deixa production editar vagas; function_area responsável edita a vaga | matriz legada mais restritiva; convive com `role-utils.ts` por decisão registrada no próprio arquivo. |
+| ⚠️ 8 | `role-utils.ts` `canAccessScreen6` comenta "espelha `GET /api/system-logs`" — correto; mas `canAccessAdminUsers` = true para production | API `GET /api/users` aceita production — **coerente**; listado aqui só para registrar que a lista de usuários (nomes/e-mails) é visível à Logística Interna. | sem divergência, decisão consciente |
+
+Sem divergência encontrada (confirmado no código): trocas (`swap-review-panel`,
+`ticket-modal`, `use-scaling-mutations` → admin/Compras), exclusão de evento
+(`events.tsx` → `isAdmin`), prazos (`scaling-analytics.tsx` → `ehAdmin`),
+bagagem (`allowed` = admin/Compras), Validação de Escala (`canEdit`/`canDecide`
+vêm do servidor por linha), simulação (só admin), responsáveis da Escala (só
+admin), aprovação de cenotécnica (`canApproveProductionFor` espelha
+admin/flag/aprovador), exportação de colaboradores (admin/Compras/RH), empresa
+pagadora em `system-settings.tsx` (excluir só admin).
+
+## 5. Integridade dos dados (o que o servidor recusa além do papel)
+
+- **Identidade só da sessão.** `_userId`/`_userRole` do corpo são descartados;
+  `updatedBy`, `createdBy`, `approvedBy`, `reviewedBy`, `authorId` vêm de `req.user`.
+- **Máquina de estados da vaga** (`shared/vaga-status.ts`): `status`/`phase`
+  nunca vêm do corpo; transições passam por `podeTransitar` e são
+  `UPDATE … WHERE status = esperado` (0 linhas → 409). Passagem/hospedagem
+  derivam o status (`recalcularStatusDeLogistica`).
+- **Validação de Escala**: toda transição por `nextSuggestionState`; UPDATE
+  guardado por phase/status.
+- **Trocas**: transação; pedido pendente único por vaga (UNIQUE parcial);
+  decisão com `WHERE status = 'pendente'`; revalida vaga/colaborador/agenda.
+- **Financeiro**: campos de fluxo (`rhStatus`, `sentForReview`, `status` de
+  NF/comparativo, `approvedBy`, `checkinAt`…) só por rota dedicada; NF exige
+  `enviada` para decidir, `aprovada` + data para check-in; comparativo decide
+  por lista de status de origem; Flash automático intocável.
+- **Anexos**: tipo por magic number, nome sanitizado, `CSP: sandbox` no
+  download, `attachmentUrl` de NF só interno.
+- **Constraints no banco** (ver `docs/migracoes.md`): UNIQUEs de planejado,
+  comparativo, NF por prestação, troca pendente por vaga, e-mail
+  case-insensitive; CHECKs `NOT VALID` de status/fase; FKs.
+
+## 6. Pendências operacionais
+
+### 6.1 Rotação de segredos
+
+| Segredo | Situação | Ação |
 |---|---|---|
-| `cadastro` | admin, purchasing, production | funções, colaboradores, eventos, escalação |
-| `financeiro` | admin, financial | valores por função, custos, decisões do RH, NF, Flash |
-| `logistica` | admin, purchasing, production | passagens, hospedagem, grupos de transporte, custos extras |
+| `SESSION_SECRET` | fallback público está versionado (`dev-session-secret-change-in-production`) | gerar 32 bytes novos (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), trocar nos Secrets, republicar. Todas as sessões caem (esperado). |
+| `SSO_SECRET` | compartilhado com o Portal Norte; já foi usado também como Bearer de `/api/portal/*` | rotacionar **em conjunto** com o portal (JWT novo só valida com o segredo novo). |
+| `PORTAL_API_TOKEN` | **não definido** — `/api/portal/*` ainda aceita `SSO_SECRET` (aviso "DEPRECIADO" no boot) | gerar, configurar nos Secrets e no portal; depois disso o fallback pode ser removido de `server/routes/portal.ts`. |
+| `MARATONA_API_TOKEN` | em uso pela Maratona | rotacionar e atualizar a Maratona; até lá, 503 se a env sumir. |
+| Senha do Neon (`DATABASE_URL`) | histórico do Git pode conter valores antigos | rotacionar no Neon, atualizar `DATABASE_URL` (endpoint `-pooler`). |
 
-No servidor, `requireRoles(req, res, GRUPO)` aplica o grupo; nas rotas de
-decisão financeira há também `requireFinanceUser`.
+### 6.2 `PORTAL_ORIGIN`
 
-### Ações e quem pode executá-las
+Definir nos Secrets com a(s) origem(ns) exata(s) do portal
+(`https://host[:porta]`, separadas por vírgula). Sem ela: iframe bloqueado
+(`frame-ancestors 'self'`), `portal_return` sempre descartado, e mutações
+disparadas de dentro do portal podem cair no 403 do CSRF.
 
-| Ação | Papéis | Onde é verificado |
-|---|---|---|
-| Criar/editar/excluir função | cadastro | servidor + UI |
-| Criar/editar colaborador | cadastro + function_area | servidor + UI |
-| Inativar/reativar colaborador | admin, purchasing | servidor (motivo obrigatório) |
-| Criar/excluir escalação | cadastro | servidor + UI |
-| Passagens, hospedagem, custos extras | logistica | servidor + UI |
-| Valores por função e Valores Padrão | financeiro | servidor + UI |
-| Aprovar/devolver/recusar prestação | financeiro | servidor + UI |
-| Aprovar/devolver/recusar NF, check-in | financeiro | servidor + UI |
-| Lançar/excluir na Conta Corrente Flash | financeiro | servidor + UI |
-| Excluir empresa pagadora | admin | servidor |
-| Criar/editar evento | cadastro (empresa pagadora só financeiro) | servidor + UI |
-| Excluir evento (soft delete; 409 se houver vagas ativas) | admin | servidor |
-| Ler planejado/realizado/comparativo/Flash/configurações/NF/financeiro | financeiro | servidor + UI |
-| Ler histórico de atividade (`/api/activity-logs*`) | financeiro | servidor |
-| Ler logs do sistema (`/api/system-logs`) | admin | servidor |
-| Enviar anexo (`POST /api/upload`) | cadastro + financeiro + function_area | servidor |
-| Ver/baixar anexo | dono, ou cadastro/RH/admin; documento de colaborador só cadastro/RH/admin | servidor |
-| Listar colaboradores | cadastro + RH + function_area (Logística e Área de Função **sem** CPF/RG, nascimento, telefone, endereço e anexo do documento) | servidor |
+### 6.3 Histórico do Git com PII
 
-### Rotas de usuário (23/09)
+`attached_assets/` foi removido do rastreamento no commit `80fbd554` (23/09),
+mas os arquivos continuam em **todos os commits anteriores** (CSV/XLSX de
+colaboradores com CPF, dumps de tela). A pasta ainda existe no disco (839
+arquivos, ignorada). Pendência: reescrever o histórico (`git filter-repo
+--path attached_assets --invert-paths`), forçar o push, pedir a todos que
+reclonem, e conferir se o repositório é público ou compartilhado. Fazer **depois**
+da rotação de segredos (o histórico também pode conter `.env`/tokens).
 
-| Rota | Quem | Regras |
-|---|---|---|
-| `POST /api/users` | admin, RH, Compras | corpo estrito (email, name, password?, role, area); RH/Compras só criam `production`/`function_area`; e-mail em minúsculas |
-| `GET /api/users` | admin, RH, Compras, Logística | resposta sem `password`/`resetToken` |
-| `PATCH /api/users/:id` | próprio usuário: name, email, senha (com a atual); RH/Compras em terceiros: name; admin: name, email, role, status, area | ninguém muda o próprio role/status; e-mail de terceiros só admin |
-| `PATCH /api/users/:id/approval` | admin | `userApprovalSchema` estrito; não pode ser em si mesmo; rejeitar derruba as sessões |
-| `PATCH /api/users/:id/toggle-active` | admin | não em si mesmo; inativar remove das funções e derruba as sessões |
-| `PATCH /api/users/:id/toggle-cenotecnica-approval` | admin | — |
-| `POST /api/users/:id/reset-password` | admin | nunca contra outro admin; mínimo 8; `mustChangePassword: true` |
-| `POST /api/auth/forgot-password` / `reset-password` | anônimo (rate limit) | token guardado como sha256; resposta sempre genérica; mínimo 8 |
+### 6.4 Limitações por instância no autoscale
 
-Toda resposta que devolve usuário passa por `semSegredos` (`server/auth-guards.ts`).
+Estado em memória do processo, não compartilhado entre instâncias:
 
-> A UI esconde o que o usuário não pode fazer, mas **a decisão que vale é a do
-> servidor**. Esconder botão não é controle de acesso.
+| Estado | Onde | Risco | Mitigação possível |
+|---|---|---|---|
+| Anti-reuso do JWT de SSO | `tokensUsados` em `auth-guards.ts` | o mesmo token cria uma segunda sessão se cair em outra instância dentro dos 10 min | tabela `sso_tokens_usados(jti, exp)` com `INSERT … ON CONFLICT DO NOTHING` |
+| Cache de usuário (60 s) | `cacheDeUsuarios` | inativar/rejeitar demora até 60 s em outra instância (as sessões, porém, são apagadas no banco na hora) | aceitável; ou TTL menor |
+| Rate limit de login/reset | `express-rate-limit` MemoryStore | limite efetivo = N × 30 | store em Postgres/Redis, ou aceitar (login por senha é dev-only) |
+| Cache do aprovador padrão (30 s) | `scaling-validation.ts` | trocar o aprovador padrão leva até 30 s para valer em todas | aceitável |
 
-## Integridade dos dados (o que o servidor recusa)
+Enquanto `Max Machines = 1` no Replit (ver `scripts/MIGRATION-INSTRUCTIONS.md`),
+nada disso se manifesta.
 
-Além de quem pode agir, o servidor valida **o que faz sentido**:
+### 6.5 Outras
 
-- **Máquina de estados** — aprovar NF exige status `enviada`; check-in exige
-  `aprovada`, sem check-in anterior e com data de pagamento; a decisão do RH só
-  atinge itens realmente enviados e pendentes; item aprovado não é editável,
-  divisível nem excluível.
-- **Allowlist + zod** nos PATCHes — campos de fluxo (`status`, `rhStatus`,
-  `sentForReview`, `approvedBy`, `checkinAt`…) só mudam pelas rotas dedicadas.
-  **Feito (23/09):** "um POST não consegue criar um registro já aprovado"
-  vale também para escalação, trocas e espelho — o corpo de
-  `POST /api/team-inclusions` (e `/bulk`) não carrega `status`/`phase`/
-  `previousStatus`/`approvedByProduction`/`deletedAt` (`insertTeamInclusionSchema`
-  os omite e o servidor grava `planejado`/`inclusao`); o PATCH recusa
-  status/fase (rotas dedicadas: `/confirm`, `/cancel`, `/reactivate`,
-  `/approve-production`), a compra de passagem/hospedagem é DERIVADA pelo
-  servidor ao registrar a passagem/hospedagem, e toda transição é um
-  `UPDATE … WHERE status = esperado` (409 se outra decisão chegou antes).
-  Trocas: abertura só por cadastro/responsável da função, decisão com
-  `WHERE status = pendente` e revalidação de vaga/colaborador/agenda.
-- **Anexos** — tipo conferido pelos primeiros bytes (PDF, PNG, JPG, XLSX,
-  CSV), nome sanitizado, dono gravado no objeto; download com Content-Type da
-  allowlist (senão octet-stream + attachment), `CSP: sandbox; default-src
-  'none'` e `nosniff`. `attachmentUrl` de NF só aceita
-  `/api/attachments/ATT-…/(view|download)`.
-- **Erros** — o tratador global (`server/http.ts`) nunca devolve `err.message`
-  cru: multer → 413/415, zod → 400, FK/unique do Postgres → 409, o resto 500
-  "Erro interno" (detalhe só no log, com o `X-Request-Id`).
-- **Constraints no banco** — unicidade de planejado por colaborador+função+
-  evento, um comparativo por evento, uma NF por prestação; FKs para NF↔realizado
-  e para filhos de divisão; CHECKs nos status.
-
-## Rotação de segredos
-
-`SESSION_SECRET` e `SSO_SECRET` têm valor padrão **versionado neste
-repositório**. Em produção o boot **aborta** se não estiverem definidos; em
-desenvolvimento cai no padrão público com aviso. Ver `.env.example`.
-
-Envs novas em 23/09: `PORTAL_ORIGIN` (iframe/CSRF/`portal_return`) e
-`PORTAL_API_TOKEN` (Bearer de `/api/portal/*`, separado do segredo do JWT).
-
-**Pendências conhecidas de rotação:** `SESSION_SECRET`, `SSO_SECRET`,
-`MARATONA_API_TOKEN` e a senha do banco. Definir `PORTAL_API_TOKEN` no portal
-e nos Secrets para tirar o fallback para `SSO_SECRET`.
+- `POST /api/auth/forgot-password` gera o token mas **não envia e-mail**; o
+  reset real é feito por admin (`POST /api/users/:id/reset-password`).
+- `GET /api/integration/employees` entrega CPF/telefone de todos os
+  colaboradores a quem tiver o Bearer — tratar `MARATONA_API_TOKEN` como
+  segredo de alto valor.
+- O `Referer` do token de SSO é protegido por `no-referrer`, mas o token ainda
+  aparece em logs de proxy/CDN que registrem a query string.

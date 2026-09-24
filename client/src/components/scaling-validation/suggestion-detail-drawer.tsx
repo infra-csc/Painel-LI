@@ -26,6 +26,7 @@ import {
   DECISION_TONE_CLASS, TEAM_INCLUSIONS_QUERY_KEY, canRequestChange, canValidate,
   describeLastDecision, describeVagaDecision, workDaysOf, type InclusionLog, type SuggestionRow,
 } from "./types";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 interface SuggestionDetailDrawerProps {
   open: boolean;
@@ -355,20 +356,24 @@ export function SuggestionDetailDrawer({
                 {canNavigate && (
                   <span className="ml-auto mr-8 flex shrink-0 items-center gap-1.5">
                     <span className="text-2xs tabular-nums text-muted-foreground">{index + 1} de {queue.length}</span>
-                    <button
+                    <MotivoDesabilitado motivo="Vaga anterior (←)" desabilitado={!prevRow}>
+                      <button
                       type="button" onClick={() => prevRow && onNavigate!(prevRow)} disabled={!prevRow}
-                      title="Vaga anterior (←)" aria-label="Vaga anterior"
+                      aria-label="Vaga anterior"
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-surface-muted disabled:opacity-40 disabled:hover:bg-transparent"
                     >
                       <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                     </button>
-                    <button
+                    </MotivoDesabilitado>
+                    <MotivoDesabilitado motivo="Próxima vaga (→)" desabilitado={!nextRow}>
+                      <button
                       type="button" onClick={() => nextRow && onNavigate!(nextRow)} disabled={!nextRow}
-                      title="Próxima vaga (→)" aria-label="Próxima vaga"
+                      aria-label="Próxima vaga"
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-surface-muted disabled:opacity-40 disabled:hover:bg-transparent"
                     >
                       <ChevronRight className="h-4 w-4" aria-hidden="true" />
                     </button>
+                    </MotivoDesabilitado>
                   </span>
                 )}
               </DialogTitle>

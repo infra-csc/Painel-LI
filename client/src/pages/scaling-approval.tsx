@@ -117,7 +117,7 @@ function ToggleFilter({ pressed, onPressedChange, label }: { pressed: boolean; o
 }
 
 export default function ScalingApprovalPage() {
-  usePageTitle("Aprovação de Escala");
+  usePageTitle("Aprovação de escala");
   const { user } = useAuth();
   const isAdmin = normalizeRole(user?.role) === "admin";
   const canAccess = hasPermission(user, "canAccessScalingApproval");
@@ -509,7 +509,7 @@ export default function ScalingApprovalPage() {
       <PageContainer fluid>
         <PageHeader
           icon={ShieldCheck}
-          title="Aprovação de Escala"
+          title="Aprovação de escala"
           subtitle="O aprovador de cada função aprova as vagas já validadas pelas áreas e decide os pedidos de ajuste, inclusão e exclusão abertos na Validação de Escala."
         />
         <EmptyState
@@ -612,7 +612,7 @@ export default function ScalingApprovalPage() {
     <PageContainer fluid>
       <PageHeader
         icon={ShieldCheck}
-        title="Aprovação de Escala"
+        title="Aprovação de escala"
         subtitle="O aprovador de cada função aprova as vagas já validadas pelas áreas e decide os pedidos de ajuste, inclusão e exclusão abertos na Validação de Escala."
         actions={<ScalingModuleNav current="approval" eventId={eventId} />}
       />
@@ -624,7 +624,7 @@ export default function ScalingApprovalPage() {
           <div className="flex items-center gap-2 min-w-0">
             <CalendarDays className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
             {loadingEvents ? (
-              <div className="h-8 w-[280px] max-w-full rounded-lg bg-muted animate-pulse" aria-hidden="true" />
+              <div className="h-8 w-[280px] max-w-full rounded-lg bg-muted animate-pulse motion-reduce:animate-none" aria-hidden="true" />
             ) : (
               // Mesma régua da Validação: cresce com o espaço disponível.
               <div className="w-[280px] max-w-full lg:w-auto lg:min-w-[280px] lg:max-w-[440px] lg:flex-1">

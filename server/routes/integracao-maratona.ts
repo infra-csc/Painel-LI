@@ -5,7 +5,7 @@
  * colaboradores, eventos e participações com ids estáveis para a Maratona.
  */
 import type { Express } from "express";
-import { storage } from "../storage";
+import { storage, normalizarDataIso } from "../storage";
 import { safeTokenEqual } from "./_compartilhado";
 
 export function registrarIntegracaoMaratona(app: Express): void {
@@ -70,16 +70,9 @@ export function registrarIntegracaoMaratona(app: Express): void {
     }
   });
 
-  // Normaliza qualquer valor de data (Date, string ISO, etc.) → "YYYY-MM-DD"
-  const toIsoDateStr = (d: unknown): string | undefined => {
-    if (!d) return undefined;
-    if (d instanceof Date) return d.toISOString().slice(0, 10);
-    const s = String(d).trim();
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-    const parsed = new Date(s);
-    if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
-    return undefined;
-  };
+  // Normaliza qualquer valor de data (Date, string ISO, etc.) → "YYYY-MM-DD".
+  // Mesma função que o storage usa no histórico da vaga (server/storage/_comum.ts).
+  const toIsoDateStr = normalizarDataIso;
 
   // 3. GET /api/integration/participations — participações (colaborador x evento x função)
   app.get("/api/integration/participations", async (req, res) => {

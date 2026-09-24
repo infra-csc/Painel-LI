@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, Plus, Check, RefreshCw, Plane } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -263,11 +264,11 @@ export default function BudgetActualPage() {
       toast({
         title: "Enviado para revisão",
         description: "O orçamento realizado foi enviado para conferência e a emissão de NF foi liberada para os itens enviados.",
-        className: "bg-success-soft border-success/25 text-success",
+        variant: "success",
       });
     },
-    onError: () => {
-      toast({ title: "Erro ao enviar", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível enviar a prestação", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     },
   });
 
@@ -348,16 +349,16 @@ export default function BudgetActualPage() {
     },
     onSuccess: () => {
       toast({
-        title: "✓ Prestação salva com sucesso",
+        title: "Prestação salva",
         description: "Os valores foram salvos e já estão atualizados na listagem.",
-        className: "bg-success-soft border-success/25 text-success shadow-2",
+        variant: "success",
       });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       setEditingItem(null);
       setEditFormData(null);
     },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao atualizar prestação", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível atualizar a prestação", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     },
   });
 
@@ -366,12 +367,12 @@ export default function BudgetActualPage() {
       await apiRequest("DELETE", `/api/budget-actual/${id}`);
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Prestação removida" });
+      toast({ variant: "success", title: "Prestação removida" });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       setConfirmDeleteId(null);
     },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao remover prestação", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível remover a prestação", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     },
   });
 
@@ -390,8 +391,8 @@ export default function BudgetActualPage() {
       setSplittingItem(null);
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
     },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao dividir a vaga", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível dividir a vaga", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     },
   });
 
@@ -1034,12 +1035,12 @@ export default function BudgetActualPage() {
     };
     // Badge baseado diretamente em rhStatus: o rh-action zera sentForReview ao devolver/recusar,
     // então condicionar Devolvido/Recusado a sentForReview tornava esses ramos inalcançáveis
-    const statusBadge = cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCheck className="w-2.5 h-2.5" /> Aprovado</span>
-      : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning border border-warning/25"><AlertCircle className="w-2.5 h-2.5" /> Devolvido</span>
-      : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger border border-danger/25"><AlertCircle className="w-2.5 h-2.5" /> Recusado</span>
-      : cardItem.sentForReview ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Clock className="w-2.5 h-2.5" /> Em revisão</span>
-      : isDuplicated ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Copy className="w-2.5 h-2.5" /> Duplicado</span>
-      : hasBeenEdited ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCircle2 className="w-2.5 h-2.5" /> Salvo {fmtDT(cardItem.updatedAt!)}</span>
+    const statusBadge = cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCheck className="w-2.5 h-2.5" aria-hidden="true" /> Aprovado</span>
+      : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning border border-warning/25"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /> Devolvido</span>
+      : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger border border-danger/25"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /> Recusado</span>
+      : cardItem.sentForReview ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Clock className="w-2.5 h-2.5" aria-hidden="true" /> Em revisão</span>
+      : isDuplicated ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Copy className="w-2.5 h-2.5" aria-hidden="true" /> Duplicado</span>
+      : hasBeenEdited ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCircle2 className="w-2.5 h-2.5" aria-hidden="true" /> Salvo {fmtDT(cardItem.updatedAt!)}</span>
       : <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border">Não preenchido</span>;
     const collabName = getCollaboratorName(cardItem.collaboratorId);
     const initials = collabName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
@@ -1093,7 +1094,7 @@ export default function BudgetActualPage() {
             <div className="flex items-center gap-3">
               {isItemLocked ? (
                 <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                  <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 cursor-default" />
+                  <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 cursor-default" aria-hidden="true" />
                 </TooltipTrigger><TooltipContent side="right" className="text-xs">Prestação bloqueada para edição</TooltipContent></Tooltip></TooltipProvider>
               ) : isItemEditable ? (
                 <button
@@ -1119,7 +1120,7 @@ export default function BudgetActualPage() {
                   <span className="shrink-0">{statusBadge}</span>
                   {notAttended && (
                     <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border shrink-0 whitespace-nowrap">
-                      <AlertCircle className="w-2.5 h-2.5" /> Não participou
+                      <AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /> Não participou
                     </span>
                   )}
                   {cardItem.rhAdjusted && (
@@ -1129,12 +1130,12 @@ export default function BudgetActualPage() {
                   )}
                   {diverges && <span className="inline-flex items-center gap-1 text-2xs font-bold px-1.5 py-0.5 rounded-md bg-warning-soft text-warning shrink-0 whitespace-nowrap">Divergência</span>}
                   {isGParent && <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-brand-soft text-primary shrink-0 whitespace-nowrap">Titular</span>}
-                  {isGChild && <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-brand-soft text-primary flex items-center gap-0.5 shrink-0 whitespace-nowrap"><GitFork className="w-2.5 h-2.5" />Divisão</span>}
+                  {isGChild && <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-brand-soft text-primary flex items-center gap-0.5 shrink-0 whitespace-nowrap"><GitFork className="w-2.5 h-2.5" aria-hidden="true" />Divisão</span>}
                   {cardItem.plannedId && <PlannedEditedBadge logs={plannedLogs} entityId={cardItem.plannedId} />}
                 </div>
                 {workedDaysStr && isInGroup && (
                   <div className="flex items-center gap-1 mt-1">
-                    <Calendar className="w-3 h-3 text-primary/70 flex-shrink-0" />
+                    <Calendar className="w-3 h-3 text-primary/70 flex-shrink-0" aria-hidden="true" />
                     <span className="text-2xs text-primary leading-tight">{workedDaysStr}</span>
                   </div>
                 )}
@@ -1152,15 +1153,15 @@ export default function BudgetActualPage() {
               </button>
               {isItemEditable ? (
                 <>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => openEditModal(cardItem)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => setSplittingItem(cardItem)} title="Dividir" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger-strong hover:bg-danger-soft rounded-lg" onClick={() => setConfirmDeleteId(cardItem.id)} title="Remover"><Trash2 className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => openEditModal(cardItem)} aria-label="Editar lançamento"><Edit className="w-3.5 h-3.5" aria-hidden="true" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => setSplittingItem(cardItem)} aria-label="Dividir lançamento" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" aria-hidden="true" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger-strong hover:bg-danger-soft rounded-lg" onClick={() => setConfirmDeleteId(cardItem.id)} aria-label="Remover lançamento"><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></Button>
                 </>
               ) : (
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 hover:bg-muted rounded-lg" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 hover:bg-muted rounded-lg" onClick={() => openEditModal(cardItem)} aria-label="Visualizar lançamento"><Eye className="w-3.5 h-3.5" aria-hidden="true" /></Button>
               )}
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 rounded-lg" onClick={() => toggleCollapse(cardItem.id)}>
-                {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 rounded-lg" onClick={() => toggleCollapse(cardItem.id)} aria-expanded={!isCollapsed} aria-label={isCollapsed ? "Expandir lançamento" : "Recolher lançamento"}>
+                {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />}
               </Button>
             </div>
           </div>
@@ -1203,7 +1204,7 @@ export default function BudgetActualPage() {
                   {/* Diárias */}
                   <div className="rounded-xl p-2.5 border border-primary/25 bg-brand-soft/50">
                     <div className="flex items-center gap-1 mb-2">
-                      <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" /></div>
+                      <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" aria-hidden="true" /></div>
                       <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
@@ -1219,7 +1220,7 @@ export default function BudgetActualPage() {
                   {/* Alimentação */}
                   <div className="rounded-xl p-2.5 border border-warning/25 bg-warning-soft/50">
                     <div className="flex items-center gap-1 mb-2">
-                      <div className="w-3.5 h-3.5 rounded bg-warning-strong flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" /></div>
+                      <div className="w-3.5 h-3.5 rounded bg-warning-strong flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" aria-hidden="true" /></div>
                       <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
@@ -1246,7 +1247,7 @@ export default function BudgetActualPage() {
                   {/* Mobilidade */}
                   <div className="rounded-xl p-2.5 border border-primary/25 bg-brand-soft/50">
                     <div className="flex items-center gap-1 mb-2">
-                      <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" /></div>
+                      <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" aria-hidden="true" /></div>
                       <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
@@ -1301,11 +1302,11 @@ export default function BudgetActualPage() {
                     <span className="text-2xs font-medium text-muted-foreground px-2.5 py-1 rounded-lg bg-muted">Dentro do previsto</span>
                   ) : diff < 0 ? (
                     <span className="inline-flex items-center gap-1 text-2xs font-semibold tabular-nums text-success px-2.5 py-1 rounded-lg bg-success-soft">
-                      <TrendingDown className="w-3 h-3" />− {formatCurrency(Math.abs(diff))}
+                      <TrendingDown className="w-3 h-3" aria-hidden="true" />− {formatCurrency(Math.abs(diff))}
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-2xs font-semibold tabular-nums text-danger px-2.5 py-1 rounded-lg bg-danger-soft">
-                      <TrendingUp className="w-3 h-3" />+ {formatCurrency(diff)}
+                      <TrendingUp className="w-3 h-3" aria-hidden="true" />+ {formatCurrency(diff)}
                     </span>
                   )
                 }
@@ -1338,7 +1339,7 @@ export default function BudgetActualPage() {
         return (
           <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl border border-warning/25 bg-warning-soft shadow-1">
             <div className="w-8 h-8 rounded-lg bg-warning-soft border border-warning/25 flex items-center justify-center shrink-0">
-              <AlertCircle className="w-4 h-4 text-warning" />
+              <AlertCircle className="w-4 h-4 text-warning" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-bold text-warning m-0">
@@ -1388,14 +1389,14 @@ export default function BudgetActualPage() {
         </div>
       ) : filteredItems.length === 0 && !buscaAplicada && filterType === "all" && filterFunction === "all" ? (
         <div className="text-center py-16 bg-card rounded-xl border border-border">
-          <ClipboardCheck className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+          <ClipboardCheck className="w-16 h-16 text-slate-200 mx-auto mb-4" aria-hidden="true" />
           <h3 className="text-base font-semibold text-slate-700 mb-2">Nenhuma prestação disponível</h3>
           <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
             Envie escalas do Planejado para iniciar o Realizado deste evento
           </p>
           <Link href="/budget-planned">
             <Button className="bg-primary hover:bg-primary-hover">
-              <ArrowRight className="w-4 h-4 mr-2" />
+              <ArrowRight className="w-4 h-4 mr-2" aria-hidden="true" />
               Ir para Planejado
             </Button>
           </Link>
@@ -1483,8 +1484,8 @@ export default function BudgetActualPage() {
                       </div>
                     )}
                     <div className={`text-2xs mt-1.5 font-medium flex items-center gap-1 ${totalDifference === 0 ? 'text-white/45' : totalDifference < 0 ? 'text-success-soft' : 'text-danger-soft'}`}>
-                      {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
-                      {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
+                      {totalDifference < 0 && <TrendingDown className="w-3 h-3" aria-hidden="true" />}
+                      {totalDifference > 0 && <TrendingUp className="w-3 h-3" aria-hidden="true" />}
                       {!selectedEventId ? 'Selecione um evento' : totalDifference === 0 ? '= planejado' : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
                     </div>
                   </div>
@@ -1495,24 +1496,24 @@ export default function BudgetActualPage() {
                     <div className="flex items-start gap-0 flex-wrap gap-y-3">
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
                         <div className="text-2xl font-bold leading-none tracking-tight text-primary">{prestacaoCount}</div>
-                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" />Prestações</div>
+                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" aria-hidden="true" />Prestações</div>
                       </div>
                       <div className="bg-primary-hover/8" style={{ width:1, height:36 }} />
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
                         <div className="text-2xl font-bold leading-none tracking-tight text-primary">{nRevisao}</div>
-                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />Em Revisão</div>
+                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" aria-hidden="true" />Em Revisão</div>
                       </div>
                       <div className="bg-primary-hover/8" style={{ width:1, height:36 }} />
                       <div className="flex-1 flex flex-col items-center gap-1 px-3">
                         <div className="text-2xl font-bold leading-none tracking-tight text-success">{nAprovadas}</div>
-                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aprovadas</div>
+                        <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3" aria-hidden="true" />Aprovadas</div>
                       </div>
                       {nDevolvidas > 0 && (
                         <>
                           <div className="bg-primary-hover/8" style={{ width:1, height:36 }} />
                           <div className="flex-1 flex flex-col items-center gap-1 px-3">
                             <div className="text-2xl font-bold leading-none tracking-tight text-warning">{nDevolvidas}</div>
-                            <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><AlertCircle className="w-3 h-3" />Devolvidas</div>
+                            <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><AlertCircle className="w-3 h-3" aria-hidden="true" />Devolvidas</div>
                           </div>
                         </>
                       )}
@@ -1535,10 +1536,10 @@ export default function BudgetActualPage() {
           <div className="flex flex-wrap items-center gap-3 px-0">
             {/* Busca */}
             <div className="relative w-full sm:w-[200px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" aria-hidden="true" />
               <input
                 type="text"
-                placeholder="Buscar colaborador..."
+                placeholder="Buscar colaborador…"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className={cn("w-full pr-3 pl-[26px] bg-surface-muted border-0 border-b-[1.5px] rounded-t-md text-xs text-slate-700 outline-none transition-colors focus:border-b-primary", searchTerm ? "border-b-primary" : "border-b-border")}
@@ -1634,7 +1635,7 @@ export default function BudgetActualPage() {
             {orderedRenderItems.length === 0 && (
               <div className="rounded-xl border-2 border-dashed border-border bg-surface-muted p-12 text-center">
                 <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
-                  <Search className="w-6 h-6 text-muted-foreground" />
+                  <Search className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
                 </div>
                 <p className="font-semibold text-muted-foreground">Nenhum resultado para os filtros</p>
                 <p className="text-sm text-muted-foreground mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
@@ -1675,7 +1676,7 @@ export default function BudgetActualPage() {
                 <div key={item.id} className="rounded-xl border-2 border-primary/25 overflow-hidden bg-brand-soft/20">
                   {/* Group banner */}
                   <div className="bg-primary px-4 py-2.5 flex items-center gap-3">
-                    <GitFork className="w-3.5 h-3.5 text-white/80 flex-shrink-0" />
+                    <GitFork className="w-3.5 h-3.5 text-white/80 flex-shrink-0" aria-hidden="true" />
                     <span className="text-xs font-semibold text-white flex-1">
                       Escalação dividida · {groupChildren.length + 1} colaboradores{origPeriod && ` · Período: ${origPeriod}`}
                     </span>
@@ -1696,7 +1697,7 @@ export default function BudgetActualPage() {
                   {/* Group total footer */}
                   <div className="mx-2 mb-2 flex items-center justify-between px-3 py-2 bg-brand-soft/60 rounded-xl">
                     <div className="flex items-center gap-2">
-                      <GitFork className="w-3.5 h-3.5 text-primary" />
+                      <GitFork className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
                       <span className="text-2xs text-primary font-semibold uppercase tracking-wider">Total da escalação</span>
                       {groupPlannedTotal !== undefined && (
                         <span className="text-2xs text-primary/70 tabular-nums">plan: {formatCurrency(groupPlannedTotal)}</span>
@@ -1743,7 +1744,7 @@ export default function BudgetActualPage() {
             <div className="flex items-center gap-3">
               {allSentForReview ? (
                 <div className="flex items-center gap-2 bg-success-soft border border-success/25 rounded-xl px-3 py-1.5 text-xs text-success font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                   Enviado para revisão
                 </div>
               ) : selectedCards.size > 0 ? (
@@ -1759,7 +1760,7 @@ export default function BudgetActualPage() {
                       setConfirmSend('selected');
                     }}
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    <Send className="w-3.5 h-3.5" aria-hidden="true" />
                     Enviar selecionadas
                   </Button>
                 </>
@@ -1775,7 +1776,7 @@ export default function BudgetActualPage() {
                       setConfirmSend('all');
                     }}
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    <Send className="w-3.5 h-3.5" aria-hidden="true" />
                     Enviar todas
                   </Button>
                 </>
@@ -1863,10 +1864,10 @@ export default function BudgetActualPage() {
             const isFieldChanged = (current: number, plannedVal: number) => planned && current !== plannedVal;
 
             const statusBadge = !planned ? null : !hasDivergence
-              ? { label: 'Dentro do planejado', bg: 'bg-success-soft', text: 'text-success', border: 'border-success/25', icon: <CheckCircle2 className="w-3 h-3" /> }
+              ? { label: 'Dentro do planejado', bg: 'bg-success-soft', text: 'text-success', border: 'border-success/25', icon: <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> }
               : difference > 0
-                ? { label: 'Acima do planejado', bg: 'bg-danger-soft', text: 'text-danger', border: 'border-danger/25', icon: <TrendingUp className="w-3 h-3" /> }
-                : { label: 'Abaixo do planejado', bg: 'bg-warning-soft', text: 'text-warning', border: 'border-warning/25', icon: <TrendingDown className="w-3 h-3" /> };
+                ? { label: 'Acima do planejado', bg: 'bg-danger-soft', text: 'text-danger', border: 'border-danger/25', icon: <TrendingUp className="w-3 h-3" aria-hidden="true" /> }
+                : { label: 'Abaixo do planejado', bg: 'bg-warning-soft', text: 'text-warning', border: 'border-warning/25', icon: <TrendingDown className="w-3 h-3" aria-hidden="true" /> };
 
             return (
               <>
@@ -1891,7 +1892,7 @@ export default function BudgetActualPage() {
                         </span>
                         {(itemDays.startDate || itemDays.endDate) && (
                           <span className="inline-flex items-center gap-1 text-2xs text-white/70" style={{height:20}}>
-                            <Calendar className="w-3 h-3" />
+                            <Calendar className="w-3 h-3" aria-hidden="true" />
                             {itemDays.startDate && itemDays.endDate
                               ? `${new Date(itemDays.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} → ${new Date(itemDays.endDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`
                               : itemDays.startDate
@@ -1907,7 +1908,7 @@ export default function BudgetActualPage() {
                         )}
                         {isReadOnly && (
                           <span className="inline-flex items-center text-2xs px-2 rounded-md bg-card/15 text-white gap-1" style={{height:20}}>
-                            <Lock className="w-2.5 h-2.5" /> Bloqueado
+                            <Lock className="w-2.5 h-2.5" aria-hidden="true" /> Bloqueado
                           </span>
                         )}
                         {editingItem.plannedId && plannedLogs.some(l => l.entity_id === editingItem.plannedId && l.action === 'update') && (
@@ -1928,7 +1929,7 @@ export default function BudgetActualPage() {
                   {editingItem.rhStatus === 'devolvido' && (editingItem.rhComment || rhComment) && (
                     <div className="mt-2.5 p-2 rounded-xl bg-card/10 border border-white/20">
                       <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-3.5 h-3.5 text-warning-soft mt-0.5 flex-shrink-0" />
+                        <AlertTriangle className="w-3.5 h-3.5 text-warning-soft mt-0.5 flex-shrink-0" aria-hidden="true" />
                         <div>
                           <span className="text-2xs uppercase text-warning-soft font-bold tracking-wider">Comentário do RH</span>
                           <p className="text-2xs text-white/80 mt-0.5">{editingItem.rhComment || rhComment}</p>
@@ -1941,7 +1942,7 @@ export default function BudgetActualPage() {
                 {/* ── Read-only banner ── */}
                 {isReadOnly && (
                   <div className="flex items-center gap-2.5 px-5 py-2 bg-warning-soft border-b border-warning/25 shrink-0">
-                    <Lock className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" />
+                    <Lock className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" aria-hidden="true" />
                     <span className="text-xs font-medium text-warning">Valores enviados para revisão — somente leitura</span>
                   </div>
                 )}
@@ -1977,7 +1978,7 @@ export default function BudgetActualPage() {
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-primary/25 bg-primary-hover/5">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-md bg-primary-hover flex items-center justify-center">
-                          <Calendar className="w-3 h-3 text-white" />
+                          <Calendar className="w-3 h-3 text-white" aria-hidden="true" />
                         </div>
                         <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
                         <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary">
@@ -2021,7 +2022,7 @@ export default function BudgetActualPage() {
                                 ${entry.active ? 'bg-primary-hover text-white' : 'bg-border text-muted-foreground'}
                                 ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
                             >
-                              {entry.active && <Check className="w-2.5 h-2.5" />}
+                              {entry.active && <Check className="w-2.5 h-2.5" aria-hidden="true" />}
                             </button>
                             {/* Date + label */}
                             <div className="flex items-center gap-1.5 min-w-0">
@@ -2097,7 +2098,7 @@ export default function BudgetActualPage() {
                             onClick={() => setShowAddDay(true)}
                             className="flex items-center gap-1.5 text-2xs font-semibold text-primary hover:text-primary-hover transition-colors py-0.5"
                           >
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-3 h-3" aria-hidden="true" />
                             Adicionar Dia Extra
                           </button>
                         )}
@@ -2122,11 +2123,11 @@ export default function BudgetActualPage() {
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
-                          <Car className="w-3 h-3 text-white" />
+                          <Car className="w-3 h-3 text-white" aria-hidden="true" />
                         </div>
                         <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Mobilidade</span>
                         <span className="text-2xs font-medium text-muted-foreground flex items-center gap-0.5">
-                          <Lock className="w-2.5 h-2.5" />
+                          <Lock className="w-2.5 h-2.5" aria-hidden="true" />
                           Definido pelo RH
                         </span>
                       </div>
@@ -2135,14 +2136,14 @@ export default function BudgetActualPage() {
                     <div className="divide-y divide-border">
                       <div className="flex items-center justify-between px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                           <span className="text-xs text-muted-foreground">Ida</span>
                         </div>
                         <span className="text-sm font-mono tabular-nums text-muted-foreground">{formatCurrency(editFormData.mobilityIda)}</span>
                       </div>
                       <div className="flex items-center justify-between px-4 py-2.5 bg-surface-muted">
                         <div className="flex items-center gap-2">
-                          <ArrowLeft className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <ArrowLeft className="w-3 h-3 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                           <span className="text-xs text-muted-foreground">Volta</span>
                         </div>
                         <span className="text-sm font-mono tabular-nums text-muted-foreground">{formatCurrency(editFormData.mobilityVolta)}</span>
@@ -2160,11 +2161,11 @@ export default function BudgetActualPage() {
                       <div className="flex items-center justify-between px-4 py-2.5 bg-muted">
                         <div className="flex items-center gap-2">
                           <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
-                            <Car className="w-3 h-3 text-white" />
+                            <Car className="w-3 h-3 text-white" aria-hidden="true" />
                           </div>
                           <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Translado</span>
                           <span className="text-2xs font-medium text-muted-foreground flex items-center gap-0.5">
-                            <Lock className="w-2.5 h-2.5" />
+                            <Lock className="w-2.5 h-2.5" aria-hidden="true" />
                             Definido pelo RH
                           </span>
                         </div>
@@ -2183,7 +2184,7 @@ export default function BudgetActualPage() {
                       <div className="flex items-center justify-between px-4 py-2.5 border-b border-info/25 bg-info-strong/6">
                         <div className="flex items-center gap-2">
                           <div className="w-5 h-5 rounded-md bg-info-strong flex items-center justify-center">
-                            <Plane className="w-3 h-3 text-white" />
+                            <Plane className="w-3 h-3 text-white" aria-hidden="true" />
                           </div>
                           <span className="text-2xs font-semibold text-info uppercase tracking-wide">Viagem</span>
                         </div>
@@ -2195,7 +2196,7 @@ export default function BudgetActualPage() {
                           {/* Chegada (ida) — vale no PRIMEIRO dia ativo */}
                           <div className="px-4 py-2.5">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <ArrowRight className="w-3 h-3 text-info-strong flex-shrink-0" />
+                              <ArrowRight className="w-3 h-3 text-info-strong flex-shrink-0" aria-hidden="true" />
                               <span className="text-xs text-slate-600">
                                 Chegada (ida)
                                 {primeiroDiaAtivo && <span className="text-muted-foreground"> · {ddmm(primeiroDiaAtivo)}</span>}
@@ -2231,7 +2232,7 @@ export default function BudgetActualPage() {
                           {/* Partida (volta) — vale no ÚLTIMO dia ativo */}
                           <div className="px-4 py-2.5">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <ArrowLeft className="w-3 h-3 text-info-strong flex-shrink-0" />
+                              <ArrowLeft className="w-3 h-3 text-info-strong flex-shrink-0" aria-hidden="true" />
                               <span className="text-xs text-slate-600">
                                 Partida (volta)
                                 {ultimoDiaAtivo && <span className="text-muted-foreground"> · {ddmm(ultimoDiaAtivo)}</span>}
@@ -2287,7 +2288,7 @@ export default function BudgetActualPage() {
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-warning/25 bg-warning-strong/6">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-5 h-5 rounded-md bg-warning-strong flex items-center justify-center">
-                          <Utensils className="w-3 h-3 text-white" />
+                          <Utensils className="w-3 h-3 text-white" aria-hidden="true" />
                         </div>
                         <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
                         {alimManual && (
@@ -2304,7 +2305,7 @@ export default function BudgetActualPage() {
                             className="flex items-center gap-1 text-2xs font-semibold text-warning hover:text-warning bg-card border border-warning/25 rounded-lg px-2 py-1 transition-colors hover:bg-warning-soft"
                             title="Recalcula almoço e jantar pelos dias ativos e pelos horários de chegada/partida"
                           >
-                            <RefreshCw className="w-3 h-3" />
+                            <RefreshCw className="w-3 h-3" aria-hidden="true" />
                             Recalcular pela viagem
                           </button>
                         )}
@@ -2315,7 +2316,7 @@ export default function BudgetActualPage() {
                     {/* Avisos */}
                     {alimStale && !isReadOnly && (
                       <div className="px-4 py-2 bg-warning-soft border-b border-warning/25 flex items-center gap-2 flex-wrap">
-                        <AlertTriangle className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" />
+                        <AlertTriangle className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" aria-hidden="true" />
                         <span className="text-2xs text-warning flex-1 min-w-0">
                           Os dias ou horários mudaram depois do seu ajuste — os valores não foram recalculados.
                         </span>
@@ -2354,7 +2355,7 @@ export default function BudgetActualPage() {
                         <>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Sun className="w-3 h-3 text-warning-strong flex-shrink-0" />
+                              <Sun className="w-3 h-3 text-warning-strong flex-shrink-0" aria-hidden="true" />
                               <span className="text-xs text-slate-600">Almoço <span className="text-muted-foreground">(dias úteis · {activeWeekdays})</span></span>
                             </div>
                             <CurrencyInput
@@ -2369,7 +2370,7 @@ export default function BudgetActualPage() {
                           </div>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Moon className="w-3 h-3 text-primary/70 flex-shrink-0" />
+                              <Moon className="w-3 h-3 text-primary/70 flex-shrink-0" aria-hidden="true" />
                               <span className="text-xs text-slate-600">Jantar <span className="text-muted-foreground">(dias úteis · {activeWeekdays})</span></span>
                             </div>
                             <CurrencyInput
@@ -2388,7 +2389,7 @@ export default function BudgetActualPage() {
                         <>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Sun className="w-3 h-3 text-warning-soft flex-shrink-0" />
+                              <Sun className="w-3 h-3 text-warning-soft flex-shrink-0" aria-hidden="true" />
                               <span className="text-xs text-slate-600">Almoço <span className="text-muted-foreground">(fins de semana · {activeWeekends})</span></span>
                             </div>
                             <CurrencyInput
@@ -2403,7 +2404,7 @@ export default function BudgetActualPage() {
                           </div>
                           <div className="flex items-center justify-between gap-2 px-4 py-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <Moon className="w-3 h-3 text-primary/70 flex-shrink-0" />
+                              <Moon className="w-3 h-3 text-primary/70 flex-shrink-0" aria-hidden="true" />
                               <span className="text-xs text-slate-600">Jantar <span className="text-muted-foreground">(fins de semana · {activeWeekends})</span></span>
                             </div>
                             <CurrencyInput
@@ -2498,8 +2499,8 @@ export default function BudgetActualPage() {
                           disabled={updateMutation.isPending}
                           className="h-10 px-5 text-sm font-semibold rounded-xl text-white shadow-1 bg-primary-hover"
                         >
-                          <Check className="w-4 h-4 mr-1.5" />
-                          {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
+                          <Check className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                          {updateMutation.isPending ? 'Salvando…' : 'Salvar Prestação'}
                         </Button>
                       </>
                     )}
@@ -2567,7 +2568,7 @@ export default function BudgetActualPage() {
                       setConfirmSend(null);
                     }}
                   >
-                    <Send className="w-3.5 h-3.5 mr-1.5" />
+                    <Send className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
                     {confirmSend === 'selected' ? 'Enviar selecionadas' : 'Enviar prestações'}
                   </AlertDialogAction>
                 </AlertDialogFooter>

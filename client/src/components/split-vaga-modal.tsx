@@ -12,6 +12,7 @@ import type { BudgetActual, Collaborator, TeamInclusion } from "@shared/schema";
 
 import { formatarMoeda } from "@/lib/format";
 import { CurrencyInput } from "@/components/common/currency-input";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getDaysInRange(startDate: string, endDate: string): string[] {
@@ -395,7 +396,7 @@ export function SplitVagaModal({
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary-hover">
-                <UserPlus className="w-4.5 h-4.5 text-white" style={{width:18,height:18}} />
+                <UserPlus className="w-4.5 h-4.5 text-white" style={{width:18,height:18}} aria-hidden="true" />
               </div>
               <div>
                 <p className="font-bold text-base text-foreground leading-tight m-0">Dividir escalação</p>
@@ -403,7 +404,7 @@ export function SplitVagaModal({
               </div>
             </div>
             <button type="button" onClick={fechar} aria-label="Fechar" className="text-muted-foreground hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-muted transition-colors">
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 
@@ -497,12 +498,12 @@ export function SplitVagaModal({
                         </>
                       ) : (
                         <>
-                          <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm text-muted-foreground">Buscar colaborador...</span>
+                          <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                          <span className="text-sm text-muted-foreground">Buscar colaborador…</span>
                         </>
                       )}
                     </div>
-                    <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform" style={{transform: collabDropOpen ? 'rotate(180deg)' : 'none'}} />
+                    <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform" style={{transform: collabDropOpen ? 'rotate(180deg)' : 'none'}} aria-hidden="true" />
                   </button>
 
                   {collabDropOpen && dropRect && createPortal(
@@ -517,13 +518,13 @@ export function SplitVagaModal({
                       }}
                     >
                       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
-                        <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                         <input
                           ref={inputRef}
                           value={collabSearch}
                           onChange={e => setCollabSearch(e.target.value)}
-                          placeholder="Buscar colaborador..."
-                          className="flex-1 border-0 outline-none text-sm text-foreground bg-transparent"
+                          placeholder="Buscar colaborador…"
+                          className="flex-1 border-0 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm text-sm text-foreground bg-transparent"
                         />
                       </div>
                       <div className="max-h-[240px] overflow-y-auto">
@@ -547,7 +548,7 @@ export function SplitVagaModal({
                               <span className={cn("text-sm truncate", (isSel ? "font-semibold" : "font-normal"), (isSel ? "text-primary" : "text-slate-700"))}>
                                 {name}
                               </span>
-                              {isSel && <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-primary" />}
+                              {isSel && <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-primary" aria-hidden="true" />}
                             </button>
                           );
                         })}
@@ -567,7 +568,7 @@ export function SplitVagaModal({
                     </p>
                     {selectedDays.size > 0 && (
                       <span className="inline-flex items-center gap-1 text-2xs font-semibold text-primary bg-brand-soft border border-primary/25 px-2 py-0.5 rounded-full">
-                        <Check className="w-3 h-3" />
+                        <Check className="w-3 h-3" aria-hidden="true" />
                         {selectedDays.size} {selectedDays.size === 1 ? 'dia' : 'dias'} selecionado{selectedDays.size !== 1 ? 's' : ''}
                       </span>
                     )}
@@ -621,13 +622,14 @@ export function SplitVagaModal({
                       }
 
                       return (
-                        <button
+                        <MotivoDesabilitado motivo={isTaken ? "Dia já atribuído a outro colaborador desta divisão" : notParent ? "Este dia está fora do período original" : undefined} desabilitado={isTaken}>
+                          <button
                           key={day}
                           onClick={() => toggleDay(day)}
                           disabled={isTaken}
                           aria-pressed={isSel}
                           aria-label={`${formatDay(day)}${isTaken ? ' — já atribuído' : isSel ? ' — selecionado' : ''}`}
-                          title={isTaken ? "Dia já atribuído a outro colaborador desta divisão" : notParent ? "Este dia está fora do período original" : undefined}
+                         
                           className={cn("flex flex-col items-center rounded-xl py-2.5 px-1 transition-all relative", (isTaken ? "cursor-not-allowed" : "cursor-pointer"), (isTaken ? "opacity-50" : "opacity-100"), (isSel && !isTaken ? "shadow-1" : "shadow-none"))}
                           style={{
                             border: `1.5px solid ${cardBorder}`,
@@ -649,7 +651,7 @@ export function SplitVagaModal({
                           {/* Check badge */}
                           {isSel && !isTaken && (
                             <div className={cn("absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center", (wknd ? "bg-warning-strong" : "bg-primary-hover"))}>
-                              <Check className="text-white" style={{ width: 8, height: 8 }} />
+                              <Check className="text-white" style={{ width: 8, height: 8 }} aria-hidden="true" />
                             </div>
                           )}
                           {/* Out-of-parent warning */}
@@ -657,6 +659,7 @@ export function SplitVagaModal({
                             <div className="absolute top-0.5 right-0.5 text-warning-strong text-2xs">⚠</div>
                           )}
                         </button>
+                        </MotivoDesabilitado>
                       );
                     })}
                   </div>
@@ -680,7 +683,7 @@ export function SplitVagaModal({
                   )}
                   {takenDays.length > 0 && (
                     <div className="flex gap-2 items-start mt-2 px-3 py-2 rounded-lg bg-surface-muted border border-border">
-                      <Info className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                      <Info className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" aria-hidden="true" />
                       <p className="text-2xs text-muted-foreground m-0">Dias acinzentados já estão atribuídos a outro colaborador desta divisão.</p>
                     </div>
                   )}
@@ -690,12 +693,12 @@ export function SplitVagaModal({
               {/* Validations */}
               {!selectedCollabId && (
                 <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-danger-soft border border-danger/25 text-xs text-danger">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Selecione um colaborador para continuar.
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" /> Selecione um colaborador para continuar.
                 </div>
               )}
               {selectedCollabId && selectedDays.size === 0 && (
                 <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-danger-soft border border-danger/25 text-xs text-danger">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Selecione pelo menos 1 dia para o novo colaborador.
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" /> Selecione pelo menos 1 dia para o novo colaborador.
                 </div>
               )}
 
@@ -707,7 +710,7 @@ export function SplitVagaModal({
                   disabled={!canGoNext}
                   className={cn("h-9 px-5 rounded-xl text-white font-medium shadow-2 flex items-center gap-1.5", (canGoNext ? "bg-primary-hover" : undefined))}
                 >
-                  Próximo <ChevronRight className="w-3.5 h-3.5" />
+                  Próximo <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
                 </Button>
               </div>
             </div>
@@ -756,7 +759,7 @@ export function SplitVagaModal({
                   {firstDay && (
                     <div className="bg-card rounded-xl border border-border px-4 py-2.5 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                        <Calendar className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
                         <span className="text-xs font-semibold text-slate-600">
                           {firstDay === lastDay ? formatDate(firstDay) : `${formatDate(firstDay)} → ${formatDate(lastDay)}`}
                         </span>
@@ -785,7 +788,7 @@ export function SplitVagaModal({
                     <div className="flex items-center justify-between px-4 py-2.5 bg-brand-soft/60 border-b border-primary/25">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center">
-                          <Calendar className="w-3 h-3 text-white" />
+                          <Calendar className="w-3 h-3 text-white" aria-hidden="true" />
                         </div>
                         <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
                       </div>
@@ -794,7 +797,7 @@ export function SplitVagaModal({
                     <div className="p-4 grid grid-cols-2 gap-3">
                       <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Briefcase className="w-3 h-3 text-primary" />
+                          <Briefcase className="w-3 h-3 text-primary" aria-hidden="true" />
                           <span className="text-2xs font-semibold text-slate-600">Dias Úteis</span>
                           <span className="text-2xs text-muted-foreground ml-auto">{selWeekdays}d</span>
                         </div>
@@ -812,7 +815,7 @@ export function SplitVagaModal({
                       </div>
                       <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Sun className="w-3 h-3 text-warning-strong" />
+                          <Sun className="w-3 h-3 text-warning-strong" aria-hidden="true" />
                           <span className="text-2xs font-semibold text-slate-600">Fim de Semana</span>
                           <span className="text-2xs text-muted-foreground ml-auto">{selWeekends}d</span>
                         </div>
@@ -837,7 +840,7 @@ export function SplitVagaModal({
                     <div className="flex items-center justify-between px-4 py-2.5 bg-brand-soft/60 border-b border-primary/25">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center">
-                          <Car className="w-3 h-3 text-white" />
+                          <Car className="w-3 h-3 text-white" aria-hidden="true" />
                         </div>
                         <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Mobilidade</span>
                       </div>
@@ -867,7 +870,7 @@ export function SplitVagaModal({
                     <div className="flex items-center justify-between px-4 py-2.5 bg-warning-soft/60 border-b border-warning/25">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-md bg-warning-strong flex items-center justify-center">
-                          <Utensils className="w-3 h-3 text-white" />
+                          <Utensils className="w-3 h-3 text-white" aria-hidden="true" />
                         </div>
                         <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
                       </div>
@@ -878,18 +881,18 @@ export function SplitVagaModal({
                         <div />
                         <div className="text-center">
                           <span className="inline-flex items-center gap-1 text-2xs font-bold text-primary bg-brand-soft border border-primary/25 px-2 py-0.5 rounded-full">
-                            <Briefcase className="w-2.5 h-2.5" /> Dias Úteis
+                            <Briefcase className="w-2.5 h-2.5" aria-hidden="true" /> Dias Úteis
                           </span>
                         </div>
                         <div className="text-center">
                           <span className="inline-flex items-center gap-1 text-2xs font-bold text-warning bg-warning-soft border border-warning/25 px-2 py-0.5 rounded-full">
-                            <Sun className="w-2.5 h-2.5" /> Fins de Sem.
+                            <Sun className="w-2.5 h-2.5" aria-hidden="true" /> Fins de Sem.
                           </span>
                         </div>
                       </div>
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
                         <div className="flex items-center gap-1">
-                          <Sun className="w-3 h-3 text-warning-strong" />
+                          <Sun className="w-3 h-3 text-warning-strong" aria-hidden="true" />
                           <span className="text-2xs font-semibold text-slate-600">Almoço</span>
                         </div>
                         <div className="rounded-lg p-2 border border-border bg-surface-muted/50">
@@ -911,7 +914,7 @@ export function SplitVagaModal({
                       </div>
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-3">
                         <div className="flex items-center gap-1">
-                          <Moon className="w-3 h-3 text-primary/70" />
+                          <Moon className="w-3 h-3 text-primary/70" aria-hidden="true" />
                           <span className="text-2xs font-semibold text-slate-600">Jantar</span>
                         </div>
                         <div className="rounded-lg p-2 border border-border bg-surface-muted/50">
@@ -941,7 +944,7 @@ export function SplitVagaModal({
 
                   {remainingForParent.length === 0 && (
                     <div className="flex gap-2 px-3.5 py-3 rounded-xl bg-danger-soft border border-danger/25 items-start">
-                      <AlertTriangle className="w-3.5 h-3.5 text-danger-strong flex-shrink-0 mt-0.5" />
+                      <AlertTriangle className="w-3.5 h-3.5 text-danger-strong flex-shrink-0 mt-0.5" aria-hidden="true" />
                       <p className="text-xs text-danger m-0">
                         O colaborador original ficará <strong>sem dias atribuídos</strong>. Ao confirmar, o registro original ficará zerado.
                       </p>
@@ -973,7 +976,7 @@ export function SplitVagaModal({
                           <div className="text-sm font-bold text-muted-foreground tabular-nums">—</div>
                         ) : (
                           <div className="flex items-center justify-center gap-1">
-                            {s2Difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-success-strong" /> : <TrendingUp className="w-3.5 h-3.5 text-danger-strong" />}
+                            {s2Difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-success-strong" aria-hidden="true" /> : <TrendingUp className="w-3.5 h-3.5 text-danger-strong" aria-hidden="true" />}
                             <span className={`text-sm font-bold tabular-nums ${s2Difference < 0 ? 'text-success' : 'text-danger'}`}>
                               {s2Difference > 0 ? '+' : '−'}{fmtR$(Math.abs(s2Difference))}
                             </span>
@@ -985,15 +988,15 @@ export function SplitVagaModal({
                   {/* Action buttons */}
                   <div className="flex items-center justify-between gap-3">
                     <Button variant="ghost" className="h-9 px-4 text-sm text-muted-foreground hover:text-slate-700 rounded-xl flex items-center gap-2" onClick={() => setStep(1)} disabled={isPending}>
-                      <ArrowLeft className="w-4 h-4" /> Voltar
+                      <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Voltar
                     </Button>
                     <Button
                       onClick={attemptConfirm}
                       disabled={isPending}
                       className="h-9 px-5 text-sm rounded-xl text-white font-medium shadow-2 flex items-center gap-2 bg-primary-hover"
                     >
-                      <CheckCheck className="w-4 h-4" />
-                      {isPending ? 'Confirmando...' : 'Confirmar divisão'}
+                      <CheckCheck className="w-4 h-4" aria-hidden="true" />
+                      {isPending ? 'Confirmando…' : 'Confirmar divisão'}
                     </Button>
                   </div>
                 </div>
@@ -1009,7 +1012,7 @@ export function SplitVagaModal({
           <div id="split-zeroday-portal" role="alertdialog" aria-modal="true" aria-label="Colaborador original sem dias" className="bg-card rounded-xl max-w-[420px] w-full p-7 shadow-3">
             <div className="flex gap-3 items-start mb-5">
               <div className="w-10 h-10 rounded-xl bg-danger-soft flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-danger-strong" />
+                <AlertTriangle className="w-5 h-5 text-danger-strong" aria-hidden="true" />
               </div>
               <div>
                 <p className="font-bold text-base text-foreground m-0 mb-1.5">Colaborador original sem dias</p>

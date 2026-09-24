@@ -62,7 +62,7 @@ function ManagerChip({ manager, canManage, isRemoving, onRemove }: {
         <button type="button" onClick={() => setConfirming(true)}
           aria-label={`Remover ${manager.userName} de ${roleLabel(manager.role)}`}
           className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-current/50 hover:text-danger-strong hover:bg-danger-soft transition-colors">
-          <X className="w-3 h-3" />
+          <X className="w-3 h-3" aria-hidden="true" />
         </button>
       ))}
     </span>
@@ -90,12 +90,12 @@ function AddManagerButton({ func, role, users, onAdd, onMove, isPending }: {
           aria-label={`Adicionar ${roleLabel(role)} a ${func.name}`}
           data-testid={`button-add-${role}-${func.id}`}
           className="w-6 h-6 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0">
-          {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+          {isPending ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[260px] p-0 rounded-xl" align="start">
         <Command filter={(value, search) => normalize(value).includes(normalize(search)) ? 1 : 0}>
-          <CommandInput placeholder="Buscar usuário..." className="h-9 text-sm" />
+          <CommandInput placeholder="Buscar usuário…" className="h-9 text-sm" />
           <CommandList className="max-h-56">
             <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">Nenhum usuário encontrado</CommandEmpty>
             <CommandGroup>
@@ -194,7 +194,7 @@ function BulkApplyBlock({ functions, users, onDone }: {
   return (
     <div className="mx-4 sm:mx-6 mt-4 rounded-xl border border-border bg-muted/30 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <Users className="w-4 h-4 text-primary" />
+        <Users className="w-4 h-4 text-primary" aria-hidden="true" />
         <h4 className="text-sm font-extrabold text-foreground m-0">Aplicar por área</h4>
         <span className="text-2xs text-muted-foreground">— escolha um usuário, o papel e um grupo de funções pelo nome (ex.: "ceno")</span>
       </div>
@@ -206,14 +206,14 @@ function BulkApplyBlock({ functions, users, onDone }: {
             <button type="button" data-testid="bulk-user-trigger"
               className={cn(SOFT_INPUT, "h-9 w-auto min-w-[190px] px-3 text-sm flex items-center justify-between gap-2 bg-card border border-border")}>
               <span className={cn("truncate", !selectedUser && "text-muted-foreground")}>
-                {selectedUser ? (selectedUser.name || selectedUser.email) : "Selecionar usuário..."}
+                {selectedUser ? (selectedUser.name || selectedUser.email) : "Selecionar usuário…"}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-[260px] p-0 rounded-xl" align="start">
             <Command filter={(value, search) => normalize(value).includes(normalize(search)) ? 1 : 0}>
-              <CommandInput placeholder="Buscar usuário..." className="h-9 text-sm" />
+              <CommandInput placeholder="Buscar usuário…" className="h-9 text-sm" />
               <CommandList className="max-h-56">
                 <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">Nenhum usuário encontrado</CommandEmpty>
                 <CommandGroup>
@@ -222,7 +222,7 @@ function BulkApplyBlock({ functions, users, onDone }: {
                       onSelect={() => { setUserId(u.id); setUserOpen(false); }}
                       className="text-sm py-2">
                       <span className="truncate">{u.name || u.email}</span>
-                      {u.id === userId && <Check className="w-3.5 h-3.5 ml-auto text-primary" />}
+                      {u.id === userId && <Check className="w-3.5 h-3.5 ml-auto text-primary" aria-hidden="true" />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -253,7 +253,7 @@ function BulkApplyBlock({ functions, users, onDone }: {
           disabled={!userId || targets.length === 0 || applying}
           data-testid="bulk-apply-button"
           className="h-9 px-4 text-sm font-bold shadow-2 hover:bg-primary-hover">
-          {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+          {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" />}
           Aplicar{targets.length > 0 ? ` (${targets.length})` : ""}
         </Button>
       </div>
@@ -410,16 +410,16 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
       <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-6 py-4 border-b border-border mt-1">
         <div className="relative flex-1 min-w-[200px] max-w-[400px]">
           <Search className="h-[18px] w-[18px] absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
-          <input aria-label="Buscar função pelo nome" placeholder="Buscar função pelo nome..."
+          <input aria-label="Buscar função pelo nome" placeholder="Buscar função pelo nome…"
             value={search} onChange={e => setSearch(e.target.value)}
             className={cn(SOFT_INPUT, "h-10 text-sm pl-10", search ? "pr-9" : "pr-3.5")} />
           {search && (
-            <button onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-muted-foreground hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-muted-foreground hover:text-slate-600 transition-colors"><X className="w-3.5 h-3.5" aria-hidden="true" /></button>
           )}
         </div>
         <div className="flex items-center gap-4 text-2xs text-muted-foreground">
-          <span className="flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" /> Validador: valida a escala da área</span>
-          <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> Aprovador: decide pedidos e aprova vagas</span>
+          <span className="flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" aria-hidden="true" /> Validador: valida a escala da área</span>
+          <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-primary" aria-hidden="true" /> Aprovador: decide pedidos e aprova vagas</span>
         </div>
       </div>
 
@@ -433,7 +433,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
         <div className="px-6 py-14 text-center" role="alert">
           <div className="flex flex-col items-center gap-2.5">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-danger-soft">
-              <AlertTriangle className="w-6 h-6 text-danger-strong" />
+              <AlertTriangle className="w-6 h-6 text-danger-strong" aria-hidden="true" />
             </div>
             <h4 className="text-base font-extrabold text-foreground m-0">Não foi possível carregar as funções</h4>
             <p className="text-sm text-muted-foreground m-0 max-w-[320px] leading-normal">{apiErrorMessage(error, "Verifique sua conexão e tente novamente.")}</p>
@@ -459,7 +459,7 @@ export default function EscalaResponsaveisTab({ canManage }: { canManage: boolea
             <thead>
               <tr className="bg-muted/40 border-b border-border">
                 {["Função", "Validadores", "Aprovadores"].map(h => (
-                  <th key={h} className="px-4 sm:px-6 py-3.5 text-left text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]">{h}</th>
+                  <th scope="col" key={h} className="px-4 sm:px-6 py-3.5 text-left text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]">{h}</th>
                 ))}
               </tr>
             </thead>

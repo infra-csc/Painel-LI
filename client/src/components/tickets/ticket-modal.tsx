@@ -36,6 +36,7 @@ import TicketExtrasTab from "./ticket-extras-tab";
 import SuggestedDates from "./suggested-dates";
 import type { TicketsData, SwapRequestRow } from "./use-tickets-data";
 import type { FormFieldHelpers, TicketFormHandlers } from "./types";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 interface TicketModalProps {
   open: boolean;
@@ -206,7 +207,7 @@ export default function TicketModal({
           {/* HEADER */}
           <div className="px-6 pt-5 pb-4 border-b border-border shrink-0 flex items-center gap-4 pr-14 bg-brand-soft">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 bg-primary shadow-2">
-              <Plane className="h-5 w-5" />
+              <Plane className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-lg font-bold text-foreground leading-tight m-0 p-0">Registro de Passagem</DialogTitle>
@@ -227,7 +228,7 @@ export default function TicketModal({
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full shrink-0 border border-warning/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse" />Pendente
+                <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse motion-reduce:animate-none" />Pendente
               </span>
             )}
           </div>
@@ -278,7 +279,7 @@ export default function TicketModal({
                         dos dados ao mesmo tempo. */}
                     <div className="border border-primary/25 bg-brand-soft/40 rounded-xl overflow-hidden">
                       <div className="bg-brand-soft border-b border-primary/25 px-4 py-2.5 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-primary" />
+                        <FileText className="w-4 h-4 text-primary" aria-hidden="true" />
                         <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">
                           Voucher e anexos
                         </span>
@@ -306,7 +307,7 @@ export default function TicketModal({
                       <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Configuração</div>
                       <div className="flex items-end gap-6 flex-wrap">
                         <div className="flex-1 min-w-[180px]">
-                          <Label className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Modalidade *</Label>
+                          <Label className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Modalidade<RequiredMark /></Label>
                           <Select value={form.transportType || "aereo"} onValueChange={onTransportChange}>
                             <SelectTrigger data-testid={`select-transport-type-${sid}`}><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
@@ -382,7 +383,7 @@ export default function TicketModal({
                       <Label htmlFor={`ticketObservations-${sid}`} className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Observações sobre a Passagem</Label>
                       <Textarea
                         id={`ticketObservations-${sid}`}
-                        placeholder="Informações adicionais sobre a passagem..."
+                        placeholder="Informações adicionais sobre a passagem…"
                         value={form.ticketObservations || ""}
                         onChange={(e) => handlers.onFieldChange(sid, "ticketObservations", e.target.value)}
                         className="h-24 resize-none"
@@ -416,7 +417,7 @@ export default function TicketModal({
                 <Button variant="outline" onClick={onRequestClose} className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium">Fechar</Button>
                 {!roMode && canEditTicket && ticket && (
                   <Button variant="outline" onClick={() => onStartEdit(ticket)} className="flex items-center gap-2 border border-primary/25 text-primary bg-brand-soft hover:bg-brand-soft rounded-xl px-5 py-2 text-sm font-medium">
-                    <Edit className="w-4 h-4" />Editar Passagem
+                    <Edit className="w-4 h-4" aria-hidden="true" />Editar Passagem
                   </Button>
                 )}
               </>
@@ -432,8 +433,8 @@ export default function TicketModal({
                     data-testid={`button-register-ticket-${sid}`}
                   >
                     {isSubmitting
-                      ? (isEditing ? "Atualizando..." : "Registrando...")
-                      : <><CheckCircle className="w-4 h-4" /> {isEditing ? "Atualizar Passagem" : "Registrar Passagem"}</>}
+                      ? (isEditing ? "Atualizando…" : "Registrando…")
+                      : <><CheckCircle className="w-4 h-4" aria-hidden="true" /> {isEditing ? "Atualizar Passagem" : "Registrar Passagem"}</>}
                   </Button>
                 )}
               </>

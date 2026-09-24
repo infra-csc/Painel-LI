@@ -80,7 +80,7 @@ export default function TrocarSenhaObrigatoria() {
         <DialogHeader>
           <div className="flex items-center gap-2">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <KeyRound className="h-4 w-4" />
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
             </span>
             <DialogTitle>Troque sua senha para continuar</DialogTitle>
           </div>
@@ -140,8 +140,8 @@ export default function TrocarSenhaObrigatoria() {
               Sair da conta
             </Button>
             <Button type="submit" disabled={salvando} data-testid="button-salvar-nova-senha">
-              {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {salvando ? "Salvando..." : "Salvar nova senha"}
+              {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {salvando ? "Salvando…" : "Salvar nova senha"}
             </Button>
           </div>
         </form>

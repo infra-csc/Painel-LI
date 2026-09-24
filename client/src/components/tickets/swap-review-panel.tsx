@@ -8,6 +8,7 @@ import type { SwapRequestRow } from "./use-tickets-data";
 import { normalizeSwap } from "@/components/scaling/scaling-utils";
 import { ExplicacaoDaTroca } from "@/components/scaling/swap-explicacao";
 import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 interface SwapReviewPanelProps {
   swap: SwapRequestRow;
@@ -49,7 +50,7 @@ export default function SwapReviewPanel({
         <div className="flex items-start justify-between px-5 py-3 bg-surface-muted border-b border-border">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />
+              <ArrowLeftRight className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
               <span className="text-sm font-bold text-slate-700">Solicitação de troca de colaborador</span>
             </div>
             <p className="text-2xs text-muted-foreground pl-6">
@@ -64,7 +65,7 @@ export default function SwapReviewPanel({
               <p className="text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em] mb-1.5">Colaborador atual</p>
               <p className="text-sm font-semibold text-slate-700 leading-snug">{currentCollabName}</p>
             </div>
-            <div className="flex items-center justify-center shrink-0 px-1"><ArrowRight className="w-5 h-5 text-muted-foreground" /></div>
+            <div className="flex items-center justify-center shrink-0 px-1"><ArrowRight className="w-5 h-5 text-muted-foreground" aria-hidden="true" /></div>
             <div className="flex-1 bg-brand-soft border border-primary/25 rounded-xl px-4 py-3 min-w-0">
               <p className="text-2xs font-bold text-primary/70 uppercase tracking-[0.08em] mb-1.5">Colaborador solicitado</p>
               <p className="text-sm font-semibold text-primary leading-snug">{requestedCollabName}</p>
@@ -79,7 +80,7 @@ export default function SwapReviewPanel({
           <div className="flex items-center gap-4 flex-wrap">
             {hasTicketPurchased && (
               <div className="flex items-center gap-2 flex-1 min-w-0 bg-warning-soft border border-warning/25 rounded-lg px-3 py-2">
-                <AlertCircle className="w-3.5 h-3.5 text-warning-strong shrink-0" />
+                <AlertCircle className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />
                 <p className="text-2xs text-warning leading-snug">Esta escala possui passagem comprada. Revise os impactos antes de aprovar a troca.</p>
               </div>
             )}
@@ -91,14 +92,14 @@ export default function SwapReviewPanel({
                     disabled={isPending}
                     className="flex items-center gap-1.5 bg-success hover:bg-success/90 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
                   >
-                    <CheckCheck className="w-3.5 h-3.5" />Aprovar troca
+                    <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />Aprovar troca
                   </button>
                   <button
                     onClick={() => { setConfirmAction("reject"); setRejectReason(""); }}
                     disabled={isPending}
                     className="flex items-center gap-1.5 bg-danger hover:bg-danger/90 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
                   >
-                    <XCircle className="w-3.5 h-3.5" />Rejeitar troca
+                    <XCircle className="w-3.5 h-3.5" aria-hidden="true" />Rejeitar troca
                   </button>
                 </div>
               </div>
@@ -137,13 +138,13 @@ export default function SwapReviewPanel({
             </DialogHeader>
             <p className="text-sm text-slate-600">{explicarTroca(trocaExplicada).recusa}</p>
             <div>
-              <label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Motivo da rejeição <span className="text-danger-strong">*</span></label>
+              <label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Motivo da rejeição<RequiredMark /></label>
               <textarea
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
                 className="mt-1.5 w-full border border-border rounded-xl p-2.5 text-sm text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
                 rows={3}
-                placeholder="Descreva o motivo da rejeição..."
+                placeholder="Descreva o motivo da rejeição…"
               />
             </div>
             <div className="flex gap-2 justify-end">

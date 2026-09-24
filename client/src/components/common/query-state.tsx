@@ -11,7 +11,7 @@
  * Uso típico:
  *   <QueryState queries={[qEventos, qFuncoes]} isEmpty={itens.length === 0}
  *               empty={<EmptyState title="Nenhum item" />}>
- *     {...conteúdo...}
+ *     {...conteúdo…}
  *   </QueryState>
  *
  * `useQueriesState` serve quando a tela precisa só das flags (ex.: manter o

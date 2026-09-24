@@ -28,6 +28,7 @@ import { usePageTitle } from "@/components/common/use-page-title";
 import {
   ACOES, MODULOS, descreverLog, type LogDescrito, type NomesParaLog, type TomDaAcao,
 } from "@shared/log-auditoria";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 /** Classes compartilhadas dos selects de filtro (tokens de marca). */
 const SELECT_TRIGGER_CLASS = "w-48 h-9 text-sm border border-input rounded-lg bg-card text-foreground hover:border-primary/40 transition-colors focus:ring-2 focus:ring-ring/25";
@@ -144,9 +145,9 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
               <table className="w-full text-xs">
                 <thead className="bg-surface-muted text-2xs text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-1.5 text-left font-semibold">O que mudou</th>
-                    <th className="px-3 py-1.5 text-left font-semibold">Antes</th>
-                    <th className="px-3 py-1.5 text-left font-semibold">Depois</th>
+                    <th scope="col" className="px-3 py-1.5 text-left font-semibold">O que mudou</th>
+                    <th scope="col" className="px-3 py-1.5 text-left font-semibold">Antes</th>
+                    <th scope="col" className="px-3 py-1.5 text-left font-semibold">Depois</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -316,7 +317,7 @@ export default function SystemLogsPage() {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-danger-soft">
-          <ShieldAlert className="h-8 w-8 text-danger-strong" />
+          <ShieldAlert className="h-8 w-8 text-danger-strong" aria-hidden="true" />
         </div>
         <h2 className="text-xl font-semibold text-foreground">Acesso restrito</h2>
         <p className="max-w-xs text-muted-foreground">Apenas administradores podem acessar o log de auditoria.</p>
@@ -337,10 +338,12 @@ export default function SystemLogsPage() {
             <div className="rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">
               {logsResponse.pagination.total.toLocaleString("pt-BR")} registros
             </div>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={descritos.length === 0}
-              title="Exporta os registros desta página, já em frases" onClick={exportar}>
-              <Download className="h-3.5 w-3.5" /> Exportar página
+            <MotivoDesabilitado motivo="Exporta os registros desta página, já em frases" desabilitado={descritos.length === 0}>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={descritos.length === 0}
+              onClick={exportar}>
+              <Download className="h-3.5 w-3.5" aria-hidden="true" /> Exportar página
             </Button>
+            </MotivoDesabilitado>
           </>
         )}
       />
@@ -349,7 +352,7 @@ export default function SystemLogsPage() {
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap gap-3">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               placeholder="Buscar por pessoa, evento, nº da vaga, LOC…"
               value={search}
@@ -358,7 +361,7 @@ export default function SystemLogsPage() {
             />
             {search && (
               <button type="button" aria-label="Limpar busca" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -396,7 +399,7 @@ export default function SystemLogsPage() {
 
           {hasActiveFilters && (
             <Button variant="ghost" onClick={clearFilters} className="gap-1.5 text-muted-foreground hover:text-slate-700">
-              <X className="h-4 w-4" /> Limpar
+              <X className="h-4 w-4" aria-hidden="true" /> Limpar
             </Button>
           )}
         </div>
@@ -408,32 +411,32 @@ export default function SystemLogsPage() {
           <span className="text-2xs font-medium text-muted-foreground">Filtros ativos:</span>
           {debouncedSearch && (
             <span className={cn(pill, "border-primary/25 bg-brand-soft text-primary")}>
-              <Search className="h-2.5 w-2.5" /> "{debouncedSearch}"
-              <button type="button" aria-label="Remover filtro de busca" onClick={clearSearch} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
+              <Search className="h-2.5 w-2.5" aria-hidden="true" /> "{debouncedSearch}"
+              <button type="button" aria-label="Remover filtro de busca" onClick={clearSearch} className="ml-0.5"><X className="h-2.5 w-2.5" aria-hidden="true" /></button>
             </span>
           )}
           {filters.userId !== "all" && (
             <span className={cn(pill, "border-primary/25 bg-brand-soft text-primary")}>
-              <User className="h-2.5 w-2.5" /> {usuariosOrdenados.find((u) => u.id === filters.userId)?.name ?? "Pessoa"}
-              <button type="button" aria-label="Remover filtro de pessoa" onClick={() => setFiltro("userId", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
+              <User className="h-2.5 w-2.5" aria-hidden="true" /> {usuariosOrdenados.find((u) => u.id === filters.userId)?.name ?? "Pessoa"}
+              <button type="button" aria-label="Remover filtro de pessoa" onClick={() => setFiltro("userId", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" aria-hidden="true" /></button>
             </span>
           )}
           {filters.entityType !== "all" && (
             <span className={cn(pill, "border-primary/20 bg-brand-soft text-primary")}>
               {MODULOS[filters.entityType]?.rotulo ?? filters.entityType}
-              <button type="button" aria-label="Remover filtro de módulo" onClick={() => setFiltro("entityType", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de módulo" onClick={() => setFiltro("entityType", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" aria-hidden="true" /></button>
             </span>
           )}
           {filters.action !== "all" && (
             <span className={cn(pill, "border-primary/25 bg-brand-soft text-primary")}>
               {ACOES[filters.action]?.rotulo ?? filters.action}
-              <button type="button" aria-label="Remover filtro de ação" onClick={() => setFiltro("action", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de ação" onClick={() => setFiltro("action", "all")} className="ml-0.5"><X className="h-2.5 w-2.5" aria-hidden="true" /></button>
             </span>
           )}
           {filters.days !== "30" && (
             <span className={cn(pill, "border-warning/25 bg-warning-soft text-warning")}>
               {PERIODOS.find(([v]) => v === filters.days)?.[1]}
-              <button type="button" aria-label="Remover filtro de período" onClick={() => setFiltro("days", "30")} className="ml-0.5"><X className="h-2.5 w-2.5" /></button>
+              <button type="button" aria-label="Remover filtro de período" onClick={() => setFiltro("days", "30")} className="ml-0.5"><X className="h-2.5 w-2.5" aria-hidden="true" /></button>
             </span>
           )}
         </div>
@@ -444,7 +447,7 @@ export default function SystemLogsPage() {
         <LoadingState count={8} label="Carregando registros…" />
       ) : isError ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-danger/25 bg-card px-6 py-16 text-center">
-          <ShieldAlert className="h-10 w-10 text-danger-strong" />
+          <ShieldAlert className="h-10 w-10 text-danger-strong" aria-hidden="true" />
           <p className="font-medium text-slate-700">
             {(error as any)?.status === 401
               ? "Sua sessão expirou. Entre novamente para consultar o log."
@@ -456,7 +459,7 @@ export default function SystemLogsPage() {
             {(error as any)?.body?.message || "Verifique sua conexão e tente novamente. Isto não significa que não existam registros."}
           </p>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            {isFetching ? "Tentando..." : "Tentar novamente"}
+            {isFetching ? "Tentando…" : "Tentar novamente"}
           </Button>
         </div>
       ) : descritos.length === 0 ? (

@@ -70,7 +70,7 @@ export default function FunctionMultiSelect({
               </span>
             )}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-2" />
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-2" aria-hidden="true" />
         </button>
       </PopoverTrigger>
 
@@ -81,27 +81,28 @@ export default function FunctionMultiSelect({
         style={{ width: "var(--radix-popover-trigger-width, 220px)" }}
       >
         <div className="flex items-center gap-2 bg-surface-muted border-b border-border px-3 py-2.5">
-          <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
           <input
             autoFocus
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar função..."
-            className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground text-slate-700"
+            placeholder="Buscar função…"
+            className="w-full text-sm bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground text-slate-700"
           />
           {selectedIds.length > 0 && (
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); clearAll(); }}
-              className="text-muted-foreground hover:text-danger-strong flex-shrink-0 transition-colors"
-              title="Limpar seleção"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-danger-strong flex-shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Limpar seleção"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
         </div>
 
-        <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent" role="listbox" aria-multiselectable="true" aria-label="Funções">
           {filtered.length === 0 ? (
             <div className="px-4 py-4 text-sm text-muted-foreground text-center">
               Nenhuma função encontrada.
@@ -110,9 +111,12 @@ export default function FunctionMultiSelect({
             filtered.map((func) => {
               const isSelected = selectedIds.includes(func.id);
               return (
-                <div
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   key={func.id}
-                  className={`flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors whitespace-normal border-b border-border last:border-0 ${
+                  className={`w-full text-left flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer transition-colors whitespace-normal border-b border-border last:border-0 focus-visible:outline-none focus-visible:bg-brand-soft ${
                     isSelected
                       ? "bg-brand-soft text-primary font-medium"
                       : "text-slate-700 hover:bg-brand-soft hover:text-primary-hover"
@@ -127,13 +131,13 @@ export default function FunctionMultiSelect({
                     }`}
                   >
                     {isSelected && (
-                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                         <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </div>
                   {func.name}
-                </div>
+                </button>
               );
             })
           )}

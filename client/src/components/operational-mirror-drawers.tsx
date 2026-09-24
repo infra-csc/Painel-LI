@@ -270,7 +270,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                     <div key={f.field} className={f.span === 2 ? "col-span-2" : "col-span-1"}>
                       <Label htmlFor={inputId} className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
                         {f.label}
-                        {mudou && <span className="h-1.5 w-1.5 rounded-full bg-primary" title="Campo alterado" aria-label="Campo alterado" />}
+                        {mudou && <><span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" /><span className="sr-only">Campo alterado</span></>}
                       </Label>
                       {f.type === "bool" ? (
                         <div className="flex items-center gap-2 mt-2 h-9">

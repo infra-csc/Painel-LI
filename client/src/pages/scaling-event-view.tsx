@@ -294,7 +294,7 @@ const CHIP = "inline-flex items-center h-[22px] rounded-full px-2 text-2xs font-
 const SCROLL_X = "overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
 export default function ScalingEventViewPage() {
-  usePageTitle("Histórico da Escala");
+  usePageTitle("Histórico da escala");
   const { user } = useAuth();
   const { toast } = useToast();
   // Acesso à rota já é garantido pelo ProtectedRoute (App.tsx) — sem guard duplicado aqui.
@@ -885,7 +885,7 @@ export default function ScalingEventViewPage() {
     <PageContainer fluid className="space-y-4">
       <PageHeader
         icon={History}
-        title="Histórico da Escala"
+        title="Histórico da escala"
         subtitle="Cada envio, validação, pedido e decisão — e onde cada vaga está agora."
         actions={
           <>
@@ -919,11 +919,11 @@ export default function ScalingEventViewPage() {
       <section aria-label="Evento" className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
-            <CalendarDays className="w-4 h-4" />
+            <CalendarDays className="w-4 h-4" aria-hidden="true" />
           </span>
           <div ref={eventPickerRef} className="w-[280px] max-w-full shrink-0">
             {loadingEvents ? (
-              <div className="h-8 rounded-lg bg-muted animate-pulse" aria-hidden="true" />
+              <div className="h-8 rounded-lg bg-muted animate-pulse motion-reduce:animate-none" aria-hidden="true" />
             ) : (
               <EventCombobox
                 events={activeEvents} value={eventId || ALL} showAllOption
@@ -1243,13 +1243,13 @@ export default function ScalingEventViewPage() {
                       <caption className="sr-only">{eventId ? "Vagas do evento na Validação de Escala" : "Vagas dos eventos do recorte na Validação de Escala"}</caption>
                       <thead className="bg-surface-muted border-b border-border">
                         <tr>
-                          <th className="w-9 border-b border-border px-0"><span className="sr-only">Origem</span></th>
-                          <th className={TH}>Vaga</th>
-                          {!eventId && <th className={cn(TH, "min-w-[170px]")}>Evento</th>}
-                          <th className={TH}>Período / diárias</th>
-                          <th className={TH}>Logística</th>
-                          <th className={cn(TH, "min-w-[230px]")}>Origem / status</th>
-                          <th className={cn(TH, "min-w-[200px]")}>Último movimento</th>
+                          <th scope="col" className="w-9 border-b border-border px-0"><span className="sr-only">Origem</span></th>
+                          <th scope="col" className={TH}>Vaga</th>
+                          {!eventId && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
+                          <th scope="col" className={TH}>Período / diárias</th>
+                          <th scope="col" className={TH}>Logística</th>
+                          <th scope="col" className={cn(TH, "min-w-[230px]")}>Origem / status</th>
+                          <th scope="col" className={cn(TH, "min-w-[200px]")}>Último movimento</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1501,12 +1501,12 @@ export default function ScalingEventViewPage() {
                           <caption className="sr-only">{eventId ? "Histórico de pedidos do evento" : "Histórico de pedidos dos eventos do recorte"}</caption>
                           <thead className="bg-surface-muted border-b border-border">
                             <tr>
-                              <th className={TH}>Tipo</th>
-                              <th className={cn(TH, "min-w-[240px]")}>Função / vaga</th>
-                              <th className={TH}>Aberto em</th>
-                              <th className={TH}>Status</th>
-                              <th className={cn(TH, "min-w-[300px]")}>Decisão / comentário</th>
-                              {canOpenApproval && <th className={cn(TH, "text-right")}><span className="sr-only">Ações</span></th>}
+                              <th scope="col" className={TH}>Tipo</th>
+                              <th scope="col" className={cn(TH, "min-w-[240px]")}>Função / vaga</th>
+                              <th scope="col" className={TH}>Aberto em</th>
+                              <th scope="col" className={TH}>Status</th>
+                              <th scope="col" className={cn(TH, "min-w-[300px]")}>Decisão / comentário</th>
+                              {canOpenApproval && <th scope="col" className={cn(TH, "text-right")}><span className="sr-only">Ações</span></th>}
                             </tr>
                           </thead>
                           <tbody>

@@ -52,6 +52,7 @@ import {
   Table2, Building2, Rows3, AlignJustify, Filter, Eraser, UserRound, ChevronUp, ChevronsUpDown,
   Lock, ExternalLink, Landmark, Info, FilterX, ArrowLeftRight,
 } from "lucide-react";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 const brl = formatarMoeda;
 function fmtDate(d: string | null | undefined): string {
@@ -123,7 +124,7 @@ function PendencyBadge({ p, withLink = true }: { p: string; withLink?: boolean }
       {link && (
         <Link href={link.href} title={link.label} aria-label={link.label}
           className="inline-flex items-center gap-0.5 text-2xs text-primary hover:underline whitespace-nowrap">
-          <ExternalLink className="h-2.5 w-2.5" /> {link.label}
+          <ExternalLink className="h-2.5 w-2.5" aria-hidden="true" /> {link.label}
         </Link>
       )}
     </span>
@@ -239,7 +240,7 @@ function EditableCell({
     // calculado seja lido como decisão tomada.
     if (estado === "a_confirmar") return <span className="text-primary">a confirmar</span>;
     if (estado === "nao_usa") return <span className="text-muted-foreground">não usa</span>;
-    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-success mx-auto" /> : <span className="text-muted-foreground">·</span>;
+    if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-success mx-auto" aria-hidden="true" /> : <span className="text-muted-foreground">·</span>;
     if (value === null || value === undefined || value === "") {
       // "falta preencher" e "não se aplica" tinham o mesmo travessão cinza: a
       // grade não respondia o que ainda precisa ser comprado.
@@ -383,7 +384,7 @@ function EditableCell({
           data-cell-focus tabIndex={-1} onKeyDown={teclasNaCelula}
           role="switch" aria-checked={!!value} aria-label={rotuloCampo(field)}
           className={`w-full h-full ${pad} hover:bg-muted/50 transition-colors flex items-center justify-center disabled:cursor-wait`}>
-          {state === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : display()}
+          {state === "saving" ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : display()}
         </button>
       </td>
     );
@@ -426,14 +427,14 @@ function EditableCell({
         onKeyDown={teclasNaCelula} data-cell-focus tabIndex={-1}
         title={estado === "a_confirmar" && aoConfirmar ? "Sugestão ainda não confirmada — abrir para confirmar" : `Editar ${rotuloCampo(field)}`}
         className={`w-full h-full ${pad} ${onEdit ? "pr-6" : ""} text-xs hover:bg-muted/50 transition-colors whitespace-nowrap ${align !== "left" ? "tabular-nums" : ""} flex items-center gap-1 ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}>
-        {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
-        {state === "saved" && <Check className="h-3 w-3 text-success shrink-0" />}
+        {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" aria-hidden="true" />}
+        {state === "saved" && <Check className="h-3 w-3 text-success shrink-0" aria-hidden="true" />}
         <span className="truncate max-w-[180px]">{display()}</span>
       </button>
       {onEdit && (
         <button type="button" onClick={onEdit} title="Editar em detalhe" aria-label="Editar em detalhe"
-          className="opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded bg-background border shadow-1 hover:bg-muted">
-          <Pencil className="h-3 w-3" />
+          className="opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded bg-background border shadow-1 hover:bg-muted">
+          <Pencil className="h-3 w-3" aria-hidden="true" />
         </button>
       )}
     </td>
@@ -463,7 +464,7 @@ const PONTO_ETAPA = {
 /** Cabeçalho de grupo: fundo neutro, ponto colorido, rótulo legível. */
 function GrupoHead({ ponto, children, ...resto }: { ponto: string; children: React.ReactNode } & React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th {...resto} className="sticky top-0 z-30 h-8 border-b border-r-2 border-r-slate-300 border-border bg-muted px-2 py-0 text-center align-middle leading-none">
+    <th scope="col" {...resto} className="sticky top-0 z-30 h-8 border-b border-r-2 border-r-slate-300 border-border bg-muted px-2 py-0 text-center align-middle leading-none">
       <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-slate-700">
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ponto}`} aria-hidden="true" />
         {children}
@@ -530,7 +531,7 @@ function isNarrowViewport(): boolean {
 }
 
 export default function OperationalMirror() {
-  usePageTitle("Espelho Operacional");
+  usePageTitle("Espelho operacional");
   // O provedor precisa envolver a tela para que qualquer parte dela avise.
   return (
     <ProvedorDeAvisos>
@@ -933,7 +934,7 @@ function EspelhoOperacional() {
             de evento e os dados do evento entram como `context`, as ações à direita. */}
         <PageHeader
           variant="bar"
-          title="Espelho Operacional"
+          title="Espelho operacional"
           className="text-sm bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80"
           context={<>
             <SeletorDeEvento
@@ -1042,11 +1043,11 @@ function EspelhoOperacional() {
 
         {eventId && isLoading && (
           <div className="space-y-4" data-testid="mirror-loading" aria-busy="true" aria-live="polite">
-            <div className="h-[76px] rounded-xl border bg-muted/30 animate-pulse" />
-            <div className="h-9 w-full max-w-md rounded-lg bg-muted/40 animate-pulse" />
+            <div className="h-[76px] rounded-xl border bg-muted/30 animate-pulse motion-reduce:animate-none" />
+            <div className="h-9 w-full max-w-md rounded-lg bg-muted/40 animate-pulse motion-reduce:animate-none" />
             <div className="rounded-lg border overflow-hidden">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-12 border-b last:border-0 bg-muted/20 animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+                <div key={i} className="h-12 border-b last:border-0 bg-muted/20 animate-pulse motion-reduce:animate-none" style={{ animationDelay: `${i * 60}ms` }} />
               ))}
             </div>
             <span className="sr-only">Carregando o espelho operacional…</span>
@@ -1097,13 +1098,15 @@ function EspelhoOperacional() {
                     const count = resumo.porChip[c.key];
                     const active = chip === c.key;
                     return (
-                      <button key={c.key} type="button" onClick={() => setChip(active ? null : c.key)} data-testid={`chip-${c.key}`}
+                      <MotivoDesabilitado motivo={count === 0 ? `Ninguém em "${c.label}"` : `${c.label}: ${count} ${count === 1 ? "pessoa" : "pessoas"}. Clique para filtrar.`} desabilitado={count === 0 && !active}>
+                        <button key={c.key} type="button" onClick={() => setChip(active ? null : c.key)} data-testid={`chip-${c.key}`}
                         aria-pressed={active} disabled={count === 0 && !active}
-                        title={count === 0 ? `Ninguém em "${c.label}"` : `${c.label}: ${count} ${count === 1 ? "pessoa" : "pessoas"}. Clique para filtrar.`}
+                       
                         className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1", active ? "bg-warning border-warning text-primary-foreground" : "bg-transparent border-warning-strong text-warning")}>
                         {c.label}
                         <span className="tabular-nums opacity-80">{count}</span>
                       </button>
+                      </MotivoDesabilitado>
                     );
                   })}
                   {chip && (
@@ -1128,19 +1131,20 @@ function EspelhoOperacional() {
                 const pct = obrigatorio ? (rb.emUso ? Math.round((rb.prontas / rb.emUso) * 100) : 100) : 100;
                 const ponto = PONTO_ETAPA[b === "passagem" ? "ticket" : b === "hospedagem" ? "hotel" : b === "bagagem" ? "baggage" : b === "uber" ? "uber" : "car"];
                 return (
-                  <button
-                    key={b}
-                    type="button"
-                    aria-pressed={ativo}
-                    onClick={() => setBlocoFiltro(ativo ? null : b)}
-                    disabled={rb.emUso === 0 && !ativo}
-                    title={ativo
+                  <MotivoDesabilitado motivo={ativo
                       ? `Mostrando só ${obrigatorio ? "quem falta em" : "quem lançou"} ${ROTULO_DO_BLOCO[b].toLowerCase()}. Clique para ver todos.`
                       : rb.emUso === 0
                         ? `Ninguém usa ${ROTULO_DO_BLOCO[b].toLowerCase()} neste evento.`
                         : obrigatorio
                           ? `${rb.prontas} de ${rb.emUso} pessoas que usam ${ROTULO_DO_BLOCO[b].toLowerCase()} estão prontas. Clique para filtrar.`
-                          : `${rb.emUso} ${rb.emUso === 1 ? "pessoa" : "pessoas"} com ${ROTULO_DO_BLOCO[b].toLowerCase()} lançada. Bloco eventual. Clique para filtrar.`}
+                          : `${rb.emUso} ${rb.emUso === 1 ? "pessoa" : "pessoas"} com ${ROTULO_DO_BLOCO[b].toLowerCase()} lançada. Bloco eventual. Clique para filtrar.`} desabilitado={rb.emUso === 0 && !ativo}>
+                    <button
+                    key={b}
+                    type="button"
+                    aria-pressed={ativo}
+                    onClick={() => setBlocoFiltro(ativo ? null : b)}
+                    disabled={rb.emUso === 0 && !ativo}
+                   
                     className={`rounded-xl border bg-card px-4 py-3.5 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ativo ? "border-primary bg-brand-soft" : "border-border hover:bg-muted/30"}`}
                     data-testid={`placar-${b}`}
                   >
@@ -1160,6 +1164,7 @@ function EspelhoOperacional() {
                       {obrigatorio ? (rb.faltam ? `${rb.faltam} ${rb.faltam === 1 ? "pessoa" : "pessoas"} a completar` : "bloco fechado") : ""}
                     </span>
                   </button>
+                  </MotivoDesabilitado>
                 );
               })}
               <div className="rounded-xl px-4 py-3.5 bg-foreground" data-testid="placar-custo">
@@ -1204,7 +1209,7 @@ function EspelhoOperacional() {
                   {searchText && (
                     <button type="button" onClick={() => setSearchText("")} aria-label="Limpar busca"
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -1333,7 +1338,7 @@ function EspelhoOperacional() {
 
             {!canEditMirror && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5" data-testid="mirror-readonly-hint">
-                <Lock className="h-3 w-3" /> Você está consultando o espelho em modo somente leitura — alterações e recálculo de sugestões são feitos por Admin, Compras ou Produção.
+                <Lock className="h-3 w-3" aria-hidden="true" /> Você está consultando o espelho em modo somente leitura — alterações e recálculo de sugestões são feitos por Admin, Compras ou Produção.
               </p>
             )}
 
@@ -1502,7 +1507,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
   // Lápis "editar em detalhe" só para quem pode abrir o drawer
   const edit = (kind: DrawerKind, r: MirrorRow) => canEdit ? () => openDrawer(kind, r) : undefined;
   const headPad = compact ? "px-2 py-1" : "px-2 py-1.5";
-  const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" />;
+  const sortIcon = (key: string) => sort?.key === key ? (sort.dir === "asc" ? <ChevronUp className="h-3 w-3" aria-hidden="true" /> : <ChevronDown className="h-3 w-3" aria-hidden="true" />) : <ChevronsUpDown className="h-3 w-3 opacity-40" aria-hidden="true" />;
   return (
     <>
       {/* "Ir para": 39 colunas não cabem na tela, e rolar às cegas até achar
@@ -1526,9 +1531,10 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
         <div>
           <div ref={rolagemRef} className="overflow-auto max-h-[calc(100vh-250px)] min-h-[280px]">
             <table ref={tabelaRef} className="text-xs border-collapse w-full" data-testid="operational-grid">
+              <caption className="sr-only">Espelho operacional: colaboradores do evento com função, dias, transporte e hospedagem</caption>
               <thead>
                 <tr>
-                  <th colSpan={2} className="sticky left-0 top-0 z-40 h-8 py-0 leading-none bg-muted px-2 text-left font-semibold border-r border-b border-border">Colaborador</th>
+                  <th scope="col" colSpan={2} className="sticky left-0 top-0 z-40 h-8 py-0 leading-none bg-muted px-2 text-left font-semibold border-r border-b border-border">Colaborador</th>
                   <GrupoHead colSpan={4} ponto={PONTO_ETAPA.schedule}>Período</GrupoHead>
                   {show("passagem") && <GrupoHead data-bloco="passagem" colSpan={9} ponto={PONTO_ETAPA.ticket}><Progresso rotulo="Passagem" feito={feito.feito.passagem} total={feito.base.passagem} /></GrupoHead>}
                   {show("hospedagem") && <GrupoHead data-bloco="hospedagem" colSpan={12} ponto={PONTO_ETAPA.hotel}><Progresso rotulo="Hospedagem" feito={feito.feito.hospedagem} total={feito.base.hospedagem} /></GrupoHead>}
@@ -1538,10 +1544,10 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
                   {show("pendencias") && <GrupoHead data-bloco="pendencias" colSpan={2} ponto={PONTO_ETAPA.pend}>Situação</GrupoHead>}
                 </tr>
                 <tr className="bg-muted/70">
-                  <th className={`sticky left-0 top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[210px]`}>
+                  <th scope="col" className={`sticky left-0 top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[210px]`}>
                     <button type="button" onClick={() => onSort("nome")} aria-label="Ordenar por nome" className="flex items-center gap-1 hover:text-foreground">Nome {sortIcon("nome")}</button>
                   </th>
-                  <th className={`sticky left-[210px] top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[120px]`}>
+                  <th scope="col" className={`sticky left-[210px] top-8 z-40 bg-muted ${headPad} text-left font-medium border-r border-b border-border min-w-[120px]`}>
                     <button type="button" onClick={() => onSort("departamento")} aria-label="Ordenar por departamento" className="flex items-center gap-1 hover:text-foreground">Departamento {sortIcon("departamento")}</button>
                   </th>
                   {["Início", "Data Ida", "Término", "Data Volta"].map((h) => <ColHead key={h} pad={headPad}>{h}</ColHead>)}
@@ -1648,7 +1654,7 @@ function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, on
               {rows.length > 0 && (
                 <tfoot className="sticky bottom-0 z-20">
                   <tr className="bg-muted/95 backdrop-blur-sm">
-                    <th colSpan={2} className="sticky left-0 z-30 bg-muted px-2 py-1.5 text-left text-2xs font-bold uppercase tracking-wider text-muted-foreground border-r border-t border-border">
+                    <th scope="col" colSpan={2} className="sticky left-0 z-30 bg-muted px-2 py-1.5 text-left text-2xs font-bold uppercase tracking-wider text-muted-foreground border-r border-t border-border">
                       Total do evento
                     </th>
                     <TotalVazio n={4} />
@@ -1732,7 +1738,7 @@ function Progresso({ rotulo, feito, total }: { rotulo: string; feito: number; to
 }
 
 function ColHead({ children, pad }: { children: React.ReactNode; pad: string }) {
-  return <th className={`${pad} text-left font-medium border-r border-b border-border whitespace-nowrap text-muted-foreground sticky top-8 z-30 bg-muted`}>{children}</th>;
+  return <th scope="col" className={`${pad} text-left font-medium border-r border-b border-border whitespace-nowrap text-muted-foreground sticky top-8 z-30 bg-muted`}>{children}</th>;
 }
 
 // ============ COLABORADORES VIEW ============
@@ -1952,8 +1958,8 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
             <Collapsible open={isOpen} onOpenChange={(o) => setCollapsed((s) => { const n = new Set(s); if (o) n.delete(name); else n.add(name); return n; })}>
               <div className="flex items-center gap-3 px-4 py-3">
                 <CollapsibleTrigger className="flex items-center gap-2 min-w-0 text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-                  <Building2 className="h-4 w-4 text-primary shrink-0" />
+                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                  <Building2 className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
                   <span className="text-sm font-bold capitalize truncate">{name}</span>
                 </CollapsibleTrigger>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -1983,18 +1989,18 @@ function DepartamentosView({ rows, totals, collapsed, setCollapsed, openDrawer, 
                         {r.collaborator.fullName}
                       </div>
                       <span className="text-xs text-muted-foreground">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</span>
-                      <span className="flex items-center gap-1 text-xs"><Plane className="h-3 w-3 text-primary" /> {brl(r.ticket?.value)}</span>
+                      <span className="flex items-center gap-1 text-xs"><Plane className="h-3 w-3 text-primary" aria-hidden="true" /> {brl(r.ticket?.value)}</span>
                       <span className={`flex items-center gap-1 text-xs ${isHotelTotalDerived(r) ? "italic" : ""}`} title={isHotelTotalDerived(r) ? "Valor derivado: diária × diárias" : undefined}>
-                        <BedDouble className="h-3 w-3 text-success-strong" /> {brl(hotelTotalCents(r))}
+                        <BedDouble className="h-3 w-3 text-success-strong" aria-hidden="true" /> {brl(hotelTotalCents(r))}
                       </span>
-                      <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-warning-strong" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
+                      <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-warning-strong" aria-hidden="true" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
                       {(() => { const n = pendenciaDe(r).abertos.length; return n > 0
                         ? <span className="ml-auto inline-flex h-[22px] items-center rounded-md px-[7px] text-2xs font-medium bg-warning-soft text-warning">{textoDaSituacao(n)}</span>
                         : null; })()}
                       {canEdit && <>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" /> Passagem</Button>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("accommodation", r)}><Pencil className="h-3 w-3 mr-1" /> Hotel</Button>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("extras", r)}><Pencil className="h-3 w-3 mr-1" /> Extras</Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" aria-hidden="true" /> Passagem</Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("accommodation", r)}><Pencil className="h-3 w-3 mr-1" aria-hidden="true" /> Hotel</Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("extras", r)}><Pencil className="h-3 w-3 mr-1" aria-hidden="true" /> Extras</Button>
                       </>}
                     </div>
                   ))}
@@ -2228,15 +2234,15 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
         <table className="w-full text-xs">
           <thead className="bg-muted/60 border-b">
             <tr className="text-left">
-              <th className="px-3 py-2 font-semibold">Nome</th>
-              <th className="px-3 py-2 font-semibold">Departamento</th>
-              <th className="px-3 py-2 font-semibold">Início</th>
-              <th className="px-3 py-2 font-semibold">Data ida</th>
-              <th className="px-3 py-2 font-semibold">Término</th>
-              <th className="px-3 py-2 font-semibold">Data volta</th>
-              <th className="px-3 py-2 font-semibold">Hotel</th>
-              <th className="px-3 py-2 font-semibold">Quarto</th>
-              <th className="px-3 py-2 font-semibold text-right">Situação</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Nome</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Departamento</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Início</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Data ida</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Término</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Data volta</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Hotel</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Quarto</th>
+              <th scope="col" className="px-3 py-2 font-semibold text-right">Situação</th>
             </tr>
           </thead>
           <tbody>
@@ -2323,7 +2329,7 @@ function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, on
                           ) : <Badge className="bg-success hover:bg-success/90">Confirmado</Badge>
                         ) : canEdit ? (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-room-${g.id}`}>
-                            {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+                            {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" aria-hidden="true" /> : <CheckCheck className="h-3 w-3 mr-1" aria-hidden="true" />} Confirmar
                           </Button>
                         ) : <Badge variant="outline">Sugestão</Badge>}
                       </td>
@@ -2380,14 +2386,14 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
         <table className="w-full text-xs">
           <thead className="bg-muted/60 border-b">
             <tr className="text-left">
-              <th className="px-3 py-2 font-semibold">Nome</th>
-              <th className="px-3 py-2 font-semibold">Departamento</th>
-              <th className="px-3 py-2 font-semibold border-l">Dia</th>
-              <th className="px-3 py-2 font-semibold">Data</th>
-              <th className="px-3 py-2 font-semibold">Aeroporto</th>
-              <th className="px-3 py-2 font-semibold">{ida ? "Sair às" : "Buscar às"}</th>
-              <th className="px-3 py-2 font-semibold border-l">Titular</th>
-              <th className="px-3 py-2 font-semibold text-right">Situação</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Nome</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Departamento</th>
+              <th scope="col" className="px-3 py-2 font-semibold border-l">Dia</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Data</th>
+              <th scope="col" className="px-3 py-2 font-semibold">Aeroporto</th>
+              <th scope="col" className="px-3 py-2 font-semibold">{ida ? "Sair às" : "Buscar às"}</th>
+              <th scope="col" className="px-3 py-2 font-semibold border-l">Titular</th>
+              <th scope="col" className="px-3 py-2 font-semibold text-right">Situação</th>
             </tr>
           </thead>
           <tbody>
@@ -2468,7 +2474,7 @@ function TabelaUber({ titulo, subtitulo, tom, grupos, rowByCollab, collabById, c
                           <Badge className="bg-success hover:bg-success/90">Confirmado</Badge>
                         ) : canEdit ? (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id} data-testid={`confirm-uber-${g.id}`}>
-                            {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+                            {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" aria-hidden="true" /> : <CheckCheck className="h-3 w-3 mr-1" aria-hidden="true" />} Confirmar
                           </Button>
                         ) : <Badge variant="outline">Sugestão</Badge>}
                       </td>
@@ -2567,7 +2573,7 @@ interface LinhaDaRoteirizacao {
 
 /** Cabeçalho de uma coluna da roteirização. */
 function ColRot({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
-  return <th className={`h-7 whitespace-nowrap px-2 text-left align-middle font-medium text-muted-foreground ${className}`}>{children}</th>;
+  return <th scope="col" className={`h-7 whitespace-nowrap px-2 text-left align-middle font-medium text-muted-foreground ${className}`}>{children}</th>;
 }
 
 /**
@@ -2648,10 +2654,10 @@ function Roteirizacao({
         <table className="w-full min-w-[1560px] text-xs">
           <thead>
             <tr className="border-b bg-muted/60">
-              <th colSpan={2} className="h-8 border-r-2 border-r-slate-300 px-3 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <th scope="col" colSpan={2} className="h-8 border-r-2 border-r-slate-300 px-3 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Pessoa
               </th>
-              <th colSpan={6} className="h-8 border-r-2 border-r-slate-300 px-3 text-left">
+              <th scope="col" colSpan={6} className="h-8 border-r-2 border-r-slate-300 px-3 text-left">
                 <span className="flex flex-wrap items-baseline gap-x-2">
                   <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-slate-700">
                     <Plane className="h-3.5 w-3.5" aria-hidden="true" /> Base × Aeroporto
@@ -2661,7 +2667,7 @@ function Roteirizacao({
                   </span>
                 </span>
               </th>
-              <th colSpan={7} className="h-8 px-3 text-left">
+              <th scope="col" colSpan={7} className="h-8 px-3 text-left">
                 <span className="flex flex-wrap items-baseline gap-x-2">
                   <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-slate-700">
                     <Plane className="h-3.5 w-3.5 rotate-180" aria-hidden="true" /> Aeroporto × Base
@@ -2799,12 +2805,14 @@ function CelulasDoTrecho({
                   </button>
                 ) : <Badge className="h-5 bg-success px-1.5 text-2xs hover:bg-success/90">ok</Badge>
               ) : canEdit ? (
-                <button type="button" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id}
-                  title="Confirmar o carro — trava o agrupamento e o horário"
+                <MotivoDesabilitado motivo="Confirmar o carro — trava o agrupamento e o horário" desabilitado={pendingId === g.id}>
+                  <button type="button" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id}
+                 
                   className="inline-flex h-6 items-center gap-1 rounded border border-warning/25 bg-warning-soft px-1.5 text-2xs font-medium text-warning disabled:opacity-60"
                   data-testid={`confirm-uber-${g.id}`}>
-                  {pendingId === g.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" aria-hidden="true" />} confirmar
+                  {pendingId === g.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <CheckCheck className="h-3 w-3" aria-hidden="true" />} confirmar
                 </button>
+                </MotivoDesabilitado>
               ) : <span className="text-2xs text-muted-foreground">sugestão</span>}
             </>
           ) : null}
@@ -2928,11 +2936,11 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
             <table className="w-full text-xs">
               <thead className="bg-muted/60 border-b">
                 <tr className="text-left">
-                  <th className="px-3 py-2 font-semibold">Nome</th>
-                  <th className="px-3 py-2 font-semibold">Departamento</th>
-                  <th className="px-3 py-2 font-semibold">Trajeto</th>
-                  <th className="px-3 py-2 font-semibold">Data</th>
-                  <th className="px-3 py-2 font-semibold text-right">Situação</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">Nome</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">Departamento</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">Trajeto</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">Data</th>
+                  <th scope="col" className="px-3 py-2 font-semibold text-right">Situação</th>
                 </tr>
               </thead>
               <tbody>
@@ -2953,7 +2961,7 @@ function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMov
                             {g.confirmed ? <Badge className="bg-success hover:bg-success/90">Confirmado</Badge>
                               : canEdit ? (
                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onConfirm(g.id)} disabled={pendingId === g.id}>
-                                  {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />} Confirmar
+                                  {pendingId === g.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" aria-hidden="true" /> : <CheckCheck className="h-3 w-3 mr-1" aria-hidden="true" />} Confirmar
                                 </Button>
                               ) : <Badge variant="outline">Sugestão</Badge>}
                           </td>
@@ -3004,10 +3012,10 @@ function RateioTabela({ titulo, icone, linhas, vazio }: {
             <table className="w-full text-xs">
               <thead className="bg-muted/50 border-y">
                 <tr className="text-left">
-                  <th className="p-2 font-medium">{titulo.includes("Conta") ? "Conta" : "Departamento"}</th>
-                  <th className="p-2 font-medium text-right">Passagem</th><th className="p-2 font-medium text-right">Hotel</th>
-                  <th className="p-2 font-medium text-right">Bag.</th><th className="p-2 font-medium text-right">Uber</th>
-                  <th className="p-2 font-medium text-right">Locação</th><th className="p-2 font-medium text-right">Subtotal</th>
+                  <th scope="col" className="p-2 font-medium">{titulo.includes("Conta") ? "Conta" : "Departamento"}</th>
+                  <th scope="col" className="p-2 font-medium text-right">Passagem</th><th scope="col" className="p-2 font-medium text-right">Hotel</th>
+                  <th scope="col" className="p-2 font-medium text-right">Bag.</th><th scope="col" className="p-2 font-medium text-right">Uber</th>
+                  <th scope="col" className="p-2 font-medium text-right">Locação</th><th scope="col" className="p-2 font-medium text-right">Subtotal</th>
                 </tr>
               </thead>
               <tbody>
@@ -3045,13 +3053,13 @@ function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDer
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <RateioTabela
           titulo="Rateio por Conta"
-          icone={<Landmark className="h-4 w-4" />}
+          icone={<Landmark className="h-4 w-4" aria-hidden="true" />}
           linhas={totals.byAccount || []}
           vazio="Nenhuma função tem conta definida."
         />
         <RateioTabela
           titulo="Subtotais por Departamento"
-          icone={<Building2 className="h-4 w-4" />}
+          icone={<Building2 className="h-4 w-4" aria-hidden="true" />}
           linhas={totals.byDepartment || []}
           vazio="Sem departamentos."
         />
@@ -3059,7 +3067,7 @@ function FooterTotals({ totals, hotelDerived }: { totals: MirrorTotals; hotelDer
 
       {contas.length === 0 && semConta && semConta.total > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft/60 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" aria-hidden="true" />
           <p className="text-xs text-warning">
             <strong>O rateio por conta está vazio.</strong> Defina a conta de cada função em{" "}
             <Link href="/functions" className="underline font-medium">Funções</Link> — é a coluna

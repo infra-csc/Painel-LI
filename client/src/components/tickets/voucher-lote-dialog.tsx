@@ -223,7 +223,7 @@ export default function VoucherLoteDialog({
               data-testid="button-escolher-vouchers"
             >
               {ler.isPending
-                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Lendo…</>
+                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" />Lendo…</>
                 : "Escolher arquivos"}
             </Button>
             <p className="mt-2 text-2xs text-muted-foreground">Até 30 arquivos por vez.</p>
@@ -305,7 +305,7 @@ export default function VoucherLoteDialog({
                           className="text-muted-foreground hover:text-danger-strong shrink-0"
                           aria-label={`Tirar ${l.arquivo} da lista`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
                         </button>
                       )}
                     </div>
@@ -323,7 +323,7 @@ export default function VoucherLoteDialog({
               : linhas.length > 0 ? "Nenhuma linha pronta — confira as vagas acima." : "Nenhum arquivo ainda."}
           </p>
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={gravando}>
-            <X className="w-4 h-4 mr-1.5" />Fechar
+            <X className="w-4 h-4 mr-1.5" aria-hidden="true" />Fechar
           </Button>
           <Button
             type="button"
@@ -333,7 +333,7 @@ export default function VoucherLoteDialog({
             data-testid="button-registrar-lote-vouchers"
           >
             {gravando
-              ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Registrando…</>
+              ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" />Registrando…</>
               : `Registrar ${prontas.length || ""}`.trim()}
           </Button>
         </div>

@@ -51,7 +51,7 @@ export default function SimulationBanner() {
         disabled={saindo}
         className="shrink-0 px-2.5 py-1 rounded-md bg-card/15 hover:bg-card/25 disabled:opacity-60 text-xs sm:text-sm font-semibold border border-white/30 transition-colors"
       >
-        {saindo ? "Saindo..." : "Sair da simulação"}
+        {saindo ? "Saindo…" : "Sair da simulação"}
       </button>
     </div>
   );

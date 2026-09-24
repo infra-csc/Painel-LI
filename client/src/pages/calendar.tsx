@@ -266,7 +266,7 @@ function EventPanel({
         aria-labelledby="event-panel-title"
         ref={panelRef}
         tabIndex={-1}
-        className="absolute bg-card rounded-xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-150 shadow-3"
+        className="absolute bg-card rounded-xl border border-border overflow-hidden animate-in motion-reduce:animate-none fade-in zoom-in-95 duration-150 shadow-3"
         style={{
           width: PANEL_W,
           left,
@@ -283,9 +283,9 @@ function EventPanel({
             <button
               onClick={onClose}
               aria-label="Fechar detalhes do evento"
-              className="w-5 h-5 rounded-full bg-muted hover:bg-border flex items-center justify-center transition-colors shrink-0"
+              className="w-7 h-7 rounded-full bg-muted hover:bg-border flex items-center justify-center transition-colors shrink-0"
             >
-              <X className="w-3 h-3 text-muted-foreground" />
+              <X className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
             </button>
           </div>
           <h2 id="event-panel-title" className="text-sm font-bold text-foreground leading-snug">
@@ -298,15 +298,15 @@ function EventPanel({
         <div className="px-4 pt-3.5 pb-4 space-y-3.5">
           <div className="space-y-2.5">
             <div className="flex items-center gap-2.5">
-              <MapPin className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <MapPin className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} aria-hidden="true" />
               <span className="text-xs text-slate-700">{event.location}</span>
             </div>
             <div className="flex items-center gap-2.5">
-              <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} aria-hidden="true" />
               <span className="text-xs text-slate-700">{formatDateRange(event.startDate, event.endDate)}</span>
             </div>
             <div className="flex items-center gap-2.5">
-              <Clock className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <Clock className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} aria-hidden="true" />
               <span className="text-xs text-slate-700">{days} {days === 1 ? "dia" : "dias"}</span>
             </div>
           </div>
@@ -324,14 +324,14 @@ function EventPanel({
             ) : (
               <>
                 <div className="flex items-center gap-2.5">
-                  <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+                  <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} aria-hidden="true" />
                   <span className="text-xs text-slate-700">
                     <span className="font-semibold text-foreground">{collaboratorCount}</span>
                     {" "}{collaboratorCount === 1 ? "colaborador escalado" : "colaboradores escalados"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <Tag className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+                  <Tag className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} aria-hidden="true" />
                   <span className="text-xs text-slate-700">
                     <span className="font-semibold text-foreground">{functionCount}</span>
                     {" "}{functionCount === 1 ? "função envolvida" : "funções envolvidas"}
@@ -350,14 +350,14 @@ function EventPanel({
               onClick={onClose}
               className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border text-2xs font-semibold text-slate-700 hover:bg-surface-muted transition-colors"
             >
-              <ClipboardList className="w-3.5 h-3.5" /> Ver escala
+              <ClipboardList className="w-3.5 h-3.5" aria-hidden="true" /> Ver escala
             </Link>
             <Link
               href={`/operational-mirror?eventId=${encodeURIComponent(event.id)}`}
               onClick={onClose}
               className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-lg border border-border text-2xs font-semibold text-slate-700 hover:bg-surface-muted transition-colors"
             >
-              <Table2 className="w-3.5 h-3.5" /> Espelho operacional
+              <Table2 className="w-3.5 h-3.5" aria-hidden="true" /> Espelho operacional
             </Link>
           </div>
         </div>
@@ -437,7 +437,7 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
         aria-label={title}
         ref={popoverRef}
         tabIndex={-1}
-        className="absolute bg-card animate-in fade-in zoom-in-95 duration-150 flex flex-col rounded-xl border border-border shadow-3 overflow-hidden"
+        className="absolute bg-card animate-in motion-reduce:animate-none fade-in zoom-in-95 duration-150 flex flex-col rounded-xl border border-border shadow-3 overflow-hidden"
         style={{
           width: POPOVER_W,
           left,
@@ -773,7 +773,7 @@ function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSe
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
         <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center">
-          <CalendarDays className="w-7 h-7 text-muted-foreground" />
+          <CalendarDays className="w-7 h-7 text-muted-foreground" aria-hidden="true" />
         </div>
         <p className="text-sm font-semibold text-slate-600">Nenhum evento encontrado</p>
         <p className="text-xs text-muted-foreground">
@@ -901,7 +901,7 @@ function CalendarEmptyState({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-10 text-center" role="status">
       <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
-        <CalendarDays className="w-6 h-6 text-muted-foreground" />
+        <CalendarDays className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
       </div>
       <p className="text-sm font-semibold text-slate-600">Nenhum evento {label}</p>
       <p className="text-xs text-muted-foreground">Use as setas para navegar ou ajuste os filtros.</p>
@@ -1004,7 +1004,7 @@ function WeekView({ weekStart, events, onSelectEvent }: {
                     >
                       {cfg.pulse && (
                         <div className="flex items-center gap-1 mb-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse shrink-0`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse motion-reduce:animate-none shrink-0`} />
                           <p className={`text-2xs font-bold uppercase tracking-tight ${cfg.text}`}>
                             {cfg.label}
                           </p>
@@ -1152,13 +1152,13 @@ export default function CalendarPage() {
           {view === "month" && (
             <div className="flex items-center gap-1 ml-2 border-l border-border pl-4">
               <button onClick={prevMonth} aria-label="Mês anterior" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4" aria-hidden="true" />
               </button>
               <span className="text-sm font-bold text-foreground min-w-[140px] text-center">
                 {MONTH_NAMES[viewMonth]} {viewYear}
               </span>
               <button onClick={nextMonth} aria-label="Próximo mês" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
               </button>
               <button
                 onClick={goToday}
@@ -1181,7 +1181,7 @@ export default function CalendarPage() {
             return (
               <div className="flex items-center gap-1 ml-2 border-l border-border pl-4">
                 <button onClick={prevWeek} aria-label="Semana anterior" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                 </button>
                 <div className="flex items-center gap-2 min-w-[200px] justify-center">
                   <span className="text-sm font-bold text-foreground">{rangeLabel}</span>
@@ -1190,7 +1190,7 @@ export default function CalendarPage() {
                   </span>
                 </div>
                 <button onClick={nextWeek} aria-label="Próxima semana" className="p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors">
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4" aria-hidden="true" />
                 </button>
                 <button
                   onClick={goToday}
@@ -1208,7 +1208,7 @@ export default function CalendarPage() {
 
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" aria-hidden="true" />
             <input
               type="text"
               value={searchQuery}
@@ -1219,7 +1219,7 @@ export default function CalendarPage() {
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
-                <X className="w-3 h-3" />
+                <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -1247,7 +1247,7 @@ export default function CalendarPage() {
             })}
             {statusFilter !== "all" && (
               <button onClick={() => setStatusFilter("all")} aria-label="Limpar filtro de status" className="text-2xs text-muted-foreground hover:text-danger-strong font-bold ml-1">
-                <X className="w-3 h-3" />
+                <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -1261,7 +1261,7 @@ export default function CalendarPage() {
                 view === "month" ? "bg-primary text-primary-foreground shadow-1" : "text-muted-foreground hover:bg-border"
               }`}
             >
-              <LayoutGrid className="w-3.5 h-3.5" /> Mês
+              <LayoutGrid className="w-3.5 h-3.5" aria-hidden="true" /> Mês
             </button>
             <button
               onClick={() => setView("week")}
@@ -1280,7 +1280,7 @@ export default function CalendarPage() {
                 view === "list" ? "bg-primary text-primary-foreground shadow-1" : "text-muted-foreground hover:bg-border"
               }`}
             >
-              <List className="w-3.5 h-3.5" /> Lista
+              <List className="w-3.5 h-3.5" aria-hidden="true" /> Lista
             </button>
           </div>
         </>}
@@ -1298,7 +1298,7 @@ export default function CalendarPage() {
             className="h-full bg-card rounded-xl border border-warning/25 flex flex-col items-center justify-center gap-3 text-center px-6"
           >
             <div className="w-14 h-14 rounded-xl bg-warning-soft flex items-center justify-center">
-              <AlertTriangle className="w-7 h-7 text-warning-strong" />
+              <AlertTriangle className="w-7 h-7 text-warning-strong" aria-hidden="true" />
             </div>
             <p className="text-sm font-semibold text-slate-700">Não foi possível carregar o calendário</p>
             <p className="text-xs text-muted-foreground max-w-sm">{loadErrorMessage}</p>

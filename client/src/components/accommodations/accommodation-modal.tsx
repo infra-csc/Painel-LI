@@ -23,6 +23,9 @@ import { brl, draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn, toDateI
 import { contarDiarias } from "./accommodations-queue";
 import SwapReviewPanel from "./swap-review-panel";
 import { PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
+import { campoComErro } from "@/lib/campo-com-erro";
 
 export interface AccommodationModalProps {
   open: boolean;
@@ -104,6 +107,8 @@ function AccommodationModalContent({
 }: AccommodationModalProps & { inclusion: TeamInclusion }) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<AccommodationDraft>(() => draftFrom(accommodation, inclusion));
+  // Erros inline por campo (24/09): antes só um toast genérico "Campos obrigatórios".
+  const [erros, setErros] = useState<Partial<Record<"hotelName" | "hotelLocation" | "checkInDate" | "checkOutDate", string>>>({});
   /*
    * A aba de abertura segue a intenção de quem abriu: vaga pendente abre em
    * Dados, que é o trabalho a fazer; registrada abre em Resumo, que é consulta.
@@ -196,19 +201,18 @@ function AccommodationModalContent({
 
   const handleSave = async () => {
     if (isSaving) return; // guarda contra duplo clique com a requisição em voo
-    if (!draft.hotelName.trim() || !draft.hotelLocation.trim()) {
-      toast({ title: "Campos obrigatórios", description: "Nome do hotel e localização são obrigatórios", variant: "destructive" });
+    const novosErros: typeof erros = {};
+    if (!draft.hotelName.trim()) novosErros.hotelName = "Informe o nome do hotel.";
+    if (!draft.hotelLocation.trim()) novosErros.hotelLocation = "Informe a localização.";
+    if (!draft.checkInDate) novosErros.checkInDate = "Informe a data do check-in.";
+    if (!draft.checkOutDate) novosErros.checkOutDate = "Informe a data do check-out.";
+    else if (!isCheckOutAfterCheckIn(draft)) novosErros.checkOutDate = "O check-out deve ser igual ou posterior ao check-in.";
+    setErros(novosErros);
+    const primeiro = (Object.keys(novosErros) as Array<keyof typeof novosErros>)[0];
+    if (primeiro) {
+      toast({ title: "Preencha os campos obrigatórios", description: novosErros[primeiro], variant: "destructive" });
       setActiveTab("dados");
-      return;
-    }
-    if (!draft.checkInDate || !draft.checkOutDate) {
-      toast({ title: "Campos obrigatórios", description: "Informe as datas de check-in e check-out.", variant: "destructive" });
-      setActiveTab("dados");
-      return;
-    }
-    if (!isCheckOutAfterCheckIn(draft)) {
-      toast({ title: "Datas inválidas", description: "O check-out deve ser igual ou posterior ao check-in.", variant: "destructive" });
-      setActiveTab("dados");
+      setTimeout(() => document.getElementById(`${primeiro}-${inclusion.id}`)?.focus(), 0);
       return;
     }
     try {
@@ -225,7 +229,7 @@ function AccommodationModalContent({
     </span>
   ) : (
     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full border border-warning/25">
-      <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse" />Pendente
+      <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse motion-reduce:animate-none" />Pendente
     </span>
   );
 
@@ -242,7 +246,7 @@ function AccommodationModalContent({
       {/* ─── HEADER ─── */}
       <div className="shrink-0 px-6 py-4 flex items-center gap-4 bg-brand-soft border-b border-border">
         <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-1 shrink-0 bg-primary">
-          <Hotel className="w-5 h-5 text-white" />
+          <Hotel className="w-5 h-5 text-white" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-black text-foreground leading-tight">Registro de Hospedagem</h2>
@@ -286,8 +290,8 @@ function AccommodationModalContent({
             <TabsTrigger value="dados" className={TAB}>
               Dados da Hospedagem
               {accommodation
-                ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-success-soft text-success rounded-full" aria-label="registrada"><Check className="w-2.5 h-2.5" /></span>
-                : <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-warning-soft text-warning rounded-full" aria-label="pendente"><AlertCircle className="w-2.5 h-2.5" /></span>}
+                ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-success-soft text-success rounded-full"><Check className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only"> (registrada)</span></span>
+                : <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-warning-soft text-warning rounded-full"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only"> (pendente)</span></span>}
             </TabsTrigger>
             <TabsTrigger value="complementos" className={TAB}>Complementos e Histórico</TabsTrigger>
           </TabsList>
@@ -308,9 +312,9 @@ function AccommodationModalContent({
                 <div>
                   <div className={LBL}>Hospedagem</div>
                   {accommodation ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-success-soft text-success text-2xs font-bold rounded-lg border border-success/25"><Hotel className="w-2.5 h-2.5" />Registrada</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-success-soft text-success text-2xs font-bold rounded-lg border border-success/25"><Hotel className="w-2.5 h-2.5" aria-hidden="true" />Registrada</span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25"><Hotel className="w-2.5 h-2.5" />Pendente</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25"><Hotel className="w-2.5 h-2.5" aria-hidden="true" />Pendente</span>
                   )}
                 </div>
               </div>
@@ -330,7 +334,7 @@ function AccommodationModalContent({
                 </>)}
                 {inclusion.city && (
                   <div className="mt-1 rounded-xl bg-brand-soft border border-primary/25 px-3 py-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-primary shrink-0" />
+                    <MapPin className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
                     <div>
                       <div className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Sai de</div>
                       <div className="text-sm font-bold text-primary">{inclusion.city}</div>
@@ -355,7 +359,7 @@ function AccommodationModalContent({
                 {accommodation && (
                   <div className="border border-success/25 rounded-xl overflow-hidden">
                     <div className="bg-success-soft border-b border-success/25 px-4 py-2.5 flex items-center gap-2">
-                      <Hotel className="w-3.5 h-3.5 text-success" />
+                      <Hotel className="w-3.5 h-3.5 text-success" aria-hidden="true" />
                       <span className="text-2xs font-black text-success uppercase tracking-[0.12em]">Hotel</span>
                     </div>
                     <div className="p-4 space-y-2">
@@ -381,7 +385,7 @@ function AccommodationModalContent({
               <PastEventBanner show={!!eventLocked} message={eventLockMessage} />
               {lockedForRole && (
                 <div className="bg-warning-soft border border-warning/25 rounded-xl px-4 py-2.5 flex items-center gap-2" data-testid="notice-locked-for-role">
-                  <Lock className="w-4 h-4 text-warning shrink-0" />
+                  <Lock className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
                   <span className="text-warning font-semibold text-sm">Hospedagem registrada — somente Compras altera hospedagem registrada.</span>
                 </div>
               )}
@@ -426,14 +430,18 @@ function AccommodationModalContent({
                 <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Dados do Hotel</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                   <div>
-                    <Label htmlFor={`hotelName-${inclusion.id}`} className={FIELD_LBL}>Nome do Hotel *</Label>
-                    <Input id={`hotelName-${inclusion.id}`} placeholder="Ex: Hotel Copacabana Palace" value={draft.hotelName}
-                      onChange={(e) => set("hotelName", e.target.value)} data-testid="input-hotel-name" disabled={roMode} />
+                    <Label htmlFor={`hotelName-${inclusion.id}`} className={FIELD_LBL}>Nome do Hotel<RequiredMark /></Label>
+                    <Input id={`hotelName-${inclusion.id}`} placeholder="Ex: Hotel Copacabana Palace" value={draft.hotelName} aria-required="true"
+                      {...campoComErro(`hotelName-${inclusion.id}`, erros.hotelName)}
+                      onChange={(e) => { set("hotelName", e.target.value); if (erros.hotelName) setErros(p => ({ ...p, hotelName: undefined })); }} data-testid="input-hotel-name" disabled={roMode} />
+                    <MensagemDeErro id={`hotelName-${inclusion.id}`} erro={erros.hotelName} />
                   </div>
                   <div>
-                    <Label htmlFor={`hotelLocation-${inclusion.id}`} className={FIELD_LBL}>Localização *</Label>
-                    <Input id={`hotelLocation-${inclusion.id}`} placeholder="Ex: Copacabana, Rio de Janeiro" value={draft.hotelLocation}
-                      onChange={(e) => set("hotelLocation", e.target.value)} data-testid="input-hotel-location" disabled={roMode} />
+                    <Label htmlFor={`hotelLocation-${inclusion.id}`} className={FIELD_LBL}>Localização<RequiredMark /></Label>
+                    <Input id={`hotelLocation-${inclusion.id}`} placeholder="Ex: Copacabana, Rio de Janeiro" value={draft.hotelLocation} aria-required="true"
+                      {...campoComErro(`hotelLocation-${inclusion.id}`, erros.hotelLocation)}
+                      onChange={(e) => { set("hotelLocation", e.target.value); if (erros.hotelLocation) setErros(p => ({ ...p, hotelLocation: undefined })); }} data-testid="input-hotel-location" disabled={roMode} />
+                    <MensagemDeErro id={`hotelLocation-${inclusion.id}`} erro={erros.hotelLocation} />
                   </div>
                 </div>
                 <div>
@@ -470,12 +478,14 @@ function AccommodationModalContent({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-xl border border-success/25 bg-success-soft/40 p-3">
-                    <div className="text-2xs font-bold text-success uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowDown className="w-3 h-3" /> Check-in *</div>
+                    <div className="text-2xs font-bold text-success uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowDown className="w-3 h-3" aria-hidden="true" /> Check-in<RequiredMark /></div>
                     <div className="grid grid-cols-[1fr_110px] gap-2">
                       <div>
                         <Label htmlFor={`checkInDate-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Data</Label>
-                        <Input id={`checkInDate-${inclusion.id}`} type="date" value={draft.checkInDate}
-                          onChange={(e) => set("checkInDate", e.target.value)} data-testid="input-checkin-date" disabled={roMode} />
+                        <Input id={`checkInDate-${inclusion.id}`} type="date" value={draft.checkInDate} aria-required="true"
+                          {...campoComErro(`checkInDate-${inclusion.id}`, erros.checkInDate)}
+                          onChange={(e) => { set("checkInDate", e.target.value); if (erros.checkInDate) setErros(p => ({ ...p, checkInDate: undefined })); }} data-testid="input-checkin-date" disabled={roMode} />
+                        <MensagemDeErro id={`checkInDate-${inclusion.id}`} erro={erros.checkInDate} />
                       </div>
                       <div>
                         <Label htmlFor={`checkInTime-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Hora</Label>
@@ -485,12 +495,14 @@ function AccommodationModalContent({
                     </div>
                   </div>
                   <div className="rounded-xl border border-warning/25 bg-warning-soft/40 p-3">
-                    <div className="text-2xs font-bold text-warning uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowUp className="w-3 h-3" /> Check-out *</div>
+                    <div className="text-2xs font-bold text-warning uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowUp className="w-3 h-3" aria-hidden="true" /> Check-out<RequiredMark /></div>
                     <div className="grid grid-cols-[1fr_110px] gap-2">
                       <div>
                         <Label htmlFor={`checkOutDate-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Data</Label>
-                        <Input id={`checkOutDate-${inclusion.id}`} type="date" min={draft.checkInDate || undefined} value={draft.checkOutDate}
-                          onChange={(e) => set("checkOutDate", e.target.value)} data-testid="input-checkout-date" disabled={roMode} />
+                        <Input id={`checkOutDate-${inclusion.id}`} type="date" min={draft.checkInDate || undefined} value={draft.checkOutDate} aria-required="true"
+                          {...campoComErro(`checkOutDate-${inclusion.id}`, erros.checkOutDate)}
+                          onChange={(e) => { set("checkOutDate", e.target.value); if (erros.checkOutDate) setErros(p => ({ ...p, checkOutDate: undefined })); }} data-testid="input-checkout-date" disabled={roMode} />
+                        <MensagemDeErro id={`checkOutDate-${inclusion.id}`} erro={erros.checkOutDate} />
                       </div>
                       <div>
                         <Label htmlFor={`checkOutTime-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Hora</Label>
@@ -502,7 +514,7 @@ function AccommodationModalContent({
                 </div>
                 {!isCheckOutAfterCheckIn(draft) && (
                   <p className="mt-2 text-xs text-danger flex items-center gap-1.5" role="alert">
-                    <AlertCircle className="w-3.5 h-3.5" /> O check-out deve ser igual ou posterior ao check-in.
+                    <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> O check-out deve ser igual ou posterior ao check-in.
                   </p>
                 )}
                 {chegaTarde && (
@@ -523,7 +535,7 @@ function AccommodationModalContent({
                 <div className="bg-surface-muted border border-border rounded-xl p-4" data-testid="mirror-readonly-block">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados do Espelho Operacional</div>
-                    <span className="text-2xs text-muted-foreground inline-flex items-center gap-1"><Lock className="w-3 h-3" /> Somente leitura — editado no Espelho</span>
+                    <span className="text-2xs text-muted-foreground inline-flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" /> Somente leitura — editado no Espelho</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <Field label="Tipo de quarto">{accommodation.roomType ? (ROOM_TYPE_LABEL[accommodation.roomType] ?? accommodation.roomType) : "—"}</Field>
@@ -538,7 +550,7 @@ function AccommodationModalContent({
               {/* Observações */}
               <div className="bg-card border border-border rounded-xl p-4">
                 <Label htmlFor={`accommodationObservations-${inclusion.id}`} className={FIELD_LBL}>Observações</Label>
-                <Textarea id={`accommodationObservations-${inclusion.id}`} placeholder="Informações adicionais sobre a hospedagem..." value={draft.accommodationObservations}
+                <Textarea id={`accommodationObservations-${inclusion.id}`} placeholder="Informações adicionais sobre a hospedagem…" value={draft.accommodationObservations}
                   onChange={(e) => set("accommodationObservations", e.target.value)} className="h-24 resize-none" data-testid="textarea-observations" disabled={roMode} />
               </div>
 
@@ -568,14 +580,14 @@ function AccommodationModalContent({
                 <div className="border border-border rounded-xl overflow-hidden">
                   <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <MessageCircle className="w-4 h-4 text-muted-foreground" />
+                      <MessageCircle className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                       <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Comentários</span>
                       {comments && comments.length > 0 && (
                         <span className="bg-primary text-primary-foreground text-2xs font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
                       )}
                     </div>
                     <button type="button" onClick={() => setShowComments(true)} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors">
-                      <MessageCircle className="w-3.5 h-3.5" />
+                      <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" />
                       {roMode ? "Ver" : "Ver/Adicionar"}
                     </button>
                   </div>
@@ -599,7 +611,7 @@ function AccommodationModalContent({
                       </div>
                     ) : (
                       <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8">
-                        <MessageCircle className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                        <MessageCircle className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
                         <div className="text-xs text-muted-foreground">Nenhum comentário registrado.</div>
                       </div>
                     )}
@@ -610,13 +622,13 @@ function AccommodationModalContent({
               {/* Histórico */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <History className="w-4 h-4 text-muted-foreground" />
+                  <History className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                   <span className="text-xs font-black text-slate-600 uppercase tracking-[0.1em]">Histórico</span>
                   {sortedLogs.length > 0 && <span className="text-2xs text-muted-foreground">{sortedLogs.length} entr.</span>}
                 </div>
                 {sortedLogs.length === 0 ? (
                   <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8">
-                    <History className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                    <History className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
                     <div className="text-xs text-muted-foreground">Nenhum histórico encontrado.</div>
                   </div>
                 ) : (
@@ -659,12 +671,12 @@ function AccommodationModalContent({
       <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3 shrink-0 bg-card">
         {eventLocked && (
           <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-warning" data-testid="footer-past-event-block">
-            <Lock className="w-3.5 h-3.5" /> {eventLockMessage || PAST_EVENT_BLOCK_MSG}
+            <Lock className="w-3.5 h-3.5" aria-hidden="true" /> {eventLockMessage || PAST_EVENT_BLOCK_MSG}
           </span>
         )}
         {!eventLocked && lockedForRole && (
           <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Lock className="w-3.5 h-3.5" /> Somente Compras altera hospedagem registrada
+            <Lock className="w-3.5 h-3.5" aria-hidden="true" /> Somente Compras altera hospedagem registrada
           </span>
         )}
         <Button variant="outline" onClick={onClose} className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium">
@@ -673,7 +685,7 @@ function AccommodationModalContent({
         {!roMode && (
           <Button onClick={handleSave} disabled={isSaving} data-testid="button-register"
             className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-bold bg-success hover:bg-success/90">
-            {isSaving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Hotel className="w-4 h-4" />}
+            {isSaving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Hotel className="w-4 h-4" aria-hidden="true" />}
             {accommodation ? "Atualizar Hospedagem" : "Registrar Hospedagem"}
           </Button>
         )}

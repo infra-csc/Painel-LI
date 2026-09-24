@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { parseBrNumber } from "@/lib/utils";
 import { isAutomaticFlashMovement, flashSourceLabel } from "@shared/flash-rules";
@@ -14,6 +15,8 @@ import { usePageTitle } from "@/components/common/use-page-title";
 import { campo, useUrlState } from "@/lib/use-url-state";
 import { lerEventoGuardado } from "@/lib/evento-em-foco";
 import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
+import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
+import { campoComErro } from "@/lib/campo-com-erro";
 import { LoadingState } from "@/components/common/loading-state";
 import { QueryError, useQueriesState } from "@/components/common/query-state";
 import { formatarMoeda, toTitleCase } from "@/lib/format";
@@ -93,7 +96,7 @@ function automaticBadgeLabel(m: FlashMovement): string {
 }
 
 export default function FlashAccountPage() {
-  usePageTitle("Conta Corrente Flash");
+  usePageTitle("Conta corrente Flash");
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -222,7 +225,7 @@ export default function FlashAccountPage() {
       qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
       toast({ title: "Lançamento excluído" });
     },
-    onError: (e: any) => toast({ title: "Erro", description: e?.body?.message || "Erro ao excluir lançamento", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Não foi possível excluir o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
 
   // Campo CSV seguro: aspas duplas quando houver ; aspas ou quebra de linha
@@ -259,7 +262,7 @@ export default function FlashAccountPage() {
             token da marca, como nas demais telas. */}
         <PageHeader
           icon={Wallet}
-          title="Conta Corrente Flash"
+          title="Conta corrente Flash"
           subtitle={<>Saldo Flash por colaborador — alvo {formatCurrency(TARGET_FOOD_CENTS)} alimentação · {formatCurrency(TARGET_MOBILITY_CENTS)} mobilidade</>}
           actions={canManage && (
             <Button onClick={() => { setMovementToEdit(null); setFormCollabId(""); setShowForm(true); }} className="rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold h-9 px-4 shadow-1">
@@ -285,7 +288,7 @@ export default function FlashAccountPage() {
               className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-warning-soft/40 transition-colors"
             >
               <div className="w-8 h-8 rounded-xl bg-warning-soft flex items-center justify-center shrink-0">
-                <UserPlus className="w-4 h-4 text-warning" />
+                <UserPlus className="w-4 h-4 text-warning" aria-hidden="true" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-700">
@@ -298,7 +301,7 @@ export default function FlashAccountPage() {
                   Colaboradores ativos sem nenhum lançamento na conta Flash — lance o crédito inicial da admissão
                 </p>
               </div>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${showNoInitialCredit ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${showNoInitialCredit ? "rotate-180" : ""}`} aria-hidden="true" />
             </button>
             {showNoInitialCredit && (
               <div className="max-h-[280px] overflow-y-auto divide-y divide-border border-t border-border">
@@ -309,7 +312,7 @@ export default function FlashAccountPage() {
                       onClick={() => { setFormCollabId(c.id); setMovementToEdit(null); setShowForm(true); }}
                       className="flex items-center gap-1.5 h-7 px-2.5 text-2xs font-semibold text-primary border border-primary/25 rounded-lg hover:bg-brand-soft transition-colors shrink-0"
                     >
-                      <Sparkles className="w-3 h-3" /> Lançar crédito
+                      <Sparkles className="w-3 h-3" aria-hidden="true" /> Lançar crédito
                     </button>
                   </div>
                 ))}
@@ -323,11 +326,11 @@ export default function FlashAccountPage() {
           <div className="lg:col-span-2 bg-card rounded-xl border border-border overflow-hidden">
             <div className="p-3 border-b border-border">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
                 <Input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar colaborador..."
+                  placeholder="Buscar colaborador…"
                   className="pl-8 h-9 text-xs rounded-xl border-border"
                 />
               </div>
@@ -339,7 +342,7 @@ export default function FlashAccountPage() {
                 <LoadingState count={4} className="rounded-none border-0" label="Carregando contas…" />
               ) : accountRows.length === 0 ? (
                 <div className="text-center py-10 px-4">
-                  <Wallet className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                  <Wallet className="w-8 h-8 text-slate-200 mx-auto mb-2" aria-hidden="true" />
                   <p className="text-xs text-muted-foreground">
                     {movements.length === 0
                       ? "Nenhum lançamento ainda. Use \"Novo Lançamento\" para registrar o crédito inicial de um colaborador."
@@ -364,8 +367,8 @@ export default function FlashAccountPage() {
                     </p>
                   </div>
                   {row.belowTarget
-                    ? <AlertTriangle className="w-3.5 h-3.5 text-warning-strong shrink-0" />
-                    : <CheckCircle2 className="w-3.5 h-3.5 text-success-strong shrink-0" />}
+                    ? <AlertTriangle className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />
+                    : <CheckCircle2 className="w-3.5 h-3.5 text-success-strong shrink-0" aria-hidden="true" />}
                 </button>
               ))}
             </div>
@@ -375,7 +378,7 @@ export default function FlashAccountPage() {
           <div className="lg:col-span-3 bg-card rounded-xl border border-border overflow-hidden">
             {!selectedCollabId ? (
               <div className="p-16 text-center">
-                <Wallet className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <Wallet className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
                 <p className="text-sm text-muted-foreground">Selecione um colaborador para ver o extrato</p>
               </div>
             ) : (
@@ -391,7 +394,7 @@ export default function FlashAccountPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button onClick={exportCsv} title="Exportar extrato em CSV" className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-surface-muted transition-colors">
-                      <Download className="w-3.5 h-3.5" /> CSV
+                      <Download className="w-3.5 h-3.5" aria-hidden="true" /> CSV
                     </button>
                     <button
                       onClick={() => setSelectedCollabId("")}
@@ -399,7 +402,7 @@ export default function FlashAccountPage() {
                       title="Fechar extrato"
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -424,7 +427,7 @@ export default function FlashAccountPage() {
                     ))}
                     {hasAutomatic && (
                       <span className="ml-auto text-muted-foreground flex items-center gap-1" title="Gerado na aprovação do comparativo do evento — acompanha o Realizado; estorno em Comparativo → Fechamento do comparativo → Reabrir comparativo">
-                        <Sparkles className="w-3 h-3 text-primary/70" /> Automático = crédito do comparativo (somente leitura)
+                        <Sparkles className="w-3 h-3 text-primary/70" aria-hidden="true" /> Automático = crédito do comparativo (somente leitura)
                       </span>
                     )}
                   </div>
@@ -438,11 +441,11 @@ export default function FlashAccountPage() {
                     <table className="w-full min-w-[560px] text-xs">
                       <thead className="sticky top-0 bg-surface-muted text-2xs uppercase tracking-wider text-muted-foreground">
                         <tr>
-                          <th className="text-left font-bold px-4 py-2.5">Data</th>
-                          <th className="text-left font-bold px-2 py-2.5">Lançamento</th>
-                          <th className="text-right font-bold px-2 py-2.5">Valor</th>
-                          <th className="text-right font-bold px-4 py-2.5">Saldo</th>
-                          {canManage && <th className="px-2 py-2.5" />}
+                          <th scope="col" className="text-left font-bold px-4 py-2.5">Data</th>
+                          <th scope="col" className="text-left font-bold px-2 py-2.5">Lançamento</th>
+                          <th scope="col" className="text-right font-bold px-2 py-2.5">Valor</th>
+                          <th scope="col" className="text-right font-bold px-4 py-2.5">Saldo</th>
+                          {canManage && <th scope="col" className="px-2 py-2.5" />}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
@@ -452,8 +455,8 @@ export default function FlashAccountPage() {
                             <td className="px-2 py-2.5">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {m.type === "credito"
-                                  ? <ArrowUpCircle className="w-3.5 h-3.5 text-success-strong shrink-0" />
-                                  : <ArrowDownCircle className="w-3.5 h-3.5 text-danger-strong shrink-0" />}
+                                  ? <ArrowUpCircle className="w-3.5 h-3.5 text-success-strong shrink-0" aria-hidden="true" />
+                                  : <ArrowDownCircle className="w-3.5 h-3.5 text-danger-strong shrink-0" aria-hidden="true" />}
                                 <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-full ${m.category === "alimentacao" ? "bg-success-soft text-success" : "bg-brand-soft text-primary"}`}>
                                   {m.category === "alimentacao" ? "Alimentação" : "Mobilidade"}
                                 </span>
@@ -496,7 +499,7 @@ export default function FlashAccountPage() {
                                   onClick={() => { setMovementToEdit(m); setFormCollabId(""); setShowForm(true); }}
                                   className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary-hover hover:bg-brand-soft transition-colors"
                                 >
-                                  <Pencil className="w-3 h-3" />
+                                  <Pencil className="w-3 h-3" aria-hidden="true" />
                                 </button>
                                 <button
                                   title="Excluir lançamento"
@@ -504,7 +507,7 @@ export default function FlashAccountPage() {
                                   onClick={() => setMovementToDelete(m)}
                                   className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors"
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-3 h-3" aria-hidden="true" />
                                 </button>
                               </td>
                             )}
@@ -601,6 +604,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
   const [type, setType] = useState<"credito" | "debito">("credito");
   const [amount, setAmount] = useState("");
   const [movementDate, setMovementDate] = useState(todayISO());
+  const [erros, setErros] = useState<{ collaborator?: string; date?: string; amount?: string }>({});
   const [eventId, setEventId] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -652,7 +656,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
   }, [collaborators, collabSearch]);
 
   // O colaborador selecionado pode não estar nas options (inativo ou fora do
-  // slice de 50) — sem esta injeção o select exibiria "Selecione..." mesmo com
+  // slice de 50) — sem esta injeção o select exibiria "Selecione…" mesmo com
   // um lançamento em edição já vinculado a alguém.
   const optionCollabs = useMemo(() => {
     if (collaboratorId && !filteredCollabs.some(c => c.id === collaboratorId)) {
@@ -670,8 +674,9 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
   const post = (body: any) => apiRequest("POST", "/api/flash-movements", body).then(r => r.json());
 
   const save = async (initialCredit: boolean) => {
-    if (!collaboratorId) { toast({ title: "Selecione o colaborador", variant: "destructive" }); return; }
-    if (!movementDate) { toast({ title: "Informe a data do lançamento", variant: "destructive" }); return; }
+    if (!collaboratorId) { setErros({ collaborator: "Selecione o colaborador." }); document.getElementById("fm-collaborator")?.focus(); return; }
+    if (!movementDate) { setErros({ date: "Informe a data do lançamento." }); document.getElementById("fm-date")?.focus(); return; }
+    setErros({});
     try {
       setSaving(true);
       if (initialCredit) {
@@ -681,7 +686,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
         toast({ title: "Crédito inicial lançado", description: "R$ 350,00 de alimentação e R$ 150,00 de mobilidade." });
       } else {
         const cents = Math.round(parseBrNumber(amount) * 100);
-        if (!cents || cents <= 0) { toast({ title: "Informe um valor válido", variant: "destructive" }); setSaving(false); return; }
+        if (!cents || cents <= 0) { setErros({ amount: "Informe um valor maior que zero." }); document.getElementById("fm-amount")?.focus(); setSaving(false); return; }
         const body = {
           collaboratorId, category, type, amountCents: cents, movementDate,
           eventId: eventId || null, description: description.trim() || null,
@@ -699,7 +704,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
       reset();
       onClose();
     } catch (e: any) {
-      toast({ title: "Erro", description: e?.body?.message || "Erro ao registrar lançamento", variant: "destructive" });
+      toast({ title: "Não foi possível registrar o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -730,18 +735,21 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
         <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label htmlFor="fm-collaborator" className={lbl}>Colaborador</label>
-            <Input value={collabSearch} onChange={e => setCollabSearch(e.target.value)} placeholder="Digite para buscar..." aria-label="Buscar colaborador" className="h-8 text-xs rounded-lg border-border mb-1.5" />
+            <Input value={collabSearch} onChange={e => setCollabSearch(e.target.value)} placeholder="Digite para buscar…" aria-label="Buscar colaborador" className="h-8 text-xs rounded-lg border-border mb-1.5" />
             <select
               id="fm-collaborator"
               value={collaboratorId}
-              onChange={e => setCollaboratorId(e.target.value)}
+              aria-required="true"
+              {...campoComErro("fm-collaborator", erros.collaborator)}
+              onChange={e => { setCollaboratorId(e.target.value); if (erros.collaborator) setErros(p => ({ ...p, collaborator: undefined })); }}
               className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary"
             >
-              <option value="">Selecione...</option>
+              <option value="">Selecione…</option>
               {optionCollabs.map((c: any) => (
                 <option key={c.id} value={c.id}>{toTitleCase(c.fullName)}</option>
               ))}
             </select>
+            <MensagemDeErro id="fm-collaborator" erro={erros.collaborator} />
           </div>
 
           {!editing && collaboratorId && !hasAccount(collaboratorId) && (
@@ -750,7 +758,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
               onClick={() => save(true)}
               className="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-brand-soft border border-primary/25 hover:bg-brand-soft transition-colors text-left disabled:opacity-50"
             >
-              <Sparkles className="w-4 h-4 text-primary shrink-0" />
+              <Sparkles className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
               <span className="text-xs text-primary">
                 <span className="font-bold">Lançar crédito inicial da admissão</span><br />
                 <span className="text-primary">R$ 350,00 alimentação + R$ 150,00 mobilidade</span>
@@ -775,11 +783,13 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
             </div>
             <div>
               <label htmlFor="fm-amount" className={lbl}>Valor (R$)</label>
-              <Input id="fm-amount" value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" className="h-9 text-xs rounded-lg border-border font-mono" />
+              <Input id="fm-amount" value={amount} aria-required="true" {...campoComErro("fm-amount", erros.amount)} onChange={e => { setAmount(e.target.value); if (erros.amount) setErros(p => ({ ...p, amount: undefined })); }} inputMode="decimal" placeholder="0,00" className="h-9 text-xs rounded-lg border-border font-mono" />
+              <MensagemDeErro id="fm-amount" erro={erros.amount} />
             </div>
             <div>
               <label htmlFor="fm-date" className={lbl}>Data</label>
-              <Input id="fm-date" type="date" value={movementDate} onChange={e => setMovementDate(e.target.value)} className="h-9 text-xs rounded-lg border-border" />
+              <Input id="fm-date" type="date" value={movementDate} aria-required="true" {...campoComErro("fm-date", erros.date)} onChange={e => { setMovementDate(e.target.value); if (erros.date) setErros(p => ({ ...p, date: undefined })); }} className="h-9 text-xs rounded-lg border-border" />
+              <MensagemDeErro id="fm-date" erro={erros.date} />
             </div>
           </div>
 
@@ -804,7 +814,7 @@ function NewMovementDialog({ open, onClose, collaborators, events, defaultCollab
             Cancelar
           </button>
           <Button disabled={saving} onClick={() => save(false)} className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold">
-            {saving ? "Salvando..." : editing ? "Salvar alterações" : "Registrar lançamento"}
+            {saving ? "Salvando…" : editing ? "Salvar alterações" : "Registrar lançamento"}
           </Button>
         </div>
       </DialogContent>

@@ -54,11 +54,11 @@ export default function TicketSummaryTab({
             <div className={LBL}>Passagem</div>
             {ticket ? (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-primary text-2xs font-bold rounded-lg border border-primary/25">
-                <Plane style={{ width: 9, height: 9 }} />Registrada
+                <Plane style={{ width: 9, height: 9 }} aria-hidden="true" />Registrada
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25">
-                <Plane style={{ width: 9, height: 9 }} />Pendente
+                <Plane style={{ width: 9, height: 9 }} aria-hidden="true" />Pendente
               </span>
             )}
           </div>
@@ -109,19 +109,19 @@ export default function TicketSummaryTab({
           {swap && swap.status === "pendente" && (
             <div title="Há uma solicitação de troca de colaborador aguardando análise de Compras.">
               <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-warning-soft border border-warning/25 text-2xs text-warning cursor-default">
-                <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse motion-reduce:animate-none shrink-0" />
                 Troca solicitada · <span className="font-semibold">Aguardando análise</span>
               </span>
             </div>
           )}
           {swap && swap.status === "aprovado" && (
             <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-success-soft border border-success/25 text-2xs text-success">
-              <CheckCheck className="w-3 h-3 shrink-0" />Troca aprovada por Compras
+              <CheckCheck className="w-3 h-3 shrink-0" aria-hidden="true" />Troca aprovada por Compras
             </span>
           )}
           {swap && swap.status === "rejeitado" && (
             <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-danger-soft border border-danger/25 text-2xs text-danger">
-              <XCircle className="w-3 h-3 shrink-0" />Troca rejeitada por Compras
+              <XCircle className="w-3 h-3 shrink-0" aria-hidden="true" />Troca rejeitada por Compras
             </span>
           )}
         </div>

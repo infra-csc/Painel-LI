@@ -25,7 +25,7 @@ interface SortableHeaderProps<F extends string> {
 const ARIA_SORT: Record<SortDirection, 'ascending' | 'descending'> = { asc: 'ascending', desc: 'descending' };
 
 /**
- * Cabeçalho de coluna ordenável acessível: o `<th>` carrega `aria-sort` e o
+ * Cabeçalho de coluna ordenável acessível: o `<th scope="col">` carrega `aria-sort` e o
  * controle real é um `<button>` interno (foco/Enter/Espaço funcionam sem JS extra).
  */
 export default function SortableHeader<F extends string = SortField>({

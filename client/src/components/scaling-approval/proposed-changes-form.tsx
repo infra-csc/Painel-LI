@@ -8,6 +8,8 @@ import type { Event, TeamInclusion } from "@shared/schema";
 import { diffInclusion, type ChangeRequestType, type ProposedChanges } from "@shared/scaling-validation-rules";
 import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "@/components/scaling-validation/travel-fields";
 import { WorkDaysPicker } from "@/components/scaling-validation/work-days-picker";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 /** Rascunho editável dos campos propostos (usado no "Reajustar" do aprovador). */
 export interface ProposedDraft {
@@ -165,13 +167,15 @@ export function ProposedChangesForm({ type, value, onChange, event, disabled, id
           de UMA vaga; o valor segue no rascunho como veio do pedido. */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label className="text-xs text-slate-600">Dias de trabalho <span className="text-danger-strong">*</span></Label>
+          <Label className="text-xs text-slate-600">Dias de trabalho<RequiredMark /></Label>
           {pedidos.length > 0 && (
-            <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={disabled || !divergencia}
-              title="Devolve a seleção para exatamente os dias que a área pediu"
+            <MotivoDesabilitado motivo="Devolve a seleção para exatamente os dias que a área pediu" desabilitado={disabled || !divergencia}>
+              <Button type="button" size="sm" variant="outline" className="h-7 rounded-lg text-xs" disabled={disabled || !divergencia}
+             
               onClick={() => onDays([...pedidos].sort())}>
               Voltar ao pedido
             </Button>
+            </MotivoDesabilitado>
           )}
         </div>
         <WorkDaysPicker rangeStart={event?.startDate ?? ""} rangeEnd={event?.endDate ?? ""} value={value.workDays} onChange={onDays} disabled={disabled} pedidos={pedidos} />

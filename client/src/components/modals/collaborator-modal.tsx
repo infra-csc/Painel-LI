@@ -226,7 +226,7 @@ export default function CollaboratorModal({
       return result;
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: isEdit ? "Colaborador atualizado com sucesso!" : isEmergency ? "Colaborador emergencial criado com sucesso" : "Colaborador criado com sucesso" });
+      toast({ variant: "success", title: isEdit ? "Colaborador atualizado" : isEmergency ? "Colaborador emergencial criado" : "Colaborador criado" });
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
@@ -263,7 +263,7 @@ export default function CollaboratorModal({
         <FormLabel className={LBL}>Cidade{REQ}</FormLabel>
         <FormControl>
           <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
             <Input placeholder="São Paulo – SP" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-city" {...field} />
           </div>
         </FormControl>
@@ -335,7 +335,7 @@ export default function CollaboratorModal({
                       <FormLabel className={LBL}>CPF{REQ}</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
                           <Input placeholder="000.000.000-00" className={`${INPUT_CLS} pl-9 font-mono`} data-testid="input-collaborator-cpf" {...field} />
                         </div>
                       </FormControl>
@@ -353,7 +353,7 @@ export default function CollaboratorModal({
                       <FormLabel className={LBL}>RG{OPT}</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
                           <Input placeholder="00.000.000-0" className={`${INPUT_CLS} pl-9 font-mono`} data-testid="input-collaborator-rg" {...field} />
                         </div>
                       </FormControl>
@@ -367,7 +367,7 @@ export default function CollaboratorModal({
                       <FormLabel className={LBL}>Nascimento{REQ}</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" aria-hidden="true" />
                           <Input type="date" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-birth-date" {...field} />
                         </div>
                       </FormControl>
@@ -413,7 +413,7 @@ export default function CollaboratorModal({
                     <FormLabel className={LBL}>Telefone{OPT}</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
                         <Input placeholder="(11) 99999-9999" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-phone" {...field} />
                       </div>
                     </FormControl>
@@ -434,7 +434,7 @@ export default function CollaboratorModal({
                         <FormLabel className={LBL}>Rua</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
                             <Input placeholder="Rua / avenida" className={`${INPUT_CLS} pl-9`} data-testid="input-collaborator-address-street" {...field} />
                           </div>
                         </FormControl>
@@ -546,7 +546,7 @@ export default function CollaboratorModal({
                         <FormLabel className={LBL}>Início{REQ}</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" aria-hidden="true" />
                             <Input type="date" className={`${INPUT_CLS} pl-9`} data-testid="input-emergency-start-date" {...field} />
                           </div>
                         </FormControl>
@@ -558,7 +558,7 @@ export default function CollaboratorModal({
                         <FormLabel className={LBL}>Fim{REQ}</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" aria-hidden="true" />
                             <Input type="date" className={`${INPUT_CLS} pl-9`} data-testid="input-emergency-end-date" {...field} />
                           </div>
                         </FormControl>
@@ -575,7 +575,7 @@ export default function CollaboratorModal({
         {/* Footer */}
         <div className="px-5 py-3.5 border-t border-border bg-surface-muted/50 shrink-0">
           <div className="flex items-center justify-between">
-            <p className="text-2xs text-muted-foreground">Campos marcados com <span className="text-danger" aria-hidden="true">*</span> são obrigatórios</p>
+            <p className="text-2xs text-muted-foreground">Campos marcados com<RequiredMark /> são obrigatórios</p>
             <div className="flex items-center gap-2">
               <button type="button" onClick={handleClose} data-testid="button-cancel-collaborator"
                 className="h-9 px-4 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-muted transition-colors">
@@ -589,7 +589,7 @@ export default function CollaboratorModal({
                 className="flex items-center gap-1.5 h-9 px-5 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg shadow-1 transition-all disabled:opacity-60"
               >
                 {collaboratorMutation.isPending
-                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Salvando...</>
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Salvando…</>
                   : <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> {isEdit ? "Atualizar" : "Salvar colaborador"}</>
                 }
               </button>

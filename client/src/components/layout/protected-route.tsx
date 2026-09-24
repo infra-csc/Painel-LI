@@ -19,7 +19,7 @@ export default function ProtectedRoute({
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-lg text-muted-foreground">Carregando...</div>
+        <div className="animate-pulse motion-reduce:animate-none text-lg text-muted-foreground">Carregando…</div>
       </div>
     );
   }

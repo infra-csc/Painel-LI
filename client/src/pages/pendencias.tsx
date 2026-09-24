@@ -97,7 +97,7 @@ export default function PendenciasPage() {
                 {n.text && <span className="block text-xs text-muted-foreground">{n.text}</span>}
                 {n.when && <span className="block mt-0.5 text-2xs text-muted-foreground">{n.when}</span>}
               </span>
-              {n.isNew && <span aria-label="novo" className="h-2 w-2 shrink-0 rounded-full bg-danger-strong" />}
+              {n.isNew && <span className="h-2 w-2 shrink-0 rounded-full bg-danger-strong" aria-hidden="true" />}{n.isNew && <span className="sr-only">Novo</span>}
               <span className="text-muted-foreground"><ChevronRight className="h-[18px] w-[18px]" aria-hidden="true" /></span>
             </button>
           ))}

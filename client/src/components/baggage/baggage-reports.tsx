@@ -4,7 +4,7 @@
  * Eram tabelas com `overflow-x`. No estreito isso é pior do que parece: rolar
  * para o lado esconde justamente a ÚLTIMA coluna, que é o valor — o número que
  * a pessoa veio ver. Abaixo do limiar cada linha vira cartão, com o rótulo de
- * cada faixa vindo do próprio `<th>`.
+ * cada faixa vindo do próprio `<th scope="col">`.
  *
  * Os `+`/`−` do ajuste de histórico foram de 16px para 24px: alvo de 16 pixels
  * ao lado de outro alvo de 16 pixels erra o alvo.
@@ -18,6 +18,7 @@ import {
   type CiaGroup, type CollaboratorItem,
 } from "./baggage-core";
 import type { AgregadoDoColaborador } from "./baggage-logic";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 /** Abaixo disto as colunas não cabem e cada linha vira cartão. */
 const LARGURA_MINIMA = 900;
@@ -73,16 +74,18 @@ function Busca({ value, onChange, placeholder, label, testid }: {
 
 function BotaoCsv({ onClick, title, disabled }: { onClick: () => void; title: string; disabled: boolean }) {
   return (
-    <button
+    <MotivoDesabilitado motivo={title} desabilitado={disabled}>
+      <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={title}
+     
       aria-label={title}
       className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 text-xs font-medium text-slate-700 border border-border rounded-xl hover:bg-surface-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
     >
       <Download className="w-3.5 h-3.5" aria-hidden="true" /> CSV
     </button>
+    </MotivoDesabilitado>
   );
 }
 
@@ -124,7 +127,7 @@ export function BaggageByCollaborator({
         <div className="flex-1 min-w-0">
           <Busca
             value={busca} onChange={onBusca}
-            placeholder="Buscar por nome ou CPF..."
+            placeholder="Buscar por nome ou CPF…"
             label="Buscar colaborador por nome ou CPF"
             testid="input-search-collab-tab"
           />
@@ -156,18 +159,20 @@ export function BaggageByCollaborator({
           </p>
           <div className="flex flex-wrap gap-1.5">
             {candidatos.map(c => (
-              <button
+              <MotivoDesabilitado motivo="Adiciona 1 bagagem em Outros — depois ajuste por CIA com os botões + / −" desabilitado={ajustando}>
+                <button
                 key={c.id}
                 type="button"
                 disabled={ajustando}
                 onClick={() => onAdicionarAoHistorico(c.id)}
                 className="inline-flex items-center gap-1 text-2xs px-2 py-1 rounded-lg border border-border bg-card hover:border-primary/40 hover:text-primary-hover disabled:opacity-50"
-                title="Adiciona 1 bagagem em Outros — depois ajuste por CIA com os botões + / −"
+               
               >
                 <Plus className="w-3 h-3" aria-hidden="true" />
                 {toTitleCase(fixEncoding(c.fullName))}
                 {getCpf(c) && <span className="font-mono text-muted-foreground ml-1">{formatCpf(getCpf(c))}</span>}
               </button>
+              </MotivoDesabilitado>
             ))}
           </div>
         </div>
@@ -175,7 +180,7 @@ export function BaggageByCollaborator({
 
       {carregando ? (
         <div className="p-4 space-y-2" aria-hidden="true">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse motion-reduce:animate-none" />)}
         </div>
       ) : linhas.length === 0 ? (
         <div className="text-center py-10 px-4">
@@ -193,11 +198,11 @@ export function BaggageByCollaborator({
           <table className="w-full min-w-[640px] text-xs">
             <thead className="bg-surface-muted">
               <tr>
-                <th className={`${TH} text-left`}>Colaborador</th>
-                <th className={`${TH} text-left`}>CPF</th>
-                <th className={`${TH} text-left`}>Por CIA</th>
-                <th className={`${TH} text-right`}>Bagagens</th>
-                <th className={`${TH} text-right`}>Valor total</th>
+                <th scope="col" className={`${TH} text-left`}>Colaborador</th>
+                <th scope="col" className={`${TH} text-left`}>CPF</th>
+                <th scope="col" className={`${TH} text-left`}>Por CIA</th>
+                <th scope="col" className={`${TH} text-right`}>Bagagens</th>
+                <th scope="col" className={`${TH} text-right`}>Valor total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -238,23 +243,27 @@ export function BaggageByCollaborator({
                             key={g}
                             className={`inline-flex items-center gap-0.5 text-2xs font-bold rounded-full whitespace-nowrap ${total > 0 ? CIA_STYLE[g].badge : "bg-surface-muted text-muted-foreground"} px-0.5`}
                           >
-                            <button
+                            <MotivoDesabilitado motivo={hist <= 0 ? "Sem histórico nesta CIA para remover (registros do sistema se editam na aba Solicitações)" : "Remover 1 do histórico"} desabilitado={ajustando || hist <= 0}>
+                              <button
                               type="button"
                               disabled={ajustando || hist <= 0}
                               onClick={() => onAjustarHistorico(row.collaboratorId, g, hist, -1)}
                               aria-label={`Remover 1 bagagem ${g} do histórico de ${row.name}`}
-                              title={hist <= 0 ? "Sem histórico nesta CIA para remover (registros do sistema se editam na aba Solicitações)" : "Remover 1 do histórico"}
+                             
                               className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-card/70 disabled:opacity-30 disabled:cursor-not-allowed"
                             >−</button>
+                            </MotivoDesabilitado>
                             <span className="px-0.5">{g}: {total}</span>
-                            <button
+                            <MotivoDesabilitado motivo="Adicionar 1 ao histórico" desabilitado={ajustando}>
+                              <button
                               type="button"
                               disabled={ajustando}
                               onClick={() => onAjustarHistorico(row.collaboratorId, g, hist, +1)}
                               aria-label={`Adicionar 1 bagagem ${g} ao histórico de ${row.name}`}
-                              title="Adicionar 1 ao histórico"
+                             
                               className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-card/70 disabled:opacity-30"
                             >+</button>
+                            </MotivoDesabilitado>
                           </span>
                         );
                       })}
@@ -323,7 +332,7 @@ export function BaggageByEvent({
         <div className="flex-1 min-w-0">
           <Busca
             value={busca} onChange={onBusca}
-            placeholder="Buscar evento..." label="Buscar evento"
+            placeholder="Buscar evento…" label="Buscar evento"
             testid="input-search-event-tab"
           />
         </div>
@@ -332,7 +341,7 @@ export function BaggageByEvent({
 
       {carregando ? (
         <div className="p-4 space-y-2" aria-hidden="true">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-muted animate-pulse motion-reduce:animate-none" />)}
         </div>
       ) : linhas.length === 0 ? (
         <div className="text-center py-10 px-4">
@@ -348,10 +357,10 @@ export function BaggageByEvent({
           <table className="w-full min-w-[640px] text-xs">
             <thead className="bg-surface-muted">
               <tr>
-                <th className={`${TH} text-left`}>Evento</th>
-                <th className={`${TH} text-right`}>Bagagens</th>
-                <th className={`${TH} text-right`}>Valor total</th>
-                <th className={`${TH} text-right`}>Valor médio</th>
+                <th scope="col" className={`${TH} text-left`}>Evento</th>
+                <th scope="col" className={`${TH} text-right`}>Bagagens</th>
+                <th scope="col" className={`${TH} text-right`}>Valor total</th>
+                <th scope="col" className={`${TH} text-right`}>Valor médio</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">

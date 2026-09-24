@@ -332,7 +332,7 @@ function LockedHint({ reason }: { reason: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex items-center justify-center text-muted-foreground" aria-label={reason}>
+        <span role="img" tabIndex={0} className="inline-flex items-center justify-center text-muted-foreground rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={reason}>
           <Lock className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       </TooltipTrigger>
@@ -441,10 +441,10 @@ export interface SuggestionsListProps extends SuggestionRowActions {
   showEvent?: boolean;
 }
 
-/** `<th>` no padrão do módulo (mesma tipografia do quadro "Escala"). */
+/** `<th scope="col">` no padrão do módulo (mesma tipografia do quadro "Escala"). */
 const TH = cn("px-3 py-2 text-left whitespace-nowrap", TABLE_TH);
 
-/** Botão de ordenação usado dentro dos `<th>` (o `<th>` carrega o `aria-sort`). */
+/** Botão de ordenação usado dentro dos `<th scope="col">` (o `<th scope="col">` carrega o `aria-sort`). */
 function SortButton({
   field, label, sortConfig, onSort, className,
 }: {
@@ -573,7 +573,7 @@ function AreaLine({ row }: { row: SuggestionRow }) {
 }
 
 /** Pulso da linha que acabou de receber um pedido — sem animação para quem pediu menos movimento. */
-const PULSE = "animate-pulse motion-reduce:animate-none ring-2 ring-inset ring-primary/40";
+const PULSE = "animate-pulse motion-reduce:animate-none motion-reduce:animate-none ring-2 ring-inset ring-primary/40";
 
 interface TableRowProps extends SuggestionRowActions {
   row: SuggestionRow;
@@ -711,7 +711,7 @@ export function SuggestionsList({
                   </th>
                 )}
                 {/* "#" e "Vaga" em colunas próprias (04/09): cada uma com o seu
-                    `aria-sort` — num `<th>` só, o leitor de tela anunciava
+                    `aria-sort` — num `<th scope="col">` só, o leitor de tela anunciava
                     "ordenado" sem dizer por qual dos dois. */}
                 <th scope="col" className={cn(TH, "w-[64px] pr-1")} aria-sort={ariaSort(sortConfig, "id")}>
                   <SortButton field="id" label="#" sortConfig={sortConfig} onSort={onSort} />

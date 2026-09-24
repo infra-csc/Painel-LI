@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -39,6 +40,8 @@ import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/b
 import { ActivityTimeline, PlannedEditedBadge } from "@/components/activity-timeline";
 import { diasComDiaria } from "@shared/calculation-rules";
 import { EmptyState } from "@/components/common/empty-state";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 const avatarColor = (name: string) => avatarClasses(name).join(" ");
 
@@ -108,7 +111,7 @@ function CategoryBlock({ title, icon: Icon, iconColor, bgColor, stripColor, rows
           )}
           {hasAnyDiff && (
             <span className="flex items-center gap-0.5 text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 px-1.5 py-0.5 rounded-full leading-none">
-              <AlertTriangle className="w-2 h-2" /> Divergência
+              <AlertTriangle className="w-2 h-2" aria-hidden="true" /> Divergência
             </span>
           )}
         </div>
@@ -324,11 +327,11 @@ export default function BudgetComparisonPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Comparativo recalculado", className: "bg-success-soft border-success/25 text-success" });
+      toast({ title: "Comparativo recalculado", variant: "success" });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
     },
-    onError: () => {
-      toast({ title: "Erro ao calcular", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Não foi possível recalcular o comparativo", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" });
     },
   });
 
@@ -356,7 +359,7 @@ export default function BudgetComparisonPage() {
         toast({
           title: `${info?.title || "Ação realizada"} — ${skipped} ${skipped === 1 ? "item ficou de fora" : "itens ficaram de fora"}`,
           description: "Itens ainda não enviados para análise não entram na decisão. Peça o envio no Realizado e decida-os depois.",
-          className: "bg-warning-soft border-warning/25 text-warning",
+          variant: "warning",
         });
       } else {
         toast({ title: info?.title || "Ação realizada", className: info?.cls });
@@ -400,7 +403,7 @@ export default function BudgetComparisonPage() {
         toast({
           title: "Comparativo aprovado — Flash NÃO creditado",
           description: "A aprovação foi salva, mas os créditos de alimentação e mobilidade não entraram na Conta Corrente Flash. Avise o RH e aprove novamente para refazer o crédito.",
-          className: "bg-warning-soft border-warning/25 text-warning",
+          variant: "warning",
         });
         return;
       }
@@ -411,7 +414,7 @@ export default function BudgetComparisonPage() {
         description: n > 0
           ? `${n} lançamento${n !== 1 ? 's' : ''} no Flash para ${pessoas} colaborador${pessoas !== 1 ? 'es' : ''} — alimentação ${fmt(fc.alimentacaoCents || 0)} · mobilidade ${fmt(fc.mobilidadeCents || 0)}.`
           : "Nenhum valor de alimentação ou mobilidade a creditar no Flash neste evento.",
-        className: "bg-success-soft border-success/25 text-success",
+        variant: "success",
       });
     },
     onError: (err: any) => {
@@ -452,7 +455,7 @@ export default function BudgetComparisonPage() {
         description: mudou > 0
           ? `${fc?.created || 0} criado(s) · ${fc?.updated || 0} atualizado(s) · ${fc?.removed || 0} removido(s) — alimentação ${fmt(fc?.alimentacaoCents || 0)} · mobilidade ${fmt(fc?.mobilidadeCents || 0)}.`
           : "Nenhum lançamento precisou mudar: a Conta Corrente Flash já reflete o Realizado atual.",
-        className: "bg-success-soft border-success/25 text-success",
+        variant: "success",
       });
     },
     onError: (err: any) => {
@@ -487,7 +490,7 @@ export default function BudgetComparisonPage() {
         toast({
           title: "Comparativo reaberto — Flash NÃO estornado",
           description: "O comparativo voltou para ajuste, mas os lançamentos automáticos continuam na Conta Corrente Flash. Reabra de novo para tentar o estorno.",
-          className: "bg-warning-soft border-warning/25 text-warning",
+          variant: "warning",
         });
         return;
       }
@@ -497,7 +500,7 @@ export default function BudgetComparisonPage() {
         description: n > 0
           ? `${n} lançamento${n !== 1 ? 's' : ''} automático${n !== 1 ? 's' : ''} removido${n !== 1 ? 's' : ''} da Conta Corrente Flash. Ao aprovar de novo, o crédito é recriado.`
           : "Não havia lançamento automático no Flash para estornar neste evento.",
-        className: "bg-warning-soft border-warning/25 text-warning",
+        variant: "warning",
       });
     },
     onError: (err: any) => {
@@ -518,9 +521,9 @@ export default function BudgetComparisonPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setEditingActual(null);
-      toast({ title: "Realizado atualizado pelo RH", className: "bg-warning-soft border-warning/25 text-warning" });
+      toast({ title: "Realizado atualizado pelo RH", variant: "warning" });
     },
-    onError: () => toast({ title: "Erro ao salvar", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível salvar o Realizado", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   const openEditModal = (actual: BudgetActual) => {
@@ -939,7 +942,7 @@ export default function BudgetComparisonPage() {
                               <div className="absolute inset-0 rounded-full opacity-30 animate-ping bg-success" />
                             )}
                             <div className={cn(`w-7 h-7 rounded-full flex items-center justify-center text-2xs font-bold relative`, (isDone ? "bg-success" : isActive ? "bg-success" : "bg-muted"), ((isDone || isActive) ? "text-white" : "text-muted-foreground"))}>
-                              {isDone ? <Check className="w-3.5 h-3.5" /> : (i + 1)}
+                              {isDone ? <Check className="w-3.5 h-3.5" aria-hidden="true" /> : (i + 1)}
                             </div>
                           </div>
                           <div className="min-w-0">
@@ -998,13 +1001,13 @@ export default function BudgetComparisonPage() {
                     className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-warning-soft border border-warning/25"
                     title="Prestações ainda não enviadas pelo responsável — não aparecem na lista abaixo"
                   >
-                    <Clock className="w-3 h-3 text-warning-strong" />
+                    <Clock className="w-3 h-3 text-warning-strong" aria-hidden="true" />
                     <span className="text-sm font-bold text-warning">{pendingCount}</span>
                     <span className="text-2xs text-warning/70">não enviado{pendingCount !== 1 ? 's' : ''}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-muted border border-border">
-                  <ListChecks className="w-3 h-3 text-muted-foreground" />
+                  <ListChecks className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
                   <span className="text-sm font-bold text-slate-600">{totalActualItems}</span>
                   <span className="text-2xs text-muted-foreground">total</span>
                 </div>
@@ -1019,7 +1022,7 @@ export default function BudgetComparisonPage() {
               <div className="flex items-center justify-between mb-3">
                 <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total Planejado</p>
                 <div className="w-7 h-7 rounded-lg bg-brand-soft/60 flex items-center justify-center">
-                  <DollarSign className="w-3.5 h-3.5 text-primary" />
+                  <DollarSign className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
                 </div>
               </div>
               <p className="text-2xl font-bold text-foreground tabular-nums">{fmt(totals.totalPlanned)}</p>
@@ -1031,7 +1034,7 @@ export default function BudgetComparisonPage() {
               <div className="flex items-center justify-between mb-3">
                 <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total Realizado</p>
                 <div className="w-7 h-7 rounded-lg bg-brand-soft/60 flex items-center justify-center">
-                  <BarChart3 className="w-3.5 h-3.5 text-primary" />
+                  <BarChart3 className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
                 </div>
               </div>
               <p className="text-2xl font-bold text-foreground tabular-nums">{fmt(totals.totalActual)}</p>
@@ -1050,9 +1053,9 @@ export default function BudgetComparisonPage() {
                   totals.difference === 0 ? 'bg-muted/60' :
                   totals.difference < 0 ? 'bg-success-soft/60' : 'bg-danger-soft/60'
                 }`}>
-                  {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-muted-foreground" /> :
-                   totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-success-strong" /> :
-                   <TrendingUp className="w-3.5 h-3.5 text-danger-strong" />}
+                  {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" /> :
+                   totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-success-strong" aria-hidden="true" /> :
+                   <TrendingUp className="w-3.5 h-3.5 text-danger-strong" aria-hidden="true" />}
                 </div>
               </div>
               <p className={`text-2xl font-bold tabular-nums ${
@@ -1081,7 +1084,7 @@ export default function BudgetComparisonPage() {
 
           {/* ── Info banner ── */}
           <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-muted border border-border rounded-xl">
-            <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
             <span className="text-2xs text-muted-foreground">
               Valores referentes apenas às prestações enviadas para revisão pelo responsável de função
             </span>
@@ -1090,7 +1093,7 @@ export default function BudgetComparisonPage() {
           {/* ── RH comment banner ── */}
           {rhComment && (
             <div className="rounded-xl border border-border bg-card p-3.5 flex items-start gap-2.5">
-              <MessageSquare className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <MessageSquare className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" aria-hidden="true" />
               <div>
                 <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Comentário do RH</span>
                 <p className="text-sm text-slate-700 mt-0.5">{rhComment}</p>
@@ -1107,7 +1110,7 @@ export default function BudgetComparisonPage() {
             comparison.status === 'aprovado' ? (
               <div className="rounded-xl border border-success/25 bg-success-soft p-3.5 space-y-3">
                 <div className="flex items-start gap-2.5">
-                  <Wallet className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                  <Wallet className="w-4 h-4 text-success mt-0.5 flex-shrink-0" aria-hidden="true" />
                   <div>
                     <span className="text-2xs uppercase text-success font-bold tracking-wider">Comparativo aprovado</span>
                     <p className="text-sm text-success mt-0.5">
@@ -1119,7 +1122,7 @@ export default function BudgetComparisonPage() {
                 {/* Realizado editado depois da aprovação → o Flash ficou defasado */}
                 {realizadoChangedAfterApproval && (
                   <div className="rounded-lg border border-warning/25 bg-warning-soft px-3 py-2.5 flex items-start gap-2" data-testid="alert-flash-defasado">
-                    <AlertTriangle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
+                    <AlertTriangle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" aria-hidden="true" />
                     <p className="text-xs text-warning">
                       <strong>O Realizado mudou depois da aprovação</strong> — os créditos no Flash ainda são os do momento em que o comparativo foi aprovado. Use <strong>Ressincronizar Flash</strong> para alinhar os lançamentos ao Realizado atual.
                     </p>
@@ -1128,34 +1131,38 @@ export default function BudgetComparisonPage() {
 
                 {/* Correção e estorno: os dois caminhos que faltavam depois do aprovado */}
                 <div className="flex flex-wrap items-center gap-2 pl-6">
-                  <Button
+                  <MotivoDesabilitado motivo="Reaplica a regra do crédito sobre o Realizado ATUAL. É idempotente: não duplica lançamento nem muda o status do comparativo." desabilitado={resyncFlashMutation.isPending || reopenComparisonMutation.isPending}>
+                    <Button
                     variant="outline"
                     className={`h-8 text-xs px-3 rounded-lg font-semibold border-success/25 text-success hover:bg-success-soft ${realizadoChangedAfterApproval ? 'bg-card ring-2 ring-warning/25' : 'bg-card'}`}
                     onClick={() => resyncFlashMutation.mutate(comparison.id)}
                     disabled={resyncFlashMutation.isPending || reopenComparisonMutation.isPending}
                     data-testid="button-ressincronizar-flash"
-                    title="Reaplica a regra do crédito sobre o Realizado ATUAL. É idempotente: não duplica lançamento nem muda o status do comparativo."
+                   
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${resyncFlashMutation.isPending ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${resyncFlashMutation.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
                     {resyncFlashMutation.isPending ? 'Ressincronizando…' : 'Ressincronizar Flash'}
                   </Button>
-                  <Button
+                  </MotivoDesabilitado>
+                  <MotivoDesabilitado motivo="Devolve o comparativo para ajuste e ESTORNA os lançamentos automáticos do Flash deste evento." desabilitado={reopenComparisonMutation.isPending || resyncFlashMutation.isPending}>
+                    <Button
                     variant="outline"
                     className="h-8 text-xs px-3 rounded-lg font-semibold bg-card border-warning/25 text-warning hover:bg-warning-soft"
                     onClick={() => { setReopenReason(""); setReopenReasonError(false); setReopenOpen(true); }}
                     disabled={reopenComparisonMutation.isPending || resyncFlashMutation.isPending}
                     data-testid="button-reabrir-comparativo"
-                    title="Devolve o comparativo para ajuste e ESTORNA os lançamentos automáticos do Flash deste evento."
+                   
                   >
-                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
                     Reabrir comparativo (estorna o Flash)
                   </Button>
+                  </MotivoDesabilitado>
                 </div>
               </div>
             ) : (
               <div className="rounded-xl border border-primary/25 bg-card p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-start gap-2.5">
-                  <Wallet className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <Wallet className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" aria-hidden="true" />
                   <div>
                     <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Fechamento do comparativo</span>
                     <p className="text-sm text-slate-700 mt-0.5">
@@ -1168,7 +1175,7 @@ export default function BudgetComparisonPage() {
                   onClick={() => approveComparisonMutation.mutate(comparison.id)}
                   disabled={approveComparisonMutation.isPending}
                 >
-                  <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                  <CheckCircle className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
                   {approveComparisonMutation.isPending ? 'Aprovando…' : 'Aprovar comparativo e creditar o Flash'}
                 </Button>
               </div>
@@ -1195,7 +1202,7 @@ export default function BudgetComparisonPage() {
                       else setExpandedCards(new Set(sortedData.map(r => r.actual.id)));
                     }}
                   >
-                    {sortedData.length > 0 && sortedData.every(r => expandedCards.has(r.actual.id)) ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {sortedData.length > 0 && sortedData.every(r => expandedCards.has(r.actual.id)) ? <ChevronUp className="w-3 h-3" aria-hidden="true" /> : <ChevronDown className="w-3 h-3" aria-hidden="true" />}
                     {sortedData.length > 0 && sortedData.every(r => expandedCards.has(r.actual.id)) ? 'Recolher todos' : 'Expandir todos'}
                   </Button>
                   {isRhOrAdmin && (
@@ -1210,7 +1217,7 @@ export default function BudgetComparisonPage() {
                         else setSelectedItems(new Set(selectableIds));
                       }}
                     >
-                      {selectedItems.size > 0 ? <><CheckSquare className="w-3 h-3" /> Limpar</> : <><Square className="w-3 h-3" /> Selecionar todos</>}
+                      {selectedItems.size > 0 ? <><CheckSquare className="w-3 h-3" aria-hidden="true" /> Limpar</> : <><Square className="w-3 h-3" aria-hidden="true" /> Selecionar todos</>}
                     </Button>
                   )}
                 </div>
@@ -1219,8 +1226,8 @@ export default function BudgetComparisonPage() {
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[180px]">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input placeholder="Buscar por nome..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 pl-8 text-xs rounded-xl border-border" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+                  <Input placeholder="Buscar por nome…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 pl-8 text-xs rounded-xl border-border" />
                 </div>
                 <Select value={filterFunction} onValueChange={setFilterFunction}>
                   <SelectTrigger className="h-9 text-sm w-auto min-w-[160px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Função" /></SelectTrigger>
@@ -1251,12 +1258,12 @@ export default function BudgetComparisonPage() {
             {(isLoadingPlanned || isLoadingActual || isLoadingComparison) ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className="w-8 h-8 border-2 border-success-strong border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-muted-foreground">Carregando prestações...</p>
+                <p className="text-sm text-muted-foreground">Carregando prestações…</p>
               </div>
             ) : (isErrorPlanned || isErrorActual || isErrorComparison) ? (
               <div className="rounded-xl border-2 border-dashed border-danger/25 bg-danger-soft/50 p-12 text-center">
                 <div className="w-12 h-12 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-3">
-                  <AlertCircle className="w-6 h-6 text-danger-strong" />
+                  <AlertCircle className="w-6 h-6 text-danger-strong" aria-hidden="true" />
                 </div>
                 <p className="font-semibold text-danger">Erro ao carregar as prestações</p>
                 <p className="text-sm text-muted-foreground mt-1">Não foi possível carregar os dados do Planejado e do Realizado. Verifique sua conexão e tente novamente.</p>
@@ -1264,14 +1271,14 @@ export default function BudgetComparisonPage() {
                   className="mt-4 h-9 px-5 rounded-xl text-sm font-semibold bg-card border border-danger/25 text-danger hover:bg-danger-soft shadow-none"
                   onClick={() => { if (isErrorPlanned) refetchPlanned(); if (isErrorActual) refetchActual(); if (isErrorComparison) refetchComparison(); }}
                 >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Tentar novamente
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Tentar novamente
                 </Button>
               </div>
             ) : sortedData.length === 0 ? (
               (searchTerm || filterFunction !== 'all' || filterType !== 'all' || statusFilter) ? (
                 <div className="rounded-xl border-2 border-dashed border-border bg-surface-muted p-12 text-center">
                   <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
-                    <Search className="w-6 h-6 text-muted-foreground" />
+                    <Search className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
                   </div>
                   <p className="font-semibold text-muted-foreground">Nenhuma prestação corresponde aos filtros</p>
                   <p className="text-sm text-muted-foreground mt-1">Ajuste a busca ou os filtros para ver outras prestações.</p>
@@ -1286,7 +1293,7 @@ export default function BudgetComparisonPage() {
               ) : (
                 <div className="rounded-xl border-2 border-dashed border-border bg-surface-muted p-12 text-center">
                   <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
-                    <BarChart3 className="w-6 h-6 text-muted-foreground" />
+                    <BarChart3 className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
                   </div>
                   <p className="font-semibold text-muted-foreground">Nenhuma prestação enviada para revisão</p>
                   <p className="text-sm text-muted-foreground mt-1">As prestações aparecerão aqui após serem preenchidas e enviadas no Orçamento Realizado.</p>
@@ -1385,7 +1392,7 @@ export default function BudgetComparisonPage() {
                               <span className="text-sm font-semibold text-foreground truncate">{colName}</span>
                               {row.isSplit && (
                                 <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-brand-soft text-2xs font-semibold text-primary shrink-0">
-                                  <GitFork className="w-2.5 h-2.5" /> Dividida
+                                  <GitFork className="w-2.5 h-2.5" aria-hidden="true" /> Dividida
                                 </span>
                               )}
                               {isDecided && decidedStyle && (
@@ -1395,12 +1402,12 @@ export default function BudgetComparisonPage() {
                               )}
                               {isResubmitted && (
                                 <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-brand-soft text-2xs font-semibold text-primary shrink-0">
-                                  <RotateCcw className="w-2.5 h-2.5" /> Reenviado
+                                  <RotateCcw className="w-2.5 h-2.5" aria-hidden="true" /> Reenviado
                                 </span>
                               )}
                               {isNotAttended && (
                                 <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-muted text-2xs font-semibold text-muted-foreground shrink-0">
-                                  <UserX className="w-2.5 h-2.5" /> Não participou
+                                  <UserX className="w-2.5 h-2.5" aria-hidden="true" /> Não participou
                                 </span>
                               )}
                               {eventNotes.length > 0 && (
@@ -1449,7 +1456,7 @@ export default function BudgetComparisonPage() {
                                 <>
                                   <span className="text-muted-foreground shrink-0">·</span>
                                   <span className="flex items-center gap-0.5 text-2xs text-warning-strong font-medium shrink-0">
-                                    <AlertTriangle className="w-2.5 h-2.5" /> Sem justificativa
+                                    <AlertTriangle className="w-2.5 h-2.5" aria-hidden="true" /> Sem justificativa
                                   </span>
                                 </>
                               )}
@@ -1493,7 +1500,7 @@ export default function BudgetComparisonPage() {
                                     className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-warning-soft transition-colors"
                                     onClick={(e) => { e.stopPropagation(); openEditModal(a); }}
                                   >
-                                    <Pencil className="w-3.5 h-3.5 text-warning-strong" />
+                                    <Pencil className="w-3.5 h-3.5 text-warning-strong" aria-hidden="true" />
                                   </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="left" className="text-xs">Editar realizado (RH)</TooltipContent>
@@ -1507,7 +1514,7 @@ export default function BudgetComparisonPage() {
                             className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
                             onClick={(e) => { e.stopPropagation(); toggleExpand(a.id); }}
                           >
-                            <ChevronDown className={`w-4 h-4 text-muted-foreground hover:text-slate-700 transition-all duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`w-4 h-4 text-muted-foreground hover:text-slate-700 transition-all duration-200 ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
                           </button>
                         </div>
                       </div>
@@ -1520,7 +1527,7 @@ export default function BudgetComparisonPage() {
                             {/* ── Not attended notice ── */}
                             {isNotAttended && (
                               <div className="flex items-start gap-2.5 bg-muted rounded-xl px-4 py-3 border border-border">
-                                <UserX className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                <UserX className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" aria-hidden="true" />
                                 <div>
                                   <p className="text-sm font-semibold text-slate-600">Colaborador não participou do evento</p>
                                   <p className="text-2xs text-muted-foreground mt-0.5">Planejado, Realizado e Diferença deste colaborador são excluídos dos totais. Os valores abaixo permanecem apenas para referência.</p>
@@ -1535,7 +1542,7 @@ export default function BudgetComparisonPage() {
                                 <div className="h-[3px] bg-primary" />
                                 <div className="flex items-center gap-1.5 px-3 py-2 bg-brand-soft/80 border-b border-primary/25">
                                   <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
-                                    <GitFork className="w-2.5 h-2.5 text-white" />
+                                    <GitFork className="w-2.5 h-2.5 text-white" aria-hidden="true" />
                                   </div>
                                   <span className="text-2xs font-black uppercase tracking-wide text-primary">
                                     Detalhamento por Colaborador
@@ -1600,7 +1607,7 @@ export default function BudgetComparisonPage() {
                                           title="Ver detalhes completos"
                                           aria-label={`Ver detalhes completos de ${colItemName}`}
                                         >
-                                          <ClipboardList className="w-3.5 h-3.5" />
+                                          <ClipboardList className="w-3.5 h-3.5" aria-hidden="true" />
                                         </button>
                                       </div>
                                     </div>
@@ -1714,7 +1721,7 @@ export default function BudgetComparisonPage() {
                             {/* Justification */}
                             {a.changeReason && (
                               <div className="p-3 rounded-xl bg-card border border-border flex items-start gap-2">
-                                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" aria-hidden="true" />
                                 <div>
                                   <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Justificativa do Responsável</span>
                                   <p className="text-xs text-slate-600 mt-0.5">{a.changeReason}</p>
@@ -1729,7 +1736,7 @@ export default function BudgetComparisonPage() {
                                 itemRhStatus === 'rejeitado' ? 'bg-danger-soft/60 border-danger/25' :
                                 'bg-warning-soft/60 border-warning/25'
                               }`}>
-                                <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${itemRhStatus === 'aprovado' ? 'text-success-strong' : itemRhStatus === 'rejeitado' ? 'text-danger-strong' : 'text-warning-strong'}`} />
+                                <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${itemRhStatus === 'aprovado' ? 'text-success-strong' : itemRhStatus === 'rejeitado' ? 'text-danger-strong' : 'text-warning-strong'}`} aria-hidden="true" />
                                 <div>
                                   <span className={`text-2xs uppercase font-bold tracking-wider ${itemRhStatus === 'aprovado' ? 'text-success-strong' : itemRhStatus === 'rejeitado' ? 'text-danger-strong' : 'text-warning-strong'}`}>
                                     Comentário do RH
@@ -1743,7 +1750,7 @@ export default function BudgetComparisonPage() {
 
                             {rhComment && !a.rhComment && (
                               <div className="p-3 rounded-xl bg-warning-soft/60 border border-warning/25 flex items-start gap-2">
-                                <MessageSquare className="w-3.5 h-3.5 text-warning-strong mt-0.5 flex-shrink-0" />
+                                <MessageSquare className="w-3.5 h-3.5 text-warning-strong mt-0.5 flex-shrink-0" aria-hidden="true" />
                                 <div>
                                   <span className="text-2xs uppercase text-warning-strong font-bold tracking-wider">Comentário do RH (geral)</span>
                                   <p className="text-xs text-warning mt-0.5">{rhComment}</p>
@@ -1754,7 +1761,7 @@ export default function BudgetComparisonPage() {
                             {/* ── Observação do ajuste do RH ── */}
                             {a.rhAdjustNote && (
                               <div className="p-3 rounded-xl bg-warning-soft/80 border border-warning/25 flex items-start gap-2">
-                                <MessageSquare className="w-3.5 h-3.5 text-warning-strong mt-0.5 flex-shrink-0" />
+                                <MessageSquare className="w-3.5 h-3.5 text-warning-strong mt-0.5 flex-shrink-0" aria-hidden="true" />
                                 <div>
                                   <span className="text-2xs uppercase text-warning font-bold tracking-wider">Observação do Ajuste (RH)</span>
                                   <p className="text-xs text-warning mt-0.5">{a.rhAdjustNote}</p>
@@ -1836,7 +1843,7 @@ export default function BudgetComparisonPage() {
                       onClick={() => setActionModal({ type: 'reject' })}
                       disabled={selectedItems.size === 0}
                     >
-                      <XCircle className="w-3.5 h-3.5 mr-1.5" /> Recusar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                      <XCircle className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Recusar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
@@ -1852,7 +1859,7 @@ export default function BudgetComparisonPage() {
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
-                      <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Devolver{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                      <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> Devolver{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
@@ -1886,7 +1893,7 @@ export default function BudgetComparisonPage() {
                           }}
                           disabled={selectedItems.size === 0}
                         >
-                          <CheckCircle className="w-4 h-4 mr-1.5" />
+                          <CheckCircle className="w-4 h-4 mr-1.5" aria-hidden="true" />
                           {hasAdjusted
                             ? `Aprovar com ajustes (${selectedRhAdjustedFields} campo${selectedRhAdjustedFields !== 1 ? 's' : ''})`
                             : selectedItems.size > 0 ? `Aprovar e Finalizar (${selectedItems.size})` : 'Aprovar e Finalizar'}
@@ -1913,7 +1920,7 @@ export default function BudgetComparisonPage() {
               <div className="px-6 pt-5 pb-4 border-b border-border shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-warning-soft flex items-center justify-center shrink-0">
-                    <Pencil className="w-3.5 h-3.5 text-warning" />
+                    <Pencil className="w-3.5 h-3.5 text-warning" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-foreground">Editar Realizado</h3>
@@ -1992,7 +1999,7 @@ export default function BudgetComparisonPage() {
                   </div>
                   <textarea
                     rows={3}
-                    placeholder="Descreva o motivo do ajuste nos valores..."
+                    placeholder="Descreva o motivo do ajuste nos valores…"
                     value={editForm.rhAdjustNote || ''}
                     onChange={e => setEditForm(f => ({...f, rhAdjustNote: e.target.value}))}
                     className="w-full text-sm text-slate-700 border border-border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-warning/50 focus:border-warning-strong bg-card placeholder:text-muted-foreground"
@@ -2008,7 +2015,7 @@ export default function BudgetComparisonPage() {
                   onClick={saveEditModal}
                   disabled={patchActualMutation.isPending}
                 >
-                  {patchActualMutation.isPending ? 'Salvando...' : 'Salvar ajuste'}
+                  {patchActualMutation.isPending ? 'Salvando…' : 'Salvar ajuste'}
                 </Button>
               </div>
             </>
@@ -2048,7 +2055,7 @@ export default function BudgetComparisonPage() {
                   setActionModal({ type: 'approve' });
                 }}
               >
-                <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                <CheckCircle className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
                 Confirmar aprovação
               </Button>
             </div>
@@ -2110,7 +2117,7 @@ export default function BudgetComparisonPage() {
                       onClick={() => setSplitDetail(null)}
                       className="w-7 h-7 rounded-lg flex items-center justify-center bg-card/10 hover:bg-card/20 text-white/70 hover:text-white transition-colors"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
 
@@ -2126,7 +2133,7 @@ export default function BudgetComparisonPage() {
                     return (
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         <div className="bg-card/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                          <Calendar className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" />
+                          <Calendar className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" aria-hidden="true" />
                           <div>
                             <p className="text-2xs uppercase font-bold tracking-wider text-primary-foreground/80 mb-0.5">Vaga original</p>
                             <p className="text-2xs text-white font-medium leading-snug">
@@ -2140,7 +2147,7 @@ export default function BudgetComparisonPage() {
                         </div>
                         {myDays.length > 0 && (
                           <div className="bg-card/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                            <GitFork className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" />
+                            <GitFork className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" aria-hidden="true" />
                             <div>
                               <p className="text-2xs uppercase font-bold tracking-wider text-primary-foreground/80 mb-0.5">Dias atribuídos</p>
                               <p className="text-2xs text-white font-medium leading-snug">
@@ -2256,7 +2263,7 @@ export default function BudgetComparisonPage() {
                     <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border ${sd.isParent
                       ? 'bg-brand-soft border-primary/25' : 'bg-brand-soft border-primary/25'}`}>
                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${sd.isParent ? 'bg-brand-soft' : 'bg-brand-soft'}`}>
-                        <GitFork className={`w-3 h-3 ${sd.isParent ? 'text-primary' : 'text-primary'}`} />
+                        <GitFork className={`w-3 h-3 ${sd.isParent ? 'text-primary' : 'text-primary'}`} aria-hidden="true" />
                       </div>
                       <span className={`text-2xs font-medium ${sd.isParent ? 'text-primary' : 'text-primary'}`}>
                         {sd.isParent ? 'Titular cobriu' : 'Este colaborador cobriu'} <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
@@ -2287,13 +2294,13 @@ export default function BudgetComparisonPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               {actionModal?.type === 'approve' && (
-                <><div className="w-8 h-8 rounded-xl bg-success-soft flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-success" /></div> Aprovar prestação</>
+                <><div className="w-8 h-8 rounded-xl bg-success-soft flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-success" aria-hidden="true" /></div> Aprovar prestação</>
               )}
               {actionModal?.type === 'reject' && (
-                <><div className="w-8 h-8 rounded-xl bg-danger-soft flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-danger" /></div> <span className="text-danger">Recusar prestação</span></>
+                <><div className="w-8 h-8 rounded-xl bg-danger-soft flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-danger" aria-hidden="true" /></div> <span className="text-danger">Recusar prestação</span></>
               )}
               {actionModal?.type === 'return' && (
-                <><div className="w-8 h-8 rounded-xl bg-warning-soft flex items-center justify-center shrink-0"><RotateCcw className="w-4 h-4 text-warning" /></div> <span className="text-warning">Devolver para correção</span></>
+                <><div className="w-8 h-8 rounded-xl bg-warning-soft flex items-center justify-center shrink-0"><RotateCcw className="w-4 h-4 text-warning" aria-hidden="true" /></div> <span className="text-warning">Devolver para correção</span></>
               )}
             </DialogTitle>
             <p className="text-2xs text-muted-foreground mt-1 pl-1 leading-relaxed">
@@ -2348,7 +2355,7 @@ export default function BudgetComparisonPage() {
                   </>
                 ) : (
                   <>
-                    Observação <span className="text-danger-strong" aria-hidden="true">*</span>{' '}
+                    Observação<RequiredMark />{' '}
                     <span className="text-muted-foreground font-normal">
                       (obrigatória{selectedItems.size > 1 ? ` — será aplicada a todos os ${selectedItems.size} colaboradores selecionados` : ''})
                     </span>
@@ -2362,7 +2369,7 @@ export default function BudgetComparisonPage() {
                 aria-required={actionModal?.type !== 'approve'}
                 placeholder={
                   actionModal?.type === 'approve'
-                    ? 'Adicionar um comentário...'
+                    ? 'Adicionar um comentário…'
                     : actionModal?.type === 'reject'
                     ? 'Escreva o motivo da recusa (obrigatório)...'
                     : 'Descreva o que precisa ser corrigido (obrigatório)...'
@@ -2394,7 +2401,7 @@ export default function BudgetComparisonPage() {
                 'bg-warning hover:bg-warning/90'
               } text-white shadow-1`}
             >
-              {rhActionMutation.isPending ? 'Processando...' :
+              {rhActionMutation.isPending ? 'Processando…' :
                actionModal?.type === 'approve' ? 'Confirmar aprovação' :
                actionModal?.type === 'reject' ? 'Confirmar recusa' : 'Devolver para ajuste'}
             </Button>
@@ -2408,7 +2415,7 @@ export default function BudgetComparisonPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2.5 text-base">
               <div className="w-8 h-8 rounded-xl bg-warning-soft flex items-center justify-center shrink-0">
-                <RotateCcw className="w-4 h-4 text-warning" />
+                <RotateCcw className="w-4 h-4 text-warning" aria-hidden="true" />
               </div>
               <span className="text-warning">Reabrir o comparativo?</span>
             </AlertDialogTitle>
@@ -2433,7 +2440,7 @@ export default function BudgetComparisonPage() {
 
           <div>
             <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              Motivo da reabertura <span className="text-danger-strong">*</span>
+              Motivo da reabertura<RequiredMark />
             </label>
             <Textarea
               value={reopenReason}

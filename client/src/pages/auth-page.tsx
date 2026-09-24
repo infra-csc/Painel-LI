@@ -119,7 +119,7 @@ export default function AuthPage() {
         {/* Erro SSO */}
         {ssoError && (
           <div role="alert" className="flex items-start gap-3 p-3 mb-5 rounded-xl bg-danger-soft border border-danger/25">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-danger" />
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-danger" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-danger">
                 {ssoError === "not_registered" ? "Acesso não autorizado" : "Conta inativa"}
@@ -135,7 +135,7 @@ export default function AuthPage() {
 
         {sessaoExpirada && !ssoError && (
           <div role="status" className="flex items-start gap-3 p-3 mb-5 rounded-xl bg-warning-soft border border-warning/25">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-warning" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-warning">Sessão expirada</p>
               <p className="text-xs mt-0.5 text-warning">
@@ -155,7 +155,7 @@ export default function AuthPage() {
               <div className="space-y-1.5">
                 <Label htmlFor="login-email">E-mail</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
                   <Input
                     id="login-email"
                     type="email"
@@ -174,7 +174,7 @@ export default function AuthPage() {
               <div className="space-y-1.5">
                 <Label htmlFor="login-password">Senha</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
                   <Input
                     id="login-password"
                     type={showPassword ? "text" : "password"}
@@ -192,7 +192,7 @@ export default function AuthPage() {
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     aria-pressed={showPassword}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                   </button>
                 </div>
                 {passErr && (
@@ -200,7 +200,7 @@ export default function AuthPage() {
                 )}
               </div>
               <Button type="submit" disabled={isLoading} className="w-full mt-2 font-semibold hover:bg-primary-hover">
-                {isLoading ? "Entrando..." : <>Entrar <ArrowRight className="w-4 h-4" /></>}
+                {isLoading ? "Entrando…" : <>Entrar <ArrowRight className="w-4 h-4" aria-hidden="true" /></>}
               </Button>
             </form>
           </>
@@ -208,7 +208,7 @@ export default function AuthPage() {
           /* ── Produção: acesso exclusivo pelo portal ── */
           <div className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-xl bg-brand-soft border border-primary/20">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground">
-              <Shield className="w-6 h-6" />
+              <Shield className="w-6 h-6" aria-hidden="true" />
             </div>
             <div>
               <p className="text-base font-semibold text-foreground">Acesso exclusivo pelo Portal</p>
@@ -218,7 +218,7 @@ export default function AuthPage() {
             </div>
             <Button asChild className="font-semibold hover:bg-primary-hover">
               <a href="https://norte-app-hub.replit.app/">
-                Acessar o Portal Norte <ExternalLink className="w-4 h-4" />
+                Acessar o Portal Norte <ExternalLink className="w-4 h-4" aria-hidden="true" />
               </a>
             </Button>
           </div>

@@ -38,13 +38,12 @@ function Badge({ count, floating }: { count: number; floating?: boolean }) {
   if (count <= 0) return null;
   return (
     <span
-      aria-label={`${count} pendente(s)`}
       className={cn(
         "flex items-center justify-center shrink-0 rounded-full bg-danger-strong text-white font-bold leading-none px-1",
         floating ? "absolute top-0.5 right-1.5 min-w-[16px] h-4 text-2xs ring-2 ring-card" : "min-w-[18px] h-[18px] text-2xs",
       )}
     >
-      {count > 99 ? "99+" : count}
+      {count > 99 ? "99+" : count}<span className="sr-only"> pendente(s)</span>
     </span>
   );
 }
@@ -121,12 +120,41 @@ export default function Sidebar() {
 
   const closeMobile = () => setMobileOpen(false);
 
-  // Esc fecha a gaveta mobile.
+  // Gaveta mobile como diálogo (24/09): Esc fecha, o foco entra no "Fechar
+  // menu", fica preso dentro do <aside> (Tab/Shift+Tab circulam) e volta ao
+  // botão que abriu quando fecha. O conteúdo por trás recebe `inert` no
+  // MainLayout, então nem leitor de tela nem Tab alcançam a página.
+  const asideRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!isMobileOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    const abriuDe = document.activeElement as HTMLElement | null;
+    const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focaveis = () => Array.from(asideRef.current?.querySelectorAll<HTMLElement>(FOCAVEIS) ?? [])
+      .filter((el) => el.offsetParent !== null);
+    // Foco inicial: o botão "Fechar menu" (primeiro focável visível da gaveta).
+    const t = window.setTimeout(() => {
+      const [primeiro] = focaveis();
+      (asideRef.current?.querySelector<HTMLElement>('[aria-label="Fechar menu"]') ?? primeiro)?.focus();
+    }, 50);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setMobileOpen(false); return; }
+      if (e.key !== "Tab") return;
+      const lista = focaveis();
+      if (lista.length === 0) return;
+      const primeiro = lista[0], ultimo = lista[lista.length - 1];
+      const ativo = document.activeElement as HTMLElement | null;
+      const dentro = !!ativo && !!asideRef.current?.contains(ativo);
+      if (e.shiftKey ? (ativo === primeiro || !dentro) : (ativo === ultimo || !dentro)) {
+        e.preventDefault();
+        (e.shiftKey ? ultimo : primeiro).focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+      abriuDe?.focus?.();
+    };
   }, [isMobileOpen, setMobileOpen]);
 
   // Trocar de tela fecha a gaveta e zera a busca do menu.
@@ -293,7 +321,10 @@ export default function Sidebar() {
 
       <aside
         id="app-sidebar"
+        ref={asideRef}
         aria-label="Menu principal"
+        role={drawer && isMobileOpen ? "dialog" : undefined}
+        aria-modal={drawer && isMobileOpen ? true : undefined}
         className={cn(
           "fixed left-0 top-0 h-dvh flex flex-col shrink-0 z-40 font-sans bg-card border-r border-border",
           "transition-[transform,width] duration-300",

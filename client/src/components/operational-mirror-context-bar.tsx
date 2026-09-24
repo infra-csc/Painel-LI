@@ -84,7 +84,7 @@ export function SeletorDeEvento({ eventos, valor, aoEscolher, formatarPeriodo }:
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar evento…"
               aria-label="Buscar evento"
-              className="h-6 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="h-6 w-full bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground"
             />
             {busca && (
               <button type="button" onClick={() => setBusca("")} aria-label="Limpar busca" className="text-muted-foreground hover:text-foreground">

@@ -66,7 +66,7 @@ if (typeof window !== "undefined" && localStorage.getItem("theme") === "dark") {
 // só a área de conteúdo mostra o esqueleto.
 function PageFallback() {
   return (
-    <div className="bg-card rounded-lg shadow-1 border border-border p-6 animate-pulse">
+    <div className="bg-card rounded-lg shadow-1 border border-border p-6 animate-pulse motion-reduce:animate-none">
       <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
       <div className="space-y-3">
         {[...Array(4)].map((_, i) => (
@@ -144,7 +144,7 @@ function Router() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-lg text-muted-foreground">Carregando...</div>
+        <div className="animate-pulse motion-reduce:animate-none text-lg text-muted-foreground">Carregando…</div>
       </div>
     );
   }
@@ -157,7 +157,7 @@ function Router() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="animate-pulse text-lg text-muted-foreground">Carregando...</div>
+          <div className="animate-pulse motion-reduce:animate-none text-lg text-muted-foreground">Carregando…</div>
         </div>
       }
     >

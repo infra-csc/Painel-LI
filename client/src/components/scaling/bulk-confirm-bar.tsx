@@ -103,7 +103,7 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
             className="rounded-xl h-9 text-xs border-border text-slate-600 hover:bg-surface-muted"
             data-testid="button-bulk-clear"
           >
-            <X className="w-3.5 h-3.5 mr-1" />
+            <X className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
             Limpar seleção
           </Button>
           <Button
@@ -111,7 +111,7 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
             className="rounded-xl h-9 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary-hover shadow-1"
             data-testid="button-bulk-confirm"
           >
-            <Check className="w-3.5 h-3.5 mr-1" />
+            <Check className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
             Confirmar selecionadas ({selected.length})
           </Button>
         </div>

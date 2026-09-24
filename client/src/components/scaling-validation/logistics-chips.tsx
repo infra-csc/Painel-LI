@@ -69,11 +69,11 @@ export const CHIP_NEED = cn(CHIP_BASE, "border-primary/20 bg-brand-soft font-sem
 // (10px/11px, tracking-wider/[0.12em]/widest, slate-400/500…). Uma constante
 // só para cada papel: quem cria um cartão novo importa daqui e sai igual ao
 // resto. As duas são idênticas HOJE — ficam separadas porque são papéis
-// diferentes (uma seção pode ganhar ícone/altura própria sem mexer no `<th>`).
+// diferentes (uma seção pode ganhar ícone/altura própria sem mexer no `<th scope="col">`).
 
 /** Título de seção de cartão/drawer/diálogo ("Período e diárias", "Logística"). */
 export const SECTION_TITLE = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
-/** `<th>` das tabelas do módulo — o mesmo desenho do quadro "Escala". */
+/** `<th scope="col">` das tabelas do módulo — o mesmo desenho do quadro "Escala". */
 export const TABLE_TH = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
 
 const MODE_ICONS: Record<TransportMode, LucideIcon> = {

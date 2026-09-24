@@ -82,9 +82,9 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
         <div className="grid grid-cols-2 gap-px md:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="space-y-2 bg-card px-3 py-2.5">
-              <div className="h-2 w-12 animate-pulse rounded bg-border" />
-              <div className="h-3 w-20 animate-pulse rounded bg-muted" />
-              <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+              <div className="h-2 w-12 animate-pulse motion-reduce:animate-none rounded bg-border" />
+              <div className="h-3 w-20 animate-pulse motion-reduce:animate-none rounded bg-muted" />
+              <div className="h-3 w-16 animate-pulse motion-reduce:animate-none rounded bg-muted" />
             </div>
           ))}
         </div>

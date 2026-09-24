@@ -322,7 +322,7 @@ export default function Accommodations() {
   // ── Estados de tela ──
   if (isLoading) {
     return (
-      <div className="space-y-4 animate-pulse" aria-busy="true" aria-label="Carregando hospedagens">
+      <div className="space-y-4 animate-pulse motion-reduce:animate-none" aria-busy="true" aria-label="Carregando hospedagens">
         <div className="h-14 bg-muted rounded-xl" />
         <div className="h-[76px] bg-muted rounded-xl" />
         <div className="h-[34px] bg-muted rounded-lg w-2/3" />

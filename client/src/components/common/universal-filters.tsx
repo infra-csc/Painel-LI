@@ -113,10 +113,10 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         <div>
           <FilterLabel icon={Search} text="Buscar" />
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5 pointer-events-none" aria-hidden="true" />
             <input
               type="text"
-              placeholder="ID ou nome..."
+              placeholder="ID ou nome…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full h-9 pl-8 pr-3 border border-border rounded-lg bg-card text-sm text-slate-700 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all"
@@ -137,7 +137,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             onChange={(value) => onFiltersChange({ ...filters, eventId: value })}
             placeholder="Todos os Eventos"
             searchable
-            searchPlaceholder="Buscar evento..."
+            searchPlaceholder="Buscar evento…"
             testId="filter-event"
           />
         </div>
@@ -166,7 +166,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             onChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
             placeholder="Todos os Colaboradores"
             searchable
-            searchPlaceholder="Buscar colaborador..."
+            searchPlaceholder="Buscar colaborador…"
             testId="filter-collaborator"
           />
         </div>
@@ -266,7 +266,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             className="flex items-center gap-1.5 text-muted-foreground hover:text-danger-strong text-sm font-medium transition-colors"
             data-testid="button-clear-filters"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
             Limpar filtros
           </button>
         </div>

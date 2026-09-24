@@ -21,6 +21,7 @@ import { SECTION_TITLE } from "./logistics-chips";
 import { CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS, type LastDecisionInfo } from "@shared/scaling-validation-rules";
 import { formatDateBr } from "@/lib/dates";
 import { describeLastDecision, invalidateScalingQueries, workDaysOf, ymd, type ApiError, type SuggestionRow } from "./types";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ function Passo({ n, id, obrigatorio, dica, children }: { n: number; id?: string;
       <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <span className={passoCls} aria-hidden="true">{n}</span>
         <span className="sr-only">Passo {n}: </span>
-        <span>{children}{obrigatorio && <span className="ml-1 text-danger-strong" aria-hidden="true">*</span>}</span>
+        <span>{children}{obrigatorio &&<RequiredMark />}</span>
       </h3>
       {dica && <p className="pl-8 text-2xs leading-snug text-muted-foreground">{dica}</p>}
     </div>
@@ -123,7 +124,7 @@ function ReasonField({ id, value, onChange, disabled, placeholder, label = "Moti
       <Label htmlFor={id} className={passo ? "flex items-center gap-2 text-sm font-semibold text-foreground" : "text-xs text-slate-600"}>
         {passo && <span className={passoCls} aria-hidden="true">{passo}</span>}
         {passo && <span className="sr-only">Passo {passo}: </span>}
-        <span>{label} <span className="text-danger-strong" aria-hidden="true">*</span></span>
+        <span>{label}<RequiredMark /></span>
       </Label>
       <Textarea id={id} rows={2} maxLength={1000} value={value} disabled={disabled} required aria-required="true"
         aria-invalid={invalido || undefined} aria-describedby={invalido && erroId ? erroId : undefined}

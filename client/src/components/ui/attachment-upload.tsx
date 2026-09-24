@@ -150,11 +150,11 @@ export default function AttachmentUpload({
   };
 
   const getIcon = (type: string) => {
-    if (type.startsWith('image/')) return <FileImage className="w-3.5 h-3.5 text-primary" />;
+    if (type.startsWith('image/')) return <FileImage className="w-3.5 h-3.5 text-primary" aria-hidden="true" />;
     if (type.includes('spreadsheet') || type.includes('excel') || type.includes('csv')) {
-      return <FileSpreadsheet className="w-3.5 h-3.5 text-success" />;
+      return <FileSpreadsheet className="w-3.5 h-3.5 text-success" aria-hidden="true" />;
     }
-    return <FileText className="w-3.5 h-3.5 text-danger-strong" />;
+    return <FileText className="w-3.5 h-3.5 text-danger-strong" aria-hidden="true" />;
   };
 
   const displayedIds = attachmentIds;
@@ -172,9 +172,9 @@ export default function AttachmentUpload({
             <p className="text-2xs text-muted-foreground">{formatSize(meta.size)}</p>
           </div>
           {!disabled && (
-            <button type="button" onClick={() => removeAttachment(meta.id)}
-              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors shrink-0">
-              <X className="w-3 h-3" />
+            <button type="button" onClick={() => removeAttachment(meta.id)} aria-label={`Remover anexo ${meta.name}`}
+              className="w-7 h-7 rounded flex items-center justify-center text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <X className="w-3 h-3" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -183,12 +183,12 @@ export default function AttachmentUpload({
       {/* IDs sem metadata (carregados anteriormente) */}
       {unknownIds.map((id, i) => (
         <div key={id} className="flex items-center gap-2 px-2.5 py-2 bg-surface-muted border border-border rounded-lg">
-          <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
           <p className="text-xs text-muted-foreground flex-1 truncate">Anexo {i + 1}</p>
           {!disabled && (
-            <button type="button" onClick={() => removeAttachment(id)}
-              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors shrink-0">
-              <X className="w-3 h-3" />
+            <button type="button" onClick={() => removeAttachment(id)} aria-label={`Remover anexo ${i + 1}`}
+              className="w-7 h-7 rounded flex items-center justify-center text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <X className="w-3 h-3" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -213,8 +213,8 @@ export default function AttachmentUpload({
             data-testid="button-add-attachment"
             className="w-full flex items-center justify-center gap-2 h-8 border border-dashed border-slate-300 rounded-lg text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
           >
-            <Upload className="w-3.5 h-3.5" />
-            {isUploading ? "Enviando..." : "Adicionar arquivo"}
+            <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+            {isUploading ? "Enviando…" : "Adicionar arquivo"}
           </button>
           <p className="text-2xs text-muted-foreground">{TEXTO_TIPOS_ACEITOS} · máx. 10 MB</p>
         </>

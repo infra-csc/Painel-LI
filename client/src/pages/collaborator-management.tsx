@@ -20,6 +20,7 @@ import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 import { hasPermission, hasRole } from "@/lib/role-utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { PageHeader } from "@/components/common/page-header";
 import { PageContainer } from "@/components/common/page-container";
 import { EmptyState } from "@/components/common/empty-state";
@@ -27,6 +28,7 @@ import { LoadingState } from "@/components/common/loading-state";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { campo, useUrlState } from "@/lib/use-url-state";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/forms/required-mark";
 
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────
@@ -141,7 +143,8 @@ export default function CollaboratorManagement() {
   // A lista literal deixava de fora papéis legados que o servidor aceita
   // ("compras", "viagens", "Administrador"...): o botão sumia para quem podia agir.
   // Inativar/reativar: POST /api/collaborators/:id/(in|re)activate → só admin e compras.
-  const canManage = ["admin", "purchasing"].includes(normalizeRole(user?.role) ?? "");
+  const canManage = hasRole(user, "admin", "purchasing");
+  const SO_ADMIN_COMPRAS = "Só administradores e Compras podem inativar ou reativar.";
   // Criar/importar/editar/aprovar: espelha POST/PATCH /api/collaborators
   // (cadastro + área de função). RH só visualiza.
   const canEdit = hasPermission(user, "canEditCollaborators");
@@ -327,7 +330,7 @@ export default function CollaboratorManagement() {
       /* Antes, uma falha de rede caía no estado vazio e dizia "nenhum colaborador". */
       <div role="alert" className="bg-card rounded-xl border border-danger/25 shadow-1 py-16 px-6 text-center">
         <div className="w-12 h-12 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-3">
-          <AlertCircle className="w-6 h-6 text-danger-strong" />
+          <AlertCircle className="w-6 h-6 text-danger-strong" aria-hidden="true" />
         </div>
         <p className="text-sm font-semibold text-slate-700">Não foi possível carregar os colaboradores</p>
         <p className="text-xs text-muted-foreground mt-1 mb-4">{msg}</p>
@@ -353,7 +356,7 @@ export default function CollaboratorManagement() {
                 onClick={() => setBulkUploadModal(true)}
                 className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-border hover:border-slate-300 hover:bg-surface-muted rounded-lg transition-colors bg-card"
               >
-                <Upload className="w-3.5 h-3.5" /> Importar
+                <Upload className="w-3.5 h-3.5" aria-hidden="true" /> Importar
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
@@ -396,19 +399,19 @@ export default function CollaboratorManagement() {
           <div className="px-5 py-3 border-b border-border flex flex-wrap items-center gap-2.5 bg-muted/30">
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
               <input
                 id="collaborators-search"
                 type="text"
                 aria-label={podeVerDadosPessoais ? "Buscar por nome ou documento" : "Buscar por nome"}
-                placeholder={podeVerDadosPessoais ? "Buscar por nome ou documento..." : "Buscar por nome..."}
+                placeholder={podeVerDadosPessoais ? "Buscar por nome ou documento…" : "Buscar por nome…"}
                 value={filters.search}
                 onChange={e => setFilter("search", e.target.value)}
                 className="w-full h-8 pl-9 pr-8 bg-card border border-border rounded-lg text-sm text-slate-700 placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20 transition-all"
               />
               {filters.search && (
                 <button onClick={() => setFilter("search", "")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
-                  <X className="w-3 h-3" />
+                  <X className="w-3 h-3" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -445,7 +448,7 @@ export default function CollaboratorManagement() {
                 onClick={clearFilters}
                 className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-dashed border-slate-300 rounded-lg hover:bg-surface-muted hover:border-slate-400 transition-colors"
               >
-                <X className="w-3 h-3" /> Limpar
+                <X className="w-3 h-3" aria-hidden="true" /> Limpar
               </button>
             )}
 
@@ -473,14 +476,14 @@ export default function CollaboratorManagement() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b-2 border-border bg-muted/40">
-                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Colaborador</th>
+                    <th scope="col" className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Colaborador</th>
                     {podeVerDadosPessoais && (
-                      <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Documento</th>
+                      <th scope="col" className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Documento</th>
                     )}
-                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Tipo</th>
-                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Cidade</th>
-                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Status</th>
-                    <th className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase text-right">Ações</th>
+                    <th scope="col" className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Tipo</th>
+                    <th scope="col" className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Cidade</th>
+                    <th scope="col" className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase">Status</th>
+                    <th scope="col" className="px-5 py-3 text-2xs font-bold tracking-widest text-muted-foreground uppercase text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -542,7 +545,7 @@ export default function CollaboratorManagement() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full bg-border text-slate-600 border border-slate-300 cursor-default">
-                                    <Ban className="w-3 h-3" /> Inativo
+                                    <Ban className="w-3 h-3" aria-hidden="true" /> Inativo
                                   </span>
                                 </TooltipTrigger>
                                 {(c as any).inactiveReason && (
@@ -563,7 +566,7 @@ export default function CollaboratorManagement() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending} aria-label={`Aprovar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-success-strong hover:bg-success-soft disabled:opacity-40 transition-colors">
-                                      <Check className="w-3.5 h-3.5" />
+                                      <Check className="w-3.5 h-3.5" aria-hidden="true" />
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent>Aprovar</TooltipContent>
@@ -571,7 +574,7 @@ export default function CollaboratorManagement() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <button onClick={() => handleReject(c)} disabled={updateMutation.isPending} aria-label={`Rejeitar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-danger-strong hover:bg-danger-soft disabled:opacity-40 transition-colors">
-                                      <X className="w-3.5 h-3.5" />
+                                      <X className="w-3.5 h-3.5" aria-hidden="true" />
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent>Rejeitar</TooltipContent>
@@ -581,7 +584,7 @@ export default function CollaboratorManagement() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button onClick={() => handleView(c)} aria-label={`Ver detalhes de ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors">
-                                  <Eye className="w-3.5 h-3.5" />
+                                  <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>Ver detalhes</TooltipContent>
@@ -590,31 +593,25 @@ export default function CollaboratorManagement() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <button onClick={() => handleEdit(c)} aria-label={`Editar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors">
-                                    <Edit className="w-3.5 h-3.5" />
+                                    <Edit className="w-3.5 h-3.5" aria-hidden="true" />
                                   </button>
                                 </TooltipTrigger>
                                 <TooltipContent>Editar</TooltipContent>
                               </Tooltip>
                             )}
-                            {canManage && (
+                            {(canManage || canEdit) && (
                               isInactive ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button onClick={() => reactivateMutation.mutate(c.id)} disabled={reactivateMutation.isPending} aria-label={`Reativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-success-soft hover:text-success disabled:opacity-40 transition-colors">
-                                      <RotateCcw className="w-3.5 h-3.5" />
+                                <MotivoDesabilitado motivo={canManage ? "Reativar" : SO_ADMIN_COMPRAS} desabilitado={!canManage}>
+                                    <button onClick={() => reactivateMutation.mutate(c.id)} disabled={reactivateMutation.isPending || !canManage} aria-label={`Reativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-success-soft hover:text-success disabled:opacity-40 transition-colors">
+                                      <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                                     </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Reativar</TooltipContent>
-                                </Tooltip>
+                                </MotivoDesabilitado>
                               ) : (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button onClick={() => { setSelectedCollaborator(c); setInactivateReason(""); setShowDeleteModal(true); }} aria-label={`Inativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-danger-soft hover:text-danger transition-colors">
-                                      <Ban className="w-3.5 h-3.5" />
+                                <MotivoDesabilitado motivo={canManage ? "Inativar" : SO_ADMIN_COMPRAS} desabilitado={!canManage}>
+                                    <button onClick={() => { setSelectedCollaborator(c); setInactivateReason(""); setShowDeleteModal(true); }} disabled={!canManage} aria-label={`Inativar ${displayName}`} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-danger-soft hover:text-danger transition-colors">
+                                      <Ban className="w-3.5 h-3.5" aria-hidden="true" />
                                     </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Inativar</TooltipContent>
-                                </Tooltip>
+                                </MotivoDesabilitado>
                               )
                             )}
                           </div>
@@ -644,7 +641,7 @@ export default function CollaboratorManagement() {
                     aria-label="Página anterior"
                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-surface-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
-                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                   <div className="flex items-center gap-0.5">
                     {/* A janela acompanha a página atual — antes eram sempre 1..5,
@@ -673,7 +670,7 @@ export default function CollaboratorManagement() {
                     aria-label="Próxima página"
                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-surface-muted disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </nav>
               )}
@@ -704,7 +701,7 @@ export default function CollaboratorManagement() {
                 <StatusBadge status={selectedCollaborator.status} />
               )}
               <button onClick={() => setShowDetailsModal(false)} aria-label="Fechar detalhes" className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors">
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>
 
@@ -746,7 +743,7 @@ export default function CollaboratorManagement() {
                   <div className="border-t border-border pt-4">
                     <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Documento Anexado</p>
                     <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-muted border border-border">
-                      <FileText className="w-4 h-4 text-primary shrink-0" />
+                      <FileText className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-700 truncate">CPF/RG — {toTitleCase(selectedCollaborator.fullName)}</p>
                         <p className="text-2xs text-muted-foreground">Documento do colaborador</p>
@@ -755,7 +752,7 @@ export default function CollaboratorManagement() {
                         onClick={() => window.open(`/api/attachments/${selectedCollaborator.documentAttachmentId}/view`, "_blank")}
                         className="flex items-center gap-1 px-2.5 py-1 text-xs text-primary border border-primary/25 rounded-lg hover:bg-brand-soft transition-colors"
                       >
-                        <Eye className="w-3 h-3" /> Ver
+                        <Eye className="w-3 h-3" aria-hidden="true" /> Ver
                       </button>
                     </div>
                   </div>
@@ -771,10 +768,10 @@ export default function CollaboratorManagement() {
                 {selectedCollaborator.status === "pendente" && canEdit && (
                   <div className="flex gap-2 justify-end pt-2 border-t border-border">
                     <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-danger border border-danger/25 rounded-lg hover:bg-danger-soft transition-colors">
-                      <X className="w-3.5 h-3.5" /> Rejeitar
+                      <X className="w-3.5 h-3.5" aria-hidden="true" /> Rejeitar
                     </button>
                     <button onClick={() => { setShowDetailsModal(false); handleApprove(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-semibold bg-success hover:bg-success/90 text-white rounded-lg transition-colors shadow-1">
-                      <Check className="w-3.5 h-3.5" /> Aprovar
+                      <Check className="w-3.5 h-3.5" aria-hidden="true" /> Aprovar
                     </button>
                   </div>
                 )}
@@ -792,8 +789,8 @@ export default function CollaboratorManagement() {
                 className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", (approvalAction === "approve" ? "bg-success" : "bg-danger"), (approvalAction === "approve" ? "shadow-2" : "shadow-2"))}
               >
                 {approvalAction === "approve"
-                  ? <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                  : <X className="w-4 h-4 text-white" strokeWidth={3} />
+                  ? <Check className="w-4 h-4 text-white" strokeWidth={3} aria-hidden="true" />
+                  : <X className="w-4 h-4 text-white" strokeWidth={3} aria-hidden="true" />
                 }
               </div>
               <div className="flex-1 min-w-0">
@@ -807,7 +804,7 @@ export default function CollaboratorManagement() {
                 </p>
               </div>
               <button onClick={() => setShowApprovalModal(false)} disabled={updateMutation.isPending} aria-label="Fechar" className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted disabled:opacity-40 transition-colors">
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>
 
@@ -834,7 +831,7 @@ export default function CollaboratorManagement() {
                   <div className="space-y-3">
                     <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Documentos</p>
                     <div>
-                      <label htmlFor="approval-cpf" className="text-2xs font-bold text-muted-foreground uppercase tracking-wide block mb-1.5">CPF <span className="text-danger-strong normal-case tracking-normal">*</span></label>
+                      <label htmlFor="approval-cpf" className="text-2xs font-bold text-muted-foreground uppercase tracking-wide block mb-1.5">CPF<RequiredMark /></label>
                       <input id="approval-cpf" value={editCpf} onChange={e => setEditCpf(e.target.value)} placeholder="000.000.000-00"
                         className="w-full h-9 px-3 font-mono text-sm border border-border rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                     </div>
@@ -851,7 +848,7 @@ export default function CollaboratorManagement() {
                     Observações <span className="text-muted-foreground font-normal normal-case tracking-normal">{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
                   </label>
                   <Textarea id="approval-notes" value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
-                    placeholder={approvalAction === "approve" ? "Comentários sobre a aprovação..." : "Motivo da rejeição..."}
+                    placeholder={approvalAction === "approve" ? "Comentários sobre a aprovação…" : "Motivo da rejeição…"}
                     rows={3} className="text-sm border-border rounded-lg resize-none focus:border-primary focus:ring-1 focus:ring-ring/20" />
                 </div>
 
@@ -864,10 +861,10 @@ export default function CollaboratorManagement() {
                     className={cn("flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-1 disabled:opacity-60", (approvalAction === "approve" ? "bg-success" : "bg-danger"), (approvalAction === "approve" ? "shadow-1" : "shadow-1"))}
                   >
                     {updateMutation.isPending
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
                       : approvalAction === "approve"
-                        ? <><Check className="w-3.5 h-3.5" strokeWidth={3} /> Confirmar Aprovação</>
-                        : <><X className="w-3.5 h-3.5" strokeWidth={3} /> Confirmar Rejeição</>
+                        ? <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Confirmar Aprovação</>
+                        : <><X className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Confirmar Rejeição</>
                     }
                   </button>
                 </div>
@@ -882,7 +879,7 @@ export default function CollaboratorManagement() {
             <div className="px-6 py-6 space-y-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-danger-soft border border-danger/25 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-danger-strong" />
+                  <AlertTriangle className="w-5 h-5 text-danger-strong" aria-hidden="true" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-foreground leading-tight mb-1">Inativar colaborador?</h3>
@@ -909,13 +906,13 @@ export default function CollaboratorManagement() {
 
               <div>
                 <label htmlFor="inactivate-reason" className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Motivo da inativação <span className="text-danger-strong">*</span>
+                  Motivo da inativação<RequiredMark />
                 </label>
                 <textarea
                   id="inactivate-reason"
                   value={inactivateReason}
                   onChange={e => setInactivateReason(e.target.value)}
-                  placeholder="Ex.: desligamento, encerramento de contrato..."
+                  placeholder="Ex.: desligamento, encerramento de contrato…"
                   rows={3}
                   disabled={inactivateMutation.isPending}
                   className="w-full text-sm rounded-lg border border-border px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-danger/25 focus:border-danger/25 disabled:opacity-60"
@@ -936,8 +933,8 @@ export default function CollaboratorManagement() {
                   className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-1 disabled:opacity-60 disabled:cursor-not-allowed bg-danger shadow-1"
                 >
                   {inactivateMutation.isPending
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <><Ban className="w-3.5 h-3.5" /> Inativar</>
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                    : <><Ban className="w-3.5 h-3.5" aria-hidden="true" /> Inativar</>
                   }
                 </button>
               </div>

@@ -236,7 +236,7 @@ export function CollaboratorCombobox({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => { setOpen(false); setActiveIndex(-1); }, 150)}
         onKeyDown={onKeyDown}
-        placeholder="Buscar por nome ou CPF..."
+        placeholder="Buscar por nome ou CPF…"
         role="combobox"
         aria-expanded={open && matches.length > 0}
         aria-controls={listboxId}

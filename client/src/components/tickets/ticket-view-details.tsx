@@ -29,7 +29,7 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
         toast({ title: "Anexo não disponível", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Erro ao abrir anexo", variant: "destructive" });
+      toast({ title: "Não foi possível abrir o anexo", description: "Tente de novo em instantes.", variant: "destructive" });
     }
   };
 
@@ -126,7 +126,7 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
       {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
         <div className="border border-border rounded-xl overflow-hidden">
           <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
+            <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Anexos</span>
             <span className="ml-auto text-2xs text-muted-foreground">{ticket.attachmentIds.length} arquivo(s)</span>
           </div>
@@ -142,13 +142,13 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAttachment(attachmentId); } }}
               >
                 <div className="w-8 h-8 rounded-lg bg-brand-soft border border-primary/25 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-primary" />
+                  <FileText className="w-4 h-4 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-slate-700">Arquivo {index + 1}</div>
                   <div className="text-2xs text-muted-foreground mt-0.5">Documento anexado · clique para visualizar</div>
                 </div>
-                <Eye className="w-4 h-4 text-muted-foreground group-hover:text-primary-hover transition-colors flex-shrink-0" />
+                <Eye className="w-4 h-4 text-muted-foreground group-hover:text-primary-hover transition-colors flex-shrink-0" aria-hidden="true" />
               </div>
             ))}
           </div>

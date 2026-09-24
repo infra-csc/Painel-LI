@@ -33,7 +33,7 @@ function EyeToggle({ shown, onToggle, label }: { shown: boolean; onToggle: () =>
       aria-pressed={shown}
       className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {shown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      {shown ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
     </button>
   );
 }
@@ -85,8 +85,8 @@ export default function ResetPasswordPage() {
       }
     } catch (error) {
       toast({
-        title: "Erro",
-        description: "Erro interno do servidor",
+        title: "Não foi possível redefinir a senha",
+        description: "Tente novamente em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -121,7 +121,7 @@ export default function ResetPasswordPage() {
         {done ? (
           <div role="status" className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-xl bg-brand-soft border border-primary/20">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground">
-              <CheckCircle2 className="w-6 h-6" />
+              <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Você já pode entrar no sistema usando a nova senha.
@@ -135,7 +135,7 @@ export default function ResetPasswordPage() {
             <div className="space-y-1.5">
               <Label htmlFor="token">Token de recuperação</Label>
               <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" />
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
                 <Input
                   id="token"
                   placeholder="Cole o token recebido por e-mail"
@@ -155,7 +155,7 @@ export default function ResetPasswordPage() {
             <div className="space-y-1.5">
               <Label htmlFor="newPassword">Nova senha</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
                 <Input
                   id="newPassword"
                   type={showPassword ? "text" : "password"}
@@ -177,7 +177,7 @@ export default function ResetPasswordPage() {
             <div className="space-y-1.5">
               <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
@@ -202,7 +202,7 @@ export default function ResetPasswordPage() {
               disabled={isLoading}
               data-testid="button-reset-password"
             >
-              {isLoading ? "Redefinindo..." : "Redefinir senha"}
+              {isLoading ? "Redefinindo…" : "Redefinir senha"}
             </Button>
 
             <Button
@@ -212,7 +212,7 @@ export default function ResetPasswordPage() {
               onClick={() => setLocation("/auth")}
               data-testid="button-back-to-login"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
               Voltar ao login
             </Button>
           </form>

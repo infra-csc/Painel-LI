@@ -28,6 +28,8 @@ import type { Event, Function } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { useEventLock, PastEventBanner } from "@/lib/event-lock";
+import { RequiredMark } from "@/components/forms/required-mark";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 const FUNCTION_ORDER = [
   'atendimento',
@@ -1015,8 +1017,8 @@ export default function GridTeamInclusionForm() {
 
     if (ranges.length === 0) {
       toast({
-        title: "Erro",
-        description: "Configure pelo menos uma escalação na grade",
+        title: "Nenhuma escalação na grade",
+        description: "Configure pelo menos uma escalação antes de salvar.",
         variant: "destructive",
       });
       return;
@@ -1059,8 +1061,8 @@ export default function GridTeamInclusionForm() {
       queryClient.invalidateQueries({ queryKey: ["/api/events-with-inclusions"] });
 
       toast({
-        title: "Sucesso",
-        description: `${result.created} escalação(ões) criada(s) com sucesso!`,
+        title: `${result.created} escalação(ões) criada(s)`,
+        variant: "success",
       });
       // Duas viagens no mesmo dia para alguém já escolhido na grade: aviso,
       // não erro — as vagas foram criadas.
@@ -1119,7 +1121,7 @@ export default function GridTeamInclusionForm() {
               name="eventId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Evento <span className="text-danger-strong">*</span></FormLabel>
+                  <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Evento<RequiredMark /></FormLabel>
                   <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -1135,13 +1137,13 @@ export default function GridTeamInclusionForm() {
                           {field.value
                             ? events?.find((event) => event.id === field.value)?.name
                             : "Selecione um evento"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
                     <PopoverContent className="w-full p-0" align="start">
                       <Command>
-                        <CommandInput placeholder="Buscar evento..." />
+                        <CommandInput placeholder="Buscar evento…" />
                         <CommandList>
                           <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
                           <CommandGroup>
@@ -1160,8 +1162,7 @@ export default function GridTeamInclusionForm() {
                                     event.id === field.value
                                       ? "opacity-100"
                                       : "opacity-0"
-                                  )}
-                                />
+                                  )} aria-hidden="true" />
                                 {event.name}
                               </CommandItem>
                             ))}
@@ -1182,7 +1183,7 @@ export default function GridTeamInclusionForm() {
                 name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Inicial <span className="text-danger-strong">*</span></FormLabel>
+                    <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Inicial<RequiredMark /></FormLabel>
                     <FormControl>
                       <Input
                         type="date"
@@ -1201,7 +1202,7 @@ export default function GridTeamInclusionForm() {
                 name="endDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Final <span className="text-danger-strong">*</span></FormLabel>
+                    <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Final<RequiredMark /></FormLabel>
                     <FormControl>
                       <Input
                         type="date"
@@ -1224,7 +1225,7 @@ export default function GridTeamInclusionForm() {
               className="w-full h-10 flex items-center justify-center gap-2 text-primary-foreground text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-2 shadow-1"
               data-testid="button-generate-grid"
             >
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-4 h-4" aria-hidden="true" />
               {gridHasContent ? "Regerar Grade de Funções" : "Gerar Grade de Funções"}
             </button>
 
@@ -1276,7 +1277,7 @@ export default function GridTeamInclusionForm() {
                       onClick={() => setShowHelp(!showHelp)}
                       className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border hover:border-slate-300 hover:bg-surface-muted rounded-lg transition-colors bg-card"
                     >
-                      <HelpCircle className="w-3.5 h-3.5" />
+                      <HelpCircle className="w-3.5 h-3.5" aria-hidden="true" />
                       Ajuda
                     </button>
                     <button
@@ -1284,7 +1285,7 @@ export default function GridTeamInclusionForm() {
                       onClick={() => setShowPasteModal(true)}
                       className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border hover:border-success/25 hover:text-success hover:bg-success-soft rounded-lg transition-colors bg-card"
                     >
-                      <Upload className="w-3.5 h-3.5 text-success-strong" />
+                      <Upload className="w-3.5 h-3.5 text-success-strong" aria-hidden="true" />
                       Colar Excel
                     </button>
                     {selectedRows.size > 0 && (
@@ -1293,7 +1294,7 @@ export default function GridTeamInclusionForm() {
                         onClick={deleteSelectedRows}
                         className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-danger border border-danger/25 hover:bg-danger-soft rounded-lg transition-colors bg-card"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         Excluir ({selectedRows.size})
                       </button>
                     )}
@@ -1302,7 +1303,7 @@ export default function GridTeamInclusionForm() {
                       onClick={openFunctionSelect}
                       className="h-8 px-3 flex items-center gap-1.5 text-xs font-semibold text-primary-foreground rounded-lg transition-colors bg-primary hover:bg-primary-hover shadow-1"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                       Adicionar Função
                     </button>
                   </div>
@@ -1363,40 +1364,40 @@ export default function GridTeamInclusionForm() {
                     <table className="w-full min-w-[720px] text-sm">
                       <thead className="bg-surface-muted sticky top-0">
                         <tr>
-                          <th className="px-2 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-12 min-w-[3rem] sticky left-0 bg-surface-muted z-20">
+                          <th scope="col" className="px-2 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-12 min-w-[3rem] sticky left-0 bg-surface-muted z-20">
                             <Checkbox
                               checked={selectedRows.size === functionRows.length && functionRows.length > 0}
                               onCheckedChange={toggleSelectAll}
                               aria-label="Selecionar todas"
                             />
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-[180px] min-w-[180px] max-w-[180px] sticky left-12 bg-surface-muted z-20">Função</th>
-                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-20">
+                          <th scope="col" className="px-3 py-2 text-left border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-[180px] min-w-[180px] max-w-[180px] sticky left-12 bg-surface-muted z-20">Função</th>
+                          <th scope="col" className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
-                              <Ticket className="w-3 h-3" />
+                              <Ticket className="w-3 h-3" aria-hidden="true" />
                               <span>Passagem</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-20">
+                          <th scope="col" className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               🏨
                               <span>Hospedagem</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-24">Data Voo Ida</th>
-                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold min-w-[120px]">Horário Chegada Sugerido</th>
-                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-24">Data Voo Retorno</th>
-                          <th className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold min-w-[120px]">Horário Partida Sugerido</th>
+                          <th scope="col" className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-24">Data Voo Ida</th>
+                          <th scope="col" className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold min-w-[120px]">Horário Chegada Sugerido</th>
+                          <th scope="col" className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-24">Data Voo Retorno</th>
+                          <th scope="col" className="px-3 py-2 text-center border-r border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold min-w-[120px]">Horário Partida Sugerido</th>
                           {dates.map(date => {
                             const { date: d, dayName, isWeekend } = formatDateHeader(date);
                             return (
-                              <th key={date} className={`px-2 py-2 text-center border-r border-border text-2xs uppercase tracking-widest font-semibold w-16 ${isWeekend ? 'bg-warning-soft/60 text-warning-strong' : 'bg-brand-soft/50 text-muted-foreground'}`}>
+                              <th scope="col" key={date} className={`px-2 py-2 text-center border-r border-border text-2xs uppercase tracking-widest font-semibold w-16 ${isWeekend ? 'bg-warning-soft/60 text-warning-strong' : 'bg-brand-soft/50 text-muted-foreground'}`}>
                                 <div className="leading-none font-bold">{d}</div>
                                 <div className="text-2xs mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
                               </th>
                             );
                           })}
-                          <th className="px-2 py-2 text-center border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-16">Ações</th>
+                          <th scope="col" className="px-2 py-2 text-center border-border text-2xs uppercase tracking-widest text-muted-foreground font-semibold w-16">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1495,25 +1496,25 @@ export default function GridTeamInclusionForm() {
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="sm" aria-label={`Ações da função ${row.functionName}`} className="h-7 w-7 p-0 text-muted-foreground hover:text-slate-700 hover:bg-muted rounded-lg transition-colors">
-                                    <MoreHorizontal className="w-3 h-3" />
+                                    <MoreHorizontal className="w-3 h-3" aria-hidden="true" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => duplicateFunction(row.functionId)}>
-                                    <Copy className="w-3 h-3 mr-2" />
+                                    <Copy className="w-3 h-3 mr-2" aria-hidden="true" />
                                     Duplicar Função Completa
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => duplicateScheduleOnly(row.functionId)}>
-                                    <Calendar className="w-3 h-3 mr-2" />
+                                    <Calendar className="w-3 h-3 mr-2" aria-hidden="true" />
                                     Copiar para Nova Função
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => copyScheduleData(row.functionId)}>
-                                    <Copy className="w-3 h-3 mr-2" />
+                                    <Copy className="w-3 h-3 mr-2" aria-hidden="true" />
                                     Copiar Horários
                                   </DropdownMenuItem>
                                   {copiedSchedule && (
                                     <DropdownMenuItem onClick={() => pasteScheduleData(row.functionId)}>
-                                      <Calendar className="w-3 h-3 mr-2" />
+                                      <Calendar className="w-3 h-3 mr-2" aria-hidden="true" />
                                       Colar Horários
                                     </DropdownMenuItem>
                                   )}
@@ -1521,7 +1522,7 @@ export default function GridTeamInclusionForm() {
                                     onClick={() => removeFunction(row.functionId)}
                                     className="text-destructive"
                                   >
-                                    <Trash2 className="w-3 h-3 mr-2" />
+                                    <Trash2 className="w-3 h-3 mr-2" aria-hidden="true" />
                                     Remover
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -1541,7 +1542,7 @@ export default function GridTeamInclusionForm() {
                   disabled={dates.length === 0}
                   className="border-2 border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-brand-soft/60 rounded-xl w-full py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-4 h-4" aria-hidden="true" />
                   Adicionar Função à Grade
                 </button>
 
@@ -1597,7 +1598,7 @@ export default function GridTeamInclusionForm() {
                       className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg hover:bg-surface-muted hover:border-slate-300 transition-colors bg-card"
                       data-testid="button-save-draft"
                     >
-                      <Save className="w-3.5 h-3.5" />
+                      <Save className="w-3.5 h-3.5" aria-hidden="true" />
                       Salvar Rascunho
                     </button>
                     <button
@@ -1615,29 +1616,31 @@ export default function GridTeamInclusionForm() {
                       className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg hover:bg-surface-muted hover:border-slate-300 transition-colors bg-card"
                       data-testid="button-load-draft"
                     >
-                      <Download className="w-3.5 h-3.5" />
+                      <Download className="w-3.5 h-3.5" aria-hidden="true" />
                       Carregar Rascunho
                     </button>
                   </div>
 
                   <PastEventBanner show={eventoEncerrado} message={eventLock.bannerMessage(selectedEventId)} className="mb-2" />
-                  <button
+                  <MotivoDesabilitado motivo={motivoBloqueio ?? (!selectedEventId ? "Selecione o evento para criar as escalações" : undefined)} desabilitado={isProcessing || processedRanges.length === 0 || !selectedEventId || eventoEncerrado}>
+                    <button
                     type="button"
                     onClick={handleSubmit}
                     disabled={isProcessing || processedRanges.length === 0 || !selectedEventId || eventoEncerrado}
-                    title={motivoBloqueio ?? (!selectedEventId ? "Selecione o evento para criar as escalações" : undefined)}
+                   
                     className="w-full h-11 flex items-center justify-center gap-2 text-primary-foreground text-sm font-semibold rounded-lg transition-all bg-primary hover:bg-primary-hover hover:-translate-y-0.5 shadow-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
                     data-testid="button-save-grid"
                   >
-                    <Save className="w-4 h-4" />
+                    <Save className="w-4 h-4" aria-hidden="true" />
                     {isProcessing
-                      ? "Criando Escalações..."
+                      ? "Criando Escalações…"
                       : eventoEncerrado
                         ? (motivoBloqueio ?? "Evento encerrado — só o administrador altera")
                         : !selectedEventId
                           ? "Selecione o evento para criar"
                           : `Criar ${processedRanges.length} Escalação(ões)`}
                   </button>
+                  </MotivoDesabilitado>
                 </div>
               </div>
             )}
@@ -1673,7 +1676,7 @@ export default function GridTeamInclusionForm() {
               ))}
               {(!functions || functions.length === 0) && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  {!functions ? "Carregando funções..." : "Não há funções cadastradas."}
+                  {!functions ? "Carregando funções…" : "Não há funções cadastradas."}
                 </p>
               )}
             </div>
@@ -1776,7 +1779,7 @@ export default function GridTeamInclusionForm() {
                 Cancelar
               </Button>
               <Button onClick={handlePasteFromExcel}>
-                <Upload className="w-4 h-4 mr-2" />
+                <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
                 Processar e Adicionar
               </Button>
             </div>

@@ -122,7 +122,7 @@ export function PastEventBanner(
       role="status"
       data-testid="banner-evento-encerrado"
     >
-      <Lock className="w-3.5 h-3.5 shrink-0" />
+      <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
       <span>{message || PAST_EVENT_BANNER_MSG}</span>
     </div>
   );

@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ALL_EXPORT_COLUMNS, EXPORT_COLUMN_GROUPS } from "./export-columns";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 const STORAGE_KEY = "scaling-export-columns-v1";
 
@@ -184,12 +185,14 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
             )}
             <Button type="button" variant="outline" className="rounded-lg bg-card" disabled={exporting}
               onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="button" variant="outline" disabled={marcadas.length === 0 || exporting}
+            <MotivoDesabilitado motivo="Abre a janela de impressão — escolha “Salvar como PDF”" desabilitado={marcadas.length === 0 || exporting}>
+              <Button type="button" variant="outline" disabled={marcadas.length === 0 || exporting}
               onClick={() => exportar("pdf")}
               className="rounded-lg border-border bg-card hover:bg-brand-soft hover:text-primary"
-              title="Abre a janela de impressão — escolha “Salvar como PDF”">
+             >
               <Printer className="mr-1.5 h-4 w-4" aria-hidden="true" /> PDF
             </Button>
+            </MotivoDesabilitado>
             <Button type="button" disabled={marcadas.length === 0 || exporting}
               onClick={() => exportar("xlsx")}
               className="rounded-lg bg-success text-white hover:bg-success/90">

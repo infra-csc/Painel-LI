@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/queryClient";
 import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
+import { hasRole } from "@/lib/role-utils";
 import { passaNosFiltrosBase, passaNosFiltrosDePassagem, VALID_STATUSES_WITHOUT_COLLABORATOR } from "./tickets-filtering";
 import { purchasedValueKpi, isStoredTicketOneWay } from "@/lib/ticket-form";
 import { isEventPast, canActOnPastEvent } from "@shared/event-window";
@@ -190,7 +191,9 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     return ids;
   }, [allSwapRequests]);
 
-  const isPurchasingRole = !!user?.role && PURCHASING_ROLES.includes(user.role);
+  // POST /api/tickets/emitidas e as trocas: só admin e Compras. `hasRole`
+  // normaliza os aliases legados ("compras", "viagens") que a lista crua perdia.
+  const isPurchasingRole = hasRole(user, "admin", "purchasing");
 
   // Evento encerrado (regra do usuário, 20/08): passagem depende da escalação —
   // depois do término só o administrador age (o servidor devolve 403).

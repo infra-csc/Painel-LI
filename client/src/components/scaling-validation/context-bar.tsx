@@ -7,6 +7,7 @@ import EventCombobox from "@/components/ui/event-combobox";
 import { cn, formatDateRange } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import { PERIOD_MARGIN_DAYS } from "./scaling-grid-utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 export interface ContextBarProps {
   events: Event[];
@@ -62,7 +63,7 @@ export const ContextBar = memo(function ContextBar({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
-            <CalendarDays className="w-4 h-4" />
+            <CalendarDays className="w-4 h-4" aria-hidden="true" />
           </span>
           <div className="w-[250px] max-w-full shrink-0">
             {/* Travado durante o envio: trocar de evento no meio do POST fazia o
@@ -112,20 +113,26 @@ export const ContextBar = memo(function ContextBar({
               {daysCount} {daysCount === 1 ? "dia" : "dias"}
             </span>
           )}
-          <button type="button" className={CHIP_BTN} disabled={periodDisabled} onClick={onEventPeriod}
-            title="Voltar a grade para o período do evento">
+          <MotivoDesabilitado motivo="Voltar a grade para o período do evento" desabilitado={periodDisabled}>
+            <button type="button" className={CHIP_BTN} disabled={periodDisabled} onClick={onEventPeriod}
+           >
             Período do evento
           </button>
+          </MotivoDesabilitado>
           {/* Par simétrico: tirar/acrescentar um dia no FIM da grade. */}
-          <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canShrink} onClick={onShrink}
-            title="Tirar o último dia da grade" aria-label="Tirar o último dia da grade">
+          <MotivoDesabilitado motivo="Tirar o último dia da grade" desabilitado={periodDisabled || !canShrink}>
+            <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canShrink} onClick={onShrink}
+            aria-label="Tirar o último dia da grade">
             −1 dia
           </button>
-          <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canGrow} onClick={onGrow}
-            title={canGrow ? "Acrescentar um dia ao fim da grade" : `A grade já está no limite (${PERIOD_MARGIN_DAYS} dias depois do evento)`}
+          </MotivoDesabilitado>
+          <MotivoDesabilitado motivo={canGrow ? "Acrescentar um dia ao fim da grade" : `A grade já está no limite (${PERIOD_MARGIN_DAYS} dias depois do evento)`} desabilitado={periodDisabled || !canGrow}>
+            <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canGrow} onClick={onGrow}
+           
             aria-label="Acrescentar um dia ao fim da grade">
             +1 dia
           </button>
+          </MotivoDesabilitado>
         </div>
 
         {/* Último chip da linha — o textarea abre abaixo, em linha própria. */}

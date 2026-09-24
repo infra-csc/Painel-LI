@@ -5,6 +5,7 @@ import type { TeamInclusion, Ticket } from "@shared/schema";
 import { extractTravelSuggestion, formatSuggestionDate, hasSuggestionValue } from "@/lib/ticket-form";
 import { formatDate, formatBrl, isOneWayTicket, toTitleCase } from "./use-tickets-data";
 import { cn } from "@/lib/utils";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 export interface TicketRowProps {
   inclusion: TeamInclusion;
@@ -80,6 +81,16 @@ function TicketRow({
 
       {/* ID */}
       <td className={`px-3 py-3 w-[64px] ${cancelado ? "opacity-60" : "cursor-pointer"}`} onClick={cancelado ? undefined : open}>
+        {/* A linha abre no clique (mouse); pelo teclado o acesso é este botão, invisível até receber foco. */}
+        {!cancelado && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); open(); }}
+            className="sr-only focus:not-sr-only focus:absolute focus:z-10 focus:rounded-md focus:bg-primary focus:px-2 focus:py-1 focus:text-xs focus:text-primary-foreground"
+          >
+            Abrir vaga #{inclusion.inclusionNumber || ""}
+          </button>
+        )}
         <span className={`${PILULA} bg-brand-soft text-primary font-mono tabular-nums`}>
           #{inclusion.inclusionNumber || "N/A"}
         </span>
@@ -263,19 +274,21 @@ function TicketRow({
             preenchida — é aviso de que o bilhete saiu e de que a área não
             pede mais ajuste. Clicar de novo desfaz (erro de clique acontece). */}
         {!cancelado && onToggleEmitida && (
-          <button
+          <MotivoDesabilitado motivo={ticket?.emittedAt
+              ? "Passagem emitida — clique para desfazer e reabrir o pedido de ajuste"
+              : "Marcar como emitida — trava o pedido de ajuste desta vaga"} desabilitado={!canEdit || locked || emitindo}>
+            <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleEmitida(inclusion, !ticket?.emittedAt); }}
             disabled={!canEdit || locked || emitindo}
-            title={ticket?.emittedAt
-              ? "Passagem emitida — clique para desfazer e reabrir o pedido de ajuste"
-              : "Marcar como emitida — trava o pedido de ajuste desta vaga"}
+           
             aria-label={ticket?.emittedAt ? "Desfazer emissão da passagem" : "Marcar passagem como emitida"}
             data-testid={`toggle-emitida-${inclusion.id}`}
             className={`mb-1 w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${ticket?.emittedAt ? "bg-brand-soft text-primary" : "bg-muted text-muted-foreground hover:bg-brand-soft hover:text-primary-hover"}`}
           >
             <Stamp className="w-4 h-4" aria-hidden="true" />
           </button>
+          </MotivoDesabilitado>
         )}
         {!cancelado && (
           ticket ? (
@@ -286,7 +299,7 @@ function TicketRow({
               aria-label={`Visualizar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
               className="w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors bg-muted text-muted-foreground hover:bg-brand-soft hover:text-primary"
             >
-              <Eye className="w-4 h-4" />
+              <Eye className="w-4 h-4" aria-hidden="true" />
             </button>
           ) : canEdit ? (
             <button
@@ -296,7 +309,7 @@ function TicketRow({
               aria-label={`Registrar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
               className="w-8 h-8 flex items-center justify-center mx-auto transition-colors bg-brand-soft text-primary hover:bg-primary hover:text-primary-foreground border-0 rounded-lg cursor-pointer"
             >
-              <Plane className="w-4 h-4" />
+              <Plane className="w-4 h-4" aria-hidden="true" />
             </button>
           ) : null
         )}
