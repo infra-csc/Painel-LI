@@ -7,12 +7,17 @@
  * o client só a usa para pré-visualização/mensagens.
  */
 
-const CENOTECNICA_KEYWORDS = ["cenotecnica", "cenotécnica", "sup ceno"] as const;
+import { ehCenotecnica } from "./cenotecnica";
 
-/** A função é de cenotécnica (precisa de aprovação da Produção antes do fluxo)? */
+/**
+ * A função é de cenotécnica para o FLUXO DO GESTOR (precisa de aprovação da
+ * Produção antes de seguir)? Mesma lista de termos da alimentação
+ * (shared/cenotecnica.ts), com `incluiSupCeno: true`: o supervisor também
+ * passa pelo gestor. Na alimentação ele fica de fora ("Sup Ceno = produtor",
+ * regra atual do dono) — virar configuração é decisão dele.
+ */
 export function isCenotecnicaFunctionName(functionName: string | null | undefined): boolean {
-  const name = (functionName || "").toLowerCase();
-  return CENOTECNICA_KEYWORDS.some((k) => name.includes(k));
+  return ehCenotecnica(functionName, { incluiSupCeno: true });
 }
 
 export interface ConfirmStatusInput {

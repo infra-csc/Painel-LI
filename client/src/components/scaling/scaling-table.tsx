@@ -16,52 +16,27 @@
  *   se a linha espera VOCÊ. Nada mais colore.
  * - **Zebra removida.** Além de ruído, ela escondia um bug: nas linhas ímpares
  *   a coluna congelada ficava sem fundo próprio.
+ *
+ * Desde 25/09 as regras das células moram em `scaling-table-cells.tsx` e a
+ * linha em `scaling-table-row.tsx`; este arquivo continua o ponto de importação
+ * público (tinha 714 linhas).
  */
 import { useEffect, useState } from "react";
-import { rotuloEmpreita, vagaComEmpreita } from "@shared/cenotecnica-empreita";
-import { AlertTriangle, ArrowLeftRight, Check } from "lucide-react";
-import type { ReactNode } from "react";
-import {
-  MessageSquare, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Lock, UserPlus,
-  Plane, Bus, BedDouble, Receipt, Headset, Bike, Hammer,
-} from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatDiarias, formatDateRange } from "@/lib/utils";
 import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
 import type { PendingChangeRequest } from "./use-scaling-data";
-import { isPercursoFunction } from "@shared/calculation-rules";
-import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
-import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, CENO_FREELA_SHORT, type NormalizedSwap } from "./scaling-utils";
-import { getScalingStatusKey } from "./scaling-status";
-import { StatusBadge, StatusDaVagaBadge } from "@/components/common/status-badge";
-import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
+import type { NormalizedSwap } from "./scaling-utils";
+import { CHECKBOX_CLS, ScalingTableRow } from "./scaling-table-row";
 
 // O vocabulário de status mora em scaling-status.ts (módulo sem JSX, para a
 // fila e as Análises poderem usá-lo). Reexportado aqui porque a tela e o modal
 // sempre o importaram deste arquivo.
 export { getScalingStatusKey, getScalingStatusLabel, STATUS_META } from "./scaling-status";
 export type { ScalingStatusKey } from "./scaling-status";
-
-/**
- * A pílula de situação — a mesma na linha, no modal e no resumo. Desde 23/09
- * é o `StatusDaVagaBadge` (StatusBadge único, rounded-full, tokens): esta
- * tabela era a única com pílula rounded-md e hex próprio.
- */
-export function getStatusBadge(
-  inclusion: Pick<TeamInclusion, "status" | "collaboratorId"> & { empreitaEmpresa?: string | null },
-  size: "sm" | "md" | "lg" = "sm",
-): ReactNode {
-  return (
-    <StatusDaVagaBadge
-      status={inclusion.status}
-      collaboratorId={inclusion.collaboratorId}
-      empreitaEmpresa={inclusion.empreitaEmpresa}
-      size={size === "sm" ? "sm" : "md"}
-    />
-  );
-}
+export { getStatusBadge, shouldShowPendingSwapBadge, detalheDaSituacao, needsDaLinha } from "./scaling-table-cells";
 
 export interface ScalingTableProps {
   rows: TeamInclusion[];
@@ -126,184 +101,7 @@ export interface ScalingTableProps {
   onToggleAllVisible: (ids: string[], select: boolean) => void;
 }
 
-/**
- * Regra ÚNICA do aviso de troca pendente (antes cada aba tinha a sua):
- * - o solicitante vê a própria troca até abrir o registro;
- * - Compras/admin vê SEMPRE (16/09): antes só em vaga sem passagem/hotel, e a
- *   troca de vaga com logística ainda não comprada entrava no menu e na fila
- *   "Em análise" sem nada na linha que dissesse o porquê;
- * - os demais papéis não veem.
- */
-export function shouldShowPendingSwapBadge(
-  swap: Pick<NormalizedSwap, "id" | "requestedBy"> | undefined,
-  inclusion: Pick<TeamInclusion, "needsTicket" | "needsAccommodation">,
-  opts: { currentUserId?: string; isAdminOrPurchasing: boolean; seenSwapIds: Set<string> },
-): boolean {
-  if (!swap) return false;
-  if (opts.seenSwapIds.has(swap.id)) return false;
-  const isRequester = !!opts.currentUserId && swap.requestedBy === opts.currentUserId;
-  if (isRequester) return true;
-  return opts.isAdminOrPurchasing;
-}
-
-/** "VINICIUS JOSE CAMPOS" → "Vinicius". Cabe na linha de detalhe; o nome inteiro vai no title. */
-function primeiroNome(nome: string): string {
-  const p = nome.trim().split(/s+/)[0] ?? "";
-  return p.charAt(0).toLocaleUpperCase("pt-BR") + p.slice(1).toLocaleLowerCase("pt-BR");
-}
-
-/** "2026-07-22T…" → "22/07". Data curta, para caber na linha de detalhe. */
-function diaMes(valor: string | Date | null | undefined): string | null {
-  if (!valor) return null;
-  const d = valor instanceof Date ? valor : new Date(valor);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/**
- * A linha de detalhe abaixo da pílula: quem está esperando o quê, em texto.
- * É a informação que antes exigia abrir o registro para descobrir.
- */
-export function detalheDaSituacao(
-  inclusion: TeamInclusion,
-  opts: { swap?: NormalizedSwap; pedido?: PendingChangeRequest },
-): { texto: string; sufixo?: string; titulo: string; tom: "troca" | "pedido" | "neutro" } | null {
-  if (opts.swap) {
-    const nome = opts.swap.newCollaboratorName?.trim();
-    // "Em análise" na frente (15/09): no fim, a linha cortava e a troca
-    // pendente parecia decidida ao lado da pílula "Aprovado" (que é da vaga).
-    // A pílula da linha já diz "Troca em análise" (15/09); aqui vai quem sai e
-    // quem entra, sem repetir.
-    const atual = opts.swap.currentCollaboratorName?.trim();
-    const texto = nome
-      ? (atual ? `${primeiroNome(atual)} → ${primeiroNome(nome)}` : `Entra ${nome}`)
-      : "Troca em análise";
-    // O título carrega quem pediu e por quê: a linha tem espaço para a frase
-    // curta, mas essa informação não pode sumir da lista — era o que o antigo
-    // badge "Troca pendente" guardava no hover.
-    const porQuem = opts.swap.requestedByName?.trim();
-    return {
-      texto,
-      titulo: [texto, porQuem ? `pedida por ${porQuem}` : null, opts.swap.reason?.trim() || null]
-        .filter(Boolean).join(" · "),
-      tom: "troca",
-    };
-  }
-  if (opts.pedido) {
-    const tipo = opts.pedido.requestType === "exclusao" ? "exclusão" : "ajuste";
-    const quando = diaMes(opts.pedido.createdAt);
-    // Curto para caber numa linha do chip (04/09: três linhas na coluna
-    // Situação ficavam pesadas); o texto inteiro vai no tooltip.
-    const texto = `${tipo === "exclusão" ? "Exclusão" : "Ajuste"} c/ aprovador`;
-    const sufixo = quando ? `desde ${quando}` : undefined;
-    const completo = `Pedido de ${tipo} com o aprovador${quando ? ` desde ${quando}` : ""}`;
-    return {
-      texto,
-      sufixo,
-      titulo: [completo, opts.pedido.requestedByName ? `por ${opts.pedido.requestedByName}` : null, opts.pedido.reason || null]
-        .filter(Boolean).join(" · "),
-      tom: "pedido",
-    };
-  }
-  if (inclusion.status === "aguardando_producao") {
-    // `updatedAt` é a melhor aproximação da transição: quando o status é este,
-    // a última gravação foi justamente o envio ao gestor.
-    const quando = diaMes(inclusion.updatedAt);
-    const texto = quando ? `Enviada ao gestor em ${quando}` : "Enviada ao gestor";
-    return { texto, titulo: texto, tom: "neutro" };
-  }
-  // "Salvo" na pílula; aqui fica claro o que falta (dono, 15/09).
-  if (getScalingStatusKey(inclusion) === "salvo") {
-    return { texto: "Falta confirmar a escalação", titulo: "Colaborador salvo, mas a escalação ainda não foi confirmada", tom: "neutro" };
-  }
-  const aprovado = diaMes(inclusion.approvedByProductionAt);
-  if (aprovado && getScalingStatusKey(inclusion) === "escalado") {
-    const texto = `Aprovada pelo gestor em ${aprovado}`;
-    return { texto, titulo: texto, tom: "neutro" };
-  }
-  return null;
-}
-
-/** Um chip de "Precisa de" — só o que é verdade é desenhado. */
-interface Need { key: string; icon: ReactNode; label: string; title: string; cls: string }
-
-const NEED_INFO = "bg-brand-soft text-info";
-const NEED_NEUTRO = "bg-muted text-slate-600";
-const NEED_FALTA = "bg-warning-soft text-warning";
-
-export function needsDaLinha(
-  inclusion: TeamInclusion,
-  opts: {
-    ticket?: Ticket;
-    funcao: string;
-    /** Passagem efetivamente COMPRADA (não só registrada). */
-    passagemComprada?: boolean;
-    /** Reserva de hotel já existente. */
-    hospedagem?: Accommodation;
-  },
-): Need[] {
-  const needs: Need[] = [];
-  // O chip diz do que a vaga precisa E se aquilo já está resolvido: azul
-  // quando está, âmbar enquanto falta. A lista antiga trazia essa informação
-  // numa pílula roxa separada ("Hotel"), que dizia "reservada" com a mesma
-  // palavra que a coluna ao lado usava para dizer "precisa" — duas leituras
-  // possíveis para o mesmo rótulo.
-  if (inclusion.needsTicket) {
-    const tipo = opts.ticket?.transportType;
-    const comprada = !!opts.passagemComprada;
-    const nome = tipo === "van" ? "Van" : tipo === "rodoviario" ? "Rodoviária" : "Passagem";
-    const anexos = opts.ticket?.attachmentIds?.length ?? 0;
-    needs.push({
-      key: "transporte",
-      icon: tipo === "rodoviario" ? <Bus className="w-3.5 h-3.5" aria-hidden="true" /> : <Plane className="w-3.5 h-3.5" aria-hidden="true" />,
-      label: nome,
-      title: comprada
-        ? `${nome} comprada${anexos ? ` · ${anexos} ${anexos === 1 ? "anexo" : "anexos"}` : ""}`
-        : `Precisa de transporte — ainda não comprada`,
-      cls: comprada ? NEED_INFO : NEED_FALTA,
-    });
-  }
-  if (inclusion.needsAccommodation) {
-    const reservada = !!opts.hospedagem;
-    // O clipe colado em "Hotel 📎" escondia um dado real num caractere; a
-    // contagem de anexos passa para o título, onde dá para ler.
-    const anexos = opts.hospedagem?.attachmentIds?.length ?? 0;
-    needs.push({
-      key: "hotel",
-      icon: <BedDouble className="w-3.5 h-3.5" aria-hidden="true" />,
-      label: "Hotel",
-      title: reservada
-        ? `Hospedagem reservada${opts.hospedagem?.hotelName ? ` · ${opts.hospedagem.hotelName}` : ""}${anexos ? ` · ${anexos} ${anexos === 1 ? "anexo" : "anexos"}` : ""}`
-        : "Precisa de hospedagem — ainda não reservada",
-      cls: reservada ? NEED_INFO : NEED_FALTA,
-    });
-  }
-  if (inclusion.emitsNf === false) {
-    needs.push({ key: "nf", icon: <Receipt className="w-3.5 h-3.5" aria-hidden="true" />, label: "Sem NF", title: "Não emite nota fiscal", cls: NEED_NEUTRO });
-  }
-  const at = ATENDIMENTO_SHORT[inclusion.atendimentoTipo ?? ""];
-  if (at) {
-    needs.push({ key: "atendimento", icon: <Headset className="w-3.5 h-3.5" aria-hidden="true" />, label: at.label, title: `Tipo de atendimento: ${at.label}`, cls: NEED_NEUTRO });
-  }
-  if (isPercursoFunction(opts.funcao)) {
-    const p = PERCURSEIRO_SHORT[inclusion.percurseiroTipo ?? ""];
-    // O tipo do percurseiro é definido NO PLANEJADO (decisão de 17/08): a
-    // Escalação mostra quando já existe e não cobra quando falta.
-    if (p) needs.push({ key: "percurseiro", icon: <Bike className="w-3.5 h-3.5" aria-hidden="true" />, label: p.short, title: `Tipo do percurseiro: ${p.label}`, cls: NEED_NEUTRO });
-  }
-  if (isCenoEmpreitaFunction(opts.funcao)) {
-    const c = CENO_FREELA_SHORT[inclusion.cenoFreelaTipo ?? ""];
-    needs.push(c
-      ? { key: "freela", icon: <Hammer className="w-3.5 h-3.5" aria-hidden="true" />, label: c.short, title: `Tipo de freela: ${c.label}`, cls: NEED_NEUTRO }
-      // Âmbar porque falta algo, não porque está errado: sinaliza, não bloqueia.
-      : { key: "freela", icon: <Hammer className="w-3.5 h-3.5" aria-hidden="true" />, label: "definir freela", title: "Cenotécnica sem tipo de freela — o Planejado precisa do tipo para o valor fechado", cls: NEED_FALTA });
-  }
-  return needs;
-}
-
 const PAGE_SIZE = 150;
-
-const CHECKBOX_CLS = "border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary";
 
 /** Cabeçalho próprio: 34px, 11px/500, e a seta SEMPRE visível (não depende de hover). */
 function Th({ field, label, className = "", sortConfig, onSort }: {
@@ -336,15 +134,8 @@ function Th({ field, label, className = "", sortConfig, onSort }: {
   );
 }
 
-export default function ScalingTable({
-  rows, sortConfig, onSort, onRowClick, onViewComments, onEscalar,
-  getFunctionName, getEventName, getCollaboratorName, getCollaboratorCity,
-  getTicket, getAccommodation,
-  pendingSwapByInclusion, pendingChangeByInclusion, approvedSwapInclusionIds, seenSwapIds,
-  currentUserId, isAdminOrPurchasing, canManageFunction, canApproveProduction, readOnly = false,
-  commentCountByInclusion, getResponsavelDaFuncao, temPassagemComprada, isEventLocked,
-  podeConfirmarRapido, onConfirmarRapido, confirmandoId, selectedIds, getSelectBlockReason, onToggleSelect, onToggleAllVisible,
-}: ScalingTableProps) {
+export default function ScalingTable(props: ScalingTableProps) {
+  const { rows, sortConfig, onSort, onConfirmarRapido, selectedIds, getSelectBlockReason, onToggleAllVisible, ...resto } = props;
   // Corte de renderização (auditoria 28/08): sem filtro, a tela montava TODAS
   // as linhas de uma vez e cada tecla na busca repintava tudo. O dado continua
   // inteiro em memória — só o DOM é servido em blocos.
@@ -359,6 +150,8 @@ export default function ScalingTable({
   const ordemLabel = sortConfig
     ? ({ id: "ID", function: "função", collaborator: "colaborador", period: "período", status: "situação" } as Record<string, string>)[sortConfig.field] ?? sortConfig.field
     : "evento e função";
+
+  const rowProps = { ...resto, sortConfig, onSort, onConfirmarRapido, selectedIds, getSelectBlockReason, onToggleAllVisible };
 
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -410,266 +203,7 @@ export default function ScalingTable({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((inclusion) => {
-              const ticket = getTicket(inclusion.id);
-              const funcao = getFunctionName(inclusion.functionId);
-              const swap = pendingSwapByInclusion.get(inclusion.id);
-              const mostraSwap = shouldShowPendingSwapBadge(swap, inclusion, { currentUserId, isAdminOrPurchasing, seenSwapIds });
-              const pedido = pendingChangeByInclusion?.get(inclusion.id);
-              const city = inclusion.city || getCollaboratorCity(inclusion.collaboratorId);
-              const selectBlock = getSelectBlockReason(inclusion);
-              const isSelected = selectedIds.has(inclusion.id);
-              const idLabel = `#${inclusion.inclusionNumber ?? ""}`;
-              // Guardados porque agora aparecem duas vezes: no texto e no title.
-              const nomeDoEvento = getEventName(inclusion.eventId);
-              const nomeDoColaborador = getCollaboratorName(inclusion.collaboratorId);
-              const cancelada = inclusion.status === "cancelado";
-              const eventoTravado = isEventLocked?.(inclusion) ?? false;
-              const podeGerir = canManageFunction(inclusion.functionId) && !readOnly && !eventoTravado;
-              const empreita = vagaComEmpreita(inclusion);
-              const vazia = !inclusion.collaboratorId && !empreita && !cancelada;
-              const needs = needsDaLinha(inclusion, {
-                ticket, funcao,
-                passagemComprada: temPassagemComprada?.(inclusion) ?? !!ticket?.purchaseDate,
-                hospedagem: getAccommodation(inclusion.id),
-              });
-              const detalhe = detalheDaSituacao(inclusion, { swap: mostraSwap ? swap : undefined, pedido });
-
-              // O marcador de 3px responde a uma pergunta só: isto espera
-              // alguém? Âmbar quando espera VOCÊ (vaga sua por preencher, ou
-              // aprovação que é sua), roxo quando está com outra pessoa.
-              const esperaVoce = (vazia && podeGerir) || (inclusion.status === "aguardando_producao" && canApproveProduction);
-              // Só pinta de roxo o que a linha CONSEGUE explicar: a troca que
-              // este usuário não deve ver não tem detalhe embaixo, e uma borda
-              // colorida sem legenda é charada, não sinal.
-              const emAnalise = (!!swap && mostraSwap) || !!pedido;
-              // Tokens (23/09): espera você = warning-strong; em análise = info-strong.
-              const marker = cancelada ? "border-l-transparent" : esperaVoce ? "border-l-warning-strong" : emAnalise ? "border-l-info-strong" : "border-l-transparent";
-
-              return (
-                <tr
-                  key={inclusion.id}
-                  className={`group/row h-[52px] border-b border-border transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${isSelected ? "bg-brand-soft hover:bg-brand-soft" : "bg-card hover:bg-surface-muted"} ${cancelada ? "opacity-55" : ""}`}
-                  onClick={() => onRowClick(inclusion)}
-                  tabIndex={0}
-                  aria-label={`Abrir detalhes da escalação ${idLabel}`}
-                  aria-selected={isSelected}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(inclusion); }
-                  }}
-                  data-testid={`row-inclusion-${inclusion.id}`}
-                >
-                  <td
-                    className={`px-3 text-center border-l-[3px] ${marker}`}
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                  >
-                    {/* `title` nativo em vez do Tooltip do Radix: eram 150
-                        instâncias por página, cada uma com contexto e portal
-                        próprios, e a lista congelava perto de um segundo a cada
-                        reordenação. O motivo continua legível — no title e no
-                        aria-label — e o cabeçalho, que é UM, mantém o Tooltip. */}
-                    <span className="inline-flex" title={selectBlock ?? undefined}>
-                      <Checkbox
-                        checked={isSelected}
-                        disabled={!!selectBlock}
-                        onCheckedChange={() => onToggleSelect(inclusion.id)}
-                        aria-label={selectBlock ? `Não selecionável: ${selectBlock}` : `Selecionar escalação ${idLabel}`}
-                        data-testid={`checkbox-select-${inclusion.id}`}
-                        className={CHECKBOX_CLS}
-                      />
-                    </span>
-                  </td>
-
-                  <td className="pr-3.5 whitespace-nowrap">
-                    <span className="font-mono text-xs text-muted-foreground tabular-nums">{idLabel}</span>
-                  </td>
-
-                  <td className="px-3.5 min-w-0">
-                    <div className="text-sm font-semibold text-foreground truncate" title={funcao}>{funcao}</div>
-                    <div className="text-xs text-muted-foreground truncate" title={nomeDoEvento}>{nomeDoEvento}</div>
-                  </td>
-
-                  <td className="px-3.5 min-w-0">
-                    {empreita ? (
-                      <>
-                        <div className="text-sm font-medium text-foreground break-words" title={rotuloEmpreita(inclusion)}>
-                          <StatusBadge tone="info" className="mr-1.5 uppercase tracking-wide">Empreita</StatusBadge>
-                          {inclusion.empreitaEmpresa}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {inclusion.empreitaPessoas ?? 0} {Number(inclusion.empreitaPessoas) === 1 ? "pessoa" : "pessoas"}
-                          {inclusion.empreitaValor != null ? ` · ${(Number(inclusion.empreitaValor) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}` : ""}
-                        </div>
-                      </>
-                    ) : inclusion.collaboratorId ? (
-                      <>
-                        <div className="text-sm font-medium text-foreground truncate" title={nomeDoColaborador}>{nomeDoColaborador}</div>
-                        {city && <div className="text-xs text-muted-foreground truncate" title={city}>{city}</div>}
-                      </>
-                    ) : vazia && podeGerir ? (
-                      <button
-                        type="button"
-                        onClick={(e) => onEscalar(e, inclusion)}
-                        className="inline-flex items-center gap-1.5 h-[30px] pl-2.5 pr-3 rounded-lg border border-dashed border-primary/40 bg-brand-soft text-sm font-semibold text-primary whitespace-nowrap hover:bg-brand-soft hover:border-solid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                        data-testid={`button-escalar-${inclusion.id}`}
-                      >
-                        <UserPlus className="w-4 h-4" aria-hidden="true" /> Escalar alguém
-                      </button>
-                    ) : (
-                      <span
-                        title={(() => {
-                          if (eventoTravado) return "Evento encerrado — a partir do dia seguinte ao término, só o administrador altera.";
-                          if (readOnly) return "Esta lista está em modo consulta.";
-                          const quem = getResponsavelDaFuncao?.(inclusion.functionId);
-                          // Com o nome, a linha travada vira um encaminhamento:
-                          // a pessoa sabe a quem pedir em vez de só descobrir
-                          // que não pode.
-                          return quem
-                            ? `Quem escala esta vaga é ${quem}, responsável por ${funcao}. Você pode consultar.`
-                            : `Quem responde por ${funcao} escala esta vaga. Você pode consultar.`;
-                        })()}
-                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
-                      >
-                        <Lock className="w-3.5 h-3.5" aria-hidden="true" />Não escalado
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="px-3.5 whitespace-nowrap">
-                    <div className="text-sm text-slate-700 tabular-nums">
-                      {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">{formatDiarias(inclusion.dailyRates)}</div>
-                  </td>
-
-                  <td className="px-3.5">
-                    <div className="flex items-center gap-1.5 flex-wrap" aria-label="Do que esta escalação precisa">
-                      {needs.map((n) => (
-                        <span
-                          key={n.key}
-                          title={n.title}
-                          className={`inline-flex items-center gap-1 h-[22px] px-[7px] rounded-md text-2xs font-medium whitespace-nowrap ${n.cls}`}
-                        >
-                          {n.icon}{n.label}
-                        </span>
-                      ))}
-                      {needs.length === 0 && <span className="text-xs text-muted-foreground">Sem logística</span>}
-                    </div>
-                  </td>
-
-                  <td className="px-3.5">
-                    <div className="flex flex-col gap-[3px] min-w-0">
-                      {/* Troca pendente manda na pílula (dono, 15/09: "esse aprovado
-                          não faz sentido nenhum"): o status guardado da vaga
-                          ("Aprovado") só volta a valer depois da decisão. */}
-                      {/* Tom `info` (23/09), não `warning`: a troca está com OUTRA
-                          pessoa decidindo; o marcador de 3px é quem diz se
-                          espera você. Mesma cor do marcador "troca em análise". */}
-                      {detalhe?.tom === "troca" ? (
-                        <StatusBadge tone="info" dot data-testid="scaling-status-troca-em-analise">
-                          Troca em análise
-                        </StatusBadge>
-                      ) : getStatusBadge(inclusion, "sm")}
-                      {/* Pedido de ajuste/exclusão em aberto TRAVA a vaga (regra do
-                          dono, 26/08): não dá para escalar, comprar nem confirmar até o
-                          aprovador decidir. Um texto de 11px cortado em "Pedido de
-                          ajuste com o …" não avisava isso a ninguém — virou chip
-                          âmbar, com ícone, que quebra linha em vez de cortar. */}
-                      {detalhe && detalhe.tom === "pedido" ? (
-                        <span
-                          className="inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-0 rounded-md border border-warning/30 bg-warning-soft px-[7px] py-[2px] text-2xs font-semibold leading-tight text-warning"
-                          title={detalhe.titulo}
-                          data-testid={`detalhe-situacao-${inclusion.id}`}
-                        >
-                          <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
-                          <span className="whitespace-nowrap">{detalhe.texto}</span>
-                          {detalhe.sufixo && <span className="whitespace-nowrap font-normal opacity-80">{detalhe.sufixo}</span>}
-                        </span>
-                      ) : detalhe && (
-                        <span
-                          className={`text-2xs truncate ${detalhe.tom === "troca" ? "text-info" : "text-muted-foreground"}`}
-                          title={detalhe.titulo}
-                          data-testid={`detalhe-situacao-${inclusion.id}`}
-                        >
-                          {detalhe.texto}
-                        </span>
-                      )}
-                      {/* Etiqueta para Compras (dono, 15/09): a vaga teve troca de
-                          colaborador aprovada. Antes era um texto pequeno que sumia
-                          sempre que a linha tinha outro detalhe ("Falta confirmar"…). */}
-                      {approvedSwapInclusionIds.has(inclusion.id) && detalhe?.tom !== "troca" && (
-                        <StatusBadge
-                          tone="success"
-                          icon={ArrowLeftRight}
-                          title="Esta vaga teve uma troca de colaborador aprovada — confira passagem e hospedagem"
-                          data-testid={`tag-troca-aprovada-${inclusion.id}`}
-                        >
-                          Troca aprovada
-                        </StatusBadge>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="px-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-0.5">
-                      {onConfirmarRapido && podeGerir && podeConfirmarRapido?.(inclusion) && (
-                        <MotivoDesabilitado motivo={`Confirmar a escalação de ${nomeDoColaborador} — o servidor decide o status (cenotécnica vai ao gestor)`} desabilitado={confirmandoId === inclusion.id}>
-                          <button
-                          type="button"
-                          onClick={(e) => onConfirmarRapido(e, inclusion)}
-                          disabled={confirmandoId === inclusion.id}
-                          className="inline-flex h-[30px] items-center gap-1 rounded-lg bg-success px-2.5 text-xs font-semibold text-white hover:bg-success/90 transition-colors disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
-                         
-                          aria-label={`Confirmar escalação ${idLabel}`}
-                          data-testid={`button-confirmar-rapido-${inclusion.id}`}
-                        >
-                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                          {confirmandoId === inclusion.id ? "Confirmando…" : "Confirmar"}
-                        </button>
-                        </MotivoDesabilitado>
-                      )}
-                      {(() => {
-                        const nComments = commentCountByInclusion?.get(inclusion.id) ?? 0;
-                        return (
-                          <button
-                            type="button"
-                            className="relative inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors"
-                            onClick={(e) => onViewComments(e, inclusion)}
-                            title={nComments === 0
-                              ? "Comentários e histórico"
-                              : `${nComments} ${nComments === 1 ? "comentário" : "comentários"} · abrir histórico`}
-                            aria-label={`Abrir comentários e histórico da escalação ${idLabel}${nComments ? ` (${nComments})` : ""}`}
-                            data-testid={`button-comments-${inclusion.id}`}
-                          >
-                            <MessageSquare className="w-[17px] h-[17px]" aria-hidden="true" />
-                            {nComments > 0 && (
-                              <span
-                                aria-hidden="true"
-                                className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-primary text-primary-foreground text-2xs font-bold leading-none tabular-nums"
-                                data-testid={`badge-comments-${inclusion.id}`}
-                              >
-                                {nComments > 9 ? "9+" : nComments}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })()}
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg text-muted-foreground hover:bg-brand-soft hover:text-primary transition-colors"
-                        onClick={() => onRowClick(inclusion)}
-                        title="Abrir detalhes"
-                        aria-label={`Abrir detalhes de ${idLabel}`}
-                        data-testid={`button-open-${inclusion.id}`}
-                      >
-                        <ChevronRight className="w-[18px] h-[18px]" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {visibleRows.map((inclusion) => <ScalingTableRow key={inclusion.id} inclusion={inclusion} p={rowProps} />)}
           </tbody>
         </table>
       </div>

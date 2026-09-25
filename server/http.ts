@@ -70,6 +70,28 @@ export function protegerRotas(app: Express): void {
   }
 }
 
+/**
+ * Colunas que viraram jsonb em 25/09 e que o client ainda lê como STRING JSON
+ * (JSON.parse em invoice-history.tsx, actual-card.tsx, comparison-utils.ts,
+ * activity-timeline.tsx, consultation.tsx via shared/log-auditoria). No
+ * servidor elas são objetos; na borda (`res.json`) voltam a ser a string de
+ * antes, então nenhuma tela muda. As versões snake_case cobrem as rotas que
+ * devolvem `db.execute` cru (activity-logs). Quando o client passar a ler
+ * objetos, basta tirar a chave daqui.
+ */
+export const CHAVES_JSON_SERIALIZADAS_NA_BORDA = new Set([
+  "history", "rhAdjustedFields", "changesLog", "proposedChanges",
+  "previousData", "newData", "previous_data", "new_data",
+]);
+
+/** `replacer` do JSON.stringify usado por `res.json` (app.set("json replacer")). */
+export function serializarJsonNaBorda(chave: string, valor: unknown): unknown {
+  if (valor !== null && typeof valor === "object" && CHAVES_JSON_SERIALIZADAS_NA_BORDA.has(chave)) {
+    return JSON.stringify(valor);
+  }
+  return valor;
+}
+
 /** Traduz os erros da validação zod para uma frase curta em pt-BR. */
 function mensagemDoZod(err: ZodError): string {
   const primeiro = err.issues[0];

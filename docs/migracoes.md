@@ -191,6 +191,39 @@ Fora dessa fila e sem urgência: `2026-08-20-escala-responsaveis.ts` e
 `2026-08-27-aprovador-padrao.ts` são **seeds** (só se a produção ainda não os
 tiver); `2026-08-17-bagagem-historico.ts` importa dados históricos uma vez.
 
+### 5.1 Ordem para 25/09 (tipos do banco — auditoria de 23/09)
+
+Três scripts `.sql`, todos idempotentes e com diagnóstico no topo. O código de
+25/09 (shared/schema.ts com `jsonb`, `timestamptz`, `numeric`, booleanos
+`NOT NULL`) funciona com o banco **antes e depois** deles, com UMA exceção:
+as decisões da NF fazem `history = history || $1::jsonb` e falham enquanto
+`invoices.history` for `text`. Por isso a ordem:
+
+1. **`2026-09-25-jsonb.sql`** — rodar o bloco 0 (JSON inválido; esperado
+   vazio), depois o script inteiro. **Antes de publicar** o código de 25/09.
+   Se o bloco 0 listar linhas, corrigir (`UPDATE … SET col = NULL` ou
+   consertar o texto) e repetir.
+2. Publicar o código.
+3. **`2026-09-25-timestamptz.sql`** — fora do pico (reescreve as tabelas).
+   Ler o bloco 0: `SHOW timezone` deve ser `UTC` e o último `created_at`
+   deve estar perto de `agora_utc`. Se estiver ~3 h atrás, os valores eram
+   de Brasília: trocar `fuso` para `'America/Sao_Paulo'` no bloco 1. Tabela
+   ocupada (lock_timeout) é listada no fim — repetir o script.
+4. **`2026-09-25-integridade.sql`** — ler os dois diagnósticos (horas fora
+   de "HH:MM"; `user_id` órfão em `team_inclusion_logs`), aplicar as
+   limpezas sugeridas (comentadas, um caso por vez) e rodar o script. Os
+   CHECKs e a FK entram `NOT VALID`.
+5. **`VALIDATE CONSTRAINT`** dos 9 CHECKs `*_hhmm_chk` e da FK
+   `team_inclusion_logs_user_id_users_id_fk` (lista pronta no bloco 6 do
+   script; regra em §4.1).
+6. `check-schema-drift.ts` para fechar.
+
+O que muda para quem lê o banco por fora (BI, psql): datas agora carregam o
+fuso (`2026-09-25 14:41:42+00`); JSON pode ser consultado (`history->0->>'type'`);
+`variance_percent` é número (era `"12.34%"`). A API para o client **não
+muda**: as colunas jsonb voltam a ser string JSON em `res.json`
+(server/http.ts, `serializarJsonNaBorda`).
+
 ## 6. Baseline com `pg_dump --schema-only`
 
 Antes de qualquer mudança de mecanismo, gerar um retrato do banco vivo:

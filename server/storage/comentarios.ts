@@ -29,7 +29,7 @@ export async function createComment(commentData: InsertComment): Promise<Comment
     entityId: comment.teamInclusionId,
     entityName: `Comentário na inclusão ${comment.teamInclusionId}`,
     details: `Novo comentário adicionado: "${commentData.content.substring(0, 50)}..."`,
-    newData: JSON.stringify(comment),
+    newData: comment,
     userId: commentData.userId,
     userName: author?.name || "Usuário",
   });

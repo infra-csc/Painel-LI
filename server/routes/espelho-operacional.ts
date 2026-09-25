@@ -22,6 +22,7 @@ import {
   type InsertLogisticsExtraCost,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { isValidHhmm } from "@shared/scaling-validation-rules";
 import { assertEventEditable, assertInclusionEventEditable } from "../event-guard";
 import {
   getOperationalMirror,
@@ -451,6 +452,13 @@ export function registrarEspelhoOperacional(app: Express): void {
         const manual = allowed.manualTime ? String(allowed.manualTime).trim() : null;
         allowed.manualTime = manual;
         allowed.time = manual ? manual : (atual.suggestedTime ?? atual.time ?? null);
+      }
+      // Horas em "HH:MM" (25/09): o cálculo do carro e o CHECK do banco exigem.
+      for (const k of ["time", "manualTime"] as const) {
+        const v = allowed[k];
+        if (v !== undefined && v !== null && !isValidHhmm(String(v))) {
+          return res.status(400).json({ message: "Horário inválido (use HH:MM entre 00:00 e 23:59)" });
+        }
       }
       const [g] = await db.update(uberGroupsTable)
         .set({ ...allowed, updatedAt: new Date() })

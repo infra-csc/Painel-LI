@@ -23,6 +23,7 @@
  * Funções puras — sem I/O, testáveis.
  */
 import { parseHoraMin } from "./atendimento";
+import { ehCenotecnica } from "./cenotecnica";
 
 export interface AlimentacaoDia {
   date: string;          // YYYY-MM-DD
@@ -136,15 +137,17 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
   };
 }
 
-/** A função é de cenotécnica? (valores de refeição reduzidos no slide) */
+/**
+ * A função é de cenotécnica para ALIMENTAÇÃO e DIÁRIAS? (refeição reduzida,
+ * casa sem diária, empreita para freela.)
+ *
+ * Mesma lista de termos do fluxo do gestor (shared/cenotecnica.ts), com
+ * `incluiSupCeno: false`: "Sup Ceno" (supervisor) é do grupo PRODUTOR — regra
+ * atual do dono ("produtor = produção/ativação/kit/sup ceno"): recebe diária
+ * normal e alimentação de "demais". Tornar isso configurável é decisão dele.
+ */
 export function isCenotecnicaFunction(functionName: string | null | undefined): boolean {
-  if (!functionName) return false;
-  const n = functionName.toLowerCase();
-  // "Sup Ceno" (supervisor de cenotécnica) é do grupo PRODUTOR (o usuário
-  // confirmou: produtor = produção/ativação/kit/sup ceno) — não é cenotécnico:
-  // recebe diária normal e alimentação de "demais".
-  if (n.includes("sup") && n.includes("ceno")) return false;
-  return n.includes("cenotecnica") || n.includes("cenotécnica") || n.includes("ceno");
+  return ehCenotecnica(functionName, { incluiSupCeno: false });
 }
 
 /**

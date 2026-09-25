@@ -12,6 +12,7 @@ import {
   type TeamInclusion, type InsertTeamInclusion,
   type TeamInclusionLog, type InsertTeamInclusionLog,
   type InsertSystemLog,
+  USUARIO_SISTEMA,
 } from "@shared/schema";
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
 import { idsUnicos, StorageHttpError, SUGESTAO_PHASE_VALUE } from "./_comum";
@@ -275,7 +276,7 @@ export async function updateTeamInclusion(id: string, inclusionData: Partial<Ins
       id,
       antes: oldInclusion,
       patch: inclusionData,
-      userId: inclusionData.updatedBy || "system",
+      userId: inclusionData.updatedBy || USUARIO_SISTEMA.id, // usuário fixo em users (FK válida)
       userName: userRows[0]?.name ?? "Sistema",
       nomeDoColaborador: (cid) =>
         cid ? (collabRows.find((c) => c.id === cid)?.fullName ?? "Desconhecido") : "Nenhum",

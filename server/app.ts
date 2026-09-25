@@ -20,11 +20,12 @@ import connectPgSimple from "connect-pg-simple";
 import rateLimit from "express-rate-limit";
 import { randomUUID } from "crypto";
 import { pool } from "./db";
+import { criarStoreDeRateLimit } from "./rate-limit-store";
 import type { User } from "@shared/schema";
 import { registerRoutes } from "./routes";
 import { simulationReadOnlyGuard } from "./simulation";
 import { log } from "./vite";
-import { tratadorGlobalDeErros } from "./http";
+import { tratadorGlobalDeErros, serializarJsonNaBorda } from "./http";
 import {
   autenticarPorSso,
   carregarUsuario,
@@ -125,6 +126,8 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
 
   // Trust proxy - required for Replit
   app.set('trust proxy', 1);
+  // Colunas jsonb (25/09) saem como string JSON, como o client espera — ver server/http.ts.
+  app.set('json replacer', serializarJsonNaBorda);
 
   // Gzip compression — reduz tamanho das respostas JSON em ~70-80%
   app.use(compression());
@@ -221,12 +224,16 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
   // Limites propositalmente folgados: em produção o login é via SSO do Portal
   // Norte, então essas rotas quase não têm uso legítimo. O objetivo é apenas
   // impedir brute force e enumeração de contas, sem atrapalhar ninguém.
+  // Contadores no Postgres (25/09, server/rate-limit-store.ts): o MemoryStore
+  // padrão contava por instância — com autoscale, N instâncias = N × o limite,
+  // e o contador zerava a cada deploy. Uma instância de store por limitador.
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 30,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "Muitas tentativas. Tente novamente em alguns minutos." },
+    store: criarStoreDeRateLimit("login"),
   });
 
   const passwordResetLimiter = rateLimit({
@@ -235,12 +242,27 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "Muitas tentativas. Tente novamente mais tarde." },
+    store: criarStoreDeRateLimit("reset"),
   });
 
   app.use('/api/auth/login', authLimiter);
   // /api/auth/register foi removido em 17/08/2026 (registro público desativado).
   app.use('/api/auth/forgot-password', passwordResetLimiter);
   app.use('/api/auth/reset-password', passwordResetLimiter);
+
+  // ── Login automático do MODO DEMONSTRAÇÃO (25/09) ─────────────────────────
+  // `GET /__demo/entrar?papel=admin|production|purchasing|function_area|
+  // financial|aprovador` cria a sessão do usuário semeado (server/dev/
+  // demo-seed.ts) e redireciona para /. Registrado SÓ quando as DUAS
+  // condições valem — PAINEL_DEMO=1 e NODE_ENV diferente de "production" —
+  // lidas do ambiente, nunca de `opts`: em produção a rota não existe (404),
+  // e o teste server/test/demo-seed.test.ts garante isso. Fica antes do SSO e
+  // do gate porque cria sessão do mesmo jeito que o SSO (`ssoAuthenticated`).
+  if (process.env.PAINEL_DEMO === "1" && process.env.NODE_ENV !== "production") {
+    const { registrarLoginDeDemo } = await import("./dev/demo-login");
+    registrarLoginDeDemo(app);
+    console.warn("[Demo] PAINEL_DEMO=1 — login automático em GET /__demo/entrar?papel=… (NUNCA em produção)");
+  }
 
   // ── SSO Middleware (server-side) ──────────────────────────────────────────
   // Intercepta ?portal_sso=<JWT> ANTES de qualquer renderização do React.

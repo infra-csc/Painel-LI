@@ -1,75 +1,31 @@
 /**
  * Consultas, índices memoizados, filtros/ordenação e permissões da Escalação.
  * Extraído de pages/scaling.tsx — regra de negócio preservada.
+ *
+ * Desde 25/09 este hook só COMPÕE (tinha 693 linhas): as consultas e índices
+ * vivem em `use-scaling-queries`, as permissões em `use-scaling-permissions`,
+ * o filtro+ordenação em `scaling-data-filter` (função pura) e o modal em
+ * `use-inclusion-details`. Os tipos moram em `scaling-data-types`. O objeto
+ * devolvido é o mesmo de antes — nada de quem importa `ScalingData` mudou.
  */
 import { tipoDeConflitoDeAgenda } from "./scaling-utils";
 import { useMemo } from "react";
-import type { EntradaDoHistorico } from "@shared/inclusion-timeline";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { SortConfig } from "@/components/common/sortable-header";
-import { apiRequest } from "@/lib/queryClient";
 import { fixEncoding } from "@/lib/utils";
-import { hasRole, isAdmin } from "@/lib/role-utils";
-import { useSwapRequests } from "@/hooks/use-swap-requests";
-import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
+import { hasRole } from "@/lib/role-utils";
 import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
-import { isEventPast, canActOnPastEvent } from "@shared/event-window";
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { isPercursoFunction } from "@shared/calculation-rules";
 import { isCenotecnicaFunctionName } from "@shared/scaling-rules";
-import { getScalingStatusLabel } from "./scaling-status";
-import type {
-  TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation,
-  SwapRequest, User,
-} from "@shared/schema";
-import {
-  ACTIVE_CONFLICT_STATUSES, ALREADY_HANDLED_SWAP_STATUSES, isEscalated,
-  normalizeSwap, type NormalizedSwap,
-} from "./scaling-utils";
+import type { TeamInclusion } from "@shared/schema";
+import { ACTIVE_CONFLICT_STATUSES, ALREADY_HANDLED_SWAP_STATUSES } from "./scaling-utils";
+import type { ScalingFilters, ScalingUser } from "./scaling-data-types";
+import { useScalingQueries } from "./use-scaling-queries";
+import { useScalingPermissions } from "./use-scaling-permissions";
+import { filtrarEOrdenarVagas } from "./scaling-data-filter";
 
-/** Filtros de seleção múltipla (28/08): lista vazia = "todos". */
-export interface ScalingFilters {
-  eventId: string[];
-  functionId: string[];
-  collaboratorId: string[];
-  escalationStatus: string[];
-  ticketStatus: string[];
-  accommodationStatus: string[];
-  searchId: string;
-  showDeleted: boolean;
-}
-
-export const DEFAULT_SCALING_FILTERS: ScalingFilters = {
-  eventId: [],
-  functionId: [],
-  collaboratorId: [],
-  escalationStatus: [],
-  ticketStatus: [],
-  accommodationStatus: [],
-  searchId: "",
-  showDeleted: false,
-};
-
-/** User do auth (o schema já expõe canApproveCenotecnica — sem `as any`). */
-export type ScalingUser = User | null | undefined;
-
-/**
- * Um comparador só, criado uma vez.
- *
- * `String.localeCompare` monta um Intl.Collator novo a cada chamada. Num sort
- * de 3.700 linhas são ~45 mil chamadas, e a tela congelava perto de dois
- * segundos a cada clique de ordenação.
- */
-const COLLATOR = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
-
-/** Pedido de ajuste/exclusão em aberto de uma vaga (GET pending-by-inclusion). */
-export interface PendingChangeRequest {
-  teamInclusionId: string;
-  requestType: string;
-  reason: string | null;
-  requestedByName: string | null;
-  createdAt: string | null;
-}
+export { DEFAULT_SCALING_FILTERS, type ScalingFilters, type ScalingUser, type PendingChangeRequest } from "./scaling-data-types";
+export { useInclusionDetails, type InclusionDetails } from "./use-inclusion-details";
 
 export function useScalingData(opts: {
   filters: ScalingFilters;
@@ -78,304 +34,18 @@ export function useScalingData(opts: {
 }) {
   const { filters, sortConfig, user } = opts;
 
+  const q = useScalingQueries({ filters, user });
   const {
-    data: teamInclusions,
-    isLoading: isLoadingInclusions,
-    isFetching: isFetchingInclusions,
-    isError: isErrorInclusions,
-    error: inclusionsError,
-  } = useQuery<TeamInclusion[]>({
-    /**
-     * Recorte no servidor (24/09): UM evento marcado vira `?eventId=` (chave
-     * `["/api/team-inclusions", { eventId }]`, a mesma que as telas por evento
-     * usam). Nenhum ou vários eventos: admin/compras/produção/RH leem a fila
-     * inteira pela chave global de sempre (compartilhada com Passagens e
-     * Hospedagem); a área de função, que o servidor obriga a recortar, pede
-     * `?phase=all` e as sugestões são tiradas em `filteredTeamInclusions`.
-     *
-     * Ligar "Excluídas" entra na chave (`includeDeleted`) — e tem de ser
-     * assim: encher o cache global com registros excluídos faria eles
-     * aparecerem nas outras telas.
-     *
-     * A troca de chave custa uma busca nova, que nesta base leva dezenas de
-     * segundos (o driver do Neon cobra por coluna trafegada, e a tabela passa
-     * de cinquenta). Por isso o `placeholderData`: a lista anterior fica na
-     * tela enquanto a nova chega. Sem ele, a tela virava esqueleto e levava
-     * junto a barra de filtros — com o próprio toggle dentro dela.
-     */
-    ...listaDeVagasQuery(recorteDaListaDeVagas({
-      eventId: filters.eventId.length === 1 ? filters.eventId[0] : undefined,
-      user,
-      includeDeleted: filters.showDeleted,
-    })),
-    placeholderData: keepPreviousData,
-  });
-
-  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
-  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
-  // Managers de todas as funções — uma única requisição. `userName` (01/09)
-  // é o que permite a linha dizer QUEM escala a vaga que você não pode mexer.
-  const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string; userName?: string | null }[]>({
-    queryKey: ["/api/function-managers/all"],
-    staleTime: 300_000,
-  });
-  // Responsáveis do MÓDULO DE ESCALA (tabela própria; mesma chave da
-  // Validação, cache compartilhado). Necessário porque o servidor aceita em
-  // PATCH /api/team-inclusions/:id/approve-production quem é 'aprovador'
-  // cadastrado da função da vaga (storage.isUserFunctionApprover) — e o client
-  // só liberava admin e a flag canApproveCenotecnica (23/09).
-  const { data: escalaManagers } = useQuery<{ functionId: string; userId: string; role: "validador" | "aprovador" }[]>({
-    queryKey: ["/api/scaling-function-managers"],
-    staleTime: 300_000,
-    enabled: !!user,
-  });
-
-  /**
-   * Quantos comentários cada vaga tem. Agregação no banco: sem ela, o ícone da
-   * lista é igual em quem tem dez mensagens e em quem nunca recebeu nada, e a
-   * pessoa precisa abrir cada registro para descobrir.
-   */
-  const { data: commentCounts } = useQuery<{ teamInclusionId: string; n: number }[]>({
-    queryKey: ["/api/comments/counts"],
-    staleTime: 60_000,
-    // A rota é nova: numa implantação atrasada o servidor responde o HTML do
-    // SPA, e a tela fica sem o contador em vez de quebrar inteira.
-    queryFn: async () => {
-      const r = await fetch("/api/comments/counts", { credentials: "include" });
-      if (!r.ok || !r.headers.get("content-type")?.includes("application/json")) return [];
-      return r.json();
-    },
-  });
-  const commentCountByInclusion = useMemo(() => {
-    const m = new Map<string, number>();
-    (commentCounts || []).forEach((c) => { if (c.teamInclusionId) m.set(c.teamInclusionId, Number(c.n) || 0); });
-    return m;
-  }, [commentCounts]);
-  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000 });
-  const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
-  const { data: tickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"] });
-  // Swap requests globais — badges nas linhas da tabela. Hook único (23/09):
-  // já vem normalizado e é o mesmo cache da casca e das outras telas.
-  const { data: allSwapRequestsData } = useSwapRequests();
-
-  // ── Índices O(1) — preservam a semântica de Array.find: o PRIMEIRO vence ──
-  const eventById = useMemo(() => {
-    const m = new Map<string, Event>();
-    (events || []).forEach(e => { if (!m.has(e.id)) m.set(e.id, e); });
-    return m;
-  }, [events]);
-
-  const functionById = useMemo(() => {
-    const m = new Map<string, Function>();
-    (functions || []).forEach(f => { if (!m.has(f.id)) m.set(f.id, f); });
-    return m;
-  }, [functions]);
-
-  const collaboratorById = useMemo(() => {
-    const m = new Map<string, Collaborator>();
-    (collaborators || []).forEach(c => { if (!m.has(c.id)) m.set(c.id, c); });
-    return m;
-  }, [collaborators]);
-
-  const ticketByInclusion = useMemo(() => {
-    const m = new Map<string, Ticket>();
-    (tickets || []).forEach(t => {
-      if (t.teamInclusionId && !m.has(t.teamInclusionId)) m.set(t.teamInclusionId, t);
-    });
-    return m;
-  }, [tickets]);
-
-  // Passagem efetivamente comprada (purchaseDate) — a primeira comprada vence
-  /**
-   * Pedido de ajuste/exclusão EM ABERTO por vaga (regra do dono, 26/08).
-   * Uma consulta para a tela inteira: a lista marca a linha e o modal trava
-   * todas as ações enquanto o aprovador não decide.
-   */
-  const { data: pendingChanges } = useQuery<PendingChangeRequest[]>({
-    queryKey: ["/api/scaling-change-requests/pending-by-inclusion"],
-    staleTime: 30_000,
-    queryFn: async () => {
-      // Rota enxuta, feita para esta tela. Se o servidor ainda não a tiver
-      // (implantação atrasada), ela responde o HTML do SPA — daí a checagem do
-      // content-type — e caímos na fila completa de pedidos, que existe desde
-      // sempre. Quem não tem permissão nela simplesmente fica sem o selo, em
-      // vez de a tela inteira quebrar.
-      const enxuta = await fetch("/api/scaling-change-requests/pending-by-inclusion", { credentials: "include" });
-      if (enxuta.ok && enxuta.headers.get("content-type")?.includes("application/json")) {
-        return (await enxuta.json()) as PendingChangeRequest[];
-      }
-      const completa = await fetch("/api/scaling-change-requests?status=pendente", { credentials: "include" });
-      if (!completa.ok || !completa.headers.get("content-type")?.includes("application/json")) return [];
-      const rows = (await completa.json()) as {
-        teamInclusionId: string | null; requestType: string; reason: string | null;
-        requestedByName: string | null; createdAt: string | null;
-      }[];
-      return rows
-        .filter((r): r is PendingChangeRequest => !!r.teamInclusionId)
-        .map((r) => ({
-          teamInclusionId: r.teamInclusionId,
-          requestType: r.requestType,
-          reason: r.reason,
-          requestedByName: r.requestedByName,
-          createdAt: r.createdAt,
-        }));
-    },
-  });
-  const pendingChangeByInclusion = useMemo(() => {
-    const m = new Map<string, PendingChangeRequest>();
-    (pendingChanges || []).forEach((p) => {
-      if (p.teamInclusionId && !m.has(p.teamInclusionId)) m.set(p.teamInclusionId, p);
-    });
-    return m;
-  }, [pendingChanges]);
-
-  const purchasedTicketByInclusion = useMemo(() => {
-    const m = new Map<string, Ticket>();
-    (tickets || []).forEach(t => {
-      if (t.teamInclusionId && t.purchaseDate !== null && t.purchaseDate !== undefined && !m.has(t.teamInclusionId)) {
-        m.set(t.teamInclusionId, t);
-      }
-    });
-    return m;
-  }, [tickets]);
-
-  const accommodationByInclusion = useMemo(() => {
-    const m = new Map<string, Accommodation>();
-    (accommodations || []).forEach(a => {
-      if (a.teamInclusionId && !m.has(a.teamInclusionId)) m.set(a.teamInclusionId, a);
-    });
-    return m;
-  }, [accommodations]);
-
-  const allSwapRequests = useMemo<NormalizedSwap[]>(() => allSwapRequestsData ?? [], [allSwapRequestsData]);
-
-  const pendingSwapByInclusion = useMemo(() => {
-    const map = new Map<string, NormalizedSwap>();
-    allSwapRequests.filter(s => s.status === "pendente").forEach(s => {
-      if (s.teamInclusionId) map.set(s.teamInclusionId, s);
-      // Permuta (14/09): a vaga pareada também fica marcada.
-      if (s.pairedInclusionId) map.set(s.pairedInclusionId, s);
-    });
-    return map;
-  }, [allSwapRequests]);
-
-  const approvedSwapInclusionIds = useMemo(() => {
-    const ids = new Set<string>();
-    allSwapRequests.filter(s => s.status === "aprovado").forEach(s => {
-      if (s.teamInclusionId) ids.add(s.teamInclusionId);
-      if (s.pairedInclusionId) ids.add(s.pairedInclusionId);
-    });
-    return ids;
-  }, [allSwapRequests]);
-
-  // Primeira troca (qualquer status) da inclusão — usada por markInclusionSwapSeen
-  const firstSwapByInclusion = useMemo(() => {
-    const m = new Map<string, NormalizedSwap>();
-    allSwapRequests.forEach(s => { if (s.teamInclusionId && !m.has(s.teamInclusionId)) m.set(s.teamInclusionId, s); });
-    return m;
-  }, [allSwapRequests]);
+    teamInclusions, events, functions, collaborators, tickets, accommodations,
+    isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,
+    eventById, functionById, collaboratorById, ticketByInclusion, purchasedTicketByInclusion,
+    accommodationByInclusion, pendingChangeByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,
+    commentCountByInclusion,
+  } = q;
 
   // ── Permissões ──────────────────────────────────────────────────────────
-  const userFunctionIds = useMemo(
-    () => new Set((allFunctionManagers || []).filter(m => m.userId === user?.id).map(m => m.functionId)),
-    [allFunctionManagers, user?.id],
-  );
-
-  /** Quem responde pela função, por extenso. Vazio quando não há responsável. */
-  const responsaveisPorFuncao = useMemo(() => {
-    const m = new Map<string, string[]>();
-    (allFunctionManagers || []).forEach((fm) => {
-      const nome = (fm.userName || "").trim();
-      if (!nome) return;
-      const lista = m.get(fm.functionId);
-      if (lista) { if (!lista.includes(nome)) lista.push(nome); } else m.set(fm.functionId, [nome]);
-    });
-    return m;
-  }, [allFunctionManagers]);
-  const getResponsavelDaFuncao = (functionId: string): string | null => {
-    const nomes = responsaveisPorFuncao.get(functionId);
-    if (!nomes || nomes.length === 0) return null;
-    return nomes.length === 1 ? nomes[0] : `${nomes[0]} e mais ${nomes.length - 1}`;
-  };
-
-  // Papéis via helpers que normalizam aliases legados (23/09) — comparar a
-  // string crua escondia botões de quem tem "administrador"/"compras" no banco.
-  const isAdminRole = isAdmin(user);
-  const isAdminOrPurchasing = hasRole(user, "admin", "purchasing");
-
-  /**
-   * Funções CENOTÉCNICAS em que este usuário é 'aprovador' cadastrado no
-   * módulo de Escala — espelha o que o servidor aceita no approve-production
-   * (admin, flag canApproveCenotecnica ou aprovador da função da vaga, que
-   * precisa ser cenotécnica).
-   */
-  const approverCenotecnicaFunctionIds = useMemo(() => {
-    const ids = new Set<string>();
-    (escalaManagers || []).forEach((m) => {
-      if (m.userId !== user?.id || m.role !== "aprovador") return;
-      if (isCenotecnicaFunctionName(functionById.get(m.functionId)?.name || "")) ids.add(m.functionId);
-    });
-    return ids;
-  }, [escalaManagers, user?.id, functionById]);
-
-  /** Pode aprovar (gestor) ESTA vaga de cenotécnica — a checagem exata do servidor. */
-  const canApproveProductionFor = (inclusion: Pick<TeamInclusion, "functionId">): boolean =>
-    isAdminRole || !!user?.canApproveCenotecnica || approverCenotecnicaFunctionIds.has(inclusion.functionId);
-  /**
-   * Flag geral (fila "Com o gestor", card do modal): verdadeira se a pessoa
-   * pode aprovar ALGUMA função. Para a linha/ação use `canApproveProductionFor`.
-   */
-  const canApproveProduction = isAdminRole || !!user?.canApproveCenotecnica || approverCenotecnicaFunctionIds.size > 0;
-  // Exportação XLSX carrega CPF/telefone/nascimento — só admin, Compras e RH/Financeiro
-  const canExport = hasRole(user, "admin", "purchasing", "financial");
-
-  // Espelha `podeEditarVagaAsync` do servidor (PATCH e /confirm da vaga):
-  // admin, Compras e Logística Interna (production) editam qualquer função;
-  // Área de Função só as funções em que é responsável (function_managers).
-  // Antes `production` ficava de fora e o "Confirmar" sumia para a Logística.
-  const canManageFunction = (functionId: string): boolean => {
-    if (!user) return false;
-    if (isAdminRole || hasRole(user, "purchasing", "production")) return true;
-    return userFunctionIds.has(functionId);
-  };
-
-  const canConfirmEscalation = (inclusion: TeamInclusion): boolean => canManageFunction(inclusion.functionId);
-
-  /**
-   * Quem vê o botão "Escalar alguém" na linha (regra do dono, 01/09):
-   * SÓ o administrador e o responsável por AQUELA função.
-   *
-   * É mais estrito que `canManageFunction`, que também libera Compras. Compras
-   * continua podendo trocar colaborador pelo registro — o que muda é o atalho
-   * da lista, que deixa de convidar quem não responde pela função a preencher
-   * a vaga de outra pessoa.
-   */
-  const canScaleFunction = (functionId: string): boolean => {
-    if (!user) return false;
-    if (isAdminRole) return true;
-    return userFunctionIds.has(functionId);
-  };
-
-  // Evento encerrado (regra do usuário, 20/08): a partir do dia seguinte ao
-  // término, só o administrador age. Espelha a trava do servidor
-  // (403 PAST_EVENT_BLOCK_MSG) — nenhum estado novo, só endDate + papel.
-  const podeAgirEmEventoPassado = canActOnPastEvent(user?.role);
-  const isPastEvent = (eventId: string | null | undefined): boolean =>
-    !!eventId && isEventPast(eventById.get(eventId)?.endDate);
-  const isEventLocked = (inclusion: TeamInclusion): boolean =>
-    !podeAgirEmEventoPassado && isPastEvent(inclusion.eventId);
-
-  // Alterar colaborador: a mesma permissão do PATCH (admin/Compras/Logística,
-  // ou Área de Função responsável por AQUELA função — a API exige o cadastro em
-  // function_managers, não basta o papel), e só até haver passagem comprada
-  // (se needsTicket) ou hospedagem reservada (se needsAccommodation).
-  const canEditCollaborator = (inclusion: TeamInclusion): boolean => {
-    if (!user) return false;
-    if (!canManageFunction(inclusion.functionId)) return false;
-    const ticketPurchased = inclusion.needsTicket ? purchasedTicketByInclusion.has(inclusion.id) : false;
-    const accommodationReserved = inclusion.needsAccommodation ? accommodationByInclusion.has(inclusion.id) : false;
-    return !(ticketPurchased || accommodationReserved);
-  };
+  const p = useScalingPermissions({ user, q });
+  const { userFunctionIds, isAdminOrPurchasing } = p;
 
   // ── Nomes ────────────────────────────────────────────────────────────────
   const getEventName = (eventId: string | null) =>
@@ -412,135 +82,13 @@ export function useScalingData(opts: {
   }), [teamInclusions, eventById, user, userFunctionIds, filters.showDeleted]);
 
   // ── Filtros + ordenação ─────────────────────────────────────────────────
-  const scalingInclusions = useMemo(() => {
-    // Busca por ID, colaborador, função, evento ou cidade (normalizada uma vez)
-    const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
-    const filtered = filteredTeamInclusions.filter(inclusion => {
-      // Seleção múltipla: dentro de um mesmo filtro os valores marcados somam
-      // (OU) — basta a linha casar com UM deles; entre filtros continua E.
-      if (filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
-      if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
-      if (filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
-
-      if (filters.escalationStatus.length > 0) {
-        const escalated = isEscalated(inclusion);
-        const isCanceled = inclusion.status === "cancelado";
-        const matches = filters.escalationStatus.some((v) =>
-          v === "pending" ? (!escalated && !isCanceled)
-          : v === "escalated" ? (escalated && !isCanceled && inclusion.status !== "aguardando_producao")
-          : v === "aguardando_producao" ? inclusion.status === "aguardando_producao"
-          : v === "cancelado" ? isCanceled
-          : false,
-        );
-        if (!matches) return false;
-      }
-
-      // Passagem: "needs/no-need" cortam pela NECESSIDADE (needsTicket);
-      // "purchased/not-purchased" olham o registro da compra (purchaseDate).
-      if (filters.ticketStatus.length > 0) {
-        const purchased = purchasedTicketByInclusion.has(inclusion.id);
-        const matches = filters.ticketStatus.some((v) =>
-          v === "needs" ? inclusion.needsTicket
-          : v === "no-need" ? !inclusion.needsTicket
-          : v === "purchased" ? purchased
-          : v === "not-purchased" ? !purchased
-          : false,
-        );
-        if (!matches) return false;
-      }
-
-      if (filters.accommodationStatus.length > 0) {
-        const hasAccommodation = accommodationByInclusion.has(inclusion.id);
-        const matches = filters.accommodationStatus.some((v) =>
-          v === "needs" ? inclusion.needsAccommodation
-          : v === "no-need" ? !inclusion.needsAccommodation
-          : v === "reserved" ? hasAccommodation
-          : v === "not-reserved" ? !hasAccommodation
-          : false,
-        );
-        if (!matches) return false;
-      }
-
-      if (!q) return true;
-      // Empreita por empresa (10/09): a busca acha pelo nome da empresa.
-      const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : (inclusion.empreitaEmpresa ?? "").toLowerCase();
-      const city = (inclusion.city || getCollaboratorCity(inclusion.collaboratorId) || "").toLowerCase();
-      return (
-        String(inclusion.inclusionNumber ?? "").toLowerCase().includes(q) ||
-        collaboratorName.includes(q) ||
-        getFunctionName(inclusion.functionId).toLowerCase().includes(q) ||
-        getEventName(inclusion.eventId).toLowerCase().includes(q) ||
-        city.includes(q)
-      );
-    });
-
-    /**
-     * Ordena por CHAVE pré-computada.
-     *
-     * O comparador antigo chamava getCollaboratorName/getEventName dentro do
-     * sort — e getCollaboratorName passa por fixEncoding, que reprocessa a
-     * string inteira. Numa lista de 3.700 linhas isso rodava ~45 mil vezes por
-     * clique. Calcular a chave uma vez por linha troca isso por 3.700.
-     */
-    const ordenarPorChave = <T,>(
-      itens: TeamInclusion[],
-      chave: (i: TeamInclusion) => T,
-      compara: (a: T, b: T) => number,
-      multiplier: number,
-    ) => itens
-      .map((item, idx) => ({ item, idx, k: chave(item) }))
-      // idx como desempate mantém a ordem estável entre iguais — sem ele, duas
-      // linhas equivalentes trocavam de lugar a cada rerender.
-      .sort((a, b) => { const r = compara(a.k, b.k) * multiplier; return r !== 0 ? r : a.idx - b.idx; })
-      .map((x) => x.item);
-
-    if (sortConfig) {
-      const { field, direction } = sortConfig;
-      const multiplier = direction === "asc" ? 1 : -1;
-      switch (field) {
-        case "id":
-          return ordenarPorChave(filtered, (i) => i.inclusionNumber || 0, (a, b) => a - b, multiplier);
-        case "event":
-          return ordenarPorChave(filtered, (i) => getEventName(i.eventId), COLLATOR.compare, multiplier);
-        case "function":
-          return ordenarPorChave(filtered, (i) => getFunctionName(i.functionId), COLLATOR.compare, multiplier);
-        // Vaga sem nome vai SEMPRE para o fim, nos DOIS sentidos: ordenar por
-        // colaborador é procurar uma pessoa, e "Não escalado" alfabetizado no
-        // "N" enfia o que não tem nome no meio de quem tem. A checagem vem
-        // antes da direção, senão inverter a ordem traria as vazias para cima.
-        case "collaborator":
-          return filtered
-            .map((item, idx) => ({ item, idx, k: item.collaboratorId ? getCollaboratorName(item.collaboratorId) : (item.empreitaEmpresa ?? "") }))
-            .sort((a, b) => {
-              const semA = a.k ? 0 : 1;
-              const semB = b.k ? 0 : 1;
-              if (semA !== semB) return semA - semB;
-              const r = COLLATOR.compare(a.k, b.k) * multiplier;
-              return r !== 0 ? r : a.idx - b.idx;
-            })
-            .map((x) => x.item);
-        case "period":
-          return ordenarPorChave(filtered, (i) => i.scheduleStartDate ?? null,
-            (a, b) => (!a && !b ? 0 : !a ? 1 : !b ? -1 : (a < b ? -1 : a > b ? 1 : 0)), multiplier);
-        // A coluna Situação passou a ser ordenável no redesenho (01/09).
-        // Ordena pelo RÓTULO, que é o que a pessoa lê — não pelo status
-        // gravado, cujos nomes internos não têm ordem que signifique nada.
-        case "status":
-          return ordenarPorChave(filtered, (i) => getScalingStatusLabel(i), COLLATOR.compare, multiplier);
-        default:
-          return filtered;
-      }
-    }
-
-    // Default: Evento → Função → Data
-    return ordenarPorChave(
-      filtered,
-      (i) => `${getEventName(i.eventId)}\u0000${getFunctionName(i.functionId)}\u0000${i.scheduleStartDate ?? "9999"}`,
-      COLLATOR.compare,
-      1,
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredTeamInclusions, filters, sortConfig, eventById, functionById, collaboratorById, purchasedTicketByInclusion, accommodationByInclusion]);
+  const scalingInclusions = useMemo(
+    () => filtrarEOrdenarVagas(filteredTeamInclusions, filters, sortConfig, {
+      getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity, purchasedTicketByInclusion, accommodationByInclusion,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredTeamInclusions, filters, sortConfig, eventById, functionById, collaboratorById, purchasedTicketByInclusion, accommodationByInclusion],
+  );
 
   // Trocas pendentes sobre as quais o usuário PODE agir
   const isActionablePendingSwap = (inclusion: TeamInclusion) => {
@@ -601,9 +149,6 @@ export function useScalingData(opts: {
     return { sameEvent, dateOverlap, mesmoDia };
   };
 
-  // O esqueleto espera TODAS as consultas que alimentam a tabela principal.
-  const isLoading = isLoadingInclusions || isLoadingEvents || isLoadingFunctions || isLoadingManagers || isLoadingCollaborators;
-
   const hasActiveFilters =
     filters.eventId.length > 0 ||
     filters.functionId.length > 0 ||
@@ -620,16 +165,17 @@ export function useScalingData(opts: {
     // índices
     eventById, functionById, collaboratorById, ticketByInclusion, purchasedTicketByInclusion,
     accommodationByInclusion, pendingChangeByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,
-    commentCountByInclusion, getResponsavelDaFuncao,
+    commentCountByInclusion, getResponsavelDaFuncao: p.getResponsavelDaFuncao,
     // listas
     filteredTeamInclusions, scalingInclusions,
     pendingSwapInclusionsAll, pendingSwapInclusionsInView,
     pendingProductionApprovals, pendingProductionApprovalsInView,
     hasActiveFilters,
     // permissões
-    isAdminRole, isAdminOrPurchasing, canApproveProduction, canApproveProductionFor, canExport, userFunctionIds,
-    canManageFunction, canConfirmEscalation, canEditCollaborator, canScaleFunction,
-    podeAgirEmEventoPassado, isPastEvent, isEventLocked,
+    isAdminRole: p.isAdminRole, isAdminOrPurchasing, canApproveProduction: p.canApproveProduction, canApproveProductionFor: p.canApproveProductionFor,
+    canExport: p.canExport, userFunctionIds,
+    canManageFunction: p.canManageFunction, canConfirmEscalation: p.canConfirmEscalation, canEditCollaborator: p.canEditCollaborator, canScaleFunction: p.canScaleFunction,
+    podeAgirEmEventoPassado: p.podeAgirEmEventoPassado, isPastEvent: p.isPastEvent, isEventLocked: p.isEventLocked,
     // helpers
     getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,
     getTicket, getPurchasedTicket, getAccommodation, isCenotecnicaFunction, isAtendimentoInclusion, isPercursoInclusion,
@@ -638,56 +184,3 @@ export function useScalingData(opts: {
 }
 
 export type ScalingData = ReturnType<typeof useScalingData>;
-
-/** Consultas da inclusão selecionada (modal). Todas lazy: só com o modal aberto. */
-export function useInclusionDetails(inclusionId: string | undefined) {
-  const enabled = !!inclusionId;
-
-  const { data: comments, isLoading: isLoadingComments } = useQuery<Comment[]>({
-    queryKey: ["/api/comments", inclusionId],
-    enabled,
-  });
-
-  // Linha do tempo montada no servidor com TODAS as fontes (14/09) — a lista
-  // crua de logs deixava de fora passagem, hospedagem, troca e criação.
-  const { data: historico, isLoading: isLoadingLogs } = useQuery<EntradaDoHistorico[]>({
-    queryKey: ["/api/team-inclusions", inclusionId, "timeline"],
-    enabled,
-  });
-
-  const { data: swapRequestsRaw } = useQuery<SwapRequest[]>({
-    queryKey: ["/api/swap-requests/inclusion", inclusionId],
-    queryFn: async () => {
-      if (!inclusionId) return [];
-      const r = await apiRequest("GET", `/api/swap-requests/inclusion/${inclusionId}`);
-      return r.json();
-    },
-    enabled,
-  });
-
-  // /api/users só é necessário para o nome dos autores dos comentários (a rota
-  // de comentários não devolve userName) — carrega só com o modal aberto.
-  const { data: users, refetch: refetchUsers } = useQuery<User[]>({
-    queryKey: ["/api/users"],
-    enabled,
-  });
-
-  const swapRequests = useMemo<NormalizedSwap[]>(
-    () => (swapRequestsRaw || []).map(normalizeSwap),
-    [swapRequestsRaw],
-  );
-  const pendingSwap = swapRequests.find(s => s.status === "pendente");
-  const latestSwap = swapRequests[0]; // mais recente (pode ser rejeitado/cancelado)
-
-  /**
-   * O histórico tem esqueleto próprio porque vem de OUTRA consulta: mostrar
-   * "nenhum comentário" enquanto ela ainda corre é afirmar uma coisa que não
-   * se sabe — e é justamente na aba de histórico que a ausência de conteúdo
-   * costuma ser lida como fato.
-   */
-  const isLoadingHistorico = enabled && (isLoadingComments || isLoadingLogs);
-
-  return { comments, historico, swapRequests, pendingSwap, latestSwap, users, refetchUsers, isLoadingHistorico };
-}
-
-export type InclusionDetails = ReturnType<typeof useInclusionDetails>;

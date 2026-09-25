@@ -3,6 +3,8 @@ import { horarioDoCarro, ANTECEDENCIA_MIN, ESPERA_POUSO_MIN } from "@shared/uber
 import { lerPlanilhaDoEspelho, type PessoaDoEvento } from "@shared/mirror-import";
 import { chaveDaColuna } from "@shared/mirror-columns";
 import { recalcularDiasDaVaga } from "@shared/dias-de-trabalho";
+import { isValidHhmm } from "@shared/scaling-validation-rules";
+import { toHoraHHMM } from "@shared/alimentacao";
 import {
   events,
   teamInclusions,
@@ -675,11 +677,32 @@ export function patchDaVaga(
  */
 const patchDinamico = <T>(obj: Record<string, unknown>): T => obj as T;
 
+/**
+ * Colunas de hora "HH:MM" de passagem/hospedagem (25/09): a regra de mobilidade
+ * 20h–5h e a de alimentação leem estas células, e o banco tem CHECK no formato.
+ * A planilha importada traz "14h", "9:30", "1430" — `toHoraHHMM` normaliza o
+ * que dá para reconhecer; o resto é recusado com mensagem, em vez de gravar
+ * texto que o cálculo ignora em silêncio.
+ */
+const CAMPOS_DE_HORA = new Set([
+  "ticket.actualDepartureTime", "ticket.actualReturnTime",
+  "accommodation.checkInTime", "accommodation.checkOutTime",
+]);
+
+export function normalizarHoraDaCelula(field: string, value: ValorDeCelula): ValorDeCelula {
+  if (!CAMPOS_DE_HORA.has(field) || value === null) return value;
+  const texto = String(value).trim();
+  if (isValidHhmm(texto)) return texto;
+  const hora = toHoraHHMM(texto);
+  if (!hora) throw new Error(`Horário inválido em ${field}: "${texto}" (use HH:MM, ex.: 14:30)`);
+  return hora;
+}
+
 export async function patchOperationalMirrorCell(eventId: string, rowId: string, field: string, rawValue: unknown) {
   const target = alvoDoCampo(field);
   if (!target) throw new Error(`Campo não permitido: ${field}`);
 
-  const value = coerce(rawValue, target.type);
+  const value = normalizarHoraDaCelula(field, coerce(rawValue, target.type));
 
   // Tipo de quarto é um enum na UI (Select); rejeitar valores fora dele.
   if (field === "accommodation.roomType" && value !== null && !["single", "double", "triple"].includes(String(value))) {

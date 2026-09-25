@@ -12,764 +12,96 @@
  * - Nenhuma funcionalidade saiu: exportar, seleção em massa, trocas, pedidos
  *   de ajuste, evento encerrado e o modal continuam onde estavam.
  *
- * Só composição: dados e permissões em use-scaling-data, mutations em
- * use-scaling-mutations, o modal em inclusion-details-dialog, os números das
- * Análises em scaling-analytics-data.
+ * Só composição (25/09: tinha 1.034 linhas, agora só liga as peças):
+ * - filtros num estado só ......... scaling-page/use-scaling-filters
+ * - camadas do recorte ............ scaling-page/use-scaling-recorte
+ * - modal, navegação e salvar ..... scaling-page/use-scaling-modal
+ * - exportar ...................... scaling-page/use-scaling-export
+ * - dados e permissões ............ use-scaling-data · mutations em use-scaling-mutations
  */
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { useSearch } from "wouter";
-import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
-import { markSwapSeen, getSeenState } from "@/lib/seenSwaps";
-import { AlertTriangle, CalendarDays, CloudOff, Download, FilterX, List, Lock, TrendingUp, Users } from "lucide-react";
+import { useMemo } from "react";
+import { AlertTriangle, CloudOff } from "lucide-react";
+import type { TeamInclusion } from "@shared/schema";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
-import { buildDateList } from "@/components/scaling-validation/scaling-grid-utils";
-import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
-import type { SuggestionRow } from "@/components/scaling-validation/types";
-import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import { isRhOrAdmin } from "@/lib/role-utils";
 import { PastEventBanner } from "@/lib/event-lock";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { apiErrorMessage } from "@/lib/api-error";
-import { avisarAgenda } from "@/hooks/use-vaga-acoes";
-import { useQuery } from "@tanstack/react-query";
-import type { TeamInclusion, Comment } from "@shared/schema";
-import ScalingTable from "@/components/scaling/scaling-table";
-import ScalingWorkQueue from "@/components/scaling/scaling-work-queue";
 import ScalingFilterBar from "@/components/scaling/scaling-filter-bar";
 import ScalingAnalytics from "@/components/scaling/scaling-analytics";
-import InclusionDetailsDialog, { type DetailsTab } from "@/components/scaling/inclusion-details-dialog";
-import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
-import { SentToProductionDialog, type SentToProductionInfo } from "@/components/scaling/production-approval-card";
+import InclusionDetailsDialog from "@/components/scaling/inclusion-details-dialog";
+import { SentToProductionDialog } from "@/components/scaling/production-approval-card";
 import AttachmentLightbox from "@/components/scaling/attachment-lightbox";
 import ScalingCoverageDialog from "@/components/scaling/scaling-coverage-dialog";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import BulkConfirmBar from "@/components/scaling/bulk-confirm-bar";
-import { useScalingData, useInclusionDetails, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
-import { useScalingMutations, confirmInclusionRequest, type InclusionSavePayload } from "@/components/scaling/use-scaling-mutations";
-import { useAttachments } from "@/components/scaling/use-attachments";
-import { exportScalingPdf, exportScalingXlsxColunas } from "@/components/scaling/export-scaling-xlsx";
-import { ExportColumnsDialog, type ExportScope } from "@/components/scaling/export-columns-dialog";
-import { getSaveBlockReason, getConfirmBlockReason, getBulkConfirmBlockReason } from "@/components/scaling/scaling-validation";
-import { describeLoadError, modalDataFromInclusion, type ModalData, isEscalated, isCityFromSP } from "@/components/scaling/scaling-utils";
-import { DEFAULT_PERIOD, fazTesteDePeriodo, rotuloDoPeriodo, temRecorteDePeriodo, type PeriodConfig, fazTesteDeRecorte, type RecorteDeEventos } from "@/components/scaling/scaling-period";
-import { ordenarEscalacoes } from "@/components/scaling/scaling-sort";
-import { getScalingStatusLabel } from "@/components/scaling/scaling-status";
-import {
-  FLAG_GROUPS, contarFlagsAtivas, fazTesteDeFlags, normalizarBusca, testeDaFila,
-  QUEUE_META, type QueueContext, type QueueKey,
-} from "@/components/scaling/scaling-queue";
-import type { AnalyticsContext } from "@/components/scaling/scaling-analytics-data";
-
-const EMPTY_MODAL: ModalData = { collaboratorId: "", observations: "", dailyValue: 0, city: "", departureFromSP: true, atendimentoTipo: "", percurseiroTipo: "", empreitaModo: false, empreitaEmpresa: "", empreitaPessoas: "", empreitaValor: "" };
-
-/** Um estado vazio da página, sempre com a causa e o que fazer a seguir. */
-function EstadoVazio({ icone, titulo, texto, acao }: {
-  icone: React.ReactNode; titulo: string; texto: string; acao?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-card px-8 py-11 text-center">
-      <div className="flex justify-center text-muted-foreground" aria-hidden="true">{icone}</div>
-      <p className="mt-2.5 text-base font-semibold text-foreground">{titulo}</p>
-      <p className="mx-auto mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">{texto}</p>
-      {acao && <div className="mt-4">{acao}</div>}
-    </div>
-  );
-}
+import { useScalingData, DEFAULT_SCALING_FILTERS, type ScalingFilters } from "@/components/scaling/use-scaling-data";
+import { ExportColumnsDialog } from "@/components/scaling/export-columns-dialog";
+import { describeLoadError } from "@/components/scaling/scaling-utils";
+import { useScalingFilters } from "@/components/scaling/scaling-page/use-scaling-filters";
+import { useScalingRecorte } from "@/components/scaling/scaling-page/use-scaling-recorte";
+import { useScalingModal } from "@/components/scaling/scaling-page/use-scaling-modal";
+import { useScalingExport } from "@/components/scaling/scaling-page/use-scaling-export";
+import { useConfirmarRapido } from "@/components/scaling/scaling-page/use-confirmar-rapido";
+import { useScalingSelection } from "@/components/scaling/scaling-page/use-scaling-selection";
+import { ScalingHeaderBar } from "@/components/scaling/scaling-page/scaling-header-bar";
+import { ScalingQueue } from "@/components/scaling/scaling-page/scaling-queue";
+import { AcessoNegado, EsqueletoDaLista, EstadoVazio } from "@/components/scaling/scaling-page/estados-da-pagina";
 
 export default function Scaling() {
   usePageTitle("Escalação");
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // ── Estado da tela ──────────────────────────────────────────────────────
-  // Nada disso vai para o localStorage, e a decisão é deliberada: filtro
-  // persistido faz o usuário abrir a tela filtrado sem perceber. A ABA também
-  // não persiste — quem abre a Escalação vem trabalhar na fila.
-  const [aba, setAba] = useState<"fila" | "analises" | "escala">("fila");
-  /**
-   * Bloco da fila ligado. Nasce em "Todas" (null) — decisão do dono (04/09):
-   * quem abre a tela vê o recorte inteiro e escolhe um bloco para trabalhar.
-   * "Limpar filtros" também volta para "Todas".
-   */
-  const [fila, setFila] = useState<QueueKey | null>(null);
-  const [busca, setBusca] = useState("");
-  const [eventos, setEventos] = useState<Record<string, boolean>>({});
-  /** Funções marcadas, por id (dono, 10/09). Vazio = todas. */
-  const [funcoes, setFuncoes] = useState<Record<string, boolean>>({});
-  const [periodo, setPeriodo] = useState<PeriodConfig>(DEFAULT_PERIOD);
-  const [flags, setFlags] = useState<Record<string, boolean>>({});
-  // Aviso do sininho abre direto o bloco (15/09): /scaling?fila=troca. O "t" do
-  // link muda a cada clique, então funciona mesmo já estando na tela.
-  const buscaDaUrl = useSearch();
-  useEffect(() => {
-    const alvo = new URLSearchParams(buscaDaUrl).get("fila");
-    const validas: string[] = ["trabalho", "escalar", "gestor", "troca", "prontas"];
-    if (alvo && validas.includes(alvo)) {
-      setAba("fila"); setFlags({}); setBusca(""); setFila(alvo as QueueKey);
-    }
-  }, [buscaDaUrl]);
-  const [verExcluidos, setVerExcluidos] = useState(false);
-  /** Recorte de eventos — nasce em "Futuros" (dono, 04/09); "Todos" tira o recorte. */
-  const [recorteEventos, setRecorteEventos] = useState<RecorteDeEventos>("futuros");
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: "id", direction: "desc" });
-
-  // Modal de detalhes
-  const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [modalInitialTab, setModalInitialTab] = useState<DetailsTab>("resumo");
-  const [modalData, setModalData] = useState<ModalData>(EMPTY_MODAL);
-  const [abrirEscolhaDeColaborador, setAbrirEscolhaDeColaborador] = useState(false);
-  const [sentToProductionInfo, setSentToProductionInfo] = useState<SentToProductionInfo | null>(null);
-
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  /** Direção da navegação que espera a confirmação de descarte. */
-  const [descartePendente, setDescartePendente] = useState<-1 | 1 | null>(null);
-
-  /**
-   * "Hoje" de verdade: esta tela fica aberta na mesa de alguém por dias, e um
-   * `new Date()` congelado na montagem manteria "faltam 3 dias" na terça
-   * seguinte. O relógio só dispara re-render quando o DIA vira — não de minuto
-   * em minuto.
-   */
-  const [hoje, setHoje] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => {
-      setHoje((atual) => (atual.toDateString() === new Date().toDateString() ? atual : new Date()));
-    }, 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  // IDs de trocas pendentes já visualizadas pelo solicitante
-  const readSeen = () => {
-    if (!user) return new Set<string>();
-    const state = getSeenState(user.id);
-    return new Set(Object.entries(state).filter(([, v]) => v.pendingSeen).map(([k]) => k));
-  };
-  const [seenSwapIds, setSeenSwapIds] = useState<Set<string>>(readSeen);
-  useEffect(() => {
-    const handler = () => setSeenSwapIds(readSeen());
-    window.addEventListener("swapSeenUpdated", handler);
-    return () => window.removeEventListener("swapSeenUpdated", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  const filtros = useScalingFilters();
+  const { aba, fila, eventosMarcados, verExcluidos, hoje, temRecorte } = filtros;
 
   // ── Dados ───────────────────────────────────────────────────────────────
   // O hook recebe só o que muda a CONSULTA (excluídas) e o recorte de evento;
-  // busca, período, grupos e fila são aplicados aqui, porque os contadores do
-  // popover precisam das listas intermediárias.
-  const eventosMarcados = useMemo(() => Object.keys(eventos).filter((k) => eventos[k]), [eventos]);
+  // busca, período, grupos e fila são aplicados no recorte, porque os
+  // contadores do popover precisam das listas intermediárias.
   const hookFilters = useMemo<ScalingFilters>(
     () => ({ ...DEFAULT_SCALING_FILTERS, eventId: eventosMarcados, showDeleted: verExcluidos }),
     [eventosMarcados, verExcluidos],
   );
   // O hook recebe sortConfig NULO de propósito: ordenar é a última etapa,
-  // aplicada aqui sobre a lista já recortada. Deixá-la no hook fazia cada
-  // clique num cabeçalho invalidar as camadas de filtro e os contadores da
-  // fila — que não dependem da ordem — e a tela congelava ~1,8s por clique.
+  // aplicada sobre a lista já recortada. Deixá-la no hook fazia cada clique
+  // num cabeçalho invalidar as camadas de filtro e os contadores da fila —
+  // que não dependem da ordem — e a tela congelava ~1,8s por clique.
   const data = useScalingData({ filters: hookFilters, sortConfig: null, user });
   const {
     teamInclusions, isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,
     scalingInclusions, pendingSwapByInclusion, canApproveProduction, canExport, isAdminOrPurchasing,
-    getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,
-    getTicket, getAccommodation, getPurchasedTicket, firstSwapByInclusion,
+    getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity, getTicket, getAccommodation,
   } = data;
-  const details = useInclusionDetails(selectedInclusion?.id);
 
-  // Comentários de TODAS as inclusões — só sob demanda (Exportar)
-  const { refetch: refetchAllComments } = useQuery<Comment[]>({
-    queryKey: ["/api/all-comments"],
-    queryFn: async () => (await apiRequest("GET", "/api/all-comments")).json(),
-    enabled: false,
-  });
-
-  // ── Contexto compartilhado pela fila, pelos filtros e pelas Análises ─────
-  /**
-   * Motivo de bloqueio por linha, memoizado.
-   *
-   * Depende de `filteredTeamInclusions` (o recorte de permissão) e NÃO da
-   * lista já ordenada: ordenar não muda quem pode ser confirmado, e usar a
-   * lista ordenada fazia este mapa — 3.700 avaliações que varrem conflito de
-   * agenda — ser refeito a cada clique num cabeçalho de coluna.
-   */
-  const bulkBlockReasonById = useMemo(
-    () => new Map(data.filteredTeamInclusions.map(i => [i.id, getBulkConfirmBlockReason(i, data)])),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.filteredTeamInclusions, teamInclusions, data.functionById, data.eventById, data.collaboratorById, data.userFunctionIds, user?.id, user?.role],
-  );
-  const getSelectBlockReason = useCallback(
-    (inclusion: TeamInclusion) => bulkBlockReasonById.get(inclusion.id) ?? getBulkConfirmBlockReason(inclusion, data),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bulkBlockReasonById],
-  );
-
-  const queueContext = useMemo<QueueContext>(() => ({
-    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i),
-    temTroca: (i) => pendingSwapByInclusion.has(i.id),
-    temPedido: (i) => !!data.pendingChangeByInclusion?.get(i.id),
-    bloqueioParaConfirmar: getSelectBlockReason,
-    temPassagemComprada: (i) => data.purchasedTicketByInclusion.has(i.id),
-    temHospedagemReservada: (i) => data.accommodationByInclusion.has(i.id),
-    ehCenoEmpreita: (i) => data.isCenotecnicaFunction(i.functionId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [pendingSwapByInclusion, data.pendingChangeByInclusion, data.purchasedTicketByInclusion, data.accommodationByInclusion, getSelectBlockReason]);
-
-  const analyticsContext = useMemo<AnalyticsContext>(() => ({
-    temNome: queueContext.temNome,
-    temTroca: queueContext.temTroca,
-    temPedido: queueContext.temPedido,
-    getEventName, getFunctionName, getCollaboratorName,
-    getEventDates: (id) => (id ? data.eventById.get(id) : undefined),
-    // Passagem registrada = emitida para o time (18/09); hotel registrado = reservado.
-    temPassagem: (i) => data.purchasedTicketByInclusion.has(i.id),
-    temHotel: (i) => data.accommodationByInclusion.has(i.id),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [queueContext, data.eventById, data.functionById, data.collaboratorById, data.purchasedTicketByInclusion, data.accommodationByInclusion]);
-
-  // ── As camadas do recorte ───────────────────────────────────────────────
-  // Cada uma serve de base ao contador do filtro seguinte: o número ao lado de
-  // uma opção responde "quantas sobram se eu marcar ISTO mantendo o resto".
-  // Datas dos eventos: permitem medir o período pela DATA DO EVENTO (22/09).
-  const datasDoEvento = useCallback((id: string | null | undefined) => (id ? data.eventById.get(id) : undefined), [data.eventById]);
-  const testePeriodo = useMemo(() => fazTesteDePeriodo(periodo, hoje, datasDoEvento), [periodo, hoje, datasDoEvento]);
-  const testeRecorte = useMemo(() => fazTesteDeRecorte(recorteEventos, hoje), [recorteEventos, hoje]);
-  // Função entra na mesma camada do evento/período: é recorte "do que existe",
-  // não filtro de trabalho — a fila e os contadores contam sobre ela.
-  const funcoesMarcadas = useMemo(() => Object.keys(funcoes).filter((k) => funcoes[k]), [funcoes]);
-  const testeFuncao = useMemo(() => {
-    if (funcoesMarcadas.length === 0) return () => true;
-    const set = new Set(funcoesMarcadas);
-    return (i: TeamInclusion) => set.has(i.functionId);
-  }, [funcoesMarcadas]);
-  const comPeriodo = useMemo(
-    () => scalingInclusions.filter((i) => testePeriodo(i) && testeRecorte(i) && testeFuncao(i)),
-    [scalingInclusions, testePeriodo, testeRecorte, testeFuncao],
-  );
-  // Análises (18/09): as vagas ainda na Validação/Aprovação de Escala, com o
-  // MESMO recorte da tela (evento, período, futuros/realizados, função e quem
-  // vê o quê). Só são buscadas com a aba aberta — a fila não precisa delas.
-  const { data: sugestoesRaw } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions?phase=sugestao"],
-    enabled: aba === "analises",
-    staleTime: 60_000,
-  });
-  const sugestoesDoRecorte = useMemo(() => {
-    const veemTodasAsFuncoes = ["production", "function_area", "purchasing", "financial"];
-    return (sugestoesRaw ?? []).filter((i) => {
-      if (i.deletedAt) return false;
-      const ev = data.eventById.get(i.eventId);
-      if (!ev || ev.status === "excluído" || ev.status === "excluido") return false;
-      if (eventosMarcados.length > 0 && !eventosMarcados.includes(i.eventId)) return false;
-      const podeVer = data.isAdminRole || veemTodasAsFuncoes.includes(String(user?.role ?? "")) || data.userFunctionIds.has(i.functionId);
-      return podeVer && testePeriodo(i) && testeRecorte(i) && testeFuncao(i);
-    });
-  }, [sugestoesRaw, data.eventById, data.isAdminRole, data.userFunctionIds, user?.role, eventosMarcados, testePeriodo, testeRecorte, testeFuncao]);
-
-  // Opções de função: base com tudo aplicado menos a própria função.
-  const opcoesDeFuncao = useMemo(() => {
-    const conta = new Map<string, number>();
-    for (const i of scalingInclusions) {
-      if (!testePeriodo(i) || !testeRecorte(i)) continue;
-      conta.set(i.functionId, (conta.get(i.functionId) ?? 0) + 1);
-    }
-    return Array.from(conta.entries()).map(([id, n]) => ({ id, nome: getFunctionName(id), n }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scalingInclusions, testePeriodo, testeRecorte, data.functionById]);
-  // Contador de cada posição do recorte: tudo aplicado menos ele.
-  const contagemPorRecorte = useMemo<Record<RecorteDeEventos, number>>(() => {
-    const base = scalingInclusions.filter((i) => testePeriodo(i) && testeFuncao(i));
-    const t = { futuros: fazTesteDeRecorte("futuros", hoje), realizados: fazTesteDeRecorte("realizados", hoje) };
-    return { futuros: base.filter(t.futuros).length, realizados: base.filter(t.realizados).length, todos: base.length };
-  }, [scalingInclusions, testePeriodo, testeFuncao, hoje]);
-
-  const comBusca = useMemo(() => {
-    const q = normalizarBusca(busca.replace(/#/g, ""));
-    if (!q) return comPeriodo;
-    return comPeriodo.filter((i) =>
-      String(i.inclusionNumber ?? "").includes(q) ||
-      normalizarBusca(getCollaboratorName(i.collaboratorId)).includes(q) ||
-      normalizarBusca(getFunctionName(i.functionId)).includes(q) ||
-      normalizarBusca(getEventName(i.eventId)).includes(q) ||
-      normalizarBusca(i.city ?? getCollaboratorCity(i.collaboratorId) ?? "").includes(q),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comPeriodo, busca, data.collaboratorById, data.functionById, data.eventById]);
-
-  const testeFlags = useMemo(() => fazTesteDeFlags(flags, queueContext), [flags, queueContext]);
-  const comFlags = useMemo(() => comBusca.filter(testeFlags), [comBusca, testeFlags]);
-  /**
-   * Relatório "O que falta" (18/09): sem filtro de situação, entra também o que
-   * está na validação e na aprovação; com filtro (ex.: "Salvo · falta
-   * confirmar"), segue o filtro. Memoizado: o diálogo recalcula a cada troca.
-   */
-  const linhasDoRelatorio = useMemo(
-    () => (Object.values(flags).some(Boolean) ? comFlags : [...comFlags, ...sugestoesDoRecorte]),
-    [flags, comFlags, sugestoesDoRecorte],
-  );
-
-  const contagensDaFila = useMemo(() => {
-    const out = {} as Record<QueueKey, number>;
-    // A fila conta sobre o recorte de evento/período/excluídas — não sobre a
-    // busca nem sobre os grupos: ela precisa dizer quanto trabalho EXISTE,
-    // não quanto sobrou do filtro que você acabou de montar.
-    for (const { key } of QUEUE_META) out[key] = comPeriodo.filter(testeDaFila(key, queueContext)).length;
-    return out;
-  }, [comPeriodo, queueContext]);
-
-  const daFila = useMemo(
-    () => (fila ? comFlags.filter(testeDaFila(fila, queueContext)) : comFlags),
-    [comFlags, fila, queueContext],
-  );
-
-  const visibleRows = useMemo(
-    () => ordenarEscalacoes(daFila, sortConfig, {
-      getEventName, getFunctionName, getCollaboratorName, getScalingStatusLabel,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [daFila, sortConfig, data.eventById, data.functionById, data.collaboratorById],
-  );
-
-  const opcoesDeEvento = useMemo(() => {
-    const conta = new Map<string, number>();
-    for (const i of data.filteredTeamInclusions) {
-      if (!verExcluidos && (i.status === "cancelado" || i.deletedAt)) continue;
-      conta.set(i.eventId, (conta.get(i.eventId) ?? 0) + 1);
-    }
-    return Array.from(conta.entries()).map(([id, n]) => ({ id, nome: getEventName(id), n }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.filteredTeamInclusions, verExcluidos, data.eventById]);
-
-  const temRecorte = eventosMarcados.length > 0 || funcoesMarcadas.length > 0 || temRecorteDePeriodo(periodo) || contarFlagsAtivas(flags) > 0 || busca.trim() !== "" || !!fila || recorteEventos !== "futuros";
-
-  // Seleção: descarta IDs que saíram da lista ou deixaram de ser elegíveis
-  useEffect(() => {
-    if (selectedIds.size === 0 || !teamInclusions) return;
-    const byId = new Map(teamInclusions.map(i => [i.id, i]));
-    const next = new Set(Array.from(selectedIds).filter(id => { const i = byId.get(id); return !!i && !getBulkConfirmBlockReason(i, data); }));
-    if (next.size !== selectedIds.size) setSelectedIds(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamInclusions]);
-
-  const handleSort = (field: SortField) => {
-    setSortConfig(current => {
-      if (current?.field === field) return current.direction === "asc" ? { field, direction: "desc" } : null;
-      return { field, direction: "asc" };
-    });
-  };
-
-  const limpaFiltros = () => {
-    setBusca(""); setEventos({}); setFuncoes({}); setPeriodo(DEFAULT_PERIOD); setFlags({}); setFila(null); setRecorteEventos("futuros");
-  };
-
-  // ── Modal: abrir / navegar ──────────────────────────────────────────────
-  const markInclusionSwapSeen = (inclusionId: string) => {
-    if (!user) return;
-    const swap = firstSwapByInclusion.get(inclusionId);
-    if (!swap || swap.requestedBy !== user.id) return;
-    if (swap.status === "pendente") markSwapSeen(user.id, swap.id, "pending");
-    else if (["aprovado", "rejeitado"].includes(swap.status)) markSwapSeen(user.id, swap.id, "responded");
-  };
-
-  const openInclusion = useCallback((inclusion: TeamInclusion, tab: DetailsTab = "resumo", escolherColaborador = false) => {
-    setSelectedInclusion(inclusion);
-    setModalData(modalDataFromInclusion(inclusion));
-    setModalInitialTab(tab);
-    setAbrirEscolhaDeColaborador(escolherColaborador);
-    setShowModal(true);
-    markInclusionSwapSeen(inclusion.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstSwapByInclusion, user?.id]);
-
-  const handleViewComments = (e: React.MouseEvent, inclusion: TeamInclusion) => {
-    e.stopPropagation();
-    openInclusion(inclusion, "comentarios");
-  };
-
-  /** "Escalar alguém" na linha: abre o modal já com a escolha do nome aberta. */
-  const handleEscalar = (e: React.MouseEvent, inclusion: TeamInclusion) => {
-    e.stopPropagation();
-    openInclusion(inclusion, "resumo", true);
-  };
-
-  const navIndex = selectedInclusion ? visibleRows.findIndex(i => i.id === selectedInclusion.id) : -1;
-  const modalIsDirty = !!selectedInclusion && JSON.stringify(modalData) !== JSON.stringify(modalDataFromInclusion(selectedInclusion));
-  const navigate = useCallback((direction: -1 | 1) => {
-    if (navIndex < 0) return;
-    const next = visibleRows[navIndex + direction];
-    if (!next) return;
-    // window.confirm() aparece fora da janela, com a cara do navegador e sem
-    // dizer o que se perde. Perguntar sobre trabalho não salvo merece a mesma
-    // linguagem do resto da tela.
-    if (modalIsDirty) { setDescartePendente(direction); return; }
-    openInclusion(next, "resumo");
-  }, [navIndex, visibleRows, openInclusion, modalIsDirty]);
-
-  const confirmarDescarte = () => {
-    const direcao = descartePendente;
-    setDescartePendente(null);
-    if (direcao === null || navIndex < 0) return;
-    const next = visibleRows[navIndex + direcao];
-    if (next) openInclusion(next, "resumo");
-  };
-
-  // ── Anexos / lightbox ───────────────────────────────────────────────────
-  const prefetchAttachmentIds = useMemo(() => {
-    if (!selectedInclusion) return [] as string[];
-    return [
-      ...(getAccommodation(selectedInclusion.id)?.attachmentIds || []),
-      ...(getPurchasedTicket(selectedInclusion.id)?.attachmentIds || []),
-    ];
-  }, [selectedInclusion, getAccommodation, getPurchasedTicket]);
-  const { openAttachment, lightbox, setLightbox } = useAttachments({
-    prefetchIds: prefetchAttachmentIds,
-    active: showModal && !!selectedInclusion,
-    onBeforeOpenLightbox: () => setShowModal(false),
-  });
-
-  // ── Mutations ───────────────────────────────────────────────────────────
-  const mutations = useScalingMutations({
-    selectedInclusionId: selectedInclusion?.id,
-    currentUserId: user?.id,
-    setSelectedInclusion: (updater) => setSelectedInclusion(prev => updater(prev)),
-    closeModal: () => setShowModal(false),
-    onInclusionSaved: (updated, action, thenNext) => {
-      const collabId = updated.collaboratorId || modalData.collaboratorId || selectedInclusion?.collaboratorId;
-      const funcName = getFunctionName(updated.functionId || selectedInclusion?.functionId || null);
-      const collabName = collabId ? getCollaboratorName(collabId) : "—";
-      const inclusionNumber = updated.inclusionNumber ?? selectedInclusion?.inclusionNumber ?? null;
-      if (thenNext) {
-        toast({ title: "Alterações salvas", description: `Escalação #${inclusionNumber ?? "—"} · ${collabName}` });
-        navigate(1);
-        return;
-      }
-      if (action === "confirm" && updated.status === "aguardando_producao") {
-        setSentToProductionInfo({ collaboratorName: collabName, functionName: funcName, inclusionNumber });
-        setShowModal(false);
-        return;
-      }
-      // "Salvar" com colaborador escolhido NÃO escala (04/09, #4166): a vaga
-      // segue aberta com nome até "Confirmar Escalação" — e é o Confirmar que
-      // manda cenotécnica para o gestor. A mensagem precisa dizer isso, senão
-      // a pessoa fecha o modal achando que escalou.
-      const salvouSemConfirmar = action !== "confirm" && !!updated.collaboratorId && !isEscalated(updated);
-      // Toast de sucesso (23/09) no lugar do modal bloqueante "Sucesso" + OK:
-      // título diz O QUE aconteceu; o aviso da vaga aberta continua explícito.
-      toastSucessoDaVaga(
-        action === "confirm" ? "Escalação confirmada" : salvouSemConfirmar ? "Colaborador salvo — vaga ainda aberta" : "Alterações salvas",
-        {
-          inclusionNumber,
-          eventName: data.eventById.get(updated.eventId || selectedInclusion?.eventId || "")?.name ?? "—",
-          collaboratorName: collabName,
-          functionName: funcName,
-        },
-        salvouSemConfirmar ? "A vaga continua aberta até você clicar em Confirmar Escalação." : undefined,
-      );
-      setShowModal(false);
-    },
-  });
-
-  // ── Salvar / Confirmar ──────────────────────────────────────────────────
-  const buildPayload = (inclusion: TeamInclusion): InclusionSavePayload => {
-    const payload: InclusionSavePayload = {
-      collaboratorId: modalData.collaboratorId,
-      observations: modalData.observations,
-      city: modalData.departureFromSP ? "São Paulo - SP" : (modalData.city || ""),
-      atendimentoTipo: modalData.atendimentoTipo || null,
-      percurseiroTipo: modalData.percurseiroTipo || null,
-      // CRÍTICO: preservar campos de necessidade de passagem/hospedagem
-      needsTicket: inclusion.needsTicket,
-      needsAccommodation: inclusion.needsAccommodation,
-    };
-    // Empreita por empresa (10/09): sem colaborador, sem passagem/hospedagem;
-    // valor entra em centavos. Desligar o modo limpa os três campos.
-    if (modalData.empreitaModo) {
-      payload.collaboratorId = "";
-      payload.empreitaEmpresa = modalData.empreitaEmpresa.trim();
-      payload.empreitaPessoas = Number(modalData.empreitaPessoas);
-      payload.empreitaValor = Math.round(Number(modalData.empreitaValor) * 100);
-      payload.needsTicket = false;
-      payload.needsAccommodation = false;
-    } else if (inclusion.empreitaEmpresa) {
-      payload.empreitaEmpresa = null;
-      payload.empreitaPessoas = null;
-      payload.empreitaValor = null;
-    }
-    // Valor da diária é dinheiro (24/09): o PATCH responde 403 se ele MUDAR por
-    // quem não é RH/admin. Só entra no corpo quando o usuário pode e alterou.
-    if (modalData.dailyValue && modalData.dailyValue > 0 && isRhOrAdmin(user)) {
-      const centavos = Math.round(modalData.dailyValue * 100);
-      if (centavos !== Number(inclusion.dailyValue ?? 0)) payload.dailyValue = centavos;
-    }
-    return payload;
-  };
-
-  const handleSave = (thenNext: boolean) => {
-    if (!selectedInclusion || mutations.saveInclusion.isPending) return;
-    if (getSaveBlockReason(selectedInclusion, modalData, data)) return;
-    mutations.saveInclusion.mutate({ id: selectedInclusion.id, data: buildPayload(selectedInclusion), action: "save", thenNext });
-  };
-
-  const handleConfirm = () => {
-    if (!selectedInclusion || mutations.saveInclusion.isPending) return;
-    if (getConfirmBlockReason(selectedInclusion, modalData, data)) return;
-    // status/fase são decididos no servidor (POST /confirm)
-    mutations.saveInclusion.mutate({ id: selectedInclusion.id, data: buildPayload(selectedInclusion), action: "confirm" });
-  };
-
-  // ── Exportar ────────────────────────────────────────────────────────────
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  /** "O que falta escalar" — a exportação própria da aba Análises. */
-  const [coberturaOpen, setCoberturaOpen] = useState(false);
-
-  const abrirExportar = () => {
-    // Nas Análises o botão exporta a COBERTURA — "o que falta escalar", por
-    // evento e função. É o relatório que se manda para quem escala, e não a
-    // planilha de colunas da fila. Um botão só, o que muda é a aba.
-    if (aba === "analises") { setCoberturaOpen(true); return; }
-    if (!canExport) {
-      toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar.", variant: "destructive" });
-      return;
-    }
-    if (visibleRows.filter(i => i.status !== "cancelado" && !i.deletedAt).length === 0) {
-      toast({ title: "Nada para exportar", description: "Não há escalações ativas na lista atual.", variant: "destructive" });
-      return;
-    }
-    setExportOpen(true);
-  };
-
-  const handleExportToExcel = async (colunas?: string[], formato: "xlsx" | "pdf" = "xlsx", scope: ExportScope = "todas") => {
-    // A planilha inclui CPF/telefone/nascimento — a trava fica aqui também
-    if (!canExport) {
-      toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar a planilha.", variant: "destructive" });
-      return;
-    }
-    if (visibleRows.length === 0) {
-      toast({ title: "Nada para exportar", description: "Não há escalações no recorte atual.", variant: "destructive" });
-      return;
-    }
-    const noScope = (i: TeamInclusion) =>
-      scope === "transporte" ? !!i.needsTicket
-      : scope === "hospedagem" ? !!i.needsAccommodation
-      : scope === "sem-passagem" ? !i.needsTicket
-      : true;
-    const activeInclusions = visibleRows.filter(i => i.status !== "cancelado" && !i.deletedAt && noScope(i));
-    if (activeInclusions.length === 0) {
-      toast({
-        title: "Nada nesse recorte",
-        description: scope === "todas"
-          ? "Não há escalações ativas para exportar."
-          : "Nenhuma escalação ativa se encaixa no recorte escolhido — troque em “Quais linhas”.",
-        variant: "destructive",
-      });
-      return;
-    }
-    const [{ data: freshComments, isError: commentsFailed }, { data: freshUsers }] = await Promise.all([
-      refetchAllComments(),
-      details.refetchUsers(),
-    ]);
-    if (commentsFailed) {
-      toast({
-        title: "Comentários indisponíveis",
-        description: "Não foi possível carregar os comentários; a planilha será gerada sem essa coluna preenchida.",
-        variant: "destructive",
-      });
-    }
-    const entrada = {
-      inclusions: activeInclusions,
-      eventById: data.eventById,
-      functionById: data.functionById,
-      collaboratorById: data.collaboratorById,
-      ticketByInclusion: data.ticketByInclusion,
-      purchasedTicketByInclusion: data.purchasedTicketByInclusion,
-      comments: freshComments || [],
-      users: freshUsers || [],
-    };
-    if (formato === "pdf") {
-      const { rowCount, opened } = exportScalingPdf(entrada, colunas);
-      if (!opened) {
-        toast({
-          title: "O navegador bloqueou a janela",
-          description: "Libere pop-ups para este site e tente de novo — o PDF sai pela janela de impressão.",
-          variant: "destructive",
-        });
-        return;
-      }
-      toast({ title: "PDF pronto para salvar", description: `${rowCount} escalação(ões) na janela de impressão — escolha “Salvar como PDF”.` });
-      return;
-    }
-    const { fileName, rowCount } = await exportScalingXlsxColunas(entrada, colunas);
-    toast({ variant: "success", title: "Exportação concluída", description: `Arquivo ${fileName} com ${rowCount} escalações ativas.` });
-  };
-
-  // ── Seleção múltipla ────────────────────────────────────────────────────
-  const toggleSelect = (id: string) => setSelectedIds(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const toggleAllVisible = (ids: string[], select: boolean) => setSelectedIds(prev => {
-    const next = new Set(prev);
-    ids.forEach(id => { if (select) next.add(id); else next.delete(id); });
-    return next;
-  });
-  const selectedInclusions = useMemo(
-    () => (teamInclusions || []).filter(i => selectedIds.has(i.id)),
-    [teamInclusions, selectedIds],
-  );
-
-  /**
-   * Quadro função × dia (04/09) — o mesmo da Validação, sobre as vagas do
-   * recorte. Quem escala abria a Validação para saber "quantas pessoas por
-   * dia" e voltava aqui para escalar; agora a visão mora nas duas telas.
-   * Vaga sem dias listados usa o período de trabalho; cancelada não soma.
-   * (23/09: movido para ANTES do gate de permissão — hook depois de um
-   * `return` condicional quebra a ordem dos hooks do React.)
-   */
-  const linhasDoQuadro = useMemo<SuggestionRow[]>(() => comFlags.map((i) => {
-    const listados = (i.workDays ?? []).map((d) => String(d).slice(0, 10)).filter(Boolean);
-    const inicio = i.scheduleStartDate ? String(i.scheduleStartDate).slice(0, 10) : "";
-    const fim = i.scheduleEndDate ? String(i.scheduleEndDate).slice(0, 10) : "";
-    const dias = listados.length > 0 ? listados : (inicio && fim ? buildDateList(inicio, fim) : []);
-    return {
-      ...i,
-      workDays: dias,
-      status: i.status === "cancelado" ? SUGESTAO_STATUS.NEGADA : i.status,
-      canEdit: false, canDecide: false, daysPending: 0, pendingRequest: null, lastDecision: null, lastVagaDecision: null,
-    } as unknown as SuggestionRow;
-  }), [comFlags]);
-  const nomesDasFuncoes = useMemo(
-    () => new Map(Array.from(data.functionById.values()).map((f) => [f.id, f.name] as const)),
-    [data.functionById],
-  );
-  // Estado do "confirmar direto da linha" (ver `confirmarRapido` abaixo).
-  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const r = useScalingRecorte({ data, filtros, user });
+  const modal = useScalingModal({ user, toast, data, visibleRows: r.visibleRows });
+  const exportar = useScalingExport({ aba, canExport, visibleRows: r.visibleRows, data, details: modal.details, toast });
+  const rapido = useConfirmarRapido({ queueContext: r.queueContext, getCollaboratorName, getFunctionName, toast, setSentToProductionInfo: modal.setSentToProductionInfo });
+  const sel = useScalingSelection(data);
 
   // Permissão de acesso à tela — depois de todos os hooks
-  if (!hasPermission(user, "canAccessScreen2")) {
-    return (
-      <div className="rounded-xl border border-border bg-card px-8 py-12 text-center">
-        <div className="flex justify-center text-muted-foreground" aria-hidden="true"><Lock className="w-7 h-7" aria-hidden="true" /></div>
-        <p className="mt-3 text-base font-semibold text-foreground">Acesso negado</p>
-        <p className="mx-auto mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
-          Seu papel não tem permissão para abrir a Escalação. Se você precisa desta tela para trabalhar,
-          peça acesso ao administrador do painel.
-        </p>
-      </div>
-    );
-  }
+  if (!hasPermission(user, "canAccessScreen2")) return <AcessoNegado />;
 
   const eventoEncerrado = eventosMarcados.length === 1 && !data.podeAgirEmEventoPassado && data.isPastEvent(eventosMarcados[0]);
   const somenteLeitura = eventoEncerrado;
-
-  // O resumo do topo e a contagem da barra falam do MESMO universo (o recorte
-  // de evento, período e excluídas). Contar vivas aqui e todas ali punha dois
-  // números diferentes na mesma tela para o mesmo recorte.
-  const resumoTopo = (() => {
-    if (comPeriodo.length === 0) return "nenhuma vaga no recorte";
-    const semNome = comPeriodo.filter(i => !i.collaboratorId && !vagaComEmpreita(i) && i.status !== "cancelado").length;
-    const nEventos = new Set(comPeriodo.map(i => i.eventId)).size;
-    return [
-      `${comPeriodo.length} ${comPeriodo.length === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
-      semNome > 0 ? `${semNome} sem nome` : null,
-    ].filter(Boolean).join(" · ");
-  })();
-
   const eventoUnico = eventosMarcados.length === 1 ? data.eventById.get(eventosMarcados[0]) : undefined;
 
-  /*
-   * A contagem segue a aba: a Fila mostra o que a tabela lista (com o bloco da
-   * fila de trabalho aplicado), as Análises mostram o que os gráficos e o
-   * relatório usam. Uma contagem só diria "18 vagas" ao lado de um painel que
-   * analisa 3.741.
-   */
-  const linhasDaAba = aba === "fila" ? visibleRows : comFlags;
-  const contagem = temRecorte && linhasDaAba.length !== comPeriodo.length
-    ? `${linhasDaAba.length} de ${comPeriodo.length} vagas`
-    : `${linhasDaAba.length} ${linhasDaAba.length === 1 ? "vaga" : "vagas"}`;
-
-  const nomesDosFiltrosAtivos = [
-    busca.trim() ? `“${busca.trim()}”` : null,
-    eventosMarcados.length ? `${eventosMarcados.length} ${eventosMarcados.length === 1 ? "evento" : "eventos"}` : null,
-    funcoesMarcadas.length ? `${funcoesMarcadas.length} ${funcoesMarcadas.length === 1 ? "função" : "funções"}` : null,
-    temRecorteDePeriodo(periodo) ? "período" : null,
-    contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null,
-    fila ? QUEUE_META.find(q => q.key === fila)?.label.toLowerCase() ?? null : null,
-  ].filter(Boolean).join(" · ");
-
-  /*
-   * O que o relatório exportado declara como recorte.
-   *
-   * Busca e situações entraram junto com a barra de filtros nas Análises: elas
-   * passaram a recortar o que sai no arquivo, e um cabeçalho que só citasse
-   * evento e período diria um recorte e entregaria outro.
-   */
-  const nomesDosFiltrosDoRecorte = [
-    eventosMarcados.length ? `${eventosMarcados.length} ${eventosMarcados.length === 1 ? "evento" : "eventos"}` : null,
-    funcoesMarcadas.length ? `funções: ${funcoesMarcadas.map((id) => getFunctionName(id)).join(", ")}` : null,
-    temRecorteDePeriodo(periodo) ? rotuloDoPeriodo(periodo) : null,
-    busca.trim() ? `busca “${busca.trim()}”` : null,
-    contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null,
-    verExcluidos ? "incluindo excluídas" : null,
-    recorteEventos === "realizados" ? "só eventos realizados" : recorteEventos === "todos" ? "eventos passados incluídos" : null,
-  ].filter(Boolean).join(" · ");
-
-  /**
-   * Confirmar direto da linha (04/09) — pedido do dono na fila "Prontas".
-   * Mesmo payload do lote: manda o que a linha já tem gravado e o servidor
-   * decide status/fase (cenotécnica → gestor). Sem diálogo de confirmação:
-   * o botão só aparece em vaga com nome, não confirmada e sem bloqueio.
-   */
-  const podeConfirmarRapido = (i: TeamInclusion) =>
-    (!!i.collaboratorId || vagaComEmpreita(i)) && !isEscalated(i) && i.status !== "cancelado" && !queueContext.bloqueioParaConfirmar(i);
-  const confirmarRapido = async (e: React.MouseEvent, inclusion: TeamInclusion) => {
-    e.stopPropagation();
-    if (confirmandoId) return;
-    setConfirmandoId(inclusion.id);
-    const nome = getCollaboratorName(inclusion.collaboratorId);
-    try {
-      const updated = await confirmInclusionRequest(inclusion.id, {
-        collaboratorId: inclusion.collaboratorId || "",
-        observations: inclusion.observations || "",
-        city: isCityFromSP(inclusion.city) ? "São Paulo - SP" : (inclusion.city || ""),
-        atendimentoTipo: inclusion.atendimentoTipo || null,
-        percurseiroTipo: inclusion.percurseiroTipo || null,
-        needsTicket: inclusion.needsTicket,
-        needsAccommodation: inclusion.needsAccommodation,
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      if (updated.status === "aguardando_producao") {
-        setSentToProductionInfo({ collaboratorName: nome, functionName: getFunctionName(inclusion.functionId), inclusionNumber: inclusion.inclusionNumber ?? null });
-      } else {
-        toast({ title: "Escalação confirmada", description: `#${inclusion.inclusionNumber ?? "—"} · ${nome}` });
-      }
-      // Duas viagens no mesmo dia: aviso, não erro — a confirmação valeu.
-      avisarAgenda(toast, updated.avisosDeAgenda);
-    } catch (err: unknown) {
-      // 409 (já confirmada, conflito de agenda) vem com a explicação do servidor.
-      toast({ title: "Não foi possível confirmar", description: apiErrorMessage(err, "Erro desconhecido"), variant: "destructive" });
-    } finally {
-      setConfirmandoId(null);
-    }
-  };
-
   const tableProps = {
-    podeConfirmarRapido,
-    onConfirmarRapido: confirmarRapido,
-    confirmandoId,
-    sortConfig,
-    onSort: handleSort,
-    onRowClick: (i: TeamInclusion) => openInclusion(i, "resumo"),
-    onViewComments: handleViewComments,
-    onEscalar: handleEscalar,
+    podeConfirmarRapido: rapido.podeConfirmarRapido,
+    onConfirmarRapido: rapido.confirmarRapido,
+    confirmandoId: rapido.confirmandoId,
+    sortConfig: filtros.sortConfig,
+    onSort: filtros.handleSort,
+    onRowClick: (i: TeamInclusion) => modal.openInclusion(i, "resumo"),
+    onViewComments: modal.handleViewComments,
+    onEscalar: modal.handleEscalar,
     getFunctionName, getEventName, getCollaboratorName, getCollaboratorCity, getTicket, getAccommodation,
     pendingSwapByInclusion,
     pendingChangeByInclusion: data.pendingChangeByInclusion,
     approvedSwapInclusionIds: data.approvedSwapInclusionIds,
-    seenSwapIds,
+    seenSwapIds: modal.seenSwapIds,
     currentUserId: user?.id,
     isAdminOrPurchasing,
     // A tabela recebe a regra ESTRITA (admin ou responsável pela função): o
@@ -779,62 +111,19 @@ export default function Scaling() {
     isEventLocked: data.isEventLocked,
     commentCountByInclusion: data.commentCountByInclusion,
     getResponsavelDaFuncao: data.getResponsavelDaFuncao,
-    temPassagemComprada: queueContext.temPassagemComprada,
+    temPassagemComprada: r.queueContext.temPassagemComprada,
     readOnly: somenteLeitura,
-    selectedIds,
-    getSelectBlockReason,
-    onToggleSelect: toggleSelect,
-    onToggleAllVisible: toggleAllVisible,
+    selectedIds: sel.selectedIds,
+    getSelectBlockReason: r.getSelectBlockReason,
+    onToggleSelect: sel.toggleSelect,
+    onToggleAllVisible: sel.toggleAllVisible,
   };
 
   return (
     // Margens pela variável do layout (23/09): `-mx-6` fixo estourava a largura
     // em 375px (o layout dá 16px ali) e deixava fresta em 1024+.
     <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
-      {/* Barra de contexto: 56px no lugar dos 76px de cabeçalho que repetiam o
-          que o breadcrumb já dizia. Aqui mora o resumo REAL do recorte.
-          `flex-wrap` + altura mínima (23/09): em 375px título, abas e Exportar
-          quebram linha em vez de estourar. Fica abaixo da barra do topo
-          (`--sticky-top`) — `z-25` não existe no Tailwind, por isso não fixava. */}
-      <div className="sticky top-[var(--sticky-top)] z-30 flex flex-wrap items-center gap-x-4 gap-y-2 min-h-14 py-2 px-[var(--page-gutter)] bg-card border-b border-border">
-        <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Escalação</h1>
-        <div aria-hidden="true" className="w-px h-5 bg-border" />
-        <span className="min-w-0 text-xs text-muted-foreground truncate" data-testid="resumo-topo">{resumoTopo}</span>
-
-        <div role="tablist" aria-label="Modo da tela" className="inline-flex gap-0.5 p-[3px] rounded-lg border border-border bg-background shrink-0">
-          {([["fila", "Fila de trabalho", List], ["escala", "Escala", CalendarDays], ["analises", "Análises", TrendingUp]] as const).map(([k, label, Icone]) => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={aba === k}
-              onClick={() => setAba(k)}
-              data-testid={`aba-${k}`}
-              className={`inline-flex items-center gap-1.5 h-7 px-[11px] rounded-md text-sm whitespace-nowrap transition-colors ${
-                aba === k
-                  ? "bg-card border border-border shadow-1 text-primary font-semibold"
-                  : "border border-transparent text-muted-foreground font-medium hover:text-primary"
-              }`}
-            >
-              <Icone className="w-[15px] h-[15px]" aria-hidden="true" />{label}
-            </button>
-          ))}
-        </div>
-
-        {canExport && (
-          <button
-            type="button"
-            onClick={abrirExportar}
-            title={aba === "analises"
-              ? "Gera a lista do que falta escalar, por evento e função, pronta para colar."
-              : "Escolha as colunas e o formato (Excel ou PDF). O arquivo pode conter dados pessoais dos colaboradores."}
-            data-testid="button-export-excel"
-            className="ml-auto inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover shrink-0"
-          >
-            <Download className="w-4 h-4" aria-hidden="true" /> Exportar
-          </button>
-        )}
-      </div>
+      <ScalingHeaderBar resumoTopo={r.resumoTopo} aba={aba} onAba={filtros.setAba} canExport={canExport} onExportar={exportar.abrirExportar} />
 
       {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}
       <div className="px-[var(--page-gutter)] pt-5">
@@ -848,18 +137,7 @@ export default function Scaling() {
               texto={`${describeLoadError(inclusionsError)} Nada do que você escalou foi perdido.`}
             />
           ) : isLoading && !teamInclusions ? (
-            /* Esqueleto só na PRIMEIRA carga. Depois disso a lista anterior
-               fica na tela enquanto a nova chega — trocar um filtro não pode
-               apagar os controles que a pessoa está usando. */
-            <div className="flex flex-col gap-4" aria-busy="true" aria-label="Carregando escalações">
-              <div className="h-[84px] rounded-xl border border-border bg-card animate-pulse motion-reduce:animate-none" />
-              <div className="rounded-xl border border-border bg-card overflow-hidden">
-                <div className="h-[34px] bg-background border-b border-border" />
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-[52px] border-b border-border animate-pulse motion-reduce:animate-none" style={{ animationDelay: `${i * 60}ms` }} />
-                ))}
-              </div>
-            </div>
+            <EsqueletoDaLista />
           ) : (
             <>
             {/*
@@ -870,21 +148,21 @@ export default function Scaling() {
               relatório são o mesmo recorte.
             */}
             <ScalingFilterBar
-              busca={busca} onBusca={setBusca}
-              eventos={eventos} onEventos={setEventos} opcoesDeEvento={opcoesDeEvento}
-              funcoes={funcoes} onFuncoes={setFuncoes} opcoesDeFuncao={opcoesDeFuncao}
-              periodo={periodo} onPeriodo={setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje} datasDoEvento={datasDoEvento}
-              flags={flags} onFlags={setFlags} linhasSemFlags={comBusca} queueContext={queueContext}
-              verExcluidos={verExcluidos} onVerExcluidos={setVerExcluidos}
-              recorteEventos={recorteEventos} onRecorteEventos={setRecorteEventos} contagemPorRecorte={contagemPorRecorte}
-              contagem={contagem}
+              busca={filtros.busca} onBusca={filtros.setBusca}
+              eventos={filtros.eventos} onEventos={filtros.setEventos} opcoesDeEvento={r.opcoesDeEvento}
+              funcoes={filtros.funcoes} onFuncoes={filtros.setFuncoes} opcoesDeFuncao={r.opcoesDeFuncao}
+              periodo={filtros.periodo} onPeriodo={filtros.setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje} datasDoEvento={r.datasDoEvento}
+              flags={filtros.flags} onFlags={filtros.setFlags} linhasSemFlags={r.comBusca} queueContext={r.queueContext}
+              verExcluidos={verExcluidos} onVerExcluidos={filtros.setVerExcluidos}
+              recorteEventos={filtros.recorteEventos} onRecorteEventos={filtros.setRecorteEventos} contagemPorRecorte={r.contagemPorRecorte}
+              contagem={r.contagem}
             />
 
             {aba === "escala" ? (
               <div className="space-y-2" data-testid="aba-escala-quadro">
                 <ScheduleBoard
-                  rows={linhasDoQuadro}
-                  functionNameById={nomesDasFuncoes}
+                  rows={r.linhasDoQuadro}
+                  functionNameById={r.nomesDasFuncoes}
                   rangeStart={eventoUnico?.startDate ?? undefined}
                   rangeEnd={eventoUnico?.endDate ?? undefined}
                 />
@@ -894,131 +172,78 @@ export default function Scaling() {
                 </p>
               </div>
             ) : aba === "analises" ? (
-            <ScalingAnalytics
-              linhas={comFlags}
-              sugestoes={sugestoesDoRecorte}
-              ctx={analyticsContext}
-              hoje={hoje}
-              onVerVagasDoEvento={(eventId) => {
-                // Mantém o período e limpa o resto: "ver as vagas deste evento"
-                // não pode cair numa lista ainda filtrada por outra coisa.
-                setEventos({ [eventId]: true });
-                setFlags({}); setFila(null); setBusca(""); setAba("fila");
-              }}
-              onVerFuncao={(nome) => { setFila("escalar"); setFlags({}); setBusca(nome); setAba("fila"); }}
-              onAbrirLinha={(i) => { setAba("fila"); openInclusion(i, "resumo"); }}
-            />
-          ) : (
-            <>
-              <ScalingWorkQueue contagens={contagensDaFila} total={comPeriodo.length} ativa={fila} onEscolher={setFila} mostrarGestor={canApproveProduction} mostrarTrocas={isAdminOrPurchasing} />
-
-              {/* A faixa de recarga fica ACIMA dos filtros e não os
-                  substitui: o toggle que disparou a busca precisa continuar
-                  clicável para poder ser desfeito. */}
-              {isFetchingInclusions && (
-                <p
-                  role="status"
-                  className="flex items-center gap-2 rounded-lg border border-border bg-brand-soft px-3 py-1.5 text-xs text-primary"
-                  data-testid="aviso-recarregando"
-                >
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />
-                  Atualizando a lista…
-                </p>
-              )}
-
-              {scalingInclusions.length === 0 && !temRecorte ? (
-                <EstadoVazio
-                  icone={<Users className="w-7 h-7" aria-hidden="true" />}
-                  titulo="Nenhuma vaga para escalar"
-                  texto="As vagas chegam da Inclusão de Equipe quando as funções do evento abrem. Assim que uma for criada, ela aparece aqui."
-                />
-              ) : visibleRows.length === 0 ? (
-                <EstadoVazio
-                  icone={<FilterX className="w-7 h-7" aria-hidden="true" />}
-                  titulo="Nenhuma escalação nesse recorte"
-                  texto={`Filtrando por ${nomesDosFiltrosAtivos || "este recorte"} não sobra nenhuma linha.`}
-                  acao={
-                    <button
-                      type="button"
-                      onClick={limpaFiltros}
-                      className="h-[34px] px-3.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover"
-                      data-testid="button-limpar-filtros"
-                    >
-                      Limpar filtros
-                    </button>
-                  }
-                />
-              ) : (
-                <ScalingTable rows={visibleRows} {...tableProps} />
-              )}
-
-              <BulkConfirmBar
-                selected={selectedInclusions}
-                onClear={() => setSelectedIds(new Set())}
-                getEventName={getEventName}
-                getFunctionName={getFunctionName}
-                getCollaboratorName={getCollaboratorName}
-                onDone={(results) => {
-                  const okIds = new Set(results.filter(r => r.ok).map(r => r.inclusion.id));
-                  setSelectedIds(prev => new Set(Array.from(prev).filter(id => !okIds.has(id))));
-                  queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-                }}
+              <ScalingAnalytics
+                linhas={r.comFlags}
+                sugestoes={r.sugestoesDoRecorte}
+                ctx={r.analyticsContext}
+                hoje={hoje}
+                onVerVagasDoEvento={filtros.verVagasDoEvento}
+                onVerFuncao={filtros.verFuncao}
+                onAbrirLinha={(i) => { filtros.setAba("fila"); modal.openInclusion(i, "resumo"); }}
               />
-            </>
-          )}
+            ) : (
+              <ScalingQueue
+                contagens={r.contagensDaFila} total={r.comPeriodo.length} fila={fila} onFila={filtros.setFila}
+                mostrarGestor={canApproveProduction} mostrarTrocas={isAdminOrPurchasing}
+                isFetching={isFetchingInclusions}
+                semVagas={scalingInclusions.length === 0 && !temRecorte}
+                visibleRows={r.visibleRows}
+                nomesDosFiltrosAtivos={r.nomesDosFiltrosAtivos}
+                onLimparFiltros={filtros.limpaFiltros}
+                tableProps={tableProps}
+                selectedInclusions={sel.selectedInclusions}
+                setSelectedIds={sel.setSelectedIds}
+              />
+            )}
             </>
           )}
         </div>
       </div>
 
       <InclusionDetailsDialog
-        open={showModal}
-        onOpenChange={setShowModal}
+        open={modal.showModal}
+        onOpenChange={modal.setShowModal}
         modal
-        inclusion={selectedInclusion}
-        initialTab={modalInitialTab}
-        abrirEscolhaDeColaborador={abrirEscolhaDeColaborador}
-        modalData={modalData}
-        setModalData={setModalData}
+        inclusion={modal.selectedInclusion}
+        initialTab={modal.modalInitialTab}
+        abrirEscolhaDeColaborador={modal.abrirEscolhaDeColaborador}
+        modalData={modal.modalData}
+        setModalData={modal.setModalData}
         data={data}
-        details={details}
-        mutations={mutations}
+        details={modal.details}
+        mutations={modal.mutations}
         user={user}
-        openAttachment={openAttachment}
-        navIndex={navIndex}
-        navTotal={visibleRows.length}
-        onNavigate={navigate}
-        onSave={handleSave}
-        onConfirm={handleConfirm}
+        openAttachment={modal.openAttachment}
+        navIndex={modal.navIndex}
+        navTotal={r.visibleRows.length}
+        onNavigate={modal.navigate}
+        onSave={modal.handleSave}
+        onConfirm={modal.handleConfirm}
       />
 
       <ExportColumnsDialog
-        open={exportOpen}
-        onOpenChange={setExportOpen}
-        exporting={exporting}
-        quantasLinhas={visibleRows.filter(i => i.status !== "cancelado" && !i.deletedAt).length}
+        open={exportar.exportOpen}
+        onOpenChange={exportar.setExportOpen}
+        exporting={exportar.exporting}
+        quantasLinhas={exportar.quantasLinhas}
         comFiltro={temRecorte}
-        onExport={async (colunas, formato, scope) => {
-          setExporting(true);
-          try { await handleExportToExcel(colunas, formato, scope); setExportOpen(false); }
-          finally { setExporting(false); }
-        }}
+        onExport={exportar.onExport}
       />
-      <SentToProductionDialog info={sentToProductionInfo} onClose={() => setSentToProductionInfo(null)} />
-      <AttachmentLightbox item={lightbox} onClose={() => setLightbox(null)} />
+      <SentToProductionDialog info={modal.sentToProductionInfo} onClose={() => modal.setSentToProductionInfo(null)} />
+      <AttachmentLightbox item={modal.lightbox} onClose={() => modal.setLightbox(null)} />
 
       <ScalingCoverageDialog
-        open={coberturaOpen}
-        onOpenChange={setCoberturaOpen}
-        linhas={linhasDoRelatorio}
-        ctx={analyticsContext}
+        open={exportar.coberturaOpen}
+        onOpenChange={exportar.setCoberturaOpen}
+        linhas={r.linhasDoRelatorio}
+        ctx={r.analyticsContext}
         hoje={hoje}
-        recorte={nomesDosFiltrosDoRecorte}
+        recorte={r.nomesDosFiltrosDoRecorte}
       />
 
       <ConfirmDialog
-        open={descartePendente !== null}
-        onOpenChange={(o) => { if (!o) setDescartePendente(null); }}
+        open={modal.descartePendente !== null}
+        onOpenChange={(o) => { if (!o) modal.setDescartePendente(null); }}
         icon={(props) => <AlertTriangle {...props} aria-hidden="true" />}
         tone="danger"
         title="Descartar alterações?"
@@ -1026,7 +251,7 @@ export default function Scaling() {
         cancelLabel="Continuar editando"
         confirmLabel="Descartar e sair"
         pending={false}
-        onConfirm={confirmarDescarte}
+        onConfirm={modal.confirmarDescarte}
         testId="dialog-descartar-alteracoes"
       />
     </div>

@@ -18,6 +18,7 @@
  * as estruturas que a aplicação NÃO consegue viver sem.
  */
 import { pool } from "./db";
+import { SQL_USUARIO_SISTEMA, USUARIO_SISTEMA } from "./usuario-sistema";
 
 interface Passo { descricao: string; sql: string }
 
@@ -33,7 +34,7 @@ const PASSOS: Passo[] = [
       event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       user_id varchar NOT NULL REFERENCES users(id),
       content text NOT NULL,
-      created_at timestamp DEFAULT now()
+      created_at timestamptz NOT NULL DEFAULT now()
     )`,
   },
   {
@@ -123,6 +124,33 @@ const PASSOS: Passo[] = [
     descricao: "team_inclusions.validation_note (observação de quem validou a vaga)",
     sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS validation_note text`,
   },
+  // 25/09 — estado que era por instância (Map em memória) e passou para o
+  // banco, porque o autoscale sobe N instâncias: token de SSO já consumido e
+  // contadores do rate limit de login/reset. Sem estas tabelas o SSO recusa
+  // todo token (fail-closed) — por isso entram aqui, não só na migração.
+  {
+    descricao: "tabela sso_tokens_usados (anti-reuso do JWT do Portal, compartilhado entre instâncias)",
+    sql: `CREATE TABLE IF NOT EXISTS sso_tokens_usados (
+      jti text PRIMARY KEY,
+      expira_em timestamptz NOT NULL
+    )`,
+  },
+  {
+    descricao: "tabela rate_limits (contadores do express-rate-limit, compartilhados entre instâncias)",
+    sql: `CREATE TABLE IF NOT EXISTS rate_limits (
+      chave text PRIMARY KEY,
+      hits integer NOT NULL DEFAULT 0,
+      expira_em timestamptz NOT NULL
+    )`,
+  },
+  // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
+  // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
+  // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o
+  // log e a transação da vaga inteira cai. Ver server/usuario-sistema.ts.
+  {
+    descricao: "usuário de sistema 'system' em users (FK de team_inclusion_logs.user_id)",
+    sql: SQL_USUARIO_SISTEMA,
+  },
 ];
 
 /**
@@ -143,6 +171,10 @@ const RE_TABELA = /CREATE TABLE IF NOT EXISTS (\w+)/i;
 const RE_INDICE = /CREATE INDEX IF NOT EXISTS (\w+)/i;
 
 async function jaExiste(sql: string): Promise<boolean> {
+  if (sql === SQL_USUARIO_SISTEMA) {
+    const r = await pool.query(`SELECT 1 FROM users WHERE id = $1`, [USUARIO_SISTEMA.id]);
+    return (r.rowCount ?? 0) > 0;
+  }
   const col = sql.match(RE_COLUNA);
   if (col) {
     const r = await pool.query(
@@ -172,6 +204,11 @@ async function jaExiste(sql: string): Promise<boolean> {
 }
 
 export async function garantirEstrutura(): Promise<void> {
+  // Postgres embutido (PGlite — testes e `npm run dev:demo`): o schema é
+  // gerado inteiro a partir de shared/schema.ts (server/dev/pglite-schema.ts)
+  // antes de qualquer request; não há db:push antigo para desfazer, e o
+  // `pool` mínimo desse modo não tem `connect()`.
+  if (process.env.PAINEL_DB === "pglite") return;
   const faltando: Passo[] = [];
   for (const passo of PASSOS) {
     try {

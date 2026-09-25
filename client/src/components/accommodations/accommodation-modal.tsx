@@ -1,31 +1,29 @@
+/**
+ * Modal de Hospedagem — Resumo / Dados / Complementos e Histórico.
+ *
+ * Desde 25/09 cada aba mora no seu arquivo (`accommodation-modal-resumo`,
+ * `-dados`, `-complementos`) e os estilos/rótulos em `-shared`; aqui ficam o
+ * estado do rascunho, a validação, o cabeçalho e o rodapé (tinha 699 linhas).
+ */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Hotel, MessageCircle, FileText, History, AlertCircle, Lock, MapPin, Check,
-  ArrowDown, ArrowUp, RefreshCw, UserRound, CalendarDays, Pencil, Sparkles, CheckCircle2, Unlock, type LucideIcon,
-} from "lucide-react";
-import AttachmentUpload from "@/components/ui/attachment-upload";
+import { Hotel, AlertCircle, Lock, Check } from "lucide-react";
 import { useVoucherFill } from "@/components/tickets/use-voucher-fill";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CommentsModal from "@/components/modals/comments-modal";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { fixEncoding } from "@/lib/utils";
-import { ROOM_TYPE_LABEL } from "@/components/operational-mirror-drawers";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, TeamInclusionLog } from "@shared/schema";
 import { EMPTY_DRAFT } from "./types";
 import type { AccommodationDraft, NormalizedSwap, UserLite } from "./types";
-import { brl, draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn, toDateInput } from "./utils";
+import { draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn, toDateInput } from "./utils";
 import { contarDiarias } from "./accommodations-queue";
-import SwapReviewPanel from "./swap-review-panel";
-import { PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
-import { RequiredMark } from "@/components/forms/required-mark";
-import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
-import { campoComErro } from "@/lib/campo-com-erro";
+import { PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
+import { ROTULO_FORA, TAB } from "./accommodation-modal-shared";
+import { AccommodationResumoTab } from "./accommodation-modal-resumo";
+import { AccommodationDadosTab, type ErrosDaHospedagem } from "./accommodation-modal-dados";
+import { AccommodationComplementosTab } from "./accommodation-modal-complementos";
 
 export interface AccommodationModalProps {
   open: boolean;
@@ -56,41 +54,6 @@ export interface AccommodationModalProps {
   modal?: boolean;
 }
 
-const LBL = "text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-0.5";
-const VAL = "text-sm font-semibold text-slate-700";
-const FIELD_LBL = "text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block";
-const TAB = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
-
-const LOG_ACTIONS: Record<string, { label: string; icon: LucideIcon }> = {
-  status_changed: { label: "Status alterado", icon: RefreshCw },
-  collaborator_changed: { label: "Colaborador alterado", icon: UserRound },
-  dates_changed: { label: "Período alterado", icon: CalendarDays },
-  accommodation_created: { label: "Hospedagem criada", icon: Hotel },
-  accommodation_updated: { label: "Hospedagem atualizada", icon: Pencil },
-  created: { label: "Criado", icon: Sparkles },
-  confirmed: { label: "Confirmado", icon: CheckCircle2 },
-  reopened: { label: "Reaberto", icon: Unlock },
-};
-
-function Field({ label, children, mono }: { label: string; children: React.ReactNode; mono?: boolean }) {
-  return (
-    <div>
-      <div className={LBL}>{label}</div>
-      <div className={`${VAL} ${mono ? "font-mono font-bold" : ""}`}>{children}</div>
-    </div>
-  );
-}
-
-/** Modal de Hospedagem — Resumo / Dados / Complementos e Histórico. */
-/** O que o voucher traz e esta tela não guarda — dito por extenso no aviso. */
-const ROTULO_FORA: Record<string, string> = {
-  roomType: "o tipo de quarto",
-  nightsCount: "o número de diárias",
-  dailyRate: "o valor da diária",
-  totalCents: "o total da hospedagem",
-  paymentCompany: "a empresa pagadora",
-};
-
 export default function AccommodationModal(props: AccommodationModalProps) {
   const { open, onClose, inclusion, modal = true } = props;
   return (
@@ -108,7 +71,7 @@ function AccommodationModalContent({
   const { toast } = useToast();
   const [draft, setDraft] = useState<AccommodationDraft>(() => draftFrom(accommodation, inclusion));
   // Erros inline por campo (24/09): antes só um toast genérico "Campos obrigatórios".
-  const [erros, setErros] = useState<Partial<Record<"hotelName" | "hotelLocation" | "checkInDate" | "checkOutDate", string>>>({});
+  const [erros, setErros] = useState<ErrosDaHospedagem>({});
   /*
    * A aba de abertura segue a intenção de quem abriu: vaga pendente abre em
    * Dados, que é o trabalho a fazer; registrada abre em Resumo, que é consulta.
@@ -234,7 +197,6 @@ function AccommodationModalContent({
   );
 
   const sortedLogs = (logs ?? []).slice().sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  const visibleLogs = showAllLogs ? sortedLogs : sortedLogs.slice(0, 5);
 
   return (
     <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
@@ -298,372 +260,20 @@ function AccommodationModalContent({
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          {/* ══ ABA: RESUMO ══ */}
-          <TabsContent value="resumo" className="m-0 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* Col 1: Evento + Função */}
-              <div className="bg-surface-muted rounded-xl border border-border p-4 space-y-3">
-                <div>
-                  <div className={LBL}>Evento</div>
-                  <div className="text-sm font-semibold text-primary leading-snug">{event?.name || "—"}</div>
-                </div>
-                <Field label="ID" mono>#{inclusion.inclusionNumber || "N/A"}</Field>
-                <Field label="Função">{func?.name || "—"}</Field>
-                <div>
-                  <div className={LBL}>Hospedagem</div>
-                  {accommodation ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-success-soft text-success text-2xs font-bold rounded-lg border border-success/25"><Hotel className="w-2.5 h-2.5" aria-hidden="true" />Registrada</span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25"><Hotel className="w-2.5 h-2.5" aria-hidden="true" />Pendente</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Col 2: Colaborador */}
-              <div className="bg-surface-muted rounded-xl border border-border p-4 space-y-3">
-                <Field label="Colaborador">{collaborator ? fixEncoding(collaborator.fullName) : "—"}</Field>
-                {collaborator && (<>
-                  {/* Documento e nascimento só chegam para admin/Compras/RH (projeção
-                      do GET /api/collaborators, 23/09): sem o dado, a linha some. */}
-                  {collaborator.officialDocument && (
-                    <Field label="Documento" mono>{collaborator.documentType ? `${collaborator.documentType.toUpperCase()}: ` : ""}{collaborator.officialDocument}</Field>
-                  )}
-                  {collaborator.birthDate && <Field label="Data de Nascimento">{formatDate(collaborator.birthDate)}</Field>}
-                  <Field label="Cidade do colaborador">{collaborator.city || "—"}</Field>
-                  <Field label="Tipo">{collaborator.type || "—"}</Field>
-                </>)}
-                {inclusion.city && (
-                  <div className="mt-1 rounded-xl bg-brand-soft border border-primary/25 px-3 py-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-                    <div>
-                      <div className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Sai de</div>
-                      <div className="text-sm font-bold text-primary">{inclusion.city}</div>
-                    </div>
-                  </div>
-                )}
-                <SwapReviewPanel inclusion={inclusion} swaps={swaps} collaboratorById={collaboratorById} canReview={isPurchasingRole} />
-              </div>
-
-              {/* Col 3: Período + Hotel (se registrado) */}
-              <div className="space-y-3">
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <div className="bg-brand-soft border-b border-border px-4 py-2.5">
-                    <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de Trabalho</span>
-                  </div>
-                  <div className="p-4 grid grid-cols-2 gap-3">
-                    <Field label="Início">{inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : "—"}</Field>
-                    <Field label="Término">{inclusion.scheduleEndDate ? formatDate(inclusion.scheduleEndDate) : "—"}</Field>
-                  </div>
-                </div>
-
-                {accommodation && (
-                  <div className="border border-success/25 rounded-xl overflow-hidden">
-                    <div className="bg-success-soft border-b border-success/25 px-4 py-2.5 flex items-center gap-2">
-                      <Hotel className="w-3.5 h-3.5 text-success" aria-hidden="true" />
-                      <span className="text-2xs font-black text-success uppercase tracking-[0.12em]">Hotel</span>
-                    </div>
-                    <div className="p-4 space-y-2">
-                      <Field label="Nome">{accommodation.hotelName || "—"}</Field>
-                      <Field label="Localização">{accommodation.hotelLocation || "—"}</Field>
-                      {accommodation.reservationNumber && <Field label="Reserva" mono>{accommodation.reservationNumber}</Field>}
-                      {(accommodation.checkInDate || accommodation.checkOutDate) && (
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          <Field label="Check-in">{accommodation.checkInDate ? formatDate(accommodation.checkInDate) : "—"}{accommodation.checkInTime ? ` · ${accommodation.checkInTime}` : ""}</Field>
-                          <Field label="Check-out">{accommodation.checkOutDate ? formatDate(accommodation.checkOutDate) : "—"}{accommodation.checkOutTime ? ` · ${accommodation.checkOutTime}` : ""}</Field>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ══ ABA: DADOS DA HOSPEDAGEM ══ */}
-          <TabsContent value="dados" className="m-0 p-6">
-            <div className="space-y-4">
-              <PastEventBanner show={!!eventLocked} message={eventLockMessage} />
-              {lockedForRole && (
-                <div className="bg-warning-soft border border-warning/25 rounded-xl px-4 py-2.5 flex items-center gap-2" data-testid="notice-locked-for-role">
-                  <Lock className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
-                  <span className="text-warning font-semibold text-sm">Hospedagem registrada — somente Compras altera hospedagem registrada.</span>
-                </div>
-              )}
-              {isPostPurchase && isPurchasingRole && (
-                <div className="bg-brand-soft border border-primary/25 rounded-xl px-4 py-2.5">
-                  <span className="text-primary font-semibold text-sm">Hospedagem registrada — alterações ficam no histórico da inclusão.</span>
-                </div>
-              )}
-
-              {/*
-                O voucher vem primeiro porque é o caminho mais curto: ele
-                preenche hotel, período e valores de uma vez. Estava no fim da
-                aba, depois de todos os campos que ele mesmo preencheria.
-              */}
-              {!roMode && (
-                <div className="rounded-xl border border-primary/25 bg-brand-soft p-4" data-testid="card-voucher">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4 text-primary" aria-hidden="true" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground">Comece pelo voucher em PDF</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                        Ele fica guardado como comprovante e preenche hotel, período e valores.
-                        Serve também para o relatório de reservas do hotel — nele buscamos a reserva desta pessoa.
-                      </p>
-                      <div className="mt-2.5">
-                        <AttachmentUpload
-                          attachmentIds={draft.attachmentIds}
-                          onAttachmentsChange={(ids) => set("attachmentIds", ids)}
-                          onFileSelected={voucher.lerArquivo}
-                        />
-                      </div>
-                    </div>
-                    {voucher.lendo && <span className="text-2xs font-semibold text-primary shrink-0">Lendo o voucher…</span>}
-                  </div>
-                </div>
-              )}
-
-              {/* Dados do Hotel */}
-              <div className="bg-card border border-border rounded-xl p-4">
-                <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Dados do Hotel</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                  <div>
-                    <Label htmlFor={`hotelName-${inclusion.id}`} className={FIELD_LBL}>Nome do Hotel<RequiredMark /></Label>
-                    <Input id={`hotelName-${inclusion.id}`} placeholder="Ex: Hotel Copacabana Palace" value={draft.hotelName} aria-required="true"
-                      {...campoComErro(`hotelName-${inclusion.id}`, erros.hotelName)}
-                      onChange={(e) => { set("hotelName", e.target.value); if (erros.hotelName) setErros(p => ({ ...p, hotelName: undefined })); }} data-testid="input-hotel-name" disabled={roMode} />
-                    <MensagemDeErro id={`hotelName-${inclusion.id}`} erro={erros.hotelName} />
-                  </div>
-                  <div>
-                    <Label htmlFor={`hotelLocation-${inclusion.id}`} className={FIELD_LBL}>Localização<RequiredMark /></Label>
-                    <Input id={`hotelLocation-${inclusion.id}`} placeholder="Ex: Copacabana, Rio de Janeiro" value={draft.hotelLocation} aria-required="true"
-                      {...campoComErro(`hotelLocation-${inclusion.id}`, erros.hotelLocation)}
-                      onChange={(e) => { set("hotelLocation", e.target.value); if (erros.hotelLocation) setErros(p => ({ ...p, hotelLocation: undefined })); }} data-testid="input-hotel-location" disabled={roMode} />
-                    <MensagemDeErro id={`hotelLocation-${inclusion.id}`} erro={erros.hotelLocation} />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor={`reservationNumber-${inclusion.id}`} className={FIELD_LBL}>Número da Reserva</Label>
-                  <Input id={`reservationNumber-${inclusion.id}`} placeholder="Ex: RES-123456" value={draft.reservationNumber}
-                    onChange={(e) => set("reservationNumber", e.target.value)} className="max-w-[280px]" disabled={roMode} />
-                </div>
-              </div>
-
-              {/* Check-in / Check-out */}
-              <div className="bg-card border border-border rounded-xl p-4">
-                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                  <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Check-in / Check-out</div>
-                  {periodoDaEscalaPorExtenso && (
-                    <div className="flex items-center gap-2.5">
-                      {/* O período dito por extenso: "de 11/09 a 15/09/2026" é o
-                          que o operador precisa conferir, e ele estava só
-                          implícito nos campos já preenchidos. */}
-                      <span className="text-xs text-muted-foreground" data-testid="periodo-da-escala">
-                        Escala: {periodoDaEscalaPorExtenso}
-                      </span>
-                      {!roMode && (
-                        <button
-                          type="button"
-                          onClick={usarPeriodoDaEscala}
-                          className="h-[26px] px-2.5 rounded-lg border border-border bg-card text-xs font-medium text-slate-700 hover:bg-muted transition-colors"
-                          data-testid="button-usar-periodo-escala"
-                        >
-                          Usar o período da escala
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-success/25 bg-success-soft/40 p-3">
-                    <div className="text-2xs font-bold text-success uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowDown className="w-3 h-3" aria-hidden="true" /> Check-in<RequiredMark /></div>
-                    <div className="grid grid-cols-[1fr_110px] gap-2">
-                      <div>
-                        <Label htmlFor={`checkInDate-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Data</Label>
-                        <Input id={`checkInDate-${inclusion.id}`} type="date" value={draft.checkInDate} aria-required="true"
-                          {...campoComErro(`checkInDate-${inclusion.id}`, erros.checkInDate)}
-                          onChange={(e) => { set("checkInDate", e.target.value); if (erros.checkInDate) setErros(p => ({ ...p, checkInDate: undefined })); }} data-testid="input-checkin-date" disabled={roMode} />
-                        <MensagemDeErro id={`checkInDate-${inclusion.id}`} erro={erros.checkInDate} />
-                      </div>
-                      <div>
-                        <Label htmlFor={`checkInTime-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Hora</Label>
-                        <Input id={`checkInTime-${inclusion.id}`} type="time" value={draft.checkInTime}
-                          onChange={(e) => set("checkInTime", e.target.value)} data-testid="input-checkin-time" disabled={roMode} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-warning/25 bg-warning-soft/40 p-3">
-                    <div className="text-2xs font-bold text-warning uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowUp className="w-3 h-3" aria-hidden="true" /> Check-out<RequiredMark /></div>
-                    <div className="grid grid-cols-[1fr_110px] gap-2">
-                      <div>
-                        <Label htmlFor={`checkOutDate-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Data</Label>
-                        <Input id={`checkOutDate-${inclusion.id}`} type="date" min={draft.checkInDate || undefined} value={draft.checkOutDate} aria-required="true"
-                          {...campoComErro(`checkOutDate-${inclusion.id}`, erros.checkOutDate)}
-                          onChange={(e) => { set("checkOutDate", e.target.value); if (erros.checkOutDate) setErros(p => ({ ...p, checkOutDate: undefined })); }} data-testid="input-checkout-date" disabled={roMode} />
-                        <MensagemDeErro id={`checkOutDate-${inclusion.id}`} erro={erros.checkOutDate} />
-                      </div>
-                      <div>
-                        <Label htmlFor={`checkOutTime-${inclusion.id}`} className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block">Hora</Label>
-                        <Input id={`checkOutTime-${inclusion.id}`} type="time" value={draft.checkOutTime}
-                          onChange={(e) => set("checkOutTime", e.target.value)} data-testid="input-checkout-time" disabled={roMode} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {!isCheckOutAfterCheckIn(draft) && (
-                  <p className="mt-2 text-xs text-danger flex items-center gap-1.5" role="alert">
-                    <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> O check-out deve ser igual ou posterior ao check-in.
-                  </p>
-                )}
-                {chegaTarde && (
-                  <p className="mt-2 text-xs text-warning bg-warning-soft rounded-xl px-3 py-2" role="alert" data-testid="aviso-chegada-tardia">
-                    O check-in é depois do início da escala ({formatDate(escalaInicio)}) — a pessoa fica sem hotel na primeira noite.
-                  </p>
-                )}
-                {diariasDoRascunho > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground" data-testid="impacto-no-planejado">
-                    {diariasDoRascunho} {diariasDoRascunho === 1 ? "diária" : "diárias"} neste período.
-                    O valor da diária e o total são preenchidos no Espelho Operacional.
-                  </p>
-                )}
-              </div>
-
-              {/* Dados do Espelho Operacional — só leitura: quem preenche é a Logística. */}
-              {accommodation && (
-                <div className="bg-surface-muted border border-border rounded-xl p-4" data-testid="mirror-readonly-block">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados do Espelho Operacional</div>
-                    <span className="text-2xs text-muted-foreground inline-flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" /> Somente leitura — editado no Espelho</span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <Field label="Tipo de quarto">{accommodation.roomType ? (ROOM_TYPE_LABEL[accommodation.roomType] ?? accommodation.roomType) : "—"}</Field>
-                    <Field label="Diárias">{accommodation.nightsCount ?? "—"}</Field>
-                    <Field label="Valor da diária">{brl(accommodation.dailyRate)}</Field>
-                    <Field label="Total">{brl(accommodation.totalCents)}</Field>
-                    <Field label="OC do hotel" mono>{accommodation.hotelOc || "—"}</Field>
-                  </div>
-                </div>
-              )}
-
-              {/* Observações */}
-              <div className="bg-card border border-border rounded-xl p-4">
-                <Label htmlFor={`accommodationObservations-${inclusion.id}`} className={FIELD_LBL}>Observações</Label>
-                <Textarea id={`accommodationObservations-${inclusion.id}`} placeholder="Informações adicionais sobre a hospedagem…" value={draft.accommodationObservations}
-                  onChange={(e) => set("accommodationObservations", e.target.value)} className="h-24 resize-none" data-testid="textarea-observations" disabled={roMode} />
-              </div>
-
-              {/*
-                Em leitura o card do voucher não aparece, mas os anexos ainda
-                precisam ser vistos — é onde está o comprovante da reserva.
-              */}
-              {roMode && (
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                    <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Anexos</span>
-                  </div>
-                  <div className="p-4">
-                    <AttachmentUpload attachmentIds={draft.attachmentIds} onAttachmentsChange={(ids) => set("attachmentIds", ids)} disabled />
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* ══ ABA: COMPLEMENTOS ══ */}
-          <TabsContent value="complementos" className="m-0 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Comentários */}
-              <div className="space-y-4">
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MessageCircle className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                      <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Comentários</span>
-                      {comments && comments.length > 0 && (
-                        <span className="bg-primary text-primary-foreground text-2xs font-bold px-1.5 py-0.5 rounded-full">{comments.length}</span>
-                      )}
-                    </div>
-                    <button type="button" onClick={() => setShowComments(true)} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors">
-                      <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                      {roMode ? "Ver" : "Ver/Adicionar"}
-                    </button>
-                  </div>
-                  <div className="p-4">
-                    {comments && comments.length > 0 ? (
-                      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                        {comments.map((comment) => (
-                          <div key={comment.id} className="bg-card border border-border p-3 rounded-xl shadow-1">
-                            <div className="flex justify-between items-center mb-1.5">
-                              <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xs font-black shrink-0">
-                                  {userName(comment.userId).charAt(0).toUpperCase()}
-                                </div>
-                                <div className="text-xs font-bold text-slate-700">{userName(comment.userId)}</div>
-                              </div>
-                              <div className="text-2xs text-muted-foreground">{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString("pt-BR") : ""}</div>
-                            </div>
-                            <div className="text-xs text-slate-600 leading-relaxed">{comment.content}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8">
-                        <MessageCircle className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
-                        <div className="text-xs text-muted-foreground">Nenhum comentário registrado.</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Histórico */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <History className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="text-xs font-black text-slate-600 uppercase tracking-[0.1em]">Histórico</span>
-                  {sortedLogs.length > 0 && <span className="text-2xs text-muted-foreground">{sortedLogs.length} entr.</span>}
-                </div>
-                {sortedLogs.length === 0 ? (
-                  <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8">
-                    <History className="w-6 h-6 text-slate-200 mx-auto mb-2" aria-hidden="true" />
-                    <div className="text-xs text-muted-foreground">Nenhum histórico encontrado.</div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="border-l-2 border-border ml-3 pl-4 space-y-2 max-h-72 overflow-y-auto">
-                      {visibleLogs.map((log) => {
-                        const meta = LOG_ACTIONS[log.action];
-                        const Icon = meta?.icon ?? History;
-                        return (
-                          <div key={log.id} className="flex gap-3">
-                            <div className="w-2.5 h-2.5 bg-primary rounded-full -ml-[1.3rem] mt-2.5 flex-shrink-0 ring-4 ring-white" />
-                            <div className="flex-1 min-w-0 bg-card border border-border rounded-xl px-3 py-2 shadow-1">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="text-2xs font-bold text-slate-700 inline-flex items-center gap-1.5"><Icon className="w-3 h-3 text-muted-foreground" />{meta?.label ?? log.action}</div>
-                                <div className="text-2xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                                  {log.createdAt && new Date(log.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                </div>
-                              </div>
-                              {log.details && <div className="text-2xs text-muted-foreground mt-0.5">{log.details}</div>}
-                              <div className="text-2xs font-semibold mt-1 text-primary">↳ {log.userName}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {!showAllLogs && sortedLogs.length > 5 && (
-                      <button type="button" onClick={() => setShowAllLogs(true)} className="text-xs font-medium mt-2 ml-7 hover:underline text-primary">
-                        Ver todos ({sortedLogs.length - 5} mais)
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
+          <AccommodationResumoTab
+            inclusion={inclusion} accommodation={accommodation} event={event} func={func} collaborator={collaborator}
+            collaboratorById={collaboratorById} swaps={swaps} isPurchasingRole={isPurchasingRole}
+          />
+          <AccommodationDadosTab
+            inclusion={inclusion} accommodation={accommodation} draft={draft} set={set} erros={erros} setErros={setErros} roMode={roMode}
+            eventLocked={eventLocked} eventLockMessage={eventLockMessage} lockedForRole={lockedForRole} isPostPurchase={isPostPurchase} isPurchasingRole={isPurchasingRole}
+            voucher={voucher} periodoDaEscalaPorExtenso={periodoDaEscalaPorExtenso} usarPeriodoDaEscala={usarPeriodoDaEscala}
+            chegaTarde={chegaTarde} escalaInicio={escalaInicio} diariasDoRascunho={diariasDoRascunho}
+          />
+          <AccommodationComplementosTab
+            comments={comments} userName={userName} roMode={roMode} onShowComments={() => setShowComments(true)}
+            sortedLogs={sortedLogs} showAllLogs={showAllLogs} setShowAllLogs={setShowAllLogs}
+          />
         </div>
       </Tabs>
 

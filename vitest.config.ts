@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "path";
 
 // ESM: __dirname não existe (o vitest avisava em todo run). Node 20.11+ expõe import.meta.dirname.
@@ -7,8 +8,12 @@ const raiz = import.meta.dirname ?? process.cwd();
 // Config própria do vitest: o vite.config.ts tem root=client e esconderia os
 // testes de shared/. Testes são co-locados (*.test.ts ao lado do código).
 //
-// Dois projetos (24/09), porque os dois tipos de teste têm perfis opostos:
-//  - "unitarios": puros, milhares por segundo, timeouts padrão;
+// Três projetos (24/09), porque os tipos de teste têm perfis opostos:
+//  - "unitarios": puros, milhares por segundo, timeouts padrão (node);
+//  - "componentes": *.test.tsx do client em jsdom + Testing Library, com os
+//    providers reais (React Query, Tooltip, Router em memória, Toaster) e o
+//    `useAuth` mockado (client/src/test/). Só o kit compartilhado — common/,
+//    ui/, layout/, lib/, hooks/ — tem teste de componente; telas não.
 //  - "rotas" (server/test/): sobem a aplicação REAL sobre um Postgres embutido
 //    (PGlite, WASM). O primeiro boot de cada arquivo (WASM + schema gerado do
 //    drizzle) leva de 3 a 10 s numa máquina fria/CI e cada teste faz várias
@@ -25,10 +30,29 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unitarios",
-          include: ["shared/**/*.test.ts", "client/src/**/*.test.{ts,tsx}", "server/**/*.test.ts"],
+          // Só .ts: os .test.tsx são de componente e rodam em jsdom (abaixo).
+          include: ["shared/**/*.test.ts", "client/src/**/*.test.ts", "server/**/*.test.ts"],
           exclude: ["**/node_modules/**", "server/test/**"],
           // Projetos com maxWorkers diferentes precisam de groupOrder distinto
           // (o vitest recusa rodar): unitários primeiro, rotas depois.
+          sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        extends: true,
+        // O tsconfig tem `jsx: preserve` (o app compila pelo plugin React do
+        // vite.config.ts); sem o plugin aqui o vitest não entende JSX.
+        plugins: [react()],
+        test: {
+          name: "componentes",
+          environment: "jsdom",
+          include: ["client/src/**/*.test.tsx"],
+          exclude: ["**/node_modules/**"],
+          setupFiles: ["client/src/test/setup.ts"],
+          // Radix + user-event fazem várias voltas de evento por interação;
+          // 10 s cobre uma máquina fria sem mascarar teste travado.
+          testTimeout: 10_000,
+          retry: 0,
           sequence: { groupOrder: 0 },
         },
       },

@@ -161,8 +161,9 @@ export function montarLogDeAuditoria(
     // monta a frase completa a partir de previousData/newData.
     entityName: /undefined/.test(getEntityName(entityType, entityData)) ? moduloDe(entityType).substantivo : getEntityName(entityType, entityData),
     details: resumoParaGravar(action, diff.changed),
-    previousData: diff.changed.length > 0 ? JSON.stringify(diff.previous) : null,
-    newData: diff.changed.length > 0 ? JSON.stringify(diff.current) : JSON.stringify(sanitizeFields(entityData)),
+    // jsonb (25/09): objetos direto — o driver serializa.
+    previousData: diff.changed.length > 0 ? diff.previous : null,
+    newData: diff.changed.length > 0 ? diff.current : sanitizeFields(entityData as DadosSoltos),
     userId: userId || null,
     userName: userName || 'Sistema',
     ipAddress: req?.ip || req?.socket?.remoteAddress || null,

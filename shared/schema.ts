@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, serial, index, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, serial, index, uniqueIndex, jsonb, numeric, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 // ÍNDICES DECLARADOS NO SCHEMA (23/09): os índices/uniques criados por
 // scripts/migrations/*.ts (13/08, 17/08, 19/08, 28/08 e 23/09) agora também
@@ -9,6 +9,70 @@ import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, seri
 // script da data, rodado à mão pelo dono.
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { isValidHhmm, type ProposedChanges } from "./scaling-validation-rules";
+
+// TIPOS DO BANCO (25/09 — auditoria de 23/09). Espelho em produção:
+// scripts/migrations/2026-09-25-jsonb.sql, -timestamptz.sql e -integridade.sql,
+// rodados à mão pelo dono. Até rodar, produção continua com os tipos antigos e
+// o código funciona nos dois (jsonb/text e timestamptz/timestamp são lidos do
+// mesmo jeito pelo driver; só a GRAVAÇÃO do histórico da NF exige jsonb).
+//
+//  - `timestamp` → `timestamp with time zone` em TODAS as colunas. O app sempre
+//    gravou instantes UTC (drizzle manda `Date.toISOString()`; `now()` do Neon
+//    roda com TimeZone=UTC), mas a coluna sem fuso não dizia isso — qualquer
+//    leitor fora do drizzle (psql, BI, script em BRT) interpretava errado.
+//  - `created_at`/`updated_at` NOT NULL DEFAULT now(): linha sem data de
+//    criação não existe; o tipo TS vira `Date` em vez de `Date | null`.
+//  - JSON guardado como `text` (histórico da NF, pedido de ajuste, campos
+//    ajustados pelo RH, log do comparativo, antes/depois da auditoria) vira
+//    `jsonb` com tipo TS explícito — o servidor lê e grava OBJETOS; a API
+//    continua devolvendo string ao client (server/http.ts, `serializarJsonNaBorda`).
+//  - `budget_comparison.variance_percent` text ("12.34%") → numeric(8,2).
+//  - Booleanos com três estados (null/true/false) → NOT NULL com default.
+//  - Horas "HH:MM" continuam text, mas validadas pelo zod (`horaHhmm`) e por
+//    CHECK no banco.
+
+/** Coluna "HH:MM" (text). "" vira null; fora de 00:00–23:59 é recusado. */
+const horaHhmm = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  z.string().refine(isValidHhmm, "Horário inválido (use HH:MM entre 00:00 e 23:59)").nullable().optional(),
+);
+
+/** Entrada do histórico da NF (`invoices.history`): o que aconteceu e quando. */
+export interface HistoricoNfEntrada {
+  type: string;
+  at: string;
+  oc?: string | null;
+  attachmentName?: string | null;
+  comment?: string | null;
+  paymentDate?: string | null;
+  /** Notas antigas/seed guardam outras chaves (ex.: `by`); preservadas. */
+  [k: string]: unknown;
+}
+
+/** Campo do Realizado alterado pelo RH (`budget_actual.rh_adjusted_fields`), por nome do campo. */
+export interface CampoAjustadoPeloRh { from: number; to: number; label: string }
+export type RhAdjustedFields = Record<string, CampoAjustadoPeloRh>;
+
+/** Linha do log do comparativo (`budget_comparison.changes_log`): o que mudou do planejado para o realizado. */
+export interface MudancaDoComparativo { collaboratorId: string | null; changes: string[]; reason: string | null }
+
+/** Antes/depois de um registro na auditoria (`system_logs.previous_data/new_data`). */
+export type DadosDeAuditoria = Record<string, unknown>;
+
+/**
+ * Usuário de sistema (25/09): `team_inclusion_logs.user_id` recebia o literal
+ * 'system' quando a vaga mudava sem ator (rotina, migração) — violava a FK
+ * para `users` que o schema declara. Agora existe uma linha fixa em `users`
+ * com este id (inativa, senha impossível), criada no boot por
+ * server/ensure-schema.ts e no PGlite por server/dev/pglite-schema.ts.
+ */
+export const USUARIO_SISTEMA = {
+  id: "system",
+  email: "sistema@painel-li.local",
+  name: "Sistema",
+  role: "production",
+} as const;
 
 // Users table for authentication
 export const users = pgTable("users", {
@@ -19,12 +83,12 @@ export const users = pgTable("users", {
   role: text("role").notNull(), // admin, production, function_area, purchasing, financial
   area: text("area"), // area responsável
   resetToken: text("reset_token"), // token for password reset
-  resetTokenExpiry: timestamp("reset_token_expiry"), // expiry for reset token
+  resetTokenExpiry: timestamp("reset_token_expiry", { withTimezone: true }), // expiry for reset token
   status: text("status").notNull().default("pending"), // pending, approved, rejected
-  isActive: boolean("is_active").default(true), // account status
-  mustChangePassword: boolean("must_change_password").default(false), // force password change
-  canApproveCenotecnica: boolean("can_approve_cenotecnica").default(false), // permissão especial: aprovar escalações de cenotécnica
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: boolean("is_active").notNull().default(true), // account status
+  mustChangePassword: boolean("must_change_password").notNull().default(false), // force password change
+  canApproveCenotecnica: boolean("can_approve_cenotecnica").notNull().default(false), // permissão especial: aprovar escalações de cenotécnica
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Login compara sem diferenciar maiúsculas; o UNIQUE(email) sozinho deixava
   // "Ana@x" e "ana@x" coexistirem (23/09).
@@ -43,7 +107,7 @@ export const events = pgTable("events", {
   status: text("status").notNull().default("planejado"), // planejado, em_andamento, concluido
   paymentCompanyName: text("payment_company_name"),
   paymentCompanyCnpj: text("payment_company_cnpj"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Functions table
@@ -56,7 +120,7 @@ export const functions = pgTable("functions", {
   costCenter: text("cost_center"), // centro de custo da função
   quantity: integer("quantity").notNull().default(1),
   userId: varchar("user_id").references(() => users.id), // mantido para compatibilidade, será depreciado
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Tabela para usuários atribuídos à função
@@ -64,7 +128,7 @@ export const functionUsers = pgTable("function_users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: 'cascade' }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   // Evitar duplicatas
   unq: unique().on(table.functionId, table.userId),
@@ -92,7 +156,7 @@ export const scalingFunctionManagers = pgTable("scaling_function_managers", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   /** 'validador' (área que valida a sugestão) | 'aprovador' (decide os pedidos) */
   role: text("role").notNull().default("validador"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   unq: unique().on(table.functionId, table.userId, table.role),
   // roleFor roda em cada request da Escala (28/08)
@@ -106,7 +170,7 @@ export const functionManagers = pgTable("function_managers", {
   // Papel na Validação de Escala: 'validador' (responsável da área — comportamento
   // histórico) | 'aprovador' (aprovador central dos pedidos de ajuste/inclusão/exclusão)
   role: text("role").notNull().default("validador"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   // Evitar duplicatas
   unq: unique().on(table.functionId, table.userId),
@@ -138,14 +202,14 @@ export const collaborators = pgTable("collaborators", {
   status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado, inativo
   approvalNotes: text("approval_notes"), // observações do administrador
   approvedBy: varchar("approved_by").references(() => users.id), // quem aprovou/rejeitou
-  approvedAt: timestamp("approved_at"), // quando foi aprovado/rejeitado
-  isCoordinator: boolean("is_coordinator").default(false), // flag para indicar se é coordenador
+  approvedAt: timestamp("approved_at", { withTimezone: true }), // quando foi aprovado/rejeitado
+  isCoordinator: boolean("is_coordinator").notNull().default(false), // flag para indicar se é coordenador
   active: boolean("active").notNull().default(true), // false = inativado (mantido no histórico, oculto nas escalações)
   inactiveReason: text("inactive_reason"), // motivo obrigatório da inativação
-  inactivatedAt: timestamp("inactivated_at"), // quando foi inativado
+  inactivatedAt: timestamp("inactivated_at", { withTimezone: true }), // quando foi inativado
   createdBy: varchar("created_by").references(() => users.id), // quem criou o cadastro
   createdByName: text("created_by_name"), // nome de quem criou (snapshot p/ exibição sem join)
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Team inclusions table
@@ -185,13 +249,13 @@ export const teamInclusions = pgTable("team_inclusions", {
   flightArrivalSuggestedTime: text("flight_arrival_suggested_time"), // horário sugerido de chegada
   flightReturnDate: date("flight_return_date"),
   flightReturnSuggestedTime: text("flight_return_suggested_time"), // horário sugerido de volta
-  needsTicket: boolean("needs_ticket").default(false),
-  needsAccommodation: boolean("needs_accommodation").default(false),
+  needsTicket: boolean("needs_ticket").notNull().default(false),
+  needsAccommodation: boolean("needs_accommodation").notNull().default(false),
   // Validação de Escala: modal sugerido pela logística para ida/volta
   transportModeIda: text("transport_mode_ida"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
   transportModeVolta: text("transport_mode_volta"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
-  suggestionSentAt: timestamp("suggestion_sent_at"), // quando a sugestão foi enviada para validação da área
-  validatedAt: timestamp("validated_at"), // quando a área validou a sugestão
+  suggestionSentAt: timestamp("suggestion_sent_at", { withTimezone: true }), // quando a sugestão foi enviada para validação da área
+  validatedAt: timestamp("validated_at", { withTimezone: true }), // quando a área validou a sugestão
   validatedBy: varchar("validated_by").references(() => users.id), // quem validou (responsável da função)
   // Observação opcional de quem validou — lida pelo aprovador (dono, 24/09).
   // Só a rota POST /api/scaling-suggestions/validate grava; zera quando a vaga
@@ -203,7 +267,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   actualDailyRates: integer("actual_daily_rates"), // quantidade real de diárias
   observations: text("observations"),
   actualObservations: text("actual_observations"), // observações do que realmente aconteceu
-  emergencyRecord: boolean("emergency_record").default(false), // registro emergencial
+  emergencyRecord: boolean("emergency_record").notNull().default(false), // registro emergencial
   /**
    * Dispensado da roteirizacao de Uber (31/08). Quem vai de carro proprio, quem
    * ja esta na cidade ou quem a producao decidiu levar de outro jeito nao entra
@@ -221,13 +285,13 @@ export const teamInclusions = pgTable("team_inclusions", {
   // sugestao (Validação de Escala — antes da inclusão), inclusao, escalacao, passagem, hospedagem, aprovacao
   phase: text("phase").notNull().default("inclusao"),
   userId: varchar("user_id").notNull().references(() => users.id), // usuário responsável pela função
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
-  deletedAt: timestamp("deleted_at"), // soft delete - quando foi excluído
+  deletedAt: timestamp("deleted_at", { withTimezone: true }), // soft delete - quando foi excluído
   deletedBy: varchar("deleted_by").references(() => users.id), // quem excluiu
   approvedByProduction: varchar("approved_by_production").references(() => users.id), // quem aprovou a cenotécnica (produção)
-  approvedByProductionAt: timestamp("approved_by_production_at"), // quando a produção aprovou
+  approvedByProductionAt: timestamp("approved_by_production_at", { withTimezone: true }), // quando a produção aprovou
 }, (t) => [
   // Já existem em produção (13/08 e 28/08)
   index("team_inclusions_event_idx").on(t.eventId),
@@ -276,15 +340,15 @@ export const tickets = pgTable("tickets", {
   // EMITIDA — ato explícito de quem compra (regra do dono, 26/08). Marcar não
   // exige ter preenchido a passagem: serve de aviso de que o bilhete saiu e,
   // a partir daí, a área não pede mais ajuste. O preenchimento continua livre.
-  emittedAt: timestamp("emitted_at"),
+  emittedAt: timestamp("emitted_at", { withTimezone: true }),
   emittedBy: varchar("emitted_by").references(() => users.id),
   locator: text("locator"), // localizador (LOC) — separado do reservationNumber
   checkIn3: text("check_in_3"), // conferência da passagem (espelho operacional)
   baggageTotalCents: integer("baggage_total_cents"), // valor total bagagem em centavos
   baggageOc: text("baggage_oc"), // OC da bagagem
   baggageNotes: text("baggage_notes"), // observações da bagagem
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
 }, (t) => [
   index("tickets_inclusion_idx").on(t.teamInclusionId), // 23/09
@@ -306,14 +370,14 @@ export const accommodations = pgTable("accommodations", {
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da hospedagem
   roomType: text("room_type"), // single, duplo, triplo
   nightsCount: integer("nights_count"), // quantidade de diárias (espelho operacional)
-  lateCheckout: boolean("late_checkout").default(false), // late check-out
+  lateCheckout: boolean("late_checkout").notNull().default(false), // late check-out
   totalCents: integer("total_cents"), // valor total da hospedagem em centavos
   paymentCompany: text("payment_company"), // empresa de pagamento do hotel
   hotelOc: text("hotel_oc"), // OC do hotel
   checkIn4: text("check_in_4"), // conferência da hospedagem (espelho operacional)
   hotelStatus: text("hotel_status"), // pendente, reservada, confirmada, cancelada
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
 }, (t) => [
   index("accommodations_inclusion_idx").on(t.teamInclusionId), // 23/09
@@ -329,11 +393,11 @@ export const financial = pgTable("financial", {
   actualValue: integer("actual_value"), // valor real em centavos
   actualFee: integer("actual_fee"), // cachê em centavos
   observations: text("observations"),
-  approved: boolean("approved").default(false),
-  approvedAt: timestamp("approved_at"),
+  approved: boolean("approved").notNull().default(false),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedBy: varchar("approved_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
 }, (t) => [
   index("financial_inclusion_idx").on(t.teamInclusionId), // 23/09
@@ -350,7 +414,7 @@ export const eventComments = pgTable("event_comments", {
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id),
   content: text("content").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("event_comments_event_idx").on(t.eventId, t.createdAt.desc()), // já existe (28/08)
 ]);
@@ -361,7 +425,7 @@ export const comments = pgTable("comments", {
   userId: varchar("user_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   phase: text("phase").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("comments_inclusion_created_idx").on(t.teamInclusionId, t.createdAt.desc()), // 23/09
 ]);
@@ -376,7 +440,7 @@ export const teamInclusionLogs = pgTable("team_inclusion_logs", {
   newValue: text("new_value"), // new value for the field that changed
   userId: varchar("user_id").notNull().references(() => users.id),
   userName: text("user_name").notNull(), // cached for performance
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Histórico da vaga, mais recente primeiro (23/09)
   index("team_inclusion_logs_inclusion_created_idx").on(t.teamInclusionId, t.createdAt.desc()),
@@ -391,13 +455,13 @@ export const systemLogs = pgTable("system_logs", {
   entityId: varchar("entity_id").notNull(), // ID of the affected entity
   entityName: text("entity_name"), // human readable name/description
   details: text("details").notNull(), // detailed description of what happened
-  previousData: text("previous_data"), // JSON of old data for updates
-  newData: text("new_data"), // JSON of new data 
+  previousData: jsonb("previous_data").$type<DadosDeAuditoria>(), // antes (só os campos que mudaram)
+  newData: jsonb("new_data").$type<DadosDeAuditoria>(), // depois (ou o registro criado/removido)
   userId: varchar("user_id").references(() => users.id), // who performed the action (null for system actions)
   userName: text("user_name"), // cached user name for performance
   ipAddress: text("ip_address"), // IP address of action
   userAgent: text("user_agent"), // browser/client info
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Já existem (28/08)
   index("system_logs_entity_idx").on(t.entityType, t.entityId),
@@ -421,8 +485,8 @@ export const functionValues = pgTable("function_values", {
   weekendDinner: integer("weekend_dinner").notNull().default(0), // jantar fds em centavos
   mobility: integer("mobility").notNull().default(0), // mobilidade em centavos
   transport: integer("transport").notNull().default(0), // translado em centavos
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Uma linha de valores por função — a tela faz upsert por convenção (23/09)
   uniqueIndex("function_values_function_uq").on(t.functionId),
@@ -450,10 +514,10 @@ export const budgetPlanned = pgTable("budget_planned", {
   observations: text("observations"), // observações
   status: text("status").notNull().default("pendente"), // pendente, aprovado_rh, rejeitado_rh
   approvedBy: varchar("approved_by").references(() => users.id),
-  approvedAt: timestamp("approved_at"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   createdBy: varchar("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
   didNotAttend: boolean("did_not_attend").notNull().default(false),
   didNotAttendReason: text("did_not_attend_reason"),
@@ -488,14 +552,14 @@ export const budgetActual = pgTable("budget_actual", {
   observations: text("observations"), // observações
   attachmentIds: text("attachment_ids").array(), // comprovantes/anexos
   createdBy: varchar("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
   sentForReview: boolean("sent_for_review").notNull().default(false),
   rhStatus: text("rh_status").notNull().default("pendente"), // pendente, aprovado, rejeitado, devolvido
   rhComment: text("rh_comment"),
   rhActionBy: varchar("rh_action_by").references(() => users.id),
-  rhActionAt: timestamp("rh_action_at"),
+  rhActionAt: timestamp("rh_action_at", { withTimezone: true }),
   resubmitted: boolean("resubmitted").notNull().default(false), // true quando reenviado após devolução/recusa
   // se preenchido, este é um registro de divisão de vaga
   // FK real criada no banco em 13/08 (budget_actual_split_parent_fk, ON DELETE CASCADE)
@@ -504,7 +568,7 @@ export const budgetActual = pgTable("budget_actual", {
   didNotAttend: boolean("did_not_attend").notNull().default(false), // marcado como não participou
   didNotAttendReason: text("did_not_attend_reason"), // motivo de não participação
   rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
-  rhAdjustedFields: text("rh_adjusted_fields"), // JSON: {field: {from, to, label}} dos campos alterados pelo RH
+  rhAdjustedFields: jsonb("rh_adjusted_fields").$type<RhAdjustedFields>(), // {campo: {from, to, label}} dos campos alterados pelo RH
   rhAdjustNote: text("rh_adjust_note"), // observação do RH ao fazer ajuste nos valores
 }, (t) => [
   // Já existem (13/08)
@@ -522,16 +586,16 @@ export const budgetComparison = pgTable("budget_comparison", {
   totalPlanned: integer("total_planned").notNull().default(0), // total planejado em centavos
   totalActual: integer("total_actual").notNull().default(0), // total realizado em centavos
   variance: integer("variance").notNull().default(0), // diferença (positivo = economia, negativo = acima)
-  variancePercent: text("variance_percent"), // percentual de variação
+  variancePercent: numeric("variance_percent", { precision: 8, scale: 2, mode: "number" }), // % de variação (positivo = realizado acima)
   status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado, devolvido
   approvalObservation: text("approval_observation"), // observação do RH ao aprovar/rejeitar
   rejectionReason: text("rejection_reason"), // motivo da recusa
   returnReason: text("return_reason"), // motivo da devolução (dados incorretos)
-  changesLog: text("changes_log"), // JSON com histórico de mudanças do planejado para realizado
+  changesLog: jsonb("changes_log").$type<MudancaDoComparativo[]>(), // mudanças do planejado para o realizado
   approvedBy: varchar("approved_by").references(() => users.id),
-  approvedAt: timestamp("approved_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("budget_comparison_event_uq").on(t.eventId), // já existe (13/08)
 ]);
@@ -650,7 +714,13 @@ export const ticketRowSchema = createInsertSchema(tickets).omit({
   createdAt: true,
   updatedAt: true,
 }).extend({
-  transportType: z.enum(["aereo", "rodoviario", "van"]).optional()
+  transportType: z.enum(["aereo", "rodoviario", "van"]).optional(),
+  // Horas "HH:MM" (25/09): a regra de mobilidade 20h–5h e a de alimentação
+  // leem estas colunas; texto livre aqui virava cálculo errado em silêncio.
+  actualDepartureTime: horaHhmm,
+  actualArrivalTime: horaHhmm,
+  actualReturnTime: horaHhmm,
+  returnArrivalTime: horaHhmm,
 });
 
 /**
@@ -667,6 +737,9 @@ export const insertAccommodationSchema = createInsertSchema(accommodations).omit
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  checkInTime: horaHhmm,
+  checkOutTime: horaHhmm,
 });
 
 export const insertFinancialSchema = createInsertSchema(financial).omit({
@@ -688,6 +761,10 @@ export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
   id: true,
   logNumber: true,
   createdAt: true,
+}).extend({
+  // jsonb (25/09): objetos, não string
+  previousData: z.record(z.unknown()).nullish(),
+  newData: z.record(z.unknown()).nullish(),
 });
 
 export const insertFunctionUserSchema = createInsertSchema(functionUsers).omit({
@@ -721,6 +798,9 @@ export const insertBudgetActualSchema = createInsertSchema(budgetActual).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // jsonb (25/09). As rotas descartam este campo do corpo; o tipo serve ao servidor.
+  rhAdjustedFields: z.record(z.object({ from: z.number(), to: z.number(), label: z.string() })).nullish(),
 });
 
 // System Settings - global default values for budget calculations
@@ -728,7 +808,7 @@ export const systemSettings = pgTable("system_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   key: varchar("key").notNull().unique(),
   value: text("value").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
 });
 
@@ -744,6 +824,14 @@ export const insertBudgetComparisonSchema = createInsertSchema(budgetComparison)
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // numeric(8,2) e jsonb (25/09)
+  variancePercent: z.number().min(-999_999.99).max(999_999.99).nullish(),
+  changesLog: z.array(z.object({
+    collaboratorId: z.string().nullable(),
+    changes: z.array(z.string()),
+    reason: z.string().nullable(),
+  })).nullish(),
 });
 
 // Invoices table (Notas Fiscais)
@@ -762,13 +850,13 @@ export const invoices = pgTable("invoices", {
   status: text("status").notNull().default("pendente"), // pendente, enviada, aprovada, devolvida, recusada
   returnComment: text("return_comment"),
   paymentDate: date("payment_date"),
-  approvedAt: timestamp("approved_at"),
-  history: text("history").default("[]"),
-  checkinAt: timestamp("checkin_at"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  history: jsonb("history").$type<HistoricoNfEntrada[]>().notNull().default(sql`'[]'::jsonb`),
+  checkinAt: timestamp("checkin_at", { withTimezone: true }),
   // FK real criada NOT VALID em 23/09 (invoices_checkin_by_fk, ON DELETE SET NULL)
   checkinBy: varchar("checkin_by").references(() => users.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Já existem (13/08)
   index("invoices_event_idx").on(t.eventId),
@@ -779,6 +867,9 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  // O histórico é do servidor (jsonb, 25/09): nasce com o evento "enviado" e
+  // cresce por append atômico no banco — nunca vem do corpo.
+  history: true,
 });
 
 export type Invoice = typeof invoices.$inferSelect;
@@ -799,7 +890,7 @@ export const flashMovements = pgTable("flash_movements", {
   description: text("description"),
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // Origem do lançamento (17/08): 'manual' (tela Conta Corrente Flash) ou
   // 'oc' (crédito automático gerado pelo lançamento da NF com OC — ver
   // server/flash-oc.ts). sourceRef guarda o id da invoice quando 'oc';
@@ -898,7 +989,7 @@ export const paymentCompanies = pgTable("payment_companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   cnpj: text("cnpj").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const insertPaymentCompanySchema = createInsertSchema(paymentCompanies).omit({ id: true, createdAt: true });
@@ -915,7 +1006,7 @@ export const budgetNotes = pgTable("budget_notes", {
   authorId: varchar("author_id").notNull().references(() => users.id),
   authorName: text("author_name").notNull(),
   content: text("content").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Chat de uma linha do Planejado/Realizado, em ordem (23/09)
   index("budget_notes_entity_idx").on(t.entityType, t.entityId, t.createdAt),
@@ -949,8 +1040,8 @@ export const swapRequests = pgTable("swap_requests", {
   reviewComment: text("review_comment"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   reviewedByName: text("reviewed_by_name"),
-  reviewedAt: timestamp("reviewed_at"),
-  createdAt: timestamp("created_at").defaultNow(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("swap_requests_inclusion_idx").on(t.teamInclusionId), // já existe (28/08)
   // 23/09: a outra vaga da permuta; e UMA troca pendente por vaga (a rota já
@@ -972,7 +1063,7 @@ export type InsertSwapRequest = z.infer<typeof insertSwapRequestSchema>;
 // Pedidos de ajuste / inclusão / exclusão feitos pela área sobre a escala
 // sugerida (team_inclusions com phase 'sugestao'). Modelado sobre swap_requests.
 // Pedido negado FICA registrado (nunca é apagado). proposed_changes é JSON
-// (string) validado por zod versionado — ver proposedChangesSchema em
+// (jsonb, objeto tipado) validado por zod versionado — ver proposedChangesSchema em
 // shared/scaling-validation-rules.ts. Chat/comentários usam budget_notes.
 export const scalingChangeRequests = pgTable("scaling_change_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -984,16 +1075,16 @@ export const scalingChangeRequests = pgTable("scaling_change_requests", {
   requestType: text("request_type").notNull(), // 'ajuste' | 'inclusao' | 'exclusao'
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
   requestedByName: text("requested_by_name").notNull(),
-  proposedChanges: text("proposed_changes"), // JSON string { v: 1, ... } (proposedChangesSchema)
+  proposedChanges: jsonb("proposed_changes").$type<ProposedChanges>(), // { v: 1, ... } (proposedChangesSchema)
   reason: text("reason").notNull(),
   status: text("status").notNull().default("pendente"), // 'pendente' | 'aprovado' | 'reajustado' | 'negado' | 'reenviado_validacao'
   reviewComment: text("review_comment"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   reviewedByName: text("reviewed_by_name"),
-  reviewedAt: timestamp("reviewed_at"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   resolvedInclusionId: varchar("resolved_inclusion_id").references(() => teamInclusions.id), // inclusão criada quando 'inclusao' é aprovada
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   // Já existem (17/08 e 28/08)
   index("scaling_change_requests_event_idx").on(t.eventId),
@@ -1022,7 +1113,9 @@ export const insertScalingChangeRequestSchema = createInsertSchema(scalingChange
   .extend({
     requestType: z.enum(["ajuste", "inclusao", "exclusao"]),
     reason: z.string().trim().min(1, "Informe o motivo do pedido"),
-    proposedChanges: z.string().nullish(),
+    // O client manda string JSON (histórico); objeto também vale. O servidor
+    // valida com parseProposedChanges e grava o OBJETO (jsonb, 25/09).
+    proposedChanges: z.union([z.string(), z.record(z.unknown())]).nullish(),
   })
   .superRefine((data, ctx) => {
     if (data.requestType === "inclusao" && data.teamInclusionId) {
@@ -1063,8 +1156,8 @@ export const baggageRequests = pgTable("baggage_requests", {
   notes: text("notes"),
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"), // snapshot p/ exibição sem join
-  createdAt: timestamp("created_at").defaultNow(),
-  deletedAt: timestamp("deleted_at"), // soft delete
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }), // soft delete
   deletedBy: varchar("deleted_by"),
 }, (t) => [
   // Já existem (17/08)
@@ -1117,7 +1210,7 @@ export const baggageHistory = pgTable("baggage_history", {
   cia: text("cia").notNull(), // Azul, Gol, TAM ou Outros
   quantity: integer("quantity").notNull(), // >= 1
   sourceName: text("source_name"), // nome como constava na origem (auditoria)
-  importedAt: timestamp("imported_at").defaultNow(),
+  importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
   uniqueIndex("baggage_history_collab_cia_uq").on(t.collaboratorId, t.cia), // já existe (17/08)
 ]);
@@ -1140,8 +1233,8 @@ export const logisticsExtraCosts = pgTable("logistics_extra_costs", {
   company: text("company"),
   notes: text("notes"),
   attachmentUrl: text("attachment_url"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Grupos de Uber (sugeridos ou confirmados)
@@ -1174,8 +1267,8 @@ export const uberGroups = pgTable("uber_groups", {
   status: text("status").notNull().default("sugerido"), // sugerido, confirmado
   suggested: boolean("suggested").notNull().default(true),
   confirmed: boolean("confirmed").notNull().default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("uber_groups_event_idx").on(t.eventId), // 23/09
 ]);
@@ -1203,8 +1296,8 @@ export const hotelRoomGroups = pgTable("hotel_room_groups", {
   notes: text("notes"),
   suggested: boolean("suggested").notNull().default(true),
   confirmed: boolean("confirmed").notNull().default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("hotel_room_groups_event_idx").on(t.eventId), // 23/09
 ]);
@@ -1227,7 +1320,12 @@ export const hotelRoomGroupMembers = pgTable("hotel_room_group_members", {
 ]);
 
 export const insertLogisticsExtraCostSchema = createInsertSchema(logisticsExtraCosts).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertUberGroupSchema = createInsertSchema(uberGroups).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUberGroupSchema = createInsertSchema(uberGroups).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  // Horas "HH:MM" (25/09) — o cálculo do carro (shared/uber-routing.ts) lê `time`.
+  time: horaHhmm,
+  suggestedTime: horaHhmm,
+  manualTime: horaHhmm,
+});
 export const insertUberGroupMemberSchema = createInsertSchema(uberGroupMembers).omit({ id: true });
 export const insertHotelRoomGroupSchema = createInsertSchema(hotelRoomGroups).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHotelRoomGroupMemberSchema = createInsertSchema(hotelRoomGroupMembers).omit({ id: true });
@@ -1242,3 +1340,26 @@ export type HotelRoomGroup = typeof hotelRoomGroups.$inferSelect;
 export type InsertHotelRoomGroup = z.infer<typeof insertHotelRoomGroupSchema>;
 export type HotelRoomGroupMember = typeof hotelRoomGroupMembers.$inferSelect;
 export type InsertHotelRoomGroupMember = z.infer<typeof insertHotelRoomGroupMemberSchema>;
+
+// ===== ESTADO COMPARTILHADO ENTRE INSTÂNCIAS (25/09) =====
+// O autoscale sobe N instâncias deste processo; o que ficava num Map por
+// instância (token de SSO já usado, contador do rate limit) valia só para a
+// instância que atendeu o request. Duas tabelas pequenas, sem FK, limpas pelo
+// próprio servidor de tempos em tempos (linhas com expira_em no passado).
+// Migração: scripts/migrations/2026-09-25-estado-compartilhado.sql; o boot
+// também as cria (server/ensure-schema.ts).
+
+/** Tokens de SSO já consumidos: um jti (ou hash do token) só cria sessão UMA vez. */
+export const ssoTokensUsados = pgTable("sso_tokens_usados", {
+  jti: text("jti").primaryKey(),
+  expiraEm: timestamp("expira_em", { withTimezone: true }).notNull(),
+});
+export type SsoTokenUsado = typeof ssoTokensUsados.$inferSelect;
+
+/** Contadores do express-rate-limit (login e redefinição de senha), por chave = prefixo + IP. */
+export const rateLimits = pgTable("rate_limits", {
+  chave: text("chave").primaryKey(),
+  hits: integer("hits").notNull().default(0),
+  expiraEm: timestamp("expira_em", { withTimezone: true }).notNull(),
+});
+export type RateLimit = typeof rateLimits.$inferSelect;

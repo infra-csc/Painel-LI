@@ -1,107 +1,31 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import type { InsertFlashMovement } from "@shared/schema";
-import type { LucideIcon } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { apiErrorMessage } from "@/lib/api-error";
-import { isRhOrAdmin } from "@/lib/role-utils";
-import { parseBrNumber } from "@/lib/utils";
-import { isAutomaticFlashMovement, flashSourceLabel } from "@shared/flash-rules";
+/**
+ * CONTA CORRENTE FLASH — página de composição (25/09, modularização).
+ *
+ * Até 24/09 este arquivo tinha ~830 linhas com o diálogo de lançamento e a
+ * tabela do extrato inline. Agora:
+ *  - dados: `useFlashData` (consultas, saldos, extrato acumulado, CSV, exclusão);
+ *  - apresentação: components/flash/** (SummaryCard, AdmittedWithoutCreditPanel,
+ *    AccountsList, MovementsTable, NewMovementDialog, DeleteMovementDialog).
+ * Nada de comportamento mudou — só o lugar onde cada pedaço vive.
+ */
+import { useState } from "react";
+import { AlertTriangle, Bus, Download, Plus, Sparkles, UtensilsCrossed, Wallet, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { useAuth } from "@/hooks/use-auth";
+import { isRhOrAdmin } from "@/lib/role-utils";
+import { toTitleCase } from "@/lib/format";
 import { campo, useUrlState } from "@/lib/use-url-state";
-import { lerEventoGuardado } from "@/lib/evento-em-foco";
-import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
-import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
-import { campoComErro } from "@/lib/campo-com-erro";
-import { LoadingState } from "@/components/common/loading-state";
-import { QueryError, useQueriesState } from "@/components/common/query-state";
-import { formatarMoeda, toTitleCase } from "@/lib/format";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Wallet, Search, Plus, Download, Trash2, X, UtensilsCrossed, Bus,
-  AlertTriangle, CheckCircle2, ArrowUpCircle, ArrowDownCircle, Sparkles,
-  Pencil, UserPlus, ChevronDown,
-} from "lucide-react";
-
-// Valores-alvo do adiantamento: o colaborador deve sempre ter esses saldos
-// disponíveis no Flash Benefícios (crédito inicial na admissão; cada evento
-// com alimentação/mobilidade é reembolsado para recompor o saldo).
-const TARGET_FOOD_CENTS = 35000;     // R$ 350,00 alimentação
-const TARGET_MOBILITY_CENTS = 15000; // R$ 150,00 mobilidade
-
-const formatCurrency = formatarMoeda;
-function fmtDate(d?: string | null) {
-  if (!d) return "—";
-  const [y, m, day] = String(d).split("T")[0].split("-");
-  return `${day}/${m}/${y}`;
-}
-function todayISO() {
-  return new Date().toISOString().split("T")[0];
-}
-
-type Balance = { food: number; mobility: number; count: number };
-
-// Formas locais das respostas da API (apenas os campos usados nesta tela)
-interface Collaborator {
-  id: string;
-  fullName: string;
-  active?: boolean | null;
-}
-interface EventItem {
-  id: string;
-  name: string;
-}
-interface FlashMovement {
-  id: string;
-  collaboratorId: string;
-  eventId?: string | null;
-  category: string; // alimentacao | mobilidade
-  type: string;     // credito | debito
-  amountCents: number;
-  movementDate: string;
-  description?: string | null;
-  createdAt?: string | null;
-  /**
-   * 'manual' (tela), 'comparativo' (crédito automático da aprovação do
-   * comparativo — regra 19/08, somente leitura) ou 'oc' (legado da regra de
-   * 17/08, quando o crédito vinha da OC da NF — congelado, somente leitura).
-   */
-  sourceType?: string | null;
-  sourceRef?: string | null;
-}
-
-/** Filtro do extrato por origem do lançamento */
-type SourceFilter = "todos" | "manual" | "automatico";
-
-/** Extrai o nº da OC da descrição legada "Automático — OC nº X · Evento" */
-function ocFromDescription(desc?: string | null): string {
-  const m = /OC nº\s*([^·]+)/.exec(desc || "");
-  return m ? m[1].trim() : "";
-}
-
-/** Etiqueta do lançamento automático no extrato, por origem. */
-function automaticBadgeLabel(m: FlashMovement): string {
-  if (m.sourceType === "oc") {
-    const oc = ocFromDescription(m.description);
-    return `Automático · OC nº ${oc || "—"}`;
-  }
-  return "Automático · Comparativo";
-}
+import { useFlashData } from "@/components/flash/use-flash-data";
+import { AccountsList, AdmittedWithoutCreditPanel, DeleteMovementDialog, SummaryCard } from "@/components/flash/flash-cards";
+import { MovementsTable } from "@/components/flash/movements-table";
+import { NewMovementDialog } from "@/components/flash/new-movement-dialog";
+import { TARGET_FOOD_CENTS, TARGET_MOBILITY_CENTS, formatCurrency, type FlashMovement, type SourceFilter } from "@/components/flash/flash-types";
 
 export default function FlashAccountPage() {
   usePageTitle("Conta corrente Flash");
   const { user } = useAuth();
-  const { toast } = useToast();
-  const qc = useQueryClient();
   const canManage = isRhOrAdmin(user);
 
   // Busca, colaborador aberto e filtro de origem na URL (23/09): voltar para a
@@ -123,140 +47,8 @@ export default function FlashAccountPage() {
   const [movementToDelete, setMovementToDelete] = useState<FlashMovement | null>(null);
   const [showNoInitialCredit, setShowNoInitialCredit] = useState(false);
 
-  const qCollaborators = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
-  const qEvents = useQuery<EventItem[]>({ queryKey: ["/api/events"] });
-  const qMovements = useQuery<FlashMovement[]>({ queryKey: ["/api/flash-movements"] });
-  // `?? []` criaria um array novo a cada render e invalidaria os memos abaixo.
-  const collaborators = useMemo(() => qCollaborators.data ?? [], [qCollaborators.data]);
-  const events = useMemo(() => qEvents.data ?? [], [qEvents.data]);
-  const movements = useMemo(() => qMovements.data ?? [], [qMovements.data]);
-  // Erro/carregando das três consultas (23/09): antes uma falha virava
-  // "Nenhum lançamento ainda" — sem aviso e sem botão para tentar de novo.
-  const estado = useQueriesState([qCollaborators, qEvents, qMovements]);
-  const isLoading = estado.isLoading;
-
-  const getCollabName = useCallback((id: string) => collaborators.find(c => c.id === id)?.fullName || "—", [collaborators]);
-  const getEventName = (id?: string | null) => events.find(e => e.id === id)?.name || "";
-
-  // Saldo por colaborador: créditos somam, débitos subtraem
-  const balances = useMemo(() => {
-    const map = new Map<string, Balance>();
-    for (const m of movements) {
-      // Categoria desconhecida (dado legado/manual) não pode corromper o saldo
-      if (m.category !== "alimentacao" && m.category !== "mobilidade") continue;
-      const b = map.get(m.collaboratorId) || { food: 0, mobility: 0, count: 0 };
-      const signed = (m.type === "credito" ? 1 : -1) * (m.amountCents || 0);
-      if (m.category === "alimentacao") b.food += signed; else b.mobility += signed;
-      b.count += 1;
-      map.set(m.collaboratorId, b);
-    }
-    return map;
-  }, [movements]);
-
-  const accountRows = useMemo(() => {
-    const rows = Array.from(balances.entries()).map(([collaboratorId, b]) => ({
-      collaboratorId,
-      name: getCollabName(collaboratorId),
-      ...b,
-      belowTarget: b.food < TARGET_FOOD_CENTS || b.mobility < TARGET_MOBILITY_CENTS,
-    }));
-    const q = search.trim().toLowerCase();
-    return rows
-      .filter(r => !q || r.name.toLowerCase().includes(q))
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  }, [balances, getCollabName, search]);
-
-  const totals = useMemo(() => {
-    let food = 0, mobility = 0, below = 0;
-    for (const r of Array.from(balances.values())) {
-      food += r.food; mobility += r.mobility;
-      if (r.food < TARGET_FOOD_CENTS || r.mobility < TARGET_MOBILITY_CENTS) below++;
-    }
-    return { food, mobility, below, accounts: balances.size };
-  }, [balances]);
-
-  const selectedMovements = useMemo(
-    () => movements.filter(m => m.collaboratorId === selectedCollabId),
-    [movements, selectedCollabId],
-  );
-
-  // Extrato com saldo acumulado (por categoria e geral).
-  // Ordena localmente por data do movimento (createdAt desempata) antes de
-  // acumular — o saldo por linha não pode depender da ordem que a API devolve.
-  const extrato = useMemo(() => {
-    const sorted = [...selectedMovements].sort((a, b) => {
-      const byDate = String(a.movementDate || "").localeCompare(String(b.movementDate || ""));
-      if (byDate !== 0) return byDate;
-      return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
-    });
-    let food = 0, mobility = 0;
-    return sorted.map(m => {
-      const signed = (m.type === "credito" ? 1 : -1) * (m.amountCents || 0);
-      if (m.category === "alimentacao") food += signed; else mobility += signed;
-      return { ...m, signed, runningFood: food, runningMobility: mobility };
-    });
-  }, [selectedMovements]);
-
-  // Filtro por origem é só de exibição — o saldo acumulado por linha continua
-  // calculado sobre TODOS os lançamentos (senão o "Saldo" da linha mentiria).
-  const extratoVisible = useMemo(() => {
-    if (sourceFilter === "todos") return extrato;
-    return extrato.filter(m => isAutomaticFlashMovement(m) === (sourceFilter === "automatico"));
-  }, [extrato, sourceFilter]);
-  const hasAutomatic = useMemo(() => extrato.some(m => isAutomaticFlashMovement(m)), [extrato]);
-
-  // Critério único de "tem conta": QUALQUER movimento registrado (mesmo o que o
-  // servidor usa para rejeitar o crédito inicial). `balances` não serve — ele
-  // ignora categorias desconhecidas e mentiria para dados legados/manuais.
-  const collabsWithMovements = useMemo(
-    () => new Set(movements.map(m => m.collaboratorId)),
-    [movements],
-  );
-
-  // Admitidos sem crédito inicial: colaboradores ativos sem NENHUM lançamento
-  // (o crédito inicial só vale para conta nova — o servidor rejeita se já houver
-  // movimentos). Fecha o fluxo "crédito na admissão".
-  const admittedWithoutInitialCredit = useMemo(() => {
-    return collaborators
-      .filter(c => c.active !== false && !collabsWithMovements.has(c.id))
-      .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "", "pt-BR"));
-  }, [collaborators, collabsWithMovements]);
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/flash-movements/${id}`).then(r => r.json()),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
-      toast({ title: "Lançamento excluído" });
-    },
-    onError: (e: unknown) => toast({ title: "Não foi possível excluir o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
-  });
-
-  // Campo CSV seguro: aspas duplas quando houver ; aspas ou quebra de linha
-  const csvField = (s: string) => (/[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-
-  const exportCsv = () => {
-    const name = getCollabName(selectedCollabId);
-    const header = "Data;Categoria;Tipo;Origem;Evento;Descrição;Valor (R$);Saldo Alimentação (R$);Saldo Mobilidade (R$)";
-    const lines = extrato.map(m => [
-      fmtDate(m.movementDate),
-      m.category === "alimentacao" ? "Alimentação" : "Mobilidade",
-      m.type === "credito" ? "Crédito" : "Débito",
-      isAutomaticFlashMovement(m) ? `Automático (${flashSourceLabel(m.sourceType)})` : "Manual",
-      csvField(getEventName(m.eventId)),
-      csvField(m.description || ""),
-      (m.signed / 100).toFixed(2).replace(".", ","),
-      (m.runningFood / 100).toFixed(2).replace(".", ","),
-      (m.runningMobility / 100).toFixed(2).replace(".", ","),
-    ].join(";"));
-    const blob = new Blob(["﻿" + [header, ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `conta-corrente-flash-${name.replace(/\s+/g, "-").toLowerCase()}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const selectedBalance = balances.get(selectedCollabId);
+  const d = useFlashData({ search, selectedCollabId, sourceFilter });
+  const { estado, isLoading, collaborators, events, movements, getCollabName, totals, extrato, extratoVisible, hasAutomatic, selectedBalance } = d;
 
   return (
     <div className="min-h-screen bg-surface-muted p-6">
@@ -283,99 +75,27 @@ export default function FlashAccountPage() {
         </div>
 
         {/* Admitidos sem crédito inicial — fecha o fluxo "crédito na admissão" */}
-        {canManage && !isLoading && admittedWithoutInitialCredit.length > 0 && (
-          <div className="bg-card rounded-xl border border-warning/25 overflow-hidden">
-            <button
-              onClick={() => setShowNoInitialCredit(v => !v)}
-              aria-expanded={showNoInitialCredit}
-              className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-warning-soft/40 transition-colors"
-            >
-              <div className="w-8 h-8 rounded-xl bg-warning-soft flex items-center justify-center shrink-0">
-                <UserPlus className="w-4 h-4 text-warning" aria-hidden="true" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-700">
-                  Admitidos sem crédito inicial
-                  <span className="ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full bg-warning-soft text-warning">
-                    {admittedWithoutInitialCredit.length}
-                  </span>
-                </p>
-                <p className="text-2xs text-muted-foreground mt-0.5">
-                  Colaboradores ativos sem nenhum lançamento na conta Flash — lance o crédito inicial da admissão
-                </p>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${showNoInitialCredit ? "rotate-180" : ""}`} aria-hidden="true" />
-            </button>
-            {showNoInitialCredit && (
-              <div className="max-h-[280px] overflow-y-auto divide-y divide-border border-t border-border">
-                {admittedWithoutInitialCredit.map(c => (
-                  <div key={c.id} className="flex items-center gap-3 px-5 py-2.5">
-                    <p className="flex-1 min-w-0 text-xs font-medium text-slate-600 truncate">{toTitleCase(c.fullName)}</p>
-                    <button
-                      onClick={() => { setFormCollabId(c.id); setMovementToEdit(null); setShowForm(true); }}
-                      className="flex items-center gap-1.5 h-7 px-2.5 text-2xs font-semibold text-primary border border-primary/25 rounded-lg hover:bg-brand-soft transition-colors shrink-0"
-                    >
-                      <Sparkles className="w-3 h-3" aria-hidden="true" /> Lançar crédito
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {canManage && !isLoading && d.admittedWithoutInitialCredit.length > 0 && (
+          <AdmittedWithoutCreditPanel
+            collaborators={d.admittedWithoutInitialCredit}
+            open={showNoInitialCredit}
+            onToggle={() => setShowNoInitialCredit(v => !v)}
+            onLancarCredito={id => { setFormCollabId(id); setMovementToEdit(null); setShowForm(true); }}
+          />
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Lista de contas */}
-          <div className="lg:col-span-2 bg-card rounded-xl border border-border overflow-hidden">
-            <div className="p-3 border-b border-border">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
-                <Input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar colaborador…"
-                  className="pl-8 h-9 text-xs rounded-xl border-border"
-                />
-              </div>
-            </div>
-            <div className="max-h-[520px] overflow-y-auto divide-y divide-border">
-              {estado.isError ? (
-                <QueryError error={estado.error} onRetry={estado.retry} className="m-3" />
-              ) : isLoading ? (
-                <LoadingState count={4} className="rounded-none border-0" label="Carregando contas…" />
-              ) : accountRows.length === 0 ? (
-                <div className="text-center py-10 px-4">
-                  <Wallet className="w-8 h-8 text-slate-200 mx-auto mb-2" aria-hidden="true" />
-                  <p className="text-xs text-muted-foreground">
-                    {movements.length === 0
-                      ? "Nenhum lançamento ainda. Use \"Novo Lançamento\" para registrar o crédito inicial de um colaborador."
-                      : "Nenhum colaborador encontrado."}
-                  </p>
-                </div>
-              ) : accountRows.map(row => (
-                <button
-                  key={row.collaboratorId}
-                  onClick={() => setSelectedCollabId(row.collaboratorId)}
-                  aria-current={selectedCollabId === row.collaboratorId ? "true" : undefined}
-                  className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
-                    selectedCollabId === row.collaboratorId ? "bg-brand-soft" : "hover:bg-surface-muted"
-                  }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-700 truncate">{toTitleCase(row.name)}</p>
-                    <p className="text-2xs text-muted-foreground mt-0.5">
-                      Alim. <span className={`font-mono font-semibold ${row.food < TARGET_FOOD_CENTS ? "text-warning" : "text-success"}`}>{formatCurrency(row.food)}</span>
-                      <span className="mx-1.5 text-slate-200">·</span>
-                      Mob. <span className={`font-mono font-semibold ${row.mobility < TARGET_MOBILITY_CENTS ? "text-warning" : "text-primary"}`}>{formatCurrency(row.mobility)}</span>
-                    </p>
-                  </div>
-                  {row.belowTarget
-                    ? <AlertTriangle className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />
-                    : <CheckCircle2 className="w-3.5 h-3.5 text-success-strong shrink-0" aria-hidden="true" />}
-                </button>
-              ))}
-            </div>
-          </div>
+          <AccountsList
+            search={search}
+            setSearch={setSearch}
+            estado={estado}
+            isLoading={isLoading}
+            accountRows={d.accountRows}
+            movementsCount={movements.length}
+            selectedCollabId={selectedCollabId}
+            onSelect={setSelectedCollabId}
+          />
 
           {/* Extrato */}
           <div className="lg:col-span-3 bg-card rounded-xl border border-border overflow-hidden">
@@ -396,7 +116,7 @@ export default function FlashAccountPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={exportCsv} title="Exportar extrato em CSV" className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-surface-muted transition-colors">
+                    <button onClick={d.exportCsv} title="Exportar extrato em CSV" className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-600 border border-border rounded-lg hover:bg-surface-muted transition-colors">
                       <Download className="w-3.5 h-3.5" aria-hidden="true" /> CSV
                     </button>
                     <button
@@ -441,83 +161,13 @@ export default function FlashAccountPage() {
                   ) : extratoVisible.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-10">Nenhum lançamento {sourceFilter === "automatico" ? "automático" : "manual"} para este colaborador.</p>
                   ) : (
-                    <table className="w-full min-w-[560px] text-xs">
-                      <thead className="sticky top-0 bg-surface-muted text-2xs uppercase tracking-wider text-muted-foreground">
-                        <tr>
-                          <th scope="col" className="text-left font-bold px-4 py-2.5">Data</th>
-                          <th scope="col" className="text-left font-bold px-2 py-2.5">Lançamento</th>
-                          <th scope="col" className="text-right font-bold px-2 py-2.5">Valor</th>
-                          <th scope="col" className="text-right font-bold px-4 py-2.5">Saldo</th>
-                          {canManage && <th scope="col" className="px-2 py-2.5" />}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {extratoVisible.map(m => (
-                          <tr key={m.id} className="hover:bg-surface-muted/60">
-                            <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap font-mono">{fmtDate(m.movementDate)}</td>
-                            <td className="px-2 py-2.5">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {m.type === "credito"
-                                  ? <ArrowUpCircle className="w-3.5 h-3.5 text-success-strong shrink-0" aria-hidden="true" />
-                                  : <ArrowDownCircle className="w-3.5 h-3.5 text-danger-strong shrink-0" aria-hidden="true" />}
-                                <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-full ${m.category === "alimentacao" ? "bg-success-soft text-success" : "bg-brand-soft text-primary"}`}>
-                                  {m.category === "alimentacao" ? "Alimentação" : "Mobilidade"}
-                                </span>
-                                {isAutomaticFlashMovement(m) && (
-                                  <span
-                                    className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary inline-flex items-center gap-1"
-                                    title={m.sourceType === "oc"
-                                      ? "Crédito automático legado, gerado pela OC da nota fiscal (regra até 18/08) — somente leitura"
-                                      : "Crédito automático gerado na aprovação do comparativo do evento — somente leitura"}
-                                  >
-                                    <Sparkles className="w-2.5 h-2.5" aria-hidden="true" />
-                                    {automaticBadgeLabel(m)}
-                                  </span>
-                                )}
-                              </div>
-                              {(m.description || m.eventId) && (
-                                <p className="text-2xs text-muted-foreground mt-1 truncate max-w-[260px]">
-                                  {[getEventName(m.eventId), m.description].filter(Boolean).join(" — ")}
-                                </p>
-                              )}
-                            </td>
-                            <td className={`px-2 py-2.5 text-right font-mono font-semibold whitespace-nowrap ${m.signed >= 0 ? "text-success" : "text-danger-strong"}`}>
-                              {m.signed >= 0 ? "+" : "−"}{formatCurrency(Math.abs(m.signed))}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-mono text-muted-foreground whitespace-nowrap">
-                              {formatCurrency(m.category === "alimentacao" ? m.runningFood : m.runningMobility)}
-                            </td>
-                            {canManage && isAutomaticFlashMovement(m) && (
-                              <td className="px-2 py-2.5 text-right whitespace-nowrap">
-                                <span className="text-2xs text-muted-foreground" title="Lançamento automático: acompanha o Realizado; estorno em Comparativo → Fechamento do comparativo → Reabrir comparativo">
-                                  somente leitura
-                                </span>
-                              </td>
-                            )}
-                            {canManage && !isAutomaticFlashMovement(m) && (
-                              <td className="px-2 py-2.5 text-right whitespace-nowrap">
-                                <button
-                                  title="Editar lançamento"
-                                  aria-label="Editar lançamento"
-                                  onClick={() => { setMovementToEdit(m); setFormCollabId(""); setShowForm(true); }}
-                                  className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary-hover hover:bg-brand-soft transition-colors"
-                                >
-                                  <Pencil className="w-3 h-3" aria-hidden="true" />
-                                </button>
-                                <button
-                                  title="Excluir lançamento"
-                                  aria-label="Excluir lançamento"
-                                  onClick={() => setMovementToDelete(m)}
-                                  className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors"
-                                >
-                                  <Trash2 className="w-3 h-3" aria-hidden="true" />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <MovementsTable
+                      extratoVisible={extratoVisible}
+                      canManage={canManage}
+                      getEventName={d.getEventName}
+                      onEdit={m => { setMovementToEdit(m); setFormCollabId(""); setShowForm(true); }}
+                      onDelete={setMovementToDelete}
+                    />
                   )}
                 </div>
               </>
@@ -526,31 +176,11 @@ export default function FlashAccountPage() {
         </div>
 
         {/* Confirmação de exclusão (padrão do app — sem window.confirm) */}
-        <AlertDialog open={!!movementToDelete} onOpenChange={open => { if (!open) setMovementToDelete(null); }}>
-          <AlertDialogContent className="rounded-xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {movementToDelete && (
-                  <>
-                    {movementToDelete.type === "credito" ? "Crédito" : "Débito"} de {formatCurrency(movementToDelete.amountCents || 0)} em{" "}
-                    {movementToDelete.category === "alimentacao" ? "alimentação" : "mobilidade"} ({fmtDate(movementToDelete.movementDate)}).
-                    {" "}O saldo do colaborador será recalculado e a exclusão fica registrada na auditoria.
-                  </>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                className="rounded-lg bg-danger hover:bg-danger/90"
-                onClick={() => { if (movementToDelete) deleteMutation.mutate(movementToDelete.id); setMovementToDelete(null); }}
-              >
-                Excluir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <DeleteMovementDialog
+          movement={movementToDelete}
+          onClose={() => setMovementToDelete(null)}
+          onConfirm={id => d.deleteMutation.mutate(id)}
+        />
 
         {canManage && (
           <NewMovementDialog
@@ -560,269 +190,14 @@ export default function FlashAccountPage() {
             events={events}
             defaultCollaboratorId={formCollabId || selectedCollabId}
             editing={movementToEdit}
-            hasAccount={(id: string) => collabsWithMovements.has(id)}
+            hasAccount={(id: string) => d.collabsWithMovements.has(id)}
             onCreated={(collabId: string) => {
-              qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
+              d.invalidateMovements();
               setSelectedCollabId(collabId);
             }}
           />
         )}
       </div>
     </div>
-  );
-}
-
-function SummaryCard({ label, value, icon: Icon, color, bg }: { label: string; value: string | number; icon: LucideIcon; color: string; bg: string }) {
-  return (
-    <div className="bg-card rounded-xl border border-border px-4 py-3.5 flex items-center gap-3">
-      <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-        <Icon className={`w-4 h-4 ${color}`} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-2xs font-bold text-muted-foreground uppercase tracking-wider truncate">{label}</p>
-        <p className="text-base font-bold text-foreground font-mono truncate">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-interface NewMovementDialogProps {
-  open: boolean;
-  onClose: () => void;
-  collaborators: Collaborator[];
-  events: EventItem[];
-  defaultCollaboratorId: string;
-  /** Lançamento em edição (salvo via PATCH — atualização in-place, auditada no servidor). */
-  editing: FlashMovement | null;
-  hasAccount: (id: string) => boolean;
-  onCreated: (collabId: string) => void;
-}
-
-function NewMovementDialog({ open, onClose, collaborators, events, defaultCollaboratorId, editing, hasAccount, onCreated }: NewMovementDialogProps) {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const [collaboratorId, setCollaboratorId] = useState(defaultCollaboratorId || "");
-  const [collabSearch, setCollabSearch] = useState("");
-  const [category, setCategory] = useState<"alimentacao" | "mobilidade">("alimentacao");
-  const [type, setType] = useState<"credito" | "debito">("credito");
-  const [amount, setAmount] = useState("");
-  const [movementDate, setMovementDate] = useState(todayISO());
-  const [erros, setErros] = useState<{ collaborator?: string; date?: string; amount?: string }>({});
-  const [eventId, setEventId] = useState("");
-  const [description, setDescription] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  // Ao abrir: pré-preenche com o lançamento em edição (preservando a data) ou
-  // apenas sincroniza o colaborador pré-selecionado. useEffect no lugar do
-  // antigo setState durante o render.
-  useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      setCollaboratorId(editing.collaboratorId);
-      setCategory(editing.category === "mobilidade" ? "mobilidade" : "alimentacao");
-      setType(editing.type === "debito" ? "debito" : "credito");
-      setAmount(((editing.amountCents || 0) / 100).toFixed(2).replace(".", ","));
-      setMovementDate(String(editing.movementDate || "").split("T")[0] || todayISO());
-      setEventId(editing.eventId || "");
-      setDescription(editing.description || "");
-    } else {
-      setCollaboratorId(defaultCollaboratorId || "");
-      // Evento em foco (23/09): lançamento novo já nasce vinculado ao evento que
-      // a pessoa estava trabalhando no Financeiro — só leitura, sem mexer na URL.
-      const emFoco = lerEventoGuardado(user?.id);
-      setEventId(emFoco && events.some(ev => ev.id === emFoco) ? emFoco : "");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editing]);
-
-  // "Descartar alterações?" (23/09): Esc e clique fora fechavam e zeravam o
-  // formulário sem perguntar. Em edição, "sujo" é diferir do lançamento gravado.
-  const sujo = editing
-    ? (
-      collaboratorId !== editing.collaboratorId
-      || category !== (editing.category === "mobilidade" ? "mobilidade" : "alimentacao")
-      || type !== (editing.type === "debito" ? "debito" : "credito")
-      || amount !== ((editing.amountCents || 0) / 100).toFixed(2).replace(".", ",")
-      || movementDate !== (String(editing.movementDate || "").split("T")[0] || todayISO())
-      || eventId !== (editing.eventId || "")
-      || description !== (editing.description || "")
-    )
-    : (amount.trim() !== "" || description.trim() !== "" || collaboratorId !== (defaultCollaboratorId || ""));
-  const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(sujo, { salvando: saving });
-
-  const filteredCollabs = useMemo(() => {
-    const q = collabSearch.trim().toLowerCase();
-    return collaborators
-      .filter(c => c.active !== false)
-      .filter(c => !q || (c.fullName || "").toLowerCase().includes(q))
-      .slice(0, 50);
-  }, [collaborators, collabSearch]);
-
-  // O colaborador selecionado pode não estar nas options (inativo ou fora do
-  // slice de 50) — sem esta injeção o select exibiria "Selecione…" mesmo com
-  // um lançamento em edição já vinculado a alguém.
-  const optionCollabs = useMemo(() => {
-    if (collaboratorId && !filteredCollabs.some(c => c.id === collaboratorId)) {
-      const current = collaborators.find(c => c.id === collaboratorId);
-      if (current) return [current, ...filteredCollabs];
-    }
-    return filteredCollabs;
-  }, [filteredCollabs, collaborators, collaboratorId]);
-
-  const reset = () => {
-    setCategory("alimentacao"); setType("credito"); setAmount("");
-    setMovementDate(todayISO()); setEventId(""); setDescription(""); setCollabSearch("");
-  };
-
-  const post = (body: Partial<InsertFlashMovement>) => apiRequest("POST", "/api/flash-movements", body).then(r => r.json());
-
-  const save = async (initialCredit: boolean) => {
-    if (!collaboratorId) { setErros({ collaborator: "Selecione o colaborador." }); document.getElementById("fm-collaborator")?.focus(); return; }
-    if (!movementDate) { setErros({ date: "Informe a data do lançamento." }); document.getElementById("fm-date")?.focus(); return; }
-    setErros({});
-    try {
-      setSaving(true);
-      if (initialCredit) {
-        // Endpoint transacional: os dois créditos (R$ 350 + R$ 150) nunca
-        // ficam pela metade se algo falhar no meio
-        await apiRequest("POST", "/api/flash-movements/initial-credit", { collaboratorId, movementDate }).then(r => r.json());
-        toast({ title: "Crédito inicial lançado", description: "R$ 350,00 de alimentação e R$ 150,00 de mobilidade." });
-      } else {
-        const cents = Math.round(parseBrNumber(amount) * 100);
-        if (!cents || cents <= 0) { setErros({ amount: "Informe um valor maior que zero." }); document.getElementById("fm-amount")?.focus(); setSaving(false); return; }
-        const body = {
-          collaboratorId, category, type, amountCents: cents, movementDate,
-          eventId: eventId || null, description: description.trim() || null,
-        };
-        if (editing) {
-          // Atualização in-place via PATCH: o original só muda se a edição
-          // for aceita pelo servidor (nada de excluir + recriar).
-          await apiRequest("PATCH", `/api/flash-movements/${editing.id}`, body).then(r => r.json());
-        } else {
-          await post(body);
-        }
-        toast({ title: editing ? "Lançamento atualizado" : "Lançamento registrado" });
-      }
-      onCreated(collaboratorId);
-      reset();
-      onClose();
-    } catch (e) {
-      toast({ title: "Não foi possível registrar o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const lbl = "text-2xs font-bold text-muted-foreground uppercase tracking-widest block mb-1.5";
-  const fechar = () => { reset(); onClose(); };
-
-  return (
-    <>
-    <Dialog open={open} onOpenChange={v => { if (!v) pedirParaFechar(fechar); }}>
-      <DialogContent className="max-w-md rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-          <div className="w-9 h-9 rounded-xl bg-brand-soft flex items-center justify-center shrink-0">
-            <Wallet className="w-4 h-4 text-primary" aria-hidden="true" />
-          </div>
-          <div className="flex-1">
-            <DialogTitle className="text-sm font-bold text-foreground">{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
-            <DialogDescription className="text-2xs text-muted-foreground mt-0.5">
-              {editing ? "A alteração é aplicada ao próprio lançamento e fica registrada na auditoria" : "Conta corrente Flash"}
-            </DialogDescription>
-          </div>
-          <button aria-label="Fechar" onClick={() => pedirParaFechar(fechar)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-slate-600 hover:bg-muted transition-colors">
-            <X className="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div>
-            <label htmlFor="fm-collaborator" className={lbl}>Colaborador</label>
-            <Input value={collabSearch} onChange={e => setCollabSearch(e.target.value)} placeholder="Digite para buscar…" aria-label="Buscar colaborador" className="h-8 text-xs rounded-lg border-border mb-1.5" />
-            <select
-              id="fm-collaborator"
-              value={collaboratorId}
-              aria-required="true"
-              {...campoComErro("fm-collaborator", erros.collaborator)}
-              onChange={e => { setCollaboratorId(e.target.value); if (erros.collaborator) setErros(p => ({ ...p, collaborator: undefined })); }}
-              className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary"
-            >
-              <option value="">Selecione…</option>
-              {optionCollabs.map(c => (
-                <option key={c.id} value={c.id}>{toTitleCase(c.fullName)}</option>
-              ))}
-            </select>
-            <MensagemDeErro id="fm-collaborator" erro={erros.collaborator} />
-          </div>
-
-          {!editing && collaboratorId && !hasAccount(collaboratorId) && (
-            <button
-              disabled={saving}
-              onClick={() => save(true)}
-              className="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-brand-soft border border-primary/25 hover:bg-brand-soft transition-colors text-left disabled:opacity-50"
-            >
-              <Sparkles className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-              <span className="text-xs text-primary">
-                <span className="font-bold">Lançar crédito inicial da admissão</span><br />
-                <span className="text-primary">R$ 350,00 alimentação + R$ 150,00 mobilidade</span>
-              </span>
-            </button>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="fm-category" className={lbl}>Categoria</label>
-              <select id="fm-category" value={category} onChange={e => setCategory(e.target.value === "mobilidade" ? "mobilidade" : "alimentacao")} className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary">
-                <option value="alimentacao">Alimentação</option>
-                <option value="mobilidade">Mobilidade</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="fm-type" className={lbl}>Tipo</label>
-              <select id="fm-type" value={type} onChange={e => setType(e.target.value === "debito" ? "debito" : "credito")} className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary">
-                <option value="credito">Crédito (reembolso/recarga)</option>
-                <option value="debito">Débito (consumo/ajuste)</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="fm-amount" className={lbl}>Valor (R$)</label>
-              <Input id="fm-amount" value={amount} aria-required="true" {...campoComErro("fm-amount", erros.amount)} onChange={e => { setAmount(e.target.value); if (erros.amount) setErros(p => ({ ...p, amount: undefined })); }} inputMode="decimal" placeholder="0,00" className="h-9 text-xs rounded-lg border-border font-mono" />
-              <MensagemDeErro id="fm-amount" erro={erros.amount} />
-            </div>
-            <div>
-              <label htmlFor="fm-date" className={lbl}>Data</label>
-              <Input id="fm-date" type="date" value={movementDate} aria-required="true" {...campoComErro("fm-date", erros.date)} onChange={e => { setMovementDate(e.target.value); if (erros.date) setErros(p => ({ ...p, date: undefined })); }} className="h-9 text-xs rounded-lg border-border" />
-              <MensagemDeErro id="fm-date" erro={erros.date} />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="fm-event" className={lbl}>Evento (opcional)</label>
-            <select id="fm-event" value={eventId} onChange={e => setEventId(e.target.value)} className="w-full h-9 text-xs rounded-lg border border-border px-2 bg-card text-slate-700 focus:outline-none focus:border-primary">
-              <option value="">Sem evento vinculado</option>
-              {events.map(ev => (
-                <option key={ev.id} value={ev.id}>{ev.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="fm-description" className={lbl}>Descrição (opcional)</label>
-            <Input id="fm-description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Ex.: Reembolso alimentação — Night Run" className="h-9 text-xs rounded-lg border-border" />
-          </div>
-        </div>
-
-        <div className="flex gap-2 justify-end px-5 py-4 border-t border-border bg-surface-muted/50">
-          <button onClick={() => pedirParaFechar(fechar)} className="h-9 px-4 text-xs font-medium text-muted-foreground border border-border rounded-lg hover:bg-surface-muted transition-colors">
-            Cancelar
-          </button>
-          <Button disabled={saving} onClick={() => save(false)} className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold">
-            {saving ? "Salvando…" : editing ? "Salvar alterações" : "Registrar lançamento"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-    {DialogoDescarte}
-    </>
   );
 }
