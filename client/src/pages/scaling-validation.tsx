@@ -18,7 +18,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
-import { ALL_EVENTS_ROW_LIMIT } from "@shared/scaling-validation-rules";
+import { ALL_EVENTS_ROW_LIMIT, SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
+import { VALIDATION_NOTE_MAX } from "@/components/scaling-validation/validation-note";
 import { SuggestionsList } from "@/components/scaling-validation/suggestions-list";
 import { SECTION_TITLE } from "@/components/scaling-validation/logistics-chips";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
@@ -263,6 +264,13 @@ export default function ScalingValidationPage() {
         open={act.adjustOpen} onOpenChange={(o) => { act.setAdjustOpen(o); if (!o) setRequestTargetId(null); }}
         inclusion={requestTarget} event={eventOfRow(requestTarget)}
         functionName={requestTarget ? functionNameById.get(requestTarget.functionId) : undefined} onSent={onRequestSent}
+        onValidarEmVez={requestTarget?.status === SUGESTAO_STATUS.PENDENTE ? (motivo) => {
+          const id = requestTarget.id;
+          act.setAdjustOpen(false);
+          // Depois do fechamento do ajuste: dois diálogos Radix trocando o
+          // foco no mesmo tick deixam a página com o scroll travado.
+          setTimeout(() => act.openValidateConfirm([id], motivo.slice(0, VALIDATION_NOTE_MAX)), 0);
+        } : undefined}
       />
       <DeleteRequestDialog
         open={act.deleteOpen} onOpenChange={(o) => { act.setDeleteOpen(o); if (!o) setRequestTargetId(null); }}

@@ -107,8 +107,8 @@ export function useValidationActions(data: Pick<ValidationData, "filteredRows" |
    * de abrir. `null` = o lote selecionado; lista = alvo próprio da linha.
    */
   const { setValidateTargetIds } = sel;
-  const openValidateConfirm = useCallback((ids: string[] | null) => {
-    setValidationNote("");
+  const openValidateConfirm = useCallback((ids: string[] | null, notaInicial = "") => {
+    setValidationNote(notaInicial);
     setValidationNoteError(null);
     setValidateTargetIds(ids);
     setConfirmValidate(true);

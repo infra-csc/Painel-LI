@@ -3,6 +3,7 @@
  * Abre da Validação (linha rica) e do modal de Escalação (vaga já escalada).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,9 +48,17 @@ interface AdjustRequestDialogProps {
    * a pessoa continua escalada e nada muda até o aprovador decidir.
    */
   postScaling?: boolean;
+  /**
+   * Responder o aprovador SEM mudar a vaga (dono, 29/09): quem recebe a vaga
+   * de volta (pedido negado, vaga reprovada ou devolvida) e quer só explicar
+   * ("aprovado pelo Henrique") abria "Pedir ajuste" e travava em "Nada foi
+   * alterado". O caminho certo é Validar com observação; quando a tela passa
+   * esta função, o erro vira um botão que leva para lá com o motivo já escrito.
+   */
+  onValidarEmVez?: (motivo: string) => void;
 }
 
-export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName, onSent, postScaling }: AdjustRequestDialogProps) {
+export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, functionName, onSent, postScaling, onValidarEmVez }: AdjustRequestDialogProps) {
   const [workDays, setWorkDays] = useState<string[]>([]);
   const [travel, setTravel] = useState<TravelDraft>(EMPTY_TRAVEL);
   const [observations, setObservations] = useState("");
@@ -118,7 +127,15 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     if (workDays.length === 0) { setError({ campo: "days", msg: "Informe ao menos um dia de trabalho." }); return; }
     const travelErr = validateTravel(travel);
     if (travelErr.length) { setError({ campo: "travel", msg: travelErr[0] }); return; }
-    if (diff.length === 0) { setError({ campo: "diff", msg: "Nada foi alterado. Mude ao menos um campo ou use “Validar” se a vaga está correta." }); return; }
+    if (diff.length === 0) {
+      setError({
+        campo: "diff",
+        msg: onValidarEmVez
+          ? "Nada foi alterado na vaga. Se ela está correta e você só quer responder ao aprovador, valide com o motivo como observação."
+          : "Nada foi alterado. Mude ao menos um campo ou use “Validar” se a vaga está correta.",
+      });
+      return;
+    }
     if (!reason.trim()) { setError({ campo: "reason", msg: "Informe o motivo do pedido." }); return; }
     setError(null);
     // Só os campos que mudaram (v:1 sempre)
@@ -220,6 +237,18 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
             onChange={(v) => { setReason(v); if (error?.campo === "reason" && v.trim()) setError(null); }}
             placeholder="Explique para o aprovador por que a vaga precisa mudar." />
           {error && <p id="adj-erro" role="alert" className="text-xs font-medium text-danger">{error.msg}</p>}
+          {error?.campo === "diff" && onValidarEmVez && (
+            <Button
+              type="button"
+              variant="outline"
+              className="self-start rounded-lg border-success/40 text-success hover:bg-success-soft"
+              onClick={() => onValidarEmVez(reason.trim())}
+              data-testid="button-validar-em-vez"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-1.5" aria-hidden="true" />
+              Validar a vaga{reason.trim() ? " com este motivo como observação" : ""}
+            </Button>
+          )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" className="rounded-lg bg-card" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
             {/* O botão diz o que acontece depois: o pedido não muda a vaga, quem decide é o aprovador. */}

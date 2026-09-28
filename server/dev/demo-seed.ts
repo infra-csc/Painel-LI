@@ -377,6 +377,9 @@ export async function semearDemo(db: Db): Promise<ResumoDoSeed> {
           "Pedimos atenção ao horário do voo de volta — evento termina tarde.",
           "Validado; sugerimos hospedagem próxima ao parque.",
         ]) : null,
+        // Vaga da Validação sempre tem os dias marcados (é o que o formulário de
+        // ajuste compara). Sem isto o demo não reproduzia "responder sem mudar a vaga".
+        workDays: ehSugestao ? Array.from({ length: diasTrabalho }, (_, d) => addDias(inicioVaga, d)) : null,
         dailyRates: diasTrabalho, dailyValue: colab ? valorDiaria(fn, colab.type) : 0,
         actualDailyRates: status === "concluido" ? diasTrabalho : null,
         observations: i % 9 === 0 ? "Chegar 1h antes da abertura do portão." : null,

@@ -418,3 +418,16 @@ anteriores e continuam valendo se ainda não foram feitos.
 - Testes de componente de domínio: 15 arquivos novos (linha e diálogo da inclusão, linha da Escalação, rodapé dos detalhes, diálogo de validação, badges das sugestões, aguardando aprovação, linha e vouchers de Passagens, modal de Hospedagem, cartão de prestação do RH, NF, cartão e linha do Planejado, grade de funções) sobre `test/fixtures-dominio.ts`, `test/orcamento-fixture.ts` (passa pelo `calcularPlanejadoDaVaga` real) e `test/query-client-api.ts`. Sem `data-testid` novo: consultas por papel e rótulo.
 - `client/src/test/setup.ts` chama `limparToasts()` (novo em `hooks/use-toast.ts`) depois de cada teste: os toasts vivem em memória de módulo, sobrevivem ao `cleanup` e um toast antigo é uma camada do Radix acima do modal — o Esc do Dialog passa a ser ignorado (foi o que fez dois testes de descarte falharem só quando o arquivo rodava inteiro).
 - `tickets-work-queue.tsx` e `rh-summary.tsx` sem `style={{ color }}`: cor por classe (`text-warning`, `text-danger-strong`…) via mapa `TONE_CLASS`.
+
+## 7. 29/09 — responder ao aprovador sem mudar a vaga
+
+### 7.1 O que muda para quem usa
+- **Validação de escala:** quem recebe a vaga de volta (pedido negado, vaga reprovada ou devolvida) e só quer responder ao aprovador ("aprovado pelo Henrique") abria "Pedir ajuste" e travava em "Nada foi alterado". Agora, se nada mudou na vaga, o aviso explica e oferece **"Validar a vaga com este motivo como observação"**: o pedido de ajuste fecha, a confirmação de validação abre com o motivo já escrito na observação, e a vaga segue para o aprovador com a resposta. Pedido de ajuste vazio continua não existindo — a regra do dono não mudou; só o caminho ficou à vista.
+
+### 7.2 O que muda para quem opera
+- Nada. Sem migração; Pull + Stop/Run.
+
+### 7.3 O que muda para quem desenvolve
+- `AdjustRequestDialog` ganhou `onValidarEmVez?(motivo)`; a página da Validação só passa a função para vaga em `sugestao_pendente` (no modal da Escalação não aparece). `openValidateConfirm(ids, notaInicial?)`.
+- `adjust-request-dialog.test.tsx` (2 testes). Semente do demo: vagas da Validação passam a ter `workDays` (como na vida real), senão o formulário de ajuste nunca chegava à checagem de "nada mudou".
+
