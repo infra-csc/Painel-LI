@@ -7,7 +7,7 @@
  * "Marcar tudo como visto" apaga apenas o ponto de novidade — a contagem
  * continua sendo a realidade do servidor.
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -28,6 +28,8 @@ export default function NotificationsMenu() {
   const { notifications, pendingTotal, hasUnseen, markAllSeen } = useShellData();
   const estado = useQueryKeysState(SHELL_QUERY_KEYS);
   const [, navegar] = useLocation();
+  /** O painel (role=dialog do Radix) se chama pelo título "Pendências" — sem isso era um diálogo sem nome. */
+  const tituloId = useId();
   /** Navega com um carimbo novo: clicar de novo (ou já estando na tela) reabre o recorte. */
   const abrir = (href: string) => {
     setOpen(false);
@@ -60,10 +62,10 @@ export default function NotificationsMenu() {
         <TooltipContent side="bottom" sideOffset={6}>Pendências</TooltipContent>
       </Tooltip>
 
-      <PopoverContent align="end" sideOffset={8} className="w-[380px] max-w-[calc(100vw-32px)] p-0 rounded-xl overflow-hidden">
+      <PopoverContent align="end" sideOffset={8} aria-labelledby={tituloId} className="w-[380px] max-w-[calc(100vw-32px)] p-0 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-3.5 py-3 border-b border-border">
           <span className="text-sm font-semibold text-foreground">
-            Pendências {pendingTotal > 0 && <span className="font-normal text-muted-foreground">· {pendingTotal}</span>}
+            <span id={tituloId}>Pendências</span> {pendingTotal > 0 && <span className="font-normal text-muted-foreground">· {pendingTotal}</span>}
           </span>
           {hasUnseen && (
             <button

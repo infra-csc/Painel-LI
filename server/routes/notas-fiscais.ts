@@ -6,7 +6,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { invoices as invoicesTable, insertInvoiceSchema, type Invoice } from "@shared/schema";
+import { invoices as invoicesTable, insertInvoiceSchema, type Invoice, type HistoricoNfEntrada } from "@shared/schema";
 import { eq, and, isNull, sql as drizzleSql } from "drizzle-orm";
 import { ZodError } from "zod";
 import { isNfEligible, podeAprovarNota, podeDevolverNota, podeFazerCheckin } from "@shared/prestacao-rules";
@@ -35,28 +35,27 @@ export function registrarNotasFiscais(app: Express): void {
    * alterado em JS e regravado inteiro, e duas decisões simultâneas perdiam
    * uma entrada e gravavam status por cima. 0 linhas → 409.
    */
+  /**
+   * `history = history || $1::jsonb` (25/09: a coluna É jsonb; o COALESCE cobre
+   * notas antigas com NULL até a migração fixar o NOT NULL).
+   */
+  const anexarAoHistorico = (evento: Record<string, unknown>) => {
+    const entrada: HistoricoNfEntrada[] = [{ ...evento, type: String(evento.type), at: new Date().toISOString() }];
+    return drizzleSql`COALESCE(${invoicesTable.history}, '[]'::jsonb) || ${JSON.stringify(entrada)}::jsonb`;
+  };
   const decidirNota = async (
     invoiceId: string, statusEsperado: string, patch: Partial<Invoice>, evento: Record<string, unknown>,
   ) => {
-    const entrada = JSON.stringify([{ ...evento, at: new Date().toISOString() }]);
     const [row] = await db.update(invoicesTable)
       .set({
         ...patch,
         updatedAt: new Date(),
-        history: drizzleSql`(COALESCE(NULLIF(${invoicesTable.history}, ''), '[]')::jsonb || ${entrada}::jsonb)::text`,
+        history: anexarAoHistorico(evento),
       })
       .where(and(eq(invoicesTable.id, invoiceId), eq(invoicesTable.status, statusEsperado)))
       .returning();
     return row;
   };
-  // Reenvio pelo PATCH (status devolvida/enviada → enviada) usa o mesmo append.
-  async function appendHistory(invoiceId: string, event: Record<string, unknown>): Promise<string> {
-    const existing = await storage.getInvoice(invoiceId);
-    let arr: unknown[] = [];
-    try { arr = JSON.parse(existing?.history || "[]"); } catch { arr = []; }
-    arr.push({ ...event, at: new Date().toISOString() });
-    return JSON.stringify(arr);
-  }
 
   // Slide 5 do deck de melhorias: dentro do mesmo evento, lançamentos com a
   // mesma OC precisam ter a mesma nota fiscal anexada (mesmo arquivo/nome).
@@ -121,8 +120,8 @@ export function registrarNotasFiscais(app: Express): void {
       }
       const ocError = await validateOcConsistency(data.eventId, data.oc, data.attachmentName);
       if (ocError) return res.status(400).json({ message: ocError });
-      const firstEvent = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
-      const invoice = await storage.createInvoice({ ...data, history: JSON.stringify([firstEvent]) });
+      const firstEvent: HistoricoNfEntrada = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
+      const invoice = await storage.createInvoice({ ...data, history: [firstEvent] });
       // A NF não mexe mais no saldo do Flash — só documenta (decisão 19/08,
       // substitui a regra de 17/08 que creditava aqui pelo número da OC). O
       // crédito acontece na aprovação do comparativo (server/flash-credit.ts).
@@ -169,8 +168,9 @@ export function registrarNotasFiscais(app: Express): void {
         }
         body.status = "enviada";
       }
-      let historyStr: string | undefined;
-      // If resubmitting (setting status back to enviada), record a "reenviado" event
+      let invoice: Invoice;
+      // Reenvio (status de volta para enviada): registra "reenviado" com o
+      // mesmo append atômico das decisões (antes era ler-alterar-regravar em JS).
       if (body.status === "enviada") {
         const ocError = await validateOcConsistency(
           existing.eventId,
@@ -179,18 +179,23 @@ export function registrarNotasFiscais(app: Express): void {
           existing.id,
         );
         if (ocError) return res.status(400).json({ message: ocError });
-        historyStr = await appendHistory(req.params.id, {
-          type: "reenviado",
-          oc: body.oc ?? existing.oc ?? null,
-          attachmentName: body.attachmentName ?? existing.attachmentName ?? null,
-        });
         // Reenvio limpa o comentário da devolução anterior
         body.returnComment = null;
+        [invoice] = await db.update(invoicesTable)
+          .set({
+            ...body,
+            updatedAt: new Date(),
+            history: anexarAoHistorico({
+              type: "reenviado",
+              oc: body.oc ?? existing.oc ?? null,
+              attachmentName: body.attachmentName ?? existing.attachmentName ?? null,
+            }),
+          })
+          .where(eq(invoicesTable.id, req.params.id))
+          .returning();
+      } else {
+        invoice = await storage.updateInvoice(req.params.id, body);
       }
-      const invoice = await storage.updateInvoice(req.params.id, {
-        ...body,
-        ...(historyStr !== undefined ? { history: historyStr } : {}),
-      });
       // Reenvio/troca da OC não toca no Flash (decisão 19/08): o saldo vem da
       // aprovação do comparativo, e a nota apenas documenta o pagamento.
       res.json(invoice);
@@ -291,7 +296,7 @@ export function registrarNotasFiscais(app: Express): void {
           checkinBy: user.id,
           paymentDate,
           updatedAt: new Date(),
-          history: drizzleSql`(COALESCE(NULLIF(${invoicesTable.history}, ''), '[]')::jsonb || ${JSON.stringify([{ type: "checkin", paymentDate, at: new Date().toISOString() }])}::jsonb)::text`,
+          history: anexarAoHistorico({ type: "checkin", paymentDate }),
         })
         .where(and(eq(invoicesTable.id, req.params.id), eq(invoicesTable.status, "aprovada"), isNull(invoicesTable.checkinAt)))
         .returning();

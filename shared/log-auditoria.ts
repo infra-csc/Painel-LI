@@ -331,8 +331,9 @@ export interface RegistroDeLog {
   action: string;
   entityType: string;
   entityName?: string | null;
-  previousData?: string | null;
-  newData?: string | null;
+  /** JSON como string (client, logs antigos) ou já como objeto (jsonb, 25/09). */
+  previousData?: string | Record<string, unknown> | null;
+  newData?: string | Record<string, unknown> | null;
 }
 
 export interface MudancaDeCampo { campo: string; antes: string; depois: string }
@@ -355,10 +356,10 @@ export interface LogDescrito {
   resumo: string;
 }
 
-function lerJson(texto: string | null | undefined): Record<string, unknown> | null {
-  if (!texto) return null;
+function lerJson(dado: string | Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!dado) return null;
   try {
-    const v = JSON.parse(texto);
+    const v: unknown = typeof dado === "string" ? JSON.parse(dado) : dado;
     return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;
   } catch {
     return null;

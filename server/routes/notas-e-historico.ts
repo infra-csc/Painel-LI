@@ -65,7 +65,7 @@ export function registrarNotasEHistorico(app: Express): void {
               userId,
               userName: user.name,
               previousData: null,
-              newData: JSON.stringify({ content: parsed.data.content }),
+              newData: { content: parsed.data.content },
             });
           }
         } catch {

@@ -167,10 +167,6 @@ function proposedToPatch(proposed: ProposedChanges): Partial<InsertTeamInclusion
   return patch as Partial<InsertTeamInclusion>;
 }
 
-function safeJson(raw: string | null | undefined): unknown {
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
 
 async function getActor(req: Request, res: Response): Promise<User | null> {
   // Usuário EFETIVO (server/simulation.ts): no modo "Ver como usuário" os GETs
@@ -1355,7 +1351,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           requestType: body.requestType,
           requestedBy: actor.id,
           requestedByName: actor.name ?? "Usuário",
-          proposedChanges: JSON.stringify(proposed),
+          proposedChanges: proposed,
           reason: body.reason,
           status: CHANGE_REQUEST_STATUS.PENDENTE,
         },
@@ -1435,7 +1431,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       const result = requests.map((r) => {
         const inc = r.teamInclusionId ? inclusionById.get(r.teamInclusionId) : undefined;
-        const proposed = safeJson(r.proposedChanges) as ProposedChanges | null;
+        const proposed = r.proposedChanges ?? null; // jsonb (25/09): já é objeto
         let diff: ReturnType<typeof diffInclusion> = [];
         if (inc && proposed && r.requestType === "ajuste") {
           try { diff = diffInclusion(inc, proposed); } catch { diff = []; }
@@ -1704,13 +1700,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       // Alterações a aplicar: só em "reajustar". editedChanges (se vier) substitui o pedido original.
       let changesToApply: ProposedChanges | null = null;
-      let editedJson: string | null = null;
+      let editedJson: ProposedChanges | null = null;
       if (kind === "reajustar") {
         if (editedChanges !== undefined && editedChanges !== null) {
           // Reajustar de volta para como a vaga está é permitido: o pedido é
           // resolvido e nenhum campo muda (allowEmptyAjuste).
           changesToApply = rule(() => parseProposedChanges(editedChanges, requestType, { allowEmptyAjuste: true }));
-          editedJson = JSON.stringify(changesToApply);
+          editedJson = changesToApply;
         } else {
           changesToApply = rule(() => parseProposedChanges(request.proposedChanges, requestType));
         }
@@ -1739,13 +1735,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         let target: "inclusao" | "sugestao" | null = null;
         if (then === "aprovar_direto" && kind === "reajustar" && changesToApply) {
           target = "inclusao";
-          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: JSON.stringify(changesToApply) }, changesToApply, actor, "inclusao", now);
+          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: changesToApply }, changesToApply, actor, "inclusao", now);
         } else if (then === "reenviar_validacao") {
           target = "sugestao";
           const proposedForRows = changesToApply ?? rule(() => parseProposedChanges(request.proposedChanges, requestType));
           // suggestionSentAt = now (mesmo instante do reviewedAt): o contador de
           // atraso da vaga nova começa na devolução.
-          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: JSON.stringify(proposedForRows) }, proposedForRows, actor, "sugestao", now);
+          rows = await buildInclusionRowsFromRequest({ ...request, proposedChanges: proposedForRows }, proposedForRows, actor, "sugestao", now);
         }
         const result = await storage.resolveScalingChangeRequest(
           request.id,
@@ -2157,7 +2153,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           // GET da fila de pedidos.
           diff: (() => {
             if (pending.requestType !== "ajuste") return [];
-            const proposed = safeJson(pending.proposedChanges) as ProposedChanges | null;
+            const proposed = pending.proposedChanges ?? null;
             if (!proposed) return [];
             try { return diffInclusion(inclusion, proposed); } catch { return []; }
           })(),

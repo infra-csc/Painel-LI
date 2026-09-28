@@ -1,4 +1,4 @@
-// Aba "Complementos e Histórico": comentários e log da inclusão, com estado
+// Aba "Complementos e histórico": comentários e log da inclusão, com estado
 // de carregamento (antes mostrava "Nenhum…" enquanto ainda buscava).
 import { useState } from "react";
 import { MessageCircle, History, Loader2 } from "lucide-react";

@@ -23,7 +23,7 @@ interface MultiSelectFilterProps {
   options: MultiSelectOption[];
   selected: string[];
   onChange: (selected: string[]) => void;
-  /** Texto do trigger quando nada está selecionado (ex.: "Todos os Eventos"). */
+  /** Texto do trigger quando nada está selecionado (ex.: "Todos os eventos"). */
   placeholder: string;
   /** Mostra campo de busca no topo (listas longas: eventos, colaboradores). */
   searchable?: boolean;

@@ -6,7 +6,9 @@
 > `server/simulation.ts`). Quando este documento e o código divergirem, **o
 > código vale** — e o documento precisa ser corrigido. As divergências
 > client × API do §4 foram reconferidas em 24/09 contra o client atual
-> (commit `b998b8fc` e árvore de trabalho).
+> (commit `b998b8fc` e árvore de trabalho). Atualizado em 25/09 (`fa6763d4`):
+> anti-reuso do JWT e rate limit passaram para tabelas do Postgres, entrou
+> `GET /api/rh/controle` e o login automático do modo demonstração.
 >
 > Convenção de nomes na UI: `admin` = Administrador · `production` = Logística
 > Interna · `purchasing` = Compras/Viagens · `function_area` = Área
@@ -26,7 +28,8 @@ A ordem importa — cada regra só enxerga o que a anterior deixou passar:
 | 3 | Headers de segurança | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` (o token de SSO viaja na query string), `Content-Security-Policy: frame-ancestors 'self' <PORTAL_ORIGIN…>`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, HSTS só em produção. **Sem** `X-Frame-Options` (não aceita lista de origens; quebraria o iframe do portal). |
 | 4 | Sessão (`express-session` + `connect-pg-simple`) | Tabela `session`, `disableTouch: true`, cookie `sessionId` `httpOnly`, `Secure` + `SameSite=None` em produção (iframe cross-site), `Lax` em dev. `maxAge` **7 dias** absolutos. Testes (`PAINEL_DB=pglite`) usam MemoryStore. |
 | 5 | `express.json({ limit: '2mb' })` | `express.urlencoded` foi **removido** (era o formato que um `<form>` de outro site consegue enviar). |
-| 6 | Rate limit | `/api/auth/login`: 30 req / 15 min. `/api/auth/forgot-password` e `/reset-password`: 10 req / 1 h. Estado **em memória, por instância**. |
+| 6 | Rate limit | `/api/auth/login`: 30 req / 15 min. `/api/auth/forgot-password` e `/reset-password`: 10 req / 1 h. Contadores na tabela **`rate_limits`** (`server/rate-limit-store.ts`, um `PostgresRateLimitStore` por limitador, prefixos `login:`/`reset:`), compartilhados entre instâncias desde 25/09; um UPSERT por request reinicia a janela vencida ou soma 1; falha do banco → 500 (fail-closed). Linhas vencidas são apagadas no máximo 1× a cada 10 min por instância. |
+| 6b | Login de demonstração | `GET /__demo/entrar?papel=…` (`server/dev/demo-login.ts`) cria a sessão do usuário semeado como o SSO criaria (`iniciarSessao` com `sso: true`). **Só é registrada com `PAINEL_DEMO=1` e `NODE_ENV !== "production"`** — a decisão mora em `server/app.ts` e o teste `server/test/demo-seed.test.ts` garante o 404 em produção. Ver `docs/demo.md`. |
 | 7 | SSO middleware | Intercepta `?portal_sso=<JWT>` antes do React; valida, cria sessão, redireciona para `/`. `not_approved` → `/auth?sso_error=not_approved`; token inválido → segue para o client tratar via `GET /api/auth/sso`. |
 | 8 | **Gate global de `/api`** | Ver 1.3. |
 | 9 | `simulationReadOnlyGuard` | Com `session.simulatedUserId`, toda mutação em `/api` responde **403**, exceto `POST /api/simulation/start|stop` e `POST /api/auth/logout`. |
@@ -45,7 +48,11 @@ A ordem importa — cada regra só enxerga o que a anterior deixou passar:
   `app`, quando presente, precisa ser `painel-li` ou `logistica-interna`.
   `aud` não é exigido (o payload documentado não tem).
 - **Anti-reuso**: um token cria sessão **uma vez**. Chave = `jti` ou sha256
-  do token, guardada num `Map` **em memória, por instância** até o `exp`.
+  do token, gravada na tabela **`sso_tokens_usados(jti, expira_em)`** por
+  `registrarUsoDoToken` (`INSERT … ON CONFLICT (jti) DO NOTHING RETURNING`;
+  zero linhas = reuso → `token_reutilizado`). Compartilhada entre instâncias
+  desde 25/09 (antes era um `Map` por instância). Linhas com `expira_em` no
+  passado são apagadas no máximo 1× a cada 10 min, fora do caminho do login.
 - **Conta (`usuarioDoSso`)**: inexistente → criada `approved`/ativa com o
   papel do token (`papelDoPortal`: tabela de aliases de `shared/roles.ts`,
   depois heurísticas por trecho; default `production`). Rejeitada, inativa ou
@@ -122,8 +129,9 @@ cair no 403 do CSRF.
 | `PORTAL_API_TOKEN` | Bearer de `/api/portal/*` | aviso "DEPRECIADO"; `/api/portal/*` aceita `SSO_SECRET` |
 | `MARATONA_API_TOKEN` | Bearer de `/api/integration/*` | rotas respondem **503** |
 | `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS` | Object Storage (anexos) | upload/download de anexo falha |
-| `NODE_ENV=production` | liga `Secure`+`SameSite=None`, HSTS, SSO obrigatório, login por senha desligado | — |
-| `PAINEL_DB=pglite` | testes: MemoryStore de sessão | — |
+| `NODE_ENV=production` | liga `Secure`+`SameSite=None`, HSTS, SSO obrigatório, login por senha desligado, **rota de demo nunca registrada** | — |
+| `PAINEL_DB=pglite` | testes e `dev:demo`: Postgres embutido, MemoryStore de sessão, `ensure-schema` pulado | — |
+| `PAINEL_DEMO=1` | registra `GET /__demo/entrar?papel=` (só fora de produção); definido por `server/dev/demo.ts` | **nunca** definir em produção — não tem efeito lá, mas não tem o que fazer nos Secrets |
 
 ## 2. Autorização
 
@@ -356,6 +364,7 @@ a vaga sem permissão/estado entra em `skipped`.
 | Flash: ler | `GET /api/flash-movements[?collaboratorId=]` | 👁 | 👁 | ❌ | — |
 | Flash: lançar, crédito inicial, editar, excluir | `POST /api/flash-movements`, `POST /initial-credit`, `PATCH /:id`, `DELETE /:id` | ✅ | ✅ | ❌ | lançamentos automáticos (comparativo) → 409 |
 | Configurações financeiras | `GET/PUT /api/system-settings` | ✅ | ✅ | ❌ | allowlist de chaves; percentuais 0–100 |
+| Controle RH agregado | `GET /api/rh/controle[?eventId=&status=]` | 👁 | 👁 | ❌ | novo em 25/09 (`server/routes/rh-controle.ts`, `requireFinanceUser`); devolve as linhas já cruzadas (`shared/controle-rh.ts`) em vez de vagas + planejado + realizado + NF inteiros; `eventId` inexistente → 404; `status` fora de `FILTROS_DE_STATUS` → 400; `Cache-Control: no-store` |
 
 ### 3.14 Integrações (Bearer, fora do gate e do CSRF)
 
@@ -364,10 +373,11 @@ a vaga sem permissão/estado entra em `skipped`.
 | Maratona: colaboradores, eventos, participações | `GET /api/integration/employees`, `/events`, `/participations` | `Authorization: Bearer <MARATONA_API_TOKEN>` (comparação em tempo constante) | somente leitura; 503 sem a env; entrega CPF/telefone dos colaboradores |
 | Portal Norte: listar/criar/editar/desativar usuário | `GET/POST /api/portal/users`, `PATCH/DELETE /api/portal/users/:email` | `Bearer <PORTAL_API_TOKEN>` (fallback **depreciado**: `SSO_SECRET`) | papel via `papelDoPortal`; desativar/rejeitar derruba sessões; resposta sem segredos |
 
-**Total coberto:** ~197 rotas (6 auth + 9 usuários/simulação + 9 eventos + 17
+**Total coberto:** ~198 rotas (6 auth + 9 usuários/simulação + 9 eventos + 17
 funções + 6 colaboradores + 19 escalação + 20 Validação de Escala/prazos + 6
 trocas + 7 passagens/hospedagem/vouchers + 19 espelho + 6 bagagem + 13
-comentários/notas/anexos/logs + 43 financeiro + 7 integrações).
+comentários/notas/anexos/logs + 44 financeiro + 7 integrações), mais
+`GET /__demo/entrar` fora de `/api`, que só existe no modo demonstração.
 
 ## 4. Client × API — estado das divergências
 
@@ -487,19 +497,26 @@ arquivos, ignorada). Pendência: reescrever o histórico (`git filter-repo
 reclonem, e conferir se o repositório é público ou compartilhado. Fazer **depois**
 da rotação de segredos (o histórico também pode conter `.env`/tokens).
 
-### 6.4 Limitações por instância no autoscale
+### 6.4 Estado compartilhado × por instância no autoscale
 
-Estado em memória do processo, não compartilhado entre instâncias:
+**Resolvido em 25/09** (`fa6763d4`; migração
+`scripts/migrations/2026-09-25-estado-compartilhado.sql`, também criada pelo
+`ensure-schema` no boot):
+
+| Estado | Onde agora | Como |
+|---|---|---|
+| Anti-reuso do JWT de SSO | tabela `sso_tokens_usados(jti, expira_em)` | `registrarUsoDoToken` em `auth-guards.ts`: `INSERT … ON CONFLICT (jti) DO NOTHING RETURNING`; zero linhas = reuso. Limpeza oportunista das expiradas (≤ 1× / 10 min por instância). |
+| Rate limit de login/reset | tabela `rate_limits(chave, hits, expira_em)` | `server/rate-limit-store.ts` (`PostgresRateLimitStore`, um por limitador com prefixo): um UPSERT decide reinício da janela ou `hits + 1`; falha do banco → 500, fail-closed. |
+
+Continua em memória do processo, não compartilhado — e aceitável:
 
 | Estado | Onde | Risco | Mitigação possível |
 |---|---|---|---|
-| Anti-reuso do JWT de SSO | `tokensUsados` em `auth-guards.ts` | o mesmo token cria uma segunda sessão se cair em outra instância dentro dos 10 min | tabela `sso_tokens_usados(jti, exp)` com `INSERT … ON CONFLICT DO NOTHING` |
-| Cache de usuário (60 s) | `cacheDeUsuarios` | inativar/rejeitar demora até 60 s em outra instância (as sessões, porém, são apagadas no banco na hora) | aceitável; ou TTL menor |
-| Rate limit de login/reset | `express-rate-limit` MemoryStore | limite efetivo = N × 30 | store em Postgres/Redis, ou aceitar (login por senha é dev-only) |
+| Cache de usuário (60 s) | `cacheDeUsuarios` em `auth-guards.ts` | inativar/rejeitar demora até 60 s em outra instância (as sessões, porém, são apagadas no banco na hora) | aceitável; ou TTL menor |
 | Cache do aprovador padrão (30 s) | `scaling-validation.ts` | trocar o aprovador padrão leva até 30 s para valer em todas | aceitável |
 
-Enquanto `Max Machines = 1` no Replit (ver `scripts/MIGRATION-INSTRUCTIONS.md`),
-nada disso se manifesta.
+Com isso, subir `Max Machines` acima de 1 no Replit deixou de ser um risco de
+segurança; é uma decisão de custo do dono (ver `CHANGELOG-2026-09.md` §5.4).
 
 ### 6.5 Outras
 

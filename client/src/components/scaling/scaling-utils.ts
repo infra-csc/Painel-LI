@@ -162,9 +162,9 @@ export const extractTravelInfoFromObservations = (
 
 export const getPhaseLabel = (phase: string): string => {
   switch (phase) {
-    case "inclusao": return "Inclusão de Equipe";
+    case "inclusao": return "Inclusão de equipe";
     case "escalacao": return "Escalação";
-    case "passagem": return "Compra de Passagem";
+    case "passagem": return "Compra de passagem";
     case "hospedagem": return "Hospedagem";
     case "aprovado": return "Aprovado";
     default: return phase;

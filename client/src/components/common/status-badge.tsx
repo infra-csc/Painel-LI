@@ -57,6 +57,9 @@ export interface StatusBadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, 
   children: ReactNode;
 }
 
+// `forwardRef` (25/09): a pílula vira gatilho de Tooltip (`asChild`) na
+// Validação de escala — sem ref o React avisava "Function components cannot
+// be given refs" a cada linha, e o Vite derrubava o servidor de dev no aviso.
 export const StatusBadge = forwardRef<HTMLSpanElement, StatusBadgeProps>(function StatusBadge(
   { tone, size = "sm", dot = false, pulse = false, icon: Icon, className, children, ...rest },
   ref,

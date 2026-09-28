@@ -7,7 +7,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -136,7 +136,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
   return (
     <>
     <Dialog open={isOpen} onOpenChange={v => { if (!v) fechar(); }}>
-      <DialogContent className="p-0 gap-0 sm:max-w-[480px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
+      <DialogContent aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[480px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
 
         {/* ── Header ── */}
         <div className="px-6 py-5 border-b border-border">
@@ -149,7 +149,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
               )}
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-sm font-bold text-foreground">{userName || "Editar usuário"}</h2>
+                  <DialogTitle className="text-sm font-bold text-foreground leading-normal tracking-normal">{userName || "Editar usuário"}</DialogTitle>
                   {currentRole && (
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${roleCfg.badgeCls}`}>
                       {roleCfg.label}

@@ -7,7 +7,7 @@
 import type { Express, Request } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { budgetComparison as budgetComparisonTable, insertBudgetComparisonSchema, type BudgetActual, type BudgetPlanned } from "@shared/schema";
+import { budgetComparison as budgetComparisonTable, insertBudgetComparisonSchema, type BudgetActual, type BudgetPlanned, type MudancaDoComparativo } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { safeSyncFlashFromComparison, safeReverseFlashFromComparison, type FlashSyncActor } from "../flash-credit";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
@@ -95,9 +95,11 @@ export function registrarOrcamentoComparativo(app: Express): void {
       }
       // Convenção da tela: variância positiva = realizado acima do planejado
       const variance = totalActual - totalPlanned;
+      // numeric(8,2) desde 25/09 (era texto "12.34%"): número com 2 casas; o
+      // teto da coluna (±999 999,99) só é tocado com planejado de centavos.
       const variancePercent = totalPlanned > 0
-        ? ((variance / totalPlanned) * 100).toFixed(2) + '%'
-        : '0%';
+        ? Math.max(-999_999.99, Math.min(999_999.99, Number(((variance / totalPlanned) * 100).toFixed(2))))
+        : 0;
 
       // Changes log: só os pais enviados com planejado (filhos de split são
       // frações — comparar cada um contra o planejado cheio seria enganoso)
@@ -114,7 +116,7 @@ export function registrarOrcamentoComparativo(app: Express): void {
 
           return changes.length > 0 ? { collaboratorId: a.collaboratorId, changes, reason: a.changeReason } : null;
         })
-        .filter(Boolean);
+        .filter((c): c is MudancaDoComparativo => c !== null);
 
       // Check if comparison exists
       let comparison = await storage.getBudgetComparison(eventId);
@@ -125,7 +127,7 @@ export function registrarOrcamentoComparativo(app: Express): void {
           totalActual,
           variance,
           variancePercent,
-          changesLog: JSON.stringify(changesLog),
+          changesLog,
         });
       } else {
         comparison = await storage.createBudgetComparison({
@@ -134,7 +136,7 @@ export function registrarOrcamentoComparativo(app: Express): void {
           totalActual,
           variance,
           variancePercent,
-          changesLog: JSON.stringify(changesLog),
+          changesLog,
           status: 'pendente',
         });
       }

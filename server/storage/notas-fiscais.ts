@@ -1,7 +1,10 @@
 /** Notas fiscais (tabela invoices). */
 import { eq } from "drizzle-orm";
 import { db } from "../db";
-import { invoices, type Invoice, type InsertInvoice } from "@shared/schema";
+import { invoices, type Invoice } from "@shared/schema";
+
+/** Linha da NF como o Drizzle grava — inclui `history` (jsonb), que o zod do corpo não tem. */
+type InsertInvoice = typeof invoices.$inferInsert;
 
 export async function getInvoices(eventId?: string): Promise<Invoice[]> {
   if (eventId) {

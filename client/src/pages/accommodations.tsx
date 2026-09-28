@@ -15,6 +15,7 @@ import { fixEncoding } from "@/lib/utils";
 import type { Accommodation, TeamInclusion } from "@shared/schema";
 import type { OpcaoDeFiltro } from "@/components/common/filter-popover";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { PageHeader } from "@/components/common/page-header";
 import AccommodationModal from "@/components/accommodations/accommodation-modal";
 import AccommodationsTable from "@/components/accommodations/accommodations-table";
 import AccommodationsFilterBar from "@/components/accommodations/accommodations-filter-bar";
@@ -273,7 +274,7 @@ export default function Accommodations() {
   const runBatch = async () => {
     if (batchApplying) return;
     const err = !batchDraft.hotelName || !batchDraft.hotelLocation
-      ? "Preencha os campos obrigatórios: Nome do Hotel e Localização"
+      ? "Preencha os campos obrigatórios: Nome do hotel e Localização"
       : !isCheckOutAfterCheckIn(batchDraft) ? "O check-out deve ser igual ou posterior ao check-in." : null;
     if (err) { toast({ title: "Preencha o lote antes de aplicar", description: err, variant: "destructive" }); return; }
 
@@ -335,7 +336,7 @@ export default function Accommodations() {
   if (!hasPermission(user, "canAccessScreen3")) {
     return (
       <div className="bg-card rounded-lg shadow-1 border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso negado</h3>
         <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
     );
@@ -388,14 +389,18 @@ export default function Accommodations() {
       */}
       {/* `top` abaixo da barra do topo (23/09): com `top-0` a barra passava por
           cima do topo e dos menus dele ao rolar. */}
-      <div className="sticky top-[var(--sticky-top)] z-30 h-14 -mx-1 px-1 bg-background/95 backdrop-blur flex items-center gap-3">
-        <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Hospedagem</h1>
-        <span className="w-px h-5 bg-border shrink-0" aria-hidden="true" />
-        <p className="text-xs text-neutral truncate" data-testid="resumo-do-recorte">
-          {linhasVisiveis.length} {linhasVisiveis.length === 1 ? "vaga" : "vagas"} em {eventosNoRecorte}{" "}
-          {eventosNoRecorte === 1 ? "evento" : "eventos"} · {semReserva} sem reserva
-        </p>
-        {canEditField && (
+      {/* PageHeader `bar` (25/09): era a última barra de contexto desenhada à
+          mão (h-14 fixo, sem quebra) — em 375px o botão de lote saía da tela. */}
+      <PageHeader
+        variant="bar"
+        title="Hospedagem"
+        subtitle={
+          <span data-testid="resumo-do-recorte">
+            {linhasVisiveis.length} {linhasVisiveis.length === 1 ? "vaga" : "vagas"} em {eventosNoRecorte}{" "}
+            {eventosNoRecorte === 1 ? "evento" : "eventos"} · {semReserva} sem reserva
+          </span>
+        }
+        actions={canEditField && (
           /*
            * Sem nada marcado o botão não fica inerte: ele marca as pendentes
            * visíveis, que é o passo que faltava para o lote existir. Um botão
@@ -405,7 +410,7 @@ export default function Accommodations() {
             type="button"
             onClick={() => (effectiveSelectedForBatch.length > 0 ? handleApplyToSelected() : toggleAllSelection())}
             disabled={selectableAtivos.size === 0}
-            className="ml-auto shrink-0 h-[34px] px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+            className="shrink-0 h-[34px] px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 transition-colors"
             data-testid="button-batch-primary"
           >
             <ListChecks className="w-4 h-4" aria-hidden="true" />
@@ -414,7 +419,7 @@ export default function Accommodations() {
               : `Selecionar pendentes (${selectableAtivos.size})`}
           </button>
         )}
-      </div>
+      />
 
       {/*
         A fila de trabalho no lugar dos três cards de resumo e do banner de

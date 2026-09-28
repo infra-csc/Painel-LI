@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Lock, X, Eye, EyeOff, Check, AlertCircle, ShieldCheck } from "lucide-react";
 import { RequiredMark } from "@/components/forms/required-mark";
 
@@ -72,7 +72,7 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="p-0 gap-0 sm:max-w-[440px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
+      <DialogContent aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[440px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
 
         {/* ── Header ── */}
         <div className="px-6 pt-6 pb-5 border-b border-border">
@@ -83,7 +83,7 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
                 <Lock className="w-5 h-5 text-primary" aria-hidden="true" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-foreground">Redefinir senha</h2>
+                <DialogTitle className="text-sm font-bold text-foreground leading-normal tracking-normal">Redefinir senha</DialogTitle>
                 <p className="text-2xs text-muted-foreground mt-0.5">Defina uma nova senha para o usuário</p>
 
                 {/* User pill */}

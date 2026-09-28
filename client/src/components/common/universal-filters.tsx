@@ -81,13 +81,13 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   });
 
   const statusOptions = [
-    { value: "planejado", label: "Aguardando Escalação" },
-    { value: "escalacao", label: "Em Escalação" },
-    { value: "passagem", label: "Aguardando Passagem" },
-    { value: "hospedagem", label: "Aguardando Hospedagem" },
-    { value: "passagem_comprada", label: "Passagem Comprada" },
-    { value: "hospedagem_comprada", label: "Hospedagem Comprada" },
-    { value: "hospedagem_passagem_comprada", label: "Hospedagem e Passagem Comprada" }
+    { value: "planejado", label: "Aguardando escalação" },
+    { value: "escalacao", label: "Em escalação" },
+    { value: "passagem", label: "Aguardando passagem" },
+    { value: "hospedagem", label: "Aguardando hospedagem" },
+    { value: "passagem_comprada", label: "Passagem comprada" },
+    { value: "hospedagem_comprada", label: "Hospedagem comprada" },
+    { value: "hospedagem_passagem_comprada", label: "Hospedagem e passagem compradas" }
   ];
 
   const clearFilters = () => {
@@ -105,18 +105,13 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
     onFiltersChange(baseFilters);
   };
 
-  const baseCols = hideStatusFilter ? 5 : 6;
-  const extraCols = (showTicketFilter ? 1 : 0) + (showAccommodationFilter ? 1 : 0);
-  const totalCols = baseCols + extraCols;
-  const gridCols = `160px ${Array(totalCols - 1).fill('1fr').join(' ')}`;
-
   return (
-    <div className="bg-card rounded-xl border border-border shadow-1 px-5 py-4 mb-6">
-      {/* Grid de filtros */}
-      <div
-        className="grid gap-3 items-end"
-        style={{ gridTemplateColumns: gridCols }}
-      >
+    <div className="bg-card rounded-xl border border-border shadow-1 px-4 sm:px-5 py-4 mb-6">
+      {/* Grid de filtros — colunas que QUEBRAM (25/09): o `gridTemplateColumns`
+          inline com 6 a 8 colunas fixas fazia a Inclusão de equipe medir
+          1.050px em qualquer largura; agora cada filtro tem ao menos 150px e
+          o resto se ajusta à largura útil. */}
+      <div className="grid gap-3 items-end grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
         {/* Busca */}
         <div>
           <FilterLabel icon={Search} text="Buscar" />
@@ -143,7 +138,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               .map(e => ({ value: e.id, label: e.name }))}
             selected={filters.eventId ?? []}
             onChange={(value) => onFiltersChange({ ...filters, eventId: value })}
-            placeholder="Todos os Eventos"
+            placeholder="Todos os eventos"
             searchable
             searchPlaceholder="Buscar evento…"
             testId="filter-event"
@@ -172,7 +167,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               .map(c => ({ value: c.id, label: fixEncoding(c.fullName) || "Sem nome" }))}
             selected={filters.collaboratorId ?? []}
             onChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
-            placeholder="Todos os Colaboradores"
+            placeholder="Todos os colaboradores"
             searchable
             searchPlaceholder="Buscar colaborador…"
             testId="filter-collaborator"
@@ -187,7 +182,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               options={statusOptions}
               selected={filters.status ?? []}
               onChange={(value) => onFiltersChange({ ...filters, status: value })}
-              placeholder="Todos os Status"
+              placeholder="Todos os status"
               testId="filter-status"
             />
           </div>
@@ -198,9 +193,9 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
           <FilterLabel icon={ArrowUpDown} text="Escalação" />
           <MultiSelectFilter
             options={[
-              { value: "pending", label: "Pendentes de Escalação" },
-              { value: "escalated", label: "Já Escalados" },
-              { value: "aguardando_producao", label: "Aguardando Gestor" },
+              { value: "pending", label: "Pendentes de escalação" },
+              { value: "escalated", label: "Já escalados" },
+              { value: "aguardando_producao", label: "Aguardando gestor" },
               { value: "cancelado", label: "Cancelados" },
             ]}
             selected={filters.escalationStatus ?? []}
@@ -250,12 +245,12 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
       </div>
 
       {/* Linha 2: children (esquerda) + Toggle + Limpar (direita) */}
-      <div className="flex items-center justify-between mt-3.5 pt-3.5 border-t border-border gap-4">
+      <div className="flex flex-wrap items-center justify-between mt-3.5 pt-3.5 border-t border-border gap-x-4 gap-y-2">
         <div className="flex items-center gap-3 flex-1 flex-wrap">
           {children}
         </div>
 
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {rightActions}
 
           <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -265,7 +260,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               onCheckedChange={(checked) => onFiltersChange({ ...filters, showDeleted: checked })}
               data-testid="checkbox-show-deleted"
             />
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar Excluídos</span>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar excluídos</span>
           </label>
 
           <button

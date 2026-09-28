@@ -36,7 +36,10 @@ export async function lerVoucherPdf(arquivo: Buffer): Promise<VoucherLeitura> {
   let texto: string;
   try {
     texto = await textoDoPdf(arquivo);
-  } catch {
+  } catch (erro) {
+    // 28/09: o motivo real ficava engolido e "não consegui abrir" virava um
+    // chamado sem pista. O texto para o usuário continua o mesmo; o log leva a causa.
+    console.error("[voucher] falha ao abrir o PDF:", erro instanceof Error ? `${erro.name}: ${erro.message}` : erro);
     return {
       tipo: "desconhecido",
       campos: {},

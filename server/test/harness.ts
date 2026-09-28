@@ -11,24 +11,20 @@
  *    (por isso os módulos do servidor são carregados com `await import()`):
  *    server/db.ts lê a variável e troca o driver Neon pelo PGlite;
  *  - o schema é gerado em tempo de teste a partir de shared/schema.ts pela API
- *    do drizzle-kit (`generateDrizzleJson` + `generateMigration` contra um
- *    snapshot vazio) e aplicado statement a statement. Nada de SQL escrito à
- *    mão: se o schema mudar, o teste acompanha. `drizzle-kit/api` é carregado
- *    pela build CJS (`createRequire`) porque a build ESM do pacote tem
- *    `require` dinâmico de "fs" e quebra sob ESM;
- *  - as sequences (`event_sequence` etc.) e a tabela `session` não fazem parte
- *    do schema do Drizzle (são criadas por migração à mão em produção) e são
- *    criadas aqui antes do push. `server/ensure-schema.ts` NÃO roda.
+ *    do drizzle-kit — ver server/dev/pglite-schema.ts (`criarSchemaPglite`),
+ *    módulo compartilhado com o modo demonstração (`npm run dev:demo`). Nada
+ *    de SQL escrito à mão: se o schema mudar, o teste acompanha. As sequences
+ *    e a tabela `session` (fora do schema do Drizzle) são criadas lá também.
+ *    `server/ensure-schema.ts` NÃO roda.
  *
  * Sessão: MemoryStore do express-session (server/app.ts decide isso quando
  * PAINEL_DB=pglite). A tabela `session` existe só para
  * `destruirSessoesDoUsuario` (DELETE direto via pool.query) não falhar — o
  * efeito "usuário inativado → 401" vem do gate global, que relê o usuário.
  */
-import { createRequire } from "module";
 import { randomUUID } from "crypto";
-import { sql } from "drizzle-orm";
 import { SignJWT } from "jose";
+import { criarSchemaPglite } from "../dev/pglite-schema";
 import bcrypt from "bcryptjs";
 import request from "supertest";
 import type { Express } from "express";
@@ -64,29 +60,6 @@ export interface Contexto {
 
 let contexto: Promise<Contexto> | null = null;
 
-/** Sequences que o schema referencia em `default nextval(...)` mas não declara. */
-const SEQUENCES = ["event_sequence", "function_sequence", "collaborator_sequence", "inclusion_sequence", "log_sequence"];
-
-/** Tabela do connect-pg-simple (node_modules/connect-pg-simple/table.sql, sem o WITH (OIDS) legado). */
-const SQL_TABELA_SESSION = [
-  `CREATE TABLE IF NOT EXISTS "session" ("sid" varchar NOT NULL COLLATE "default", "sess" json NOT NULL, "expire" timestamp(6) NOT NULL)`,
-  `ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE`,
-  `CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")`,
-];
-
-async function criarSchema(db: ModuloDb["db"], schema: ModuloSchema): Promise<void> {
-  for (const s of SEQUENCES) await db.execute(sql.raw(`CREATE SEQUENCE IF NOT EXISTS ${s}`));
-
-  const require = createRequire(import.meta.url);
-  const { generateDrizzleJson, generateMigration } = require("drizzle-kit/api") as typeof import("drizzle-kit/api");
-  const vazio = generateDrizzleJson({});
-  const atual = generateDrizzleJson(schema as unknown as Record<string, unknown>);
-  const statements = await generateMigration(vazio, atual);
-  for (const st of statements) await db.execute(sql.raw(st));
-
-  for (const st of SQL_TABELA_SESSION) await db.execute(sql.raw(st));
-}
-
 /**
  * App + banco, criados UMA vez por arquivo de teste (o PGlite demora ~3 s para
  * subir; os testes usam dados próprios — e-mails, documentos e nomes únicos —
@@ -104,7 +77,7 @@ export function criarApp(): Promise<Contexto> {
       // `db`/`pool` de server/db.ts são proxies em modo PGlite: só funcionam
       // depois que o Postgres embutido subiu.
       await inicializarBancoDeTeste();
-      await criarSchema(db, schema);
+      await criarSchemaPglite(db, schema as unknown as Record<string, unknown>);
       // modoSeguro: as regras de produção (SSO obrigatório em toda a API, CSRF,
       // HSTS) valem mesmo com NODE_ENV=test. cookieSecure=false porque o
       // supertest fala http — com `Secure` o cookie de sessão nunca voltaria.

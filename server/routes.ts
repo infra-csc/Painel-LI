@@ -40,6 +40,7 @@ import { registrarFlash } from "./routes/flash";
 import { registrarBagagem } from "./routes/bagagem";
 import { registrarNotasEHistorico } from "./routes/notas-e-historico";
 import { registrarTrocas } from "./routes/trocas";
+import { registrarControleRh } from "./routes/rh-controle";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Toda rota registrada daqui em diante (inclusive as de scaling-validation e
@@ -86,6 +87,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registrarFlash(app);
   registrarBagagem(app);
   registrarNotasEHistorico(app);
+  // Controle RH agregado (25/09): as linhas já cruzadas para a tela do RH.
+  registrarControleRh(app);
 
   // ── Trocas de colaborador ─────────────────────────────────────────────────
   registrarTrocas(app);

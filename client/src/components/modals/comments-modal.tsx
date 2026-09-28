@@ -95,9 +95,9 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
 
   const getPhaseLabel = (phase: string) => {
     switch (phase) {
-      case "inclusao": return "Inclusão de Equipe";
+      case "inclusao": return "Inclusão de equipe";
       case "escalacao": return "Escalação";
-      case "passagem": return "Compra de Passagem";
+      case "passagem": return "Compra de passagem";
       case "hospedagem": return "Hospedagem";
       case "aprovado": return "Aprovado";
       default: return phase;
@@ -112,7 +112,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg w-full p-6 bg-card rounded-xl shadow-3 border-0" data-testid="modal-comments">
+      <DialogContent aria-describedby={undefined} className="max-w-lg w-full p-6 bg-card rounded-xl shadow-3 border-0" data-testid="modal-comments">
         <DialogTitle className="sr-only">Comentários do registro</DialogTitle>
 
         {/* Header */}

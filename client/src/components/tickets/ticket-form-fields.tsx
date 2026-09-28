@@ -176,8 +176,8 @@ export default function TicketFormFields({
       <div className={isBatch ? "space-y-3" : "bg-card border border-border rounded-xl p-4 space-y-4"}>
         <section className={isBatch ? card : ""}>
           {isBatch
-            ? sectionHeader({ title: "Dados da Van", tone: "slate", icon: <Truck className="w-3 h-3 text-white" aria-hidden="true" /> })
-            : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados da Van</div>}
+            ? sectionHeader({ title: "Dados da van", tone: "slate", icon: <Truck className="w-3 h-3 text-white" aria-hidden="true" /> })
+            : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados da van</div>}
           <div className={isBatch ? "p-3 bg-card space-y-3" : "mt-3 space-y-3"}>
             <div className={fieldWrap}>
               <Label htmlFor={idOf("vanCompany")} className={L}>Nome da Empresa{R("purchaseOrderNumber")}</Label>
@@ -242,18 +242,18 @@ export default function TicketFormFields({
     if (isBatch) {
       // Rodoviário no lote: cidade + rodoviária, origem depois destino
       return (<>
-        {textField({ field: cityO, label: "Cidade de Origem", placeholder: exO })}
-        {textField({ field: airO, label: leg === "ida" ? "Rodoviária Origem" : "Rodoviária Origem (volta)", placeholder: leg === "ida" ? "Ex: Rodoviária do Tietê" : "Ex: Rodoviária Novo Rio" })}
-        {textField({ field: cityD, label: "Cidade de Destino", placeholder: exD })}
-        {textField({ field: airD, label: leg === "ida" ? "Rodoviária Destino" : "Rodoviária Destino (volta)", placeholder: leg === "ida" ? "Ex: Rodoviária Novo Rio" : "Ex: Rodoviária do Tietê" })}
+        {textField({ field: cityO, label: "Cidade de origem", placeholder: exO })}
+        {textField({ field: airO, label: leg === "ida" ? "Rodoviária de origem" : "Rodoviária Origem (volta)", placeholder: leg === "ida" ? "Ex: Rodoviária do Tietê" : "Ex: Rodoviária Novo Rio" })}
+        {textField({ field: cityD, label: "Cidade de destino", placeholder: exD })}
+        {textField({ field: airD, label: leg === "ida" ? "Rodoviária de destino" : "Rodoviária Destino (volta)", placeholder: leg === "ida" ? "Ex: Rodoviária Novo Rio" : "Ex: Rodoviária do Tietê" })}
       </>);
     }
     // Modal: cidades primeiro, depois aeroportos/rodoviárias
     return (<>
-      {textField({ field: cityO, label: "Cidade Origem", placeholder: exO, extraLabel: leg === "volta" ? evBadge : undefined })}
-      {textField({ field: cityD, label: "Cidade Destino", placeholder: exD, extraLabel: leg === "ida" ? evBadge : undefined })}
-      {textField({ field: airO, label: isRodo ? "Rodoviária Origem" : "Aeroporto Origem", placeholder: isRodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: GRU, CGH, BSB" : "Ex: SDU, GIG, GRU") })}
-      {textField({ field: airD, label: isRodo ? "Rodoviária Destino" : "Aeroporto Destino", placeholder: isRodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: SDU, GIG, RJ" : "Ex: GRU, CGH, BSB") })}
+      {textField({ field: cityO, label: "Cidade de origem", placeholder: exO, extraLabel: leg === "volta" ? evBadge : undefined })}
+      {textField({ field: cityD, label: "Cidade de destino", placeholder: exD, extraLabel: leg === "ida" ? evBadge : undefined })}
+      {textField({ field: airO, label: isRodo ? "Rodoviária de origem" : "Aeroporto de origem", placeholder: isRodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: GRU, CGH, BSB" : "Ex: SDU, GIG, GRU") })}
+      {textField({ field: airD, label: isRodo ? "Rodoviária de destino" : "Aeroporto de destino", placeholder: isRodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: SDU, GIG, RJ" : "Ex: GRU, CGH, BSB") })}
     </>);
   };
 
@@ -269,7 +269,7 @@ export default function TicketFormFields({
   const idaSection = (
     <section className={isBatch ? card : "bg-surface-muted border border-border rounded-xl p-4 space-y-3"}>
       {sectionHeader({
-        title: isBatch ? (isRodo ? "Embarque" : "Trecho de Ida") : "IDA",
+        title: isBatch ? (isRodo ? "Embarque" : "Trecho de ida") : "IDA",
         tone: "blue",
         icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" aria-hidden="true" /> : <Plane className="w-3 h-3 text-white" aria-hidden="true" />) : (isRodo ? "🚌" : "🛫"),
       })}
@@ -287,7 +287,7 @@ export default function TicketFormFields({
   const voltaSection = (
     <section className={isBatch ? card : "bg-surface-muted border border-border rounded-xl p-4 space-y-3"}>
       {sectionHeader({
-        title: isBatch ? (isRodo ? "Desembarque" : "Trecho de Volta") : "VOLTA",
+        title: isBatch ? (isRodo ? "Desembarque" : "Trecho de volta") : "VOLTA",
         tone: "orange",
         icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" aria-hidden="true" /> : <Plane className="w-3 h-3 text-white rotate-180" aria-hidden="true" />) : (isRodo ? "🚌" : "🛬"),
       })}
@@ -326,8 +326,8 @@ export default function TicketFormFields({
       {/* Financeiro / Informações da Compra */}
       <section className={card}>
         {isBatch
-          ? sectionHeader({ title: "Dados Financeiros", tone: "slate", icon: <CreditCard className="w-3 h-3 text-white" aria-hidden="true" /> })
-          : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Informações da Compra</div>}
+          ? sectionHeader({ title: "Dados financeiros", tone: "slate", icon: <CreditCard className="w-3 h-3 text-white" aria-hidden="true" /> })
+          : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Informações da compra</div>}
         <div className={isBatch ? "p-3 bg-card grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
           <div className={fieldWrap}>
             <Label htmlFor={idOf("purchaseOrderNumber")} className={L}>{isRodo ? "Bilhete" : "LOC"}{R("purchaseOrderNumber")}</Label>
@@ -343,7 +343,7 @@ export default function TicketFormFields({
             {M("purchaseOrderNumber")}
           </div>
           <div className={fieldWrap}>
-            <Label htmlFor={idOf("purchaseDate")} className={L}>Data da Compra</Label>
+            <Label htmlFor={idOf("purchaseDate")} className={L}>Data da compra</Label>
             <Input
               id={idOf("purchaseDate")}
               type="date"
@@ -357,7 +357,7 @@ export default function TicketFormFields({
             {M("purchaseDate")}
           </div>
           <div className={isBatch ? fieldWrap : "mt-3 md:col-span-2"}>
-            <Label htmlFor={idOf("value")} className={L}>Valor da Passagem{R("value")}</Label>
+            <Label htmlFor={idOf("value")} className={L}>Valor da passagem{R("value")}</Label>
             {/* Guarda o texto como digitado; a conversão para centavos usa parseBrNumber. */}
             <Input
               id={idOf("value")}

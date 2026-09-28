@@ -284,7 +284,7 @@ export default function AdminUsers() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <h2 className="text-lg font-bold text-foreground mb-1">Acesso Negado</h2>
+          <h2 className="text-lg font-bold text-foreground mb-1">Acesso negado</h2>
           <p className="text-sm text-muted-foreground">Você não tem permissão para acessar esta página.</p>
         </div>
       </div>
@@ -334,7 +334,7 @@ export default function AdminUsers() {
               onClick={() => setLocation("/user-registration")}
               className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold rounded-lg shadow-1 hover:shadow-2 transition-all"
             >
-              <UserPlus className="w-3.5 h-3.5" aria-hidden="true" /> Novo Usuário
+              <UserPlus className="w-3.5 h-3.5" aria-hidden="true" /> Novo usuário
             </button>
           )}
         />
@@ -491,7 +491,7 @@ export default function AdminUsers() {
                                   <Edit className="w-3.5 h-3.5" aria-hidden="true" />
                                 </button>
                               </TooltipTrigger>
-                              <TooltipContent>Editar Usuário</TooltipContent>
+                              <TooltipContent>Editar usuário</TooltipContent>
                             </Tooltip>
 
                             {/* Pending: approve / reject */}

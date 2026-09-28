@@ -10,6 +10,7 @@ import {
   alvoDoCampo,
   coerce,
   montarGruposUber,
+  normalizarHoraDaCelula,
   temCabecalhoDoEspelho,
   timeToMinutes,
 } from "./operational-mirror";
@@ -161,6 +162,23 @@ describe("coerce", () => {
     expect(coerce("1", "bool")).toBe(true);
     expect(coerce("nao", "bool")).toBe(false);
     expect(coerce("2026-09-01", "date")).toBe("2026-09-01");
+  });
+});
+
+describe("normalizarHoraDaCelula — horas HH:MM das células de passagem/hospedagem (25/09)", () => {
+  it("normaliza '14h' e '9:30'; mantém HH:MM válido; null passa", () => {
+    expect(normalizarHoraDaCelula("ticket.actualDepartureTime", "14h")).toBe("14:00");
+    expect(normalizarHoraDaCelula("ticket.actualReturnTime", "9:30")).toBe("09:30");
+    expect(normalizarHoraDaCelula("accommodation.checkInTime", "09:30")).toBe("09:30");
+    expect(normalizarHoraDaCelula("accommodation.checkOutTime", null)).toBeNull();
+  });
+  it("recusa texto sem hora reconhecível, com mensagem em pt-BR", () => {
+    expect(() => normalizarHoraDaCelula("accommodation.checkInTime", "tarde")).toThrow(/Horário inválido/);
+    expect(() => normalizarHoraDaCelula("ticket.actualDepartureTime", "25:00")).toThrow(/Horário inválido/);
+  });
+  it("coluna que não é de hora passa reto", () => {
+    expect(normalizarHoraDaCelula("ticket.locator", "tarde")).toBe("tarde");
+    expect(normalizarHoraDaCelula("observations", "14h")).toBe("14h");
   });
 });
 

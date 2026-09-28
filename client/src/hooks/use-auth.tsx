@@ -207,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // O registro público (/api/auth/register) foi removido em 17/08/2026: contas
-  // são criadas pelo RH/Compras/admin em "Cadastro de Usuários" ou via SSO.
+  // são criadas pelo RH/Compras/admin em "Cadastro de usuários" ou via SSO.
 
   const logout = () => {
     const portalReturn = portalReturnSeguro(localStorage.getItem(PORTAL_RETURN_KEY));

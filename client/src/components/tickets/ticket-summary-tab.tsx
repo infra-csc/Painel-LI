@@ -84,7 +84,7 @@ export default function TicketSummaryTab({
             )}
             {collaborator.birthDate && (
               <div>
-                <div className={LBL}>Data de Nascimento</div>
+                <div className={LBL}>Data de nascimento</div>
                 <div className={VAL}>{formatDate(collaborator.birthDate)}</div>
               </div>
             )}
@@ -130,7 +130,7 @@ export default function TicketSummaryTab({
         <div className="space-y-3">
           <div className="border border-border rounded-xl overflow-hidden">
             <div className="bg-primary/5 border-b border-border px-4 py-2.5 flex items-center gap-2">
-              <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de Trabalho</span>
+              <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de trabalho</span>
             </div>
             <div className="p-4">
               <div className="grid grid-cols-2 gap-3">

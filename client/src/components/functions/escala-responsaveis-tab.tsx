@@ -280,7 +280,7 @@ function BulkApplyBlock({ functions, users, onDone }: {
   );
 }
 
-// ─── Aba "Validação de Escala" ─────────────────────────────────────────────
+// ─── Aba "Validação de escala" ─────────────────────────────────────────────
 export default function EscalaResponsaveisTab({ canManage }: { canManage: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();

@@ -35,6 +35,8 @@ export interface NavTab {
 
 export interface NavGroup {
   title: string;
+  /** Cor dos ícones do grupo (ver `CLASSE_DO_TONE`). */
+  tone: ToneDoGrupo;
   ids: string[];
   /**
    * Subconjunto contíguo com rótulo próprio (ex.: as 4 telas do fluxo da
@@ -75,10 +77,24 @@ export const ALL_TABS: NavTab[] = [
   { id: "simulation",         path: "/simulation",         label: "Ver como usuário",     icon: Eye,               permission: "canAccessSimulation" },
 ];
 
+/**
+ * Cor do ícone por grupo (28/09 — dono: "sidebar sem cor está bem ruim"). A
+ * padronização de 23/09 tinha deixado tudo em cinza; a cor por grupo ajuda a
+ * achar a tela de relance. Um tom por grupo, sempre por token semântico.
+ */
+export type ToneDoGrupo = "primary" | "info" | "success" | "warning";
+export const CLASSE_DO_TONE: Record<ToneDoGrupo, string> = {
+  primary: "text-primary",
+  info: "text-info-strong",
+  success: "text-success-strong",
+  warning: "text-warning-strong",
+};
+
 export const MENU_GROUPS: NavGroup[] = [
-  { title: "Cadastros", ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
+  { title: "Cadastros", tone: "primary", ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   {
     title: "Operacional",
+    tone: "info",
     // Módulo de Escala na ordem do fluxo: Sugestão → Validação → Aprovação → Histórico
     ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"],
     // O fluxo da Escala é um módulo à parte do operacional antigo (Inclusão,
@@ -88,9 +104,15 @@ export const MENU_GROUPS: NavGroup[] = [
       ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"],
     },
   },
-  { title: "Financeiro", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
-  { title: "Gestão", ids: ["consultation", "admin-users", "simulation"] },
+  { title: "Financeiro", tone: "success", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
+  { title: "Gestão", tone: "warning", ids: ["consultation", "admin-users", "simulation"] },
 ];
+
+const TONE_BY_TAB = new Map<string, ToneDoGrupo>(MENU_GROUPS.flatMap((g) => g.ids.map((id) => [id, g.tone] as const)));
+/** Classe de cor do ícone da tela, pelo grupo do menu. */
+export function classeDeCorDaTela(tabId: string): string {
+  return CLASSE_DO_TONE[TONE_BY_TAB.get(tabId) ?? "primary"];
+}
 
 const TAB_BY_ID = new Map(ALL_TABS.map((t) => [t.id, t]));
 const TAB_BY_PATH = new Map(ALL_TABS.map((t) => [t.path, t]));

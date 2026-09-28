@@ -6,7 +6,7 @@
  * inteira junto, e um módulo puro pode ser testado direto.
  *
  * Antes cada lugar tinha a sua cadeia de ifs ("Escalado" × "Aprovado" para o
- * mesmo registro, "Aguard. Gestor" × "Aguardando Gestor"). Gestor = quem
+ * mesmo registro, "Aguard. Gestor" × "Aguardando gestor"). Gestor = quem
  * aprova cenotécnica; o status gravado no banco continua `aguardando_producao`.
  *
  * **Cor = estado (redesenho 01/09).** A paleta abaixo tem um papel só: a

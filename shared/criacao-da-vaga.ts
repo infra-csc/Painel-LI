@@ -44,7 +44,8 @@ export interface AuditoriaDeCriacao {
   entityId: string;
   action: string;
   userName?: string | null;
-  newData?: string | null;
+  /** JSON como string (logs antigos) ou já como objeto (jsonb, 25/09). */
+  newData?: string | Record<string, unknown> | null;
   createdAt: Quando;
 }
 
@@ -56,10 +57,10 @@ export interface CriacaoDaVaga {
 /** Janela para casar a vaga com a auditoria do lote (gravada logo depois). */
 export const JANELA_DA_CRIACAO_MS = 120_000;
 
-function ehLote(newData: string | null | undefined): boolean {
+function ehLote(newData: string | Record<string, unknown> | null | undefined): boolean {
   if (!newData) return false;
   try {
-    const o = JSON.parse(newData) as unknown;
+    const o: unknown = typeof newData === "string" ? JSON.parse(newData) : newData;
     return !!o && typeof o === "object" && "count" in (o as Record<string, unknown>);
   } catch {
     return false;

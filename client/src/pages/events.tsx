@@ -10,6 +10,7 @@ import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes
 import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/lib/use-media-query";
 import {
   Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown,
   RotateCcw, Search, ChevronLeft, ChevronRight, CalendarDays, CalendarX2, CloudOff, MapPin, FilterX, AlignJustify, List, CalendarRange, Calendar, CalendarCheck, CalendarX,
@@ -114,7 +115,8 @@ function PeriodNav({ label, onPrev, onNext, onToday, prevLabel, nextLabel, size 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-7 py-4 sm:py-5 border-b border-border">
       <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-        <h2 className={cn("m-0 font-extrabold text-foreground tracking-tight capitalize truncate", size === "lg" ? "text-lg" : "text-base")}>
+        {/* `first-letter:uppercase`, não `capitalize` (25/09): "20–26 De Setembro De 2026" virava Title Case. */}
+        <h2 className={cn("m-0 font-extrabold text-foreground tracking-tight first-letter:uppercase truncate", size === "lg" ? "text-lg" : "text-base")}>
           {label}
         </h2>
         <div className="flex gap-0.5 shrink-0">
@@ -301,7 +303,7 @@ function EventsEmpty({ hasFilters, onClear, onNew }: { hasFilters: boolean; onCl
       icon={CalendarDays}
       title="Nenhum evento cadastrado"
       description="Crie o primeiro evento para começar a montar o cronograma logístico."
-      action={<Button size="sm" onClick={onNew}><Plus className="w-4 h-4" aria-hidden="true" /> Novo Evento</Button>}
+      action={<Button size="sm" onClick={onNew}><Plus className="w-4 h-4" aria-hidden="true" /> Novo evento</Button>}
     />
   );
 }
@@ -477,6 +479,10 @@ export default function Events() {
   const [sortDir,      setSortDir]      = useState<SortDir>("desc");
   const [defaultSort,  setDefaultSort]  = useState(true);
   const [viewMode,     setViewMode]     = useState<ViewMode>("table");
+  // Celular (25/09): a tabela de 720px era cortada em 375px sem modo cartão.
+  // Abaixo de `md` a visualização "Tabela" vira a lista em cartões — os mesmos
+  // dados e ações, sem rolagem horizontal — e o botão dela some do seletor.
+  const isMobile = useIsMobile();
   const [calDate,      setCalDate]      = useState(new Date());
   const [confirmState, setConfirmState] = useState<{
     open: boolean; title: string; message: string; confirmLabel: string;
@@ -693,7 +699,7 @@ export default function Events() {
               <button type="button" onClick={clearFilters} data-testid="button-clear-filters"
                 className="h-8 px-2.5 rounded-md text-primary text-xs font-bold flex items-center gap-1 hover:text-primary-hover hover:bg-brand-soft transition-colors">
                 <FilterX className="h-4 w-4" aria-hidden="true" />
-                Limpar Filtros
+                Limpar filtros
               </button>
             )}
 
@@ -707,7 +713,9 @@ export default function Events() {
             {/* View toggle */}
             <div className="flex bg-muted rounded-md p-0.5 gap-px">
               {VIEWS.map(v => {
-                const active = viewMode === v.key;
+                // No celular "Tabela" e "Lista" são a mesma coisa: o botão da tabela some.
+                if (v.key === "table" && isMobile) return null;
+                const active = viewMode === v.key || (isMobile && v.key === "list" && viewMode === "table");
                 return (
                   <Tooltip key={v.key}>
                     <TooltipTrigger asChild>
@@ -743,10 +751,10 @@ export default function Events() {
             <p className="text-xs text-muted-foreground mb-4">{loadErrorMsg(error)}</p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar novamente</Button>
           </div>
-        ) : viewMode === "table" ? (
+        ) : viewMode === "table" && !isMobile ? (
           <TableView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
             escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} busy={isMutating} empty={emptyNode} podeEditar={podeCadastrar} />
-        ) : viewMode === "list" ? (
+        ) : viewMode === "list" || viewMode === "table" ? (
           <ListView events={filteredAndSorted} onEdit={openModal} onDelete={isAdmin ? confirmDelete : undefined} onRestore={confirmRestore}
             escalacoes={escalacoes} busy={isMutating} empty={emptyNode} podeEditar={podeCadastrar} />
         ) : viewMode === "calendar" ? (

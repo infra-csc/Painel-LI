@@ -49,6 +49,16 @@ export function semSegredos<T extends { password?: unknown; resetToken?: unknown
 // carga; um cache por id com TTL curto resolve. As rotas que alteram usuário
 // chamam `invalidarCacheDeUsuario` para o efeito ser imediato nesta instância
 // (em outra instância do autoscale o efeito leva até TTL_USUARIO_MS).
+//
+// Por que ESTE cache continua em memória (25/09), enquanto o anti-reuso do
+// SSO e o rate limit foram para o Postgres: aqui o pior caso é um usuário
+// recém-inativado seguir com acesso por até 60 s numa instância que ainda não
+// releu o banco — inconveniente, não brecha (a inativação já destrói as
+// sessões dele em `destruirSessoesDoUsuario`, e o cookie deixa de valer no
+// request seguinte de qualquer instância). Levar o cache para o banco
+// anularia o motivo dele existir: a leitura por request voltaria. Já o token
+// de SSO reutilizado e o brute force de login são decisões de SEGURANÇA que
+// precisam ser as mesmas em todas as instâncias — por isso vivem numa tabela.
 const TTL_USUARIO_MS = 60_000;
 const cacheDeUsuarios = new Map<string, { user: User | null; ate: number }>();
 
@@ -144,19 +154,32 @@ export class SsoError extends Error {
 /** Valores aceitos na claim `app` quando ela vier no token. */
 const APPS_ACEITOS = new Set(["painel-li", "logistica-interna"]);
 
-// Anti-reuso: um token só cria sessão UMA vez. Guardamos o jti (ou o hash do
-// token) até ele expirar. Limitação conhecida: o Set é por instância — no
-// autoscale com mais de uma instância, o segundo uso numa instância diferente
-// dentro dos 10 min de vida do token passaria. Trocar por tabela se virar risco.
-const tokensUsados = new Map<string, number>();
-function registrarUsoDoToken(chave: string, expMs: number): boolean {
+// Anti-reuso: um token só cria sessão UMA vez. O jti (ou o hash do token) é
+// gravado na tabela `sso_tokens_usados` (shared/schema.ts) até ele expirar.
+// Era um Map por instância (23/09) — no autoscale, o segundo uso do mesmo
+// token numa instância diferente passava. Agora o INSERT com ON CONFLICT DO
+// NOTHING é a decisão: 0 linhas devolvidas = já estava lá = reuso → recusa.
+// Falha do banco recusa o token (fail-closed): melhor pedir novo login no
+// Portal do que aceitar um token que talvez já tenha sido usado.
+const LIMPAR_EXPIRADOS_A_CADA_MS = 10 * 60_000;
+let ultimaLimpezaDeTokens = 0;
+
+export async function registrarUsoDoToken(chave: string, expMs: number): Promise<boolean> {
+  const r = await pool.query(
+    `INSERT INTO sso_tokens_usados (jti, expira_em) VALUES ($1, $2) ON CONFLICT (jti) DO NOTHING RETURNING jti`,
+    [chave, new Date(expMs).toISOString()],
+  );
+  const inedito = r.rows.length > 0;
+  // Limpeza oportunista: no máximo uma vez a cada 10 min por instância, fora
+  // do caminho crítico (o resultado do login não espera por ela).
   const agora = Date.now();
-  if (tokensUsados.size > 5000) {
-    tokensUsados.forEach((v, k) => { if (v <= agora) tokensUsados.delete(k); });
+  if (agora - ultimaLimpezaDeTokens > LIMPAR_EXPIRADOS_A_CADA_MS) {
+    ultimaLimpezaDeTokens = agora;
+    pool.query(`DELETE FROM sso_tokens_usados WHERE expira_em < now()`).catch((err: Error) => {
+      console.error("[SSO] Não foi possível limpar tokens expirados:", err.message);
+    });
   }
-  if (tokensUsados.has(chave)) return false;
-  tokensUsados.set(chave, expMs);
-  return true;
+  return inedito;
 }
 
 export interface PayloadDoSso {
@@ -200,7 +223,14 @@ export async function verificarTokenSso(token: string, secret: string): Promise<
   const chave = typeof payload.jti === "string" && payload.jti
     ? `jti:${payload.jti}`
     : `sha:${createHash("sha256").update(token).digest("hex")}`;
-  if (!registrarUsoDoToken(chave, expMs)) {
+  let inedito: boolean;
+  try {
+    inedito = await registrarUsoDoToken(chave, expMs);
+  } catch (err) {
+    console.error("[SSO] Falha ao registrar uso do token (recusando por segurança):", (err as Error)?.message ?? err);
+    throw new SsoError("token_invalido", "Não foi possível validar o token SSO agora");
+  }
+  if (!inedito) {
     throw new SsoError("token_reutilizado", "Token SSO já utilizado");
   }
 

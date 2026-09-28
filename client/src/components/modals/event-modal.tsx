@@ -195,7 +195,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
-        <DialogContent className="p-0 gap-0 sm:max-w-[560px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[92vh]"
+        <DialogContent aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[560px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[92vh]"
           data-testid="modal-event">
 
           {/* ── Header ── */}
@@ -403,7 +403,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
 
       {/* ── Gerenciar empresas ── */}
       <Dialog open={showManage} onOpenChange={v => { setShowManage(v); if (!v) { setManName(""); setManCnpj(""); } }}>
-        <DialogContent className="p-0 gap-0 sm:max-w-[420px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[80vh]">
+        <DialogContent aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[420px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[80vh]">
 
           <div className="flex items-center gap-2.5 shrink-0 px-[18px] py-3.5 border-b border-border">
             <Landmark className="h-4 w-4 text-success" aria-hidden="true" />

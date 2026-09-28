@@ -191,6 +191,48 @@ Fora dessa fila e sem urgência: `2026-08-20-escala-responsaveis.ts` e
 `2026-08-27-aprovador-padrao.ts` são **seeds** (só se a produção ainda não os
 tiver); `2026-08-17-bagagem-historico.ts` importa dados históricos uma vez.
 
+### 5.1 Ordem para 25/09 (estado compartilhado + tipos do banco — auditoria de 23/09)
+
+Quatro scripts `.sql`, todos idempotentes e com diagnóstico no topo. O código de
+25/09 (shared/schema.ts com `jsonb`, `timestamptz`, `numeric`, booleanos
+`NOT NULL`) funciona com o banco **antes e depois** deles, com UMA exceção:
+as decisões da NF fazem `history = history || $1::jsonb` e falham enquanto
+`invoices.history` for `text`. Por isso a ordem:
+
+0. **`2026-09-24-observacao-da-validacao.sql`** e
+   **`2026-09-25-estado-compartilhado.sql`** (`sso_tokens_usados`,
+   `rate_limits`) — só `CREATE`/`ADD … IF NOT EXISTS`, podem rodar com o app
+   no ar. O `ensure-schema` também cria as duas tabelas e o usuário `system`
+   no boot, então rodar à mão é opcional; vale rodar para não depender do
+   primeiro boot — o login por SSO e o rate limit gravam nelas na primeira
+   requisição.
+1. **`2026-09-25-jsonb.sql`** — rodar o bloco 0 (JSON inválido; esperado
+   vazio), depois o script inteiro. **Antes de publicar** o código de 25/09.
+   Se o bloco 0 listar linhas, corrigir (`UPDATE … SET col = NULL` ou
+   consertar o texto) e repetir. Fora do pico: `ALTER COLUMN TYPE` reescreve
+   a tabela e `system_logs` é a maior.
+2. Publicar o código (Publish + Stop/Run). Conferir no log do boot que não há
+   `[estrutura] falhou`.
+3. **`2026-09-25-timestamptz.sql`** — fora do pico (reescreve as tabelas).
+   Ler o bloco 0: `SHOW timezone` deve ser `UTC` e o último `created_at`
+   deve estar perto de `agora_utc`. Se estiver ~3 h atrás, os valores eram
+   de Brasília: trocar `fuso` para `'America/Sao_Paulo'` no bloco 1. Tabela
+   ocupada (lock_timeout) é listada no fim — repetir o script.
+4. **`2026-09-25-integridade.sql`** — ler os dois diagnósticos (horas fora
+   de "HH:MM"; `user_id` órfão em `team_inclusion_logs`), aplicar as
+   limpezas sugeridas (comentadas, um caso por vez) e rodar o script. Os
+   CHECKs e a FK entram `NOT VALID`.
+5. **`VALIDATE CONSTRAINT`** dos 9 CHECKs `*_hhmm_chk` e da FK
+   `team_inclusion_logs_user_id_users_id_fk` (lista pronta no bloco 6 do
+   script; regra em §4.1).
+6. `check-schema-drift.ts` para fechar.
+
+O que muda para quem lê o banco por fora (BI, psql): datas agora carregam o
+fuso (`2026-09-25 14:41:42+00`); JSON pode ser consultado (`history->0->>'type'`);
+`variance_percent` é número (era `"12.34%"`). A API para o client **não
+muda**: as colunas jsonb voltam a ser string JSON em `res.json`
+(server/http.ts, `serializarJsonNaBorda`).
+
 ## 6. Baseline com `pg_dump --schema-only`
 
 Antes de qualquer mudança de mecanismo, gerar um retrato do banco vivo:
@@ -246,7 +288,12 @@ idempotentes + espelho manual) é o correto.
 - Roda em `server/index.ts` **antes** de aceitar tráfego.
 - Contém só o que a aplicação **não sobrevive sem** (colunas lidas por
   `select` explícito do storage, `event_comments`, colunas de roteirização e
-  de empreita/permuta/endereço) — as que um `db:push` antigo já apagou.
+  de empreita/permuta/endereço) — as que um `db:push` antigo já apagou. Desde
+  25/09 também: as tabelas `sso_tokens_usados` e `rate_limits` (o login por
+  SSO e o rate limit gravam nelas na primeira requisição) e o `INSERT … ON
+  CONFLICT DO NOTHING` do usuário `system` (`server/usuario-sistema.ts`).
+- **Não roda** com `PAINEL_DB=pglite` (testes e `dev:demo`): nesse modo o
+  schema inteiro é gerado do Drizzle por `server/dev/pglite-schema.ts`.
 - Desde 24/09: (1) consulta `information_schema.columns` / `pg_tables` /
   `pg_indexes` **antes** e só executa o DDL que falta — `ADD COLUMN IF NOT
   EXISTS` pega `ACCESS EXCLUSIVE` antes de descobrir que a coluna existe, e no

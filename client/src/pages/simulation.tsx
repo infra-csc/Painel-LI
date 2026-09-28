@@ -139,7 +139,7 @@ export default function SimulationPage() {
               const badgeClass = ROLE_BADGE_CLASSES[u.role] ?? "bg-muted text-slate-600";
               const starting = startingId === u.id;
               return (
-                <li key={u.id} className="flex items-center gap-3 px-4 py-3">
+                <li key={u.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary text-xs font-bold shrink-0">
                     {initials(u.name || u.email || "?")}
                   </div>
@@ -154,7 +154,7 @@ export default function SimulationPage() {
                     type="button"
                     onClick={() => iniciar(u)}
                     disabled={startingId !== null}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground transition-colors"
+                    className="shrink-0 ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground transition-colors"
                   >
                     <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                     {starting ? "Iniciando…" : "Ver como"}

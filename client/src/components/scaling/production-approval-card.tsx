@@ -112,7 +112,7 @@ export interface SentToProductionInfo { collaboratorName: string; functionName: 
 export function SentToProductionDialog({ info, onClose }: { info: SentToProductionInfo | null; onClose: () => void }) {
   return (
     <Dialog open={!!info} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[460px] p-0 gap-0 rounded-xl overflow-hidden">
+      <DialogContent aria-describedby={undefined} className="max-w-[460px] p-0 gap-0 rounded-xl overflow-hidden">
         <div className="px-6 pt-7 pb-6 space-y-5">
           <div className="flex flex-col items-center text-center gap-3">
             <div className="w-14 h-14 rounded-full bg-warning-soft border-2 border-warning/25 flex items-center justify-center">

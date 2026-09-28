@@ -7,7 +7,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, insertBudgetActualSchema, type InsertBudgetActual } from "@shared/schema";
+import { budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, insertBudgetActualSchema, type InsertBudgetActual, type RhAdjustedFields } from "@shared/schema";
 import { eq, and, ne, inArray } from "drizzle-orm";
 import { isFinanceRole } from "@shared/roles";
 import { HttpError } from "../http";
@@ -297,8 +297,8 @@ export function registrarOrcamentoRealizado(app: Express): void {
       const updatePayload: Partial<InsertBudgetActual> = { ...parsed, updatedBy: actorId };
 
       if (isRhAdmin && prev) {
-        const existingFields: Record<string, {from: number; to: number; label: string}> =
-          prev.rhAdjustedFields ? JSON.parse(prev.rhAdjustedFields) : {};
+        // jsonb (25/09): já vem objeto; cópia para não mutar a linha lida.
+        const existingFields: RhAdjustedFields = { ...(prev.rhAdjustedFields ?? {}) };
 
         let changed = false;
         for (const [field, label] of Object.entries(RH_FIELDS)) {
@@ -314,7 +314,7 @@ export function registrarOrcamentoRealizado(app: Express): void {
 
         if (changed) {
           updatePayload.rhAdjusted = true;
-          updatePayload.rhAdjustedFields = JSON.stringify(existingFields);
+          updatePayload.rhAdjustedFields = existingFields;
         }
       }
 

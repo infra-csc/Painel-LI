@@ -179,7 +179,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
       {/* Confirmação — Aprovar */}
       {confirmAction === "approve" && (
         <Dialog open onOpenChange={() => setConfirmAction(null)}>
-          <DialogContent className="max-w-[520px] gap-4">
+          <DialogContent aria-describedby={undefined} className="max-w-[520px] gap-4">
             <DialogHeader>
               <DialogTitle className="text-base font-bold text-foreground">Aprovar troca de colaborador?</DialogTitle>
             </DialogHeader>
@@ -200,7 +200,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
       {/* Confirmação — Rejeitar */}
       {confirmAction === "reject" && (
         <Dialog open onOpenChange={() => { setConfirmAction(null); setRejectReason(""); }}>
-          <DialogContent className="max-w-[520px] gap-4">
+          <DialogContent aria-describedby={undefined} className="max-w-[520px] gap-4">
             <DialogHeader>
               <DialogTitle className="text-base font-bold text-foreground">Rejeitar troca de colaborador?</DialogTitle>
             </DialogHeader>

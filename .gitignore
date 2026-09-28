@@ -24,3 +24,8 @@ npm-debug.log*
 
 # Anexos colados no Replit (prints e planilhas com dados pessoais) — nunca versionar
 attached_assets/
+
+# Playwright (E2E)
+test-results/
+playwright-report/
+blob-report/

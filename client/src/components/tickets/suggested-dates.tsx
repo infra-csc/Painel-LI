@@ -1,4 +1,4 @@
-// Bloco "Datas Sugeridas" — usado no Resumo, na visualização e no formulário
+// Bloco "Datas sugeridas" — usado no Resumo, na visualização e no formulário
 // do modal (antes eram três cópias). Opcionalmente oferece "Usar sugestão".
 import { Plane, Wand2 } from "lucide-react";
 import {
@@ -34,7 +34,7 @@ export default function SuggestedDates({ suggestion, hideWhenEmpty, hint, onUseS
     <div className="border border-primary/25 rounded-xl overflow-hidden" data-testid="suggested-dates">
       <div className="bg-brand-soft border-b border-primary/25 px-4 py-2.5 flex items-center gap-2">
         <Plane className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-        <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Datas Sugeridas</span>
+        <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Datas sugeridas</span>
         {hint && <span className="ml-auto text-2xs text-primary/70 font-medium">{hint}</span>}
         {onUseSuggestion && (
           <MotivoDesabilitado motivo="Preenche data e horários de ida/volta a partir da sugestão da escalação (não sobrescreve o que já foi digitado)" desabilitado={useDisabled || !hasAnySuggestion(suggestion)}>

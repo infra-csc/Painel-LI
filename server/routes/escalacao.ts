@@ -195,7 +195,8 @@ export function registrarEscalacao(app: Express): void {
         vagaId: id,
         createdAt: vaga.createdAt,
         logs,
-        auditorias: linhasDe<{ entity_id: string; action: string; user_name: string | null; new_data: string | null; created_at: Date | string }>(auditoriasRes).map((a) => ({
+        // new_data é jsonb (objeto) desde 25/09; string em bancos ainda não migrados — origemDaCriacao aceita os dois.
+        auditorias: linhasDe<{ entity_id: string; action: string; user_name: string | null; new_data: string | Record<string, unknown> | null; created_at: Date | string }>(auditoriasRes).map((a) => ({
           entityId: String(a.entity_id),
           action: String(a.action),
           userName: a.user_name ?? null,

@@ -7,6 +7,7 @@ import { useLocation, useSearch } from "wouter";
 import { AlertCircle, Stamp, FileUp } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
@@ -459,7 +460,7 @@ export default function Tickets() {
   if (!hasPermission(user, "canAccessScreen3")) {
     return (
       <div className="bg-card rounded-lg shadow-1 border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso negado</h3>
         <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
     );
@@ -495,22 +496,25 @@ export default function Tickets() {
             o breadcrumb já dizia. O "Total geral" do KPI vira o resumo daqui —
             nenhum número se perdeu. Fica abaixo da barra do topo (`--sticky-top`)
             — `z-25` não existe no Tailwind, por isso ela não fixava (23/09). */}
-        <div className="sticky top-[var(--sticky-top)] z-30 flex flex-wrap items-center gap-x-4 gap-y-2 min-h-14 py-2 px-[var(--page-gutter)] bg-card border-b border-border">
-          <h1 className="text-base font-semibold text-foreground whitespace-nowrap">Passagens</h1>
-          <div aria-hidden="true" className="w-px h-5 bg-border" />
-          <span className="min-w-0 text-xs text-muted-foreground truncate" data-testid="resumo-passagens">{resumoTopo}</span>
-          {canEdit && (
+        {/* PageHeader `bar` (25/09): o mesmo componente das outras barras de
+            contexto — esta era a cópia original, desenhada à mão. */}
+        <PageHeader
+          variant="bar"
+          title="Passagens"
+          subtitle={<span data-testid="resumo-passagens">{resumoTopo}</span>}
+          className="mx-0 mt-0"
+          actions={canEdit && (
             <Button
               type="button"
               onClick={() => setVoucherLoteAberto(true)}
-              className="ml-auto shrink-0 h-[34px] rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-medium"
+              className="shrink-0 h-[34px] rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-medium"
               data-testid="abrir-voucher-lote"
             >
               <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
               Registrar pelos vouchers (PDF)
             </Button>
           )}
-        </div>
+        />
 
       {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}
       <div className="px-[var(--page-gutter)] pt-5 pb-6">

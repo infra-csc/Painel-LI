@@ -122,7 +122,7 @@ describe("POST /api/invoices/:id/approve", () => {
     expect(denovo.body.message).toContain("enviada");
 
     const noBanco = await ctx.storage.getInvoice(nota.id);
-    const historico = JSON.parse(noBanco?.history || "[]") as { type: string }[];
+    const historico = noBanco?.history ?? []; // jsonb: já vem como array (25/09)
     expect(historico.filter((h) => h.type === "aprovado")).toHaveLength(1);
     expect(historico.map((h) => h.type)).toEqual(["enviado", "aprovado"]);
   });

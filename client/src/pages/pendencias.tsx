@@ -8,10 +8,12 @@
  */
 import { useMemo } from "react";
 import { useLocation } from "wouter";
-import { Hourglass, CloudOff, CircleCheckBig, ChevronRight } from "lucide-react";
+import { Hourglass, CloudOff, CircleCheckBig, ChevronRight, Inbox, CheckCheck } from "lucide-react";
 import { useShellData, type ShellNotification } from "@/components/layout/use-shell-data";
 import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/components/common/use-page-title";
+import { PageHeader } from "@/components/common/page-header";
+import { Button } from "@/components/ui/button";
 import { useQueryKeysState } from "@/components/common/query-state";
 import { SHELL_QUERY_KEYS } from "@/components/layout/notifications-menu";
 
@@ -37,25 +39,20 @@ export default function PendenciasPage() {
 
   return (
     <div className="mx-auto w-full max-w-[860px] space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="m-0 text-xl font-semibold text-foreground">Pendências</h1>
-          <p className="m-0 mt-0.5 text-sm text-muted-foreground">
-            {pendingTotal > 0
-              ? `Tudo que espera uma ação sua no sistema · ${pendingTotal}`
-              : "Tudo que espera uma ação sua no sistema"}
-          </p>
-        </div>
-        {hasUnseen && (
-          <button
-            type="button"
-            onClick={markAllSeen}
-            className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-primary hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            Marcar tudo como visto
-          </button>
+      {/* Cabeçalho no padrão das demais telas (25/09): antes era um h1 solto,
+          sem ícone e com tamanho próprio — a única página fora do PageHeader. */}
+      <PageHeader
+        icon={Inbox}
+        title="Pendências"
+        subtitle={pendingTotal > 0
+          ? `Tudo que espera uma ação sua no sistema · ${pendingTotal}`
+          : "Tudo que espera uma ação sua no sistema"}
+        actions={hasUnseen && (
+          <Button type="button" variant="outline" size="sm" onClick={markAllSeen}>
+            <CheckCheck className="h-4 w-4" aria-hidden="true" /> Marcar tudo como visto
+          </Button>
         )}
-      </div>
+      />
 
       {porTela.length === 0 && estado.isLoading ? (
         <div role="status" aria-live="polite" className="rounded-xl border border-border bg-card px-6 py-12 text-center text-muted-foreground">
