@@ -1,7 +1,7 @@
 // Tabela de Passagens: cabeçalho ordenável + linhas (TicketRow) + estado vazio.
 import { useCallback, useRef } from "react";
 import { Plane } from "lucide-react";
-import { EspacadorLinha, useLinhasVirtuais } from "@/components/common/virtual-rows";
+import { EspacadorLinha, useLinhasVirtuaisNaJanela } from "@/components/common/virtual-rows";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { useLarguraUtil } from "@/components/common/use-largura-util";
 
@@ -49,12 +49,14 @@ export default function TicketsTable({
   // 28/09: só as linhas à vista vão para o DOM. Com a fila inteira de
   // Compras (milhares de vagas × 9 colunas) a tela demorava a responder a
   // cada tecla e a cada marcação — não era a busca, era o número de `<tr>`.
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Rola pela página (`janela`): a tabela É o corpo da tela, então uma caixa
+  // de altura fixa rolando por dentro deixava metade da janela vazia.
+  const refTabela = useRef<HTMLDivElement | null>(null);
   const refContainer = useCallback((el: HTMLDivElement | null) => {
-    scrollRef.current = el;
+    refTabela.current = el;
     refLargura.current = el;
   }, [refLargura]);
-  const virtuais = useLinhasVirtuais(rows, { scrollRef, alturaEstimada: modoCartao ? 220 : 64 });
+  const virtuais = useLinhasVirtuaisNaJanela(rows, { tabelaRef: refTabela, alturaEstimada: modoCartao ? 420 : 64 });
 
   if (rows.length === 0) {
     return (
@@ -137,14 +139,10 @@ export default function TicketsTable({
         .passagens-cartao td:first-child { display: inline-block; width: auto; vertical-align: middle; }
         .passagens-cartao td:nth-child(2) { display: inline-block; width: auto; vertical-align: middle; }
       `}</style>
-      <div
-        ref={refContainer}
-        className={`overflow-auto max-h-[calc(100vh-var(--sticky-top,3.5rem)-14rem)] ${modoCartao ? "passagens-cartao" : ""}`}
-        data-testid="tickets-table-scroll"
-      >
+      <div ref={refContainer} className={`overflow-x-auto ${modoCartao ? "passagens-cartao" : ""}`} data-testid="tickets-table">
       <table className="w-full text-left border-collapse">
         <caption className="sr-only">Passagens: colaborador, evento, trechos, datas e situação da compra</caption>
-        <thead className="bg-surface-muted sticky top-0 z-10 shadow-[inset_0_-2px_0_0_var(--border)]">
+        <thead className="bg-surface-muted border-b-2 border-b-border">
           <tr>
             <th scope="col" className="px-4 py-3 w-10">
               <input

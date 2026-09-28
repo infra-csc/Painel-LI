@@ -20,8 +20,8 @@
  *  - O contêiner que rola é o `scrollRef` (div com `overflow-auto` e altura
  *    máxima). Cabeçalho da tabela fica `sticky top-0` dentro dele.
  */
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
+import { useVirtualizer, useWindowVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type RefObject } from "react";
 
 export const LIMIAR_VIRTUALIZACAO = 60;
 
@@ -55,7 +55,7 @@ export interface LinhasVirtuais<T> {
 
 // `measureElement` do TanStack lê `data-index` do elemento. Este `ref` garante
 // que o atributo exista mesmo se a linha não o repassar.
-function medidorCom(virtualizer: ReturnType<typeof useVirtualizer<HTMLElement, Element>>, index: number) {
+function medidorCom(virtualizer: Virtualizer<HTMLElement, Element> | Virtualizer<Window, Element>, index: number) {
   return (el: Element | null) => {
     if (!el) return;
     if (el.getAttribute("data-index") !== String(index)) el.setAttribute("data-index", String(index));
@@ -86,10 +86,64 @@ export function useLinhasVirtuais<T>(itens: readonly T[], opcoes: OpcoesVirtuais
     overscan,
   });
 
-  const rolarPara = useCallback((index: number) => {
+  return montarLinhas(itens, ativo, virtualizer, 0);
+}
+
+export interface OpcoesVirtuaisNaJanela {
+  /** Elemento da tabela: a distância dele ao topo do documento é a margem de rolagem. */
+  tabelaRef: RefObject<HTMLElement | null>;
+  alturaEstimada: number;
+  overscan?: number;
+  ativo?: boolean;
+}
+
+/**
+ * Linhas virtuais que rolam pela JANELA, não por um contêiner próprio (28/09).
+ *
+ * Para listas que são o corpo da página (Passagens): uma caixa de altura fixa
+ * dentro da página rola por dentro, a página rola por fora e sobra um vazio
+ * embaixo. Aqui a tabela tem altura natural e a página rola como sempre; só o
+ * que está à vista vai para o DOM.
+ */
+export function useLinhasVirtuaisNaJanela<T>(itens: readonly T[], opcoes: OpcoesVirtuaisNaJanela): LinhasVirtuais<T> {
+  const { tabelaRef, alturaEstimada, overscan = 12 } = opcoes;
+  const ativo = opcoes.ativo ?? itens.length >= LIMIAR_VIRTUALIZACAO;
+
+  // Onde a tabela começa no documento. Medida de novo quando a lista muda
+  // (KPIs e filtros acima podem mudar de altura) e ao redimensionar.
+  const [margem, setMargem] = useState(0);
+  useLayoutEffect(() => {
+    if (!ativo) return;
+    const medir = () => {
+      const el = tabelaRef.current;
+      if (el) setMargem(Math.round(el.getBoundingClientRect().top + window.scrollY));
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [ativo, tabelaRef, itens.length]);
+
+  const virtualizer = useWindowVirtualizer({
+    count: ativo ? itens.length : 0,
+    estimateSize: () => alturaEstimada,
+    overscan,
+    scrollMargin: margem,
+  });
+
+  return montarLinhas(itens, ativo, virtualizer, margem);
+}
+
+/** `start`/`end` dos itens incluem a margem de rolagem; os espaçadores não. */
+function montarLinhas<T>(
+  itens: readonly T[],
+  ativo: boolean,
+  virtualizer: Virtualizer<HTMLElement, Element> | Virtualizer<Window, Element>,
+  margem: number,
+): LinhasVirtuais<T> {
+  const rolarPara = (index: number) => {
     if (!ativo) return;
     virtualizer.scrollToIndex(index, { align: "center" });
-  }, [ativo, virtualizer]);
+  };
 
   if (!ativo) {
     return {
@@ -103,8 +157,8 @@ export function useLinhasVirtuais<T>(itens: readonly T[], opcoes: OpcoesVirtuais
 
   const virtuais = virtualizer.getVirtualItems();
   const total = virtualizer.getTotalSize();
-  const espacoAntes = virtuais.length > 0 ? virtuais[0].start : 0;
-  const espacoDepois = virtuais.length > 0 ? Math.max(0, total - virtuais[virtuais.length - 1].end) : 0;
+  const espacoAntes = virtuais.length > 0 ? Math.max(0, virtuais[0].start - margem) : 0;
+  const espacoDepois = virtuais.length > 0 ? Math.max(0, total - (virtuais[virtuais.length - 1].end - margem)) : 0;
 
   return {
     ativo,
