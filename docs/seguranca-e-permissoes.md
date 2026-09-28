@@ -233,7 +233,7 @@ Evento encerrado (🕓) = só admin, mesmo que a coluna diga ✅.
 
 | Ação | Rota | admin | production | purchasing | function_area | financial | Observação |
 |---|---|---|---|---|---|---|---|
-| Listar | `GET /api/collaborators[?eventId=]` | 👁 | 👁 (projetado) | 👁 | 👁 (projetado) | 👁 | production e function_area **não recebem** CPF/RG, nascimento, telefone, endereço nem `documentAttachmentId`; `Cache-Control: no-store` |
+| Listar | `GET /api/collaborators[?eventId=]` | 👁 | 👁 (projetado) | 👁 | 👁 | 👁 | production **não recebe** CPF/RG, nascimento, telefone, endereço nem `documentAttachmentId` (lista em `ROLE_GROUPS.dadosPessoais`; function_area voltou a ver tudo em 29/09, decisão do dono); `Cache-Control: no-store` |
 | Criar / em lote | `POST /api/collaborators`, `POST /api/collaborators/bulk` | ✅ | ✅ | ✅ | ✅ | ❌ | function_area nasce **aprovado** (auto-aprovação); os demais `pendente`; 409 por documento duplicado |
 | Editar (inclui aprovar/rejeitar via `status`) | `PATCH /api/collaborators/:id` | ✅ | ✅ | ✅ | ✅ | ❌ | `active`/`inactiveReason`/`createdBy` descartados; `approvedBy/At` vêm da sessão |
 | Inativar | `POST /api/collaborators/:id/inactivate` | ✅ | ❌ | ✅ | ❌ | ❌ | motivo obrigatório |
@@ -334,7 +334,7 @@ a vaga sem permissão/estado entra em `skipped`.
 | Observações do orçamento | `GET/POST /api/budget-notes`, `GET /api/budget-notes/by-event` | ✅ | ✅ | ✅ | ✅ | ✅ | qualquer sessão (chat de auditoria) |
 | Enviar anexo | `POST /api/upload` | ✅ | ✅ | ✅ | ✅ | ✅ | magic number (PDF/PNG/JPG/XLSX/CSV), nome sanitizado, dono gravado; lote inteiro ou nada |
 | Confirmar anexo | `POST /api/attachments/:id/confirm` | 🔒 | 🔒 | 🔒 | 🔒 | 🔒 | só o **dono** (anexo antigo sem dono: quem confirma vira dono) |
-| Metadados / download / view | `GET /api/attachments/:id`, `/download`, `/view` | ✅ | ✅ | ✅ | 🔒 | ✅ | `podeAcessarAnexo`: admin/purchasing/production/financial veem tudo; function_area só o que enviou e **nunca** documento (CPF/RG) de colaborador |
+| Metadados / download / view | `GET /api/attachments/:id`, `/download`, `/view` | ✅ | ✅ | ✅ | 🔒 | ✅ | `podeAcessarAnexo`: admin/purchasing/production/financial veem tudo; function_area vê o documento (CPF/RG) de colaborador (29/09) e, dos demais anexos, só o que enviou |
 | URL assinada de upload | `POST /api/attachments/upload` | — | — | — | — | — | **410** (removida) |
 | Logs do sistema | `GET /api/system-logs` | 👁 | ❌ | ❌ | ❌ | ❌ | paginado |
 | Histórico por entidade | `GET /api/activity-logs`, `/by-event` | 👁 | ❌ | ❌ | ❌ | 👁 | Planejado/Realizado/Comparativo |

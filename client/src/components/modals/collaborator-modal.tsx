@@ -5,6 +5,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { hasRole } from "@/lib/role-utils";
+import { ROLE_GROUPS } from "@shared/roles";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -110,7 +111,7 @@ export default function CollaboratorModal({
   const [documentAttachments, setDocumentAttachments] = useState<string[]>([]);
 
   // Quem vê dados pessoais (mesma lista do servidor): admin, Compras e RH.
-  const podeVerDadosPessoais = hasRole(user, "admin", "purchasing", "financial");
+  const podeVerDadosPessoais = hasRole(user, ...ROLE_GROUPS.dadosPessoais);
   // Na edição, quem não recebeu documento/nascimento/telefone/endereço não pode
   // vê-los nem reenviá-los — o PATCH sobrescreveria o CPF com "". Cadastro novo
   // mostra tudo para todos (o servidor exige os campos).

@@ -8,24 +8,24 @@ import type { Express } from "express";
 import { z } from "zod";
 import { storage, type CollaboratorPatch } from "../storage";
 import { insertCollaboratorSchema, type Collaborator, type InsertCollaborator } from "@shared/schema";
-import { normalizeRole, type CanonicalRole } from "@shared/roles";
+import { ROLE_GROUPS, normalizeRole, type CanonicalRole } from "@shared/roles";
 import { corrigirTextoDeNome } from "@shared/texto-nome";
 import { normalizarEndereco } from "@shared/endereco";
 import { createAuditLog, ehViolacaoDeUnicidade, requireRoles, CADASTRO_ROLES, eventIdDaQuery } from "./_compartilhado";
 
 export function registrarColaboradores(app: Express): void {
   // Collaborators routes
-  // Projeção por papel (23/09): Área de Função e Logística escalam pessoas,
-  // não precisam de CPF/RG, nascimento, telefone, endereço nem do anexo do
-  // documento — esses campos ficam para cadastro (admin/Compras), RH e a
-  // própria lista completa de quem cadastra. Tudo que a escalação usa (nome,
-  // número, tipo, cidade/UF, gênero, status, coordenador, ativo) continua.
+  // Projeção por papel (23/09; revista 29/09): quem não está em
+  // ROLE_GROUPS.dadosPessoais (hoje só Produção) não recebe CPF/RG,
+  // nascimento, telefone, endereço nem o anexo do documento. Tudo que a
+  // escalação usa (nome, número, tipo, cidade/UF, gênero, status,
+  // coordenador, ativo) continua para todos.
   const CAMPOS_PESSOAIS_DO_COLABORADOR = [
     "officialDocument", "documentType", "secondaryDocument", "secondaryDocumentType",
     "documentAttachmentId", "birthDate", "phone",
     "addressStreet", "addressNumber", "addressComplement", "addressZip",
   ] as const;
-  const PAPEIS_QUE_VEEM_DADOS_PESSOAIS: readonly CanonicalRole[] = ["admin", "purchasing", "financial"];
+  const PAPEIS_QUE_VEEM_DADOS_PESSOAIS: readonly CanonicalRole[] = ROLE_GROUPS.dadosPessoais;
   const projetarColaborador = (c: Collaborator, role: CanonicalRole | null): Partial<Collaborator> => {
     if (role && PAPEIS_QUE_VEEM_DADOS_PESSOAIS.includes(role)) return c;
     const copia: Partial<Collaborator> = { ...c };

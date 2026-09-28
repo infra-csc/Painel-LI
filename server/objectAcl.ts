@@ -62,9 +62,10 @@ export function podeAcessarAnexo(args: {
 }): boolean {
   const { role, userId, ownerId, documentoDeColaborador } = args;
   if (role && PAPEIS_QUE_VEEM_TUDO.includes(role)) return true;
-  // Área de Função (e qualquer outro papel): só o que ela mesma enviou, e
-  // nunca o documento (CPF/RG) de um colaborador.
-  if (documentoDeColaborador) return false;
+  // Documento (CPF/RG) de colaborador: mesma regra dos dados pessoais da
+  // lista (ROLE_GROUPS.dadosPessoais) — a Área de Função vê desde 29/09.
+  if (documentoDeColaborador) return !!role && (ROLE_GROUPS.dadosPessoais as readonly CanonicalRole[]).includes(role);
+  // Demais anexos: só o que a própria pessoa enviou.
   return !!ownerId && ownerId === userId;
 }
 
