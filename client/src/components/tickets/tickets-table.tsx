@@ -1,5 +1,7 @@
 // Tabela de Passagens: cabeçalho ordenável + linhas (TicketRow) + estado vazio.
+import { useCallback, useRef } from "react";
 import { Plane } from "lucide-react";
+import { EspacadorLinha, useLinhasVirtuais } from "@/components/common/virtual-rows";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { useLarguraUtil } from "@/components/common/use-largura-util";
 
@@ -43,6 +45,16 @@ export default function TicketsTable({
   // muda o espaço da lista sem mudar o tamanho da tela.
   const { ref: refLargura, largura } = useLarguraUtil<HTMLDivElement>();
   const modoCartao = largura !== null && largura < LARGURA_MINIMA_DA_TABELA;
+
+  // 28/09: só as linhas à vista vão para o DOM. Com a fila inteira de
+  // Compras (milhares de vagas × 9 colunas) a tela demorava a responder a
+  // cada tecla e a cada marcação — não era a busca, era o número de `<tr>`.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const refContainer = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el;
+    refLargura.current = el;
+  }, [refLargura]);
+  const virtuais = useLinhasVirtuais(rows, { scrollRef, alturaEstimada: modoCartao ? 220 : 64 });
 
   if (rows.length === 0) {
     return (
@@ -125,10 +137,14 @@ export default function TicketsTable({
         .passagens-cartao td:first-child { display: inline-block; width: auto; vertical-align: middle; }
         .passagens-cartao td:nth-child(2) { display: inline-block; width: auto; vertical-align: middle; }
       `}</style>
-      <div ref={refLargura} className={`overflow-x-auto ${modoCartao ? "passagens-cartao" : ""}`}>
+      <div
+        ref={refContainer}
+        className={`overflow-auto max-h-[calc(100vh-var(--sticky-top,3.5rem)-14rem)] ${modoCartao ? "passagens-cartao" : ""}`}
+        data-testid="tickets-table-scroll"
+      >
       <table className="w-full text-left border-collapse">
         <caption className="sr-only">Passagens: colaborador, evento, trechos, datas e situação da compra</caption>
-        <thead className="bg-surface-muted border-b-2 border-b-border">
+        <thead className="bg-surface-muted sticky top-0 z-10 shadow-[inset_0_-2px_0_0_var(--border)]">
           <tr>
             <th scope="col" className="px-4 py-3 w-10">
               <input
@@ -157,10 +173,13 @@ export default function TicketsTable({
             <th scope="col" className="py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground text-center w-[72px]">Ações</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
-          {rows.map((inclusion, rowIdx) => (
+        <tbody className="divide-y divide-border" aria-rowcount={rows.length}>
+          <EspacadorLinha altura={virtuais.espacoAntes} colunas={9} />
+          {virtuais.linhas.map(({ item: inclusion, index: rowIdx, medir }) => (
             <TicketRow
               key={inclusion.id}
+              ref={medir}
+              data-index={rowIdx}
               inclusion={inclusion}
               ticket={data.getTicket(inclusion.id)}
               rowIdx={rowIdx}
@@ -179,6 +198,7 @@ export default function TicketsTable({
               emitindo={emitindo}
             />
           ))}
+          <EspacadorLinha altura={virtuais.espacoDepois} colunas={9} />
         </tbody>
       </table>
       </div>

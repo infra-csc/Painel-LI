@@ -6,6 +6,7 @@ import { MessageCircle, History } from "lucide-react";
 import { TabsContent } from "@/components/ui/tabs";
 import type { Comment, TeamInclusionLog } from "@shared/schema";
 import { LOG_ACTIONS } from "./accommodation-modal-shared";
+import { rotuloDaAcao } from "@shared/inclusion-timeline";
 
 export function AccommodationComplementosTab({ comments, userName, roMode, onShowComments, sortedLogs, showAllLogs, setShowAllLogs }: {
   comments: Comment[] | undefined;
@@ -87,7 +88,8 @@ export function AccommodationComplementosTab({ comments, userName, roMode, onSho
                       <div className="w-2.5 h-2.5 bg-primary rounded-full -ml-[1.3rem] mt-2.5 flex-shrink-0 ring-4 ring-white" />
                       <div className="flex-1 min-w-0 bg-card border border-border rounded-xl px-3 py-2 shadow-1">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="text-2xs font-bold text-slate-700 inline-flex items-center gap-1.5"><Icon className="w-3 h-3 text-muted-foreground" />{meta?.label ?? log.action}</div>
+                          {/* 28/09: ação sem ícone cadastrado usa o rótulo único do shared — nunca a chave crua. */}
+                          <div className="text-2xs font-bold text-slate-700 inline-flex items-center gap-1.5"><Icon className="w-3 h-3 text-muted-foreground" />{meta?.label ?? rotuloDaAcao(log.action)}</div>
                           <div className="text-2xs text-muted-foreground whitespace-nowrap flex-shrink-0">
                             {log.createdAt && new Date(log.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                           </div>

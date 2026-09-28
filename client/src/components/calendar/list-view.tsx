@@ -5,7 +5,59 @@
 import { useMemo } from "react";
 import { Calendar, CalendarDays, MapPin } from "lucide-react";
 import type { Event } from "@shared/schema";
+import { DataTable, type ColunaDaTabela } from "@/components/common/data-table";
 import { MONTH_NAMES, formatListDate, getCfg, getEffectiveStatus, parseLocalDate, type SelectEventFn } from "./calendar-shared";
+
+/** Colunas declaradas para o DataTable (o cartão abaixo é o que aparece). */
+const COLUNAS_DA_LISTA: ColunaDaTabela<Event>[] = [
+  { key: "evento", header: "Evento", papel: "principal", cell: ev => ev.name },
+  { key: "local", header: "Local", cell: ev => ev.location },
+  { key: "data", header: "Data", cell: ev => formatListDate(ev.startDate, ev.endDate) },
+  { key: "status", header: "Status", cell: ev => getCfg(getEffectiveStatus(ev)).label },
+];
+
+function CalendarEventCard({ ev, onSelectEvent }: { ev: Event; onSelectEvent: SelectEventFn }) {
+  const cfg = getCfg(getEffectiveStatus(ev));
+  return (
+    <button
+      onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
+      className="w-full bg-card p-4 rounded-xl border border-border shadow-1 hover:shadow-2 transition-shadow flex items-center gap-4 group text-left"
+    >
+      {/* Status icon */}
+      <div className={`w-12 h-12 ${cfg.bg} ${cfg.iconText} rounded-xl flex items-center justify-center shrink-0 relative`}>
+        <cfg.icon className="h-6 w-6" aria-hidden="true" />
+        {cfg.pulse && (
+          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${cfg.dot} opacity-75`} />
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${cfg.dot}`} />
+          </span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <h4 className="font-bold text-sm group-hover:underline underline-offset-2 truncate text-primary">
+          {ev.name}
+        </h4>
+        <div className="flex items-center gap-4 mt-1 flex-wrap">
+          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+            <MapPin className="h-4 w-4" aria-hidden="true" />
+            <span className="truncate max-w-[200px]">{ev.location}</span>
+          </div>
+          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+            <Calendar className="h-4 w-4" aria-hidden="true" />
+            {formatListDate(ev.startDate, ev.endDate)}
+          </div>
+        </div>
+      </div>
+
+      {/* Status badge */}
+      <span className={`px-4 py-1.5 rounded-xl ${cfg.bg} ${cfg.text} text-2xs font-bold uppercase tracking-wide shrink-0 hidden sm:block`}>
+        {cfg.label}
+      </span>
+    </button>
+  );
+}
 
 export function ListView({ events, onSelectEvent, hasFilters }: { events: Event[]; onSelectEvent: SelectEventFn; hasFilters: boolean }) {
   const today = new Date();
@@ -86,53 +138,17 @@ export function ListView({ events, onSelectEvent, hasFilters }: { events: Event[
               <div className="flex-1 h-px bg-border" />
             </div>
 
-            {/* Event cards */}
-            <div className="grid gap-3">
-              {group.events.map(ev => {
-                const cfg = getCfg(getEffectiveStatus(ev));
-
-                return (
-                  <button
-                    key={ev.id}
-                    onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
-                    className="w-full bg-card p-4 rounded-xl border border-border shadow-1 hover:shadow-2 transition-shadow flex items-center gap-4 group text-left"
-                  >
-                    {/* Status icon */}
-                    <div className={`w-12 h-12 ${cfg.bg} ${cfg.iconText} rounded-xl flex items-center justify-center shrink-0 relative`}>
-                      <cfg.icon className="h-6 w-6" aria-hidden="true" />
-                      {cfg.pulse && (
-                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${cfg.dot} opacity-75`} />
-                          <span className={`relative inline-flex rounded-full h-3 w-3 ${cfg.dot}`} />
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm group-hover:underline underline-offset-2 truncate text-primary">
-                        {ev.name}
-                      </h4>
-                      <div className="flex items-center gap-4 mt-1 flex-wrap">
-                        <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                          <MapPin className="h-4 w-4" aria-hidden="true" />
-                          <span className="truncate max-w-[200px]">{ev.location}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                          <Calendar className="h-4 w-4" aria-hidden="true" />
-                          {formatListDate(ev.startDate, ev.endDate)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Status badge */}
-                    <span className={`px-4 py-1.5 rounded-xl ${cfg.bg} ${cfg.text} text-2xs font-bold uppercase tracking-wide shrink-0 hidden sm:block`}>
-                      {cfg.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* Event cards — 28/09: pelo DataTable em `cardMode="always"`, com o
+                mesmo cartão de antes; cada mês vira uma <ul role="list"> nomeada. */}
+            <DataTable
+              columns={COLUNAS_DA_LISTA}
+              rows={group.events}
+              getRowId={ev => ev.id}
+              caption={`Eventos de ${group.label}`}
+              cardMode="always"
+              cardListClassName="gap-3"
+              cardRender={ev => <CalendarEventCard ev={ev} onSelectEvent={onSelectEvent} />}
+            />
           </section>
         );
       })}

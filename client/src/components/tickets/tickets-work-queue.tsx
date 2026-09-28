@@ -21,12 +21,22 @@ import { formatBrl, type TicketsData } from "./use-tickets-data";
 /** Qual bloco está ativo — deriva dos filtros, não é estado novo. */
 export type FilaDePassagens = "comprar" | "sem-chegada" | "troca" | "compradas" | null;
 
-const COR = {
-  comprar: "var(--warning)",
-  "sem-chegada": "var(--danger-strong)",
-  troca: "var(--primary)",
-  compradas: "var(--success-strong)",
-} as const;
+// Tom → classe de token (28/09): antes era `style={{ color: "var(--…)" }}`
+// por item; agora a cor sai da classe, como no `TONE_CLASS` da pílula de
+// status. Mesmos tokens, mesmo visual.
+type TomDaFila = "warning" | "danger" | "primary" | "success";
+const TOM: Record<Exclude<FilaDePassagens, null>, TomDaFila> = {
+  comprar: "warning",
+  "sem-chegada": "danger",
+  troca: "primary",
+  compradas: "success",
+};
+const TONE_CLASS: Record<TomDaFila, string> = {
+  warning: "text-warning",
+  danger: "text-danger-strong",
+  primary: "text-primary",
+  success: "text-success-strong",
+};
 
 const ICONE = {
   comprar: ShoppingCart,
@@ -88,7 +98,7 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
             data-testid={`fila-passagens-${key}`}
           >
             <span className="flex items-center gap-[7px]">
-              <Icone className="w-[15px] h-[15px] shrink-0" style={{ color: COR[key] }} aria-hidden="true" />
+              <Icone className={`w-[15px] h-[15px] shrink-0 ${TONE_CLASS[TOM[key]]}`} aria-hidden="true" />
               <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate">
                 {rotulo}
               </span>

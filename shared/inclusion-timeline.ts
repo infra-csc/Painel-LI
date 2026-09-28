@@ -149,7 +149,56 @@ const LOG: Record<string, MapaDoLog> = {
   travel_dates_changed: { categoria: "alteracao", titulo: "Datas de viagem alteradas" },
   observations_changed: { categoria: "alteracao", titulo: "Observações alteradas" },
   city_changed: { categoria: "alteracao", titulo: "Cidade de saída alterada" },
+  // 28/09 — ações que apareciam cruas ("suggestion_approved") no histórico das
+  // telas de Passagens e Hospedagem, que tinham mapas próprios e incompletos.
+  update: { categoria: "alteracao", titulo: "Vaga atualizada" },
+  confirm: { categoria: "escala", titulo: "Escalação confirmada" },
+  cancelled: { categoria: "vaga", titulo: "Vaga cancelada" },
+  status_changed: { categoria: "alteracao", titulo: "Status alterado" },
+  note: { categoria: "alteracao", titulo: "Observação registrada" },
+  suggestion_send_canceled: { categoria: "aprovacao", titulo: "Envio para validação cancelado" },
+  swap_requested: { categoria: "escala", titulo: "Troca de colaborador solicitada" },
+  swap_approved: { categoria: "escala", titulo: "Troca de colaborador aprovada" },
+  swap_rejected: { categoria: "escala", titulo: "Troca de colaborador rejeitada" },
+  swap_cancelled: { categoria: "escala", titulo: "Troca de colaborador cancelada" },
+  ticket_created: { categoria: "alteracao", titulo: "Passagem registrada" },
+  ticket_updated: { categoria: "alteracao", titulo: "Passagem atualizada" },
+  ticket_deleted: { categoria: "alteracao", titulo: "Passagem removida" },
+  ticket_emitted: { categoria: "alteracao", titulo: "Passagem emitida" },
+  accommodation_created: { categoria: "alteracao", titulo: "Hospedagem registrada" },
+  accommodation_updated: { categoria: "alteracao", titulo: "Hospedagem atualizada" },
+  accommodation_deleted: { categoria: "alteracao", titulo: "Hospedagem removida" },
+  baggage_changed: { categoria: "alteracao", titulo: "Bagagem alterada" },
+  skip_uber_changed: { categoria: "alteracao", titulo: "Dispensa de Uber alterada" },
 };
+
+/** Palavras em inglês que ainda podem aparecer numa ação sem rótulo cadastrado. */
+const TRADUCAO_DE_PALAVRA: Record<string, string> = {
+  created: "criado", create: "criado", updated: "atualizado", update: "atualizado", deleted: "excluído", delete: "excluído",
+  changed: "alterado", change: "alteração", request: "pedido", requested: "solicitado", approved: "aprovado", approve: "aprovar",
+  rejected: "rejeitado", reject: "rejeitar", returned: "devolvido", canceled: "cancelado", cancelled: "cancelado",
+  sent: "enviado", send: "envio", suggestion: "sugestão", validated: "validado", swap: "troca", ticket: "passagem",
+  accommodation: "hospedagem", collaborator: "colaborador", status: "status", dates: "datas", city: "cidade",
+  production: "gestor", value: "valor", daily: "diária", rates: "diárias", work: "trabalho", days: "dias",
+  observations: "observações", travel: "viagem", note: "observação", from: "de", to: "para",
+};
+
+/**
+ * Rótulo em português para a ação de um log da vaga — o histórico nunca deve
+ * mostrar a chave crua ("suggestion_approved"). Ação desconhecida vira uma
+ * frase legível: separa o snake_case, traduz as palavras conhecidas e
+ * capitaliza ("weird_thing_happened" → "Weird thing happened").
+ */
+export function rotuloDaAcao(action: string | null | undefined): string {
+  if (!action) return "Alteração";
+  const conhecido = LOG[action];
+  if (conhecido) return conhecido.titulo;
+  const palavras = action.replace(/[-_]+/g, " ").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (palavras.length === 0) return "Alteração";
+  const traduzidas = palavras.map((p) => TRADUCAO_DE_PALAVRA[p] ?? p);
+  const frase = traduzidas.join(" ");
+  return frase.charAt(0).toLocaleUpperCase("pt-BR") + frase.slice(1);
+}
 
 function entradaDoLog(l: FontesDoHistorico["logs"][number]): EntradaDoHistorico | null {
   const at = toIso(l.createdAt);

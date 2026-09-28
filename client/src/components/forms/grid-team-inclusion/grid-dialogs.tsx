@@ -131,8 +131,9 @@ export function ExcelPasteDialog({ paste }: { paste: GridPaste }) {
           </div>
 
           <div className="space-y-2">
-            <Label>Cole os dados aqui:</Label>
+            <Label htmlFor="grid-colar-excel">Cole os dados aqui:</Label>
             <Textarea
+              id="grid-colar-excel"
               value={pastedData}
               onChange={(e) => setPastedData(e.target.value)}
               placeholder="Cole os dados do Excel aqui (Ctrl+V)..."

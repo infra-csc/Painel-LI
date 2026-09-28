@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { cn, fixEncoding } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
+import { DataTable, type ColunaDaTabela } from "@/components/common/data-table";
 import { PageHeader } from "@/components/common/page-header";
 import { PageContainer } from "@/components/common/page-container";
 import { EmptyState } from "@/components/common/empty-state";
@@ -103,6 +104,13 @@ function navegadorCurto(ua: string | null): string {
 
 // ─── Um registro ─────────────────────────────────────────────────────────────
 
+type MudancaComId = LogDescrito["mudancas"][number] & { id: string };
+const COLUNAS_DE_MUDANCAS: ColunaDaTabela<MudancaComId>[] = [
+  { key: "campo", header: "O que mudou", cell: m => <span className="font-medium text-slate-700">{m.campo}</span> },
+  { key: "antes", header: "Antes", cell: m => <span className="text-muted-foreground break-words">{m.antes}</span> },
+  { key: "depois", header: "Depois", cell: m => <span className="font-semibold text-foreground break-words">{m.depois}</span> },
+];
+
 function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
   const [open, setOpen] = useState(false);
   const tom = TOM[d.tom];
@@ -142,25 +150,18 @@ function LogCard({ log, d }: { log: SystemLog; d: LogDescrito }) {
       {open && (
         <div className="space-y-3 border-t border-border px-4 pb-4 pt-3">
           {d.mudancas.length > 0 && (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-xs">
-                <thead className="bg-surface-muted text-2xs text-muted-foreground">
-                  <tr>
-                    <th scope="col" className="px-3 py-1.5 text-left font-semibold">O que mudou</th>
-                    <th scope="col" className="px-3 py-1.5 text-left font-semibold">Antes</th>
-                    <th scope="col" className="px-3 py-1.5 text-left font-semibold">Depois</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {d.mudancas.map((m, i) => (
-                    <tr key={`${m.campo}-${i}`}>
-                      <td className="px-3 py-1.5 font-medium text-slate-700">{m.campo}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground break-words">{m.antes}</td>
-                      <td className="px-3 py-1.5 font-semibold text-foreground break-words">{m.depois}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            /* Antes → depois sobre o DataTable (28/09). É uma tabela de leitura
+               dentro do cartão: sempre tabela (sem cartões no celular) e densa. */
+            <div className="rounded-lg border border-border">
+              <DataTable
+                columns={COLUNAS_DE_MUDANCAS}
+                rows={d.mudancas.map((m, i) => ({ ...m, id: `${m.campo}-${i}` }))}
+                getRowId={m => m.id}
+                caption="O que mudou neste registro: campo, valor anterior e valor novo"
+                density="compact"
+                cardMode="never"
+                tableClassName="text-xs"
+              />
             </div>
           )}
           {d.mudancas.length === 0 && d.dados.length > 0 && (

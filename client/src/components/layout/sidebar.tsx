@@ -458,7 +458,9 @@ export default function Sidebar() {
                           className={cn(
                             "relative flex items-center justify-center py-2 rounded-lg no-underline transition-colors",
                             "outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                            isActive ? "bg-brand-soft text-primary" : "bg-transparent hover:bg-brand-soft/60 text-muted-foreground",
+                            // Mesma cor por grupo do menu expandido (28/09): no rail compacto o
+                            // ícone é a única pista, então a cor ajuda ainda mais.
+                            isActive ? "bg-brand-soft text-primary" : cn("bg-transparent hover:bg-brand-soft/60", classeDeCorDaTela(tab.id)),
                           )}
                         >
                           <tab.icon className="w-[18px] h-[18px]" aria-hidden="true" />

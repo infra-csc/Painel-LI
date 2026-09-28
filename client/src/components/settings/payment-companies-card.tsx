@@ -8,7 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 import { isAdmin } from "@/lib/role-utils";
+import { DataTable, type ColunaDaTabela } from "@/components/common/data-table";
 import type { PaymentCompaniesState } from "./use-payment-companies";
+
+const COLUNAS_DE_EMPRESAS: ColunaDaTabela<PaymentCompany>[] = [
+  {
+    key: "empresa", header: "Empresa", papel: "principal",
+    cell: c => (
+      <div>
+        <p className="text-sm font-semibold text-foreground">{c.name}</p>
+        <p className="font-mono text-xs text-muted-foreground">{c.cnpj}</p>
+      </div>
+    ),
+  },
+];
 
 export interface PaymentCompaniesCardProps {
   user: User | null;
@@ -48,28 +61,32 @@ export function PaymentCompaniesCard({ user, paymentCompanies, state }: PaymentC
         {paymentCompanies.length === 0 && !showAddCompany ? (
           <p className="py-3 text-center text-sm text-muted-foreground">Nenhuma empresa cadastrada.</p>
         ) : paymentCompanies.length > 0 ? (
-          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-            {paymentCompanies.map(c => (
-              <div key={c.id} className="flex items-center justify-between bg-card px-4 py-3 transition-colors hover:bg-surface-muted">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{c.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{c.cnpj}</p>
-                </div>
-                {/* O DELETE do servidor exige admin — para os demais papéis
-                    o botão nem aparece (antes: clique → 403 silencioso) */}
-                {isAdmin(user) && (
-                  <button
-                    type="button"
-                    onClick={() => setCompanyToDelete(c)}
-                    disabled={deleteCompanyMutation.isPending}
-                    className="rounded-lg p-1.5 text-danger-strong transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`Remover empresa ${c.name}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-            ))}
+          /* 28/09: lista sobre o DataTable com o cabeçalho só para leitores de
+             tela (`hideHeader`) — visual de lista, semântica de tabela. */
+          <div className="overflow-hidden rounded-lg border border-border">
+            <DataTable
+              columns={COLUNAS_DE_EMPRESAS}
+              rows={paymentCompanies}
+              getRowId={c => String(c.id)}
+              caption="Empresas pagadoras cadastradas"
+              hideHeader
+              cardMode="never"
+              rowClassName={() => "bg-card hover:bg-surface-muted"}
+              /* O DELETE do servidor exige admin — para os demais papéis
+                 o botão nem aparece (antes: clique → 403 silencioso) */
+              rowActions={isAdmin(user) ? c => (
+                <button
+                  type="button"
+                  onClick={() => setCompanyToDelete(c)}
+                  disabled={deleteCompanyMutation.isPending}
+                  className="rounded-lg p-1.5 text-danger-strong transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`Remover empresa ${c.name}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              ) : undefined}
+              rowActionsLabel="Remover"
+            />
           </div>
         ) : null}
 

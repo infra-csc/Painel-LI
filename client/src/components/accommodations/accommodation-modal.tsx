@@ -5,7 +5,8 @@
  * `-dados`, `-complementos`) e os estilos/rótulos em `-shared`; aqui ficam o
  * estado do rascunho, a validação, o cabeçalho e o rodapé (tinha 699 linhas).
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { useQuery } from "@tanstack/react-query";
 import { Hotel, AlertCircle, Lock, Check } from "lucide-react";
 import { useVoucherFill } from "@/components/tickets/use-voucher-fill";
@@ -56,10 +57,22 @@ export interface AccommodationModalProps {
 
 export default function AccommodationModal(props: AccommodationModalProps) {
   const { open, onClose, inclusion, modal = true } = props;
+  // 28/09: quem sabe se há rascunho alterado é o conteúdo (que só existe
+  // aberto); ele registra aqui a função que decide entre fechar e perguntar.
+  // Antes, Esc ou clique fora fechavam e o que foi digitado se perdia.
+  const fecharRef = useRef<() => void>(onClose);
+  useEffect(() => { if (!open) fecharRef.current = onClose; }, [open, onClose]);
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }} modal={modal}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) fecharRef.current(); }} modal={modal}>
       {/* Conteúdo montado só com inclusão: o rascunho nasce do registro atual a cada abertura. */}
-      {open && inclusion && <AccommodationModalContent key={inclusion.id} {...props} inclusion={inclusion} />}
+      {open && inclusion && (
+        <AccommodationModalContent
+          key={inclusion.id}
+          {...props}
+          inclusion={inclusion}
+          registrarFechamento={(fn) => { fecharRef.current = fn; }}
+        />
+      )}
     </Dialog>
   );
 }
@@ -67,7 +80,8 @@ export default function AccommodationModal(props: AccommodationModalProps) {
 function AccommodationModalContent({
   onClose, inclusion, accommodation, event, func, collaborator, collaboratorById, users,
   canEditRecord, isPurchasingRole, lockedForRole, eventLocked, eventLockMessage, isPostPurchase, isSaving, onSave,
-}: AccommodationModalProps & { inclusion: TeamInclusion }) {
+  registrarFechamento,
+}: AccommodationModalProps & { inclusion: TeamInclusion; registrarFechamento: (fn: () => void) => void }) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<AccommodationDraft>(() => draftFrom(accommodation, inclusion));
   // Erros inline por campo (24/09): antes só um toast genérico "Campos obrigatórios".
@@ -83,6 +97,10 @@ function AccommodationModalContent({
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const roMode = !canEditRecord;
+  // `tocou` liga em qualquer alteração do rascunho — é o "sujo" do descarte.
+  const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(tocou && !roMode, { salvando: isSaving });
+  const fechar = () => pedirParaFechar(onClose);
+  useEffect(() => { registrarFechamento(fechar); });
 
   const set = <K extends keyof AccommodationDraft>(field: K, value: AccommodationDraft[K]) => {
     setTocou(true);
@@ -289,7 +307,7 @@ function AccommodationModalContent({
             <Lock className="w-3.5 h-3.5" aria-hidden="true" /> Somente Compras altera hospedagem registrada
           </span>
         )}
-        <Button variant="outline" onClick={onClose} className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium">
+        <Button variant="outline" onClick={fechar} className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium">
           Fechar
         </Button>
         {!roMode && (
@@ -301,6 +319,7 @@ function AccommodationModalContent({
         )}
       </div>
 
+      {DialogoDescarte}
       {showComments && (
         <CommentsModal open={showComments} onClose={() => setShowComments(false)} teamInclusionId={inclusion.id} />
       )}

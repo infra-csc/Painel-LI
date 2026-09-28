@@ -21,6 +21,8 @@ import { campo, useUrlState } from "@/lib/use-url-state";
 import UserEditModal from "@/components/modals/user-edit-modal";
 import ResetPasswordModal from "@/components/modals/reset-password-modal";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { DataTable, type ColunaDaTabela } from "@/components/common/data-table";
+import { cn } from "@/lib/utils";
 import type { User } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 import { hasPermission } from "@/lib/role-utils";
@@ -269,6 +271,169 @@ export default function AdminUsers() {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages, setPage]);
 
+  /** Ações de conta de um usuário (28/09 — extraídas da linha para a coluna do DataTable). */
+  const acoesDoUsuario = (u: User) => {
+    const isPending = u.status === "pending";
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setEditingUser(u)}
+              aria-label={`Editar usuário ${u.name}`}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors"
+              data-testid={`button-edit-${u.id}`}
+            >
+              <Edit className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Editar usuário</TooltipContent>
+        </Tooltip>
+
+        {/* Pending: approve / reject */}
+        {isPending && (
+          <>
+            <MotivoDesabilitado motivo={canManageAccounts ? "Aprovar" : SO_ADMIN} desabilitado={!canManageAccounts}>
+                <button
+                  onClick={() => handleApprove(u.id, "approved")}
+                  disabled={approveUserMutation.isPending || !canManageAccounts}
+                  aria-label={`Aprovar usuário ${u.name}`}
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
+                  data-testid={`button-approve-${u.id}`}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+            </MotivoDesabilitado>
+            <MotivoDesabilitado motivo={canManageAccounts ? "Rejeitar" : SO_ADMIN} desabilitado={!canManageAccounts}>
+                <button
+                  onClick={() => handleApprove(u.id, "rejected")}
+                  disabled={approveUserMutation.isPending || !canManageAccounts}
+                  aria-label={`Rejeitar usuário ${u.name}`}
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft disabled:opacity-40 transition-colors"
+                  data-testid={`button-reject-${u.id}`}
+                >
+                  <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+            </MotivoDesabilitado>
+          </>
+        )}
+
+        {/* Rejected: reactivate */}
+        {u.status === "rejected" && (
+          <MotivoDesabilitado motivo={canManageAccounts ? "Reativar" : SO_ADMIN} desabilitado={!canManageAccounts}>
+              <button
+                onClick={() => handleApprove(u.id, "approved")}
+                disabled={approveUserMutation.isPending || !canManageAccounts}
+                aria-label={`Reativar usuário ${u.name}`}
+                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
+                data-testid={`button-reactivate-${u.id}`}
+              >
+                <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+          </MotivoDesabilitado>
+        )}
+
+        {/* Approved: reset password + toggle active — o servidor só aceita
+            admin; os outros papéis veem o botão desabilitado com o motivo. */}
+        {u.status === "approved" && (
+          <>
+            <MotivoDesabilitado motivo={canManageAccounts ? "Redefinir senha" : SO_ADMIN} desabilitado={!canManageAccounts}>
+                <button
+                  onClick={() => handleResetPassword(u)}
+                  disabled={resetPasswordMutation.isPending || !canManageAccounts}
+                  aria-label={`Resetar senha de ${u.name}`}
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-warning hover:bg-warning-soft disabled:opacity-40 transition-colors"
+                  data-testid={`button-reset-pwd-${u.id}`}
+                >
+                  <Key className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+            </MotivoDesabilitado>
+
+            <MotivoDesabilitado motivo={canManageAccounts ? (u.isActive !== false ? "Desativar usuário" : "Reativar usuário") : SO_ADMIN} desabilitado={!canManageAccounts}>
+                <button
+                  onClick={() => handleToggleActive(u)}
+                  disabled={toggleActiveMutation.isPending || !canManageAccounts}
+                  aria-label={u.isActive !== false ? `Desativar usuário ${u.name}` : `Reativar usuário ${u.name}`}
+                  className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
+                    u.isActive !== false
+                      ? "text-muted-foreground hover:text-danger hover:bg-danger-soft"
+                      : "text-success bg-success-soft hover:bg-success-soft"
+                  }`}
+                  data-testid={`button-toggle-active-${u.id}`}
+                >
+                  {u.isActive !== false
+                    ? <UserMinus className="w-3.5 h-3.5" aria-hidden="true" />
+                    : <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />}
+                </button>
+            </MotivoDesabilitado>
+
+            {/* Admin-only: toggle cenotécnica approval permission */}
+            {isAdmin && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => toggleCenotecnicaMutation.mutate(u.id)}
+                    disabled={toggleCenotecnicaMutation.isPending}
+                    aria-label={u.canApproveCenotecnica
+                      ? `Remover permissão de aprovar cenotécnica de ${u.name}`
+                      : `Dar permissão de aprovar cenotécnica a ${u.name}`}
+                    className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
+                      u.canApproveCenotecnica
+                        ? "text-primary bg-brand-soft hover:bg-brand-soft"
+                        : "text-muted-foreground hover:text-primary-hover hover:bg-brand-soft"
+                    }`}
+                    data-testid={`button-toggle-cenotecnica-${u.id}`}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {u.canApproveCenotecnica
+                    ? "Remover permissão: aprovar cenotécnica"
+                    : "Dar permissão: aprovar cenotécnica"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Colunas da tabela (28/09 — DataTable). No cartão do celular o usuário é o
+  // título, as ações vão para o canto e o resto vira "rótulo: valor".
+  const colunasDeUsuarios: ColunaDaTabela<User>[] = [
+    {
+      key: "usuario", header: "Usuário", papel: "principal",
+      cell: u => (
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-2xs font-bold text-white shrink-0 ${avatarColor(u.name)}`}>
+            {initials(u.name)}
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-foreground text-sm leading-tight" data-testid={`text-user-name-${u.id}`}>
+                {u.name}
+              </span>
+            </div>
+            {u.area && <p className="text-2xs text-muted-foreground mt-0.5">{u.area}</p>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "email", header: "E-mail",
+      cell: u => <span className="font-mono text-xs text-muted-foreground" data-testid={`text-user-email-${u.id}`}>{u.email}</span>,
+    },
+    { key: "perfil", header: "Perfil", cell: u => <RoleBadge role={u.role} /> },
+    { key: "status", header: "Status", cell: u => <StatusPill status={u.status} isActive={u.isActive} /> },
+    {
+      key: "cadastro", header: "Cadastro",
+      cell: u => <span className="text-xs text-muted-foreground tabular-nums">{u.createdAt ? new Date(u.createdAt).toLocaleDateString("pt-BR") : "—"}</span>,
+    },
+    { key: "acoes", header: "Ações", align: "right", papel: "acoes", cell: acoesDoUsuario },
+  ];
+
   // A checagem de permissão precisa vir DEPOIS de todos os hooks: quando ela
   // ficava antes, o primeiro render (sessão ainda carregando) não executava os
   // hooks e o React quebrava com "rendered more hooks than during the previous render".
@@ -394,221 +559,31 @@ export default function AdminUsers() {
 
         {/* ── Table ── */}
         <div className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-surface-muted/80 border-b border-border">
-                  <th scope="col" className="text-left px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Usuário</th>
-                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">E-mail</th>
-                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Perfil</th>
-                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Cadastro</th>
-                  <th scope="col" className="text-right px-6 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6">
-                      <EmptyState
-                        icon={Users}
-                        variant={(searchQuery || statusFilter !== "all" || roleFilter !== "all") ? "filtered" : "default"}
-                        title="Nenhum usuário encontrado"
-                        description="Ajuste os filtros ou adicione um novo usuário."
-                        onClearFilters={(searchQuery || statusFilter !== "all" || roleFilter !== "all") ? clearAll : undefined}
-                        className="border-0 py-12"
-                      />
-                    </td>
-                  </tr>
-                ) : (
-                  paginated.map((u, idx) => {
-                    const isInactive = u.isActive === false || u.status === "rejected";
-                    const isPending  = u.status === "pending";
-                    const isEven = idx % 2 === 1;
-                    const col = avatarColor(u.name);
-
-                    return (
-                      <tr
-                        key={u.id}
-                        className={`border-b border-border transition-colors ${
-                          isPending
-                            ? "bg-warning-soft/40 hover:bg-warning-soft/70"
-                            : isEven
-                            ? "bg-surface-muted/40 hover:bg-brand-soft/40"
-                            : "bg-card hover:bg-brand-soft/40"
-                        } ${isInactive ? "opacity-75" : ""}`}
-                      >
-                        {/* Usuário */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-2xs font-bold text-white shrink-0 ${col}`}>
-                              {initials(u.name)}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-foreground text-sm leading-tight" data-testid={`text-user-name-${u.id}`}>
-                                  {u.name}
-                                </span>
-                              </div>
-                              {u.area && <p className="text-2xs text-muted-foreground mt-0.5">{u.area}</p>}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* E-mail */}
-                        <td className="px-4 py-4">
-                          <span className="font-mono text-xs text-muted-foreground" data-testid={`text-user-email-${u.id}`}>
-                            {u.email}
-                          </span>
-                        </td>
-
-                        {/* Perfil */}
-                        <td className="px-4 py-4">
-                          <RoleBadge role={u.role} />
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-4 py-4">
-                          <StatusPill status={u.status} isActive={u.isActive} />
-                        </td>
-
-                        {/* Data de Cadastro */}
-                        <td className="px-4 py-4 text-xs text-muted-foreground tabular-nums">
-                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString("pt-BR") : "—"}
-                        </td>
-
-                        {/* Ações */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => setEditingUser(u)}
-                                  aria-label={`Editar usuário ${u.name}`}
-                                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors"
-                                  data-testid={`button-edit-${u.id}`}
-                                >
-                                  <Edit className="w-3.5 h-3.5" aria-hidden="true" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>Editar usuário</TooltipContent>
-                            </Tooltip>
-
-                            {/* Pending: approve / reject */}
-                            {isPending && (
-                              <>
-                                <MotivoDesabilitado motivo={canManageAccounts ? "Aprovar" : SO_ADMIN} desabilitado={!canManageAccounts}>
-                                    <button
-                                      onClick={() => handleApprove(u.id, "approved")}
-                                      disabled={approveUserMutation.isPending || !canManageAccounts}
-                                      aria-label={`Aprovar usuário ${u.name}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
-                                      data-testid={`button-approve-${u.id}`}
-                                    >
-                                      <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                                    </button>
-                                </MotivoDesabilitado>
-                                <MotivoDesabilitado motivo={canManageAccounts ? "Rejeitar" : SO_ADMIN} desabilitado={!canManageAccounts}>
-                                    <button
-                                      onClick={() => handleApprove(u.id, "rejected")}
-                                      disabled={approveUserMutation.isPending || !canManageAccounts}
-                                      aria-label={`Rejeitar usuário ${u.name}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft disabled:opacity-40 transition-colors"
-                                      data-testid={`button-reject-${u.id}`}
-                                    >
-                                      <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                                    </button>
-                                </MotivoDesabilitado>
-                              </>
-                            )}
-
-                            {/* Rejected: reactivate */}
-                            {u.status === "rejected" && (
-                              <MotivoDesabilitado motivo={canManageAccounts ? "Reativar" : SO_ADMIN} desabilitado={!canManageAccounts}>
-                                  <button
-                                    onClick={() => handleApprove(u.id, "approved")}
-                                    disabled={approveUserMutation.isPending || !canManageAccounts}
-                                    aria-label={`Reativar usuário ${u.name}`}
-                                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-soft disabled:opacity-40 transition-colors"
-                                    data-testid={`button-reactivate-${u.id}`}
-                                  >
-                                    <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                                  </button>
-                              </MotivoDesabilitado>
-                            )}
-
-                            {/* Approved: reset password + toggle active — o servidor só aceita
-                                admin; os outros papéis veem o botão desabilitado com o motivo. */}
-                            {u.status === "approved" && (
-                              <>
-                                <MotivoDesabilitado motivo={canManageAccounts ? "Redefinir senha" : SO_ADMIN} desabilitado={!canManageAccounts}>
-                                    <button
-                                      onClick={() => handleResetPassword(u)}
-                                      disabled={resetPasswordMutation.isPending || !canManageAccounts}
-                                      aria-label={`Resetar senha de ${u.name}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-warning hover:bg-warning-soft disabled:opacity-40 transition-colors"
-                                      data-testid={`button-reset-pwd-${u.id}`}
-                                    >
-                                      <Key className="w-3.5 h-3.5" aria-hidden="true" />
-                                    </button>
-                                </MotivoDesabilitado>
-
-                                <MotivoDesabilitado motivo={canManageAccounts ? (u.isActive !== false ? "Desativar usuário" : "Reativar usuário") : SO_ADMIN} desabilitado={!canManageAccounts}>
-                                    <button
-                                      onClick={() => handleToggleActive(u)}
-                                      disabled={toggleActiveMutation.isPending || !canManageAccounts}
-                                      aria-label={u.isActive !== false ? `Desativar usuário ${u.name}` : `Reativar usuário ${u.name}`}
-                                      className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
-                                        u.isActive !== false
-                                          ? "text-muted-foreground hover:text-danger hover:bg-danger-soft"
-                                          : "text-success bg-success-soft hover:bg-success-soft"
-                                      }`}
-                                      data-testid={`button-toggle-active-${u.id}`}
-                                    >
-                                      {u.isActive !== false
-                                        ? <UserMinus className="w-3.5 h-3.5" aria-hidden="true" />
-                                        : <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />}
-                                    </button>
-                                </MotivoDesabilitado>
-
-                                {/* Admin-only: toggle cenotécnica approval permission */}
-                                {isAdmin && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button
-                                        onClick={() => toggleCenotecnicaMutation.mutate(u.id)}
-                                        disabled={toggleCenotecnicaMutation.isPending}
-                                        aria-label={u.canApproveCenotecnica
-                                          ? `Remover permissão de aprovar cenotécnica de ${u.name}`
-                                          : `Dar permissão de aprovar cenotécnica a ${u.name}`}
-                                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
-                                          u.canApproveCenotecnica
-                                            ? "text-primary bg-brand-soft hover:bg-brand-soft"
-                                            : "text-muted-foreground hover:text-primary-hover hover:bg-brand-soft"
-                                        }`}
-                                        data-testid={`button-toggle-cenotecnica-${u.id}`}
-                                      >
-                                        <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      {u.canApproveCenotecnica
-                                        ? "Remover permissão: aprovar cenotécnica"
-                                        : "Dar permissão: aprovar cenotécnica"}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          {/* Tabela sobre o DataTable (28/09): zebra, caption e cartões no
+              celular vêm do componente; pendentes continuam em fundo de aviso. */}
+          <DataTable
+            columns={colunasDeUsuarios}
+            rows={paginated}
+            getRowId={u => u.id}
+            caption="Usuários do sistema"
+            zebra
+            rowClassName={u => cn(
+              u.status === "pending" ? "bg-warning-soft/40 hover:bg-warning-soft/70" : "hover:bg-brand-soft/40",
+              (u.isActive === false || u.status === "rejected") && "opacity-75",
+            )}
+            emptyState={
+              <div className="p-6">
+                <EmptyState
+                  icon={Users}
+                  variant={(searchQuery || statusFilter !== "all" || roleFilter !== "all") ? "filtered" : "default"}
+                  title="Nenhum usuário encontrado"
+                  description="Ajuste os filtros ou adicione um novo usuário."
+                  onClearFilters={(searchQuery || statusFilter !== "all" || roleFilter !== "all") ? clearAll : undefined}
+                  className="border-0 py-12"
+                />
+              </div>
+            }
+          />
 
           {/* ── Footer / Pagination ── */}
           {filtered.length > 0 && (

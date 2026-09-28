@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
 import { fixEncoding } from "@/lib/utils";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import type { TicketFormValues } from "@/lib/ticket-form";
 import type { TeamInclusion } from "@shared/schema";
 import { casarVaga } from "./voucher-match";
@@ -63,6 +64,14 @@ export default function VoucherLoteDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [gravando, setGravando] = useState(false);
+  // 28/09: com vouchers lidos e ainda não registrados, fechar (Esc, clique
+  // fora ou "Fechar") descartava a conferência em silêncio.
+  const revisaoPendente = linhas.some((l) => l.tipo === "passagem" && l.resultado !== "ok");
+  const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(revisaoPendente, {
+    salvando: gravando,
+    descricao: "Os vouchers lidos e ainda não registrados serão descartados.",
+  });
+  const fechar = () => { onOpenChange(false); setLinhas([]); };
 
   const vagas = useMemo<VagaOpcao[]>(
     () => inclusions.map((i) => ({
@@ -191,7 +200,7 @@ export default function VoucherLoteDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setLinhas([]); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) pedirParaFechar(fechar); }}>
       <DialogContent className="max-w-5xl p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-xl">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border pr-12">
           <DialogTitle className="flex items-center gap-2">
@@ -322,7 +331,7 @@ export default function VoucherLoteDialog({
               ? `${prontas.length} pronta(s) para registrar`
               : linhas.length > 0 ? "Nenhuma linha pronta — confira as vagas acima." : "Nenhum arquivo ainda."}
           </p>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={gravando}>
+          <Button type="button" variant="ghost" onClick={() => pedirParaFechar(fechar)} disabled={gravando}>
             <X className="w-4 h-4 mr-1.5" aria-hidden="true" />Fechar
           </Button>
           <Button
@@ -337,6 +346,7 @@ export default function VoucherLoteDialog({
               : `Registrar ${prontas.length || ""}`.trim()}
           </Button>
         </div>
+        {DialogoDescarte}
       </DialogContent>
     </Dialog>
   );

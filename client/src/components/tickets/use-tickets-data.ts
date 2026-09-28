@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/queryClient";
 import { listaDeVagasQuery, recorteDaListaDeVagas } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
-import { hasRole } from "@/lib/role-utils";
+import { hasPermission, hasRole } from "@/lib/role-utils";
 import { passaNosFiltrosBase, passaNosFiltrosDePassagem } from "./tickets-filtering";
 import { purchasedValueKpi, isStoredTicketOneWay } from "@/lib/ticket-form";
 import { isEventPast, canActOnPastEvent } from "@shared/event-window";
@@ -110,7 +110,15 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   // Só para exibir o nome do autor dos comentários (a API de comentários não o traz).
   const { data: users } = useQuery<UserName[]>({ queryKey: ["/api/users"], staleTime: 300_000 });
   // Valores de refeição do Planejado — alimentam a linha "Impacto no Planejado".
-  const { data: systemSettings } = useQuery<Record<string, number | string>>({ queryKey: ["/api/system-settings"], staleTime: 300_000 });
+  // 28/09: GET /api/system-settings é só admin/RH (requireFinSession). Para
+  // Compras/produção a chamada voltava 403 a cada abertura da tela — um erro
+  // no console e um pedido a mais por nada; sem resposta, refeicaoCents usa
+  // os padrões, como já fazia.
+  const { data: systemSettings } = useQuery<Record<string, number | string>>({
+    queryKey: ["/api/system-settings"],
+    staleTime: 300_000,
+    enabled: hasPermission(user, "canAccessFinanceiro"),
+  });
 
   // Query global — para badges nas linhas da tabela (sem depender de inclusão
   // selecionada). Hook único (23/09): cache normalizado compartilhado com a

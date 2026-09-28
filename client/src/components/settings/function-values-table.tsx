@@ -5,8 +5,21 @@
 import { Link } from "wouter";
 import type { Function as FunctionType, FunctionValue } from "@shared/schema";
 import { BadgeCheck, ExternalLink, Search } from "lucide-react";
+import { DataTable, type ColunaDaTabela } from "@/components/common/data-table";
+import { toTitleCase } from "./settings-utils";
 import { FunctionValueRow } from "./function-value-row";
 import type { FunctionValuesEditor, SettingsTab } from "./use-function-values";
+
+/**
+ * Cabeçalho da tabela. As células de verdade vêm da linha (`rowRender`); estes
+ * `cell` só existem para o contrato do DataTable e para o cartão (que aqui é
+ * desligado, porque as células são editáveis).
+ */
+const COLUNAS_DE_VALORES: ColunaDaTabela<FunctionType>[] = [
+  { key: "funcao", header: "Função", papel: "principal", cell: fn => toTitleCase(fn.name) },
+  { key: "wd", header: "Dia útil", align: "right", headerClassName: "text-primary", cell: () => null },
+  { key: "we", header: "Fim de semana", align: "right", headerClassName: "text-warning-strong", cell: () => null },
+];
 
 export interface FunctionValuesTableProps {
   allFunctions: FunctionType[];
@@ -94,14 +107,18 @@ export function FunctionValuesTable({
           Nenhuma função encontrada para "<span className="font-medium">{functionSearch}</span>".
         </div>
       ) : (
-        <div className="overflow-x-auto"><div className="min-w-[420px]">
-          <div className="grid grid-cols-3 border-b border-border bg-surface-muted px-5 py-2">
-            <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Função</span>
-            <span className="text-right text-2xs font-bold uppercase tracking-wider text-primary">Dia útil</span>
-            <span className="text-right text-2xs font-bold uppercase tracking-wider text-warning-strong">Fim de semana</span>
-          </div>
-          <div className="divide-y divide-border">
-            {visibleFns.map((fn) => (
+        <div>
+          {/* 28/09: a grade de <div> virou tabela de verdade (DataTable) — o
+              cabeçalho ganha <th scope="col"> e a linha editável (memoizada)
+              entra por `rowRender`. Sempre tabela: as células são editáveis. */}
+          <DataTable
+            columns={COLUNAS_DE_VALORES}
+            rows={visibleFns}
+            getRowId={fn => fn.id}
+            caption="Diária por função: valor de dia útil e de fim de semana"
+            cardMode="never"
+            minWidthClassName="min-w-[420px]"
+            rowRender={fn => (
               <FunctionValueRow
                 key={fn.id}
                 fn={fn}
@@ -109,15 +126,15 @@ export function FunctionValuesTable({
                 activeTab={activeTab}
                 editor={editor}
               />
-            ))}
-          </div>
+            )}
+          />
           <div className="flex items-center justify-between border-t border-border px-5 py-3">
             <span className="text-2xs text-muted-foreground">{allFunctions.length} {allFunctions.length === 1 ? 'função' : 'funções'} cadastradas</span>
             <Link href="/functions" className="inline-flex items-center gap-1 text-2xs font-medium text-primary hover:text-primary-hover hover:underline">
               Gerenciar funções <ExternalLink className="w-3 h-3" aria-hidden="true" />
             </Link>
           </div>
-        </div></div>
+        </div>
       )}
     </div>
   );
