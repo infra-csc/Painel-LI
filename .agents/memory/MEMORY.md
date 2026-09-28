@@ -6,4 +6,4 @@
 - [Route authz identity source](route-authz-identity.md) — derive identity from req.session.userId ONLY on destructive/role-gated routes; the `|| req.body._userId` fallback (in older routes) is spoofable.
 - [Server changes need restart](server-changes-restart.md) — Vite HMR updates the client only; changes under server/ require restarting the application workflow before testing.
 - [Vite browser errors and workflow](vite-browser-errors.md) — client console errors reach Vite's server logger; never make its error logger exit the shared API process.
-- [Git pull recovery](git-pull-rebase-recovery.md) — Git UI may leave rebase/merge state or orphaned index.lock; inspect processes and metadata before cleanup.
+- [Git pull recovery](git-pull-rebase-recovery.md) — UI can reissue pull --rebase after abort despite pull.rebase=false; inspect state, then merge remote history when syncing.
