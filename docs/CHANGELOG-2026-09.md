@@ -431,3 +431,11 @@ anteriores e continuam valendo se ainda não foram feitos.
 - `AdjustRequestDialog` ganhou `onValidarEmVez?(motivo)`; a página da Validação só passa a função para vaga em `sugestao_pendente` (no modal da Escalação não aparece). `openValidateConfirm(ids, notaInicial?)`.
 - `adjust-request-dialog.test.tsx` (2 testes). Semente do demo: vagas da Validação passam a ter `workDays` (como na vida real), senão o formulário de ajuste nunca chegava à checagem de "nada mudou".
 
+## 8. 29/09 — Área de Função volta a ver os dados pessoais do colaborador
+
+- **Decisão do dono** (relato da Gabrielle: "não consigo mais visualizar o número do documento dos meninos"): a Área de Função vê de novo **todos** os dados pessoais do colaborador — CPF/RG, nascimento, telefone, endereço e o documento anexado. Tinham saído na projeção por papel de 23/09.
+- Produção continua **sem** esses dados.
+- A lista de quem vê é uma só: `ROLE_GROUPS.dadosPessoais` em `shared/roles.ts`, usada pelo GET /api/collaborators, pela regra do anexo do documento (`podeAcessarAnexo`) e pelas telas de Colaboradores e do cadastro. Antes eram três listas copiadas.
+- Testes de rota atualizados (Produção não recebe; Área de Função e admin recebem; o anexo do documento abre para qualquer Área de Função). `docs/seguranca-e-permissoes.md` atualizado.
+- Operação: Pull + Stop/Run. Sem migração.
+

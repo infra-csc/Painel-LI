@@ -55,6 +55,13 @@ export const ROLE_GROUPS = {
   financeiro: ["admin", "financial"],
   /** Logística: passagens, hospedagem, grupos de transporte, custos extras */
   logistica: ["admin", "purchasing", "production"],
+  /**
+   * Dados pessoais do colaborador: CPF/RG, nascimento, telefone, endereço e o
+   * anexo do documento. 23/09 ficou só admin/Compras/RH; 29/09 o dono devolveu
+   * à Área de Função ("vê todos os dados na verdade") — ela mantém o próprio
+   * time e usa o documento no dia a dia. Produção continua sem.
+   */
+  dadosPessoais: ["admin", "purchasing", "financial", "function_area"],
 } as const satisfies Record<string, readonly CanonicalRole[]>;
 
 /** Verifica se o papel (aceitando aliases legados) pertence ao grupo. */

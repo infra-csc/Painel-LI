@@ -169,13 +169,17 @@ describe("GET /api/attachments/:id/view", () => {
     expect((res.body as Buffer).equals(PNG)).toBe(true);
   });
 
-  it("documento de colaborador (CPF/RG): nem o dono function_area vê; RH vê", async () => {
+  // 29/09 (decisão do dono): a Área de Função voltou a ver os dados pessoais
+  // do colaborador — inclusive o documento anexado, mesmo o que ela não enviou.
+  it("documento de colaborador (CPF/RG): qualquer Área de Função vê (29/09); RH vê", async () => {
     const dono = await agenteLogado("function_area");
     const anexo = await anexoDe(dono.agent);
     const colab = await criarColaborador();
     await ctx.db.update(ctx.schema.collaborators).set({ documentAttachmentId: anexo.id }).where(eq(ctx.schema.collaborators.id, colab.id));
 
-    expect((await dono.agent.get(anexo.url)).status).toBe(403);
+    expect((await binario(dono.agent.get(anexo.url))).status).toBe(200);
+    const { agent: outraArea } = await agenteLogado("function_area");
+    expect((await binario(outraArea.get(anexo.url))).status).toBe(200);
     const { agent: rh } = await agenteLogado("financial");
     expect((await binario(rh.get(anexo.url))).status).toBe(200);
   });

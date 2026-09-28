@@ -12,6 +12,7 @@ import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission, hasRole } from "@/lib/role-utils";
+import { ROLE_GROUPS } from "@shared/roles";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import { PageHeader } from "@/components/common/page-header";
@@ -41,7 +42,7 @@ export default function CollaboratorManagement() {
   // Espelha a projeção do GET /api/collaborators: Logística e Área de Função
   // não recebem documento, nascimento, telefone, endereço nem anexo — a coluna
   // e as seções correspondentes somem em vez de mostrar "—".
-  const podeVerDadosPessoais = hasRole(user, "admin", "purchasing", "financial");
+  const podeVerDadosPessoais = hasRole(user, ...ROLE_GROUPS.dadosPessoais);
 
   const lista = useCollaboratorsList();
   const a = useCollaboratorActions({ user, toast, podeVerDadosPessoais });

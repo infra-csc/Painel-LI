@@ -119,18 +119,24 @@ describe("Segurança: gate global, CSRF e papéis", () => {
     }
   });
 
-  it("GET /api/collaborators: function_area não vê officialDocument; admin vê", async () => {
+  it("GET /api/collaborators: production não vê officialDocument; function_area (29/09) e admin veem", async () => {
     const colab = await criarColaborador();
+    const { agent: producao } = await agenteLogado("production");
     const { agent: area } = await agenteLogado("function_area");
     const { agent: admin } = await agenteLogado("admin");
+
+    const paraProducao = await producao.get("/api/collaborators");
+    expect(paraProducao.status).toBe(200);
+    const linhaProducao = paraProducao.body.find((c: any) => c.id === colab.id);
+    expect(linhaProducao).toBeDefined();
+    expect(linhaProducao).not.toHaveProperty("officialDocument");
+    expect(linhaProducao).not.toHaveProperty("phone");
+    expect(linhaProducao.fullName).toBe(colab.fullName);
 
     const paraArea = await area.get("/api/collaborators");
     expect(paraArea.status).toBe(200);
     const linhaArea = paraArea.body.find((c: any) => c.id === colab.id);
-    expect(linhaArea).toBeDefined();
-    expect(linhaArea).not.toHaveProperty("officialDocument");
-    expect(linhaArea).not.toHaveProperty("phone");
-    expect(linhaArea.fullName).toBe(colab.fullName);
+    expect(linhaArea.officialDocument).toBe(colab.officialDocument);
 
     const paraAdmin = await admin.get("/api/collaborators");
     expect(paraAdmin.status).toBe(200);
