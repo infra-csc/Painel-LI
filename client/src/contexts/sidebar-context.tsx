@@ -2,7 +2,11 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 
 /** Largura do menu lateral expandido (px). Fonte única — usada no aside, no
  *  deslocamento do <main> e em barras fixas que precisam "desviar" do menu. */
-export const SIDEBAR_W = 248;
+// 288 (28/09): com 248 os nomes mais longos ("Cadastro de usuários", "Aprovação
+// de escala" com o contador ao lado) não cabiam numa linha — cortar com
+// reticências ou quebrar em duas ficou ruim para o dono. Com 288 e a estrela
+// só no hover, todos cabem inteiros mesmo com o contador vermelho.
+export const SIDEBAR_W = 288;
 /** Largura do menu lateral no modo compacto (só ícones). */
 export const SIDEBAR_COMPACT_W = 56;
 /** Altura da barra superior (agora em todos os tamanhos de tela). */

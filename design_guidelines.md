@@ -50,7 +50,7 @@ Contraste: texto de 11–12px nunca em `slate-300/400`; use `text-muted-foregrou
 
 ## 3. Layout
 
-- Menu lateral de **248px**; em `< 1024px` vira gaveta.
+- Menu lateral de **288px**; em `< 1024px` vira gaveta. Rótulo sempre numa linha e inteiro (a largura foi escolhida para o nome mais longo caber; a estrela de favorito só aparece no hover), ícone com a cor do grupo (`CLASSE_DO_TONE` em nav-items.ts: Cadastros primary, Operacional info, Financeiro success, Gestão warning); o item ativo fica em `bg-brand-soft text-primary`.
 - Gutter da página: `--page-gutter` (16 / 24 / 32px por breakpoint) definido no
   `MainLayout`. Barras de contexto usam `-mx-[var(--page-gutter)]`.
 - Barras fixas: `sticky top-[var(--sticky-top)] z-30`. Nunca `top-0`, nunca

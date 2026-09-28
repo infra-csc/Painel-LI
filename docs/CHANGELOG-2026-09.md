@@ -388,3 +388,22 @@ anteriores e continuam valendo se ainda não foram feitos.
    padrão (30 s) ficam por instância. Decidir se vale o custo.
 5. Continuam de §4/§6 de `seguranca-e-permissoes.md`: rotação de segredos,
    `PORTAL_ORIGIN`, histórico do Git, e-mail de "esqueci a senha".
+
+
+## 6. Rodada 5 (28/09 — `6c1757ee` e o commit seguinte)
+
+### 6.1 O que muda para quem usa
+- **Passagens — leitura de voucher:** vouchers da LATAM em que o nome do aeroporto vem na mesma linha da data e a sigla ("(MCZ)") cai sozinha na linha de baixo voltam a ser lidos com ida e volta (era o "PDF não está lendo mais": o leitor perdia os dois trechos de Maceió e devolvia uma ida de Guarulhos a Congonhas, sem volta). Quando um PDF de fato não abre, o log do servidor registra a causa exata.
+- **Escalação com evento passado:** ao marcar um evento que já aconteceu com o recorte "Futuros" ligado, a lista vazia explica o motivo e oferece "Mostrar as N vagas" (troca o recorte para "Todos"). A lógica dos recortes não mudou; o Exportar continua disponível assim que a lista tem linhas.
+- **Menu lateral:** 288 px de largura, nomes inteiros numa linha só, ícones com a cor do grupo, estrela de favorito só ao passar o mouse e barra de rolagem fina.
+
+### 6.2 O que muda para quem opera
+- Nada além da checklist da §5.2. **Atenção ao `git pull` no Replit:** se o workspace tiver alterações locais, o pull cria conflito e o Vite mostra `Encountered diff marker` em todas as telas. Antes de puxar, descarte o que não for para ficar (`git status`, depois `git checkout -- .` ou `git stash`) e, se o conflito já aconteceu, `git fetch origin && git reset --hard origin/main`.
+- Se usuários relatarem "não consegui abrir este PDF", procure no log do Replit a linha `[voucher] falha ao abrir o PDF`.
+
+### 6.3 O que muda para quem desenvolve
+- `npm run test:e2e`: 40 cenários Playwright sobre o modo demonstração (servidor próprio na 5058; passo no CI com upload do relatório em falha). O `playwright.config.ts` grava `PORT` no ambiente antes de subir o servidor.
+- `server/vite.ts` não faz mais `process.exit` em erro de console do navegador (o Vite 8 encaminha o console e derrubava o dev server).
+- `server/dev/pglite-schema.ts` limpa o `Array.prototype` depois de usar `drizzle-kit/api` (senão o pdf.js recusa qualquer PDF no demo e nos testes).
+- `.gitattributes` com LF: acabam os avisos de CRLF em todo commit no Windows.
+- `shared/voucher-parse.ts`: `juntarLinhasQuebradas` cobre a sigla numa linha própria (antes ou depois da data); `LINHA_TRECHO` aceita sigla sem nome. Testes com as duas ordens de extração.
