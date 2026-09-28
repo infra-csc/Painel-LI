@@ -44,18 +44,13 @@ export function CartaoPrestacaoLinha({
   navigate, toggleExpand,
 }: CartaoPrestacaoLinhaProps) {
   return (
+    // 28/09: a linha era role="button" com botões reais dentro (Analisar,
+    // Aprovar NF…) — controle dentro de controle, que o leitor de tela anuncia
+    // como um só. O botão de expandir é o chevron; o clique na área livre da
+    // linha continua abrindo com o mouse.
     <div
       className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
-      role="button"
-      tabIndex={0}
-      aria-expanded={isExpanded}
       onClick={() => toggleExpand(item.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggleExpand(item.id);
-        }
-      }}
     >
       {/* Avatar */}
       <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${avatarColorRh(colName)}`}>
@@ -269,7 +264,15 @@ export function CartaoPrestacaoLinha({
           }
           return <span className="text-2xs font-semibold rounded-md px-2 py-1 border bg-warning-soft text-warning border-warning/25">Ag. nota fiscal</span>;
         })()}
-        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? "Recolher" : "Expandir"} prestação de ${colName}`}
+          onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
+          className="w-7 h-7 -mr-1.5 flex items-center justify-center rounded-md text-muted-foreground hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+        </button>
       </div>
     </div>
   );

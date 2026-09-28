@@ -14,17 +14,28 @@ import type { PrestacaoStatus } from "./prestacao-types";
 import type { InvoiceCounts } from "./use-rh-control-data";
 import type { RhFiltros } from "./use-rh-filtros";
 
-const MetricLine = ({ label, val, color }: { label: string; val: number; color: string }) => (
+// Tom → classe de token (28/09): antes cada card/linha recebia a cor como
+// `style={{ color: "var(--…)" }}`; agora recebe o TOM e a classe sai daqui,
+// como no `TONE_CLASS` da pílula de status. Mesmos tokens, mesmo visual.
+type TomDoCard = "danger" | "primary" | "warning" | "success";
+const TONE_CLASS: Record<TomDoCard, { text: string; strip: string }> = {
+  danger: { text: "text-danger-strong", strip: "bg-danger-strong" },
+  primary: { text: "text-primary", strip: "bg-primary" },
+  warning: { text: "text-warning", strip: "bg-warning" },
+  success: { text: "text-success", strip: "bg-success" },
+};
+
+const MetricLine = ({ label, val, tone }: { label: string; val: number; tone: TomDoCard }) => (
   <div className="flex items-center gap-1.5">
-    <span className="text-sm font-bold tabular-nums w-7 text-right shrink-0" style={{ color: val > 0 ? color : 'var(--muted-foreground)' }}>{val}</span>
+    <span className={cn("text-sm font-bold tabular-nums w-7 text-right shrink-0", val > 0 ? TONE_CLASS[tone].text : "text-muted-foreground")}>{val}</span>
     <span className={cn("text-xs", (val > 0 ? "text-slate-600" : "text-muted-foreground"))}>{label}</span>
   </div>
 );
 
 const MetricCard = ({
-  stripColor, icon: Icon, iconColor, title, value, children, onClick, active, isLoading,
+  tone, icon: Icon, title, value, children, onClick, active, isLoading,
 }: {
-  stripColor: string; icon: LucideIcon; iconColor: string; title: string; value: number; children: ReactNode;
+  tone: TomDoCard; icon: LucideIcon; title: string; value: number; children: ReactNode;
   onClick: () => void; active: boolean; isLoading: boolean;
 }) => (
   <button
@@ -36,13 +47,13 @@ const MetricCard = ({
       active ? "border-primary ring-2 ring-primary/25 shadow-1" : "border-border"
     }`}
   >
-    <div className="h-[3px] w-full" style={{ background: stripColor }} />
+    <div className={cn("h-[3px] w-full", TONE_CLASS[tone].strip)} />
     <div className="p-5 flex flex-col flex-1 w-full">
       <div className="flex items-center gap-2 mb-1">
-        <Icon className="w-4 h-4" style={{ color: iconColor }} />
+        <Icon className={cn("w-4 h-4", TONE_CLASS[tone].text)} aria-hidden="true" />
         <span className="text-xs font-semibold text-slate-600">{title}</span>
       </div>
-      <div className="text-4xl font-bold tabular-nums mt-1 mb-3" style={{ color: iconColor }}>
+      <div className={cn("text-4xl font-bold tabular-nums mt-1 mb-3", TONE_CLASS[tone].text)}>
         {isLoading ? <span className="inline-block w-12 h-9 bg-border rounded animate-pulse motion-reduce:animate-none" /> : value}
       </div>
       <div className="space-y-1">
@@ -102,32 +113,32 @@ export function RhSummary({ statusCounts, invoiceCounts, rhActionCount, conclude
   return (
     <div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard stripColor="var(--danger-strong)" icon={AlertTriangle} iconColor="var(--danger-strong)" title="Aguardando RH" value={rhTotal} isLoading={isLoading}
+        <MetricCard tone="danger" icon={AlertTriangle} title="Aguardando RH" value={rhTotal} isLoading={isLoading}
           onClick={() => applyCardFilter("rh_action")} active={filterStatus === "rh_action"}>
-          <MetricLine label="Planejamento" val={rhPlan} color="var(--danger-strong)" />
-          <MetricLine label="Comparativo"  val={rhComp} color="var(--danger-strong)" />
-          <MetricLine label="Nota fiscal"  val={rhNf}   color="var(--danger-strong)" />
-          {chk > 0 && <MetricLine label="Check-in" val={chk} color="var(--primary)" />}
+          <MetricLine label="Planejamento" val={rhPlan} tone="danger" />
+          <MetricLine label="Comparativo"  val={rhComp} tone="danger" />
+          <MetricLine label="Nota fiscal"  val={rhNf}   tone="danger" />
+          {chk > 0 && <MetricLine label="Check-in" val={chk} tone="primary" />}
         </MetricCard>
 
-        <MetricCard stripColor="var(--primary)" icon={Users} iconColor="var(--primary)" title="Aguardando colaborador" value={colTotal} isLoading={isLoading}
+        <MetricCard tone="primary" icon={Users} title="Aguardando colaborador" value={colTotal} isLoading={isLoading}
           onClick={() => applyCardFilter("col_action")} active={filterStatus === "col_action"}>
-          <MetricLine label="Realizado"    val={colReal}   color="var(--primary)" />
-          <MetricLine label="NF devolvida" val={colNfDev}  color="var(--primary)" />
-          <MetricLine label="Aguardando lançamento" val={colNfPend} color="var(--primary)" />
+          <MetricLine label="Realizado"    val={colReal}   tone="primary" />
+          <MetricLine label="NF devolvida" val={colNfDev}  tone="primary" />
+          <MetricLine label="Aguardando lançamento" val={colNfPend} tone="primary" />
         </MetricCard>
 
-        <MetricCard stripColor="var(--warning)" icon={Clock} iconColor="var(--warning)" title="Nota fiscal" value={emAndamento} isLoading={isLoading}
+        <MetricCard tone="warning" icon={Clock} title="Nota fiscal" value={emAndamento} isLoading={isLoading}
           onClick={() => applyCardFilter("nf_andamento")} active={filterStatus === "nf_andamento"}>
-          <MetricLine label="Ag. envio"    val={nfAgNf}    color="var(--warning)" />
-          <MetricLine label="Em análise"   val={nfAnalise} color="var(--warning)" />
-          <MetricLine label="NF devolvida" val={nfDevNf}   color="var(--warning)" />
+          <MetricLine label="Ag. envio"    val={nfAgNf}    tone="warning" />
+          <MetricLine label="Em análise"   val={nfAnalise} tone="warning" />
+          <MetricLine label="NF devolvida" val={nfDevNf}   tone="warning" />
         </MetricCard>
 
-        <MetricCard stripColor="var(--success)" icon={CheckCircle} iconColor="var(--success)" title="Concluídos" value={concludedCount} isLoading={isLoading}
+        <MetricCard tone="success" icon={CheckCircle} title="Concluídos" value={concludedCount} isLoading={isLoading}
           onClick={() => applyCardFilter("concluidos")} active={filterStatus === "concluidos"}>
-          <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="var(--success)" />
-          {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="var(--danger-strong)" />}
+          <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} tone="success" />
+          {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} tone="danger" />}
         </MetricCard>
       </div>
       <p className="text-2xs text-muted-foreground mt-1.5">

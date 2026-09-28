@@ -44,7 +44,9 @@ export default function ScalingWorkQueue({ contagens, total, ativa, onEscolher, 
 }) {
   const blocos = QUEUE_META.filter((q) => (mostrarGestor || q.key !== "gestor") && (mostrarTrocas || q.key !== "troca"));
   return (
-    <section aria-label="Fila de trabalho da escalação" className="flex rounded-xl border border-border bg-card overflow-hidden">
+    // 28/09: no celular os 6 blocos em linha viravam "|", "(", "a" — grade de
+    // 2 colunas até `sm`, como a fila das Passagens.
+    <section aria-label="Fila de trabalho da escalação" className="grid grid-cols-2 sm:flex rounded-xl border border-border bg-card overflow-hidden">
       {/* "Todas" (04/09): com um bloco ligado por padrão, quem filtrava um
           evento via 2 de 16 vagas e não achava como ver o resto. Este bloco é
           o "sem recorte" explícito — ativo quando nenhum outro está. */}

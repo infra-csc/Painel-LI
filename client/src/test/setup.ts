@@ -16,6 +16,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { zerarAuthMock } from "./auth-mock";
+import { limparToasts } from "@/hooks/use-toast";
 
 vi.mock("@/hooks/use-auth", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/hooks/use-auth")>();
@@ -25,6 +26,9 @@ vi.mock("@/hooks/use-auth", async (importOriginal) => {
 
 afterEach(() => {
   cleanup();
+  // Toasts vivem em memória de módulo e sobreviveriam ao próximo teste — e um
+  // toast antigo é uma camada do Radix acima do modal (o Esc deixa de fechar).
+  limparToasts();
   zerarAuthMock();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

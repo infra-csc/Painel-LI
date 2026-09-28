@@ -6,8 +6,14 @@
  * inteira. O que mudou é o corpo, que ganhou hierarquia — nome e CPF em cima,
  * ações à direita, os seis campos rotulados embaixo e o evento como contexto na
  * base — e o rodapé, que diz o que está na tela e por qual campo está ordenado.
+ *
+ * 28/09: os cartões passam pelo DataTable em `cardMode="always"` — o cartão é
+ * o mesmo (`BaggageCard`), mas a lista ganha `<ul role="list">` com nome e as
+ * colunas ficam declaradas (LOC, colaborador, OS, quantidade, valor, datas,
+ * agência, evento) para quem precisar da tabela um dia.
  */
 import { Luggage, Pencil, RotateCw, Trash2, X } from "lucide-react";
+import { DataTable, type ColunaDaTabela } from "@/components/common/data-table";
 import {
   CIA_STYLE, ciaGroup, fmtDate, formatCpf, formatCurrency, getCpf,
   type BaggageRequestItem, type CollaboratorItem,
@@ -15,6 +21,77 @@ import {
 import { NOME_DA_ORDEM, type Ordem, type ResumoDoRecorte } from "./baggage-logic";
 
 const ROTULO = "text-2xs font-bold text-muted-foreground uppercase tracking-[0.1em]";
+
+interface AcoesDoCartao {
+  onEditar: (r: BaggageRequestItem) => void;
+  onExcluir: (r: BaggageRequestItem) => void;
+  podeEditar: boolean;
+}
+
+function BaggageCard({ r, nome, cpf, evento, onEditar, onExcluir, podeEditar }: AcoesDoCartao & {
+  r: BaggageRequestItem; nome: string; cpf: string; evento: string;
+}) {
+  const style = CIA_STYLE[ciaGroup(r.cia)];
+  return (
+    <div
+      className="flex rounded-xl border border-border overflow-hidden hover:border-primary/25 transition-colors"
+      data-testid={`baggage-row-${r.loc}`}
+    >
+      {/* Cartão de embarque: a companhia lida antes da leitura. */}
+      <div className={`${style.stub} w-24 shrink-0 flex flex-col items-center justify-center gap-0.5 px-2 py-3 text-white`}>
+        <p className="font-mono font-bold text-sm tracking-wider break-all text-center">{r.loc}</p>
+        <p className="text-2xs font-semibold uppercase tracking-wide opacity-90">{r.cia}</p>
+      </div>
+
+      <div className="flex-1 min-w-0 px-4 py-3">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-xs font-bold text-foreground truncate" title={nome}>
+            {nome}
+            {cpf && <span className="ml-2 font-mono font-normal text-2xs text-muted-foreground">{formatCpf(cpf)}</span>}
+          </p>
+          {podeEditar && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                title="Editar solicitação"
+                aria-label={`Editar solicitação LOC ${r.loc}`}
+                onClick={() => onEditar(r)}
+                className="w-8 h-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors"
+                data-testid={`button-edit-${r.loc}`}
+              >
+                <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                title="Excluir solicitação"
+                aria-label={`Excluir solicitação LOC ${r.loc}`}
+                onClick={() => onExcluir(r)}
+                className="w-8 h-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft transition-colors"
+                data-testid={`button-delete-${r.loc}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-1.5 mt-2 text-2xs">
+          <div><p className={ROTULO}>OS</p><p className="text-slate-700 font-medium truncate" title={r.os}>{r.os}</p></div>
+          <div><p className={ROTULO}>Qtd.</p><p className="text-slate-700 font-medium font-mono">{r.quantity}</p></div>
+          <div><p className={ROTULO}>Valor</p><p className="text-foreground font-mono font-semibold">{formatCurrency(r.valueCents || 0)}</p></div>
+          <div><p className={ROTULO}>Solicitação</p><p className="text-slate-700 font-medium font-mono">{fmtDate(r.requestDate)}</p></div>
+          <div><p className={ROTULO}>Embarque</p><p className="text-slate-700 font-medium font-mono">{fmtDate(r.boardingDate)}</p></div>
+          <div><p className={ROTULO}>Agência</p><p className="text-slate-700 font-medium truncate" title={r.agency}>{r.agency}</p></div>
+        </div>
+
+        <p className="text-2xs text-muted-foreground mt-1.5 truncate" title={r.notes ? `${evento} — ${r.notes}` : evento}>
+          {evento}
+          {r.notes && <span className="text-muted-foreground"> — {r.notes}</span>}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function BaggageList({
   linhas, collabById, getCollabName, getEventName, carregando, erro, onRecarregar,
@@ -37,6 +114,18 @@ export default function BaggageList({
   resumo: ResumoDoRecorte;
   ordem: Ordem;
 }) {
+  const colunas: ColunaDaTabela<BaggageRequestItem>[] = [
+    { key: "loc", header: "LOC", papel: "principal", cell: r => `${r.loc} · ${r.cia}` },
+    { key: "colaborador", header: "Colaborador", cell: r => getCollabName(r.collaboratorId) },
+    { key: "os", header: "OS", cell: r => r.os },
+    { key: "quantidade", header: "Qtd.", align: "right", cell: r => r.quantity },
+    { key: "valor", header: "Valor", align: "right", cell: r => formatCurrency(r.valueCents || 0) },
+    { key: "solicitacao", header: "Solicitação", cell: r => fmtDate(r.requestDate) },
+    { key: "embarque", header: "Embarque", cell: r => fmtDate(r.boardingDate) },
+    { key: "agencia", header: "Agência", cell: r => r.agency },
+    { key: "evento", header: "Evento", cell: r => getEventName(r.eventId) },
+  ];
+
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="p-4 space-y-3">
@@ -77,74 +166,30 @@ export default function BaggageList({
               </button>
             )}
           </div>
-        ) : linhas.map(r => {
-          const style = CIA_STYLE[ciaGroup(r.cia)];
-          const c = collabById.get(r.collaboratorId);
-          const cpf = c ? getCpf(c) : "";
-          const nome = getCollabName(r.collaboratorId);
-          const evento = getEventName(r.eventId);
-
-          return (
-            <div
-              key={r.id}
-              className="flex rounded-xl border border-border overflow-hidden hover:border-primary/25 transition-colors"
-              data-testid={`baggage-row-${r.loc}`}
-            >
-              {/* Cartão de embarque: a companhia lida antes da leitura. */}
-              <div className={`${style.stub} w-24 shrink-0 flex flex-col items-center justify-center gap-0.5 px-2 py-3 text-white`}>
-                <p className="font-mono font-bold text-sm tracking-wider break-all text-center">{r.loc}</p>
-                <p className="text-2xs font-semibold uppercase tracking-wide opacity-90">{r.cia}</p>
-              </div>
-
-              <div className="flex-1 min-w-0 px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-xs font-bold text-foreground truncate" title={nome}>
-                    {nome}
-                    {cpf && <span className="ml-2 font-mono font-normal text-2xs text-muted-foreground">{formatCpf(cpf)}</span>}
-                  </p>
-                  {podeEditar && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        title="Editar solicitação"
-                        aria-label={`Editar solicitação LOC ${r.loc}`}
-                        onClick={() => onEditar(r)}
-                        className="w-8 h-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors"
-                        data-testid={`button-edit-${r.loc}`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Excluir solicitação"
-                        aria-label={`Excluir solicitação LOC ${r.loc}`}
-                        onClick={() => onExcluir(r)}
-                        className="w-8 h-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft transition-colors"
-                        data-testid={`button-delete-${r.loc}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-1.5 mt-2 text-2xs">
-                  <div><p className={ROTULO}>OS</p><p className="text-slate-700 font-medium truncate" title={r.os}>{r.os}</p></div>
-                  <div><p className={ROTULO}>Qtd.</p><p className="text-slate-700 font-medium font-mono">{r.quantity}</p></div>
-                  <div><p className={ROTULO}>Valor</p><p className="text-foreground font-mono font-semibold">{formatCurrency(r.valueCents || 0)}</p></div>
-                  <div><p className={ROTULO}>Solicitação</p><p className="text-slate-700 font-medium font-mono">{fmtDate(r.requestDate)}</p></div>
-                  <div><p className={ROTULO}>Embarque</p><p className="text-slate-700 font-medium font-mono">{fmtDate(r.boardingDate)}</p></div>
-                  <div><p className={ROTULO}>Agência</p><p className="text-slate-700 font-medium truncate" title={r.agency}>{r.agency}</p></div>
-                </div>
-
-                <p className="text-2xs text-muted-foreground mt-1.5 truncate" title={r.notes ? `${evento} — ${r.notes}` : evento}>
-                  {evento}
-                  {r.notes && <span className="text-muted-foreground"> — {r.notes}</span>}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+        ) : (
+          <DataTable
+            columns={colunas}
+            rows={linhas}
+            getRowId={r => r.id}
+            caption="Solicitações de bagagem"
+            cardMode="always"
+            cardListClassName="gap-3"
+            cardRender={r => {
+              const c = collabById.get(r.collaboratorId);
+              return (
+                <BaggageCard
+                  r={r}
+                  nome={getCollabName(r.collaboratorId)}
+                  cpf={c ? getCpf(c) : ""}
+                  evento={getEventName(r.eventId)}
+                  onEditar={onEditar}
+                  onExcluir={onExcluir}
+                  podeEditar={podeEditar}
+                />
+              );
+            }}
+          />
+        )}
       </div>
 
       {!carregando && !erro && linhas.length > 0 && (

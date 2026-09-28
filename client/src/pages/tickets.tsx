@@ -1,7 +1,7 @@
 // Compra de Passagens — página. Estado de UI, validação compartilhada e o
 // upsert idempotente ficam aqui; dados/índices em use-tickets-data; a UI em
 // components/tickets/**. Regras do formulário: @/lib/ticket-form.
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useDeferredValue } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { AlertCircle, Stamp, FileUp } from "lucide-react";
@@ -93,7 +93,11 @@ export default function Tickets() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [modalActiveTab, setModalActiveTab] = useState("resumo");
 
-  const data = useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user });
+  // 28/09: a barra de filtros recebe `filters` na hora (a tecla aparece já);
+  // a lista e os contadores dos popovers recalculam com a versão adiada —
+  // digitar um nome não trava enquanto o React refaz o pipeline inteiro.
+  const filtrosAplicados = useDeferredValue(filters);
+  const data = useTicketsData({ filters: filtrosAplicados, showOnlyPendingSwaps, sortConfig, user });
   const {
     events, functions, collaborators, eventById, accommodationByInclusion,
     getTicket, getEventName, getFunctionName, getCollaboratorName,
@@ -138,10 +142,11 @@ export default function Tickets() {
     const ctx = { eventById: data.eventById, collaboratorById: data.collaboratorById, hoje: data.hoje };
     const completar = data.completarPipeline;
     // Base do contador do período: tudo aplicado, menos o próprio período.
-    const semPeriodo = completar(todas.filter((i) => passaNosFiltrosBase(i, { ...filters, periodo: DEFAULT_PERIOD }, ctx)), filters);
-    const porEvento = contarPorOpcao(todas, filters, "eventId", ctx, completar);
-    const porFuncao = contarPorOpcao(todas, filters, "functionId", ctx, completar);
-    const porColaborador = contarPorOpcao(todas, filters, "collaboratorId", ctx, completar);
+    const f = filtrosAplicados;
+    const semPeriodo = completar(todas.filter((i) => passaNosFiltrosBase(i, { ...f, periodo: DEFAULT_PERIOD }, ctx)), f);
+    const porEvento = contarPorOpcao(todas, f, "eventId", ctx, completar);
+    const porFuncao = contarPorOpcao(todas, f, "functionId", ctx, completar);
+    const porColaborador = contarPorOpcao(todas, f, "collaboratorId", ctx, completar);
     // Só entra no popover quem tem ao menos uma linha no recorte: uma lista de
     // 900 colaboradores em que 890 devolvem zero não ajuda a escolher.
     return {
@@ -156,7 +161,7 @@ export default function Tickets() {
         .filter(c => porColaborador.has(c.id))
         .map(c => ({ id: c.id, nome: toTitleCase(c.fullName), n: porColaborador.get(c.id) ?? 0 })),
     };
-  }, [data.teamInclusions, data.eventById, data.collaboratorById, data.completarPipeline, data.hoje, events, functions, collaborators, filters]);
+  }, [data.teamInclusions, data.eventById, data.collaboratorById, data.completarPipeline, data.hoje, events, functions, collaborators, filtrosAplicados]);
 
   /**
    * O resumo da barra de contexto. É onde o cartão "Total geral" foi parar:
@@ -585,7 +590,7 @@ export default function Tickets() {
         <div className="bg-card rounded-xl border border-border overflow-hidden">
           <TicketsTable
             data={data}
-            filters={filters}
+            filters={filtrosAplicados}
             sortConfig={sortConfig}
             onSort={handleSort}
             selectedTickets={selectedTickets}

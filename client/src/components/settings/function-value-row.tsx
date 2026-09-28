@@ -113,15 +113,18 @@ export const FunctionValueRow = memo(function FunctionValueRow({ fn, fv, activeT
     );
   };
 
+  // 28/09: a linha virou `<tr>` (a tabela é o DataTable); as três células
+  // guardam o mesmo conteúdo e o mesmo espaçamento da grade anterior.
+  const td = "px-5 py-1.5 align-middle";
   return (
-    <div
-      className={`group grid min-h-[44px] grid-cols-3 items-center gap-2 px-5 py-1.5 transition-colors
+    <tr
+      className={`group h-11 transition-colors border-t border-border first:border-t-0
         ${isCoord ? 'bg-brand-soft/40' : 'bg-card hover:bg-surface-muted/70'}
         ${isDirty ? 'ring-1 ring-inset ring-warning/25' : ''}
       `}
     >
       {/* Nome + badges */}
-      <div className="flex min-w-0 items-center gap-2">
+      <td className={td}><div className="flex min-w-0 items-center gap-2">
         {isCoord ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -142,12 +145,12 @@ export const FunctionValueRow = memo(function FunctionValueRow({ fn, fv, activeT
         >
           {toTitleCase(fn.name)}
         </span>
-      </div>
+      </div></td>
 
       {/* Dia Útil */}
-      {renderCell('wd', isEditingWd, wdVal, hasWd)}
+      <td className={td}>{renderCell('wd', isEditingWd, wdVal, hasWd)}</td>
       {/* Fim de semana — passa wdVal como fallback quando FDS não está configurado */}
-      {renderCell('we', isEditingWe, weVal, hasWe, wdVal)}
-    </div>
+      <td className={td}>{renderCell('we', isEditingWe, weVal, hasWe, wdVal)}</td>
+    </tr>
   );
 });

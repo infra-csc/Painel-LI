@@ -17,6 +17,7 @@ import { AlertTriangle, Check, ClipboardCheck, Loader2, X, Tag, UserMinus, Plus,
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EscalaResponsaveisTab from "@/components/functions/escala-responsaveis-tab";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { DataTable, type ColunaDaTabela } from "@/components/common/data-table";
 import { PageHeader } from "@/components/common/page-header";
 import { campo, useUrlState } from "@/lib/use-url-state";
 import { PageContainer } from "@/components/common/page-container";
@@ -388,6 +389,52 @@ export default function Functions() {
   const isPending = createFunctionMutation.isPending || updateFunctionMutation.isPending;
   const showTable = !isLoading && !(isError && !functions) && sortedFunctions.length > 0;
 
+  // Colunas da tabela (28/09 — DataTable). "#" some no cartão do celular; o
+  // nome é o título e as ações vão para o canto.
+  const colunasDeFuncoes: ColunaDaTabela<FunctionWithManagers>[] = [
+    {
+      key: "numero", header: "#", width: 60, papel: "oculta",
+      cell: (_f, idx) => <span className="text-xs text-muted-foreground font-semibold tabular-nums">{String(idx + 1).padStart(2, "0")}</span>,
+    },
+    {
+      key: "nome", header: "Nome da função", papel: "principal",
+      cell: f => <span className="text-base font-semibold text-foreground capitalize">{f.name}</span>,
+    },
+    {
+      key: "responsaveis", header: "Responsáveis",
+      cell: f => <FunctionManagersCell functionId={f.id} functionName={f.name} managers={f.managers} canManage={canManage} />,
+    },
+    {
+      key: "acoes", header: "Ações", align: "right", papel: "acoes",
+      /* Editar/excluir só para quem o servidor aceita (CADASTRO_ROLES) */
+      cell: f => canManage && (
+        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" onClick={() => handleOpenDialog(f)} data-testid={`button-edit-function-${f.id}`}
+                aria-label={`Editar função ${f.name}`}
+                className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors">
+                <Pencil className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Editar função</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" onClick={() => handleDelete(f.id)} data-testid={`button-delete-function-${f.id}`}
+                disabled={deleteFunctionMutation.isPending}
+                aria-label={`Excluir função ${f.name}`}
+                className="p-2 rounded-lg text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                <Trash2 className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Excluir função</TooltipContent>
+          </Tooltip>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <TooltipProvider>
       <PageContainer>
@@ -576,63 +623,17 @@ export default function Functions() {
             </div>
           )}
 
-          {/* Table */}
+          {/* Tabela sobre o DataTable (28/09): caption, th com scope e cartões
+              no celular vêm do componente; as células e ações são as mesmas. */}
           {showTable && (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[560px]">
-                <thead>
-                  <tr className="bg-muted/40 border-b border-border">
-                    {["#","Nome da função","Responsáveis","Ações"].map((h, i) => (
-                      <th scope="col" key={h}
-                        className={cn("px-4 sm:px-6 py-3.5 text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]", i === 3 ? "text-right" : "text-left", i === 0 && "w-[60px]")}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedFunctions.map((func, idx) => (
-                    <tr key={func.id} className="group transition-colors hover:bg-brand-soft/30 border-b border-border/50">
-                      <td className="px-4 sm:px-6 py-[18px] text-xs text-muted-foreground font-semibold tabular-nums">
-                        {String(idx + 1).padStart(2, "0")}
-                      </td>
-                      <td className="px-4 sm:px-6 py-[18px]">
-                        <span className="text-base font-semibold text-foreground capitalize">{func.name}</span>
-                      </td>
-                      <td className="px-4 sm:px-6 py-[18px]">
-                        <FunctionManagersCell functionId={func.id} functionName={func.name} managers={func.managers} canManage={canManage} />
-                      </td>
-                      <td className="px-4 sm:px-6 py-[18px]">
-                        {/* Editar/excluir só para quem o servidor aceita (CADASTRO_ROLES) */}
-                        {canManage && <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button type="button" onClick={() => handleOpenDialog(func)} data-testid={`button-edit-function-${func.id}`}
-                                aria-label={`Editar função ${func.name}`}
-                                className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-brand-soft transition-colors">
-                                <Pencil className="h-5 w-5" aria-hidden="true" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Editar função</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button type="button" onClick={() => handleDelete(func.id)} data-testid={`button-delete-function-${func.id}`}
-                                disabled={deleteFunctionMutation.isPending}
-                                aria-label={`Excluir função ${func.name}`}
-                                className="p-2 rounded-lg text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                                <Trash2 className="h-5 w-5" aria-hidden="true" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Excluir função</TooltipContent>
-                          </Tooltip>
-                        </div>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              columns={colunasDeFuncoes}
+              rows={sortedFunctions}
+              getRowId={f => f.id}
+              caption="Funções cadastradas"
+              minWidthClassName="min-w-[560px]"
+              rowClassName={() => "group"}
+            />
           )}
 
           {/* Footer */}

@@ -157,7 +157,9 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
                   </button>
                 )}
               </div>
-              <input ref={fileRef} id={`nf-file-${actual.id}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              <input ref={fileRef} id={`nf-file-${actual.id}`} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { setFile(e.target.files?.[0] || null); if (erros.anexo) setErros(p => ({ ...p, anexo: undefined })); }} />
+              {/* 28/09: o botão já apontava aria-describedby para este id; a mensagem só existia no toast. */}
+              <MensagemDeErro id={`nf-file-btn-${actual.id}`} erro={erros.anexo} />
               {invoice?.attachmentUrl && !file && !clearedAttachment && (
                 <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
                   className="mt-0.5 inline-flex items-center gap-0.5 text-2xs text-primary hover:underline">

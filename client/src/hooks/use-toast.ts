@@ -189,4 +189,14 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
+/**
+ * Esvazia a fila de toasts (28/09) — para o setup dos testes de componente.
+ * O estado vive neste módulo e sobrevive ao `cleanup` da Testing Library;
+ * um toast de um teste anterior renderizado no seguinte registra uma camada
+ * do Radix acima do modal e o Esc do Dialog passa a ser ignorado.
+ */
+function limparToasts() {
+  dispatch({ type: "REMOVE_TOAST" })
+}
+
+export { useToast, toast, limparToasts }

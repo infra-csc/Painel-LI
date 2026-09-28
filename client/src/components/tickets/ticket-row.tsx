@@ -1,5 +1,5 @@
 // Uma linha da tabela de Passagens.
-import { memo } from "react";
+import { forwardRef, memo } from "react";
 import { Eye, Plane, ArrowLeftRight, Lock, Stamp, Bus, PlaneTakeoff, PlaneLanding, MapPin } from "lucide-react";
 import type { TeamInclusion, Ticket } from "@shared/schema";
 import { extractTravelSuggestion, formatSuggestionDate, hasSuggestionValue } from "@/lib/ticket-form";
@@ -26,6 +26,8 @@ export interface TicketRowProps {
   /** Marca/desmarca "passagem emitida" — trava o pedido de ajuste da área. */
   onToggleEmitida?: (inclusion: TeamInclusion, emitida: boolean) => void;
   emitindo?: boolean;
+  /** Índice da linha na lista virtual (o virtualizador mede a altura por ele). */
+  "data-index"?: number;
 }
 
 const transportLabel = (t: Ticket) => (t.transportType === "van" ? "Van" : t.transportType === "rodoviario" ? "Rodoviário" : "Aéreo");
@@ -42,10 +44,13 @@ export function ticketSummaryLine(t: Ticket): string {
   return parts.join(" · ");
 }
 
-function TicketRow({
+// 28/09: `forwardRef` para a tabela virtualizada medir a altura real da linha
+// (nomes que quebram, sugestões em duas linhas) — sem isso o espaçador chuta
+// e a rolagem "pula".
+const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function TicketRow({
   inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation, onToggleEmitida, emitindo,
-  hasPendingSwap, hasApprovedSwap, selected, canEdit, locked, onToggleSelect, onOpen,
-}: TicketRowProps) {
+  hasPendingSwap, hasApprovedSwap, selected, canEdit, locked, onToggleSelect, onOpen, "data-index": dataIndex,
+}, ref) {
   const cancelado = inclusion.status === "cancelado";
   const cellCls = `px-4 py-3 cursor-pointer ${cancelado ? "opacity-60" : ""}`;
   const open = () => onOpen(inclusion);
@@ -58,6 +63,8 @@ function TicketRow({
 
   return (
     <tr
+      ref={ref}
+      data-index={dataIndex}
       /* Hover por classe: o style.backgroundColor inline no mouseleave apagava o âmbar da linha com troca pendente. */
       className={cn(`transition-colors group border-b border-border last:border-0 ${hasPendingSwap ? "bg-warning-soft/40 hover:bg-warning-soft/70" : rowIdx % 2 === 1 ? "bg-surface-muted/50 hover:bg-brand-soft/40" : "bg-card hover:bg-brand-soft/40"}`, (cancelado ? "opacity-50" : "opacity-100"), (hasPendingSwap ? "border-l-[3px] border-l-warning-strong" : cancelado ? "border-l-[3px] border-l-border" : ticket ? "border-l-[3px] border-l-success-strong" : "border-l-[3px] border-l-warning-strong"))}
     >
@@ -316,6 +323,6 @@ function TicketRow({
       </td>
     </tr>
   );
-}
+});
 
 export default memo(TicketRow);

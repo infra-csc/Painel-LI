@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MessageCircle, History, Loader2 } from "lucide-react";
 import type { Comment, TeamInclusionLog } from "@shared/schema";
+import { rotuloDaAcao } from "@shared/inclusion-timeline";
 
 interface TicketExtrasTabProps {
   comments: Comment[] | undefined;
@@ -14,22 +15,9 @@ interface TicketExtrasTabProps {
   onOpenComments: () => void;
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  status_changed: "🔄 Status Alterado",
-  collaborator_changed: "👤 Colaborador Alterado",
-  dates_changed: "📅 Período Alterado",
-  travel_dates_changed: "✈️ Datas de Viagem",
-  observations_changed: "📝 Observações",
-  ticket_created: "🎫 Passagem Criada",
-  ticket_updated: "✏️ Passagem Atualizada",
-  created: "✨ Criado",
-  confirmed: "✅ Confirmado",
-  reopened: "🔓 Reaberto",
-  work_days_changed: "📅 Diárias Editadas",
-  daily_rates_changed: "📊 Diárias Alteradas",
-  daily_value_changed: "💰 Valor da Diária Alterado",
-  city_changed: "📍 Cidade Alterada",
-};
+// 28/09: os rótulos das ações vêm do mapa único em shared/inclusion-timeline
+// (`rotuloDaAcao`). O mapa local cobria 14 ações e as outras apareciam cruas
+// ("suggestion_approved") no histórico da passagem.
 
 const Loading = ({ label }: { label: string }) => (
   <div className="bg-surface-muted rounded-xl border border-dashed border-border text-center py-8" role="status" aria-live="polite">
@@ -117,7 +105,7 @@ export default function TicketExtrasTab({ comments, commentsLoading, logs, logsL
                   <div className="w-2.5 h-2.5 bg-primary rounded-full -ml-[1.3rem] mt-2.5 flex-shrink-0 ring-4 ring-white" />
                   <div className="flex-1 min-w-0 bg-card border border-border rounded-xl px-3 py-2 shadow-1">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="text-2xs font-bold text-slate-700">{ACTION_LABELS[log.action] || log.action}</div>
+                      <div className="text-2xs font-bold text-slate-700">{rotuloDaAcao(log.action)}</div>
                       <div className="text-2xs text-muted-foreground whitespace-nowrap flex-shrink-0">
                         {log.createdAt && new Date(log.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </div>
