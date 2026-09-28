@@ -13,6 +13,7 @@ import type { BudgetActual, Event, Invoice } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toTitleCase } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
 import { campoComErro } from "@/lib/campo-com-erro";
@@ -54,11 +55,14 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
 
   return (
     <div
-      className="bg-card rounded-xl border border-border overflow-hidden shadow-1 transition-shadow hover:shadow-2"
-      style={{ borderLeft: `3px solid ${historyOpen ? "var(--primary)" : cfg.border}` }}
+      className={cn(
+        "bg-card rounded-xl border border-border border-l-[3px] overflow-hidden shadow-1 transition-shadow hover:shadow-2",
+        historyOpen ? "border-l-primary" : cfg.borderCls,
+      )}
     >
-      {/* Header row */}
-      <div className={`flex items-center justify-between px-5 py-4 transition-colors ${historyOpen ? "bg-brand-soft/30" : ""}`}>
+      {/* Cabeçalho (25/09): no celular nome e valor ficam em DUAS linhas —
+          numa só, "R$ 1.016,00" cobria o selo de status e o nome da função. */}
+      <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-4 transition-colors ${historyOpen ? "bg-brand-soft/30" : ""}`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${cfg.avatarCls}`}>
             {initial}
@@ -71,7 +75,7 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 pl-[52px] sm:pl-0 sm:shrink-0">
           <span className="text-lg font-bold text-primary tabular-nums font-mono">
             {formatCurrency(actual.totalValue)}
           </span>
@@ -106,7 +110,7 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
       </div>
 
       {/* Body */}
-      <div className="px-5 pb-4">
+      <div className="px-4 sm:px-5 pb-4">
         {/* Editable (pendente / devolvida) */}
         {canEdit && (
           <div className="flex flex-wrap items-end gap-3 mb-3">
@@ -163,7 +167,7 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
             </div>
             <Button
               size="sm"
-              className="rounded-xl text-white px-5 h-9 text-sm shadow-1 shrink-0 bg-success"
+              className="rounded-xl text-white px-5 h-9 text-sm shadow-1 shrink-0 bg-success w-full sm:w-auto"
               onClick={() => submitMutation.mutate()}
               disabled={submitMutation.isPending || uploading}
             >
@@ -211,7 +215,7 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
         {effStatus === "checkin-realizado" && (
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-success-soft text-success border border-success/25">
             <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-            Check-in Realizado
+            Check-in realizado
             {invoice?.checkinAt && <span className="font-normal opacity-75">· {fmtDate(invoice.checkinAt)}</span>}
             {invoice?.paymentDate && (
               <span className="font-normal opacity-75 ml-1">
@@ -225,7 +229,7 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
         {effStatus === "checkin-pendente" && (
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-brand-soft text-primary border border-primary/25">
             <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-            Aprovada · Aguardando Check-in Financeiro
+            Aprovada · aguardando check-in financeiro
           </div>
         )}
 
@@ -272,7 +276,7 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
 
       {/* History panel */}
       {historyOpen && history.length > 0 && (
-        <div className="bg-surface-muted border-t border-t-primary/25" style={{ padding: "12px 20px 14px 48px" }}>
+        <div className="bg-surface-muted border-t border-t-primary/25 px-4 pt-3 pb-3.5 sm:pl-12 sm:pr-5">
           <HistoryPanel events={history} />
         </div>
       )}

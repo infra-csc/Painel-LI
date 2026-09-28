@@ -1,6 +1,6 @@
 // Extraído de system-settings.tsx em 25/09 (modularização): uma linha da
-// tabela "Diária por Função (legado)" — nome + badge "Base" e as duas células
-// editáveis (Dia Útil / Fim de Semana). `renderCell` continua como closure da
+// tabela "Diária por função (legado)" — nome + badge "Base" e as duas células
+// editáveis (Dia Útil / Fim de semana). `renderCell` continua como closure da
 // linha porque depende de `fn` e do editor. React.memo: o editor e o ref mudam
 // a cada render do pai, então o memo só evita re-render quando NADA mudou;
 // mantido pelo padrão de linhas de lista do projeto.
@@ -146,7 +146,7 @@ export const FunctionValueRow = memo(function FunctionValueRow({ fn, fv, activeT
 
       {/* Dia Útil */}
       {renderCell('wd', isEditingWd, wdVal, hasWd)}
-      {/* Fim de Semana — passa wdVal como fallback quando FDS não está configurado */}
+      {/* Fim de semana — passa wdVal como fallback quando FDS não está configurado */}
       {renderCell('we', isEditingWe, weVal, hasWe, wdVal)}
     </div>
   );

@@ -1,7 +1,7 @@
 // Extraído de system-settings.tsx em 25/09 (modularização): ZONA 2 da tela
 // Valores padrão — Collapsible "Valores legados e overrides" com o toggle
 // Casa/Freela e os dois cards legados (diárias e alimentação útil/fds). A
-// tabela "Diária por Função" entra como `children`, porque o estado dela mora
+// tabela "Diária por função" entra como `children`, porque o estado dela mora
 // no hook (a zona desmonta ao fechar).
 import type { ReactNode } from "react";
 import type { UseFormReturn } from "react-hook-form";
@@ -17,7 +17,7 @@ export interface LegacyValuesSectionProps {
   setLegacyOpen: (open: boolean) => void;
   activeTab: SettingsTab;
   setActiveTab: (tab: SettingsTab) => void;
-  /** Tabela "Diária por Função (legado)" */
+  /** Tabela "Diária por função (legado)" */
   children: ReactNode;
 }
 
@@ -79,11 +79,11 @@ export function LegacyValuesSection({ form, legacyOpen, setLegacyOpen, activeTab
               />
               <div className="flex flex-col gap-3.5 p-4">
                 {activeTab === 'casa' ? (<>
-                  <MoneyField control={form.control} name="default_daily_value_weekday" label="Dia Útil" labelClass="text-primary" />
-                  <MoneyField control={form.control} name="default_daily_value_weekend" label="Fim de Semana" labelClass="text-warning-strong" />
+                  <MoneyField control={form.control} name="default_daily_value_weekday" label="Dia útil" labelClass="text-primary" />
+                  <MoneyField control={form.control} name="default_daily_value_weekend" label="Fim de semana" labelClass="text-warning-strong" />
                 </>) : (<>
-                  <MoneyField control={form.control} name="default_daily_value_weekday_freela" label="Dia Útil" labelClass="text-primary" />
-                  <MoneyField control={form.control} name="default_daily_value_weekend_freela" label="Fim de Semana" labelClass="text-warning-strong" />
+                  <MoneyField control={form.control} name="default_daily_value_weekday_freela" label="Dia útil" labelClass="text-primary" />
+                  <MoneyField control={form.control} name="default_daily_value_weekend_freela" label="Fim de semana" labelClass="text-warning-strong" />
                 </>)}
                 <p className="mb-0 text-2xs text-muted-foreground">
                   Onde ainda é usado: apenas como fallback/override manual de diária em orçamentos — o cálculo automático usa as regras de "Diárias Casa/Freela" da seção aplicada.
@@ -113,7 +113,7 @@ export function LegacyValuesSection({ form, legacyOpen, setLegacyOpen, activeTab
                   </div>
                 </div>
                 <div className="border-t border-border pt-3">
-                  <p className="mb-2 text-2xs font-bold uppercase tracking-wider text-warning-strong">Fim de Semana</p>
+                  <p className="mb-2 text-2xs font-bold uppercase tracking-wider text-warning-strong">Fim de semana</p>
                   <div className="grid grid-cols-2 gap-3">
                     {activeTab === 'casa' ? (<>
                       <MoneyField control={form.control} name="default_weekend_lunch" label="Almoço" labelClass="text-muted-foreground" />
@@ -131,7 +131,7 @@ export function LegacyValuesSection({ form, legacyOpen, setLegacyOpen, activeTab
             </div>
           </div>
 
-          {/* ── Tabela: Diária por Função (legado) ── */}
+          {/* ── Tabela: Diária por função (legado) ── */}
           {children}
         </div>
       </CollapsibleContent>

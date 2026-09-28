@@ -169,7 +169,7 @@ export default function BudgetPlannedPage() {
           )}
           {selectedEventId && (
             /* Tokens no lugar de `style={{}}`/hex (23/09), ao ligar o seletor ao evento em foco. */
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex w-full flex-col items-end gap-1 sm:w-auto">
               <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
               {selectedEvent?.startDate && (
                 <span className="flex items-center gap-1 text-2xs text-muted-foreground">
@@ -219,16 +219,20 @@ export default function BudgetPlannedPage() {
             {/* ── Seletor de Abas ── */}
             <div className="flex items-center gap-1 border-b border-border">
               <button
+                type="button"
+                aria-pressed={activeTab === "overview"}
                 onClick={() => setActiveTab("overview")}
                 className={`px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${activeTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-slate-600"}`}
               >
-                Visão Geral
+                Visão geral
               </button>
               <button
+                type="button"
+                aria-pressed={activeTab === "sheet"}
                 onClick={() => setActiveTab("sheet")}
                 className={`px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${activeTab === "sheet" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-slate-600"}`}
               >
-                Planilha de Edição
+                Planilha de edição
               </button>
             </div>
 

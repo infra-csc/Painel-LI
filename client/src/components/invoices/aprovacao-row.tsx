@@ -39,14 +39,14 @@ export const AprovacaoRow = memo(function AprovacaoRow({
   const isActive     = activeType !== null;
   const initial      = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
   const hasReturn    = !!inv.returnComment;
-  const borderColor  = isHistOpen ? "var(--primary)" : cfg.border;
+  const borderCls    = isHistOpen ? "border-l-primary" : cfg.borderCls;
 
   return (
     <tr
       data-actual-id={inv.budgetActualId}
-      className={`hover:bg-surface-muted/60 transition-colors duration-700 ${
+      className={`hover:bg-surface-muted/60 transition-colors duration-700 border-l-[3px] ${borderCls} ${
         isTarget
-          ? "bg-brand-soft/70"
+          ? "bg-brand-soft/70 shadow-[inset_0_0_0_2px_var(--primary)]"
           : activeType === "approve"
           ? "bg-card"
           : isHistOpen
@@ -55,10 +55,6 @@ export const AprovacaoRow = memo(function AprovacaoRow({
           ? "bg-surface-muted"
           : "border-b border-border"
       }`}
-      style={{
-        borderLeft: `3px solid ${borderColor}`,
-        ...(isTarget ? { boxShadow: "inset 0 0 0 2px var(--primary)" } : {}),
-      }}
     >
       {/* Colaborador */}
       <td className="px-4 py-3.5 overflow-hidden" style={{ minWidth: "180px" }}>

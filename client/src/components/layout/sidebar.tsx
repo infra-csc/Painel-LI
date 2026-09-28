@@ -22,7 +22,7 @@ import {
 import { initials } from "@/lib/format";
 import { useShellMode } from "./use-shell-mode";
 import { useShellData } from "./use-shell-data";
-import { visibleGroups, tabById, subgroupEdges, type NavTab } from "./nav-items";
+import { visibleGroups, tabById, subgroupEdges, classeDeCorDaTela, type NavTab } from "./nav-items";
 import { getFavorites, setFavorites, getClosedGroups, setClosedGroups, SHELL_PREFS_EVENT } from "./shell-prefs";
 
 /** Largura da gaveta no mobile (o desenho pede 272px, mais folgada que a de desktop). */
@@ -182,13 +182,15 @@ export default function Sidebar() {
             isActive ? "bg-brand-soft" : "bg-transparent hover:bg-brand-soft/60",
           )}
         >
-          {/* Sem cor por grupo (23/09): inativo em muted, ativo no azul de marca. */}
-          <span className={cn("flex items-center justify-center w-[22px] h-[22px] shrink-0", isActive ? "text-primary" : "text-muted-foreground")}>
+          {/* Cor por grupo de volta (28/09 — dono: "sem cor está bem ruim"); ativo no azul de marca. */}
+          <span className={cn("flex items-center justify-center w-[22px] h-[22px] shrink-0", isActive ? "text-primary" : classeDeCorDaTela(tab.id))}>
             <tab.icon className="w-[18px] h-[18px]" aria-hidden="true" />
           </span>
+          {/* Rótulo em até DUAS linhas (25/09): com `truncate`, "Cadastro de
+              usuários", "Validação de escala" e "Controle de bagagem" viravam
+              "Cadastro de usuá…" — o nome da tela é a única pista do menu. */}
           <span className={cn(
-            "flex-1 min-w-0 truncate",
-            opts.big ? "text-sm" : "text-sm",
+            "flex-1 min-w-0 text-sm leading-snug break-words line-clamp-2",
             isActive ? "font-semibold text-primary" : "font-normal text-slate-700",
           )}>
             {tab.label}

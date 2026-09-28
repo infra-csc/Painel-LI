@@ -161,7 +161,7 @@ export default function ScalingEventViewPage() {
       ) : (
         <Tabs value={effectiveTab} onValueChange={(v) => setTab(v as Tab)} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList className="h-auto rounded-xl bg-muted p-[3px]">
+            <TabsList className="h-auto max-w-full flex-wrap rounded-xl bg-muted p-[3px]">
               <TabsTrigger value="timeline" className="h-7 rounded-lg px-3.5 text-sm">Linha do tempo</TabsTrigger>
               <TabsTrigger value="lista" className="h-7 rounded-lg px-3.5 text-sm">Lista</TabsTrigger>
               {/* O quadro é função × dia DE UM evento: sem filtro ele somaria

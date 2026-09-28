@@ -79,7 +79,7 @@ export function PendingDaysBadge({ row, approverNames }: { row: PendingDaysRow; 
 // O badge vermelho "sem aprovador" foi REMOVIDO em 26/08 (decisão do dono: "não
 // tem isso de sem aprovador" — existe um aprovador padrão do sistema, então
 // nenhuma vaga validada fica sem quem decida). A salvaguarda continua onde ela
-// é acionável: na aba "Validação de Escala" dentro de Funções, que mostra ao
+// é acionável: na aba "Validação de escala" dentro de Funções, que mostra ao
 // admin quais funções estão no aprovador padrão. Aqui, na tela da ÁREA, o aviso
 // era só ruído — quem valida não cadastra aprovador.
 

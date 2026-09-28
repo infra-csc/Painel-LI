@@ -78,13 +78,13 @@ export function RateioView({ totals }: { totals: MirrorTotals; hotelDerived?: bo
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <RateioTabela
-          titulo="Rateio por Conta"
+          titulo="Rateio por conta"
           icone={<Landmark className="h-4 w-4" aria-hidden="true" />}
           linhas={totals.byAccount || []}
           vazio="Nenhuma função tem conta definida."
         />
         <RateioTabela
-          titulo="Subtotais por Departamento"
+          titulo="Subtotais por departamento"
           icone={<Building2 className="h-4 w-4" aria-hidden="true" />}
           linhas={totals.byDepartment || []}
           vazio="Sem departamentos."

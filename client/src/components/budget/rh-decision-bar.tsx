@@ -104,7 +104,7 @@ export function RhDecisionBar({ sidebarWidth, sortedData, selectedItems, selecte
                   <CheckCircle className="w-4 h-4 mr-1.5" aria-hidden="true" />
                   {hasAdjusted
                     ? `Aprovar com ajustes (${selectedRhAdjustedFields} campo${selectedRhAdjustedFields !== 1 ? "s" : ""})`
-                    : selectedItems.size > 0 ? `Aprovar e Finalizar (${selectedItems.size})` : "Aprovar e Finalizar"}
+                    : selectedItems.size > 0 ? `Aprovar e finalizar (${selectedItems.size})` : "Aprovar e finalizar"}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
@@ -132,7 +132,7 @@ export function RhActionDialog({ acoes, sortedData, selectedItems, selectedTotal
   const selecionados = sortedData.filter(row => selectedItems.has(row.actual.id));
   return (
     <Dialog open={!!actionModal} onOpenChange={fecharActionModal}>
-      <DialogContent className="max-w-md rounded-xl">
+      <DialogContent aria-describedby={undefined} className="max-w-md rounded-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             {actionModal?.type === "approve" && (
@@ -257,7 +257,7 @@ export function RhActionDialog({ acoes, sortedData, selectedItems, selectedTotal
 export function ConfirmAdjustDialog({ open, onOpenChange, onConfirm }: { open: boolean; onOpenChange: (v: boolean) => void; onConfirm: () => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm rounded-xl p-6 gap-4">
+      <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl p-6 gap-4">
         <DialogTitle className="sr-only">Aprovação com ajustes</DialogTitle>
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">

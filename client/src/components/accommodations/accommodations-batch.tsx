@@ -1,7 +1,7 @@
 /**
  * O lote de hospedagem: barra de seleção, confirmação e resultado.
  *
- * Antes era um card recolhido acima da tabela ("Aplicar em Lote"), e as caixas
+ * Antes era um card recolhido acima da tabela ("Aplicar em lote"), e as caixas
  * de seleção da lista só existiam DEPOIS de expandi-lo. Ninguém descobre um
  * formulário que só aparece atrás de um clique num acordeão — e o formulário
  * pedia os dados antes de existir qualquer linha selecionada, invertendo a
@@ -134,7 +134,7 @@ export function BatchConfirmDialog({
         <div className="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="batch-hotel-name" className={LBL}>Nome do Hotel<RequiredMark /></Label>
+              <Label htmlFor="batch-hotel-name" className={LBL}>Nome do hotel<RequiredMark /></Label>
               <Input id="batch-hotel-name" placeholder="Hotel Copacabana" value={draft.hotelName || ""}
                 onChange={(e) => onChange("hotelName", e.target.value)} className={INPUT} data-testid="input-quick-hotel-name" />
             </div>

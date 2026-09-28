@@ -5,7 +5,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { hasRole } from "@/lib/role-utils";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -259,7 +259,7 @@ export default function CollaboratorModal({
   return (
     <>
     <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
-      <DialogContent
+      <DialogContent aria-describedby={undefined}
         className="p-0 gap-0 sm:max-w-[600px] rounded-xl border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden max-h-[90vh] flex flex-col"
         data-testid="modal-collaborator"
       >
@@ -272,7 +272,7 @@ export default function CollaboratorModal({
             }
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-bold text-foreground">{modalTitle}</h2>
+            <DialogTitle className="text-sm font-bold text-foreground leading-normal tracking-normal">{modalTitle}</DialogTitle>
             {isEdit && collaborator && (
               <p className="text-2xs text-muted-foreground mt-0.5 truncate">Editando: {toTitleCase(collaborator.fullName)}</p>
             )}

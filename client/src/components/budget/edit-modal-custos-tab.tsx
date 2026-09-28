@@ -454,7 +454,7 @@ function AlimentacaoBlock(p: CustosTabProps) {
       <div className="px-3.5 pt-2 pb-2.5 bg-warning-soft/30">
         <div className="flex items-center gap-1.5 mb-1.5">
           <Sun className="w-3 h-3 text-warning-strong" aria-hidden="true" />
-          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Fim de Semana ({info.weekends})</span>
+          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Fim de semana ({info.weekends})</span>
         </div>
         <div className="space-y-1.5 pl-3">
           <RefeicaoRow label="Almoço" ariaLabel="Almoço em fins de semana (R$ total)" value={noWeekends ? 0 : editingBudget.almocoFds} disabled={noWeekends || modalViewMode} dias={info.weekends}

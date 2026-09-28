@@ -1,5 +1,5 @@
 /**
- * Escalação por Grade — a grade função × dia com seus controles (25/09,
+ * Escalação por grade — a grade função × dia com seus controles (25/09,
  * extraída do formulário): cabeçalho com resumo e ações, ajuda, aviso de
  * passagem sem voo, tabela e o botão de adicionar função.
  */
@@ -29,7 +29,7 @@ export function FunctionsGrid({ grid, gridSummary, rowsMissingFlightDate, showHe
       {/* Header com controles */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-slate-700">Grade de Inclusões</span>
+          <span className="text-sm font-semibold text-slate-700">Grade de inclusões</span>
           {/* Barra de resumo — atualiza a cada célula editada */}
           <span className="text-2xs text-muted-foreground tabular-nums" aria-live="polite">
             {gridSummary.funcoes} {gridSummary.funcoes === 1 ? 'função' : 'funções'}
@@ -92,7 +92,7 @@ export function FunctionsGrid({ grid, gridSummary, rowsMissingFlightDate, showHe
                 <h4 className="font-semibold text-primary mb-2">Recursos</h4>
                 <ul className="space-y-1 text-primary">
                   <li><strong>Menu de ações (⋯)</strong>: duplicar a função, copiar/colar dados de viagem, remover.</li>
-                  <li><strong>Colar Excel</strong>: cola linhas copiadas de uma planilha (formato indicado no modal).</li>
+                  <li><strong>Colar do Excel</strong>: cola linhas copiadas de uma planilha (formato indicado no modal).</li>
                   <li><strong>Rascunho</strong>: salve e carregue a grade depois; o auto-save guarda por 1 hora.</li>
                   <li><strong>Regerar grade</strong>: mudar o período mantém os dias que continuam.</li>
                 </ul>

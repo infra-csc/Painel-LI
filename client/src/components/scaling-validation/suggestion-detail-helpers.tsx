@@ -24,9 +24,9 @@ import { workDaysOf, type SuggestionRow } from "./types";
  */
 const PHASE_LABELS: Record<string, string> = {
   sugestao: "Sugestão",
-  inclusao: "Inclusão de Equipe",
+  inclusao: "Inclusão de equipe",
   escalacao: "Escalação",
-  passagem: "Compra de Passagem",
+  passagem: "Compra de passagem",
   hospedagem: "Hospedagem",
   aprovacao: "Aprovação",
 };

@@ -50,7 +50,7 @@ export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
           {getStatusBadge(inclusion, "md")}
         </div>
         <div>
-          <div className={lbl}>Nota Fiscal</div>
+          <div className={lbl}>Nota fiscal</div>
           {!canToggleNf ? (
             <Tooltip>
               <TooltipTrigger asChild>

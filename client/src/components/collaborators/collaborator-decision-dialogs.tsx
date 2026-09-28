@@ -3,7 +3,7 @@
  * aprovar/rejeitar (com CPF/RG para quem vê dados pessoais) e inativar com motivo.
  */
 import { AlertTriangle, Ban, Check, Loader2, X } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ export function CollaboratorApprovalDialog({ a, podeVerDadosPessoais }: { a: Col
   const aprovar = approvalAction === "approve";
   return (
     <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
-      <DialogContent className="max-w-md rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
+      <DialogContent aria-describedby={undefined} className="max-w-md rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
           <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0 shadow-2", aprovar ? "bg-success" : "bg-danger")}>
@@ -28,7 +28,7 @@ export function CollaboratorApprovalDialog({ a, podeVerDadosPessoais }: { a: Col
             }
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-foreground">{aprovar ? "Aprovar Colaborador" : "Rejeitar Colaborador"}</h3>
+            <DialogTitle className="text-sm font-bold text-foreground leading-normal tracking-normal">{aprovar ? "Aprovar colaborador" : "Rejeitar colaborador"}</DialogTitle>
             <p className="text-2xs text-muted-foreground mt-0.5">
               {aprovar
                 ? (podeVerDadosPessoais ? "Revise os dados antes de confirmar" : "Confirme a aprovação do cadastro")
@@ -78,8 +78,8 @@ export function CollaboratorApprovalDialog({ a, podeVerDadosPessoais }: { a: Col
                 {updateMutation.isPending
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
                   : aprovar
-                    ? <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Confirmar Aprovação</>
-                    : <><X className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Confirmar Rejeição</>
+                    ? <><Check className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Confirmar aprovação</>
+                    : <><X className="w-3.5 h-3.5" strokeWidth={3} aria-hidden="true" /> Confirmar rejeição</>
                 }
               </button>
             </div>
@@ -95,14 +95,14 @@ export function CollaboratorInactivateDialog({ a }: { a: CollaboratorActions }) 
   const fechar = () => { setShowDeleteModal(false); setInactivateReason(""); };
   return (
     <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!inactivateMutation.isPending) { setShowDeleteModal(open); if (!open) setInactivateReason(""); } }}>
-      <DialogContent className="max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
+      <DialogContent aria-describedby={undefined} className="max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
         <div className="px-6 py-6 space-y-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-full bg-danger-soft border border-danger/25 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5 text-danger-strong" aria-hidden="true" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-foreground leading-tight mb-1">Inativar colaborador?</h3>
+              <DialogTitle className="text-base font-bold text-foreground leading-tight tracking-normal mb-1">Inativar colaborador?</DialogTitle>
               <p className="text-xs text-muted-foreground leading-relaxed">Ele deixará de aparecer nas escalações, mas será mantido no histórico. Você pode reativá-lo depois.</p>
             </div>
           </div>

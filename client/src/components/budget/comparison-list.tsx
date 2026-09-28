@@ -1,5 +1,5 @@
 /**
- * "Detalhamento por Prestação" do Comparativo — 25/09 (modularização).
+ * "Detalhamento por prestação" do Comparativo — 25/09 (modularização).
  * Toolbar (expandir/selecionar todos), filtros, estados carregando/erro/vazio
  * e a lista de `ComparisonCard`. O estado vem de `useBudgetComparisonData`.
  */
@@ -44,9 +44,9 @@ export function ComparisonList(p: ComparisonListProps) {
   return (
     <div>
       <div className="mb-3 space-y-2.5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black text-foreground">Detalhamento por Prestação</h2>
+            <h2 className="text-sm font-black text-foreground">Detalhamento por prestação</h2>
             <span className="text-2xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{sortedData.length}</span>
           </div>
           <div className="flex items-center gap-1.5">

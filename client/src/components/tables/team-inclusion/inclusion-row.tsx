@@ -86,7 +86,7 @@ export const InclusionRow = memo(forwardRef<HTMLTableRowElement, InclusionRowPro
       onClick={() => onCancel(id)}
       className="text-warning hover:text-warning h-8 w-8 p-0 shrink-0"
       data-testid={`button-cancel-${id}`}
-      title="Cancelar Escalação"
+      title="Cancelar escalação"
       aria-label={`Cancelar escalação da inclusão #${numero}`}
     >
       <Ban className="w-4 h-4" aria-hidden="true" />

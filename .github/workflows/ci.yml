@@ -35,5 +35,19 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+      # Telas de verdade num Chromium headless sobre o modo demonstração
+      # (`npm run dev:demo` — tsx + Vite dev sobre PGlite; o playwright.config
+      # sobe e derruba o servidor na porta 5058). Só o Chromium é instalado.
+      - name: Navegador do E2E
+        run: npx playwright install --with-deps chromium
+      - name: E2E
+        run: npm run test:e2e
+      - name: Relatório do E2E (só em falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
       - name: Vulnerabilidades críticas
         run: npm audit --audit-level=critical

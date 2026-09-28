@@ -50,7 +50,7 @@ export function FunctionValuesTable({
             <BadgeCheck className="w-4 h-4 text-primary" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-sm font-semibold leading-tight text-foreground">Diária por Função (legado)</p>
+            <p className="text-sm font-semibold leading-tight text-foreground">Diária por função (legado)</p>
             <p className="text-2xs font-light text-muted-foreground">
               Onde ainda vale: só para funções fora das regras acima — para o time casa/freela coberto pelas regras, estes valores deixaram de ser usados no cálculo.
             </p>
@@ -97,8 +97,8 @@ export function FunctionValuesTable({
         <div className="overflow-x-auto"><div className="min-w-[420px]">
           <div className="grid grid-cols-3 border-b border-border bg-surface-muted px-5 py-2">
             <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Função</span>
-            <span className="text-right text-2xs font-bold uppercase tracking-wider text-primary">Dia Útil</span>
-            <span className="text-right text-2xs font-bold uppercase tracking-wider text-warning-strong">Fim de Semana</span>
+            <span className="text-right text-2xs font-bold uppercase tracking-wider text-primary">Dia útil</span>
+            <span className="text-right text-2xs font-bold uppercase tracking-wider text-warning-strong">Fim de semana</span>
           </div>
           <div className="divide-y divide-border">
             {visibleFns.map((fn) => (

@@ -28,9 +28,15 @@ export interface ScalingQueueProps {
   tableProps: Omit<ScalingTableProps, "rows">;
   selectedInclusions: TeamInclusion[];
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  /**
+   * Evento passado escolhido no filtro com o recorte "Futuros" ainda ligado
+   * (28/09). A lista fica vazia e o Exportar diz "nada para exportar" — o dono
+   * viu isso e pediu que a tela explique onde clicar, sem mudar a lógica.
+   */
+  eventoPassadoOculto?: { nome: string; vagas: number; onMostrar: () => void } | null;
 }
 
-export function ScalingQueue({ contagens, total, fila, onFila, mostrarGestor, mostrarTrocas, isFetching, semVagas, visibleRows, nomesDosFiltrosAtivos, onLimparFiltros, tableProps, selectedInclusions, setSelectedIds }: ScalingQueueProps) {
+export function ScalingQueue({ contagens, total, fila, onFila, mostrarGestor, mostrarTrocas, isFetching, semVagas, visibleRows, nomesDosFiltrosAtivos, onLimparFiltros, tableProps, selectedInclusions, setSelectedIds, eventoPassadoOculto }: ScalingQueueProps) {
   const { getEventName, getFunctionName, getCollaboratorName } = tableProps;
   return (
     <>
@@ -55,6 +61,22 @@ export function ScalingQueue({ contagens, total, fila, onFila, mostrarGestor, mo
           icone={<Users className="w-7 h-7" aria-hidden="true" />}
           titulo="Nenhuma vaga para escalar"
           texto="As vagas chegam da Inclusão de Equipe quando as funções do evento abrem. Assim que uma for criada, ela aparece aqui."
+        />
+      ) : visibleRows.length === 0 && eventoPassadoOculto ? (
+        <EstadoVazio
+          icone={<FilterX className="w-7 h-7" aria-hidden="true" />}
+          titulo="Este evento já aconteceu"
+          texto={`O recorte "Futuros" (o padrão) esconde as vagas de eventos passados. Para ver e exportar ${eventoPassadoOculto.vagas === 1 ? "a vaga" : `as ${eventoPassadoOculto.vagas} vagas`} de ${eventoPassadoOculto.nome}, mude o recorte para "Todos" ou "Realizados" — ali em cima, ao lado de "Futuros".`}
+          acao={
+            <button
+              type="button"
+              onClick={eventoPassadoOculto.onMostrar}
+              className="h-[34px] px-3.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover"
+              data-testid="button-mostrar-evento-passado"
+            >
+              Mostrar {eventoPassadoOculto.vagas === 1 ? "a vaga" : `as ${eventoPassadoOculto.vagas} vagas`}
+            </button>
+          }
         />
       ) : visibleRows.length === 0 ? (
         <EstadoVazio

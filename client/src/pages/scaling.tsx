@@ -190,6 +190,11 @@ export default function Scaling() {
                 visibleRows={r.visibleRows}
                 nomesDosFiltrosAtivos={r.nomesDosFiltrosAtivos}
                 onLimparFiltros={filtros.limpaFiltros}
+                eventoPassadoOculto={
+                  eventoUnico && data.isPastEvent(eventoUnico.id) && filtros.recorteEventos === "futuros" && r.contagemPorRecorte.todos > 0
+                    ? { nome: eventoUnico.name, vagas: r.contagemPorRecorte.todos, onMostrar: () => filtros.setRecorteEventos("todos") }
+                    : null
+                }
                 tableProps={tableProps}
                 selectedInclusions={sel.selectedInclusions}
                 setSelectedIds={sel.setSelectedIds}

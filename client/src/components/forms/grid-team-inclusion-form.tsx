@@ -1,5 +1,5 @@
 /**
- * Escalação por Grade — o formulário (25/09).
+ * Escalação por grade — o formulário (25/09).
  *
  * Só orquestra: os hooks de linhas, rascunho, colagem e envio e as seções em
  * ./grid-team-inclusion/*. Tinha 1.785 linhas num componente só.
@@ -95,7 +95,7 @@ export default function GridTeamInclusionForm() {
             <Grid3x3 className="w-4 h-4" aria-hidden="true" />
           </div>
           <div>
-            <CardTitle className="text-base font-bold text-foreground">Escalação por Grade</CardTitle>
+            <CardTitle className="text-base font-bold text-foreground">Escalação por grade</CardTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
               Em cada célula, informe quantas pessoas daquela função trabalham no dia. Cada pessoa vira 1 registro com os dias em que trabalha.
             </p>

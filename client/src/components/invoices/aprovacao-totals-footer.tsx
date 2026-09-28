@@ -15,7 +15,7 @@ export function AprovacaoTotalsFooter({ approvedTotal, waitingTotal, grandTotal 
     <tfoot>
       <tr className="bg-surface-muted border-t-2 border-t-border">
         <td className="px-4 py-3" colSpan={2}>
-          <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Total do Evento</span>
+          <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Total do evento</span>
         </td>
         <td className="px-4 py-3 text-right">
           <div className="flex items-center justify-end gap-5">

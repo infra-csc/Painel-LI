@@ -17,8 +17,8 @@ const LANC_FILTERS = [
   { id: "enviada",           label: "Aguardando RH",      activeBg: "bg-warning-strong text-white" },
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-warning-strong text-white" },
   { id: "recusada",          label: "NF recusada",        activeBg: "bg-danger text-white" },
-  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-primary-foreground" },
-  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-success text-white" },
+  { id: "checkin-pendente",  label: "Aguard. check-in",   activeBg: "bg-primary text-primary-foreground" },
+  { id: "checkin-realizado", label: "Check-in realizado", activeBg: "bg-success text-white" },
   { id: "sem-nf",            label: "Não emite NF",       activeBg: "bg-slate-500 text-white" },
 ];
 

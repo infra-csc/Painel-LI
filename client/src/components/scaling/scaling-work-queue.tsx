@@ -3,7 +3,7 @@
  *
  * Substitui dois banners e um filtro de situação que contavam a MESMA
  * pendência duas vezes, em linguagens diferentes: o banner vermelho dizia
- * "N aguardando aprovação" e a linha repetia "Aguardando Gestor" logo abaixo.
+ * "N aguardando aprovação" e a linha repetia "Aguardando gestor" logo abaixo.
  *
  * Cada bloco é um botão que FILTRA a lista. É a diferença entre um aviso — que
  * só informa — e uma fila, que leva ao trabalho.

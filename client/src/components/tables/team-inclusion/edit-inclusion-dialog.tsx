@@ -107,7 +107,7 @@ export function EditInclusionDialog({ edit, functions }: { edit: EditInclusion; 
                   )}
 
                   <div>
-                    <label htmlFor="edit-needs-ticket" className={LABEL}>Precisa de Passagem?</label>
+                    <label htmlFor="edit-needs-ticket" className={LABEL}>Precisa de passagem?</label>
                     <select id="edit-needs-ticket" name="needsTicket" defaultValue={editingInclusion.needsTicket ? 'true' : 'false'} className={FIELD}>
                       <option value="false">Não</option>
                       <option value="true">Sim</option>
@@ -115,7 +115,7 @@ export function EditInclusionDialog({ edit, functions }: { edit: EditInclusion; 
                   </div>
 
                   <div>
-                    <label htmlFor="edit-needs-accommodation" className={LABEL}>Precisa de Hospedagem?</label>
+                    <label htmlFor="edit-needs-accommodation" className={LABEL}>Precisa de hospedagem?</label>
                     <select id="edit-needs-accommodation" name="needsAccommodation" defaultValue={editingInclusion.needsAccommodation ? 'true' : 'false'} className={FIELD}>
                       <option value="false">Não</option>
                       <option value="true">Sim</option>

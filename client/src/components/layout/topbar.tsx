@@ -71,7 +71,9 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
           <div className="flex items-center justify-center w-7 h-7 rounded-lg overflow-hidden bg-brand-soft">
             <img src={logoImg} alt="Norte" className="w-5 h-5 object-contain" />
           </div>
-          <span className="text-sm font-bold text-primary">Norte</span>
+          {/* No celular fica só o logotipo (25/09): com "Norte" escrito, o nome
+              da tela na trilha sobrava em "E." */}
+          <span className="hidden sm:inline text-sm font-bold text-primary">Norte</span>
         </div>
       )}
 

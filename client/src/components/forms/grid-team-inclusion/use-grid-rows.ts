@@ -1,5 +1,5 @@
 /**
- * Linhas da Escalação por Grade (25/09 — extraído do formulário): gerar/regerar a
+ * Linhas da Escalação por grade (25/09 — extraído do formulário): gerar/regerar a
  * grade, editar células e viagem, adicionar/duplicar/remover funções, copiar e
  * colar horários entre linhas e a seleção para exclusão em lote.
  */
@@ -24,7 +24,7 @@ export function useGridRows({ form, functions, sortedFunctions, toast }: UseGrid
   const [showFunctionSelect, setShowFunctionSelect] = useState(false);
   const [copiedSchedule, setCopiedSchedule] = useState<CopiedSchedule | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  // "Gerar Grade" com grade já preenchida pede confirmação antes de regerar
+  // "Gerar grade" com grade já preenchida pede confirmação antes de regerar
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [selectedRowForScheduleCopy, setSelectedRowForScheduleCopy] = useState<FunctionRow | null>(null);
   const [showFunctionSelectForSchedule, setShowFunctionSelectForSchedule] = useState(false);

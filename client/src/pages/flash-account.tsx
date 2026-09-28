@@ -51,7 +51,7 @@ export default function FlashAccountPage() {
   const { estado, isLoading, collaborators, events, movements, getCollabName, totals, extrato, extratoVisible, hasAutomatic, selectedBalance } = d;
 
   return (
-    <div className="min-h-screen bg-surface-muted p-6">
+    <div>
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Cabeçalho (23/09): subtítulo encurtado para ≤ 90 caracteres e CTA no
             token da marca, como nas demais telas. */}

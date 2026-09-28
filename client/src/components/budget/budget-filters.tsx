@@ -73,9 +73,9 @@ export function BudgetFilters({ filtros: f }: BudgetFiltersProps) {
         <SelectContent className="rounded-xl shadow-3 border border-border min-w-[160px] p-1.5 backdrop-blur-md bg-card/96">
           <SelectItem value="name_asc" className={ITEM_CLS}>Nome A-Z</SelectItem>
           <SelectItem value="name_desc" className={ITEM_CLS}>Nome Z-A</SelectItem>
-          <SelectItem value="days_desc" className={ITEM_CLS}>Mais Dias</SelectItem>
-          <SelectItem value="days_asc" className={ITEM_CLS}>Menos Dias</SelectItem>
-          <SelectItem value="function" className={ITEM_CLS}>Por Função</SelectItem>
+          <SelectItem value="days_desc" className={ITEM_CLS}>Mais dias</SelectItem>
+          <SelectItem value="days_asc" className={ITEM_CLS}>Menos dias</SelectItem>
+          <SelectItem value="function" className={ITEM_CLS}>Por função</SelectItem>
         </SelectContent>
       </Select>
 

@@ -34,8 +34,7 @@ export function AprovacaoActionPanel({
 }: AprovacaoActionPanelProps) {
   return (
     <tr
-      className={type === "approve" ? "" : "bg-surface-muted border-b border-border"}
-      style={type === "approve" ? { borderLeft: `3px solid ${cfg.border}` } : {}}
+      className={type === "approve" ? `border-l-[3px] ${cfg.borderCls}` : "bg-surface-muted border-b border-border"}
     >
       <td
         colSpan={7}
@@ -142,7 +141,7 @@ export function AprovacaoActionPanel({
                 disabled={!comment.trim() || rejectMutation.isPending}
                 className="h-8 px-4 text-xs font-semibold bg-danger hover:bg-danger/90 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
               >
-                {rejectMutation.isPending ? "Recusando…" : "Confirmar Recusa"}
+                {rejectMutation.isPending ? "Recusando…" : "Confirmar recusa"}
               </button>
             </div>
           </div>

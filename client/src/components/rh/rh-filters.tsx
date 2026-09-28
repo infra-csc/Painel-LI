@@ -128,7 +128,7 @@ export function RhFilters(p: RhFiltersProps) {
               </SelectContent>
             </Select>
             <Select value={f.filterInvoiceStatus} onValueChange={f.setFilterInvoiceStatus}>
-              <SelectTrigger className={`h-9 text-sm w-auto min-w-[200px] border rounded-lg bg-card transition-colors focus:ring-2 focus:ring-primary/25 ${f.filterInvoiceStatus !== "all" ? "border-primary/40 text-primary" : "border-border text-slate-700 hover:border-primary/40"}`}><SelectValue placeholder="Nota Fiscal" /></SelectTrigger>
+              <SelectTrigger className={`h-9 text-sm w-auto min-w-[200px] border rounded-lg bg-card transition-colors focus:ring-2 focus:ring-primary/25 ${f.filterInvoiceStatus !== "all" ? "border-primary/40 text-primary" : "border-border text-slate-700 hover:border-primary/40"}`}><SelectValue placeholder="Nota fiscal" /></SelectTrigger>
               <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[220px]">
                 <SelectItem value="all" className={ITEM_CLS}>Todas as notas</SelectItem>
                 <SelectItem value="pendente" className={ITEM_CLS}>Aguardando nota</SelectItem>

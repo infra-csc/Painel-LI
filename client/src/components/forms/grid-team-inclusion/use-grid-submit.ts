@@ -1,5 +1,5 @@
 /**
- * Envio da Escalação por Grade (25/09 — extraído do formulário): decomposição
+ * Envio da Escalação por grade (25/09 — extraído do formulário): decomposição
  * "1 registro por pessoa", resumo, prévia agrupada e o POST transacional em
  * /api/team-inclusions/bulk.
  */

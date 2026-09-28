@@ -34,7 +34,7 @@ export const EventContextBar = forwardRef<HTMLDivElement, EventContextBarProps>(
     { key: SUGESTAO_STATUS.AJUSTE, label: "Com pedido", n: counts.comPedido, cls: "text-primary" },
     { key: SUGESTAO_STATUS.APROVADA, label: "Aprovadas", n: counts.aprovadas, cls: "text-success" },
     { key: SUGESTAO_STATUS.NEGADA, label: "Negadas", n: counts.negadas, cls: "text-muted-foreground" },
-    { key: IN_INCLUSION, label: "Em Inclusão", n: counts.emInclusao, cls: "text-primary" },
+    { key: IN_INCLUSION, label: "Em inclusão", n: counts.emInclusao, cls: "text-primary" },
   ];
   return (
     <section aria-label="Evento" className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3">

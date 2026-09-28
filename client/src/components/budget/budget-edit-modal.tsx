@@ -28,9 +28,9 @@ export function BudgetEditModal({ ctrl }: BudgetEditModalProps) {
 
   return (
     <Dialog open={!!editingBudget} onOpenChange={v => { if (!v) pedirFecharEdicao(fecharModalEdicao); }}>
-      <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden border-0 shadow-3 flex flex-col" style={{ maxHeight: "90vh" }}>
+      <DialogContent aria-describedby={undefined} className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden border-0 shadow-3 flex flex-col" style={{ maxHeight: "90vh" }}>
         <DialogHeader className="sr-only">
-          <DialogTitle>Editar Orçamento Planejado</DialogTitle>
+          <DialogTitle>Editar orçamento planejado</DialogTitle>
         </DialogHeader>
 
         {editingBudget && editingBudgetInfo && (() => {
@@ -203,7 +203,7 @@ export function BudgetEditModal({ ctrl }: BudgetEditModalProps) {
               {/* Faixa de total */}
               <div className="px-5 py-3 flex items-center justify-between">
                 <div>
-                  <div className="text-2xs uppercase font-semibold tracking-wider text-muted-foreground">Total Planejado</div>
+                  <div className="text-2xs uppercase font-semibold tracking-wider text-muted-foreground">Total planejado</div>
                   <div className="text-2xl font-extrabold leading-none mt-0.5 transition-all text-primary">{formatCurrency(modalTotal)}</div>
                 </div>
                 <div className="text-right">

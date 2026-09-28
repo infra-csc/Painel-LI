@@ -176,7 +176,7 @@ export function useValidationData({ user, eventId, sanitize }: UseValidationData
    * O alarme de "função sem aprovador" saiu daqui em 26/08 (decisão do dono:
    * "não tem isso de sem aprovador" — o sistema tem um aprovador padrão). A
    * salvaguarda mudou de lugar, não sumiu: quem cadastra aprovador é o admin,
-   * e é na aba "Validação de Escala" de Funções que ele vê quais funções estão
+   * e é na aba "Validação de escala" de Funções que ele vê quais funções estão
    * no aprovador padrão. Na tela da área o aviso era só ruído.
    */
   const approverNamesByFunctionId = useMemo(

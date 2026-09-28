@@ -109,7 +109,7 @@ export function SwapRequestDialog({
         {/* Altura limitada (dono, 16/09: "o modal está cortando"): cabeçalho e
             botões fixos, só o miolo rola — em tela baixa o "Enviar para
             aprovação" sumia para fora da janela. */}
-        <DialogContent className="max-w-[760px] max-h-[92vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden">
+        <DialogContent aria-describedby={undefined} className="max-w-[760px] max-h-[92vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden">
           <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border bg-brand-soft">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl bg-primary shadow-2 flex items-center justify-center shrink-0">
@@ -368,7 +368,7 @@ export function SwapRequestDialog({
 
       {/* Confirmação pós-envio */}
       <Dialog open={success} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
-        <DialogContent className="max-w-[460px] p-0 gap-0 rounded-xl overflow-hidden">
+        <DialogContent aria-describedby={undefined} className="max-w-[460px] p-0 gap-0 rounded-xl overflow-hidden">
           <div className="px-8 py-8">
             <div className="flex flex-col items-center text-center mb-6">
               <div className="w-14 h-14 rounded-full bg-success-soft border border-success/25 flex items-center justify-center mb-4">

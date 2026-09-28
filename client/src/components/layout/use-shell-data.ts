@@ -261,7 +261,7 @@ export function useShellData() {
         title: `Pedido de ${typeLabel.toLowerCase()} aguardando sua decisão`,
         text: [r.functionName ? `${r.functionName}${vaga}` : `Vaga${vaga}`, r.eventName].filter(Boolean).join(" · "),
         when: relativeTime(r.createdAt),
-        screen: "Aprovação de Escala",
+        screen: "Aprovação de escala",
         href: `/scaling-approval?eventId=${encodeURIComponent(r.eventId)}&request=${encodeURIComponent(r.id)}`,
         isNew: !seen.has(`cr:${r.id}`),
       });
@@ -290,8 +290,8 @@ export function useShellData() {
       entrada(myScalingSwapsCount, "swap:/scaling", `${trocas(myScalingSwapsCount)} em Escalação`, "Pedidos de troca que você abriu", "Escalação", "/scaling?fila=troca", ArrowLeftRight, AMBAR);
     }
     entrada(aguardandoGestorCount, "gestor", `${vagas(aguardandoGestorCount)} aguardando o gestor`, "Cenotécnica esperando a sua aprovação", "Escalação", "/scaling?fila=gestor", HardHat, AMBAR);
-    entrada(avisoVagasAprovacao, "aprovacao", `${vagas(avisoVagasAprovacao)} aguardando sua aprovação`, "Validadas pela área, esperando decisão", "Aprovação de Escala", "/scaling-approval", Stamp, "bg-brand-soft text-primary");
-    entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de Escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
+    entrada(avisoVagasAprovacao, "aprovacao", `${vagas(avisoVagasAprovacao)} aguardando sua aprovação`, "Validadas pela área, esperando decisão", "Aprovação de escala", "/scaling-approval", Stamp, "bg-brand-soft text-primary");
+    entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
   }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount]);

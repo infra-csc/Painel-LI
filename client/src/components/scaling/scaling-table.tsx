@@ -155,7 +155,10 @@ export default function ScalingTable(props: ScalingTableProps) {
 
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Rolagem INTERNA nos dois eixos com cabeçalho fixo (25/09): em 768/375
+          a grade de 1.300px rolava a página inteira e o cabeçalho sumia na
+          primeira linha. A altura máxima desconta a barra do topo e a de contexto. */}
+      <div className="overflow-auto max-h-[calc(100dvh-var(--sticky-top,3.5rem)-12rem)] overscroll-x-contain">
         <table className={`table-fixed w-full ${onConfirmarRapido ? "min-w-[1300px]" : "min-w-[1180px]"}`}>
           <caption className="sr-only">Escalação: vagas do evento com colaborador, função, dias e status</caption>
           <colgroup>
@@ -170,8 +173,8 @@ export default function ScalingTable(props: ScalingTableProps) {
                 86px cabia só os dois ícones e o botão invadia o vizinho (04/09). */}
             <col style={{ width: onConfirmarRapido ? "200px" : "86px" }} />
           </colgroup>
-          <thead>
-            <tr className="h-[34px] bg-background border-b border-border">
+          <thead className="sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]">
+            <tr className="h-[34px] bg-background">
               <th scope="col" className="px-3 text-center">
                 <Tooltip>
                   <TooltipTrigger asChild>

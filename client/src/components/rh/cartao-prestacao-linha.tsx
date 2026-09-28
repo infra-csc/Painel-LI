@@ -88,7 +88,7 @@ export function CartaoPrestacaoLinha({
                 : nfStatus === "devolvida" ? "NF devolvida"
                 : nfStatus === "recusada" ? "NF recusada"
                 : !itemEmitsNf ? "Não emite NF"
-                : "Ag. Nota Fiscal"}
+                : "Ag. nota fiscal"}
             </span>
           ) : (
             <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
@@ -267,7 +267,7 @@ export function CartaoPrestacaoLinha({
               ? null
               : <span className="text-2xs font-medium text-muted-foreground bg-muted border border-border rounded-md px-2 py-1">Não emite NF</span>;
           }
-          return <span className="text-2xs font-semibold rounded-md px-2 py-1 border bg-warning-soft text-warning border-warning/25">Ag. Nota Fiscal</span>;
+          return <span className="text-2xs font-semibold rounded-md px-2 py-1 border bg-warning-soft text-warning border-warning/25">Ag. nota fiscal</span>;
         })()}
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
       </div>

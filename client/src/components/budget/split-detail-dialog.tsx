@@ -20,7 +20,7 @@ export interface SplitDetailDialogProps {
 export function SplitDetailDialog({ splitDetail, onClose, getCollaboratorName, getFunctionName }: SplitDetailDialogProps) {
   return (
     <Dialog open={!!splitDetail} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl rounded-xl p-0 overflow-hidden gap-0">
+      <DialogContent aria-describedby={undefined} className="max-w-xl rounded-xl p-0 overflow-hidden gap-0">
         <DialogTitle className="sr-only">Detalhes da prestação do colaborador na vaga dividida</DialogTitle>
         {splitDetail && (() => {
           const sd = splitDetail;

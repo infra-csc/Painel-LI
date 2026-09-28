@@ -145,16 +145,16 @@ export function useFunctionValues({ allFunctions, allFunctionValues, activeTab, 
       const fv = allFunctionValues.find(v => v.functionId === fn.id);
       const cells: { label: string; saved: string; current: string }[] = [
         { label: "Casa · Dia Útil", saved: fv ? centavosToReais(fv.dailyValue) : "0.00", current: functionDailyValues[fn.id] ?? "0" },
-        { label: "Casa · Fim de Semana", saved: fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00", current: fnWeekendValues[fn.id] ?? "0" },
+        { label: "Casa · Fim de semana", saved: fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00", current: fnWeekendValues[fn.id] ?? "0" },
         { label: "Freela · Dia Útil", saved: fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreela, fv.dailyValue)) : "0.00", current: fnFreelaValues[fn.id] ?? "0" },
-        { label: "Freela · Fim de Semana", saved: fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend)) : "0.00", current: fnFreelaWeekendValues[fn.id] ?? "0" },
+        { label: "Freela · Fim de semana", saved: fv ? centavosToReais(freelaOuCasa(fv.dailyValueFreelaWeekend, fv.dailyValueWeekend)) : "0.00", current: fnFreelaWeekendValues[fn.id] ?? "0" },
       ];
       for (const c of cells) {
         if (parseBrNumber(c.current) !== parseBrNumber(c.saved)) {
           entries.push({
             timestamp: now,
             user: userName,
-            field: `Diária por Função — ${toTitleCase(fn.name)} (${c.label})`,
+            field: `Diária por função — ${toTitleCase(fn.name)} (${c.label})`,
             oldValue: formatCurrency(c.saved),
             newValue: formatCurrency(c.current),
           });

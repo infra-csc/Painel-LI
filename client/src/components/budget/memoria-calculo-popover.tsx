@@ -1,5 +1,5 @@
 /**
- * Popover "Memória de Cálculo" de uma linha da planilha do Planejado —
+ * Popover "Memória de cálculo" de uma linha da planilha do Planejado —
  * 25/09 (modularização). Fecha a conta usando os segments da deflação.
  * `forwardRef` porque a linha foca o popover ao abrir (a11y).
  */
@@ -37,7 +37,7 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
       }}
     >
       <div className="text-2xs font-bold text-primary mb-2.5 tracking-wider uppercase">
-        Memória de Cálculo · {toTitleCase(name)}
+        Memória de cálculo · {toTitleCase(name)}
       </div>
       <div className="text-2xs text-muted-foreground mb-2">
         {totalDias} {totalDias === 1 ? "dia" : "dias"}

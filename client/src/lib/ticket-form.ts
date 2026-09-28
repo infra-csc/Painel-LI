@@ -89,16 +89,16 @@ export function normalizeTransportType(value: unknown): TransportType {
 export function getRequiredFields(transportType: unknown, isOneWay: boolean, isReturnOnly = false): RequiredField[] {
   const type = normalizeTransportType(transportType);
   if (type === "van") {
-    return [{ field: "purchaseOrderNumber", label: "Nome da Empresa" }];
+    return [{ field: "purchaseOrderNumber", label: "Nome da empresa" }];
   }
   const isRodo = type === "rodoviario";
   const compra: RequiredField[] = [
     { field: "purchaseOrderNumber", label: isRodo ? "Bilhete" : "LOC" },
-    ...(isRodo ? [] : [{ field: "value", label: "Valor da Passagem" }]),
+    ...(isRodo ? [] : [{ field: "value", label: "Valor da passagem" }]),
   ];
   const ida: RequiredField[] = [
-    { field: "departureAirport", label: isRodo ? "Rodoviária Origem" : "Aeroporto Origem" },
-    { field: "destinationAirport", label: isRodo ? "Rodoviária Destino" : "Aeroporto Destino" },
+    { field: "departureAirport", label: isRodo ? "Rodoviária de origem" : "Aeroporto de origem" },
+    { field: "destinationAirport", label: isRodo ? "Rodoviária de destino" : "Aeroporto de destino" },
     { field: "actualDepartureDate", label: "Data (ida)" },
     { field: "actualDepartureTime", label: "Horário (ida)" },
     { field: "actualArrivalTime", label: "Chegada (ida)" },
@@ -135,7 +135,7 @@ export function getMissingRequiredFields(form: TicketFormData): RequiredField[] 
 /**
  * Campos PREENCHIDOS com conteúdo que não serve (28/08).
  *
- * Existe por um caso real: o Valor da Passagem foi preenchido com o código do
+ * Existe por um caso real: o Valor da passagem foi preenchido com o código do
  * LOC ("LJQZOF"). Como `parseBrNumber` devolve 0 para texto, a passagem seria
  * gravada valendo R$ 0,00 sem ninguém perceber — pior que recusar na hora.
  */
@@ -143,7 +143,7 @@ export function getInvalidFields(form: TicketFormData): RequiredField[] {
   const invalidos: RequiredField[] = [];
   const valor = form?.value;
   if (!isBlank(valor) && !/^\s*-?\d{1,3}(\.\d{3})*(,\d+)?\s*$|^\s*-?\d+([.,]\d+)?\s*$/.test(String(valor))) {
-    invalidos.push({ field: "value", label: "Valor da Passagem: informe um número (ex.: 1.250,00)" });
+    invalidos.push({ field: "value", label: "Valor da passagem: informe um número (ex.: 1.250,00)" });
   }
   return invalidos;
 }

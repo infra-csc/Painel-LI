@@ -51,7 +51,7 @@ export function AccommodationResumoTab({ inclusion, accommodation, event, func, 
             {collaborator.officialDocument && (
               <Field label="Documento" mono>{collaborator.documentType ? `${collaborator.documentType.toUpperCase()}: ` : ""}{collaborator.officialDocument}</Field>
             )}
-            {collaborator.birthDate && <Field label="Data de Nascimento">{formatDate(collaborator.birthDate)}</Field>}
+            {collaborator.birthDate && <Field label="Data de nascimento">{formatDate(collaborator.birthDate)}</Field>}
             <Field label="Cidade do colaborador">{collaborator.city || "—"}</Field>
             <Field label="Tipo">{collaborator.type || "—"}</Field>
           </>)}
@@ -71,7 +71,7 @@ export function AccommodationResumoTab({ inclusion, accommodation, event, func, 
         <div className="space-y-3">
           <div className="border border-border rounded-xl overflow-hidden">
             <div className="bg-brand-soft border-b border-border px-4 py-2.5">
-              <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de Trabalho</span>
+              <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de trabalho</span>
             </div>
             <div className="p-4 grid grid-cols-2 gap-3">
               <Field label="Início">{inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : "—"}</Field>

@@ -1,6 +1,6 @@
 // Extraído de system-settings.tsx em 25/09 (modularização): rodapé informativo
 // da tela Valores padrão — aviso de permissão, "Salvo em" e a ação secundária
-// "Atualizar Planejado" (o salvamento em si acontece na barra flutuante).
+// "Atualizar planejado" (o salvamento em si acontece na barra flutuante).
 import { Lock, RefreshCw } from "lucide-react";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { formatDateTime } from "./settings-utils";

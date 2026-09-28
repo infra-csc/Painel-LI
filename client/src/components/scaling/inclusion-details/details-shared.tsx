@@ -1,5 +1,5 @@
 /**
- * Modal "Detalhes da Escalação" — tipos, estilos e utilitários compartilhados
+ * Modal "Detalhes da escalação" — tipos, estilos e utilitários compartilhados
  * pelas partes do modal (25/09, extraídos de inclusion-details-dialog.tsx).
  */
 import type { TeamInclusion } from "@shared/schema";

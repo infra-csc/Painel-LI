@@ -105,7 +105,7 @@ export function ConfirmSendDialog(p: ConfirmSendDialogProps) {
                   {isSending ? (
                     <><RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />Enviando…</>
                   ) : (
-                    <><Check className="w-3.5 h-3.5" aria-hidden="true" />Confirmar Envio</>
+                    <><Check className="w-3.5 h-3.5" aria-hidden="true" />Confirmar envio</>
                   )}
                 </AlertDialogAction>
               </AlertDialogFooter>

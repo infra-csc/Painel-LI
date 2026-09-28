@@ -1,5 +1,5 @@
 /**
- * Modal "Detalhes da Escalação" — 4 abas (Resumo, Passagem, Hospedagem,
+ * Modal "Detalhes da escalação" — 4 abas (Resumo, Passagem, Hospedagem,
  * Comentários e Histórico), header com navegação ‹ › pela lista atual e
  * footer com Fechar / Salvar / Salvar e próxima / Confirmar.
  *
@@ -45,7 +45,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
     <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
       {/* 980px no lugar de 1180: em duas colunas o conteúdo respira, e a
           terceira coluna do layout antigo só existia porque a largura sobrava. */}
-      <DialogContent ref={contentRef} className="!max-w-[1120px] w-[95vw] max-h-[calc(100dvh-48px)] !rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent aria-describedby={undefined} ref={contentRef} className="!max-w-[1120px] w-[95vw] max-h-[calc(100dvh-48px)] !rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden">
         <DetailsHeader inclusion={inclusion} nome={nome} navIndex={navIndex} navTotal={navTotal} hasPrev={hasPrev} hasNext={hasNext} onNavigate={onNavigate} />
 
         {inclusion && (

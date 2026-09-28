@@ -41,7 +41,7 @@ export interface BudgetSheetProps {
   totalGeral: number;
   nomeDaVaga: (b: CalculatedBudget) => string;
   getFunctionName: (id?: string | null) => string;
-  /** RH/admin: vê a barra "Enviar Planejamento". */
+  /** RH/admin: vê a barra "Enviar planejamento". */
   isAdmin: boolean;
   onSend: (ids: string[]) => void;
 }
@@ -495,7 +495,7 @@ export function BudgetSheet(p: BudgetSheetProps) {
               `}
             >
               <Send className="w-4 h-4" aria-hidden="true" />
-              Enviar Planejamento
+              Enviar planejamento
               {hasPending && (
                 <span className="ml-1 w-5 h-5 rounded-full bg-card/25 flex items-center justify-center text-2xs font-bold leading-none">
                   {pendingSheet.length}

@@ -110,7 +110,7 @@ export function useBudgetFilters(args: {
 
   // Seleção × filtro (23/09): antes CADA tecla na busca zerava a seleção.
   // Agora só saem da seleção os itens que o filtro escondeu — item selecionado
-  // e depois oculto não segue no "Enviar Planejamento (N)" sem o usuário ver.
+  // e depois oculto não segue no "Enviar planejamento (N)" sem o usuário ver.
   useEffect(() => {
     setSelectedIds(prev => {
       if (prev.size === 0) return prev;

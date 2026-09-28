@@ -97,14 +97,17 @@ export default function InvoicesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-surface-muted p-6">
+    // Sem `p-6`/`min-h-screen` próprios (25/09): a margem da página é do
+    // MainLayout (`--page-gutter`); somada à daqui sobrava 24px a mais e o
+    // fundo destoava das telas irmãs.
+    <div>
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header — flex-wrap: em ~375px o select de evento quebra em vez de estourar */}
         <PageHeader
           icon={FileText}
           title={
             <span className="inline-flex items-center gap-2">
-              Notas Fiscais
+              Notas fiscais
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -138,7 +141,7 @@ export default function InvoicesPage() {
               value={selectedEventId}
               onValueChange={setSelectedEventId}
               events={activeEvents}
-              className="w-72 max-w-full shrink-0"
+              className="w-full sm:w-72 max-w-full shrink-0"
             />
           )}
         />
@@ -189,12 +192,14 @@ export default function InvoicesPage() {
             <InvoiceStepper counts={{ lancamento: pendingCount, aprovacao: rhPendingCount, checkin: checkinPendingCount }} />
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit">
+            <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit max-w-full">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
+                  type="button"
+                  aria-pressed={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                     activeTab === tab.id
                       ? "bg-card text-foreground shadow-1"
                       : "text-muted-foreground hover:text-slate-700"

@@ -106,18 +106,18 @@ export function RhSummary({ statusCounts, invoiceCounts, rhActionCount, conclude
           onClick={() => applyCardFilter("rh_action")} active={filterStatus === "rh_action"}>
           <MetricLine label="Planejamento" val={rhPlan} color="var(--danger-strong)" />
           <MetricLine label="Comparativo"  val={rhComp} color="var(--danger-strong)" />
-          <MetricLine label="Nota Fiscal"  val={rhNf}   color="var(--danger-strong)" />
+          <MetricLine label="Nota fiscal"  val={rhNf}   color="var(--danger-strong)" />
           {chk > 0 && <MetricLine label="Check-in" val={chk} color="var(--primary)" />}
         </MetricCard>
 
-        <MetricCard stripColor="var(--primary)" icon={Users} iconColor="var(--primary)" title="Aguardando Colaborador" value={colTotal} isLoading={isLoading}
+        <MetricCard stripColor="var(--primary)" icon={Users} iconColor="var(--primary)" title="Aguardando colaborador" value={colTotal} isLoading={isLoading}
           onClick={() => applyCardFilter("col_action")} active={filterStatus === "col_action"}>
           <MetricLine label="Realizado"    val={colReal}   color="var(--primary)" />
           <MetricLine label="NF devolvida" val={colNfDev}  color="var(--primary)" />
           <MetricLine label="Aguardando lançamento" val={colNfPend} color="var(--primary)" />
         </MetricCard>
 
-        <MetricCard stripColor="var(--warning)" icon={Clock} iconColor="var(--warning)" title="Nota Fiscal" value={emAndamento} isLoading={isLoading}
+        <MetricCard stripColor="var(--warning)" icon={Clock} iconColor="var(--warning)" title="Nota fiscal" value={emAndamento} isLoading={isLoading}
           onClick={() => applyCardFilter("nf_andamento")} active={filterStatus === "nf_andamento"}>
           <MetricLine label="Ag. envio"    val={nfAgNf}    color="var(--warning)" />
           <MetricLine label="Em análise"   val={nfAnalise} color="var(--warning)" />

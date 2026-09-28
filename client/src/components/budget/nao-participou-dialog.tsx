@@ -21,9 +21,9 @@ export interface NaoParticipouDialogProps {
 export function NaoParticipouDialog({ modal, reason, setReason, onClose, isPending, onConfirm }: NaoParticipouDialogProps) {
   return (
     <Dialog open={!!modal} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6">
+      <DialogContent aria-describedby={undefined} className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6">
         <DialogHeader className="sr-only">
-          <DialogTitle>Confirmar Ausência</DialogTitle>
+          <DialogTitle>Confirmar ausência</DialogTitle>
         </DialogHeader>
 
         {modal && (
@@ -37,7 +37,7 @@ export function NaoParticipouDialog({ modal, reason, setReason, onClose, isPendi
 
             {/* Título + subtítulo */}
             <div className="text-center space-y-1">
-              <h2 className="text-base font-medium text-foreground leading-snug">Confirmar Ausência?</h2>
+              <h2 className="text-base font-medium text-foreground leading-snug">Confirmar ausência?</h2>
               <p className="text-xs font-normal text-muted-foreground">{modal.name} · {modal.functionName}</p>
             </div>
 
@@ -96,9 +96,9 @@ export interface RestoreParticipacaoDialogProps {
 export function RestoreParticipacaoDialog({ modal, onClose, isPending, onConfirm }: RestoreParticipacaoDialogProps) {
   return (
     <Dialog open={!!modal} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6">
+      <DialogContent aria-describedby={undefined} className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6">
         <DialogHeader className="sr-only">
-          <DialogTitle>Restaurar Planejamento</DialogTitle>
+          <DialogTitle>Restaurar planejamento</DialogTitle>
         </DialogHeader>
         {modal && (
           <div className="bg-card flex flex-col items-center px-6 pt-7 pb-6 gap-4"
@@ -111,7 +111,7 @@ export function RestoreParticipacaoDialog({ modal, onClose, isPending, onConfirm
 
             {/* Título + subtítulo */}
             <div className="text-center space-y-1">
-              <h2 className="text-base font-medium text-foreground leading-snug">Restaurar Planejamento?</h2>
+              <h2 className="text-base font-medium text-foreground leading-snug">Restaurar planejamento?</h2>
               <p className="text-xs font-normal text-muted-foreground">{modal.name} · {modal.functionName}</p>
               {modal.startDate && modal.endDate && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md mt-1 bg-brand-soft text-2xs font-medium text-primary border border-primary/25">

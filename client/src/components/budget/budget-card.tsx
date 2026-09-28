@@ -485,7 +485,7 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
           marginTop: "auto",
         }}>
         <span className={cn("text-2xs font-semibold uppercase tracking-widest", (isNotAttended ? "text-muted-foreground" : "text-primary"))}>
-          {isNotAttended ? "Não contabilizado" : "Total Planejado"}
+          {isNotAttended ? "Não contabilizado" : "Total planejado"}
         </span>
         <span className={cn("text-base font-medium tracking-[-0.02em] tabular-nums", (isNotAttended ? "text-muted-foreground" : "text-primary"), (isNotAttended ? "line-through" : "no-underline"))}>
           {formatCurrency(budget.totalFinal)}

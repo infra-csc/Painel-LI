@@ -29,11 +29,15 @@ export async function setupVite(app: Express, server: Server) {
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
+    // 28/09: o logger antigo fazia `process.exit(1)` em QUALQUER erro. O Vite 8
+    // encaminha o console do navegador para este logger, então um
+    // `console.error` de um componente derrubava o servidor de desenvolvimento
+    // inteiro (aconteceu três vezes na conferência visual). Agora só registra;
+    // erro de configuração do próprio Vite já rejeita o `createViteServer`.
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
       },
     },
     server: serverOptions,

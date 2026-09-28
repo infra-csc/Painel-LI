@@ -49,7 +49,7 @@ export interface ContextoDaLista {
 /**
  * A inclusão pertence a esta tela?
  *
- * Canceladas ficam: quem decide é o filtro "Status Inclusão" (senão a opção
+ * Canceladas ficam: quem decide é o filtro "Status da inclusão" (senão a opção
  * "Canceladas" seria sempre vazia).
  */
 export function precisaDeHospedagem(inclusion: TeamInclusion, eventById: Map<string, Event>, temHospedagem = false): boolean {
@@ -59,7 +59,7 @@ export function precisaDeHospedagem(inclusion: TeamInclusion, eventById: Map<str
   if (!evento || evento.status === "excluído" || evento.status === "excluido") return false;
   // Só escalação CONFIRMADA vai para Compras (dono, 15/09): salvar com
   // colaborador não basta. Hospedagem já registrada continua na lista; cancelada
-  // fica para o filtro "Status Inclusão" decidir.
+  // fica para o filtro "Status da inclusão" decidir.
   if (temHospedagem) return true;
   if (inclusion.status === "cancelado") return true;
   return STATUS_ESCALACAO_CONFIRMADA.includes(inclusion.status);

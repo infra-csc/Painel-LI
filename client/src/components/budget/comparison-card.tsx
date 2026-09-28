@@ -133,7 +133,7 @@ function SplitRows({ row, p: pl, plannedTotal, actualTotal, diff, getCollaborato
         );
       })}
       <div className={`grid grid-cols-6 gap-2 px-3 py-2 text-2xs items-center border-t-2 border-border font-bold ${diff > 0 ? "bg-danger-soft/40" : diff < 0 ? "bg-success-soft/40" : "bg-surface-muted"}`}>
-        <span className="text-muted-foreground uppercase text-2xs tracking-wider col-span-2">Total do Grupo</span>
+        <span className="text-muted-foreground uppercase text-2xs tracking-wider col-span-2">Total do grupo</span>
         <span className="text-right tabular-nums text-primary">{fmt(plannedTotal)}</span>
         <span className="text-right tabular-nums text-primary">{fmt(actualTotal)}</span>
         <div className="text-right col-span-2">
@@ -205,8 +205,8 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
           stripColor="bg-primary"
           rows={[
             { label: "Qtd. Diárias", planned: p?.dailyQuantity || 0, actual: a.dailyQuantity, isQuantity: true },
-            { label: "Valor Unitário", planned: p?.dailyValue || 0, actual: a.dailyValue },
-            { label: "Subtotal Diárias", planned: dailyPlanned, actual: dailyActual },
+            { label: "Valor unitário", planned: p?.dailyValue || 0, actual: a.dailyValue },
+            { label: "Subtotal de diárias", planned: dailyPlanned, actual: dailyActual },
           ]}
         />
 
@@ -279,7 +279,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
           <div className="p-3 rounded-xl bg-card border border-border flex items-start gap-2">
             <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" aria-hidden="true" />
             <div>
-              <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Justificativa do Responsável</span>
+              <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Justificativa do responsável</span>
               <p className="text-xs text-slate-600 mt-0.5">{a.changeReason}</p>
             </div>
           </div>
@@ -319,7 +319,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
           <div className="p-3 rounded-xl bg-warning-soft/80 border border-warning/25 flex items-start gap-2">
             <MessageSquare className="w-3.5 h-3.5 text-warning-strong mt-0.5 flex-shrink-0" aria-hidden="true" />
             <div>
-              <span className="text-2xs uppercase text-warning font-bold tracking-wider">Observação do Ajuste (RH)</span>
+              <span className="text-2xs uppercase text-warning font-bold tracking-wider">Observação do ajuste (RH)</span>
               <p className="text-xs text-warning mt-0.5">{a.rhAdjustNote}</p>
             </div>
           </div>
@@ -330,7 +330,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
           <div className="flex items-start gap-2 p-3 rounded-xl border border-warning/25 bg-warning-soft">
             <span aria-hidden="true" className="text-warning-strong text-base leading-none shrink-0">⚠️</span>
             <div>
-              <p className="text-2xs font-semibold text-warning">Orçamento Planejado foi alterado pelo RH</p>
+              <p className="text-2xs font-semibold text-warning">O orçamento planejado foi alterado pelo RH</p>
               {lastEdit && <p className="text-2xs text-warning mt-0.5">Última edição por {lastEdit.user_name || "?"} — os valores de referência podem ter mudado após o envio.</p>}
             </div>
           </div>

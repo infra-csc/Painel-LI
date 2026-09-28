@@ -110,7 +110,7 @@ export function DetailsFooter({ inclusion, modalData, data, mutations, user, eve
                 data-testid="button-save-scaling"
               >
                 <Save className="w-4 h-4" aria-hidden="true" />
-                {isSaving ? "Salvando…" : "Salvar Alterações"}
+                {isSaving ? "Salvando…" : "Salvar alterações"}
               </Button>
             </span>
           </TooltipTrigger>
@@ -128,7 +128,7 @@ export function DetailsFooter({ inclusion, modalData, data, mutations, user, eve
                 data-testid="button-confirm-scaling"
               >
                 <Check className="w-4 h-4" aria-hidden="true" />
-                {isSaving ? "Confirmando…" : "Confirmar Escalação"}
+                {isSaving ? "Confirmando…" : "Confirmar escalação"}
               </Button>
             </span>
           </TooltipTrigger>

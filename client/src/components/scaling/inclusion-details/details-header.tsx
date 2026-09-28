@@ -3,7 +3,7 @@
  * e a navegação ‹ › pela lista atual.
  *
  * O gradiente e o quadrado azul de 44px com sombra ocupavam a linha inteira
- * para dizer "Detalhes da Escalação", que é o que o próprio modal já é. O que
+ * para dizer "Detalhes da escalação", que é o que o próprio modal já é. O que
  * identifica o registro é o ID, o nome e a situação — e é isso que fica.
  */
 import { ChevronLeft, ChevronRight } from "lucide-react";

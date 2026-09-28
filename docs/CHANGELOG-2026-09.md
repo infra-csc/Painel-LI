@@ -1,15 +1,22 @@
 # O que mudou em setembro/2026 — Painel LI
 
-Resumo, para o dono, dos dois commits do code review de 23–24/09:
+Resumo, para o dono, dos commits do code review de 23–25/09:
 
 | Commit | Data | Tamanho | Assunto |
 |---|---|---|---|
 | `80fbd554` | 24/09 | 1.153 arquivos (a maioria é a remoção de `attached_assets/`) | Code review 23/09: segurança, integridade das vagas, design system, performance e testes |
 | `b998b8fc` | 24/09 | 173 arquivos | Rodada 2: acessibilidade, permissões alinhadas à API, storage por domínio, 75 testes de rota, docs |
+| `d7647805` | 24/09 | — | Rodada 3: tipagem sem `any`, observação opcional na validação, docs e lint estrito |
+| `ed306f20` | 24/09 | — | Dependências: drizzle-orm 0.45, vite 8, Node 22 no Replit e no CI |
+| `fa6763d4` | 25/09 | 366 arquivos | Rodada 4: modo demonstração, páginas modularizadas, testes de componente, tipos do banco, estado compartilhado — ver [§5](#5-rodada-4-2509--fa6763d4) |
 
 Detalhe técnico de cada regra: [`seguranca-e-permissoes.md`](seguranca-e-permissoes.md)
 (autenticação e matriz de permissões), [`arquitetura.md`](arquitetura.md)
-(onde cada coisa mora), [`migracoes.md`](migracoes.md) (banco).
+(onde cada coisa mora), [`migracoes.md`](migracoes.md) (banco),
+[`demo.md`](demo.md) (modo demonstração).
+
+> As seções 1–4 descrevem as rodadas 1–2 (24/09) e continuam válidas; o que a
+> rodada 4 mudou por cima delas está em §5 e marcado nas decisões pendentes.
 
 ## 1. O que muda para quem usa
 
@@ -144,6 +151,11 @@ Detalhe técnico de cada regra: [`seguranca-e-permissoes.md`](seguranca-e-permis
 
 ## 4. Decisões pendentes do dono
 
+> Estado em 25/09: o item 1 foi **parcialmente resolvido** pela rodada 4 (uma
+> lista única de termos em `shared/cenotecnica.ts`; resta decidir se vira
+> configuração) e o item 3 **foi feito** em `ed306f20`. Os itens 2 e 4
+> continuam abertos. Ver §5.4.
+
 1. **O que é "cenotécnica"?** Existem duas definições que não concordam:
    - `shared/scaling-rules.ts` `isCenotecnicaFunctionName` — nome contém
      "cenotecnica", "cenotécnica" ou "sup ceno". Decide se a vaga vai para
@@ -177,3 +189,202 @@ Detalhe técnico de cada regra: [`seguranca-e-permissoes.md`](seguranca-e-permis
 - `npm audit`: 0 vulnerabilidades altas em runtime (resta `picomatch` via Tailwind 3, dev; `uuid` via google-cloud, moderada).
 - **Exige Node 20.19+**: o `.replit` passou de `nodejs-20` para `nodejs-22` e o CI roda em Node 22. Depois do pull, confirme `node -v` no Shell do Replit antes do primeiro build.
 - `drizzle-zod` ficou em 0.7 de propósito: a 0.8 emite schemas do zod v4 e o app é zod v3 (migrar os dois juntos, depois).
+
+## 5. Rodada 4 (25/09 — `fa6763d4`)
+
+Modo demonstração, páginas modularizadas, testes de componente, tipos do
+banco e estado compartilhado entre instâncias. Ordem de publicação em §5.2 —
+**há uma migração que precisa rodar ANTES do código subir**.
+
+### 5.1 O que muda para quem usa
+
+- **Nada muda de propósito nas telas.** A rodada dividiu as páginas grandes em
+  módulos (Planejado, Realizado, Comparativo, NF, Flash, Configurações,
+  Espelho operacional, Escalação, Validação de Escala, Colaboradores,
+  Calendário) sem alterar comportamento — e ganhou 133 testes de componente
+  para garantir isso no kit compartilhado.
+- **Controle RH mais rápido.** A tela deixa de baixar quatro tabelas inteiras
+  (todas as vagas, planejados, realizados e notas) e cruzá-las no navegador;
+  o servidor devolve as linhas prontas em `GET /api/rh/controle` (9 consultas
+  viraram 2 idas). Os contadores dos cards e a barra "Progresso geral" agora
+  valem para o recorte inteiro mesmo com um filtro de status ativo.
+- **Cenotécnica: uma regra só para os nomes.** Funções cujo nome contém
+  "ceno" ou "cenotécnica" agora **passam pela aprovação do gestor** (antes só
+  "cenotécnica"/"sup ceno" passavam — um nome como "Ceno Local" pulava a
+  aprovação). Alimentação e diárias continuam tratando "Sup Ceno" como
+  produtor (regra do dono de 17–18/08). Detalhe em `shared/cenotecnica.ts`.
+- **Combobox de evento** com padrão WAI-ARIA completo (teclado, leitor de
+  tela) e mais 4 correções de acessibilidade no kit.
+- **Correções**: o filtro de mês/semana do Calendário voltou a aceitar a data
+  vinda da URL (`/^(\d{4})-(\d{2})$/` — a regex tinha perdido a barra de
+  escape e nunca casava) e o primeiro nome do colaborador voltou a ser cortado
+  no espaço (`split(/\s+/)`, mesmo defeito).
+- **Histórico da NF não perde decisões simultâneas**: o append no banco é
+  atômico (`history || $1::jsonb`) em vez de ler-alterar-regravar.
+
+### 5.2 O que muda para quem opera (Replit) — checklist de publicação
+
+Ordem completa, do zero ao teste por papel. Os itens 1–3 e 6–8 vêm das rodadas
+anteriores e continuam valendo se ainda não foram feitos.
+
+1. **Secrets** (aba Secrets do Replit): `DATABASE_URL` (endpoint `-pooler`),
+   `SESSION_SECRET`, `SSO_SECRET` (sem os dois o boot **aborta** em produção),
+   `PORTAL_ORIGIN` (origem exata do portal; sem ela o iframe não carrega),
+   `PORTAL_API_TOKEN` (Bearer de `/api/portal/*`; definir no portal também),
+   `MARATONA_API_TOKEN`. **Nunca** definir `PAINEL_DEMO` em produção — a rota
+   de login automático só é registrada fora de produção, mas a variável não
+   tem o que fazer lá.
+2. **Node 22**: o `.replit` já pede `nodejs-22` e o CI roda em 22 (vite 8 e
+   drizzle-kit 0.31 exigem Node ≥ 20.19). Depois do pull, `node -v` no Shell
+   deve mostrar `v22.x`. Se mostrar 20, o Replit ainda não recarregou os
+   módulos do `.replit`: Stop, recarregar a aba, Run.
+3. **`git pull`** no Shell do Replit e `npm install` (o lockfile mudou).
+4. **Migrações, nesta ordem** (todas idempotentes; runbook em
+   [`migracoes.md`](migracoes.md) §4 e §5.1). Antes de tudo:
+   `DATABASE_URL="<prod>" npx tsx scripts/check-schema-drift.ts`.
+   1. Pendentes de 23/09, se ainda não rodaram:
+      `npx tsx scripts/migrations/2026-09-23-indices-e-constraints.ts`
+      (resolver duplicatas listadas e repetir) e os blocos de
+      `2026-09-23-status-fora-do-dominio.sql`.
+   2. `psql "$DATABASE_URL" -f scripts/migrations/2026-09-24-observacao-da-validacao.sql`
+      (só `ADD COLUMN`; o `ensure-schema` também repõe).
+   3. `psql "$DATABASE_URL" -f scripts/migrations/2026-09-25-estado-compartilhado.sql`
+      — tabelas `sso_tokens_usados` e `rate_limits`. O boot também as cria;
+      rodar à mão serve para não depender do primeiro boot **e** porque o
+      login por SSO passa a gravar nela na primeira requisição.
+   4. **`2026-09-25-jsonb.sql` — ANTES de publicar o código.** Rodar o bloco 0
+      (JSON inválido; esperado vazio), corrigir o que aparecer, depois o
+      script inteiro. Motivo: as decisões da NF (aprovar, devolver, recusar,
+      check-in, reenviar) fazem `history = history || $1::jsonb` e **falham
+      com 500 enquanto `invoices.history` for `text`**. O resto do código
+      funciona nos dois estados. Fora do pico (`system_logs` é reescrita).
+5. **Publicar** (Publish) e **Stop + Run** do workflow: o backend não tem hot
+   reload; client novo contra servidor velho mostra "Servidor desatualizado".
+   Conferir no log do boot: nenhum `[estrutura] falhou`, aviso do usuário
+   `system` criado (uma vez) e **nenhuma** linha `[Demo]`.
+6. **Depois de publicar**, fora do pico:
+   1. `psql "$DATABASE_URL" -f scripts/migrations/2026-09-25-timestamptz.sql`
+      — ler o bloco 0: `SHOW timezone` deve ser `UTC` e o último `created_at`
+      deve estar perto de `agora_utc`; se estiver ~3 h atrás, trocar `fuso`
+      para `'America/Sao_Paulo'` no bloco 1. Tabela ocupada é listada no fim:
+      repetir.
+   2. `psql "$DATABASE_URL" -f scripts/migrations/2026-09-25-integridade.sql`
+      — ler os diagnósticos (horas fora de "HH:MM", `user_id` órfão em
+      `team_inclusion_logs`), aplicar as limpezas comentadas um caso por vez,
+      rodar. CHECKs e FK entram `NOT VALID`.
+   3. `VALIDATE CONSTRAINT` (lista pronta no bloco 6 do script e em
+      `migracoes.md` §4.1) quando os diagnósticos voltarem vazios.
+   4. `npx tsx scripts/check-schema-drift.ts` para fechar:
+      "OK — banco alinhado com o schema."
+7. **Testar por papel** em produção, via Portal: admin (Usuários, Logs),
+   Logística Interna (Escalação → confirmar uma vaga, Espelho), Compras
+   (Passagens → marcar emitida, Bagagem), Área de Função (Validação de Escala →
+   validar), RH (Controle RH com e sem filtro de status, Planejado, NF →
+   devolver com motivo — é o caminho que exige o jsonb). Antes de produção, o
+   mesmo roteiro cabe no modo demonstração local (`npm run dev:demo`, seis
+   logins em [`demo.md`](demo.md)).
+8. Pendências que continuam da rodada 1: rotacionar segredos, reescrever o
+   histórico do Git (`attached_assets/`), `Max Machines` pode passar de 1 no
+   que depende de anti-reuso do JWT e rate limit (agora no Postgres) — o cache
+   de usuário (60 s) e o do aprovador padrão (30 s) seguem por instância e
+   são aceitáveis.
+9. Antes de qualquer publicação: `npm run check`, `npm run lint`, `npm test`
+   (os três projetos: 1.504 testes), `npm run build` — o CI do GitHub roda os
+   mesmos em Node 22.
+
+### 5.3 O que muda para quem desenvolve
+
+- **Modo demonstração** — `npm run dev:demo` (porta 5055; preview
+  `painel-li-demo` em `.claude/launch.json`). `server/dev/demo.ts` define
+  `PAINEL_DB=pglite`, `NODE_ENV=development`, `PAINEL_DEMO=1` **antes** de
+  importar o servidor, sobe um Postgres embutido (PGlite, WASM, em memória),
+  gera o schema de `shared/schema.ts` pelo drizzle-kit
+  (`server/dev/pglite-schema.ts`, o mesmo que os testes de rota usam), semeia
+  `server/dev/demo-seed.ts` (6 usuários, 12 funções, 60 colaboradores, 8
+  eventos, 150 vagas em todos os status canônicos, financeiro completo para 2
+  eventos — determinístico, datas relativas a hoje) e liga o Vite. Login
+  automático `GET /__demo/entrar?papel=admin|production|purchasing|function_area|financial|aprovador`
+  cria a sessão como o SSO criaria; `server/app.ts` só registra a rota com
+  `PAINEL_DEMO=1` **e** `NODE_ENV !== "production"` (teste: em produção → 404).
+  Senha de todos: `Demo@2026`. Doc: [`demo.md`](demo.md).
+- **Estado por instância → Postgres.** Anti-reuso do JWT do SSO em
+  `sso_tokens_usados` (`registrarUsoDoToken` em `server/auth-guards.ts`:
+  `INSERT … ON CONFLICT (jti) DO NOTHING RETURNING`; zero linhas = reuso) e
+  contadores do `express-rate-limit` em `rate_limits`
+  (`server/rate-limit-store.ts`, `PostgresRateLimitStore`: um UPSERT por
+  request decide reinício ou soma; um store por limitador com prefixo
+  `login:`/`reset:`; falha do banco → 500, fail-closed). Ambos limpam linhas
+  vencidas no máximo 1× a cada 10 min, fora do caminho do request.
+- **`GET /api/rh/controle?eventId=&status=`** (`server/routes/rh-controle.ts`,
+  papel financeiro). Contrato em `shared/controle-rh.ts` (`montarControleRh`,
+  função pura com 204 linhas de teste): `{ itens: LinhaDoControleRh[],
+  contadores: { status, nf, rhAction, totalParaProgresso }, funcoes, geradoEm }`.
+  Cada linha traz `id` (`pl-<planejado>` ou `ti-<vaga>`), `status` (um dos
+  seis `StatusDaPrestacao`), `responsavelAtual`, `lastActivityDate`, `event`,
+  colaborador/função, `teamInclusion`, `planned`, `actual` (linha completa do
+  Realizado), `invoice`, `emiteNf`, `nfElegivel`, `rhPrecisaAgir`. `status`
+  filtra só `itens` (seis status + `rh_action`, `col_action`, `nf_andamento`,
+  `concluidos`); `contadores` e `funcoes` valem para o recorte inteiro. Com
+  `eventId` inexistente → 404; filtro inválido → 400. O client
+  (`components/rh/use-rh-control-data.ts`) invalida a chave nas mutações do
+  Financeiro.
+- **`shared/cenotecnica.ts`**: `TERMOS_CENOTECNICA = ["cenotecnica", "ceno"]`
+  (sem caixa e sem acento), `ehCenotecnica(nome, { incluiSupCeno })`.
+  `isCenotecnicaFunctionName` (fluxo do gestor) usa `incluiSupCeno: true`;
+  `isCenotecnicaFunction` (alimentação) usa `false`. Os dois wrappers antigos
+  continuam existindo; mudou o resultado do gestor para nomes com "ceno" solto.
+- **Tipos do banco** (`shared/schema.ts` + `scripts/migrations/2026-09-25-*.sql`):
+  `jsonb` em `scaling_change_requests.proposed_changes`, `invoices.history`
+  (`NOT NULL DEFAULT '[]'`), `budget_actual.rh_adjusted_fields`,
+  `budget_comparison.changes_log`, `system_logs.previous_data/new_data`;
+  `timestamptz` em toda coluna de data/hora; `numeric(8,2)` em
+  `variance_percent`; CHECK "HH:MM" nas 9 colunas de hora; usuário fixo
+  `system` (`USUARIO_SISTEMA` no schema, `server/usuario-sistema.ts`) para a
+  FK de `team_inclusion_logs.user_id`; `created_at/updated_at` e 9 booleanos
+  `NOT NULL`. **A API não muda para o client**: `res.json` usa o replacer
+  `serializarJsonNaBorda` (`server/http.ts`, chaves em
+  `CHAVES_JSON_SERIALIZADAS_NA_BORDA`) que devolve as colunas jsonb como
+  string JSON, como antes; o client lê pelos dois formatos com `lerJson`
+  (`client/src/lib/json-seguro.ts`). Quando o client passar a ler objetos,
+  basta tirar a chave do Set.
+- **Client modularizado** (hooks de dados separados da apresentação, linhas
+  de lista em `memo`): `components/budget` (Planejado 4.271 → 332 linhas na
+  página; `hooks/use-budget-*`: queries, filters, draft, engine, edit-modal,
+  planned/actual/comparison actions e data), `components/rh`,
+  `components/invoices`, `components/flash`, `components/settings`,
+  `components/operational-mirror` (Espelho 2.892 → 247), `components/collaborators`,
+  `components/calendar`, `components/scaling/{inclusion-details,split-vaga,scaling-page}`,
+  `components/scaling-validation/{suggestion-page,validation-page,event-view,grid-utils,suggestions-list}`,
+  `components/forms/grid-team-inclusion`, `components/tables/team-inclusion`.
+  Páginas em `pages/` são só composição (a maior, `events.tsx`, tem 770 linhas
+  e ficou fora desta rodada).
+- **Três projetos vitest** (`vitest.config.ts`): `unitarios` (`*.test.ts` de
+  `shared/`, `client/src/`, `server/` fora de `server/test/`), `componentes`
+  (`client/src/**/*.test.tsx` em jsdom + Testing Library, `setup.ts`
+  em `client/src/test/` mocka `useAuth`, `renderComTudo` monta React Query,
+  Tooltip, Router em memória e Toaster; 10 s de timeout; só o kit — `common/`,
+  `ui/`, `layout/`, `lib/`, `hooks/` — tem teste de componente, telas não) e
+  `rotas` (`server/test/`, PGlite, 3 workers). Total **1.504 testes**, 114 de
+  rota HTTP (`demo-seed.test.ts` cobre seed, `/__demo/entrar`, anti-reuso,
+  rate limit e `/api/rh/controle`; `tipos-do-banco.test.ts` cobre jsonb/
+  timestamptz), 133 de componente.
+- `.replit` em `nodejs-22`; CI em Node 22.
+
+### 5.4 Decisões pendentes do dono (estado em 25/09)
+
+1. **Cenotécnica virar configuração?** A lista de termos agora é uma só
+   (`shared/cenotecnica.ts`) e a única diferença entre gestor e alimentação é
+   o tratamento de "Sup Ceno". Resta decidir se isso vira chave em Valores
+   Padrão / `system_settings` (lista de funções por id em vez de casar por
+   nome) — até lá a regra mora no código.
+2. **Recusar comparativo aprovado apaga os créditos do Flash** — igual a §4.2,
+   sem mudança.
+3. **Client lendo jsonb como objeto.** Hoje a borda serializa como string para
+   não mudar nada nas telas. Decidir quando trocar (tirar as chaves de
+   `CHAVES_JSON_SERIALIZADAS_NA_BORDA` e remover o `lerJson` para string) —
+   sem urgência.
+4. **`Max Machines` > 1 no Replit** agora é tecnicamente possível (anti-reuso
+   e rate limit no banco); só o cache de usuário (60 s) e o do aprovador
+   padrão (30 s) ficam por instância. Decidir se vale o custo.
+5. Continuam de §4/§6 de `seguranca-e-permissoes.md`: rotação de segredos,
+   `PORTAL_ORIGIN`, histórico do Git, e-mail de "esqueci a senha".

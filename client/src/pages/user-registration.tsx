@@ -160,7 +160,7 @@ export default function UserRegistration() {
             <div className="px-4 sm:px-5 py-3.5 border-b border-border/50">
               <div className="flex items-center gap-2 mb-3 text-muted-foreground">
                 <User className="h-[18px] w-[18px]" aria-hidden="true" />
-                <span className={SECTION_TITLE}>Dados Pessoais</span>
+                <span className={SECTION_TITLE}>Dados pessoais</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -212,7 +212,7 @@ export default function UserRegistration() {
             <div className="px-4 sm:px-5 py-3.5 border-b border-border/50">
               <div className="flex items-center gap-2 mb-2.5">
                 <Shield className="h-[18px] w-[18px] text-muted-foreground" aria-hidden="true" />
-                <span className={SECTION_TITLE}>Perfil de Acesso</span>
+                <span className={SECTION_TITLE}>Perfil de acesso</span>
                 {errors.role && <span role="alert" className="ml-auto text-2xs text-destructive font-semibold">{errors.role.message}</span>}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -244,7 +244,7 @@ export default function UserRegistration() {
             <div className="px-4 sm:px-5 py-3.5">
               <div className="flex items-center gap-2 mb-2.5">
                 <MapPin className="h-[18px] w-[18px] text-muted-foreground" aria-hidden="true" />
-                <span className={SECTION_TITLE}>Área Específica</span>
+                <span className={SECTION_TITLE}>Área específica</span>
                 <span className="ml-auto text-2xs text-muted-foreground">{areaVal.length}/80 · opcional</span>
               </div>
               {/* Input com sugestões (datalist) das áreas conhecidas — aceita valor livre */}
@@ -280,7 +280,7 @@ export default function UserRegistration() {
                 ) : (
                   <>
                     <UserPlus className="h-[18px] w-[18px]" aria-hidden="true" />
-                    Criar Usuário
+                    Criar usuário
                   </>
                 )}
               </Button>

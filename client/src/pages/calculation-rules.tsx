@@ -91,7 +91,7 @@ export default function CalculationRulesPage() {
   }, [settings]);
 
   return (
-    <div className="min-h-screen bg-surface-muted p-6">
+    <div>
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
         <PageHeader

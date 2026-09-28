@@ -1,5 +1,5 @@
 /**
- * Estado do modal "Detalhes da Escalação" (25/09 — extraído do dialog):
+ * Estado do modal "Detalhes da escalação" (25/09 — extraído do dialog):
  * aba ativa, escolha de colaborador, sub-diálogos, navegação ‹ › pelo teclado,
  * travas (evento encerrado, pedido em análise) e os Valores Padrão.
  */

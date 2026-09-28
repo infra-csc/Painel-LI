@@ -75,7 +75,10 @@ export function PageHeader({ variant = "default", icon: Icon, title, subtitle, a
         {context && <div className="flex flex-wrap items-center gap-2 min-w-0">{context}</div>}
       </div>
       {(tabs || actions) && (
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        // No celular as ações ocupam a linha inteira (25/09): um seletor de
+        // evento com `w-full` dentro de um `shrink-0` ficava com a largura do
+        // nome do evento e vazava para fora da tela no Planejado e nas NFs.
+        <div className="flex flex-wrap items-center gap-2 w-full min-w-0 sm:w-auto">
           {tabs}
           {actions}
         </div>

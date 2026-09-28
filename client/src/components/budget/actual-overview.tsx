@@ -1,7 +1,7 @@
 /**
  * Topo do Orçamento Realizado — 25/09 (modularização). Extraído de
  * budget-actual.tsx: banner de prestações devolvidas pelo RH, stepper de
- * etapas e o banner "Total Realizado" com KPIs e barra de aprovação.
+ * etapas e o banner "Total realizado" com KPIs e barra de aprovação.
  */
 import { AlertCircle, CheckCircle2, Clock, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { formatarMoeda } from "@/lib/format";
@@ -122,7 +122,7 @@ export function ActualTotalBanner({ filteredItems, prestacaoCount, totalRealizad
       <div className="flex items-stretch flex-wrap">
         {/* Esquerda — total */}
         <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden w-full sm:w-auto sm:min-w-[230px] bg-primary-hover">
-          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
+          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-white/60">Total realizado</p>
           <div className="text-3xl font-semibold text-white leading-none mt-1.5 tracking-[-0.03em]">
             {formatCurrency(totalRealizado)}
           </div>
@@ -149,7 +149,7 @@ export function ActualTotalBanner({ filteredItems, prestacaoCount, totalRealizad
             <div className="bg-primary-hover/8" style={{ width: 1, height: 36 }} />
             <div className="flex-1 flex flex-col items-center gap-1 px-3">
               <div className="text-2xl font-bold leading-none tracking-tight text-primary">{nRevisao}</div>
-              <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" aria-hidden="true" />Em Revisão</div>
+              <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" aria-hidden="true" />Em revisão</div>
             </div>
             <div className="bg-primary-hover/8" style={{ width: 1, height: 36 }} />
             <div className="flex-1 flex flex-col items-center gap-1 px-3">

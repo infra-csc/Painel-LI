@@ -56,7 +56,7 @@ export function ResumoPeriodoCard({ inclusion }: { inclusion: TeamInclusion }) {
       <div className="border border-border rounded-xl overflow-hidden">
         <div className="bg-primary/5 border-b border-border px-4 py-2.5 flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-primary" aria-hidden="true" />
-          <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de Trabalho</span>
+          <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">Período de trabalho</span>
         </div>
         <div className="p-4">
           <div className="grid grid-cols-2 gap-3 mb-4">

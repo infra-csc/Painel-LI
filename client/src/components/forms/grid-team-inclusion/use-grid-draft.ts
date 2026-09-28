@@ -1,5 +1,5 @@
 /**
- * Rascunho da Escalação por Grade (25/09 — extraído do formulário): salvar e
+ * Rascunho da Escalação por grade (25/09 — extraído do formulário): salvar e
  * carregar à mão, e o auto-save (2s após a última alteração, vale 1 hora).
  * Rascunhos são por usuário: dois usuários na mesma máquina não veem a grade
  * um do outro, e o rascunho de um não sobrescreve o do outro.
@@ -91,7 +91,7 @@ export function useGridDraft({ userId, form, functionRows, setFunctionRows, date
     return false;
   };
 
-  /** Botão "Carregar Rascunho": avisa quando não há nada para restaurar. */
+  /** Botão "Carregar rascunho": avisa quando não há nada para restaurar. */
   const loadDraftOrWarn = () => {
     const loaded = loadDraft();
     if (!loaded) {

@@ -1,4 +1,4 @@
-// Aba "Dados da Passagem" em modo visualização (passagem já registrada).
+// Aba "Dados da passagem" em modo visualização (passagem já registrada).
 import { FileText, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion, Ticket } from "@shared/schema";
@@ -48,10 +48,10 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
           {isRodo ? "🚌" : leg === "ida" ? "🛫" : "🛬"} {leg === "ida" ? "IDA" : "VOLTA"}
         </div>
         <div className="space-y-2.5">
-          {cityO && <div><div className={LBL}>Cidade Origem</div><div className="text-sm font-medium text-slate-700">{cityO}</div></div>}
-          {airO && <div><div className={LBL}>{isRodo ? "Rodoviária Origem" : "Aeroporto Origem"}</div><div className="text-sm font-bold text-slate-700 uppercase font-mono">{airO}</div></div>}
-          {cityD && <div><div className={LBL}>Cidade Destino</div><div className="text-sm font-medium text-slate-700">{cityD}</div></div>}
-          {airD && <div><div className={LBL}>{isRodo ? "Rodoviária Destino" : "Aeroporto Destino"}</div><div className="text-sm font-bold text-slate-700 uppercase font-mono">{airD}</div></div>}
+          {cityO && <div><div className={LBL}>Cidade de origem</div><div className="text-sm font-medium text-slate-700">{cityO}</div></div>}
+          {airO && <div><div className={LBL}>{isRodo ? "Rodoviária de origem" : "Aeroporto de origem"}</div><div className="text-sm font-bold text-slate-700 uppercase font-mono">{airO}</div></div>}
+          {cityD && <div><div className={LBL}>Cidade de destino</div><div className="text-sm font-medium text-slate-700">{cityD}</div></div>}
+          {airD && <div><div className={LBL}>{isRodo ? "Rodoviária de destino" : "Aeroporto de destino"}</div><div className="text-sm font-bold text-slate-700 uppercase font-mono">{airD}</div></div>}
           {date && <div><div className={LBL}>Data</div><div className="text-sm font-semibold text-primary">{formatDate(date)}</div></div>}
           {time && (
             <div>
@@ -74,7 +74,7 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
           <span className="text-xl">{isVan ? "🚐" : isRodo ? "🚌" : "✈️"}</span>
           <div>
             <div className="text-xs font-black text-primary uppercase tracking-[0.12em]">
-              {isVan ? "Van" : isRodo ? "Transporte Rodoviário" : "Passagem Aérea"}
+              {isVan ? "Van" : isRodo ? "Transporte rodoviário" : "Passagem aérea"}
             </div>
             {ticket.purchaseDate && <div className="text-2xs text-muted-foreground mt-0.5">Comprada em {formatDate(ticket.purchaseDate)}</div>}
           </div>
@@ -86,8 +86,8 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
         </div>
         {!isVan && (
           <div className="px-4 py-3 flex flex-wrap gap-6">
-            {ticket.purchaseDate && <div><div className={LBL}>Data da Compra</div><div className={VAL}>{formatDate(ticket.purchaseDate)}</div></div>}
-            {ticket.value != null && ticket.value > 0 && <div><div className={LBL}>Valor da Passagem</div><div className={VAL}>{formatBrl(ticket.value)}</div></div>}
+            {ticket.purchaseDate && <div><div className={LBL}>Data da compra</div><div className={VAL}>{formatDate(ticket.purchaseDate)}</div></div>}
+            {ticket.value != null && ticket.value > 0 && <div><div className={LBL}>Valor da passagem</div><div className={VAL}>{formatBrl(ticket.value)}</div></div>}
           </div>
         )}
         {isVan && ticket.ticketObservations && (

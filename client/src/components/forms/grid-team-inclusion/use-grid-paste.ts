@@ -1,5 +1,5 @@
 /**
- * Colar do Excel na Escalação por Grade (25/09 — extraído do formulário).
+ * Colar do Excel na Escalação por grade (25/09 — extraído do formulário).
  * Formato: Função | Data Voo Ida | Horário Chegada | Data Voo Retorno |
  * Horário Partida | Passagem | Hospedagem | [Diárias por dia...]
  */

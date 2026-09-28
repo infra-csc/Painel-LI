@@ -18,9 +18,17 @@ npm run dev:demo          # porta 5055
 ```
 
 Não precisa de `DATABASE_URL`, `SESSION_SECRET` nem `SSO_SECRET` — o script
-define valores de demonstração. Funciona igual no Windows, no Linux e no
-Replit (o ambiente é definido dentro de `server/dev/demo.ts`, não no script
-do `package.json`).
+define valores de demonstração (`SESSION_SECRET`, `SSO_SECRET`,
+`PORTAL_ORIGIN=http://localhost:<porta>` e `PORTAL_API_TOKEN` só se não
+existirem no ambiente). Funciona igual no Windows, no Linux e no Replit (o
+ambiente é definido dentro de `server/dev/demo.ts`, não no script do
+`package.json`). Exige Node 22 como o resto do projeto.
+
+Porta ocupada? O processo avisa e sai: `PORT=5056 npm run dev:demo` (o
+`launch.json` continua apontando para 5055). O primeiro boot leva alguns
+segundos (WASM + DDL gerado do drizzle + seed); o log diz `banco embutido
+pronto em N ms — 150 vagas, 60 colaboradores, 8 eventos` e imprime as seis
+URLs de login.
 
 ## 2. Os seis logins
 
@@ -36,8 +44,15 @@ Abra no navegador (a sessão nasce como se viesse do SSO e redireciona para `/`)
 | `http://localhost:5055/__demo/entrar?papel=aprovador` | Marcos Vieira | production + **canApproveCenotecnica** + aprovador da Escala |
 
 Para trocar de papel, basta abrir outra URL (a sessão é regenerada). Também
-dá para entrar pela tela `/auth` com qualquer e-mail acima (`*@demo.local`) e
-a senha `Demo@2026` — o login por senha só existe fora de produção.
+dá para entrar pela tela `/auth` com qualquer e-mail acima (`*@demo.local`:
+`admin@`, `producao@`, `compras@`, `area@`, `rh@`, `aprovador@`) e a senha
+`Demo@2026` (`DEMO_SENHA`) — o login por senha só existe fora de produção.
+`?papel=` fora da lista responde 400 com os valores aceitos; usuário ausente
+(seed não rodou) responde 404.
+
+O rate limit de login (30 tentativas / 15 min) e o anti-reuso do JWT também
+funcionam na demo: as tabelas `rate_limits` e `sso_tokens_usados` fazem parte
+do schema gerado.
 
 ## 3. O que o seed traz (determinístico)
 
@@ -67,8 +82,16 @@ Datas relativas a **hoje**, sempre caindo em sábado/domingo:
 
 Precisa de outro cenário? Edite `PLANOS` em `server/dev/demo-seed.ts` — cada
 evento é uma lista de status, um por vaga. O teste
-`server/test/demo-seed.test.ts` garante que todos os status canônicos continuam
-representados.
+`server/test/demo-seed.test.ts` (projeto `rotas`, `npm run test:rotas`)
+garante as contagens (6 usuários, 12 funções, 60 colaboradores, 8 eventos,
+150 vagas), que todos os status canônicos continuam representados, que o seed
+é idempotente e que `/__demo/entrar` **não existe** com
+`NODE_ENV=production`.
+
+O seed usa `isCenotecnicaFunction` de `shared/alimentacao.ts` para decidir
+diária/empreita das vagas de Cenotécnica — a mesma regra do app (ver
+`shared/cenotecnica.ts`: "Sup Ceno" é produtor na alimentação, mas passa pelo
+gestor).
 
 ## 4. Como funciona por dentro
 
@@ -86,8 +109,15 @@ representados.
 5. `setupVite()` liga o dev middleware do client, como no `npm run dev`.
 
 `server/ensure-schema.ts` se pula sozinho no modo PGlite (o schema já vem
-completo do passo 2). A sessão usa o MemoryStore do express-session (decisão
-de `server/app.ts` para `PAINEL_DB=pglite`).
+completo do passo 2; `criarSchemaPglite` também cria as sequences, a tabela
+`session` e o usuário fixo `system`). A sessão usa o MemoryStore do
+express-session (decisão de `server/app.ts` para `PAINEL_DB=pglite`), então
+reiniciar o processo também derruba as sessões abertas.
+
+O modo demonstração compartilha três peças com o resto do sistema, de
+propósito — se uma quebrar, o teste ou o app real acusam: `createApp`
+(a mesma fábrica de produção), `pglite-schema.ts` (o mesmo DDL dos testes de
+rota) e `iniciarSessao` (a mesma função do SSO).
 
 ## 5. Limites
 

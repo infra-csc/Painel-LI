@@ -36,7 +36,7 @@ describe("getRequiredFields (fonte única de obrigatoriedade)", () => {
 
   it("rodoviário usa rótulos de rodoviária/bilhete e não exige valor", () => {
     const fields = getRequiredFields("rodoviario", false);
-    expect(fields.find(f => f.field === "departureAirport")?.label).toBe("Rodoviária Origem");
+    expect(fields.find(f => f.field === "departureAirport")?.label).toBe("Rodoviária de origem");
     expect(fields.find(f => f.field === "purchaseOrderNumber")?.label).toBe("Bilhete");
     expect(fields.map(f => f.field)).not.toContain("value");
     expect(fields.map(f => f.field)).toContain("actualArrivalTime");
@@ -58,7 +58,7 @@ describe("getRequiredFields (fonte única de obrigatoriedade)", () => {
       actualDepartureDate: "2026-09-01",
       actualDepartureTime: "08:00",
     });
-    expect(missing.map(f => f.label)).toEqual(["Aeroporto Destino", "Chegada (ida)"]);
+    expect(missing.map(f => f.label)).toEqual(["Aeroporto de destino", "Chegada (ida)"]);
   });
 });
 

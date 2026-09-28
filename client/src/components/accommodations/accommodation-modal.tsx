@@ -1,5 +1,5 @@
 /**
- * Modal de Hospedagem — Resumo / Dados / Complementos e Histórico.
+ * Modal de Hospedagem — Resumo / Dados / Complementos e histórico.
  *
  * Desde 25/09 cada aba mora no seu arquivo (`accommodation-modal-resumo`,
  * `-dados`, `-complementos`) e os estilos/rótulos em `-shared`; aqui ficam o
@@ -201,7 +201,7 @@ function AccommodationModalContent({
   return (
     <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
       <DialogHeader className="sr-only">
-        <DialogTitle>Registro de Hospedagem</DialogTitle>
+        <DialogTitle>Registro de hospedagem</DialogTitle>
         <DialogDescription>Modal de hospedagem</DialogDescription>
       </DialogHeader>
 
@@ -211,7 +211,7 @@ function AccommodationModalContent({
           <Hotel className="w-5 h-5 text-white" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-black text-foreground leading-tight">Registro de Hospedagem</h2>
+          <h2 className="text-lg font-black text-foreground leading-tight">Registro de hospedagem</h2>
           <p className="text-xs text-muted-foreground mt-0.5 truncate">
             #{inclusion.inclusionNumber || "N/A"} · {event?.name || "—"} · {func?.name || "—"}
           </p>
@@ -250,12 +250,12 @@ function AccommodationModalContent({
           <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
             <TabsTrigger value="resumo" className={TAB}>Resumo</TabsTrigger>
             <TabsTrigger value="dados" className={TAB}>
-              Dados da Hospedagem
+              Dados da hospedagem
               {accommodation
                 ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-success-soft text-success rounded-full"><Check className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only"> (registrada)</span></span>
                 : <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-warning-soft text-warning rounded-full"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only"> (pendente)</span></span>}
             </TabsTrigger>
-            <TabsTrigger value="complementos" className={TAB}>Complementos e Histórico</TabsTrigger>
+            <TabsTrigger value="complementos" className={TAB}>Complementos e histórico</TabsTrigger>
           </TabsList>
         </div>
 
@@ -296,7 +296,7 @@ function AccommodationModalContent({
           <Button onClick={handleSave} disabled={isSaving} data-testid="button-register"
             className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-bold bg-success hover:bg-success/90">
             {isSaving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Hotel className="w-4 h-4" aria-hidden="true" />}
-            {accommodation ? "Atualizar Hospedagem" : "Registrar Hospedagem"}
+            {accommodation ? "Atualizar hospedagem" : "Registrar hospedagem"}
           </Button>
         )}
       </div>

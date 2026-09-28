@@ -18,9 +18,9 @@ export interface DeleteActualDialogProps {
 export function DeleteActualDialog({ confirmDeleteId, onClose, isPending, onConfirm }: DeleteActualDialogProps) {
   return (
     <Dialog open={!!confirmDeleteId} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent aria-describedby={undefined} className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Confirmar Remoção</DialogTitle>
+          <DialogTitle>Confirmar remoção</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-slate-600">
           Tem certeza que deseja remover esta prestação? Esta ação não pode ser desfeita.

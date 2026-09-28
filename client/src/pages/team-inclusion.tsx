@@ -37,7 +37,7 @@ export default function TeamInclusion() {
   if (!hasPermission(user, "canAccessScreen1")) {
     return (
       <div className="bg-card rounded-lg shadow-1 border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso negado</h3>
         <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
     );
@@ -58,7 +58,7 @@ export default function TeamInclusion() {
               data-testid="button-create-event"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Novo Evento
+              Novo evento
             </button>
           )
         }
@@ -76,7 +76,7 @@ export default function TeamInclusion() {
         )}
       </div>
 
-      {/* "Novo Evento": mesmo modal da tela Eventos (empresa pagadora, CNPJ,
+      {/* "Novo evento": mesmo modal da tela Eventos (empresa pagadora, CNPJ,
           validações e invalidação de cache idênticos — nada de formulário paralelo). */}
       <EventModal open={showEventModal} onClose={() => setShowEventModal(false)} />
     </>

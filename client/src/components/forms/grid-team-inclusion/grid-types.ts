@@ -1,5 +1,5 @@
 /**
- * Escalação por Grade — tipos, schema e utilitários puros (25/09, extraídos de
+ * Escalação por grade — tipos, schema e utilitários puros (25/09, extraídos de
  * grid-team-inclusion-form.tsx). Fiel ao original: esta grade NÃO usa os tetos
  * de dias da Sugestão de escala, então a lista de datas é a versão sem limite.
  */

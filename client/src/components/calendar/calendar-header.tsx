@@ -101,7 +101,7 @@ export function CalendarHeader({ s }: { s: CalendarState }) {
         </div>
 
         {/* Status filter pills */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-muted rounded-xl border border-border">
+        <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-surface-muted rounded-xl border border-border max-w-full">
           <span className="text-2xs font-black text-muted-foreground uppercase tracking-widest mr-0.5">Filtros:</span>
           {legendItems.map(item => {
             const count = statusCounts[item.key] || 0;

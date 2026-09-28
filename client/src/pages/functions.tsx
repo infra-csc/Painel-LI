@@ -261,10 +261,10 @@ function FunctionManagersCell({ functionId, functionName, managers: managersProp
             <Plus className="h-4 w-4" aria-hidden="true" />
           </button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[380px] rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-[380px] rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
           <div className={DIALOG_HEADER}>
             <div>
-              <DialogTitle className="text-base font-extrabold text-foreground m-0">Adicionar Responsável</DialogTitle>
+              <DialogTitle className="text-base font-extrabold text-foreground m-0">Adicionar responsável</DialogTitle>
               <p className="text-2xs text-muted-foreground mt-[3px] capitalize">{functionName}</p>
             </div>
             <button type="button" onClick={() => setIsOpen(false)} aria-label="Fechar" className={CLOSE_BTN}>
@@ -334,7 +334,7 @@ export default function Functions() {
   // Espelha POST/PATCH/DELETE /api/functions e /:id/managers (CADASTRO_ROLES).
   // RH e Área de Função só visualizam.
   const canManage = hasPermission(user, "canManageFunctions");
-  // Aba "Validação de Escala": permissão própria, diferente do catálogo
+  // Aba "Validação de escala": permissão própria, diferente do catálogo
   // ("são permissões diferentes" — decisão do usuário). Hoje: só admin.
   const canSeeEscalaTab = hasPermission(user, "canAccessScalingManagers");
 
@@ -420,7 +420,7 @@ export default function Functions() {
                 </DialogTrigger>
 
                 {/* Create / Edit dialog */}
-                <DialogContent className="sm:max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
+                <DialogContent aria-describedby={undefined} className="sm:max-w-[420px] rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
                   <div className={cn(DIALOG_HEADER, "py-[22px]")}>
                     <DialogTitle className="text-lg font-extrabold text-foreground m-0">
                       {editingFunction ? "Editar função" : "Nova função"}
@@ -582,7 +582,7 @@ export default function Functions() {
               <table className="w-full border-collapse min-w-[560px]">
                 <thead>
                   <tr className="bg-muted/40 border-b border-border">
-                    {["#","Nome da Função","Responsáveis","Ações"].map((h, i) => (
+                    {["#","Nome da função","Responsáveis","Ações"].map((h, i) => (
                       <th scope="col" key={h}
                         className={cn("px-4 sm:px-6 py-3.5 text-2xs font-bold text-muted-foreground uppercase tracking-[0.08em]", i === 3 ? "text-right" : "text-left", i === 0 && "w-[60px]")}>
                         {h}

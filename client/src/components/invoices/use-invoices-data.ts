@@ -79,7 +79,7 @@ export function useInvoicesData(selectedEventId: string) {
 
   // "Lançamento": itens NF-elegíveis que ainda dependem do colaborador — sem NF enviada
   // ("Aguardando lançamento") ou com NF devolvida. Equivale a "Aguardando lançamento"
-  // + "NF devolvida" do card "Aguardando Colaborador" do Controle RH.
+  // + "NF devolvida" do card "Aguardando colaborador" do Controle RH.
   const pendingCount  = approvedActuals.filter(a => {
     if (!emitsNfFor(a)) return false; // não emite NF — nada a cobrar
     const inv = getInvoice(a.id);

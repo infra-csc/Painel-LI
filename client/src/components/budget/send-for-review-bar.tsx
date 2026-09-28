@@ -36,7 +36,7 @@ export function SendForReviewBar(p: SendForReviewBarProps) {
       <div className="max-w-5xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div>
-            <div className="text-2xs uppercase tracking-widest font-semibold text-primary/70">Total Realizado</div>
+            <div className="text-2xs uppercase tracking-widest font-semibold text-primary/70">Total realizado</div>
             <div className="text-lg font-semibold tabular-nums leading-tight text-primary">{formatCurrency(totalRealizado)}</div>
           </div>
           <div className="h-8 w-px bg-border" />

@@ -21,7 +21,7 @@
  *   o pedido é masculino) · troca → "Rejeitada". Nunca "Recusada"/"Devolvido".
  *   Vaga cancelada → "Cancelada" (é a vaga); pedido/troca → "Cancelado".
  */
-import type { ComponentType, HTMLAttributes, ReactNode } from "react";
+import { forwardRef, type ComponentType, type HTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { rotuloDoStatus } from "@shared/vaga-status";
 import type { TeamInclusion } from "@shared/schema";
@@ -57,10 +57,17 @@ export interface StatusBadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, 
   children: ReactNode;
 }
 
-export function StatusBadge({ tone, size = "sm", dot = false, pulse = false, icon: Icon, className, children, ...rest }: StatusBadgeProps) {
+// `forwardRef` (25/09): a pílula vira gatilho de Tooltip (`asChild`) na
+// Validação de escala — sem ref o React avisava "Function components cannot
+// be given refs" a cada linha, e o Vite derrubava o servidor de dev no aviso.
+export const StatusBadge = forwardRef<HTMLSpanElement, StatusBadgeProps>(function StatusBadge(
+  { tone, size = "sm", dot = false, pulse = false, icon: Icon, className, children, ...rest },
+  ref,
+) {
   const t = TONE_CLASS[tone];
   return (
     <span
+      ref={ref}
       className={cn(
         "inline-flex w-fit shrink-0 items-center whitespace-nowrap rounded-full font-semibold leading-4",
         SIZE_CLASS[size],
@@ -74,7 +81,7 @@ export function StatusBadge({ tone, size = "sm", dot = false, pulse = false, ico
       {children}
     </span>
   );
-}
+});
 
 // ─── Dicionário semântico ────────────────────────────────────────────────────
 

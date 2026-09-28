@@ -36,7 +36,7 @@ const ETAPAS_DO_SUBTITULO = [
   { label: "Planejado", color: "var(--primary)" },
   { label: "Realizado", color: "var(--primary)" },
   { label: "Aprovação", color: "var(--success)" },
-  { label: "Nota Fiscal", color: "var(--primary)" },
+  { label: "Nota fiscal", color: "var(--primary)" },
   { label: "Check-in", color: "var(--success)" },
 ];
 

@@ -1,4 +1,4 @@
-// Modal "Registro de Passagem": header + abas (Resumo / Dados / Complementos)
+// Modal "Registro de passagem": header + abas (Resumo / Dados / Complementos)
 // + rodapé. Queries e mutations que dependem da inclusão selecionada vivem aqui.
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -157,7 +157,7 @@ export default function TicketModal({
   if (!inclusion) {
     return (
       <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }}>
-        <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden" />
+        <DialogContent aria-describedby={undefined} className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden" />
       </Dialog>
     );
   }
@@ -204,14 +204,14 @@ export default function TicketModal({
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }}>
-        <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
+        <DialogContent aria-describedby={undefined} className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
           {/* HEADER */}
           <div className="px-6 pt-5 pb-4 border-b border-border shrink-0 flex items-center gap-4 pr-14 bg-brand-soft">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 bg-primary shadow-2">
               <Plane className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-lg font-bold text-foreground leading-tight m-0 p-0">Registro de Passagem</DialogTitle>
+              <DialogTitle className="text-lg font-bold text-foreground leading-tight m-0 p-0">Registro de passagem</DialogTitle>
               <div className="text-xs text-muted-foreground mt-0.5 truncate">
                 <span className="font-mono font-bold text-muted-foreground">#{inclusion.inclusionNumber || "N/A"}</span>
                 <span className="mx-1.5 text-muted-foreground">·</span>
@@ -222,7 +222,7 @@ export default function TicketModal({
               <span
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full shrink-0 border border-warning/25"
                 title={eventLocked ? PAST_EVENT_BLOCK_MSG : undefined}
-              >Somente Leitura</span>
+              >Somente leitura</span>
             ) : ticket && !isEditing ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-success-soft text-success text-2xs font-bold rounded-full shrink-0 border border-success/25">
                 <span className="w-1.5 h-1.5 rounded-full bg-success-strong" />Comprada
@@ -242,12 +242,12 @@ export default function TicketModal({
               <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
                 <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
                 <TabsTrigger value="dados" className={tabTrigger}>
-                  Dados da Passagem
+                  Dados da passagem
                   {ticket && !isEditing
                     ? <span className="ml-1.5 bg-success-soft text-success text-2xs font-bold px-1.5 py-0.5 rounded-full">✓</span>
                     : <span className="ml-1.5 bg-warning-soft text-warning text-2xs font-bold px-1.5 py-0.5 rounded-full">!</span>}
                 </TabsTrigger>
-                <TabsTrigger value="complementos" className={tabTrigger}>Complementos e Histórico</TabsTrigger>
+                <TabsTrigger value="complementos" className={tabTrigger}>Complementos e histórico</TabsTrigger>
               </TabsList>
             </div>
 
@@ -435,7 +435,7 @@ export default function TicketModal({
                   >
                     {isSubmitting
                       ? (isEditing ? "Atualizando…" : "Registrando…")
-                      : <><CheckCircle className="w-4 h-4" aria-hidden="true" /> {isEditing ? "Atualizar Passagem" : "Registrar Passagem"}</>}
+                      : <><CheckCircle className="w-4 h-4" aria-hidden="true" /> {isEditing ? "Atualizar passagem" : "Registrar passagem"}</>}
                   </Button>
                 )}
               </>

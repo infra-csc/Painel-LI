@@ -139,7 +139,7 @@ export const GridRow = memo(function GridRow({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => duplicateScheduleOnly(row.functionId)}>
               <Calendar className="w-3 h-3 mr-2" aria-hidden="true" />
-              Copiar para Nova Função
+              Copiar para nova função
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => copyScheduleData(row.functionId)}>
               <Copy className="w-3 h-3 mr-2" aria-hidden="true" />

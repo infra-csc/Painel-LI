@@ -2,7 +2,7 @@
  * Popover de edição em lote da planilha do Planejado — 25/09 (modularização).
  * Antes triplicado nos 3 cabeçalhos. Aplica somente aos pendentes visíveis:
  * linha enviada ou ausente nunca recebe override, então a antiga opção
- * "Apenas Pendentes" deixou de existir.
+ * "Apenas pendentes" deixou de existir.
  */
 export interface BatchPopoverProps {
   title: string;

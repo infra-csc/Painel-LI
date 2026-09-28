@@ -372,7 +372,7 @@ export const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(func
         </div>
       </td>
 
-      {/* Subtotal — clicável → Memória de Cálculo */}
+      {/* Subtotal — clicável → Memória de cálculo */}
       <td className="px-4 py-3 text-right bg-brand-soft/20 relative align-middle">
         <button
           ref={memoBtnRef}
@@ -391,7 +391,7 @@ export const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(func
             {formatCurrency(matchingActual.totalValue)} ✏
           </div>
         )}
-        {/* Popover de Memória de Cálculo — fecha a conta usando os segments da deflação */}
+        {/* Popover de Memória de cálculo — fecha a conta usando os segments da deflação */}
         {subtotalOpen && !isNotAttended && (
           <MemoriaCalculoPopover ref={memoPopoverRef} sid={sid} name={name} budget={budget} onClose={() => onToggleSubtotal(sid)} />
         )}

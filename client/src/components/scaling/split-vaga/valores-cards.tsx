@@ -43,7 +43,7 @@ export function DiariasCard({ s }: { s: SplitState }) {
         <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
           <div className="flex items-center gap-1.5 mb-2">
             <Sun className="w-3 h-3 text-warning-strong" aria-hidden="true" />
-            <span className="text-2xs font-semibold text-slate-600">Fim de Semana</span>
+            <span className="text-2xs font-semibold text-slate-600">Fim de semana</span>
             <span className="text-2xs text-muted-foreground ml-auto">{selWeekends}d</span>
           </div>
           <div className="flex items-center gap-1">

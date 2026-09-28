@@ -55,7 +55,16 @@ export async function gerarDdlDoSchema(schema: Record<string, unknown> = schemaP
   const { generateDrizzleJson, generateMigration } = require("drizzle-kit/api") as typeof import("drizzle-kit/api");
   const vazio = generateDrizzleJson({});
   const atual = generateDrizzleJson(schema);
-  return generateMigration(vazio, atual);
+  const ddl = await generateMigration(vazio, atual);
+  // 28/09: `drizzle-kit/api` acrescenta `Array.prototype.random` (enumerável)
+  // ao carregar. O pdf.js do unpdf recusa abrir QUALQUER PDF quando encontra
+  // propriedade enumerável no Array.prototype — no demo e nos testes, a leitura
+  // de voucher devolvia "Não consegui abrir este PDF". Só afeta quem carrega o
+  // gerador (demo/testes); produção nunca passa por aqui. Limpa depois de usar.
+  for (const chave of Object.keys(Array.prototype)) {
+    delete (Array.prototype as unknown as Record<string, unknown>)[chave];
+  }
+  return ddl;
 }
 
 /**

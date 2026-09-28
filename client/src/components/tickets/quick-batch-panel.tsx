@@ -1,4 +1,4 @@
-// Painel "Aplicar em Lote": mesmos dados para várias passagens selecionadas.
+// Painel "Aplicar em lote": mesmos dados para várias passagens selecionadas.
 // Os campos vêm de TicketFormFields (compartilhados com o modal).
 import { Plane, Bus, Truck, FileText, ChevronDown, ChevronRight, Paperclip, NotebookPen, ClipboardCheck, Users, Rocket } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
@@ -100,7 +100,7 @@ export default function QuickBatchPanel({
             <FileText className="w-4 h-4 text-warning-strong" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">Aplicar em Lote</p>
+            <p className="text-sm font-semibold text-foreground">Aplicar em lote</p>
             <p className="text-2xs text-muted-foreground">Aplicar mesmos dados a múltiplas passagens</p>
           </div>
         </div>
@@ -116,7 +116,7 @@ export default function QuickBatchPanel({
           {/* Cabeçalho interno */}
           <div className="px-4 py-2.5 border-b border-border flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-foreground">Aplicar em Lote</h3>
+              <h3 className="text-sm font-semibold text-foreground">Aplicar em lote</h3>
               <p className="text-2xs text-muted-foreground mt-0.5">Insira os dados da operação para múltiplos passageiros simultaneamente.</p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
@@ -214,7 +214,7 @@ export default function QuickBatchPanel({
               <div className="rounded-xl border border-border overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-surface-muted border-b border-border">
                   <div className="w-5 h-5 rounded-md bg-slate-500 flex items-center justify-center shrink-0"><ClipboardCheck className="w-3 h-3 text-white" aria-hidden="true" /></div>
-                  <h4 className="text-2xs font-black uppercase tracking-widest text-slate-600">Status da Operação</h4>
+                  <h4 className="text-2xs font-black uppercase tracking-widest text-slate-600">Status da operação</h4>
                 </div>
                 <ul className="p-3 space-y-2 bg-card">
                   <li className="flex items-center gap-2">

@@ -1,12 +1,12 @@
 /**
- * Diálogo "Detalhes do Colaborador" (25/09 — extraído de pages/collaborator-management.tsx).
+ * Diálogo "Detalhes do colaborador" (25/09 — extraído de pages/collaborator-management.tsx).
  * Dados pessoais só para quem os recebe do servidor — para os demais papéis a
  * linha some (não existe "—" para dado que não veio).
  */
 import { Check, Eye, FileText, X } from "lucide-react";
 import type { Collaborator } from "@shared/schema";
 import { enderecoEmUmaLinha } from "@shared/endereco";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, DetailRow, StatusBadge, formatDate, formatDocument, toTitleCase } from "./collaborator-shared";
 
 export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosPessoais, canEdit, onApprove, onReject }: {
@@ -20,12 +20,12 @@ export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosP
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
+      <DialogContent aria-describedby={undefined} className="max-w-xl rounded-xl p-0 gap-0 border-0 shadow-3 overflow-hidden [&>button:last-child]:hidden">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
           {c && <Avatar name={c.fullName} />}
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-foreground">Detalhes do Colaborador</h3>
+            <DialogTitle className="text-sm font-bold text-foreground leading-normal tracking-normal">Detalhes do colaborador</DialogTitle>
             {c && <p className="text-2xs text-muted-foreground mt-0.5 truncate">{toTitleCase(c.fullName)}</p>}
           </div>
           {c && <StatusBadge status={c.status} />}
@@ -37,10 +37,10 @@ export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosP
         {c && (
           <div className="px-5 py-5 space-y-5">
             <div className="grid grid-cols-2 gap-4">
-              <DetailRow label="Nome Completo" value={toTitleCase(c.fullName)} />
-              <DetailRow label="Tipo de Vínculo" value={toTitleCase(c.type)} />
+              <DetailRow label="Nome completo" value={toTitleCase(c.fullName)} />
+              <DetailRow label="Tipo de vínculo" value={toTitleCase(c.type)} />
               {podeVerDadosPessoais && (
-                <DetailRow label="Data de Nascimento" value={c.birthDate ? formatDate(c.birthDate) : "—"} />
+                <DetailRow label="Data de nascimento" value={c.birthDate ? formatDate(c.birthDate) : "—"} />
               )}
               <DetailRow label="Cidade" value={c.city || "—"} />
               {podeVerDadosPessoais && (
@@ -68,7 +68,7 @@ export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosP
 
             {c.documentAttachmentId && (
               <div className="border-t border-border pt-4">
-                <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Documento Anexado</p>
+                <p className="text-2xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Documento anexado</p>
                 <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-muted border border-border">
                   <FileText className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
                   <div className="flex-1 min-w-0">

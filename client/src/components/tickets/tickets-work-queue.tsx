@@ -68,7 +68,8 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
   ];
 
   return (
-    <section aria-label="Fila de trabalho das passagens" className="flex rounded-xl border border-border bg-card overflow-hidden">
+    // 2 × 2 no celular (25/09): em 4 colunas de 90px os rótulos viravam "CO… SE… TR…".
+    <section aria-label="Fila de trabalho das passagens" className="grid grid-cols-2 sm:flex rounded-xl border border-border bg-card overflow-hidden">
       {blocos.map(({ key, rotulo, n, sub, titulo }) => {
         const Icone = ICONE[key];
         const on = ativa === key;

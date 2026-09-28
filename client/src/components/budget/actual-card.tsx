@@ -312,7 +312,7 @@ export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
       {/* Card Footer */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-surface-muted/40 mt-auto">
         <div className="flex flex-col gap-0.5">
-          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-widest">Total Realizado</span>
+          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-widest">Total realizado</span>
           <span className="text-lg font-medium tabular-nums text-primary tracking-[-0.02em]">{formatCurrency(cardItem.totalValue)}</span>
         </div>
         <div>

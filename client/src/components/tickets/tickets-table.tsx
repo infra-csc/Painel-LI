@@ -151,7 +151,7 @@ export default function TicketsTable({
             </th>
             <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={onSort}>Colaborador</SortableHeader>
             <th scope="col" className={TH}>Destino</th>
-            <SortableHeader field="diarias" sortConfig={sortConfig} onSort={onSort}>Datas e Horários</SortableHeader>
+            <SortableHeader field="diarias" sortConfig={sortConfig} onSort={onSort}>Datas e horários</SortableHeader>
             <th scope="col" className={TH}>Sugestões</th>
             <th scope="col" className={`${TH} text-center`}>Status</th>
             <th scope="col" className="py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground text-center w-[72px]">Ações</th>

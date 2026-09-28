@@ -1,7 +1,7 @@
 // Extraído de system-settings.tsx em 25/09 (modularização): orquestrador de
 // dados da tela Valores padrão — as 5 consultas, o react-hook-form, o
 // salvamento único (tarifas + diárias por função + aplicar ao Planejado),
-// o histórico local e a ação "Atualizar Planejado". A página só compõe o
+// o histórico local e a ação "Atualizar planejado". A página só compõe o
 // que este hook devolve; nenhum cartão fala com a API diretamente.
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

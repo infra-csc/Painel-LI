@@ -102,9 +102,9 @@ export type Block = "passagem" | "hospedagem" | "bagagem" | "uber" | "locacao" |
 export const ALL_BLOCKS: { key: Block; label: string; colunas: number; ponto: string }[] = [
   { key: "passagem", label: "Passagem", colunas: 9, ponto: "bg-primary" },
   { key: "hospedagem", label: "Hospedagem", colunas: 12, ponto: "bg-success-strong" },
-  { key: "bagagem", label: "Bagagem Extra", colunas: 3, ponto: "bg-warning-strong" },
+  { key: "bagagem", label: "Bagagem extra", colunas: 3, ponto: "bg-warning-strong" },
   { key: "uber", label: "Uber", colunas: 3, ponto: "bg-primary" },
-  { key: "locacao", label: "Locação de Carro", colunas: 4, ponto: "bg-warning-strong" },
+  { key: "locacao", label: "Locação de carro", colunas: 4, ponto: "bg-warning-strong" },
   { key: "pendencias", label: "Pendências", colunas: 2, ponto: "bg-danger-strong" },
 ];
 

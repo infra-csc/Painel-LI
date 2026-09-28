@@ -5,7 +5,7 @@
  * consultas, histórico local, empresas pagadoras, tabela por função e todos
  * os cards. Agora:
  *  - dados: `useSettingsForm` (consultas + react-hook-form + salvamento único +
- *    histórico + "Atualizar Planejado"), `usePaymentCompanies` (empresas);
+ *    histórico + "Atualizar planejado"), `usePaymentCompanies` (empresas);
  *  - apresentação: components/settings/** (SaveBar, AppliedValuesSection,
  *    PaymentCompaniesCard, LegacyValuesSection + FunctionValuesTable,
  *    SettingsFooter, DeleteCompanyDialog, SettingsHistory).
@@ -38,7 +38,7 @@ export default function SystemSettingsPage() {
 
   if (!isRhOrAdmin(user)) {
     return (
-      <div className="p-6">
+      <div>
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
           <div className="w-16 h-16 rounded-full bg-danger-soft flex items-center justify-center">
             <ShieldAlert className="w-8 h-8 text-danger-strong" aria-hidden="true" />
@@ -54,27 +54,24 @@ export default function SystemSettingsPage() {
   // acima já retornava antes destes cálculos).
   if (estado.isError) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-6xl mx-auto p-6">
-          <QueryError error={estado.error} onRetry={estado.retry} title="Não foi possível carregar os valores padrão" />
-        </div>
+      <div className="max-w-6xl mx-auto">
+        <QueryError error={estado.error} onRetry={estado.retry} title="Não foi possível carregar os valores padrão" />
       </div>
     );
   }
   if (estado.isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-6xl mx-auto p-6">
-          <LoadingState count={8} label="Carregando valores padrão…" />
-        </div>
+      <div className="max-w-6xl mx-auto">
+        <LoadingState count={8} label="Carregando valores padrão…" />
       </div>
     );
   }
 
   return (
     <TooltipProvider>
-    <div className="min-h-screen bg-surface-muted">
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    {/* Sem padding/fundo próprios (25/09): a margem é do MainLayout. */}
+    <div>
+    <div className="max-w-6xl mx-auto space-y-6">
 
       {/* ── Barra flutuante: ÚNICO ponto de salvamento da página ── */}
       {s.hasAnyChanges && (
@@ -99,7 +96,7 @@ export default function SystemSettingsPage() {
           {/* ZONA 1 — VALORES APLICADOS NO CÁLCULO (regras vigentes) */}
           <AppliedValuesSection form={form} />
 
-          {/* Empresas Pagadoras (aplicadas nas Notas Fiscais) */}
+          {/* Empresas pagadoras (aplicadas nas Notas Fiscais) */}
           <PaymentCompaniesCard user={user} paymentCompanies={s.paymentCompanies} state={empresas} />
 
           {/* ZONA 2 — VALORES LEGADOS E OVERRIDES (colapsada por padrão) */}

@@ -136,7 +136,7 @@ export function useScalingModal({ user, toast, data, visibleRows }: { user: User
         return;
       }
       // "Salvar" com colaborador escolhido NÃO escala (04/09, #4166): a vaga
-      // segue aberta com nome até "Confirmar Escalação" — e é o Confirmar que
+      // segue aberta com nome até "Confirmar escalação" — e é o Confirmar que
       // manda cenotécnica para o gestor. A mensagem precisa dizer isso, senão
       // a pessoa fecha o modal achando que escalou.
       const salvouSemConfirmar = action !== "confirm" && !!updated.collaboratorId && !isEscalated(updated);
@@ -150,7 +150,7 @@ export function useScalingModal({ user, toast, data, visibleRows }: { user: User
           collaboratorName: collabName,
           functionName: funcName,
         },
-        salvouSemConfirmar ? "A vaga continua aberta até você clicar em Confirmar Escalação." : undefined,
+        salvouSemConfirmar ? "A vaga continua aberta até você clicar em Confirmar escalação." : undefined,
       );
       setShowModal(false);
     },

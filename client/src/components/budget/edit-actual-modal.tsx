@@ -1,5 +1,5 @@
 /**
- * Modal "Editar Prestação de Contas" do Realizado (casca) — 25/09
+ * Modal "Editar prestação de contas" do Realizado (casca) — 25/09
  * (modularização). Extraído de budget-actual.tsx: cabeçalho com planejado ×
  * realizado, banner somente-leitura, abas e rodapé. A aba Custos vive em
  * `EditActualCustosTab`; o estado em `useBudgetActualEditor`.
@@ -42,9 +42,9 @@ export function EditActualModal(p: EditActualModalProps) {
 
   return (
     <Dialog open={!!editingItem && !!editFormData} onOpenChange={fechar}>
-      <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6 flex flex-col" style={{ maxHeight: "90vh" }}>
+      <DialogContent aria-describedby={undefined} className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6 flex flex-col" style={{ maxHeight: "90vh" }}>
         <DialogHeader className="sr-only">
-          <DialogTitle>Editar Prestação de Contas</DialogTitle>
+          <DialogTitle>Editar prestação de contas</DialogTitle>
         </DialogHeader>
 
         {editingItem && editFormData && (() => {
@@ -284,7 +284,7 @@ export function EditActualModal(p: EditActualModalProps) {
                         className="h-10 px-5 text-sm font-semibold rounded-xl text-white shadow-1 bg-primary-hover"
                       >
                         <Check className="w-4 h-4 mr-1.5" aria-hidden="true" />
-                        {isSaving ? "Salvando…" : "Salvar Prestação"}
+                        {isSaving ? "Salvando…" : "Salvar prestação"}
                       </Button>
                     </>
                   )}

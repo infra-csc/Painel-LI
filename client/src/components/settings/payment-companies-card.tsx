@@ -30,7 +30,7 @@ export function PaymentCompaniesCard({ user, paymentCompanies, state }: PaymentC
       <div className="flex items-center justify-between gap-2.5 border-b border-border bg-surface-muted px-5 py-4">
         <div className="flex items-center gap-2.5">
           <Building2 className="w-4 h-4 text-success" aria-hidden="true" />
-          <span className="text-sm font-semibold text-slate-700">Empresas Pagadoras</span>
+          <span className="text-sm font-semibold text-slate-700">Empresas pagadoras</span>
           <span className="text-xs text-muted-foreground font-normal">(usadas nas Notas Fiscais)</span>
         </div>
         {!showAddCompany && (

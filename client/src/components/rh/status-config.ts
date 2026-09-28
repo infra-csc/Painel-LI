@@ -101,14 +101,14 @@ export const statusConfig: Record<PrestacaoStatus, StatusConfigEntry> = {
     cardBorder: "border-primary/25",
   },
   col_action: {
-    label: "Aguardando Colaborador", shortLabel: "Ag. Colaborador", description: "",
+    label: "Aguardando colaborador", shortLabel: "Ag. Colaborador", description: "",
     icon: Users, color: "text-primary", bg: "bg-brand-soft",
     border: "border-primary/25", iconColor: "text-primary",
     badgeCls: "bg-brand-soft text-primary border-primary/25",
     cardBorder: "border-primary/25",
   },
   nf_andamento: {
-    label: "Nota Fiscal em andamento", shortLabel: "Nota Fiscal", description: "",
+    label: "Nota fiscal em andamento", shortLabel: "Nota fiscal", description: "",
     icon: FileText, color: "text-warning", bg: "bg-warning-soft",
     border: "border-warning/25", iconColor: "text-warning-strong",
     badgeCls: "bg-warning-soft text-warning border-warning/25",

@@ -21,7 +21,7 @@ const STEPS = [
   { label: "Planejamento RH", desc: "Valores previstos" },
   { label: "Prestação", desc: "Resp. preenche realizado" },
   { label: "Aprovação RH", desc: "Análise e aprovação" },
-  { label: "Nota Fiscal", desc: "Liberada no envio do Realizado" },
+  { label: "Nota fiscal", desc: "Liberada no envio do Realizado" },
 ];
 
 /** Stepper — passo atual calculado como no Realizado (não fixo). */
@@ -35,13 +35,14 @@ export function ComparisonStepper({ eventItems }: { eventItems: BudgetActual[] }
   const steps = STEPS;
   return (
     <div className="bg-card border border-border rounded-xl px-5 py-4">
-      <div className="flex items-center justify-between">
+      {/* Coluna no celular (25/09): em linha, os 5 passos mediam 612px em 375. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {steps.map((step, i) => {
           const isDone = i < currentStep;
           const isActive = i === currentStep;
           const isLast = i === steps.length - 1;
           return (
-            <div key={i} className="flex items-center flex-1">
+            <div key={i} className="flex items-center sm:flex-1">
               <div className="flex items-center gap-2">
                 <div className="relative flex-shrink-0">
                   {isActive && (
@@ -57,7 +58,7 @@ export function ComparisonStepper({ eventItems }: { eventItems: BudgetActual[] }
                 </div>
               </div>
               {!isLast && (
-                <div className={cn(`flex-1 h-[2px] mx-3 rounded-full`, (isDone ? "bg-success" : "bg-border"))} />
+                <div className={cn(`hidden sm:block flex-1 h-[2px] mx-3 rounded-full`, (isDone ? "bg-success" : "bg-border"))} />
               )}
             </div>
           );
@@ -132,7 +133,7 @@ export function MetricCards({ totals }: { totals: { totalPlanned: number; totalA
       {/* Planejado */}
       <div className="rounded-xl border border-primary/25 p-5 bg-brand-soft">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total Planejado</p>
+          <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total planejado</p>
           <div className="w-7 h-7 rounded-lg bg-brand-soft/60 flex items-center justify-center">
             <DollarSign className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
           </div>
@@ -144,7 +145,7 @@ export function MetricCards({ totals }: { totals: { totalPlanned: number; totalA
       {/* Realizado */}
       <div className="rounded-xl border border-primary/25 p-5 bg-brand-soft">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total Realizado</p>
+          <p className="text-2xs uppercase text-muted-foreground font-medium tracking-widest">Total realizado</p>
           <div className="w-7 h-7 rounded-lg bg-brand-soft/60 flex items-center justify-center">
             <BarChart3 className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
           </div>

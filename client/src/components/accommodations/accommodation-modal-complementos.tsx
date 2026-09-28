@@ -1,5 +1,5 @@
 /**
- * Aba "Complementos e Histórico" do modal de Hospedagem (25/09 — extraída de
+ * Aba "Complementos e histórico" do modal de Hospedagem (25/09 — extraída de
  * accommodation-modal.tsx): comentários e a linha do tempo da inclusão.
  */
 import { MessageCircle, History } from "lucide-react";

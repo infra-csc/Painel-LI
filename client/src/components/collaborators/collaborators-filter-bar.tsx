@@ -35,7 +35,7 @@ export function CollaboratorsFilterBar({ lista, podeVerDadosPessoais }: { lista:
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent className="rounded-xl">
-          <SelectItem value="all">Todos os Status</SelectItem>
+          <SelectItem value="all">Todos os status</SelectItem>
           <SelectItem value="pendente">Pendente</SelectItem>
           <SelectItem value="aprovado">Aprovado</SelectItem>
           <SelectItem value="rejeitado">Rejeitado</SelectItem>

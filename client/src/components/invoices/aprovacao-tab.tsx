@@ -19,8 +19,8 @@ import type { BudgetActual } from "@shared/schema";
 const APROV_FILTERS = [
   { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
   { id: "enviada",           label: "Aguardando",         activeBg: "bg-warning-strong text-white" },
-  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-primary text-primary-foreground" },
-  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-success text-white" },
+  { id: "checkin-pendente",  label: "Aguard. check-in",   activeBg: "bg-primary text-primary-foreground" },
+  { id: "checkin-realizado", label: "Check-in realizado", activeBg: "bg-success text-white" },
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-warning-strong text-white" },
   { id: "recusada",          label: "NF recusada",        activeBg: "bg-danger text-white" },
 ];

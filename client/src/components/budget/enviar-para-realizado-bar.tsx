@@ -1,6 +1,6 @@
 /**
  * Sticky Footer do Planejado — barra de progresso do envio e botão
- * "Enviar Planejamento (N)" — 25/09 (modularização). Extraída de
+ * "Enviar planejamento (N)" — 25/09 (modularização). Extraída de
  * budget-planned.tsx sem alteração visual.
  */
 import { CheckCheck, Send } from "lucide-react";
@@ -27,7 +27,7 @@ export function EnviarParaRealizadoBar({ totalGeral, stats, selectedIds, onSend 
         {/* Esquerda: Total do Evento — label empilhado + valor */}
         <div className="shrink-0 pr-6 border-r border-r-border">
           <div className="text-2xs font-semibold uppercase tracking-widest text-muted-foreground" style={{ marginBottom: 3 }}>
-            Valor Total do Evento
+            Valor total do evento
           </div>
           <div className="text-lg font-semibold tracking-[-0.02em] text-primary tabular-nums leading-none" style={{
             fontFeatureSettings: '"tnum"',
@@ -62,7 +62,7 @@ export function EnviarParaRealizadoBar({ totalGeral, stats, selectedIds, onSend 
             padding: "8px 18px",
           }}>
             <CheckCheck className="w-4 h-4 text-success" aria-hidden="true" />
-            <span className="text-sm font-bold text-success">Todos Enviados</span>
+            <span className="text-sm font-bold text-success">Todos enviados</span>
           </div>
         ) : (
           <button
@@ -78,7 +78,7 @@ export function EnviarParaRealizadoBar({ totalGeral, stats, selectedIds, onSend 
           >
             <Send style={{ width: 14, height: 14 }} aria-hidden="true" />
             {selectedIds.size > 0
-              ? `Enviar Planejamento (${selectedIds.size})`
+              ? `Enviar planejamento (${selectedIds.size})`
               : "Selecione colaboradores"}
           </button>
         )}

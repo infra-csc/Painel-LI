@@ -125,7 +125,7 @@ export function TimelinePrestacao({ item, invoice, itemEmitsNf }: TimelinePresta
                   : nfDevolvida ? 'text-warning'
                   : nfRecusada ? 'text-danger'
                   : 'text-muted-foreground'
-                }`}>Nota Fiscal</span>
+                }`}>Nota fiscal</span>
                 {nfDateStr
                   ? <span className="text-2xs text-muted-foreground whitespace-nowrap">{nfDateStr}</span>
                   : nfRecusada
@@ -136,7 +136,7 @@ export function TimelinePrestacao({ item, invoice, itemEmitsNf }: TimelinePresta
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-[200px]">
-              <p className="font-semibold">Nota Fiscal</p>
+              <p className="font-semibold">Nota fiscal</p>
               <p className="text-muted-foreground">{nfTooltip}</p>
             </TooltipContent>
           </Tooltip>

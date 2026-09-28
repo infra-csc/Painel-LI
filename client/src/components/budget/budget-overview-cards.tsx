@@ -1,7 +1,7 @@
 /**
  * Visão geral do Planejado (topo da tela) — 25/09 (modularização).
  *
- * Extraído de budget-planned.tsx em três blocos: barra "Total Planejado" com
+ * Extraído de budget-planned.tsx em três blocos: barra "Total planejado" com
  * estatísticas, timeline de etapas e os 4 KPIs. `BudgetOverviewCards` compõe
  * os três na mesma ordem de antes.
  */
@@ -19,7 +19,7 @@ export interface BudgetOverviewCardsProps {
   stats: EstatisticasDoPlanejado;
 }
 
-/** Dashboard Bar Superior: hero "Total Planejado" + colaboradores/casa/freela/período. */
+/** Dashboard Bar Superior: hero "Total planejado" + colaboradores/casa/freela/período. */
 function BudgetDashboardBar({ selectedEvent, totalGeral, stats }: BudgetOverviewCardsProps) {
   return (
     <div className="bg-card/85 border border-primary/12 rounded-xl shadow-2 overflow-hidden" style={{
@@ -33,7 +33,7 @@ function BudgetDashboardBar({ selectedEvent, totalGeral, stats }: BudgetOverview
       <div className="flex flex-wrap items-stretch">
         {/* Total Planejado — hero section */}
         <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden grow max-[900px]:w-full bg-primary min-w-[230px]">
-          <p className="text-2xs font-extrabold uppercase tracking-[0.14em] text-white/75 relative">Total Planejado</p>
+          <p className="text-2xs font-extrabold uppercase tracking-[0.14em] text-white/75 relative">Total planejado</p>
           {selectedEvent?.startDate && (
             <p className="flex items-center gap-1 text-2xs text-white/70 relative">
               <Calendar className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />

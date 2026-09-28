@@ -109,7 +109,9 @@ function EspelhoOperacional() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="p-6 space-y-5 max-w-[1600px] mx-auto" data-testid="page-operational-mirror">
+      {/* Sem `p-6` próprio (25/09): a margem vem do MainLayout — a barra `bar`
+          do cabeçalho já sangra até ela com `-mx-[var(--page-gutter)]`. */}
+      <div className="space-y-5 max-w-[1600px] mx-auto" data-testid="page-operational-mirror">
         <MirrorHeader
           events={events} eventId={eventId} setEventId={setEventId} ev={ev} totalPessoas={rows.length}
           canEditMirror={canEditMirror} editModeWanted={editModeWanted} setEditModeWanted={setEditModeWanted}

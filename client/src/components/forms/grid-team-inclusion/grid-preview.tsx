@@ -1,5 +1,5 @@
 /**
- * Escalação por Grade — prévia dos registros e ações (rascunho + criar)
+ * Escalação por grade — prévia dos registros e ações (rascunho + criar)
  * (25/09, extraídas do formulário).
  */
 import { Download, Save } from "lucide-react";
@@ -84,7 +84,7 @@ export function GridActions({ onSaveDraft, onLoadDraft, onSubmit, isProcessing, 
           data-testid="button-load-draft"
         >
           <Download className="w-3.5 h-3.5" aria-hidden="true" />
-          Carregar Rascunho
+          Carregar rascunho
         </button>
       </div>
 

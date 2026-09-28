@@ -1,5 +1,5 @@
 /**
- * Modal "Editar Realizado — ajuste do RH" do Comparativo — 25/09
+ * Modal "Editar realizado — ajuste do RH" do Comparativo — 25/09
  * (modularização). Extraído de budget-comparison.tsx; o formulário (texto) e
  * o salvar (só campos alterados) vivem em `useComparisonActions`.
  */
@@ -20,8 +20,8 @@ export function RhEditActualDialog({ acoes }: { acoes: AcoesDoComparativo }) {
   const { editingActual, setEditingActual, editForm, setEditForm, saveEditModal, patchActualMutation } = acoes;
   return (
     <Dialog open={!!editingActual} onOpenChange={(open) => { if (!open) setEditingActual(null); }}>
-      <DialogContent style={{ maxHeight: "90vh", maxWidth: "480px" }} className="rounded-xl p-0 gap-0 flex flex-col">
-        <DialogTitle className="sr-only">Editar Realizado — ajuste do RH</DialogTitle>
+      <DialogContent aria-describedby={undefined} style={{ maxHeight: "90vh", maxWidth: "480px" }} className="rounded-xl p-0 gap-0 flex flex-col">
+        <DialogTitle className="sr-only">Editar realizado — ajuste do RH</DialogTitle>
         {editingActual && (
           <>
             <div className="px-6 pt-5 pb-4 border-b border-border shrink-0">
@@ -30,7 +30,7 @@ export function RhEditActualDialog({ acoes }: { acoes: AcoesDoComparativo }) {
                   <Pencil className="w-3.5 h-3.5 text-warning" aria-hidden="true" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-foreground">Editar Realizado</h3>
+                  <h3 className="text-base font-bold text-foreground">Editar realizado</h3>
                   <p className="text-2xs text-warning font-medium">Ajuste do RH — ficará registrado no histórico</p>
                 </div>
               </div>
@@ -96,7 +96,7 @@ export function RhEditActualDialog({ acoes }: { acoes: AcoesDoComparativo }) {
               {/* Observação do ajuste */}
               <div className="rounded-xl border border-border bg-surface-muted/60 p-4 space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">Observação do Ajuste</span>
+                  <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">Observação do ajuste</span>
                   <span className="text-2xs text-muted-foreground">(opcional)</span>
                 </div>
                 <textarea

@@ -113,7 +113,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
       <DialogContent className={DIALOG_SHELL_WIDE}>
         <DialogHeader className={DIALOG_HEADER}>
           <DialogTitle>Incluir escalação{event ? ` — ${event.name}` : ""}</DialogTitle>
-          {/* "Inclusão de Equipe" é o nome da fase (o mesmo do Histórico e da Aprovação); "Inclusão" solta parecia outra coisa. */}
+          {/* "Inclusão de equipe" é o nome da fase (o mesmo do Histórico e da Aprovação); "Inclusão" solta parecia outra coisa. */}
           <DialogDescription>Pedido de vaga nova para o aprovador da função. Se aprovado, as vagas nascem já como Inclusão de Equipe (aguardando escalação).</DialogDescription>
         </DialogHeader>
 

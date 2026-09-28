@@ -1,5 +1,5 @@
 /**
- * Aba "Dados da Hospedagem" do modal (25/09 — extraída de accommodation-modal.tsx):
+ * Aba "Dados da hospedagem" do modal (25/09 — extraída de accommodation-modal.tsx):
  * avisos de trava, voucher, dados do hotel, check-in/check-out, dados do
  * Espelho (leitura), observações e anexos em modo leitura.
  */
@@ -97,12 +97,12 @@ export function AccommodationDadosTab({
           </div>
         )}
 
-        {/* Dados do Hotel */}
+        {/* Dados do hotel */}
         <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Dados do Hotel</div>
+          <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Dados do hotel</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
             <div>
-              <Label htmlFor={`hotelName-${inclusion.id}`} className={FIELD_LBL}>Nome do Hotel<RequiredMark /></Label>
+              <Label htmlFor={`hotelName-${inclusion.id}`} className={FIELD_LBL}>Nome do hotel<RequiredMark /></Label>
               <Input id={`hotelName-${inclusion.id}`} placeholder="Ex: Hotel Copacabana Palace" value={draft.hotelName} aria-required="true"
                 {...campoComErro(`hotelName-${inclusion.id}`, erros.hotelName)}
                 onChange={(e) => { set("hotelName", e.target.value); limpar("hotelName"); }} data-testid="input-hotel-name" disabled={roMode} />
@@ -117,7 +117,7 @@ export function AccommodationDadosTab({
             </div>
           </div>
           <div>
-            <Label htmlFor={`reservationNumber-${inclusion.id}`} className={FIELD_LBL}>Número da Reserva</Label>
+            <Label htmlFor={`reservationNumber-${inclusion.id}`} className={FIELD_LBL}>Número da reserva</Label>
             <Input id={`reservationNumber-${inclusion.id}`} placeholder="Ex: RES-123456" value={draft.reservationNumber}
               onChange={(e) => set("reservationNumber", e.target.value)} className="max-w-[280px]" disabled={roMode} />
           </div>
@@ -202,11 +202,11 @@ export function AccommodationDadosTab({
           )}
         </div>
 
-        {/* Dados do Espelho Operacional — só leitura: quem preenche é a Logística. */}
+        {/* Dados do espelho operacional — só leitura: quem preenche é a Logística. */}
         {accommodation && (
           <div className="bg-surface-muted border border-border rounded-xl p-4" data-testid="mirror-readonly-block">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados do Espelho Operacional</div>
+              <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados do espelho operacional</div>
               <span className="text-2xs text-muted-foreground inline-flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" /> Somente leitura — editado no Espelho</span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

@@ -124,7 +124,7 @@ export default function TeamInclusionTable() {
       <div className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
         <div className="px-5 py-3.5 flex items-center justify-between bg-surface-muted border-b-2 border-border">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-700">Inclusões de Equipe</span>
+            <span className="text-sm font-semibold text-slate-700">Inclusões de equipe</span>
             {filteredAndSortedInclusions.length > 0 && (
               <span className="text-xs text-muted-foreground">({filteredAndSortedInclusions.length})</span>
             )}

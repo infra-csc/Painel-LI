@@ -87,7 +87,7 @@ export default function EventCombobox({
   const selectedEvent = sorted.find(e => e.id === value);
 
   const displayValue =
-    value === TODOS ? "Todos os Eventos" : selectedEvent ? selectedEvent.name : placeholder;
+    value === TODOS ? "Todos os eventos" : selectedEvent ? selectedEvent.name : placeholder;
 
   // A opção ativa some da lista quando a busca muda: volta para a primeira.
   const ativaValida = ativa !== null && opcoes.includes(ativa) ? ativa : (opcoes[0] ?? null);

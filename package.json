@@ -11,7 +11,8 @@
     "check": "tsc",
     "test": "vitest run",
     "test:rotas": "vitest run server/test",
-    "lint": "eslint . --max-warnings=0"
+    "lint": "eslint . --max-warnings=0",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.0",
@@ -69,6 +70,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
     "@replit/vite-plugin-cartographer": "^0.6.1",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.6",
     "@tailwindcss/typography": "^0.5.15",

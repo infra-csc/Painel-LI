@@ -68,7 +68,7 @@ export function EventSelect({ value, onValueChange, events, className }: EventSe
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
-        className={`h-11 min-w-[280px] px-3.5 text-base rounded-lg border-slate-300 shadow-1 hover:border-slate-400 transition-colors ${className ?? ""}`}
+        className={`h-11 w-full max-w-full sm:w-72 px-3.5 text-base rounded-lg border-slate-300 shadow-1 hover:border-slate-400 transition-colors ${className ?? ""}`}
       >
         <Calendar className="w-4.5 h-4.5 text-muted-foreground mr-2.5 shrink-0" aria-hidden="true" />
         <SelectValue placeholder="Selecionar evento" />
@@ -310,7 +310,10 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
   );
 
   return (
-    <div className={cn("relative min-w-[280px]", className)}>
+    // Largura (25/09): no celular ocupa a linha (`w-full`); a partir de `sm`
+    // volta aos 288px de sempre. Antes `min-w-[280px]` sem largura deixava o
+    // botão do tamanho do nome do evento — e nomes longos saíam da tela.
+    <div className={cn("relative w-full min-w-0 max-w-full sm:w-72", className)}>
       {/* Botão que abre a paleta. O "limpar" NÃO fica dentro dele (botão dentro
           de botão é HTML inválido e confunde leitor de tela): é irmão, posicionado
           por cima da borda direita. */}
@@ -382,7 +385,7 @@ export function EventSelectCTA({
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
-        className={`w-72 h-11 px-3.5 text-base mx-auto bg-card ${colors.border} rounded-lg shadow-1 transition-colors`}
+        className={`w-full max-w-72 h-11 px-3.5 text-base mx-auto bg-card ${colors.border} rounded-lg shadow-1 transition-colors`}
       >
         <Calendar className={`w-4.5 h-4.5 ${colors.icon} mr-2.5 shrink-0`} aria-hidden="true" />
         <SelectValue placeholder="Selecionar evento" />

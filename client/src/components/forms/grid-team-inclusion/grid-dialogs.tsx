@@ -1,5 +1,5 @@
 /**
- * Escalação por Grade — diálogos (25/09, extraídos do formulário): escolher
+ * Escalação por grade — diálogos (25/09, extraídos do formulário): escolher
  * função, escolher função para os horários copiados e colar do Excel.
  */
 import { Upload } from "lucide-react";
@@ -16,9 +16,9 @@ export function FunctionSelectDialog({ grid, functions, sortedFunctions }: { gri
   const { showFunctionSelect, setShowFunctionSelect, addSystemFunction } = grid;
   return (
     <Dialog open={showFunctionSelect} onOpenChange={setShowFunctionSelect}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent aria-describedby={undefined} className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Selecionar Função</DialogTitle>
+          <DialogTitle>Selecionar função</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -59,9 +59,9 @@ export function ScheduleCopyDialog({ grid, sortedFunctions }: { grid: GridRows; 
   const { showFunctionSelectForSchedule, setShowFunctionSelectForSchedule, selectedRowForScheduleCopy, createRowWithCopiedSchedule } = grid;
   return (
     <Dialog open={showFunctionSelectForSchedule} onOpenChange={setShowFunctionSelectForSchedule}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent aria-describedby={undefined} className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Escolher Função para os Horários Copiados</DialogTitle>
+          <DialogTitle>Escolher função para os horários copiados</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="bg-brand-soft p-3 rounded-lg border">
@@ -115,13 +115,13 @@ export function ExcelPasteDialog({ paste }: { paste: GridPaste }) {
   const { showPasteModal, setShowPasteModal, pastedData, setPastedData, closePaste, handlePasteFromExcel } = paste;
   return (
     <Dialog open={showPasteModal} onOpenChange={setShowPasteModal}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent aria-describedby={undefined} className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Colar Dados do Excel</DialogTitle>
+          <DialogTitle>Colar dados do Excel</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="bg-brand-soft p-3 rounded-lg border border-primary/25">
-            <p className="text-sm font-semibold text-primary mb-2">📋 Formato Esperado:</p>
+            <p className="text-sm font-semibold text-primary mb-2">📋 Formato esperado:</p>
             <div className="text-xs text-primary font-mono bg-card p-2 rounded">
               Função | Data Voo Ida | Horário Chegada | Data Voo Retorno | Horário Partida | Passagem | Hospedagem | [Diárias por dia...]
             </div>

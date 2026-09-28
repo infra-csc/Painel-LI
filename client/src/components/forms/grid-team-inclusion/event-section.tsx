@@ -1,5 +1,5 @@
 /**
- * Escalação por Grade — evento, período e "Gerar Grade" (25/09, extraído do formulário).
+ * Escalação por grade — evento, período e "Gerar grade" (25/09, extraído do formulário).
  */
 import { useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
@@ -95,7 +95,7 @@ export function EventSection({ form, events, grid }: EventSectionProps) {
           name="startDate"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Inicial<RequiredMark /></FormLabel>
+              <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data inicial<RequiredMark /></FormLabel>
               <FormControl>
                 <Input
                   type="date"
@@ -114,7 +114,7 @@ export function EventSection({ form, events, grid }: EventSectionProps) {
           name="endDate"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data Final<RequiredMark /></FormLabel>
+              <FormLabel className="text-2xs font-bold text-muted-foreground uppercase tracking-wide">Data final<RequiredMark /></FormLabel>
               <FormControl>
                 <Input
                   type="date"
@@ -137,7 +137,7 @@ export function EventSection({ form, events, grid }: EventSectionProps) {
         data-testid="button-generate-grid"
       >
         <Calendar className="w-4 h-4" aria-hidden="true" />
-        {gridHasContent ? "Regerar Grade de Funções" : "Gerar Grade de Funções"}
+        {gridHasContent ? "Regerar grade de funções" : "Gerar grade de funções"}
       </button>
 
       {/* Confirmação: regerar por cima de uma grade preenchida */}
