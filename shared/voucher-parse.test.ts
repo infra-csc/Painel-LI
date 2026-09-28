@@ -139,6 +139,66 @@ describe("roteiro da Northtur/Flytour — aeroporto quebrado em três linhas e d
   });
 });
 
+/**
+ * Voucher LATAM ida e volta (dono, 28/09): "usuários relatam que o PDF não
+ * está lendo mais". O nome longo do aeroporto vem na MESMA linha da data e a
+ * sigla cai sozinha na linha de baixo. O leitor perdia os dois trechos de
+ * Maceió e devolvia uma "ida" de Guarulhos a Congonhas, sem volta.
+ */
+const ROTEIRO_LATAM_SIGLA_EMBAIXO = `SÃO PAULO - MACEIO - SÃO PAULO LOCALIZADOR: FMXDOI BILHETE: 9572303407900 28/set/2026
+Cia Voo Classe Assento Origem / Destino Partida / Chegada
+LA 3606 G Aeroporto Internacional de São Paulo 27/out 20:00
+Guarulhos (GRU)
+LATAM AIRLINES GROUP Escalas 0 Aeroporto Internacional Zumbi dos Palmares 27/out 22:55
+(MCZ)
+Localizador Cia: FMXDOI
+Term. Embarque: 3 Classe Reserva: Econômica
+*Confirme o terminal de embarque, com a Cia Aérea antes do voo.
+Observações: Sem Bagagem Despachada / Sem Reembolso / Sem Alteração de Voo Pagamento: CARTAO AGENCIA (Alterado?)
+LA 3865 O Aeroporto Internacional Zumbi dos Palmares 01/nov 15:35
+(MCZ)
+LATAM AIRLINES GROUP Escalas 0 Congonhas (CGH) 01/nov 18:50
+Localizador Cia: FMXDOI
+Term. Embarque: 2 Classe Reserva: Econômica
+Data Emissão: 28/set/2026 Valor: BRL 1.478,52 Taxas + Repasse: BRL 87,19 + BRL 0,00 Total: BRL 1.565,71
+MARTA FERREIRA ANDRADE O.S. 22`;
+
+/** O mesmo voucher com a sigla ANTES da data (outra ordem de extração do pdf.js). */
+const ROTEIRO_LATAM_SIGLA_EM_CIMA = ROTEIRO_LATAM_SIGLA_EMBAIXO
+  .replace("Aeroporto Internacional de São Paulo 27/out 20:00\nGuarulhos (GRU)", "Aeroporto Internacional de São Paulo\nGuarulhos (GRU)\n27/out 20:00")
+  .replace("Aeroporto Internacional Zumbi dos Palmares 27/out 22:55\n(MCZ)", "Aeroporto Internacional Zumbi dos Palmares\n(MCZ)\n27/out 22:55")
+  .replace("Aeroporto Internacional Zumbi dos Palmares 01/nov 15:35\n(MCZ)", "Aeroporto Internacional Zumbi dos Palmares\n(MCZ)\n01/nov 15:35");
+
+describe("voucher LATAM ida e volta com a sigla numa linha própria (28/09)", () => {
+  for (const [nome, texto] of [["sigla embaixo da data", ROTEIRO_LATAM_SIGLA_EMBAIXO], ["sigla em cima da data", ROTEIRO_LATAM_SIGLA_EM_CIMA]] as const) {
+    it(`${nome}: lê ida GRU→MCZ e volta MCZ→CGH com datas e horários`, () => {
+      const leitura = lerVoucher(texto);
+      expect(leitura.tipo).toBe("passagem");
+      expect(leitura.campos.departureAirport).toBe("GRU");
+      expect(leitura.campos.destinationAirport).toBe("MCZ");
+      expect(leitura.campos.actualArrivalTime).toBe("22:55");
+      expect(leitura.campos.returnArrivalTime).toBe("18:50");
+      expect(leitura.campos.actualDepartureDate).toBe("2026-10-27");
+      expect(leitura.campos.actualDepartureTime).toBe("20:00");
+      expect(leitura.campos.returnOriginAirport).toBe("MCZ");
+      expect(leitura.campos.returnDestinationAirport).toBe("CGH");
+      expect(leitura.campos.actualReturnDate).toBe("2026-11-01");
+      expect(leitura.campos.actualReturnTime).toBe("15:35");
+      expect(leitura.campos.value).toBe("1.565,71");
+      expect(leitura.campos.departureCityOrigin).toBe("São Paulo");
+      expect(leitura.campos.departureCityDestination).toBe("Maceio");
+      expect(leitura.trechoUnico).toBeFalsy();
+      expect(leitura.pessoa).toBe("MARTA FERREIRA ANDRADE");
+      expect(leitura.avisos.filter((a) => /conex/i.test(a))).toHaveLength(0);
+    });
+  }
+
+  it("juntarLinhasQuebradas move a sigla para antes da data", () => {
+    expect(juntarLinhasQuebradas(["LATAM AIRLINES GROUP Escalas 0 Aeroporto Internacional Zumbi dos Palmares 27/out 22:55", "(MCZ)"]))
+      .toEqual(["LATAM AIRLINES GROUP Escalas 0 Aeroporto Internacional Zumbi dos Palmares (MCZ) 27/out 22:55"]);
+  });
+});
+
 describe("voucher de hotel (Onfly)", () => {
   const r = lerVoucher(HOSPEDAGEM);
 

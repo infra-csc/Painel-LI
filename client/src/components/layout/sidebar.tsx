@@ -1,6 +1,6 @@
 /**
  * MENU LATERAL — quatro modos:
- *   • expandido (248px): busca, favoritos, grupos recolhíveis, passos do fluxo da Escala;
+ *   • expandido (288px): busca, favoritos, grupos recolhíveis, passos do fluxo da Escala;
  *   • compacto (56px): só ícones, com tooltip e divisor entre grupos;
  *   • oculto (modo foco): some e deixa só a aba azul na borda esquerda;
  *   • gaveta (< lg): 272px sobre um véu escuro, com bloco do usuário e "Sair".
@@ -26,7 +26,7 @@ import { visibleGroups, tabById, subgroupEdges, classeDeCorDaTela, type NavTab }
 import { getFavorites, setFavorites, getClosedGroups, setClosedGroups, SHELL_PREFS_EVENT } from "./shell-prefs";
 
 /** Largura da gaveta no mobile (o desenho pede 272px, mais folgada que a de desktop). */
-const DRAWER_W = 272;
+const DRAWER_W = 288;
 
 /** Busca sem acento e sem caixa — "calendario" acha "Calendário". */
 const DIACRITICS = /[̀-ͯ]/g;
@@ -186,13 +186,16 @@ export default function Sidebar() {
           <span className={cn("flex items-center justify-center w-[22px] h-[22px] shrink-0", isActive ? "text-primary" : classeDeCorDaTela(tab.id))}>
             <tab.icon className="w-[18px] h-[18px]" aria-hidden="true" />
           </span>
-          {/* Rótulo em até DUAS linhas (25/09): com `truncate`, "Cadastro de
-              usuários", "Validação de escala" e "Controle de bagagem" viravam
-              "Cadastro de usuá…" — o nome da tela é a única pista do menu. */}
-          <span className={cn(
-            "flex-1 min-w-0 text-sm leading-snug break-words line-clamp-2",
-            isActive ? "font-semibold text-primary" : "font-normal text-slate-700",
-          )}>
+          {/* Uma linha só (28/09): duas linhas ficaram pesadas para o dono. O
+              menu ganhou largura (272) e a estrela só aparece no hover, então
+              todos os nomes cabem inteiros; `truncate` + `title` é só rede. */}
+          <span
+            title={tab.label}
+            className={cn(
+              "flex-1 min-w-0 text-sm leading-snug truncate",
+              isActive ? "font-semibold text-primary" : "font-normal text-slate-700",
+            )}
+          >
             {tab.label}
           </span>
           <Badge count={count} />
@@ -208,7 +211,11 @@ export default function Sidebar() {
                 className={cn(
                   "inline-flex items-center justify-center w-[18px] h-[18px] mr-1.5 ml-1 shrink-0 border-0 bg-transparent p-0 cursor-pointer rounded",
                   "outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                  fav ? "text-warning-strong" : "text-slate-200 hover:text-warning-strong",
+                  // Só aparece favoritada, no hover da linha ou no foco (28/09):
+                  // uma estrela cinza em toda linha poluía e roubava largura do nome.
+                  fav
+                    ? "text-warning-strong"
+                    : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-slate-300 hover:text-warning-strong",
                 )}
               >
                 <Star className="w-3.5 h-3.5" fill={fav ? "currentColor" : "none"} aria-hidden="true" />
@@ -425,6 +432,9 @@ export default function Sidebar() {
           aria-label="Páginas"
           className={cn(
             "flex-1 overflow-y-auto overflow-x-hidden flex flex-col",
+            // Barra de rolagem fina e discreta (28/09): no Windows a barra padrão
+            // é larga e cinza e roubava largura do menu.
+            "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
             compact ? "px-1.5 py-2 gap-2.5" : drawer ? "px-2 pb-2 gap-3" : "px-2 pb-2 gap-3.5",
           )}
         >

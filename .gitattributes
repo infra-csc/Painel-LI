@@ -1,0 +1,8 @@
+# Fim de linha LF no repositório em qualquer sistema (28/09): o Git no Windows
+# avisava "LF will be replaced by CRLF" em todo commit; normalizar evita o
+# ruído e diffs falsos entre máquinas.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary

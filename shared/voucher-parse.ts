@@ -102,7 +102,10 @@ const hora = (t: string): string => t.replace(/^(\d{1,2})h(\d{2})$/i, "$1:$2").r
 // voo), a segunda o DESTINO. Ida e volta repetem o mesmo par.
 //   G3 1202 O Congonhas (CGH) 19/ago 19:55
 //   GOL Escalas 0 Joinville (JOI) 19/ago 21:05
-const LINHA_TRECHO = /([A-Za-zÀ-ú.\s'-]+?)\s*\(([A-Z]{3})\)\s+(\d{1,2}\/[a-zç]{3})\s+(\d{1,2}:\d{2})/i;
+// Nome opcional (28/09): a sigla pode chegar sozinha ("(MCZ) 27/out 22:55")
+// quando o nome ficou noutra linha que não deu para juntar; a cidade então
+// cai na própria sigla, e o roteiro do topo continua dando as cidades certas.
+const LINHA_TRECHO = /([A-Za-zÀ-ú.\s'-]*?)\s*\(([A-Z]{3})\)\s+(\d{1,2}\/[a-zç]{3})\s+(\d{1,2}:\d{2})/i;
 
 interface Trecho { cidade: string; aeroporto: string; diaMes: string; horario: string }
 
@@ -127,6 +130,12 @@ function capitalizar(nome: string): string {
  */
 const SO_DATA_HORA = /^\s*\d{1,2}\/[a-zç]{3}\s+\d{1,2}:\d{2}\s*$/i;
 const TEM_DATA_HORA = /\d{1,2}\/[a-zç]{3}\s+\d{1,2}:\d{2}/i;
+const TEM_SIGLA = /\([A-Z]{3}\)/;
+/** Linha que é só a sigla ("(MCZ)") ou o resto do nome com a sigla ("Guarulhos (GRU)"), sem data. */
+const COMECA_COM_NOME_OU_SIGLA = /^[A-Za-zÀ-ú.\s'-]*\([A-Z]{3}\)\s*$/;
+/** Linha só com o nome do aeroporto: sem sigla, sem data, sem os rótulos do bilhete. */
+const SO_NOME = /^[A-Za-zÀ-ú.\s'-]{4,}$/;
+
 export function juntarLinhasQuebradas(linhas: string[]): string[] {
   const out: string[] = [];
   for (let i = 0; i < linhas.length; i++) {
@@ -134,7 +143,21 @@ export function juntarLinhasQuebradas(linhas: string[]): string[] {
     while (i + 1 < linhas.length) {
       const proxima = linhas[i + 1].trim();
       if (atual.endsWith("-")) { atual = atual + " " + proxima; i++; continue; }
-      if (/\([A-Z]{3}\)/.test(atual) && !TEM_DATA_HORA.test(atual) && SO_DATA_HORA.test(proxima)) { atual = atual + " " + proxima; i++; continue; }
+      if (TEM_SIGLA.test(atual) && !TEM_DATA_HORA.test(atual) && SO_DATA_HORA.test(proxima)) { atual = atual + " " + proxima; i++; continue; }
+      // 28/09 (voucher LATAM São Paulo–Maceió): o nome longo vem NUMA linha com a
+      // data e a sigla cai sozinha na linha de baixo — "Aeroporto Internacional
+      // Zumbi dos Palmares 27/out 22:55" / "(MCZ)". Sem esta regra o trecho de
+      // Maceió sumia e o leitor devolvia uma "ida" de Guarulhos a Congonhas.
+      if (TEM_DATA_HORA.test(atual) && !TEM_SIGLA.test(atual) && COMECA_COM_NOME_OU_SIGLA.test(proxima)) {
+        const data = atual.match(TEM_DATA_HORA)![0];
+        atual = `${atual.replace(TEM_DATA_HORA, "").trim()} ${proxima} ${data}`;
+        i++;
+        continue;
+      }
+      // Nome do aeroporto sozinho e a sigla (com ou sem data) logo abaixo.
+      if (!TEM_SIGLA.test(atual) && !TEM_DATA_HORA.test(atual) && SO_NOME.test(atual) && /^\(?[A-Za-zÀ-ú.\s'-]*\(?[A-Z]{3}\)/.test(proxima)) {
+        atual = atual + " " + proxima; i++; continue;
+      }
       break;
     }
     out.push(atual);
@@ -196,7 +219,7 @@ function lerTrechos(linhasBrutas: string[]): Trecho[] {
           .replace(/\b(Escalas|Term\.?|Embarque|Cia|Voo|Classe|Assento)\b/gi, "")
           .replace(/^\s*[A-Z0-9]\s+/, "")
           .trim(),
-      ),
+      ) || m[2].toUpperCase(),
       aeroporto: m[2].toUpperCase(),
       diaMes: m[3],
       horario: m[4],
