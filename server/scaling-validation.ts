@@ -100,8 +100,6 @@ import {
   assertEventEditable,
   assertLoadedEventEditable,
   isEventBlockedForActor,
-  isEventIdBlockedForActor,
-  newEventCache,
   PAST_EVENT_BLOCK_MSG,
 } from "./event-guard";
 import { effectiveUserId } from "./simulation";
@@ -661,6 +659,22 @@ const approveBatchSchema = z.object({
 const VAGA_STATE_CHANGED = "A vaga não está mais aguardando aprovação — recarregue a lista";
 
 // ── Registro das rotas ───────────────────────────────────────────────────────
+/**
+ * VALIDACAO_APOS_EVENTO (dono, 30/09: "permitir após evento").
+ *
+ * A regra de 20/08 ("depois do fim do evento, só o administrador") valia
+ * também para a Validação de Escala. Na prática a validação e a aprovação
+ * atrasam: a vaga #4643 (Corrida DPSP, terminou 27/09) voltou do aprovador em
+ * 29/09 e a área não conseguia mais validar. Agora, sobre vagas que JÁ EXISTEM
+ * na Validação, qualquer papel com permissão age depois do evento: validar,
+ * pedir ajuste/exclusão, aprovar/reprovar/devolver, decidir pedido de ajuste
+ * ou exclusão, bypass.
+ *
+ * Continua só com o administrador depois do evento o que CRIA ou APAGA vagas
+ * em lote: enviar a escala sugerida, cancelar o envio, pedido de inclusão (e
+ * a decisão sobre ele). E tudo o que é da Escalação (passagem, hospedagem,
+ * troca, pedido sobre vaga já escalada).
+ */
 export function registerScalingValidationRoutes(app: Express, deps: ScalingValidationDeps) {
   const { requireRoles, createAuditLog } = deps;
 
@@ -987,19 +1001,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const ids = Array.from(new Set(parsed.data.inclusionIds));
       const byId = new Map((await storage.getTeamInclusionsByIds(ids)).map((i) => [i.id, i]));
       const roleCache = new Map<string, FunctionManagerRole | null>();
-      // Evento encerrado: o lote não vira 403 inteiro — a vaga de evento
-      // encerrado entra em `skipped` como qualquer outra recusa de linha. O
-      // cache evita um getEvent por vaga (o lote é quase sempre de um evento só)
-      // e nem chega a ser consultado quando o ator é administrador.
-      const eventCache = newEventCache();
+      // Evento encerrado NÃO trava a validação (dono, 30/09: "permitir após
+      // evento") — ver VALIDACAO_APOS_EVENTO no topo do registro das rotas.
       const candidates: TeamInclusion[] = [];
       for (const id of ids) {
         const inclusion = byId.get(id);
         if (!inclusion || inclusion.deletedAt) { skipped.push({ id, reason: "Vaga não encontrada" }); continue; }
         if (!isSuggestionInclusion(inclusion)) { skipped.push({ id, reason: "Vaga não está em validação" }); continue; }
-        if (await isEventIdBlockedForActor(inclusion.eventId, actor, eventCache)) {
-          skipped.push({ id, reason: PAST_EVENT_BLOCK_MSG }); continue;
-        }
         if (!roleCache.has(inclusion.functionId)) roleCache.set(inclusion.functionId, await roleFor(inclusion.functionId, actor.id));
         if (!canValidateInclusion(roleCache.get(inclusion.functionId), admin)) {
           skipped.push({ id, reason: "Sem permissão para validar esta função" }); continue;
@@ -1101,9 +1109,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
     if (!isSuggestionInclusion(inclusion) || inclusion.status !== SUGESTAO_STATUS.VALIDADA) {
       res.status(409).json({ message: VAGA_STATE_CHANGED }); return null;
     }
-    // Evento encerrado: só o administrador. Aqui, e não em cada handler, porque
-    // aprovar/reprovar/devolver passam todos por este carregamento.
-    if (!await assertEventEditable(inclusion.eventId, actor, res)) return null;
+    // Evento encerrado não trava (30/09) — ver VALIDACAO_APOS_EVENTO.
     return inclusion;
   }
 
@@ -1197,17 +1203,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const ids = Array.from(new Set(parsed.data.ids ?? parsed.data.inclusionIds ?? []));
       const byId = new Map((await storage.getTeamInclusionsByIds(ids)).map((i) => [i.id, i]));
       const roleCache = new Map<string, FunctionManagerRole | null>();
-      // Evento encerrado: mesma regra do /validate — a linha entra em `skipped`
-      // em vez de derrubar o lote, com um getEvent por EVENTO (não por vaga).
-      const eventCache = newEventCache();
+      // Evento encerrado não trava (30/09) — ver VALIDACAO_APOS_EVENTO.
       const candidates: TeamInclusion[] = [];
       for (const id of ids) {
         const inclusion = byId.get(id);
         if (!inclusion || inclusion.deletedAt) { skipped.push({ id, reason: "Vaga não encontrada" }); continue; }
         if (!isSuggestionInclusion(inclusion)) { skipped.push({ id, reason: "Vaga não está em validação" }); continue; }
-        if (await isEventIdBlockedForActor(inclusion.eventId, actor, eventCache)) {
-          skipped.push({ id, reason: PAST_EVENT_BLOCK_MSG }); continue;
-        }
         if (!roleCache.has(inclusion.functionId)) roleCache.set(inclusion.functionId, await roleFor(inclusion.functionId, actor.id));
         // Aprovador padrão do sistema decide qualquer função (regra do dono, 26/08).
         if (!canApproveInFunction({ roleForFunction: roleCache.get(inclusion.functionId), isAdmin: admin, isDefaultApprover: defaultApprover })) {
@@ -1324,8 +1325,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         if (window.postScaling && body.requestType === "exclusao") {
           return res.status(400).json({ message: "A pessoa já está escalada — use a troca ou o cancelamento na Escalação." });
         }
-        // Evento encerrado: só o administrador (mesma regra do ramo de inclusão).
-        if (!await assertEventEditable(inclusion.eventId, actor, res)) return;
+        // Evento encerrado: na Validação não trava (30/09 — VALIDACAO_APOS_EVENTO).
+        // Vaga JÁ ESCALADA (pedido aberto pela Escalação) segue a regra da
+        // Escalação: depois do evento, só o administrador.
+        if (window.postScaling && !await assertEventEditable(inclusion.eventId, actor, res)) return;
         const pending = (await storage.getScalingChangeRequestsByInclusion(inclusion.id))
           .find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE);
         if (pending) return res.status(409).json({ message: "Já existe um pedido pendente para esta vaga" });
@@ -1476,11 +1479,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       // do mesmo jeito ("recarregue a lista").
       res.status(409).json({ message: ALREADY_DECIDED }); return null;
     }
-    // Evento encerrado: só o administrador. Aqui, e não em cada handler, porque
-    // approve/reajustar/negar passam todos por este carregamento — e as três
-    // criam ou promovem vaga (o pedido de inclusão aprovado cria N vagas).
-    // O pedido guarda o eventId, então não é preciso carregar a vaga.
-    if (!await assertEventEditable(request.eventId, actor, res)) return null;
+    // Evento encerrado: decidir pedido de AJUSTE ou EXCLUSÃO de vaga que já
+    // existe fica liberado (30/09 — VALIDACAO_APOS_EVENTO). O pedido de
+    // INCLUSÃO cria vagas novas num evento que já acabou: esse continua só
+    // com o administrador. O pedido guarda o eventId; não é preciso a vaga.
+    if (request.requestType === "inclusao" && !await assertEventEditable(request.eventId, actor, res)) return null;
     return request;
   }
 
@@ -1847,9 +1850,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         return res.status(403).json({ message: NOT_APPROVER_MSG });
       }
       if (!isSuggestionInclusion(inclusion)) return res.status(400).json({ message: "A vaga não está na etapa de Validação de Escala" });
-      // Evento encerrado: só o administrador. O bypass aprova a vaga direto
-      // (vira Inclusão) — é exatamente o que não pode acontecer depois do fim.
-      if (!await assertEventEditable(inclusion.eventId, actor, res)) return;
+      // Evento encerrado não trava (30/09) — ver VALIDACAO_APOS_EVENTO.
       const parsedComment = optionalCommentSchema.safeParse(req.body ?? {});
       if (!parsedComment.success) {
         return res.status(400).json({ message: parsedComment.error.issues[0]?.message ?? "Dados inválidos" });
@@ -2114,8 +2115,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       }
 
       // Evento encerrado (20/08) trava antes da janela da passagem: a mensagem
-      // que a área vê é a do evento, que é o bloqueio mais forte.
-      if (event && isEventBlockedForActor(event, actor)) {
+      // que a área vê é a do evento, que é o bloqueio mais forte. Só para vaga
+      // JÁ ESCALADA — na Validação o pedido segue liberado (30/09).
+      if (event && !isSuggestionInclusion(inclusion) && isEventBlockedForActor(event, actor)) {
         return res.json({
           canRequest: true, allowed: false, message: PAST_EVENT_BLOCK_MSG,
           postScaling: !isSuggestionInclusion(inclusion), adminOverride: false, pendingRequest: null,

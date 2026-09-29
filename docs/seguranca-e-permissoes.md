@@ -268,18 +268,20 @@ aprovador = `role = aprovador`, o **aprovador padrão** (`system_settings.escala
 ou admin — **qualquer que seja o papel global**. Lotes nunca viram 403 inteiro:
 a vaga sem permissão/estado entra em `skipped`.
 
+**Evento encerrado (30/09, decisão do dono):** sobre vagas que já existem na Validação, o fluxo segue depois do fim do evento para quem tem permissão — validar, pedir ajuste/exclusão, aprovar/reprovar/devolver, decidir pedido de ajuste/exclusão, bypass. Continuam só com o admin (🕓) o que cria ou apaga vagas: enviar a escala sugerida, cancelar o envio, pedido de inclusão e a decisão sobre ele; e o pedido sobre vaga já escalada (regra da Escalação).
+
 | Ação | Rota | Quem | Observação |
 |---|---|---|---|
 | Enviar escala sugerida | `POST /api/scaling-suggestions/bulk` | admin, production 🕓 | ≤ 500 linhas; nasce `sugestao/sugestao_pendente` |
 | Cancelar envio | `DELETE /api/scaling-suggestions?eventId=` | admin, production 🕓 | soft delete das não decididas; pedidos pendentes viram negados |
 | Listar sugestões | `GET /api/scaling-suggestions[?eventId=]` | qualquer sessão | por linha: `canEdit` (admin ou validador), `canDecide` (admin, aprovador, padrão); sem `eventId` teto `ALL_EVENTS_ROW_LIMIT` (header `X-Scaling-Truncated`) |
-| Validar (lote) | `POST /api/scaling-suggestions/validate` | admin ou **validador** da função | por vaga; evento encerrado → skipped |
+| Validar (lote) | `POST /api/scaling-suggestions/validate` | admin ou **validador** da função | por vaga; evento encerrado **não** trava (30/09) |
 | Aprovar / reprovar / devolver vaga validada | `PATCH /api/scaling-suggestions/:id/aprovar|reprovar|devolver` | admin, **aprovador** da função, aprovador padrão | reprovar/devolver exigem comentário; 409 se estado mudou |
 | Aprovar em lote | `POST /api/scaling-suggestions/aprovar-lote` | idem | `ids` ou `inclusionIds` |
 | Bypass (vaga nunca validada) | `PATCH /api/scaling-suggestions/:id/bypass-approve|bypass-reject` | idem | 403 antes de sondar estado |
-| Abrir pedido (ajuste/inclusão/exclusão) | `POST /api/scaling-change-requests` | admin ou **validador** da função | janela de ajuste (`changeRequestWindow`: passagem emitida fecha) → 403 |
+| Abrir pedido (ajuste/inclusão/exclusão) | `POST /api/scaling-change-requests` | admin ou **validador** da função | janela de ajuste (`changeRequestWindow`: passagem emitida fecha) → 403; evento encerrado: inclusão e vaga já escalada 🕓, ajuste/exclusão na Validação liberados |
 | Listar pedidos | `GET /api/scaling-change-requests` | qualquer sessão | admin/purchasing/production/financial/aprovador padrão veem tudo; demais veem só as funções em que são aprovador **ou** os próprios pedidos |
-| Decidir pedido | `PATCH /api/scaling-change-requests/:id/approve|reajustar|negar` | admin, aprovador da função, aprovador padrão | 409 se já decidido |
+| Decidir pedido | `PATCH /api/scaling-change-requests/:id/approve|reajustar|negar` | admin, aprovador da função, aprovador padrão | 409 se já decidido; evento encerrado: só o pedido de inclusão 🕓 |
 | Limpar negadas | `POST /api/scaling-suggestions/limpar-negadas` | admin | soft delete só de `sugestao_negada` |
 | Histórico do evento | `GET /api/scaling-suggestions/event-view` | qualquer sessão | leitura |
 | Aprovador padrão | `GET /api/scaling-default-approver` | qualquer sessão | leitura |

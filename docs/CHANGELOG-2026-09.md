@@ -453,3 +453,11 @@ anteriores e continuam valendo se ainda não foram feitos.
 - No modal da Escalação (sem o atalho) nada muda: pedido vazio continua sendo erro.
 - Operação: Pull + Stop/Run. Sem migração.
 
+## 11. 30/09 — Validação de Escala liberada depois do fim do evento
+
+- **Decisão do dono** ("permitir após evento"): a vaga #4643 (Corrida DPSP, terminou 27/09) voltou do aprovador e a área recebia "Evento encerrado — só o administrador pode alterar".
+- Agora, sobre vagas que **já existem** na Validação, quem tem permissão age depois do evento: validar, pedir ajuste/exclusão, aprovar/reprovar/devolver, decidir pedido de ajuste/exclusão, bypass.
+- Continua só com o administrador depois do evento: enviar a escala sugerida, cancelar o envio, pedido de **inclusão** (cria vaga nova) e a decisão sobre ele; pedido sobre vaga **já escalada** (regra da Escalação); e toda a Escalação (passagem, hospedagem, troca).
+- `server/scaling-validation.ts` (nota VALIDACAO_APOS_EVENTO); 4 testes de rota novos em `validacao-de-escala.test.ts`; `docs/seguranca-e-permissoes.md` §3.7.
+- Operação: Pull + **Stop/Run** (mudança no servidor). Sem migração.
+
