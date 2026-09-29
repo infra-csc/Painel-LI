@@ -337,6 +337,11 @@ export default function AdminUsers() {
             admin; os outros papéis veem o botão desabilitado com o motivo. */}
         {u.status === "approved" && (
           <>
+            {/* Redefinir senha só fora de produção (30/09): em produção o acesso é
+                pelo Portal Norte com a conta Microsoft — não existe senha no
+                Painel, e o botão só servia para prender a pessoa num diálogo de
+                troca de senha. */}
+            {import.meta.env.DEV && (
             <MotivoDesabilitado motivo={canManageAccounts ? "Redefinir senha" : SO_ADMIN} desabilitado={!canManageAccounts}>
                 <button
                   onClick={() => handleResetPassword(u)}
@@ -348,6 +353,7 @@ export default function AdminUsers() {
                   <Key className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
             </MotivoDesabilitado>
+            )}
 
             <MotivoDesabilitado motivo={canManageAccounts ? (u.isActive !== false ? "Desativar usuário" : "Reativar usuário") : SO_ADMIN} desabilitado={!canManageAccounts}>
                 <button

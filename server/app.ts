@@ -361,7 +361,12 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
       return negar(401, { message: 'Conta sem acesso. Contate o administrador.' }, 'conta inativa/não aprovada');
     }
 
-    if (user.mustChangePassword) {
+    // Troca de senha obrigatória só faz sentido para quem ENTROU COM SENHA
+    // (dev/QA). Quem veio pelo Portal Norte não usa senha aqui — em produção é
+    // o único caminho — e ficava preso num diálogo pedindo a "senha atual" de
+    // uma senha que nunca conheceu (30/09, Everson, depois de um "Redefinir
+    // senha" na tela de Usuários).
+    if (user.mustChangePassword && req.session.ssoAuthenticated !== true) {
       const trocandoAPropriaSenha = req.method === 'PATCH' && path === `/api/users/${user.id.toLowerCase()}`;
       if (!trocandoAPropriaSenha) {
         return res.status(403).json({ message: 'Troque sua senha antes de continuar', mustChangePassword: true });

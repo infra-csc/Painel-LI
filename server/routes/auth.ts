@@ -106,7 +106,9 @@ export function registrarAuth(app: Express): void {
       }
 
       const portalReturnUrl = req.session.portalReturnUrl || null;
-      return res.json({ user: semSegredos(user), portalReturnUrl, simulation });
+      // Sessão do Portal Norte não troca senha (ver o gate em server/app.ts).
+      const usuario = req.session.ssoAuthenticated === true ? { ...semSegredos(user), mustChangePassword: false } : semSegredos(user);
+      return res.json({ user: usuario, portalReturnUrl, simulation });
     } catch {
       return res.status(500).json({ message: "Erro interno" });
     }

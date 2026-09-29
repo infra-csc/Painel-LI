@@ -256,6 +256,12 @@ export function registrarUsuarios(app: Express): void {
   app.post("/api/users/:id/reset-password", async (req, res) => {
     const admin = await requireRoles(req, res, ["admin"]);
     if (!admin) return;
+    // Em produção não existe senha no Painel: o acesso é só pelo Portal Norte
+    // (conta Microsoft). Redefinir aqui só marcava "trocar senha no próximo
+    // acesso" e prendia a pessoa num diálogo (30/09).
+    if (process.env.NODE_ENV === "production") {
+      return res.status(403).json({ message: "Em produção o acesso é pelo Portal Norte — não há senha para redefinir." });
+    }
 
     const userId = req.params.id;
     const user = await storage.getUser(userId);

@@ -461,3 +461,11 @@ anteriores e continuam valendo se ainda não foram feitos.
 - `server/scaling-validation.ts` (nota VALIDACAO_APOS_EVENTO); 4 testes de rota novos em `validacao-de-escala.test.ts`; `docs/seguranca-e-permissoes.md` §3.7.
 - Operação: Pull + **Stop/Run** (mudança no servidor). Sem migração.
 
+## 12. 30/09 — fim do "Troque sua senha" para quem entra pelo portal
+
+- **Sintoma:** Everson (Área de Função) entrou pelo portal e o Painel pediu "Troque sua senha para continuar — senha atual", uma senha que ele nunca teve. Em produção não existe senha no Painel: o acesso é pelo Portal Norte com a conta Microsoft.
+- **Causa:** um "Redefinir senha" na tela de Usuários marca a conta com "trocar senha no próximo acesso", e desde 23/09 essa marca bloqueava o app inteiro — inclusive para sessão do portal.
+- **Correção:** sessão do portal nunca é bloqueada pela marca (gate e `/api/auth/me`); o login pelo portal apaga a marca; em produção o botão da chave ("Redefinir senha") some da tela de Usuários e a rota responde 403. Em QA (login por senha para teste) nada muda.
+- Testes de rota novos (sessão do portal passa com a marca e o login a limpa; redefinir em produção → 403).
+- Operação: Pull + **Stop/Run**. Quem estiver preso no diálogo só precisa recarregar a página depois disso.
+

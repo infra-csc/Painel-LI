@@ -290,6 +290,9 @@ export async function usuarioDoSso(p: PayloadDoSso): Promise<User> {
 
   const updates: Partial<User> = {};
   if (p.name && p.name !== user.name) updates.name = p.name;
+  // Entrou pelo portal: a senha local não é usada, então a marca de "trocar
+  // senha no próximo acesso" (posta por um "Redefinir senha") sai daqui (30/09).
+  if (user.mustChangePassword) updates.mustChangePassword = false;
   if (!normalizeRole(user.role)) {
     updates.role = tokenRole;
     console.log(`[SSO] Corrigindo papel inválido "${user.role}" → "${tokenRole}" (usuário ${user.id})`);
