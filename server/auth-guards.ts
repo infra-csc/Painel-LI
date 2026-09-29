@@ -151,8 +151,16 @@ export class SsoError extends Error {
   }
 }
 
-/** Valores aceitos na claim `app` quando ela vier no token. */
-const APPS_ACEITOS = new Set(["painel-li", "logistica-interna"]);
+/**
+ * Valores aceitos nas claims `app` e `aud` quando vierem no token.
+ *
+ * `logistica` é o slug que o Portal Norte REALMENTE manda (NORTE-App-Hub,
+ * routes/sso.ts: APP_SLUGS). A lista de 24/09 tinha só nomes que o portal
+ * nunca usou; quem já estava logado seguiu entrando (sessão de 7 dias) e os
+ * logins novos passaram a falhar com "token emitido para outro aplicativo"
+ * (29/09). O teste de rota agora assina o token exatamente como o portal.
+ */
+export const APPS_ACEITOS = new Set(["logistica", "painel-li", "logistica-interna"]);
 
 // Anti-reuso: um token só cria sessão UMA vez. O jti (ou o hash do token) é
 // gravado na tabela `sso_tokens_usados` (shared/schema.ts) até ele expirar.
@@ -216,7 +224,14 @@ export async function verificarTokenSso(token: string, secret: string): Promise<
 
   const app = payload.app;
   if (typeof app === "string" && app && !APPS_ACEITOS.has(app.toLowerCase())) {
-    throw new SsoError("app_errado", "Token SSO emitido para outro aplicativo");
+    throw new SsoError("app_errado", `Token SSO emitido para outro aplicativo (app=${app})`);
+  }
+  // O portal declara o destino também em `aud` (22/09). Quando vier, tem de
+  // ser este app — é o que impede um token do Maratona de abrir a Logística.
+  const aud = payload.aud;
+  const destinos = typeof aud === "string" ? [aud] : Array.isArray(aud) ? aud.filter((x): x is string => typeof x === "string") : [];
+  if (destinos.length > 0 && !destinos.some((d) => APPS_ACEITOS.has(d.toLowerCase()))) {
+    throw new SsoError("app_errado", `Token SSO emitido para outro aplicativo (aud=${destinos.join(",")})`);
   }
 
   const expMs = typeof payload.exp === "number" ? payload.exp * 1000 : Date.now() + 10 * 60_000;
