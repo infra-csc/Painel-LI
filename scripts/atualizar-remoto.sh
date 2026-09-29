@@ -33,15 +33,15 @@ if git merge-base --is-ancestor "$remote_tip" HEAD; then
 fi
 
 echo "Integrando os commits remotos por merge (sem rebase e sem push)..."
-if ! git merge --no-ff --no-edit "$remote_tip"; then
-  echo "O merge encontrou um conflito. Desfazendo somente este merge..." >&2
+if ! git -c user.name="Replit Agent" -c user.email="agent@replit.invalid" merge --no-ff --no-edit "$remote_tip"; then
   if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    echo "O merge não foi concluído. Desfazendo somente esta tentativa..." >&2
     git merge --abort || {
       echo "Não foi possível desfazer o merge; peça ajuda antes de continuar." >&2
       exit 1
     }
   fi
-  echo "Nada foi enviado ao remoto. Peça ajuda para resolver o conflito." >&2
+  echo "Nada foi enviado ao remoto. Veja o erro acima antes de tentar novamente." >&2
   exit 1
 fi
 
