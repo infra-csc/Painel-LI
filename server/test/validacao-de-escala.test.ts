@@ -234,3 +234,68 @@ describe("POST /api/team-inclusions — validationNote é campo de fluxo, não d
     expect("validationNote" in ctx.schema.teamInclusionRowSchema.shape).toBe(true);
   });
 });
+
+// Dono, 30/09: "permitir após evento". A vaga #4643 (evento terminou 27/09)
+// voltou do aprovador em 29/09 e a área recebia "Evento encerrado — só o
+// administrador". Na Validação, vagas que já existem seguem o fluxo depois do
+// fim do evento; o que CRIA vagas continua só com o administrador.
+describe("Validação de Escala depois do fim do evento (VALIDACAO_APOS_EVENTO)", () => {
+  const EVENTO_ENCERRADO = { startDate: "2020-03-10", endDate: "2020-03-12" };
+
+  it("a área valida vaga de evento encerrado → 200 e a vaga vai para o aprovador", async () => {
+    const evento = await criarEvento(EVENTO_ENCERRADO);
+    const funcao = await criarFuncao();
+    const { agent, userId } = await validadorDe(funcao.id);
+    const vaga = await vagaPendente({ eventId: evento.id, functionId: funcao.id, userId });
+
+    const res = await mutacao(agent.post("/api/scaling-suggestions/validate"))
+      .send({ inclusionIds: [vaga.id], validationNote: "Henrique aprovou. Local de qui a sab." });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: [vaga.id], skipped: [] });
+    const noBanco = await ctx.storage.getTeamInclusion(vaga.id);
+    expect(noBanco?.status).toBe("sugestao_validada");
+    expect(noBanco?.validationNote).toBe("Henrique aprovou. Local de qui a sab.");
+  });
+
+  it("a área pede ajuste de vaga de evento encerrado → aceito", async () => {
+    const evento = await criarEvento(EVENTO_ENCERRADO);
+    const funcao = await criarFuncao();
+    const { agent, userId } = await validadorDe(funcao.id);
+    const vaga = await vagaPendente({ eventId: evento.id, functionId: funcao.id, userId });
+
+    const res = await mutacao(agent.post("/api/scaling-change-requests")).send({
+      teamInclusionId: vaga.id, eventId: evento.id, functionId: funcao.id, area: null,
+      requestType: "ajuste", proposedChanges: { v: 1, observations: "Chega um dia antes" }, reason: "Combinado com o produtor",
+    });
+    expect([200, 201]).toContain(res.status);
+    expect((await ctx.storage.getTeamInclusion(vaga.id))?.status).toBe("sugestao_ajuste");
+  });
+
+  it("o aprovador (não admin) aprova vaga validada de evento encerrado → vira Inclusão", async () => {
+    const evento = await criarEvento(EVENTO_ENCERRADO);
+    const funcao = await criarFuncao();
+    const { agent: validador, userId } = await validadorDe(funcao.id);
+    const vaga = await vagaPendente({ eventId: evento.id, functionId: funcao.id, userId });
+    expect((await mutacao(validador.post("/api/scaling-suggestions/validate")).send({ inclusionIds: [vaga.id] })).status).toBe(200);
+
+    const { agent: aprovador, user } = await agenteLogado("production");
+    await ctx.storage.addScalingManager({ functionId: funcao.id, userId: user.id, role: "aprovador" });
+    const res = await mutacao(aprovador.patch(`/api/scaling-suggestions/${vaga.id}/aprovar`)).send({});
+    expect(res.status).toBe(200);
+    expect((await ctx.storage.getTeamInclusion(vaga.id))?.phase).not.toBe("sugestao");
+  });
+
+  it("pedido de INCLUSÃO (cria vaga nova) em evento encerrado continua só com o administrador → 403", async () => {
+    const evento = await criarEvento(EVENTO_ENCERRADO);
+    const funcao = await criarFuncao();
+    const { agent } = await validadorDe(funcao.id);
+
+    const res = await mutacao(agent.post("/api/scaling-change-requests")).send({
+      eventId: evento.id, functionId: funcao.id, area: null, requestType: "inclusao",
+      proposedChanges: { v: 1, quantity: 1, workDays: [EVENTO_ENCERRADO.startDate], dailyRates: 1 },
+      reason: "Faltou uma pessoa",
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/Evento encerrado/);
+  });
+});

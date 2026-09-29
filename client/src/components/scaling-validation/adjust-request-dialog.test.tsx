@@ -14,7 +14,7 @@ function montar(extras: Partial<Props> = {}) {
     <AdjustRequestDialog
       open
       onOpenChange={onOpenChange}
-      inclusion={sugestaoFake({ id: "vaga-1", inclusionNumber: 4643 })}
+      inclusion={sugestaoFake({ id: "vaga-1", inclusionNumber: 4643, workDays: ["2026-04-10", "2026-04-11", "2026-04-12"] })}
       event={eventoFake({ startDate: "2026-04-09", endDate: "2026-04-13" })}
       functionName="kit local"
       {...extras}
@@ -24,28 +24,37 @@ function montar(extras: Partial<Props> = {}) {
 }
 
 const motivo = () => screen.getByLabelText(/Motivo/);
-const enviar = () => screen.getByRole("button", { name: /Enviar pedido de ajuste/ });
+const principal = () => screen.getByTestId("button-enviar-ajuste");
 
-// Dono, 29/09: "Não consigo responder um pedido negado. Ele pede para alterar
-// algo." Quem só quer responder ao aprovador valida com observação.
+// Dono, 29–30/09: "Não consigo responder um pedido negado" / "ainda não
+// resolvemos isso?". Nada mudou na vaga → o botão principal responde validando.
 describe("AdjustRequestDialog — responder sem mudar a vaga", () => {
-  it("nada mudou + atalho disponível: explica e oferece validar com o motivo como observação", async () => {
+  it("nada mudou + atalho: o botão principal vira 'Responder ao aprovador' e valida com o motivo, sem aviso de erro", async () => {
     const onValidarEmVez = vi.fn();
     const { user, fetchMock } = montar({ onValidarEmVez });
-    await user.type(motivo(), "Aprovado pelo Henrique");
-    await user.click(enviar());
-    expect(screen.getByRole("alert")).toHaveTextContent("valide com o motivo como observação");
-    await user.click(screen.getByRole("button", { name: "Validar a vaga com este motivo como observação" }));
-    expect(onValidarEmVez).toHaveBeenCalledWith("Aprovado pelo Henrique");
+    expect(principal()).toHaveTextContent("Responder ao aprovador · validar a vaga");
+    expect(screen.getByTestId("adjust-so-responder")).toHaveTextContent("volta para o aprovador validada");
+    await user.type(motivo(), "Henrique aprovou. Local de qui a sab.");
+    await user.click(principal());
+    expect(onValidarEmVez).toHaveBeenCalledWith("Henrique aprovou. Local de qui a sab.");
+    expect(screen.queryByRole("alert")).toBeNull();
     // Nenhum pedido de ajuste vazio foi para o servidor.
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sem o atalho (modal da Escalação), a mensagem continua a de antes e não há botão extra", async () => {
+  it("mexeu em um dia: o botão volta a ser 'Enviar pedido de ajuste' e a explicação some", async () => {
+    const onValidarEmVez = vi.fn();
+    const { user } = montar({ onValidarEmVez });
+    await user.click(screen.getAllByRole("button", { pressed: false })[0]);
+    expect(principal()).toHaveTextContent("Enviar pedido de ajuste");
+    expect(screen.queryByTestId("adjust-so-responder")).toBeNull();
+  });
+
+  it("sem o atalho (modal da Escalação), a regra continua: nada mudou é erro", async () => {
     const { user } = montar();
+    expect(principal()).toHaveTextContent("Enviar pedido de ajuste");
     await user.type(motivo(), "Qualquer coisa");
-    await user.click(enviar());
+    await user.click(principal());
     expect(screen.getByRole("alert")).toHaveTextContent("Nada foi alterado. Mude ao menos um campo");
-    expect(screen.queryByTestId("button-validar-em-vez")).toBeNull();
   });
 });
