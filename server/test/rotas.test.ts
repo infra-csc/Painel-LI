@@ -104,6 +104,22 @@ describe("Segurança: gate global, CSRF e papéis", () => {
     expect(depois.body.message).toBe("Conta sem acesso. Contate o administrador.");
   });
 
+  it("POST /api/users/:id/reset-password em produção → 403 e a conta não fica marcada para trocar senha", async () => {
+    // 30/09: em produção não há senha no Painel (acesso pelo portal, conta Microsoft).
+    const { agent: admin } = await agenteLogado("admin");
+    const alvo = await criarUsuario("function_area");
+    const anterior = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const res = await mutacao(admin.post(`/api/users/${alvo.id}/reset-password`)).send({ newPassword: "Temporaria-123" });
+      expect(res.status).toBe(403);
+      expect(res.body.message).toMatch(/Portal Norte/);
+    } finally {
+      process.env.NODE_ENV = anterior;
+    }
+    expect((await ctx.storage.getUser(alvo.id))?.mustChangePassword).toBeFalsy();
+  });
+
   it("POST /api/auth/login em modo seguro (produção) → 403", async () => {
     // A rota lê process.env.NODE_ENV diretamente (server/routes.ts); o
     // `modoSeguro` do createApp cobre o resto das regras. Liga só neste teste.

@@ -6,12 +6,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import request from "supertest";
 import {
   agenteLogado,
   criarApp,
   criarEvento,
   criarUsuario,
   criarVaga,
+  logarComo,
   mutacao,
   unico,
   type Contexto,
@@ -64,16 +66,28 @@ describe("PATCH /api/users/:id", () => {
     expect((await ctx.storage.getUser(alvo.id))?.email).toBe(alvo.email);
   });
 
-  it("própria senha: currentPassword errada → 400; correta → 200, mustChangePassword=false e o gate libera", async () => {
-    const { agent, user } = await agenteLogado("production");
-    // Força a troca obrigatória direto no banco e derruba o cache do gate
+  // 30/09: quem entra pelo Portal Norte não usa senha — a marca de troca
+  // obrigatória (de um "Redefinir senha") não pode prender essa sessão.
+  it("sessão do portal com mustChangePassword: NÃO é bloqueada, /me diz false e o próximo login pelo portal limpa a marca", async () => {
+    const { agent, user } = await agenteLogado("function_area");
     await ctx.db.update(ctx.schema.users).set({ mustChangePassword: true }).where(eq(ctx.schema.users.id, user.id));
     const { invalidarCacheDeUsuario } = await import("../auth-guards");
     invalidarCacheDeUsuario(user.id);
 
-    const bloqueado = await agent.get("/api/events");
-    expect(bloqueado.status).toBe(403);
-    expect(bloqueado.body.mustChangePassword).toBe(true);
+    expect((await agent.get("/api/events")).status).toBe(200);
+    const me = await agent.get("/api/auth/me");
+    expect(me.status).toBe(200);
+    expect(me.body.user.mustChangePassword).toBe(false);
+
+    await logarComo(request.agent(ctx.app), user);
+    expect((await ctx.storage.getUser(user.id))?.mustChangePassword).toBe(false);
+  });
+
+  it("própria senha: currentPassword errada → 400; correta → 200 e mustChangePassword=false", async () => {
+    const { agent, user } = await agenteLogado("production");
+    await ctx.db.update(ctx.schema.users).set({ mustChangePassword: true }).where(eq(ctx.schema.users.id, user.id));
+    const { invalidarCacheDeUsuario } = await import("../auth-guards");
+    invalidarCacheDeUsuario(user.id);
 
     const errada = await mutacao(agent.patch(`/api/users/${user.id}`)).send({ currentPassword: "nao-e-essa", newPassword: "Nova-senha-456", confirmPassword: "Nova-senha-456" });
     expect(errada.status).toBe(400);
