@@ -446,3 +446,10 @@ anteriores e continuam valendo se ainda não foram feitos.
 - **Correção:** `logistica` aceito; o destinatário `aud` (que o portal manda desde 22/09) também é conferido; o motivo exato vai para o log (`[SSO] app_errado: … (app=…)`). O token dos testes agora é idêntico ao do portal (`app`/`aud` = `logistica`, 2 min, `sub`, `jti`), com teste de que um token do Maratona é recusado.
 - **Operação:** Pull + **Stop/Run** (o servidor não tem recarga automática). Sem migração.
 
+## 10. 30/09 — "Responder ao aprovador" vira o botão principal
+
+- A 1ª versão (§7) mostrava um aviso **vermelho** "Nada foi alterado…" com um botão verde embaixo; o dono voltou com o print perguntando "ainda não resolvemos isso?" — a tela continuava parecendo erro.
+- Agora, na Validação, se nada mudou na vaga o botão principal do "Pedir ajuste" diz **"Responder ao aprovador · validar a vaga"** e faz isso direto (abre a confirmação de validação com o motivo como observação). No lugar do aviso vermelho, uma explicação neutra. Mexeu em dia ou viagem → o botão volta a ser "Enviar pedido de ajuste".
+- No modal da Escalação (sem o atalho) nada muda: pedido vazio continua sendo erro.
+- Operação: Pull + Stop/Run. Sem migração.
+

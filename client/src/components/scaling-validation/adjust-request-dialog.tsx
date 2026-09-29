@@ -120,6 +120,16 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
   // Foco no campo com erro — ids dos blocos do formulário (ver `useFocoNoErro`).
   useFocoNoErro(error, { function: "adj-days", quantity: "adj-days", days: "adj-days", diff: "adj-days", travel: "adj-date-ida", reason: "adj-reason" });
 
+  /**
+   * Nada mudou na vaga e a tela oferece o atalho (30/09, 2ª versão): o botão
+   * principal deixa de levar ao beco "Nada foi alterado" e passa a RESPONDER
+   * ao aprovador — valida a vaga com o motivo como observação. Na 1ª versão o
+   * atalho era um botão verde embaixo de um aviso vermelho; o dono voltou
+   * perguntando "ainda não resolvemos isso?", porque a tela parecia erro.
+   * Mexeu em qualquer campo, o botão volta a ser "Enviar pedido de ajuste".
+   */
+  const soResponder = diff.length === 0 && !!onValidarEmVez;
+
   const submit = () => {
     if (!inclusion) return;
     // Na ordem dos passos (1 dias → 2 viagem → 3 motivo): o primeiro erro é o
@@ -127,13 +137,13 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     if (workDays.length === 0) { setError({ campo: "days", msg: "Informe ao menos um dia de trabalho." }); return; }
     const travelErr = validateTravel(travel);
     if (travelErr.length) { setError({ campo: "travel", msg: travelErr[0] }); return; }
+    if (soResponder && onValidarEmVez) {
+      setError(null);
+      onValidarEmVez(reason.trim());
+      return;
+    }
     if (diff.length === 0) {
-      setError({
-        campo: "diff",
-        msg: onValidarEmVez
-          ? "Nada foi alterado na vaga. Se ela está correta e você só quer responder ao aprovador, valide com o motivo como observação."
-          : "Nada foi alterado. Mude ao menos um campo ou use “Validar” se a vaga está correta.",
-      });
+      setError({ campo: "diff", msg: "Nada foi alterado. Mude ao menos um campo ou use “Validar” se a vaga está correta." });
       return;
     }
     if (!reason.trim()) { setError({ campo: "reason", msg: "Informe o motivo do pedido." }); return; }
@@ -235,25 +245,24 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
           <ReasonField id="adj-reason" passo={3} label="Motivo" value={reason} disabled={mutation.isPending}
             invalido={error?.campo === "reason"} erroId="adj-erro"
             onChange={(v) => { setReason(v); if (error?.campo === "reason" && v.trim()) setError(null); }}
-            placeholder="Explique para o aprovador por que a vaga precisa mudar." />
+            placeholder={soResponder
+              ? "Escreva a resposta para o aprovador — vai como observação da validação."
+              : "Explique para o aprovador por que a vaga precisa mudar."} />
           {error && <p id="adj-erro" role="alert" className="text-xs font-medium text-danger">{error.msg}</p>}
-          {error?.campo === "diff" && onValidarEmVez && (
-            <Button
-              type="button"
-              variant="outline"
-              className="self-start rounded-lg border-success/40 text-success hover:bg-success-soft"
-              onClick={() => onValidarEmVez(reason.trim())}
-              data-testid="button-validar-em-vez"
-            >
-              <CheckCircle2 className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              Validar a vaga{reason.trim() ? " com este motivo como observação" : ""}
-            </Button>
+          {soResponder && !error && (
+            <p className="flex items-start gap-1.5 text-xs text-slate-600" data-testid="adjust-so-responder">
+              <CheckCircle2 className="w-3.5 h-3.5 mt-px shrink-0 text-success" aria-hidden="true" />
+              <span>
+                Nada mudou na vaga, então não vira pedido de ajuste: ela volta para o aprovador <strong className="font-semibold text-foreground">validada</strong>, com o motivo como observação.
+                Para pedir mudança, altere os dias ou a viagem acima.
+              </span>
+            </p>
           )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" className="rounded-lg bg-card" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
             {/* O botão diz o que acontece depois: o pedido não muda a vaga, quem decide é o aprovador. */}
-            <Button type="button" onClick={submit} disabled={mutation.isPending} className="rounded-lg min-w-[200px] bg-primary hover:bg-primary-hover">
-              {mutation.isPending ? "Enviando…" : "Enviar pedido de ajuste · o aprovador decide"}
+            <Button type="button" onClick={submit} disabled={mutation.isPending} className="rounded-lg min-w-[200px] bg-primary hover:bg-primary-hover" data-testid="button-enviar-ajuste">
+              {mutation.isPending ? "Enviando…" : soResponder ? "Responder ao aprovador · validar a vaga" : "Enviar pedido de ajuste · o aprovador decide"}
             </Button>
           </DialogFooter>
         </div>
