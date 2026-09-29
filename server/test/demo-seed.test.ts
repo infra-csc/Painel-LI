@@ -174,6 +174,22 @@ describe("anti-reuso do JWT do SSO em sso_tokens_usados", () => {
   });
 });
 
+describe("SSO: nome do app no token do portal", () => {
+  it("token do portal para 'logistica' (o slug real) entra", async () => {
+    const user = await criarUsuario("production");
+    const res = await request(ctx.app).get(`/?portal_sso=${encodeURIComponent(await tokenDoPortal(user))}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe("/");
+  });
+
+  it("token do portal para outro app (maratona) é recusado", async () => {
+    const user = await criarUsuario("production");
+    const token = await tokenDoPortal(user, { app: "maratona" });
+    const res = await request(ctx.app).get(`/api/auth/sso?token=${encodeURIComponent(token)}`);
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("PostgresRateLimitStore (tabela rate_limits)", () => {
   it("increment/get/decrement/resetKey funcionam e a janela vem do init", async () => {
     const store = new PostgresRateLimitStore(`teste-${Date.now()}`);

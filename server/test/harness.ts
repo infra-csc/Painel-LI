@@ -123,14 +123,25 @@ export async function criarUsuario(role: Papel, extras: Partial<{ status: string
   return { id: user.id, email: user.email, name: user.name, role: user.role, senha };
 }
 
-/** JWT HS256 como o Portal Norte emite (issuer, iat, exp, email, jti). */
-export async function tokenDoPortal(user: { email: string; name?: string }, opcoes: { secret?: string; role?: string } = {}): Promise<string> {
+/**
+ * JWT HS256 IGUAL ao que o Portal Norte emite (NORTE-App-Hub, lib/sso.ts:
+ * issuer, iat, exp 2 min, sub, aud = slug do app, jti; payload com app =
+ * "logistica"). Antes o teste assinava app "painel-li" — valor que o portal
+ * nunca manda — e o defeito de 29/09 passou despercebido.
+ */
+export async function tokenDoPortal(
+  user: { email: string; name?: string },
+  opcoes: { secret?: string; role?: string; app?: string } = {},
+): Promise<string> {
   const chave = new TextEncoder().encode(opcoes.secret ?? process.env.SSO_SECRET!);
-  return new SignJWT({ email: user.email, name: user.name, role: opcoes.role, app: "painel-li" })
+  const app = opcoes.app ?? "logistica";
+  return new SignJWT({ email: user.email, name: user.name, role: opcoes.role, level: 1, app })
     .setProtectedHeader({ alg: "HS256" })
-    .setIssuer("norte-portal")
     .setIssuedAt()
-    .setExpirationTime("10m")
+    .setExpirationTime("2m")
+    .setIssuer("norte-portal")
+    .setSubject(user.email)
+    .setAudience(app)
     .setJti(randomUUID())
     .sign(chave);
 }

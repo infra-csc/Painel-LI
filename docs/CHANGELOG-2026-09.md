@@ -439,3 +439,10 @@ anteriores e continuam valendo se ainda não foram feitos.
 - Testes de rota atualizados (Produção não recebe; Área de Função e admin recebem; o anexo do documento abre para qualquer Área de Função). `docs/seguranca-e-permissoes.md` atualizado.
 - Operação: Pull + Stop/Run. Sem migração.
 
+## 9. 29/09 — login pelo Portal Norte voltou (URGENTE: publicar)
+
+- **Sintoma:** "não estou conseguindo mais logar pelo portal". Quem já tinha sessão (7 dias) seguia entrando; cada login novo era recusado.
+- **Causa:** o code review de 24/09 passou a conferir o nome do app no token (`app`), mas a lista aceita tinha só `painel-li` e `logistica-interna`. O portal manda `logistica` (NORTE-App-Hub, `routes/sso.ts`). O teste de rota assinava o token com `painel-li`, por isso não pegou.
+- **Correção:** `logistica` aceito; o destinatário `aud` (que o portal manda desde 22/09) também é conferido; o motivo exato vai para o log (`[SSO] app_errado: … (app=…)`). O token dos testes agora é idêntico ao do portal (`app`/`aud` = `logistica`, 2 min, `sub`, `jti`), com teste de que um token do Maratona é recusado.
+- **Operação:** Pull + **Stop/Run** (o servidor não tem recarga automática). Sem migração.
+
