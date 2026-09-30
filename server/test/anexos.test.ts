@@ -184,6 +184,26 @@ describe("GET /api/attachments/:id/view", () => {
     expect((await binario(rh.get(anexo.url))).status).toBe(200);
   });
 
+  // 30/09: "Pessoal não está conseguindo baixar anexo" — voucher enviado por
+  // Compras, aberto pela Área de Função no modal da Escalação.
+  it("anexo de PASSAGEM ou HOSPEDAGEM enviado por Compras: Área de Função abre (30/09)", async () => {
+    const compras = await agenteLogado("purchasing");
+    const voucher = await anexoDe(compras.agent);
+    const reserva = await anexoDe(compras.agent);
+    const avulso = await anexoDe(compras.agent);
+    const { criarVaga } = await import("./harness");
+    const vaga = await criarVaga({ userId: compras.user.id });
+    await ctx.db.insert(ctx.schema.tickets).values({ teamInclusionId: vaga.id, attachmentIds: [voucher.id] } as any);
+    await ctx.db.insert(ctx.schema.accommodations).values({ teamInclusionId: vaga.id, hotelName: "Hotel Teste", attachmentIds: [reserva.id] } as any);
+
+    const { agent: area } = await agenteLogado("function_area");
+    expect((await binario(area.get(voucher.url))).status).toBe(200);
+    expect((await area.get(`/api/attachments/${voucher.id}`)).status).toBe(200);
+    expect((await binario(area.get(reserva.url))).status).toBe(200);
+    // Anexo que não é de passagem nem de hospedagem continua só do dono/papéis de leitura.
+    expect((await area.get(avulso.url)).status).toBe(403);
+  });
+
   it("id fora do padrão → 400; id válido inexistente → 404", async () => {
     const { agent } = await agenteLogado("admin");
     expect((await agent.get("/api/attachments/..%2F..%2Fetc/view")).status).toBe(400);

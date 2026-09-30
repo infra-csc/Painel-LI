@@ -59,9 +59,17 @@ export function podeAcessarAnexo(args: {
   ownerId: string | null;
   /** true quando algum colaborador aponta para este anexo (documentAttachmentId). */
   documentoDeColaborador: boolean;
+  /**
+   * true quando o anexo pertence a uma PASSAGEM ou HOSPEDAGEM (attachment_ids).
+   * Quem vê a vaga na Escalação precisa abrir o voucher/bilhete/reserva; esses
+   * anexos são enviados por Compras (ou são antigos, sem dono gravado), então a
+   * regra "só o que enviou" deixava a Área de Função sem abrir nenhum (30/09).
+   */
+  anexoDeLogistica?: boolean;
 }): boolean {
-  const { role, userId, ownerId, documentoDeColaborador } = args;
+  const { role, userId, ownerId, documentoDeColaborador, anexoDeLogistica } = args;
   if (role && PAPEIS_QUE_VEEM_TUDO.includes(role)) return true;
+  if (anexoDeLogistica && role) return true;
   // Documento (CPF/RG) de colaborador: mesma regra dos dados pessoais da
   // lista (ROLE_GROUPS.dadosPessoais) — a Área de Função vê desde 29/09.
   if (documentoDeColaborador) return !!role && (ROLE_GROUPS.dadosPessoais as readonly CanonicalRole[]).includes(role);
