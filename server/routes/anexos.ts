@@ -7,8 +7,8 @@
  */
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { collaborators as collaboratorsTable } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { accommodations as accommodationsTable, collaborators as collaboratorsTable, tickets as ticketsTable } from "@shared/schema";
+import { arrayContains, eq } from "drizzle-orm";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import { upload, requireRoles, CADASTRO_ROLES, LOGISTICA_ROLES, TODOS_OS_PAPEIS } from "./_compartilhado";
 
@@ -71,6 +71,22 @@ export function registrarAnexos(app: Express): void {
       .where(eq(collaboratorsTable.documentAttachmentId, attachmentId))
       .limit(1);
     return !!linha;
+  };
+
+  /** O anexo é de alguma passagem ou hospedagem (attachment_ids)? */
+  const ehAnexoDeLogistica = async (attachmentId: string): Promise<boolean> => {
+    const [passagem] = await db
+      .select({ id: ticketsTable.id })
+      .from(ticketsTable)
+      .where(arrayContains(ticketsTable.attachmentIds, [attachmentId]))
+      .limit(1);
+    if (passagem) return true;
+    const [hospedagem] = await db
+      .select({ id: accommodationsTable.id })
+      .from(accommodationsTable)
+      .where(arrayContains(accommodationsTable.attachmentIds, [attachmentId]))
+      .limit(1);
+    return !!hospedagem;
   };
 
   // Simple file upload endpoint for FileUpload component
@@ -189,12 +205,19 @@ export function registrarAnexos(app: Express): void {
       throw error;
     }
 
+    const role = normalizeRole(quem.role);
     const documentoDeColaborador = await ehDocumentoDeColaborador(id);
+    // Só consulta passagens/hospedagens quando a regra ainda não decidiu:
+    // admin, Compras, Produção e RH já veem tudo.
+    const anexoDeLogistica = podeAcessarAnexo({ role, userId: quem.id, ownerId: meta.ownerId, documentoDeColaborador })
+      ? false
+      : await ehAnexoDeLogistica(id);
     const permitido = podeAcessarAnexo({
-      role: normalizeRole(quem.role),
+      role,
       userId: quem.id,
       ownerId: meta.ownerId,
       documentoDeColaborador,
+      anexoDeLogistica,
     });
     if (!permitido) {
       console.warn(`[Anexos] acesso negado ao anexo ${id} para o usuário ${quem.id.slice(0, 8)}`);

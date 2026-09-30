@@ -26,7 +26,8 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
         const isViewable = attachmentData.type?.includes("pdf") || attachmentData.type?.includes("image");
         window.open(isViewable ? attachmentData.viewUrl : attachmentData.downloadUrl, "_blank");
       } else {
-        toast({ title: "Anexo não disponível", variant: "destructive" });
+        // Motivo real do servidor quando houver (30/09).
+        toast({ title: "Anexo não disponível", description: attachmentData?.message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Não foi possível abrir o anexo", description: "Tente de novo em instantes.", variant: "destructive" });

@@ -469,3 +469,11 @@ anteriores e continuam valendo se ainda não foram feitos.
 - Testes de rota novos (sessão do portal passa com a marca e o login a limpa; redefinir em produção → 403).
 - Operação: Pull + **Stop/Run**. Quem estiver preso no diálogo só precisa recarregar a página depois disso.
 
+## 13. 30/09 — Área de Função volta a abrir anexos de passagem e hospedagem
+
+- **Sintoma:** "Pessoal não está conseguindo baixar anexo" — no modal da Escalação, "Passagem · Anexo 1" dava "Não foi possível abrir o anexo · Erro ao buscar anexo".
+- **Causa:** a regra de anexos de 23/09 deixava a Área de Função abrir só o que ela mesma enviou. Voucher, bilhete e reserva são enviados por Compras (ou são antigos, sem dono gravado) — então nenhum abria para a área.
+- **Correção:** anexo que pertence a uma **passagem ou hospedagem** abre para qualquer papel logado. Os demais anexos (ex.: nota fiscal) seguem a regra de antes. A tela passa a mostrar o motivo real que o servidor devolve em vez do genérico "Erro ao buscar anexo".
+- Teste de rota novo (voucher e reserva de Compras abrem para a área; anexo avulso continua 403). `docs/seguranca-e-permissoes.md` atualizado.
+- Operação: Pull + **Stop/Run**. Sem migração.
+

@@ -336,7 +336,7 @@ a vaga sem permissão/estado entra em `skipped`.
 | Observações do orçamento | `GET/POST /api/budget-notes`, `GET /api/budget-notes/by-event` | ✅ | ✅ | ✅ | ✅ | ✅ | qualquer sessão (chat de auditoria) |
 | Enviar anexo | `POST /api/upload` | ✅ | ✅ | ✅ | ✅ | ✅ | magic number (PDF/PNG/JPG/XLSX/CSV), nome sanitizado, dono gravado; lote inteiro ou nada |
 | Confirmar anexo | `POST /api/attachments/:id/confirm` | 🔒 | 🔒 | 🔒 | 🔒 | 🔒 | só o **dono** (anexo antigo sem dono: quem confirma vira dono) |
-| Metadados / download / view | `GET /api/attachments/:id`, `/download`, `/view` | ✅ | ✅ | ✅ | 🔒 | ✅ | `podeAcessarAnexo`: admin/purchasing/production/financial veem tudo; function_area vê o documento (CPF/RG) de colaborador (29/09) e, dos demais anexos, só o que enviou |
+| Metadados / download / view | `GET /api/attachments/:id`, `/download`, `/view` | ✅ | ✅ | ✅ | 🔒 | ✅ | `podeAcessarAnexo`: admin/purchasing/production/financial veem tudo; function_area vê o documento (CPF/RG) de colaborador (29/09), qualquer anexo de **passagem ou hospedagem** (30/09) e, dos demais anexos (ex.: NF), só o que enviou |
 | URL assinada de upload | `POST /api/attachments/upload` | — | — | — | — | — | **410** (removida) |
 | Logs do sistema | `GET /api/system-logs` | 👁 | ❌ | ❌ | ❌ | ❌ | paginado |
 | Histórico por entidade | `GET /api/activity-logs`, `/by-event` | 👁 | ❌ | ❌ | ❌ | 👁 | Planejado/Realizado/Comparativo |

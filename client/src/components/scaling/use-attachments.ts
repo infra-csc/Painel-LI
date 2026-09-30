@@ -47,7 +47,12 @@ export function useAttachments(opts: {
       if (!data) {
         const res = await fetch(`/api/attachments/${attachmentId}`, { credentials: "include" });
         if (res.status === 401) throw new Error("Sua sessão expirou. Atualize a página e entre novamente.");
-        if (!res.ok) throw new Error("Erro ao buscar anexo");
+        if (!res.ok) {
+          // Motivo real do servidor ("Sem permissão…", "Arquivo não encontrado")
+          // — o genérico "Erro ao buscar anexo" não dizia o que fazer (30/09).
+          const corpo = await res.json().catch(() => null) as { message?: string } | null;
+          throw new Error(corpo?.message || `Erro ao buscar anexo (${res.status})`);
+        }
         data = await res.json();
         setAttachmentMeta(prev => ({ ...prev, [attachmentId]: data! }));
       }
