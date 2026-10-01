@@ -34,13 +34,14 @@ export function registrarPassagens(app: Express): void {
     }
   });
 
-  // GET /api/tickets/historico?teamInclusionId= | ?eventId= (01/10): passagens
-  // de quem saiu numa troca aprovada — com o nome de quem era a passagem.
+  // GET /api/tickets/historico[?teamInclusionId= | ?eventId=] (01/10): passagens
+  // de quem saiu numa troca aprovada — com o nome de quem era a passagem. Sem
+  // filtro, todo o histórico (só as de troca — poucas linhas), para o card
+  // "Compradas" da tela de Passagens com "Todos os eventos".
   app.get("/api/tickets/historico", async (req, res) => {
     try {
       const teamInclusionId = typeof req.query.teamInclusionId === "string" && req.query.teamInclusionId ? req.query.teamInclusionId : undefined;
       const eventId = eventIdDaQuery(req);
-      if (!teamInclusionId && !eventId) return res.status(400).json({ message: "Informe a vaga ou o evento." });
       const historico = await storage.getTicketHistory({ teamInclusionId, eventId });
       res.set("Cache-Control", "no-store"); // dados do passageiro
       res.json(historico);

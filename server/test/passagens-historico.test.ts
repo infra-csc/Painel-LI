@@ -112,8 +112,11 @@ describe("Passagem vira histórico quando a troca é aprovada (01/10)", () => {
     expect((await ctx.storage.getTeamInclusion(vagaCwb.id))?.status).toBe("escalado");
   });
 
-  it("histórico sem vaga nem evento → 400", async () => {
+  it("histórico sem vaga nem evento → todo o histórico (card de Passagens em 'Todos os eventos')", async () => {
     const { agent } = await agenteLogado("purchasing");
-    expect((await agent.get("/api/tickets/historico")).status).toBe(400);
+    const res = await agent.get("/api/tickets/historico");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect((res.body as Array<{ archivedAt: string | null }>).every((t) => !!t.archivedAt)).toBe(true);
   });
 });
