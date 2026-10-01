@@ -34,7 +34,7 @@ describe("AdjustRequestDialog — responder sem mudar a vaga", () => {
     const { user, fetchMock } = montar({ onValidarEmVez });
     expect(principal()).toHaveTextContent("Responder ao aprovador · validar a vaga");
     expect(screen.getByTestId("adjust-so-responder")).toHaveTextContent("volta para o aprovador validada");
-    await user.type(motivo(), "Henrique aprovou. Local de qui a sab.");
+    await user.click(motivo()); await user.paste("Henrique aprovou. Local de qui a sab.");
     await user.click(principal());
     expect(onValidarEmVez).toHaveBeenCalledWith("Henrique aprovou. Local de qui a sab.");
     expect(screen.queryByRole("alert")).toBeNull();
@@ -53,7 +53,7 @@ describe("AdjustRequestDialog — responder sem mudar a vaga", () => {
   it("sem o atalho (modal da Escalação), a regra continua: nada mudou é erro", async () => {
     const { user } = montar();
     expect(principal()).toHaveTextContent("Enviar pedido de ajuste");
-    await user.type(motivo(), "Qualquer coisa");
+    await user.click(motivo()); await user.paste("Qualquer coisa");
     await user.click(principal());
     expect(screen.getByRole("alert")).toHaveTextContent("Nada foi alterado. Mude ao menos um campo");
   });

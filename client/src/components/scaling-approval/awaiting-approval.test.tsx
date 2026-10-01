@@ -91,9 +91,9 @@ describe("AwaitingApproval", () => {
     const reprovar = screen.getByRole("button", { name: "Reprovar" });
     expect(reprovar).toBeDisabled();
     expect(comentario()).toBeRequired();
-    await user.type(comentario(), "   ");
+    await user.click(comentario()); await user.paste("   ");
     expect(reprovar).toBeDisabled();
-    await user.type(comentario(), "Faltou a logística ");
+    await user.click(comentario()); await user.paste("Faltou a logística ");
     expect(reprovar).toBeEnabled();
     await user.click(reprovar);
     expect(onDecide).toHaveBeenCalledWith(rows[0], "reprovar", "Faltou a logística");
@@ -105,7 +105,7 @@ describe("AwaitingApproval", () => {
     await user.click(screen.getByRole("button", { name: "Devolver a vaga #102 para a área" }));
     await screen.findByRole("alertdialog", { name: "Devolver a vaga para a área?" });
     expect(screen.getByRole("button", { name: "Devolver" })).toBeDisabled();
-    await user.type(comentario(), "Revisar as datas");
+    await user.click(comentario()); await user.paste("Revisar as datas");
     await user.click(screen.getByRole("button", { name: "Devolver" }));
     expect(onDecide).toHaveBeenCalledWith(rows[1], "devolver", "Revisar as datas");
   });
@@ -115,7 +115,7 @@ describe("AwaitingApproval", () => {
     const { user } = montar({ onDecide });
     await user.click(screen.getByRole("button", { name: "Reprovar a vaga #101" }));
     await screen.findByRole("alertdialog");
-    await user.type(comentario(), "Motivo longo");
+    await user.click(comentario()); await user.paste("Motivo longo");
     await user.click(screen.getByRole("button", { name: "Reprovar" }));
     await waitFor(() => expect(onDecide).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
@@ -149,7 +149,7 @@ describe("AwaitingApproval", () => {
     const dialogo = await screen.findByRole("alertdialog", { name: "Reprovar 2 vagas?" });
     expect(within(dialogo).getByTestId("decisao-lote-lista")).toHaveTextContent("#101");
     expect(within(dialogo).getByTestId("decisao-lote-lista")).toHaveTextContent("#102");
-    await user.type(comentario(), "Escala refeita");
+    await user.click(comentario()); await user.paste("Escala refeita");
     await user.click(screen.getByRole("button", { name: "Reprovar (2)" }));
     expect(onDecideMany).toHaveBeenCalledWith(rows, "reprovar", "Escala refeita");
   });
