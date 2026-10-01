@@ -497,3 +497,11 @@ anteriores e continuam valendo se ainda não foram feitos.
 - `GET /api/tickets/historico` sem filtro devolve todo o histórico (para "Todos os eventos").
 - **Dados:** a vaga #4261 (Bruno → Macks) teve a troca aprovada antes da publicação e a passagem do Bruno foi editada para a do Macks depois; ela foi reconstruída pelo histórico de alterações e gravada como histórico (QDXCYT / YKZDMQ, R$ 862,24). Total recuperado em 01/10: 10 passagens, R$ 6.656,07.
 
+## 16. 01/10 — Escalação volta a marcar mais de uma prova
+
+- **Relato:** "não estou conseguindo selecionar mais de uma prova".
+- **Causa:** desde a otimização de 23/09, com UM evento marcado a Escalação busca só as vagas dele (`?eventId=`). As opções do filtro de evento eram montadas dessas vagas — sobrava só a prova marcada para escolher.
+- **Correção:** as opções do filtro vêm da lista sem recorte de evento (a mesma que a tela usou ao abrir, quase sempre já em memória, sem nova ida ao servidor); a tabela continua carregando só o evento marcado. A prova marcada nunca some da lista.
+- Conferido no demo: com um evento marcado o filtro mantém todas as opções; marcando o segundo, o botão diz "2 eventos" e a tabela mostra as vagas das duas.
+- Operação: Pull + Stop/Run (só tela).
+

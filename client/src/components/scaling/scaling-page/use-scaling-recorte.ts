@@ -170,14 +170,19 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
   );
 
   const opcoesDeEvento = useMemo(() => {
+    // Lista SEM recorte de evento (01/10): com um evento marcado a tabela vem
+    // só dele, e as opções não podem encolher junto — senão não dá para marcar
+    // uma segunda prova. Enquanto ela não chega, vale a lista da tabela.
+    const base = data.vagasDasOpcoesDeEvento.length > 0 ? data.vagasDasOpcoesDeEvento : data.filteredTeamInclusions;
     const conta = new Map<string, number>();
-    for (const i of data.filteredTeamInclusions) {
+    for (const i of base) {
       if (!verExcluidos && (i.status === "cancelado" || i.deletedAt)) continue;
       conta.set(i.eventId, (conta.get(i.eventId) ?? 0) + 1);
     }
+    for (const id of eventosMarcados) if (!conta.has(id)) conta.set(id, 0);
     return Array.from(conta.entries()).map(([id, n]) => ({ id, nome: getEventName(id), n }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.filteredTeamInclusions, verExcluidos, data.eventById]);
+  }, [data.filteredTeamInclusions, data.vagasDasOpcoesDeEvento, verExcluidos, data.eventById, eventosMarcados]);
 
   /**
    * Quadro função × dia (04/09) — o mesmo da Validação, sobre as vagas do

@@ -45,6 +45,22 @@ export function useScalingQueries({ filters, user }: { filters: ScalingFilters; 
     placeholderData: keepPreviousData,
   });
 
+  /**
+   * Opções do filtro de evento (dono, 01/10: "não estou conseguindo selecionar
+   * mais de uma prova"). Com UM evento marcado a lista acima vem recortada
+   * (`?eventId=`), e as opções do filtro saíam dela — sobrava só aquele
+   * evento para marcar. Esta consulta é a lista SEM recorte de evento, na
+   * MESMA chave que a tela usou ao abrir: quase sempre já está no cache e não
+   * vai ao servidor. Só roda quando há exatamente um evento marcado.
+   */
+  const umEventoMarcado = filters.eventId.length === 1;
+  const { data: vagasSemRecorteDeEvento } = useQuery<TeamInclusion[]>({
+    ...listaDeVagasQuery(recorteDaListaDeVagas({ eventId: undefined, user, includeDeleted: filters.showDeleted })),
+    enabled: umEventoMarcado,
+    staleTime: 5 * 60_000,
+  });
+  const vagasParaOpcoesDeEvento = umEventoMarcado ? vagasSemRecorteDeEvento : teamInclusions;
+
   const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
   const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
   // Managers de todas as funções — uma única requisição. `userName` (01/09)
@@ -213,7 +229,7 @@ export function useScalingQueries({ filters, user }: { filters: ScalingFilters; 
   const isLoading = isLoadingInclusions || isLoadingEvents || isLoadingFunctions || isLoadingManagers || isLoadingCollaborators;
 
   return {
-    teamInclusions, isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,
+    teamInclusions, vagasParaOpcoesDeEvento, isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,
     events, functions, collaborators, tickets, accommodations, allFunctionManagers, escalaManagers,
     commentCountByInclusion, eventById, functionById, collaboratorById, ticketByInclusion,
     pendingChangeByInclusion, purchasedTicketByInclusion, accommodationByInclusion,

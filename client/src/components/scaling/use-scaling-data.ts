@@ -36,7 +36,7 @@ export function useScalingData(opts: {
 
   const q = useScalingQueries({ filters, user });
   const {
-    teamInclusions, events, functions, collaborators, tickets, accommodations,
+    teamInclusions, vagasParaOpcoesDeEvento, events, functions, collaborators, tickets, accommodations,
     isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,
     eventById, functionById, collaboratorById, ticketByInclusion, purchasedTicketByInclusion,
     accommodationByInclusion, pendingChangeByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,
@@ -66,7 +66,7 @@ export function useScalingData(opts: {
   const isPercursoInclusion = (inclusion: TeamInclusion) => isPercursoFunction(getFunctionName(inclusion.functionId));
 
   // ── Recorte de permissão de visualização ─────────────────────────────────
-  const filteredTeamInclusions = useMemo(() => (teamInclusions || []).filter(ti => {
+  const vagaVisivel = (ti: TeamInclusion) => {
     // Cinto e suspensório: o servidor já não manda excluídas quando o toggle
     // está desligado, mas o cache pode conter as da consulta anterior enquanto
     // a nova não chega (é o `placeholderData` que segura a lista na tela).
@@ -79,7 +79,14 @@ export function useScalingData(opts: {
     // Todo papel conhecido vê tudo; papel desconhecido só as funções que gere.
     if (hasRole(user, "admin", "production", "function_area", "purchasing", "financial")) return true;
     return userFunctionIds.has(ti.functionId);
-  }), [teamInclusions, eventById, user, userFunctionIds, filters.showDeleted]);
+  };
+  const filteredTeamInclusions = useMemo(() => (teamInclusions || []).filter(vagaVisivel),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [teamInclusions, eventById, user, userFunctionIds, filters.showDeleted]);
+  /** Vagas que alimentam as OPÇÕES do filtro de evento (ver use-scaling-queries). */
+  const vagasDasOpcoesDeEvento = useMemo(() => (vagasParaOpcoesDeEvento || []).filter(vagaVisivel),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [vagasParaOpcoesDeEvento, eventById, user, userFunctionIds, filters.showDeleted]);
 
   // ── Filtros + ordenação ─────────────────────────────────────────────────
   const scalingInclusions = useMemo(
@@ -167,7 +174,7 @@ export function useScalingData(opts: {
     accommodationByInclusion, pendingChangeByInclusion, pendingSwapByInclusion, approvedSwapInclusionIds, firstSwapByInclusion,
     commentCountByInclusion, getResponsavelDaFuncao: p.getResponsavelDaFuncao,
     // listas
-    filteredTeamInclusions, scalingInclusions,
+    filteredTeamInclusions, vagasDasOpcoesDeEvento, scalingInclusions,
     pendingSwapInclusionsAll, pendingSwapInclusionsInView,
     pendingProductionApprovals, pendingProductionApprovalsInView,
     hasActiveFilters,
