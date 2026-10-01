@@ -1,0 +1,22 @@
+#!/bin/sh
+# Protect unpublished main history from the Git pane's explicit Pull/rebase.
+branch=${2:-$(git symbolic-ref --quiet --short HEAD 2>/dev/null)}
+case "$branch" in
+  main|refs/heads/main) ;;
+  *) exit 0 ;;
+esac
+
+remote_ref=refs/remotes/subrepl-8cby4dvz/main
+if ! git rev-parse --verify --quiet "$remote_ref" >/dev/null; then
+  echo "Rebase da main bloqueado: não foi possível verificar o histórico remoto." >&2
+  echo "Use o workflow Atualizar código (merge)." >&2
+  exit 1
+fi
+
+outgoing=$(git rev-list --count "$remote_ref..refs/heads/main") || exit 1
+if [ "$outgoing" -gt 0 ]; then
+  echo "Rebase da main bloqueado: há $outgoing commits locais não enviados." >&2
+  echo "Nenhum arquivo foi alterado. Use o workflow Atualizar código (merge)." >&2
+  exit 1
+fi
+exit 0
