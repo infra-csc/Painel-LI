@@ -130,6 +130,11 @@ export function PlacarDeBlocos({ resumo, totals, blocoFiltro, setBlocoFiltro, de
               {obrigatorio && <span className={cn("block h-full rounded-full transition-[width] duration-300", (rb.faltam ? "bg-warning-strong" : "bg-success-strong"))} style={{ width: `${pct}%` }} />}
             </span>
             <span className="mt-1.5 block font-mono text-xs tabular-nums text-slate-700">{brl(VALOR_DO_BLOCO[b])}</span>
+            {b === "passagem" && (totals?.ticketsHistorico ?? 0) > 0 && (
+              <span className="mt-0.5 block text-2xs text-muted-foreground" data-testid="mirror-passagens-historico">
+                inclui {brl(totals?.ticketsHistorico ?? 0)} de passagens de trocas
+              </span>
+            )}
             <span className={cn("mt-0.5 block h-4 text-2xs font-bold", (rb.faltam ? "text-warning" : "text-info"))}>
               {obrigatorio ? (rb.faltam ? `${rb.faltam} ${rb.faltam === 1 ? "pessoa" : "pessoas"} a completar` : "bloco fechado") : ""}
             </span>

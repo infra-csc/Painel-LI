@@ -81,6 +81,9 @@ export function passagemFake(parcial: Partial<Ticket> = {}): Ticket {
   return {
     id: `passagem-${n}`,
     teamInclusionId: "vaga-1",
+    archivedAt: null,
+    archivedCollaboratorId: null,
+    archivedReason: null,
     transportType: "aereo",
     purchaseDate: "2026-03-20",
     actualDepartureDate: "2026-04-09",

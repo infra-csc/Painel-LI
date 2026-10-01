@@ -8,7 +8,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { db } from "../db";
 import { tickets as ticketsTable, insertTicketSchema } from "@shared/schema";
-import { inArray } from "drizzle-orm";
+import { and, inArray, isNull } from "drizzle-orm";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
 import {
   montarLogDeAuditoria,
@@ -31,6 +31,21 @@ export function registrarPassagens(app: Express): void {
       res.json(tickets);
     } catch {
       res.status(500).json({ message: "Erro ao buscar passagens" });
+    }
+  });
+
+  // GET /api/tickets/historico?teamInclusionId= | ?eventId= (01/10): passagens
+  // de quem saiu numa troca aprovada — com o nome de quem era a passagem.
+  app.get("/api/tickets/historico", async (req, res) => {
+    try {
+      const teamInclusionId = typeof req.query.teamInclusionId === "string" && req.query.teamInclusionId ? req.query.teamInclusionId : undefined;
+      const eventId = eventIdDaQuery(req);
+      if (!teamInclusionId && !eventId) return res.status(400).json({ message: "Informe a vaga ou o evento." });
+      const historico = await storage.getTicketHistory({ teamInclusionId, eventId });
+      res.set("Cache-Control", "no-store"); // dados do passageiro
+      res.json(historico);
+    } catch {
+      res.status(500).json({ message: "Erro ao buscar o histórico de passagens" });
     }
   });
 
@@ -87,7 +102,8 @@ export function registrarPassagens(app: Express): void {
       // e um INSERT de auditoria.
       const vagas = await storage.getTeamInclusionsByIds(ids);
       const vagaPorId = new Map(vagas.map((v) => [v.id, v]));
-      const passagens = await db.select().from(ticketsTable).where(inArray(ticketsTable.teamInclusionId, ids));
+      // Só as passagens ATUAIS: a de histórico (troca aprovada) não é carimbada.
+      const passagens = await db.select().from(ticketsTable).where(and(inArray(ticketsTable.teamInclusionId, ids), isNull(ticketsTable.archivedAt)));
       const passagensPorVaga = new Map<string, typeof passagens>();
       for (const t of passagens) {
         const lista = passagensPorVaga.get(t.teamInclusionId) ?? [];
@@ -155,6 +171,8 @@ export function registrarPassagens(app: Express): void {
       };
       const prev = await storage.getTicket(id);
       if (!prev) return res.status(404).json({ message: "Passagem não encontrada" });
+      // Histórico de troca não se edita: é o registro do que foi comprado (01/10).
+      if (prev.archivedAt) return res.status(409).json({ message: "Esta passagem é histórico de uma troca aprovada e não pode ser alterada. Registre a passagem do novo colaborador." });
       // Evento encerrado: só o administrador
       if (!await assertInclusionEventEditable(prev.teamInclusionId, ticketEditor, res)) return;
       const ticket = await storage.updateTicket(id, updates);

@@ -15,7 +15,7 @@ import CommentsModal from "@/components/modals/comments-modal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage } from "@/lib/api-error";
-import { AVISO_LOGISTICA_PARA_REVISAR } from "@/hooks/use-vaga-acoes";
+import { avisoDepoisDaTroca } from "@/hooks/use-vaga-acoes";
 import { isReadOnly } from "@/lib/interactions";
 import { useEventLock, PastEventBanner, PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 import { hasPermission } from "@/lib/role-utils";
@@ -31,6 +31,7 @@ import { refeicaoCents, refeicaoPerfil } from "@shared/alimentacao";
 import type { TeamInclusion, Ticket, User, Comment, TeamInclusionLog } from "@shared/schema";
 import TicketFormFields, { fieldTestIdSlug } from "./ticket-form-fields";
 import TicketSummaryTab from "./ticket-summary-tab";
+import { PassagensDeHistorico } from "./passagens-de-historico";
 import TicketViewDetails from "./ticket-view-details";
 import TicketExtrasTab from "./ticket-extras-tab";
 import SuggestedDates from "./suggested-dates";
@@ -93,11 +94,13 @@ export default function TicketModal({
 
   const approveSwapMutation = useMutation({
     mutationFn: async (id: string) =>
-      (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json() as Promise<{ logisticaParaRevisar?: boolean }>,
+      (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json() as Promise<{ logisticaParaRevisar?: boolean; passagensParaHistorico?: number }>,
     onSuccess: (resposta) => {
       toast({ title: "Troca aprovada", description: "O colaborador foi atualizado na escalação." });
       // Passagem/hospedagem já registradas para o colaborador antigo (24/09).
-      if (resposta?.logisticaParaRevisar) toast({ title: "Compras precisa revisar", description: AVISO_LOGISTICA_PARA_REVISAR });
+      { const aviso = avisoDepoisDaTroca(resposta); if (aviso) toast({ title: "Compras precisa revisar", description: aviso }); }
+      // A passagem de quem saiu virou histórico: a lista de passagens muda.
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests/inclusion", inclusionId] });
       // A lista global alimenta o banner e os selos "Troca pendente" da tabela.
       queryClient.invalidateQueries({ queryKey: ["/api/swap-requests"] });
@@ -268,6 +271,8 @@ export default function TicketModal({
                   onApproveSwap={(id) => approveSwapMutation.mutate(id)}
                   onRejectSwap={(id, comment) => rejectSwapMutation.mutate({ id, comment })}
                 />
+                {/* Passagens de quem saiu numa troca aprovada + total da vaga (01/10). */}
+                <PassagensDeHistorico teamInclusionId={inclusion.id} passagemAtualCentavos={ticket?.value ?? null} />
               </TabsContent>
 
               <TabsContent value="dados" className="m-0 p-6">

@@ -120,6 +120,14 @@ const PASSOS: Passo[] = [
   // 24/09 — observação opcional de quem valida a vaga na Validação de Escala,
   // lida pelo aprovador. O `select` explícito do storage lista a coluna: sem
   // ela, toda a listagem de vagas cai. Nula e aditiva — segura em prod.
+  // 01/10 — passagem de quem saiu numa troca aprovada vira histórico (não é
+  // apagada; o custo continua no evento). Nulas e aditivas.
+  {
+    descricao: "tickets.archived_at / archived_collaborator_id / archived_reason (histórico de passagem após troca)",
+    sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+      ALTER TABLE tickets ADD COLUMN IF NOT EXISTS archived_collaborator_id varchar;
+      ALTER TABLE tickets ADD COLUMN IF NOT EXISTS archived_reason text`,
+  },
   {
     descricao: "team_inclusions.validation_note (observação de quem validou a vaga)",
     sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS validation_note text`,

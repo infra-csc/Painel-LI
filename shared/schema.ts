@@ -347,6 +347,14 @@ export const tickets = pgTable("tickets", {
   baggageTotalCents: integer("baggage_total_cents"), // valor total bagagem em centavos
   baggageOc: text("baggage_oc"), // OC da bagagem
   baggageNotes: text("baggage_notes"), // observações da bagagem
+  // HISTÓRICO (dono, 01/10: "eu comprei mas vamos trocar o colaborador —
+  // aquela passagem fica de histórico, e o custo mantém na prova"). Quando uma
+  // troca é aprovada, a passagem de quem saiu NÃO é apagada nem editada: ganha
+  // `archivedAt` e deixa de ser a passagem atual da vaga (status, fila de
+  // Compras, telas). Continua somando no custo do evento (Espelho).
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  archivedCollaboratorId: varchar("archived_collaborator_id"), // de quem era a passagem
+  archivedReason: text("archived_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
@@ -731,6 +739,10 @@ export const ticketRowSchema = createInsertSchema(tickets).omit({
 export const insertTicketSchema = ticketRowSchema.omit({
   emittedAt: true,
   emittedBy: true,
+  // Histórico só é gravado pela aprovação da troca (server/routes/trocas.ts).
+  archivedAt: true,
+  archivedCollaboratorId: true,
+  archivedReason: true,
 });
 
 export const insertAccommodationSchema = createInsertSchema(accommodations).omit({
