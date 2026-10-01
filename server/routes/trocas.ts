@@ -33,7 +33,10 @@ import {
   descreverVagas,
   fmtBr,
   atorDaVaga,
+  recalcularStatusDeLogistica,
 } from "./_compartilhado";
+import { statusDepoisDePassagemParaHistorico } from "../vaga-guards";
+import { faseParaStatus } from "@shared/vaga-status";
 
 export function registrarTrocas(app: Express): void {
   // ── Solicitações de troca ─────────────────────────────────────────────────
@@ -129,6 +132,37 @@ export function registrarTrocas(app: Express): void {
   const logDaTroca = (teamInclusionId: string, action: string, details: string, previousValue: string | null, newValue: string | null, ator: User) => ({
     teamInclusionId, action, details, previousValue, newValue, userId: ator.id, userName: ator.name ?? "Usuário",
   });
+
+  type Transacao = Parameters<Parameters<typeof db.transaction>[0]>[0];
+  const brl = (centavos: number) => (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  /**
+   * Passagem de quem SAIU vira histórico (dono, 01/10: "eu comprei mas vamos
+   * trocar o colaborador — aquela passagem fica de histórico, e o custo mantém
+   * na prova"). Não apaga nem edita: carimba `archivedAt`, de quem era e o
+   * motivo. A vaga fica sem passagem atual (Compras compra a de quem entrou) e
+   * o valor continua somando no custo do evento (Espelho).
+   */
+  const arquivarPassagens = async (tx: Transacao, vagaId: string, deQuemEra: string | null, motivo: string) => {
+    const arquivadas = await tx.update(ticketsTable)
+      .set({ archivedAt: new Date(), archivedCollaboratorId: deQuemEra, archivedReason: motivo, updatedAt: new Date() })
+      .where(and(eq(ticketsTable.teamInclusionId, vagaId), isNull(ticketsTable.archivedAt)))
+      .returning({ id: ticketsTable.id, value: ticketsTable.value });
+    const total = arquivadas.reduce((s, t) => s + (t.value || 0), 0);
+    return { quantidade: arquivadas.length, total };
+  };
+
+  /** Sem a passagem atual, a vaga volta a pedir a de quem entrou (ver vaga-guards). */
+  const ajustarStatusSemPassagem = async (tx: Transacao, vagaId: string, temHospedagemViva: boolean) => {
+    const [vaga] = await tx.select({ status: teamInclusionsTable.status }).from(teamInclusionsTable).where(eq(teamInclusionsTable.id, vagaId));
+    const novo = statusDepoisDePassagemParaHistorico(vaga?.status, temHospedagemViva);
+    if (!novo) return;
+    await tx.update(teamInclusionsTable)
+      .set({ status: novo, phase: faseParaStatus(novo) ?? undefined, updatedAt: new Date() })
+      .where(eq(teamInclusionsTable.id, vagaId));
+  };
+  const textoDoArquivo = (nome: string, a: { quantidade: number; total: number }) =>
+    a.quantidade === 0 ? "" : ` — passagem de ${nome}${a.total ? ` (${brl(a.total)})` : ""} guardada no histórico da vaga; o custo continua no evento`;
 
   app.post("/api/swap-requests", async (req, res) => {
     const currentUser = await atorDaVaga(req, res);
@@ -309,14 +343,16 @@ export function registrarTrocas(app: Express): void {
             .set({ collaboratorId: null, status: 'escalacao', phase: 'escalacao', updatedAt: new Date(), updatedBy: currentUser.id })
             .where(and(eq(teamInclusionsTable.id, vagaOrigem.id), eq(teamInclusionsTable.collaboratorId, sr.new_collaborator_id), isNull(teamInclusionsTable.deletedAt))).returning();
           if (!destino || !origem) throw new HttpError(409, "As vagas mudaram desde o pedido — recuse e peça a transferência de novo.");
+          const arqOrigem = await arquivarPassagens(tx, vagaOrigem.id, sr.new_collaborator_id, `Transferência aprovada: ${nomeDoNovo} foi para a vaga #${vaga.inclusionNumber}`);
           await tx.insert(teamInclusionLogsTable).values([
             logDaTroca(vaga.id, "swap_approved", `Transferência aprovada por ${currentUser.name}: ${nomeDoNovo} entrou nesta vaga (vinha da vaga #${vagaOrigem.inclusionNumber})`, null, sr.new_collaborator_id, currentUser),
-            logDaTroca(vagaOrigem.id, "swap_approved", `Transferência aprovada por ${currentUser.name}: ${nomeDoNovo} saiu desta vaga para a vaga #${vaga.inclusionNumber} — vaga voltou a aberta`, sr.new_collaborator_id, null, currentUser),
+            logDaTroca(vagaOrigem.id, "swap_approved", `Transferência aprovada por ${currentUser.name}: ${nomeDoNovo} saiu desta vaga para a vaga #${vaga.inclusionNumber} — vaga voltou a aberta${textoDoArquivo(nomeDoNovo, arqOrigem)}`, sr.new_collaborator_id, null, currentUser),
           ]);
-          return pedido;
+          return { pedido, arqOrigem };
         });
-        await auditarPedido(pedido);
-        return res.json({ message: "Transferência aprovada com sucesso" });
+        await auditarPedido(pedido.pedido);
+        await recalcularStatusDeLogistica(vaga.id, currentUser, req);
+        return res.json({ message: "Transferência aprovada com sucesso", passagensParaHistorico: pedido.arqOrigem.quantidade });
       }
 
       if (sr.swap_kind === 'permuta') {
@@ -341,7 +377,7 @@ export function registrarTrocas(app: Express): void {
         const c2 = await conflitoNaTroca(atualId, outra, [vaga.id, outra.id]);
         if (c2) return res.status(c2.status).json({ message: c2.message });
         const nomeDoAtual = String((await storage.getCollaborator(atualId))?.fullName ?? "colaborador atual");
-        const { pedido, logisticaParaRevisar } = await db.transaction(async (tx) => {
+        const { pedido, logisticaParaRevisar, passagensParaHistorico } = await db.transaction(async (tx) => {
           const [pedido] = await tx.update(swapRequestsTable).set({ ...decisao, newCity: saiDe, pairedNewCity: saiDeOutro, reviewedAt: new Date() })
             .where(and(eq(swapRequestsTable.id, id), eq(swapRequestsTable.status, 'pendente'))).returning();
           if (!pedido) throw new HttpError(409, "Este pedido já foi decidido");
@@ -352,23 +388,30 @@ export function registrarTrocas(app: Express): void {
             .set({ collaboratorId: atualId, city: saiDeOutro, updatedAt: new Date(), updatedBy: currentUser.id })
             .where(and(eq(teamInclusionsTable.id, outra.id), eq(teamInclusionsTable.collaboratorId, sr.new_collaborator_id), isNull(teamInclusionsTable.deletedAt))).returning();
           if (!a || !b) throw new HttpError(409, "As vagas mudaram desde o pedido — recuse e peça a troca de novo.");
-          // Passagem/hospedagem das duas vagas NÃO são apagadas: Compras revisa.
-          const [p1, p2, h1, h2] = await Promise.all([
-            tx.select({ id: ticketsTable.id }).from(ticketsTable).where(eq(ticketsTable.teamInclusionId, vaga.id)),
-            tx.select({ id: ticketsTable.id }).from(ticketsTable).where(eq(ticketsTable.teamInclusionId, outra.id)),
+          // Passagens das duas vagas viram HISTÓRICO (01/10); hospedagem não é
+          // apagada: Compras revisa.
+          const arqEsta = await arquivarPassagens(tx, vaga.id, atualId, `Permuta aprovada: ${nomeDoAtual} → ${nomeDoNovo}`);
+          const arqOutra = await arquivarPassagens(tx, outra.id, sr.new_collaborator_id, `Permuta aprovada: ${nomeDoNovo} → ${nomeDoAtual}`);
+          const [h1, h2] = await Promise.all([
             tx.select({ id: accommodationsTable.id }).from(accommodationsTable).where(eq(accommodationsTable.teamInclusionId, vaga.id)),
             tx.select({ id: accommodationsTable.id }).from(accommodationsTable).where(eq(accommodationsTable.teamInclusionId, outra.id)),
           ]);
-          const logisticaParaRevisar = p1.length + p2.length + h1.length + h2.length > 0;
-          const aviso = logisticaParaRevisar ? " — passagem/hospedagem já registradas: Compras deve revisar" : "";
+          const temHospedagem = h1.length + h2.length > 0;
+          if (arqEsta.quantidade) await ajustarStatusSemPassagem(tx, vaga.id, h1.length > 0);
+          if (arqOutra.quantidade) await ajustarStatusSemPassagem(tx, outra.id, h2.length > 0);
+          const logisticaParaRevisar = temHospedagem || arqEsta.quantidade + arqOutra.quantidade > 0;
+          const avisoHotel = temHospedagem ? " — hospedagem já registrada: Compras deve revisar" : "";
           await tx.insert(teamInclusionLogsTable).values([
-            logDaTroca(vaga.id, "swap_approved", `Permuta aprovada por ${currentUser.name}: ${nomeDoAtual} → ${nomeDoNovo}${aviso}`, sr.current_collaborator_id, sr.new_collaborator_id, currentUser),
-            logDaTroca(outra.id, "swap_approved", `Permuta aprovada por ${currentUser.name}: ${nomeDoNovo} → ${nomeDoAtual}${aviso}`, sr.new_collaborator_id, sr.current_collaborator_id, currentUser),
+            logDaTroca(vaga.id, "swap_approved", `Permuta aprovada por ${currentUser.name}: ${nomeDoAtual} → ${nomeDoNovo}${textoDoArquivo(nomeDoAtual, arqEsta)}${avisoHotel}`, sr.current_collaborator_id, sr.new_collaborator_id, currentUser),
+            logDaTroca(outra.id, "swap_approved", `Permuta aprovada por ${currentUser.name}: ${nomeDoNovo} → ${nomeDoAtual}${textoDoArquivo(nomeDoNovo, arqOutra)}${avisoHotel}`, sr.new_collaborator_id, sr.current_collaborator_id, currentUser),
           ]);
-          return { pedido, logisticaParaRevisar };
+          return { pedido, logisticaParaRevisar, passagensParaHistorico: arqEsta.quantidade + arqOutra.quantidade };
         });
         await auditarPedido(pedido);
-        return res.json({ message: "Troca entre vagas aprovada com sucesso", logisticaParaRevisar });
+        // Sem a passagem atual, o status de logística das duas vagas é refeito.
+        await recalcularStatusDeLogistica(vaga.id, currentUser, req);
+        await recalcularStatusDeLogistica(outra.id, currentUser, req);
+        return res.json({ message: "Troca entre vagas aprovada com sucesso", logisticaParaRevisar, passagensParaHistorico });
       }
 
       // Substituição simples: o colaborador atual da vaga precisa ser o do pedido.
@@ -377,10 +420,14 @@ export function registrarTrocas(app: Express): void {
       }
       const conflito = await conflitoNaTroca(sr.new_collaborator_id, vaga, [vaga.id]);
       if (conflito) return res.status(conflito.status).json({ message: conflito.message });
-      // Passagem/hospedagem da vaga NÃO são apagadas: ficam para Compras revisar.
+      // Passagem de quem sai vira HISTÓRICO (01/10); hospedagem não é apagada:
+      // Compras revisa.
       const { temPassagem, temHospedagem } = await logisticaDaVaga(vaga.id);
       const logisticaParaRevisar = temPassagem || temHospedagem;
-      const pedido = await db.transaction(async (tx) => {
+      const nomeDoAtual = sr.current_collaborator_id
+        ? String((await storage.getCollaborator(sr.current_collaborator_id))?.fullName ?? "colaborador anterior")
+        : "colaborador anterior";
+      const { pedido, arquivo } = await db.transaction(async (tx) => {
         const [pedido] = await tx.update(swapRequestsTable).set({ ...decisao, newCity: saiDe, reviewedAt: new Date() })
           .where(and(eq(swapRequestsTable.id, id), eq(swapRequestsTable.status, 'pendente'))).returning();
         if (!pedido) throw new HttpError(409, "Este pedido já foi decidido");
@@ -394,15 +441,20 @@ export function registrarTrocas(app: Express): void {
             isNull(teamInclusionsTable.deletedAt),
           )).returning();
         if (!atualizada) throw new HttpError(409, "O colaborador desta vaga mudou desde o pedido — recuse e peça a troca de novo.");
+        const arquivo = await arquivarPassagens(tx, vaga.id, sr.current_collaborator_id ?? null, `Troca aprovada: ${nomeDoAtual} → ${nomeDoNovo}`);
+        if (arquivo.quantidade) await ajustarStatusSemPassagem(tx, vaga.id, temHospedagem);
         await tx.insert(teamInclusionLogsTable).values([
           logDaTroca(vaga.id, "swap_approved",
-            `Troca aprovada por ${currentUser.name}: ${nomeDoNovo} assume a vaga${logisticaParaRevisar ? " — passagem/hospedagem já registradas: Compras deve revisar" : ""}`,
+            `Troca aprovada por ${currentUser.name}: ${nomeDoNovo} assume a vaga${textoDoArquivo(nomeDoAtual, arquivo)}${temHospedagem ? " — hospedagem já registrada: Compras deve revisar" : ""}`,
             sr.current_collaborator_id ?? null, sr.new_collaborator_id, currentUser),
         ]);
-        return pedido;
+        return { pedido, arquivo };
       });
       await auditarPedido(pedido);
-      res.json({ message: "Troca aprovada com sucesso", logisticaParaRevisar });
+      // Sem a passagem atual, o status de logística da vaga é refeito
+      // (ex.: "passagem comprada" volta a pedir a passagem de quem entrou).
+      await recalcularStatusDeLogistica(vaga.id, currentUser, req);
+      res.json({ message: "Troca aprovada com sucesso", logisticaParaRevisar, passagensParaHistorico: arquivo.quantidade });
     } catch (error) {
       responderErroComStatus(res, error, "Erro ao aprovar troca", 500);
     }

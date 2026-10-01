@@ -233,6 +233,8 @@ interface BaseDoEvento {
   fnMap: Map<string, typeof functions.$inferSelect>;
   ticketByInclusion: Map<string, Ticket>;
   accByInclusion: Map<string, typeof accommodations.$inferSelect>;
+  /** Soma (centavos) das passagens de HISTÓRICO de cada vaga — troca aprovada (01/10). */
+  historicoPorVaga: Map<string, number>;
 }
 
 /**
@@ -271,8 +273,15 @@ async function carregarBaseDoEvento(eventId: string, exec: Exec = db): Promise<B
   const collabMap = new Map(collabRows.map((c) => [c.id, c]));
   const fnMap = new Map(fnRows.map((f) => [f.id, f]));
 
+  // Passagem de HISTÓRICO (troca aprovada, 01/10): não é a passagem da linha,
+  // mas o dinheiro foi gasto — soma no custo do evento, na vaga onde foi comprada.
+  const historicoPorVaga = new Map<string, number>();
   const ticketsPorVaga = new Map<string, Ticket[]>();
   for (const t of ticketRows) {
+    if (t.archivedAt) {
+      historicoPorVaga.set(t.teamInclusionId, (historicoPorVaga.get(t.teamInclusionId) ?? 0) + (t.value || 0));
+      continue;
+    }
     const lista = ticketsPorVaga.get(t.teamInclusionId);
     if (lista) lista.push(t); else ticketsPorVaga.set(t.teamInclusionId, [t]);
   }
@@ -288,7 +297,7 @@ async function carregarBaseDoEvento(eventId: string, exec: Exec = db): Promise<B
   const accByInclusion = new Map<string, typeof accommodations.$inferSelect>();
   for (const a of accRows) accByInclusion.set(a.teamInclusionId, a);
 
-  return { event, inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion };
+  return { event, inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga };
 }
 
 /** Membros dos grupos do evento, via join — sem ler a tabela de membros inteira. */
@@ -361,7 +370,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     membrosDeQuartoDoEvento(db, eventId),
   ]);
   if (!base) return null;
-  const { event, inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion } = base;
+  const { event, inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga } = base;
 
   const uberMembrosPorGrupo = agruparMembros(uberMemberRows, "uberGroupId");
   const roomMembrosPorGrupo = agruparMembros(roomMemberRows, "hotelRoomGroupId");
@@ -478,8 +487,13 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
 
   // ----- Totais -----
   let totalTickets = 0, totalHotel = 0, totalBaggage = 0, totalUber = 0, totalCarRental = 0;
+  // Passagem da linha + passagens de histórico da mesma vaga (troca aprovada).
+  const passagemDaVaga = (r: { teamInclusionId: string; ticket: { value?: number | null } | null }) =>
+    (r.ticket?.value || 0) + (historicoPorVaga.get(r.teamInclusionId) ?? 0);
+  let totalTicketsHistorico = 0;
+  historicoPorVaga.forEach((v) => { totalTicketsHistorico += v; });
   for (const r of rows) {
-    totalTickets += r.ticket?.value || 0;
+    totalTickets += passagemDaVaga(r);
     totalHotel += hotelTotalCents(r);
     totalBaggage += r.baggage.totalCents;
     totalUber += r.uber.totalCents;
@@ -492,7 +506,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   for (const r of rows) {
     const key = r.function.name || "(sem função)";
     if (!byFunction[key]) byFunction[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
-    const t = r.ticket?.value || 0;
+    const t = passagemDaVaga(r);
     const h = hotelTotalCents(r);
     byFunction[key].tickets += t;
     byFunction[key].hotel += h;
@@ -507,7 +521,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   for (const r of rows) {
     const key = r.function.area || r.function.name || "(sem departamento)";
     if (!byDepartment[key]) byDepartment[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
-    const t = r.ticket?.value || 0;
+    const t = passagemDaVaga(r);
     const h = hotelTotalCents(r);
     byDepartment[key].tickets += t;
     byDepartment[key].hotel += h;
@@ -522,7 +536,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
   for (const r of rows) {
     const key = r.function.costCenter || "(sem conta)";
     if (!byAccount[key]) byAccount[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
-    const t = r.ticket?.value || 0;
+    const t = passagemDaVaga(r);
     const h = hotelTotalCents(r);
     byAccount[key].tickets += t;
     byAccount[key].hotel += h;
@@ -548,6 +562,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     roomGroups: roomGroupsWithMembers,
     totals: {
       tickets: totalTickets,
+      ticketsHistorico: totalTicketsHistorico,
       hotel: totalHotel,
       baggage: totalBaggage,
       uber: totalUber,
@@ -730,7 +745,7 @@ export async function patchOperationalMirrorCell(eventId: string, rowId: string,
       // Com mais de uma passagem na vaga (ida e volta separadas), edita a mais
       // recente — é a que o espelho usa de base ao consolidar.
       const [existing] = await tx.select({ id: tickets.id }).from(tickets)
-        .where(eq(tickets.teamInclusionId, rowId))
+        .where(and(eq(tickets.teamInclusionId, rowId), isNull(tickets.archivedAt)))
         .orderBy(sql`${tickets.createdAt} DESC NULLS LAST`, sql`${tickets.id} DESC`).limit(1);
       if (existing) {
         await tx.update(tickets).set(patchDinamico<Partial<typeof tickets.$inferInsert>>({ [target.col]: value, updatedAt: new Date() })).where(eq(tickets.id, existing.id));

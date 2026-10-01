@@ -20,6 +20,7 @@
 import type { ReactNode } from "react";
 import { Plane, MessageSquare, History, Bed } from "lucide-react";
 import { TabsContent } from "@/components/ui/tabs";
+import { PassagensDeHistorico } from "@/components/tickets/passagens-de-historico";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { TeamInclusion, Ticket, Accommodation, Comment } from "@shared/schema";
@@ -111,6 +112,8 @@ export function PassagemTab({ inclusion, ticket: selectedTicket, renderAttachmen
           ) : (
             <TicketDetails ticket={selectedTicket} renderAttachments={renderAttachments} />
           )}
+          {/* Passagens de quem saiu numa troca aprovada + total da vaga (01/10). */}
+          <PassagensDeHistorico teamInclusionId={inclusion.id} passagemAtualCentavos={selectedTicket?.value ?? null} />
         </TabsContent>
   );
 }

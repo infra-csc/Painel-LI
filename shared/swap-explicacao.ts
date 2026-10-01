@@ -65,7 +65,7 @@ export function explicarTroca(t: TrocaParaExplicar): ExplicacaoDaTrocaTexto {
       observacoes: [
         "As duas vagas mudam juntas, no mesmo instante — ninguém fica em duas vagas nem sem vaga.",
         "Cada vaga passa a sair da cidade indicada acima, que é a origem da passagem.",
-        "Passagem e hospedagem já compradas continuam no nome de quem estava na vaga: revise as duas vagas.",
+        "Passagem já comprada nas duas vagas vai para o histórico de cada vaga (o custo continua no evento); Compras compra as novas. Hospedagem já registrada: revise.",
       ],
       recusa: `Recusar vale para as duas vagas: ${atual} continua na vaga ${numEsta} e ${novo} continua na vaga ${numOutra}.`,
     };
@@ -81,7 +81,7 @@ export function explicarTroca(t: TrocaParaExplicar): ExplicacaoDaTrocaTexto {
       observacoes: [
         `${novo} sai da vaga ${numOutra} e entra na vaga ${numEsta}, no mesmo instante.`,
         `A vaga ${numOutra} volta a ficar aberta — a área precisa escalar outra pessoa nela.`,
-        `Passagem e hospedagem já compradas na vaga ${numOutra} continuam no nome de ${novo}: revise.`,
+        `Passagem já comprada para ${novo} na vaga ${numOutra} vai para o histórico dela (o custo continua no evento). Hospedagem já registrada: revise.`,
       ],
       recusa: `Recusar vale para as duas vagas: ${novo} continua na vaga ${numOutra} e a vaga ${numEsta} segue aberta.`,
     };
@@ -93,7 +93,7 @@ export function explicarTroca(t: TrocaParaExplicar): ExplicacaoDaTrocaTexto {
     observacoes: [
       `${novo} assume a vaga no lugar de ${atual}.`,
       "A vaga passa a sair da cidade indicada acima, que é a origem da passagem.",
-      `Passagem e hospedagem já compradas continuam no nome de ${atual}: revise antes de aprovar.`,
+      `Passagem já comprada para ${atual} vai para o histórico da vaga (o custo continua no evento) e Compras compra a de ${novo}. Hospedagem já registrada: revise antes de aprovar.`,
     ],
     recusa: `Recusar mantém ${atual} na vaga ${numEsta}.`,
   };

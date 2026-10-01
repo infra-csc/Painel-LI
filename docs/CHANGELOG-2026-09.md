@@ -477,3 +477,16 @@ anteriores e continuam valendo se ainda não foram feitos.
 - Teste de rota novo (voucher e reserva de Compras abrem para a área; anexo avulso continua 403). `docs/seguranca-e-permissoes.md` atualizado.
 - Operação: Pull + **Stop/Run**. Sem migração.
 
+## 14. 01/10 — passagem de quem sai numa troca vira histórico (o custo fica na prova)
+
+- **Pedido do dono:** "eu comprei mas vamos trocar o colaborador — aquela passagem fica de histórico", "o custo mantém na prova" e "tem que ter algo falando do total daquela passagem com o histórico".
+- **Antes:** a passagem continuava presa à vaga depois da troca, como se fosse de quem entrou; quando Compras registrava a nova, a antiga era sobrescrita — perdia LOC, valor e custo.
+- **Agora**, ao aprovar uma troca (simples, permuta ou transferência):
+  - a passagem de quem saiu **não é apagada nem editada**: vira histórico da vaga, com de quem era, o motivo e a data; não aceita mais edição;
+  - a vaga deixa de ter passagem atual — o status volta a pedir a passagem de quem entrou (passagem comprada → escalado; com hospedagem → hospedagem comprada);
+  - o **custo continua na prova**: o Espelho soma as passagens de histórico no total e nos subtotais, e o bloco Passagem diz "inclui R$ X de passagens de trocas";
+  - na aba Passagem da vaga (Escalação e Passagens) aparece "Passagens anteriores · histórico", com trechos, LOC, valor, anexos e o **total da vaga = atual + histórico**;
+  - o aviso para Compras depois da aprovação diz que a passagem foi para o histórico e falta comprar a de quem entrou.
+- **Desenvolvimento:** `tickets.archived_at / archived_collaborator_id / archived_reason` (criadas no boot pelo `ensure-schema`; script em `scripts/migrations/2026-10-01-passagens-historico.sql`); `getTickets` e `getTicketsByInclusionId` devolvem só as atuais; `getTicketHistory` e `GET /api/tickets/historico`; `statusDepoisDePassagemParaHistorico` em `server/vaga-guards.ts` (única exceção à regra "compra não volta para escalado"); testes em `server/test/passagens-historico.test.ts`.
+- **Operação:** Pull + **Stop/Run**. As colunas novas são criadas sozinhas no boot.
+

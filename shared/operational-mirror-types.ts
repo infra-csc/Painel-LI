@@ -97,7 +97,10 @@ export interface MirrorSubtotal {
 }
 
 export interface MirrorTotals {
+  /** Passagens: as atuais + as de HISTÓRICO (troca aprovada) — o dinheiro foi gasto. */
   tickets: number;
+  /** Quanto de `tickets` é de passagem que virou histórico numa troca (01/10). */
+  ticketsHistorico: number;
   hotel: number;
   baggage: number;
   uber: number;

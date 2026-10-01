@@ -88,6 +88,24 @@ export function statusDeLogistica(e: EntradaDeLogistica): StatusDaVaga | null {
   return podeTransitar(bruto, alvo).ok ? alvo : null;
 }
 
+/**
+ * Status da vaga quando a passagem de quem SAIU vira histórico numa troca
+ * aprovada (01/10). É a ÚNICA exceção à regra "compra registrada não volta
+ * para escalado" (`statusDeLogistica` não regride; `TRANSICOES` não deixa):
+ * aqui a regressão é a decisão humana que aquela regra pede — a troca —, e a
+ * passagem atual deixou mesmo de existir. Quem entrou precisa da dele.
+ *  - passagem_comprada → escalado;
+ *  - hospedagem_passagem_comprada → hospedagem_comprada (hospedagem continua
+ *    registrada, Compras revisa) ou escalado (sem hospedagem viva);
+ *  - qualquer outro status: null (não mexe).
+ */
+export function statusDepoisDePassagemParaHistorico(statusAtual: string | null | undefined, temHospedagemViva: boolean): StatusDaVaga | null {
+  const atual = normalizarStatus(statusAtual) ?? "";
+  if (atual === "passagem_comprada") return "escalado";
+  if (atual === "hospedagem_passagem_comprada") return temHospedagemViva ? "hospedagem_comprada" : "escalado";
+  return null;
+}
+
 // ── Troca direta de colaborador ──────────────────────────────────────────────
 
 /**

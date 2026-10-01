@@ -7,7 +7,7 @@ import { apiErrorMessage, apiErrorStatus, isApiError } from "@/lib/api-error";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { avisarAgenda, AVISO_LOGISTICA_PARA_REVISAR, semAvisos, useCancelarVaga } from "@/hooks/use-vaga-acoes";
+import { avisarAgenda, semAvisos, useCancelarVaga, avisoDepoisDaTroca } from "@/hooks/use-vaga-acoes";
 import type { TeamInclusion } from "@shared/schema";
 import { CENO_FREELA_TIPO_LABELS, type CenoFreelaTipo } from "@shared/cenotecnica-empreita";
 
@@ -114,12 +114,14 @@ export function useScalingMutations(opts: {
   const approveSwap = useMutation({
     mutationFn: async (id: string) => {
       const r = await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {});
-      return r.json() as Promise<{ message?: string; logisticaParaRevisar?: boolean }>;
+      return r.json() as Promise<{ message?: string; logisticaParaRevisar?: boolean; passagensParaHistorico?: number }>;
     },
     onSuccess: (resposta) => {
       toast({ title: "Troca aprovada", description: "O colaborador e a cidade de saída foram atualizados na escalação." });
       // Passagem/hospedagem já registradas para o colaborador antigo (24/09).
-      if (resposta?.logisticaParaRevisar) toast({ title: "Compras precisa revisar", description: AVISO_LOGISTICA_PARA_REVISAR });
+      { const aviso = avisoDepoisDaTroca(resposta); if (aviso) toast({ title: "Compras precisa revisar", description: aviso }); }
+      // A passagem de quem saiu virou histórico: a lista de passagens muda.
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       invalidateInclusionSwaps();
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },

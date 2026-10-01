@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage } from "@/lib/api-error";
-import { AVISO_LOGISTICA_PARA_REVISAR } from "@/hooks/use-vaga-acoes";
+import { avisoDepoisDaTroca } from "@/hooks/use-vaga-acoes";
 import { fixEncoding } from "@/lib/utils";
 import type { Collaborator, TeamInclusion } from "@shared/schema";
 import type { NormalizedSwap } from "./types";
@@ -46,11 +46,13 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
 
   const approveMutation = useMutation({
     mutationFn: async (id: string) =>
-      (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json() as Promise<{ logisticaParaRevisar?: boolean }>,
+      (await apiRequest("PATCH", `/api/swap-requests/${id}/approve`, {})).json() as Promise<{ logisticaParaRevisar?: boolean; passagensParaHistorico?: number }>,
     onSuccess: (resposta) => {
       toast({ variant: "success", title: "Troca aprovada", description: "O colaborador e a cidade de saída foram atualizados na escalação." });
       // Passagem/hospedagem já registradas para o colaborador antigo (24/09).
-      if (resposta?.logisticaParaRevisar) toast({ title: "Compras precisa revisar", description: AVISO_LOGISTICA_PARA_REVISAR });
+      { const aviso = avisoDepoisDaTroca(resposta); if (aviso) toast({ title: "Compras precisa revisar", description: aviso }); }
+      // A passagem de quem saiu virou histórico: a lista de passagens muda.
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       invalidate();
     },
     // 409 = pedido já decidido; a mensagem do servidor explica.

@@ -1,3 +1,4 @@
+import { statusDepoisDePassagemParaHistorico } from "./vaga-guards";
 import { describe, it, expect } from "vitest";
 import {
   podeEditarVaga,
@@ -122,5 +123,21 @@ describe("motivoParaRecusarFluxoNoPatch — client antigo mandando status pelo P
     expect(motivoParaRecusarFluxoNoPatch({ status: "reaberto" }, vaga)).toContain("/reactivate");
     expect(motivoParaRecusarFluxoNoPatch({ status: "hospedagem_comprada" }, vaga)).toMatch(/rotas dedicadas/);
     expect(motivoParaRecusarFluxoNoPatch({ previousStatus: "escalado" }, vaga)).toMatch(/rotas dedicadas/);
+  });
+});
+
+// 01/10: passagem de quem saiu numa troca aprovada vira histórico.
+describe("statusDepoisDePassagemParaHistorico", () => {
+  it("passagem comprada volta a escalado (quem entrou precisa da passagem dele)", () => {
+    expect(statusDepoisDePassagemParaHistorico("passagem_comprada", false)).toBe("escalado");
+  });
+  it("passagem + hospedagem: fica a hospedagem se ela ainda está registrada", () => {
+    expect(statusDepoisDePassagemParaHistorico("hospedagem_passagem_comprada", true)).toBe("hospedagem_comprada");
+    expect(statusDepoisDePassagemParaHistorico("hospedagem_passagem_comprada", false)).toBe("escalado");
+  });
+  it("outros status não mudam", () => {
+    for (const s of ["escalado", "hospedagem_comprada", "aprovado", "concluido", "cancelado", null]) {
+      expect(statusDepoisDePassagemParaHistorico(s, true)).toBeNull();
+    }
   });
 });

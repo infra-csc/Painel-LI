@@ -180,6 +180,18 @@ export interface RespostaDoCancelamento {
 export const AVISO_LOGISTICA_PARA_REVISAR = "Há passagem/hospedagem nesta vaga — Compras precisa revisar.";
 
 /**
+ * Aviso para Compras depois de aprovar uma troca (01/10): a passagem de quem
+ * saiu vira histórico da vaga — o custo continua no evento — e falta comprar
+ * a de quem entrou. Sem passagem, vale o aviso genérico (hospedagem).
+ */
+export function avisoDepoisDaTroca(r: { logisticaParaRevisar?: boolean; passagensParaHistorico?: number } | null | undefined): string | null {
+  if (r?.passagensParaHistorico) {
+    return "A passagem de quem saiu foi para o histórico da vaga (o custo continua no evento). Compras precisa comprar a passagem de quem entrou.";
+  }
+  return r?.logisticaParaRevisar ? AVISO_LOGISTICA_PARA_REVISAR : null;
+}
+
+/**
  * `POST /api/team-inclusions/:id/cancel`. 409 quando já cancelada (ou a
  * transição não é permitida), 403 com passagem emitida para quem não é
  * administrador — a mensagem do servidor vai para o toast.
