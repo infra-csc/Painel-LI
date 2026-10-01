@@ -67,13 +67,22 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
       ? [{ key: "troca" as const, rotulo: "Troca", n: trocasPendentes, sub: "aguardando análise" }]
       : []),
     {
+      // 01/10: passagem de quem saiu numa troca continua comprada (histórico) —
+      // entra na contagem e no valor, com a parte de troca dita na sub-linha.
       key: "compradas",
       rotulo: "Compradas",
-      n: kpis.compradas,
-      sub: formatBrl(kpis.valor.totalCents),
-      titulo: kpis.valor.count > 0
-        ? `${formatBrl(kpis.valor.totalCents)} no total · média ${formatBrl(kpis.valor.avgCents)} · ${kpis.valor.count} com valor informado`
-        : "Nenhum valor informado nas passagens compradas",
+      n: kpis.compradas + (kpis.historico?.count ?? 0),
+      sub: (kpis.historico?.count ?? 0) > 0
+        ? `${formatBrl(kpis.valor.totalCents + kpis.historico.totalCents)} · ${kpis.historico.count} de troca`
+        : formatBrl(kpis.valor.totalCents),
+      titulo: [
+        kpis.valor.count > 0
+          ? `Atuais: ${kpis.compradas} · ${formatBrl(kpis.valor.totalCents)} · média ${formatBrl(kpis.valor.avgCents)} · ${kpis.valor.count} com valor informado`
+          : "Nenhum valor informado nas passagens atuais",
+        (kpis.historico?.count ?? 0) > 0
+          ? `Histórico de trocas: ${kpis.historico.count} · ${formatBrl(kpis.historico.totalCents)} (passagens de quem saiu — o custo continua no evento)`
+          : null,
+      ].filter(Boolean).join("\n"),
     },
   ];
 

@@ -490,3 +490,10 @@ anteriores e continuam valendo se ainda não foram feitos.
 - **Desenvolvimento:** `tickets.archived_at / archived_collaborator_id / archived_reason` (criadas no boot pelo `ensure-schema`; script em `scripts/migrations/2026-10-01-passagens-historico.sql`); `getTickets` e `getTicketsByInclusionId` devolvem só as atuais; `getTicketHistory` e `GET /api/tickets/historico`; `statusDepoisDePassagemParaHistorico` em `server/vaga-guards.ts` (única exceção à regra "compra não volta para escalado"); testes em `server/test/passagens-historico.test.ts`.
 - **Operação:** Pull + **Stop/Run**. As colunas novas são criadas sozinhas no boot.
 
+## 15. 01/10 — card "Compradas" conta as passagens de histórico
+
+- **Relato do dono** (Night Run Vitória): "subi mas ele não entendeu que tem 15 passagens". O card "Compradas" da tela de Passagens contava só as passagens atuais (14).
+- Agora conta também as passagens de histórico (troca aprovada) das vagas no filtro: **15 · R$ X · 1 de troca**; ao passar o mouse, a separação entre atuais e histórico.
+- `GET /api/tickets/historico` sem filtro devolve todo o histórico (para "Todos os eventos").
+- **Dados:** a vaga #4261 (Bruno → Macks) teve a troca aprovada antes da publicação e a passagem do Bruno foi editada para a do Macks depois; ela foi reconstruída pelo histórico de alterações e gravada como histórico (QDXCYT / YKZDMQ, R$ 862,24). Total recuperado em 01/10: 10 passagens, R$ 6.656,07.
+

@@ -103,6 +103,15 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     queryKey: eventoSelecionado ? ["/api/tickets", { eventId: eventoSelecionado }] : ["/api/tickets"],
     queryFn: ({ signal }) => fetchJson<Ticket[]>(eventoSelecionado ? `/api/tickets?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/tickets", signal),
   });
+  // Passagens de HISTÓRICO (troca aprovada, 01/10) no mesmo recorte: entram
+  // no card "Compradas" — o dono: "ele não entendeu que tem 15 passagens".
+  // Chave começa com "/api/tickets": registrar passagem ou aprovar troca já
+  // invalida.
+  const { data: historicoDePassagens } = useQuery<Ticket[]>({
+    queryKey: ["/api/tickets", "historico", { eventId: eventoSelecionado ?? "todos" }],
+    queryFn: ({ signal }) => fetchJson<Ticket[]>(eventoSelecionado ? `/api/tickets/historico?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/tickets/historico", signal),
+    staleTime: 60_000,
+  });
   const { data: accommodations } = useQuery<Accommodation[]>({
     queryKey: eventoSelecionado ? ["/api/accommodations", { eventId: eventoSelecionado }] : ["/api/accommodations"],
     queryFn: ({ signal }) => fetchJson<Accommodation[]>(eventoSelecionado ? `/api/accommodations?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/accommodations", signal),
@@ -350,9 +359,13 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
         aguardando++;
       }
     }
-    return { total: filteredTicketInclusions.length, compradas, aguardando, semChegada, valor: purchasedValueKpi(values) };
+    // Histórico das vagas que estão no filtro: conta e soma no "Compradas".
+    const idsNoFiltro = new Set(filteredTicketInclusions.map((i) => i.id));
+    const doHistorico = (historicoDePassagens ?? []).filter((t) => idsNoFiltro.has(t.teamInclusionId));
+    const historico = { count: doHistorico.length, totalCents: doHistorico.reduce((s, t) => s + (t.value || 0), 0) };
+    return { total: filteredTicketInclusions.length, compradas, aguardando, semChegada, valor: purchasedValueKpi(values), historico };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredTicketInclusions, ticketByInclusion, eventById, podeAgirEmEventoPassado]);
+  }, [filteredTicketInclusions, ticketByInclusion, eventById, podeAgirEmEventoPassado, historicoDePassagens]);
 
   return {
     // dados crus
