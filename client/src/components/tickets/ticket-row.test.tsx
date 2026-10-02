@@ -73,7 +73,7 @@ describe("TicketRow", () => {
   it("modo cartão (celular): cada célula carrega o rótulo em data-rotulo para o CSS empilhar", () => {
     const { linha } = montar({ ticket: PASSAGEM() });
     const rotulos = Array.from(linha.querySelectorAll("td[data-rotulo]")).map((td) => td.getAttribute("data-rotulo"));
-    expect(rotulos).toEqual(["Evento e função", "Passageiro", "Destino", "Ida e volta", "Sugestões", "Situação"]);
+    expect(rotulos).toEqual(["Evento", "Função", "Passageiro", "Destino", "Ida e volta", "Sugestões", "Situação"]);
   });
 
   it("pendente: 'Não comprada' + pílula Pendente, checkbox de lote e botão 'Registrar passagem' para quem edita", async () => {

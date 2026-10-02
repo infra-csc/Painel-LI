@@ -137,6 +137,9 @@ export default function Tickets() {
    * de `tickets-filtering.ts` — a MESMA regra que monta a lista, para o número
    * não poder divergir do que a pessoa vê depois de escolher.
    */
+  /** Datas de cada evento para o período "Data do evento" (02/10). */
+  const datasDoEvento = useCallback((id: string | null | undefined) => (id ? data.eventById.get(id) : undefined), [data.eventById]);
+
   const opcoesDosFiltros = useMemo(() => {
     const todas = data.teamInclusions ?? [];
     const ctx = { eventById: data.eventById, collaboratorById: data.collaboratorById, hoje: data.hoje };
@@ -583,6 +586,7 @@ export default function Tickets() {
           opcoesDeColaborador={opcoesDosFiltros.colaboradores}
           linhasSemPeriodo={opcoesDosFiltros.semPeriodo}
           hoje={data.hoje}
+          datasDoEvento={datasDoEvento}
           count={filteredTicketInclusions.length}
           total={ticketInclusions.length}
         />

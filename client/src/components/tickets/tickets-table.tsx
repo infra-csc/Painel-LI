@@ -91,7 +91,7 @@ export default function TicketsTable({
     <button
       type="button"
       onClick={() => onSort(field)}
-      className={`inline-flex items-center h-[26px] rounded-sm hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${sortConfig?.field === field ? "text-primary" : ""}`}
+      className={`inline-flex items-center h-[26px] rounded-sm uppercase hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${sortConfig?.field === field ? "text-primary" : ""}`}
       data-testid={`header-${field}`}
       title={`Ordenar por ${label.toLowerCase()}`}
     >
@@ -159,10 +159,9 @@ export default function TicketsTable({
             <th scope="col" className={`px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground w-[64px] whitespace-nowrap`}>
               {sortBtn("id", "ID")}
             </th>
-            {/* Evento e Função ordenam separadamente */}
-            <th scope="col" className={`${TH} whitespace-nowrap`}>
-              {sortBtn("event", "Evento")}<span className="mx-1 text-muted-foreground">/</span>{sortBtn("function", "Função")}
-            </th>
+            {/* Evento e Função em colunas próprias (02/10), cada uma ordena. */}
+            <th scope="col" className={`${TH} whitespace-nowrap`}>{sortBtn("event", "Evento")}</th>
+            <th scope="col" className={`${TH} whitespace-nowrap`}>{sortBtn("function", "Função")}</th>
             <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={onSort}>Colaborador</SortableHeader>
             <th scope="col" className={TH}>Destino</th>
             <SortableHeader field="diarias" sortConfig={sortConfig} onSort={onSort}>Datas e horários</SortableHeader>
@@ -172,7 +171,7 @@ export default function TicketsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border" aria-rowcount={rows.length}>
-          <EspacadorLinha altura={virtuais.espacoAntes} colunas={9} />
+          <EspacadorLinha altura={virtuais.espacoAntes} colunas={10} />
           {virtuais.linhas.map(({ item: inclusion, index: rowIdx, medir }) => (
             <TicketRow
               key={inclusion.id}
@@ -196,7 +195,7 @@ export default function TicketsTable({
               emitindo={emitindo}
             />
           ))}
-          <EspacadorLinha altura={virtuais.espacoDepois} colunas={9} />
+          <EspacadorLinha altura={virtuais.espacoDepois} colunas={10} />
         </tbody>
       </table>
       </div>

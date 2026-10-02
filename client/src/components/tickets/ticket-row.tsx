@@ -103,14 +103,18 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
         </span>
       </td>
 
-      {/* Evento / Função */}
-      <td className={cellCls} data-rotulo="Evento e função" onClick={open}>
+      {/* Evento */}
+      <td className={cellCls} data-rotulo="Evento" onClick={open}>
         {eventName === "Evento não encontrado" ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-danger-soft text-danger-strong text-2xs font-semibold rounded-md">⚠ Não encontrado</span>
         ) : (
           <p className="text-sm font-semibold text-foreground">{eventName}</p>
         )}
-        <p className="text-xs mt-0.5 text-muted-foreground">{functionName}</p>
+      </td>
+
+      {/* Função — coluna própria (02/10: "incluir a coluna de função na tela") */}
+      <td className={cellCls} data-rotulo="Função" onClick={open}>
+        <p className="text-sm text-foreground">{functionName}</p>
       </td>
 
       {/* Colaborador */}

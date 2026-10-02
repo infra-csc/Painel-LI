@@ -505,3 +505,11 @@ anteriores e continuam valendo se ainda não foram feitos.
 - Conferido no demo: com um evento marcado o filtro mantém todas as opções; marcando o segundo, o botão diz "2 eventos" e a tabela mostra as vagas das duas.
 - Operação: Pull + Stop/Run (só tela).
 
+## 17. 02/10 — Passagens: filtro pela data do evento e coluna de Função
+
+- **Pedidos:** "incluir o filtro da data do evento também na tela de Passagens" e "incluir a coluna de função na tela".
+- **Período:** o seletor ganhou "Medir por: Data da escala | Data do evento" — o mesmo da Escalação (22/09). "Data do evento" mede pelo dia da prova, não pelo início da escala (montagem). A escolha vai para o endereço da página (`base=evento`) e sobrevive ao recarregar.
+- **Coluna Função:** Evento e Função viram colunas próprias, cada uma ordenável. No modo cartão (tela estreita) as duas aparecem com rótulo próprio.
+- Títulos ordenáveis da tabela em caixa alta como os demais (o botão de ordenar não herdava).
+- **Dados (02/10):** 66 vagas que esperavam o gestor foram aprovadas em lote a pedido do dono (9 → Aprovado, 57 → Escalado), registradas como aprovadas por Yan Neves Araujo.
+
