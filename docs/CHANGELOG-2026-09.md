@@ -520,3 +520,11 @@ anteriores e continuam valendo se ainda não foram feitos.
 - **Correção** (`shared/room-pairing.ts`): 1º quem deixa **menos noites sem dividir** (datas iguais primeiro); 2º mesma função; 3º mais noites em comum. Testes com o caso real.
 - **Operação:** Pull + Stop/Run e, no Espelho de cada evento, **Recalcular sugestões** — refaz só as sugestões não confirmadas; quartos já confirmados ficam como estão.
 
+## 19. 02/10 — Escalação avisa o conflito de agenda com uma prova marcada
+
+- **Relato:** "dando vários erros desse" — ao escalar no Night Run Curitiba (agora 28/10–01/11), o servidor recusava ("já está escalado em New Balance Brasília… datas sobrepostas") sem a tela ter avisado.
+- **Os conflitos são reais:** o novo fim de semana do Night Run Curitiba é o mesmo de New Balance Brasília, Makai João Pessoa, Viva Esporte Fundão, Blue Run Santos e Night Run Vitória.
+- **O defeito:** com UM evento marcado a lista vem recortada (otimização de 23/09) e a agenda de cada colaborador era montada só com ela — a tela não via as vagas da pessoa em outras provas, então não mostrava "escalado em …", nem "Escalação bloqueada", nem o botão **Pedir transferência**.
+- **Correção:** a agenda usa também a lista sem recorte (a mesma das opções do filtro, em cache). Conferido no demo: com a prova marcada, quem está em outra prova aparece em amarelo com "Pedir transferência".
+- Operação: Pull + Stop/Run (só tela).
+
