@@ -61,6 +61,23 @@ export function noitesEmComum(a: RoomCandidate, b: RoomCandidate): number {
   return Number.isFinite(dias) ? Math.max(0, Math.round(dias)) : 0;
 }
 
+/** Noites que a pessoa fica no hotel. Sem data, 0. */
+export function noitesDaPessoa(a: RoomCandidate): number {
+  if (!a.checkIn || !a.checkOut) return 0;
+  const dias = (Date.parse(a.checkOut) - Date.parse(a.checkIn)) / 86400000;
+  return Number.isFinite(dias) ? Math.max(0, Math.round(dias)) : 0;
+}
+
+/**
+ * Noites que alguém dos dois passaria SOZINHO no quarto (02/10). Zero quando
+ * as datas são iguais. É o critério que faltava: o dono viu "quinta com
+ * sexta" num duplo enquanto havia outro "sexta" sobrando — os dois pares
+ * dividiam 2 noites, empatavam, e o desempate era a ordem da lista.
+ */
+export function noitesSemDividir(a: RoomCandidate, b: RoomCandidate): number {
+  return noitesDaPessoa(a) + noitesDaPessoa(b) - 2 * noitesEmComum(a, b);
+}
+
 /** Duas pessoas podem dividir o mesmo quarto? */
 export function podemDividir(a: RoomCandidate, b: RoomCandidate, config: RoomPairingConfig): boolean {
   if ((a.hotelName || "") !== (b.hotelName || "")) return false;
@@ -90,7 +107,12 @@ export function sugerirQuartos(candidatos: RoomCandidate[], config: RoomPairingC
       .slice(i + 1)
       .filter((b) => !usados.has(b.collaboratorId) && podemDividir(a, b, config))
       .sort((x, y) => {
-        // Mesma função primeiro; depois quem divide mais noites.
+        // 1º mesmas datas — "quinta com quinta e sexta com sexta" (dono,
+        // 02/10): quem deixa menos noites sem dividir; 2º mesma função;
+        // 3º quem divide mais noites.
+        const sx = noitesSemDividir(a, x);
+        const sy = noitesSemDividir(a, y);
+        if (sx !== sy) return sx - sy;
         if (config.sameFunctionPriority) {
           const xf = x.functionId && x.functionId === a.functionId ? 0 : 1;
           const yf = y.functionId && y.functionId === a.functionId ? 0 : 1;

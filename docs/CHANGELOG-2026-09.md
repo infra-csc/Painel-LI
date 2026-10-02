@@ -513,3 +513,10 @@ anteriores e continuam valendo se ainda não foram feitos.
 - Títulos ordenáveis da tabela em caixa alta como os demais (o botão de ordenar não herdava).
 - **Dados (02/10):** 66 vagas que esperavam o gestor foram aprovadas em lote a pedido do dono (9 → Aprovado, 57 → Escalado), registradas como aprovadas por Yan Neves Araujo.
 
+## 18. 02/10 — sugestão de quartos: datas iguais primeiro
+
+- **Relato do dono** (aba Quartos do Espelho): "olha os 2 primeiros quartos… não faz sentido… deveria ser quinta com quinta e sexta com sexta". Saíam Igor (sex–dom) + Bruno (qui–dom) e Renan (sex–dom) + Leonardo (qui–dom).
+- **Causa:** o parceiro era escolhido por "mesma função" e depois "mais noites em comum". Os dois pares dividiam 2 noites, empatavam, e o desempate era a ordem da lista.
+- **Correção** (`shared/room-pairing.ts`): 1º quem deixa **menos noites sem dividir** (datas iguais primeiro); 2º mesma função; 3º mais noites em comum. Testes com o caso real.
+- **Operação:** Pull + Stop/Run e, no Espelho de cada evento, **Recalcular sugestões** — refaz só as sugestões não confirmadas; quartos já confirmados ficam como estão.
+
