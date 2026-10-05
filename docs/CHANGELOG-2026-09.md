@@ -528,3 +528,12 @@ anteriores e continuam valendo se ainda não foram feitos.
 - **Correção:** a agenda usa também a lista sem recorte (a mesma das opções do filtro, em cache). Conferido no demo: com a prova marcada, quem está em outra prova aparece em amarelo com "Pedir transferência".
 - Operação: Pull + Stop/Run (só tela).
 
+
+## 20. 05/10 — Transferência também para vaga que já tem alguém
+
+- **Pedido:** "só quero tirar a Jaqueline e colocar a Aline sem trocar a vaga dela" — a Aline estava escalada em outra prova no mesmo período, então "Colocar outro colaborador" travava no conflito e "Trocar com alguém de outra vaga" mandaria a Jaqueline para a vaga dela.
+- **Agora:** em **Solicitar troca → Colocar outro colaborador**, quem está escalado no mesmo período aparece em amarelo com **Pedir transferência** (o mesmo botão da vaga aberta). O pedido mostra "Quem vem" e "Quem sai desta vaga".
+- **Aprovado por Compras**, numa transação só: a pessoa sai da vaga de origem (que fica aberta), entra nesta, e quem estava aqui sai da escala (não vai para lugar nenhum). Passagens de quem saiu de cada vaga viram histórico (o custo continua no evento); hospedagem registrada: Compras revisa.
+- Se qualquer vaga mudar entre o pedido e a aprovação, a aprovação recusa (409). Transferência para vaga aberta continua igual.
+- Testes: `server/test/transferencia.test.ts` (3) + textos em `shared/swap-explicacao.test.ts` e `shared/swap-permuta.test.ts`. Conferido no demo (1600 e 390px).
+- Operação: Pull + Stop/Run.

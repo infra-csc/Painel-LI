@@ -189,6 +189,13 @@ export function LinhasDaTransferencia({ swap, getCollaboratorName }: {
           )}
         </span>
       </p>
+      {/* Vaga de destino com alguém (05/10): essa pessoa sai da escala. */}
+      {swap.currentCollaboratorId && (
+        <p className="pl-[18px] text-slate-600" data-testid="swap-transferencia-quem-sai">
+          <span className="font-semibold text-foreground">{getCollaboratorName(swap.currentCollaboratorId) || "?"}</span> sai da{" "}
+          <span className="font-medium text-slate-700">{destino}</span> e fica fora da escala.
+        </p>
+      )}
       <p className="pl-[18px] text-muted-foreground">A {origem.split(" · ")[0]} fica aberta — a área escala outra pessoa nela.</p>
     </div>
   );

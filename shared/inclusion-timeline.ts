@@ -170,6 +170,7 @@ const LOG: Record<string, MapaDoLog> = {
   accommodation_deleted: { categoria: "alteracao", titulo: "Hospedagem removida" },
   baggage_changed: { categoria: "alteracao", titulo: "Bagagem alterada" },
   skip_uber_changed: { categoria: "alteracao", titulo: "Dispensa de Uber alterada" },
+  aviso_de_alteracao_resolvido: { categoria: "alteracao", titulo: "Compras atuou na alteração aprovada" },
 };
 
 /** Palavras em inglês que ainda podem aparecer numa ação sem rótulo cadastrado. */
@@ -299,7 +300,7 @@ export function montarHistoricoDaVaga(f: FontesDoHistorico): EntradaDoHistorico[
       const quem = s.newCollaboratorName || s.currentCollaboratorName || "?";
       const outra = s.outraVaga ?? "outra vaga";
       const texto = s.newCollaboratorName
-        ? [`${quem} vem da ${outra}`, s.newCity ? `sai de ${s.newCity}` : null].filter(Boolean).join(" · ")
+        ? [`${quem} vem da ${outra}`, s.currentCollaboratorName ? `no lugar de ${s.currentCollaboratorName}` : null, s.newCity ? `sai de ${s.newCity}` : null].filter(Boolean).join(" · ")
         : `${quem} sai desta vaga e vai para a ${outra} · esta vaga fica aberta`;
       const pedidaT = toIso(s.createdAt);
       if (pedidaT) {

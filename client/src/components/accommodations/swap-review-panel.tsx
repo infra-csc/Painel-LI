@@ -114,7 +114,8 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
   /** O que muda ao aprovar (16/09) — o mesmo texto da Escalação. */
   const trocaExplicada: TrocaParaExplicar = {
     ...swap,
-    currentCollaboratorName: swap.swapKind === "transferencia" ? null : currentName,
+    // Transferência para vaga aberta não tem "quem sai"; para vaga com alguém (05/10), tem.
+    currentCollaboratorName: swap.swapKind === "transferencia" && !swap.currentCollaboratorId ? null : currentName,
     newCollaboratorName: requestedName,
     newCity: saiDeDoPedido,
   };

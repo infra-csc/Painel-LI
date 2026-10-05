@@ -72,18 +72,26 @@ export function explicarTroca(t: TrocaParaExplicar): ExplicacaoDaTrocaTexto {
   }
 
   if (t.swapKind === "transferencia") {
+    // Desde 05/10 a vaga de destino pode já ter alguém: essa pessoa sai da
+    // escala (não vai para a outra vaga — a outra fica aberta).
+    const quemSai = t.currentCollaboratorName?.trim() || null;
     return {
       tipo: "Transferência entre vagas",
       vagas: [
-        { chave: "esta", vaga: esta, antes: "Vaga aberta", depois: novo, saiDe: cidade(t.newCity) },
+        { chave: "esta", vaga: esta, antes: quemSai ?? "Vaga aberta", depois: novo, saiDe: cidade(t.newCity) },
         { chave: "outra", vaga: outra, antes: novo, depois: "Vaga aberta", saiDe: null },
       ],
       observacoes: [
         `${novo} sai da vaga ${numOutra} e entra na vaga ${numEsta}, no mesmo instante.`,
+        ...(quemSai ? [`${quemSai} sai da vaga ${numEsta} e fica fora da escala (não vai para a vaga ${numOutra}).`] : []),
         `A vaga ${numOutra} volta a ficar aberta — a área precisa escalar outra pessoa nela.`,
-        `Passagem já comprada para ${novo} na vaga ${numOutra} vai para o histórico dela (o custo continua no evento). Hospedagem já registrada: revise.`,
+        quemSai
+          ? `Passagens já compradas (de ${novo} na vaga ${numOutra} e de ${quemSai} na vaga ${numEsta}) vão para o histórico de cada vaga (o custo continua no evento). Hospedagem já registrada: revise.`
+          : `Passagem já comprada para ${novo} na vaga ${numOutra} vai para o histórico dela (o custo continua no evento). Hospedagem já registrada: revise.`,
       ],
-      recusa: `Recusar vale para as duas vagas: ${novo} continua na vaga ${numOutra} e a vaga ${numEsta} segue aberta.`,
+      recusa: quemSai
+        ? `Recusar vale para as duas vagas: ${novo} continua na vaga ${numOutra} e ${quemSai} continua na vaga ${numEsta}.`
+        : `Recusar vale para as duas vagas: ${novo} continua na vaga ${numOutra} e a vaga ${numEsta} segue aberta.`,
     };
   }
 

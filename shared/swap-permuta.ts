@@ -75,7 +75,9 @@ export function trocaNaVisaoDaVaga(r: TrocaCrua, vagaId: string) {
     createdAt: r.created_at ?? null,
     requestedByName: r.requested_by_name ?? null,
     currentCollaboratorName: (pareada ? r.new_collaborator_name : r.current_collaborator_name) ?? null,
-    newCollaboratorName: (pareada ? r.current_collaborator_name : r.new_collaborator_name) ?? null,
+    // Na transferência ninguém chega à vaga de origem — quem estava no destino
+    // (05/10) sai da escala, não vai para lá.
+    newCollaboratorName: (pareada ? (transferencia ? null : r.current_collaborator_name) : r.new_collaborator_name) ?? null,
     newCity: (pareada ? r.paired_new_city : r.new_city) ?? null,
     reason: r.reason ?? null,
     status: String(r.status ?? "pendente"),

@@ -27,6 +27,14 @@ describe("explicação da troca (16/09)", () => {
     expect(e.observacoes.join(" ")).toContain("A vaga #3577 volta a ficar aberta");
   });
 
+  it("transferência para vaga com alguém (05/10): quem estava sai da escala, a origem fica aberta", () => {
+    const e = explicarTroca({ ...base, swapKind: "transferencia" });
+    expect(e.vagas[0]).toMatchObject({ antes: "João", depois: "Maria" });
+    expect(e.vagas[1]).toMatchObject({ antes: "Maria", depois: "Vaga aberta" });
+    expect(e.observacoes.join(" ")).toContain("João sai da vaga #3623 e fica fora da escala");
+    expect(e.recusa).toBe("Recusar vale para as duas vagas: Maria continua na vaga #3577 e João continua na vaga #3623.");
+  });
+
   it("troca simples: uma vaga só", () => {
     const e = explicarTroca({ ...base, swapKind: "substituicao", pairedInclusionNumber: null });
     expect(e.vagas).toHaveLength(1);
