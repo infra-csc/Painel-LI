@@ -7,6 +7,10 @@
  * O pedido diz de qual vaga a pessoa sai e de onde ela sai (cidade). Aprovado
  * por Compras, ela entra nesta vaga e a de origem volta a ficar aberta — tudo
  * de uma vez, no servidor. Até lá, nada muda nas duas vagas.
+ *
+ * 05/10 (dono: "só quero tirar a Jaqueline e colocar a Aline sem trocar a vaga
+ * dela"): esta vaga pode já ter alguém. Essa pessoa sai da escala — não vai
+ * para a vaga de origem, que fica aberta.
  */
 import { useEffect, useState } from "react";
 import { AlertCircle, ArrowLeftRight } from "lucide-react";
@@ -63,6 +67,8 @@ export function TransferRequestDialog({
   }, [open, collaboratorId]);
 
   const nome = collaboratorId ? getCollaboratorName(collaboratorId) : "";
+  /** Quem está nesta vaga hoje e sai dela (05/10) — null quando a vaga está aberta. */
+  const quemSai = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : null;
   const cidade = cidadeDeSaida(saiDe.saiDeSP, saiDe.cidade);
   const erroSaiDe = validarSaiDe(cidade);
   const origem = origens.find((o) => o.id === origemId) ?? null;
@@ -86,7 +92,9 @@ export function TransferRequestDialog({
         onSuccess: () => {
           toast({
             title: "Transferência enviada para aprovação",
-            description: `${nome} continua na vaga #${origem.inclusionNumber} até Compras aprovar.`,
+            description: quemSai
+              ? `${nome} continua na vaga #${origem.inclusionNumber} e ${quemSai} continua nesta até Compras aprovar.`
+              : `${nome} continua na vaga #${origem.inclusionNumber} até Compras aprovar.`,
           });
           onEnviado?.();
           onOpenChange(false);
@@ -106,7 +114,9 @@ export function TransferRequestDialog({
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-base font-bold text-foreground leading-tight">Pedir transferência de colaborador</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                A pessoa sai da vaga onde está e entra nesta — só depois da aprovação do time de Compras.
+                {quemSai
+                  ? `A pessoa sai da vaga onde está e entra nesta no lugar de ${quemSai} — só depois da aprovação do time de Compras.`
+                  : "A pessoa sai da vaga onde está e entra nesta — só depois da aprovação do time de Compras."}
               </DialogDescription>
             </div>
           </div>
@@ -119,9 +129,17 @@ export function TransferRequestDialog({
         </div>
 
         <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-          <div>
-            <span className={LABEL}>Quem vem</span>
-            <p className="mt-0.5 text-sm font-semibold text-foreground break-words" data-testid="transferencia-quem">{nome || "?"}</p>
+          <div className={quemSai ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : undefined}>
+            <div>
+              <span className={LABEL}>Quem vem</span>
+              <p className="mt-0.5 text-sm font-semibold text-foreground break-words" data-testid="transferencia-quem">{nome || "?"}</p>
+            </div>
+            {quemSai && (
+              <div>
+                <span className={LABEL}>Quem sai desta vaga</span>
+                <p className="mt-0.5 text-sm font-semibold text-foreground break-words" data-testid="transferencia-quem-sai">{quemSai}</p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -167,6 +185,7 @@ export function TransferRequestDialog({
               <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warning-strong" aria-hidden="true" />
               <span>
                 Aprovada a transferência, {nome} sai da vaga #{origem.inclusionNumber} ({getEventName(origem.eventId)}) e ela fica aberta — a área precisa escalar outra pessoa nela.
+                {quemSai && <> {quemSai} sai desta vaga e fica fora da escala; passagem já comprada para {quemSai} vai para o histórico desta vaga.</>}
               </span>
             </p>
           )}

@@ -78,3 +78,25 @@ describe("transferência para vaga aberta (14/09)", () => {
     expect(t.outraVaga).toBe("vaga #10 · Evento X");
   });
 });
+
+describe("transferência para vaga que já tem alguém (05/10)", () => {
+  const comAlguem: TrocaCrua = {
+    id: "t2", team_inclusion_id: "X", paired_inclusion_id: "Y", swap_kind: "transferencia",
+    current_collaborator_name: "Jaqueline", new_collaborator_name: "Aline",
+    new_city: "São Paulo - SP", paired_new_city: null,
+    inclusion_number: 10, event_name: "Running Hour", paired_inclusion_number: 30, paired_event_name: "Maceió",
+    status: "pendente",
+  };
+
+  it("no destino: Aline chega no lugar da Jaqueline", () => {
+    const t = trocaNaVisaoDaVaga(comAlguem, "X");
+    expect(t.currentCollaboratorName).toBe("Jaqueline");
+    expect(t.newCollaboratorName).toBe("Aline");
+  });
+
+  it("na origem: Aline sai e ninguém chega — a Jaqueline não vai para lá", () => {
+    const t = trocaNaVisaoDaVaga(comAlguem, "Y");
+    expect(t.currentCollaboratorName).toBe("Aline");
+    expect(t.newCollaboratorName).toBeNull();
+  });
+});

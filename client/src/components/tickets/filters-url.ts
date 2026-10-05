@@ -13,10 +13,12 @@ function periodoDaUrl(p: URLSearchParams): PeriodConfig {
     ate: valido === "custom" ? (p.get("ate") || "") : "",
     semana: semana === "fds" || semana === "uteis" ? semana : "todos",
     inicioFds: p.get("fds") === "1",
+    ...(p.get("base") === "evento" ? { base: "evento" as const } : {}),
   };
 }
 function periodoNaUrl(p: URLSearchParams, c: PeriodConfig): void {
   if (c.preset !== "todos") p.set("periodo", c.preset);
+  if (c.base === "evento") p.set("base", "evento");
   if (c.preset === "custom") { if (c.de) p.set("de", c.de); if (c.ate) p.set("ate", c.ate); }
   if (c.semana !== "todos") p.set("semana", c.semana);
   if (c.inicioFds) p.set("fds", "1");

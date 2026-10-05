@@ -134,17 +134,30 @@ export function useScalingData(opts: {
     () => new Map((teamInclusions ?? []).map(ti => [ti.id, ti])),
     [teamInclusions],
   );
+  /**
+   * Agenda de cada colaborador (02/10): com UM evento marcado a lista da tela
+   * vem recortada (`?eventId=`) e não traz as vagas da pessoa em OUTRAS
+   * provas — a tela não mostrava "Escalação bloqueada" nem "Pedir
+   * transferência", e o erro só aparecia no servidor ao confirmar. Junta a
+   * lista sem recorte (a mesma das opções do filtro, quase sempre em cache).
+   */
+  const vagasParaAgenda = useMemo(() => {
+    if (!vagasParaOpcoesDeEvento || vagasParaOpcoesDeEvento === teamInclusions) return teamInclusions ?? [];
+    const porId = new Map((vagasParaOpcoesDeEvento ?? []).map((ti) => [ti.id, ti]));
+    for (const ti of teamInclusions ?? []) porId.set(ti.id, ti); // a lista da tela é a mais fresca
+    return Array.from(porId.values());
+  }, [teamInclusions, vagasParaOpcoesDeEvento]);
   const activeInclusionsByCollaborator = useMemo(() => {
     const idx = new Map<string, TeamInclusion[]>();
-    for (const ti of teamInclusions ?? []) {
+    for (const ti of vagasParaAgenda) {
       if (!ti.collaboratorId || !ACTIVE_CONFLICT_STATUSES.includes(ti.status)) continue;
       const lista = idx.get(ti.collaboratorId);
       if (lista) lista.push(ti); else idx.set(ti.collaboratorId, [ti]);
     }
     return idx;
-  }, [teamInclusions]);
+  }, [vagasParaAgenda]);
   const getCollaboratorConflicts = (collaboratorId: string, refInclusion: TeamInclusion | null | undefined) => {
-    if (!collaboratorId || !teamInclusions) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[], mesmoDia: [] as TeamInclusion[] };
+    if (!collaboratorId || !vagasParaAgenda.length) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[], mesmoDia: [] as TeamInclusion[] };
     // Prefere a versão fresca da lista (como o find original), cai no objeto passado
     const ref = (refInclusion?.id && inclusionById.get(refInclusion.id)) || refInclusion;
     const others = (activeInclusionsByCollaborator.get(collaboratorId) ?? []).filter(ti => ti.id !== ref?.id);

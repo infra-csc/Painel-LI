@@ -111,8 +111,9 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               getCollaboratorConflicts={getCollaboratorConflicts}
               createSwapRequest={mutations.createSwapRequest}
               inclusions={data.teamInclusions}
+              onPedirTransferencia={(id) => setTransferirColaboradorId(id)}
             />
-            {/* Transferência para esta vaga aberta (14/09) */}
+            {/* Transferência para esta vaga (14/09 aberta; 05/10 também com alguém, que sai) */}
             <TransferRequestDialog
               open={!!transferirColaboradorId}
               onOpenChange={(o) => { if (!o) setTransferirColaboradorId(null); }}

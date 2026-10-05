@@ -65,7 +65,8 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
               setEscolhendoColaborador(false);
             }}
             onCancelar={modalData.collaboratorId ? () => setEscolhendoColaborador(false) : undefined}
-            onPedirTransferencia={!inclusion.collaboratorId && !pendingSwap ? (id) => setTransferirColaboradorId(id) : undefined}
+            // 05/10: também com alguém na vaga — quem está aqui sai quando Compras aprovar.
+            onPedirTransferencia={!pendingSwap ? (id) => setTransferirColaboradorId(id) : undefined}
             disabled={!!requestLockReason}
             disabledReason={requestLockReason}
           />

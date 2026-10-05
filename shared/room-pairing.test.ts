@@ -87,6 +87,30 @@ describe("montagem dos quartos", () => {
     expect(quarto.roomType).toBe("double");
   });
 
+  // Dono, 02/10 (print da aba Quartos): "deveria ser quinta com quinta e sexta
+  // com sexta". Os quatro são homens de funções diferentes; antes saíam
+  // Igor(sex)+Bruno(qui) e Renan(sex)+Leonardo(qui).
+  it("datas iguais primeiro: quinta com quinta, sexta com sexta", () => {
+    const base = { checkOut: "2026-11-08", gender: "male" };
+    const igor = p({ collaboratorId: "igor", checkIn: "2026-11-06", functionId: "ativacao-sp", ...base });
+    const bruno = p({ collaboratorId: "bruno", checkIn: "2026-11-05", functionId: "sup-ceno", ...base });
+    const renan = p({ collaboratorId: "renan", checkIn: "2026-11-06", functionId: "dir-prova", ...base });
+    const leonardo = p({ collaboratorId: "leonardo", checkIn: "2026-11-05", functionId: "producao", ...base });
+    const quartos = sugerirQuartos([igor, bruno, renan, leonardo], CFG);
+    const pares = quartos.map((q) => [...q.members].sort().join("+")).sort();
+    expect(pares).toEqual(["bruno+leonardo", "igor+renan"]);
+    expect(quartos.every((q) => !q.partialOverlap)).toBe(true);
+  });
+
+  it("datas iguais vencem a mesma função; sem par de mesma data, divide pelas noites em comum", () => {
+    const a = p({ collaboratorId: "a", checkIn: "2026-11-06", checkOut: "2026-11-08", functionId: "kit", gender: "male" });
+    const mesmaFuncaoOutraData = p({ collaboratorId: "b", checkIn: "2026-11-05", checkOut: "2026-11-08", functionId: "kit", gender: "male" });
+    const mesmaData = p({ collaboratorId: "c", checkIn: "2026-11-06", checkOut: "2026-11-08", functionId: "percurso", gender: "male" });
+    const quartos = sugerirQuartos([a, mesmaFuncaoOutraData, mesmaData], CFG);
+    expect(quartos.find((q) => q.members.includes("a"))?.members.sort()).toEqual(["a", "c"]);
+    expect(quartos.find((q) => q.members.includes("b"))?.roomType).toBe("single");
+  });
+
   it("quem sobra fica em individual, sem virar erro", () => {
     const sozinho = p({ collaboratorId: "so", checkIn: "2026-01-01", checkOut: "2026-01-02" });
     const quartos = sugerirQuartos([sozinho], CFG);

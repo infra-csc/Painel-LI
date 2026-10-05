@@ -72,7 +72,10 @@ export function passaNosFiltrosBase(
   if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
   if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
   if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-  if (temRecorteDePeriodo(filters.periodo) && !fazTesteDePeriodo(filters.periodo, ctx.hoje ?? new Date())(inclusion)) return false;
+  // "Data do evento" (02/10, como na Escalação): mede pelo dia da prova, não
+  // pela escala — o evento vem do mapa que a tela já carregou.
+  if (temRecorteDePeriodo(filters.periodo)
+    && !fazTesteDePeriodo(filters.periodo, ctx.hoje ?? new Date(), (id) => (id ? ctx.eventById.get(id) : undefined))(inclusion)) return false;
   if (filters.searchId) {
     const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
     const colName = (inclusion.collaboratorId ? ctx.collaboratorById.get(inclusion.collaboratorId)?.fullName ?? "" : "").toLowerCase();

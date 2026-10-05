@@ -505,3 +505,35 @@ anteriores e continuam valendo se ainda não foram feitos.
 - Conferido no demo: com um evento marcado o filtro mantém todas as opções; marcando o segundo, o botão diz "2 eventos" e a tabela mostra as vagas das duas.
 - Operação: Pull + Stop/Run (só tela).
 
+## 17. 02/10 — Passagens: filtro pela data do evento e coluna de Função
+
+- **Pedidos:** "incluir o filtro da data do evento também na tela de Passagens" e "incluir a coluna de função na tela".
+- **Período:** o seletor ganhou "Medir por: Data da escala | Data do evento" — o mesmo da Escalação (22/09). "Data do evento" mede pelo dia da prova, não pelo início da escala (montagem). A escolha vai para o endereço da página (`base=evento`) e sobrevive ao recarregar.
+- **Coluna Função:** Evento e Função viram colunas próprias, cada uma ordenável. No modo cartão (tela estreita) as duas aparecem com rótulo próprio.
+- Títulos ordenáveis da tabela em caixa alta como os demais (o botão de ordenar não herdava).
+- **Dados (02/10):** 66 vagas que esperavam o gestor foram aprovadas em lote a pedido do dono (9 → Aprovado, 57 → Escalado), registradas como aprovadas por Yan Neves Araujo.
+
+## 18. 02/10 — sugestão de quartos: datas iguais primeiro
+
+- **Relato do dono** (aba Quartos do Espelho): "olha os 2 primeiros quartos… não faz sentido… deveria ser quinta com quinta e sexta com sexta". Saíam Igor (sex–dom) + Bruno (qui–dom) e Renan (sex–dom) + Leonardo (qui–dom).
+- **Causa:** o parceiro era escolhido por "mesma função" e depois "mais noites em comum". Os dois pares dividiam 2 noites, empatavam, e o desempate era a ordem da lista.
+- **Correção** (`shared/room-pairing.ts`): 1º quem deixa **menos noites sem dividir** (datas iguais primeiro); 2º mesma função; 3º mais noites em comum. Testes com o caso real.
+- **Operação:** Pull + Stop/Run e, no Espelho de cada evento, **Recalcular sugestões** — refaz só as sugestões não confirmadas; quartos já confirmados ficam como estão.
+
+## 19. 02/10 — Escalação avisa o conflito de agenda com uma prova marcada
+
+- **Relato:** "dando vários erros desse" — ao escalar no Night Run Curitiba (agora 28/10–01/11), o servidor recusava ("já está escalado em New Balance Brasília… datas sobrepostas") sem a tela ter avisado.
+- **Os conflitos são reais:** o novo fim de semana do Night Run Curitiba é o mesmo de New Balance Brasília, Makai João Pessoa, Viva Esporte Fundão, Blue Run Santos e Night Run Vitória.
+- **O defeito:** com UM evento marcado a lista vem recortada (otimização de 23/09) e a agenda de cada colaborador era montada só com ela — a tela não via as vagas da pessoa em outras provas, então não mostrava "escalado em …", nem "Escalação bloqueada", nem o botão **Pedir transferência**.
+- **Correção:** a agenda usa também a lista sem recorte (a mesma das opções do filtro, em cache). Conferido no demo: com a prova marcada, quem está em outra prova aparece em amarelo com "Pedir transferência".
+- Operação: Pull + Stop/Run (só tela).
+
+
+## 20. 05/10 — Transferência também para vaga que já tem alguém
+
+- **Pedido:** "só quero tirar a Jaqueline e colocar a Aline sem trocar a vaga dela" — a Aline estava escalada em outra prova no mesmo período, então "Colocar outro colaborador" travava no conflito e "Trocar com alguém de outra vaga" mandaria a Jaqueline para a vaga dela.
+- **Agora:** em **Solicitar troca → Colocar outro colaborador**, quem está escalado no mesmo período aparece em amarelo com **Pedir transferência** (o mesmo botão da vaga aberta). O pedido mostra "Quem vem" e "Quem sai desta vaga".
+- **Aprovado por Compras**, numa transação só: a pessoa sai da vaga de origem (que fica aberta), entra nesta, e quem estava aqui sai da escala (não vai para lugar nenhum). Passagens de quem saiu de cada vaga viram histórico (o custo continua no evento); hospedagem registrada: Compras revisa.
+- Se qualquer vaga mudar entre o pedido e a aprovação, a aprovação recusa (409). Transferência para vaga aberta continua igual.
+- Testes: `server/test/transferencia.test.ts` (3) + textos em `shared/swap-explicacao.test.ts` e `shared/swap-permuta.test.ts`. Conferido no demo (1600 e 390px).
+- Operação: Pull + Stop/Run.

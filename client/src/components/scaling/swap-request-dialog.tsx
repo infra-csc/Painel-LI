@@ -41,11 +41,17 @@ export interface SwapRequestDialogProps {
   createSwapRequest: ScalingMutations["createSwapRequest"];
   /** Todas as vagas — candidatas da permuta (14/09). */
   inclusions?: TeamInclusion[] | undefined;
+  /**
+   * Quem já está escalado no mesmo período (05/10): em vez de só travar,
+   * oferece trazer a pessoa para cá SEM mexer em quem está aqui ir para a
+   * vaga dela — a vaga de onde ela sai fica aberta.
+   */
+  onPedirTransferencia?: (collaboratorId: string) => void;
 }
 
 export function SwapRequestDialog({
   open, onOpenChange, inclusion, collaborators, getCollaboratorName, getEventName, getFunctionName,
-  getCollaboratorConflicts, createSwapRequest, inclusions,
+  getCollaboratorConflicts, createSwapRequest, inclusions, onPedirTransferencia,
 }: SwapRequestDialogProps) {
   const [newCollaboratorId, setNewCollaboratorId] = useState("");
   const [reason, setReason] = useState("");
@@ -247,6 +253,7 @@ export function SwapRequestDialog({
                   inclusion={inclusion}
                   getConflitos={getCollaboratorConflicts}
                   getEventName={getEventName}
+                  onPedirTransferencia={onPedirTransferencia ? (id) => { resetAndClose(); onPedirTransferencia(id); } : undefined}
                   onEscolher={(v) => {
                     setNewCollaboratorId(v);
                     // Mesma regra do modal: a cidade de saída acompanha o
