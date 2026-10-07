@@ -2,8 +2,16 @@
  * Aba "Dados da hospedagem" do modal (25/09 — extraída de accommodation-modal.tsx):
  * avisos de trava, voucher, dados do hotel, check-in/check-out, dados do
  * Espelho (leitura), observações e anexos em modo leitura.
+ *
+ * 07/10 (redesenho): o mesmo desenho do formulário de Passagens — o voucher
+ * num cartão com faixa de marca, seções com título discreto e ícone, rótulos
+ * em caixa normal, campos de 36px. Check-in e check-out deixaram de ser duas
+ * caixas tingidas (verde e amarela, como se uma fosse alerta): a cor ficou no
+ * ícone e no título, como a IDA/VOLTA da passagem.
+ *
+ * Os mesmos campos, ids, `data-testid` e regras de antes.
  */
-import { FileText, AlertCircle, Lock, ArrowDown, ArrowUp } from "lucide-react";
+import { FileText, AlertCircle, Lock, LogIn, LogOut, Loader2, BedDouble, CalendarRange, NotebookPen, Paperclip, Info } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import type { useVoucherFill } from "@/components/tickets/use-voucher-fill";
 import { TabsContent } from "@/components/ui/tabs";
@@ -18,7 +26,7 @@ import { PastEventBanner } from "@/lib/event-lock";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
 import { campoComErro } from "@/lib/campo-com-erro";
-import { Field, FIELD_LBL } from "./accommodation-modal-shared";
+import { Field, FIELD_LBL, SECAO } from "./accommodation-modal-shared";
 
 export type CampoObrigatorio = "hotelName" | "hotelLocation" | "checkInDate" | "checkOutDate";
 export type ErrosDaHospedagem = Partial<Record<CampoObrigatorio, string>>;
@@ -44,94 +52,95 @@ export interface AccommodationDadosTabProps {
   diariasDoRascunho: number;
 }
 
-const ROTULO_DATA = "text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1 block";
+/** Cartão de seção do formulário (o mesmo de Passagens). */
+const CARTAO = "bg-card border border-border rounded-xl p-4";
 
 export function AccommodationDadosTab({
   inclusion, accommodation, draft, set, erros, setErros, roMode, eventLocked, eventLockMessage, lockedForRole, isPostPurchase, isPurchasingRole,
   voucher, periodoDaEscalaPorExtenso, usarPeriodoDaEscala, chegaTarde, escalaInicio, diariasDoRascunho,
 }: AccommodationDadosTabProps) {
   const limpar = (campo: CampoObrigatorio) => { if (erros[campo]) setErros(p => ({ ...p, [campo]: undefined })); };
+  const id = (campo: string) => `${campo}-${inclusion.id}`;
   return (
-    <TabsContent value="dados" className="m-0 p-6">
+    <TabsContent value="dados" className="m-0 p-4 sm:p-6 pas-entra">
       <div className="space-y-4">
         <PastEventBanner show={!!eventLocked} message={eventLockMessage} />
         {lockedForRole && (
-          <div className="bg-warning-soft border border-warning/25 rounded-xl px-4 py-2.5 flex items-center gap-2" data-testid="notice-locked-for-role">
-            <Lock className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
-            <span className="text-warning font-semibold text-sm">Hospedagem registrada — somente Compras altera hospedagem registrada.</span>
-          </div>
+          <p className="m-0 flex items-center gap-2 rounded-lg bg-warning-soft px-3 py-2 text-xs font-medium text-warning" data-testid="notice-locked-for-role">
+            <Lock className="w-3.5 h-3.5 shrink-0 text-warning-strong" aria-hidden="true" />
+            Hospedagem registrada — somente Compras altera hospedagem registrada.
+          </p>
         )}
         {isPostPurchase && isPurchasingRole && (
-          <div className="bg-brand-soft border border-primary/25 rounded-xl px-4 py-2.5">
-            <span className="text-primary font-semibold text-sm">Hospedagem registrada — alterações ficam no histórico da inclusão.</span>
-          </div>
+          <p className="m-0 flex items-center gap-2 rounded-lg bg-brand-soft px-3 py-2 text-xs font-medium text-primary">
+            <Info className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            Hospedagem registrada — alterações ficam no histórico da inclusão.
+          </p>
         )}
 
         {/*
-          O voucher vem primeiro porque é o caminho mais curto: ele
-          preenche hotel, período e valores de uma vez. Estava no fim da
-          aba, depois de todos os campos que ele mesmo preencheria.
+          O voucher vem primeiro porque é o caminho mais curto: ele preenche
+          hotel, período e valores de uma vez.
         */}
         {!roMode && (
-          <div className="rounded-xl border border-primary/25 bg-brand-soft p-4" data-testid="card-voucher">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <FileText className="w-4 h-4 text-primary" aria-hidden="true" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Comece pelo voucher em PDF</p>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                  Ele fica guardado como comprovante e preenche hotel, período e valores.
-                  Serve também para o relatório de reservas do hotel — nele buscamos a reserva desta pessoa.
-                </p>
-                <div className="mt-2.5">
-                  <AttachmentUpload
-                    attachmentIds={draft.attachmentIds}
-                    onAttachmentsChange={(ids) => set("attachmentIds", ids)}
-                    onFileSelected={voucher.lerArquivo}
-                  />
-                </div>
-              </div>
-              {voucher.lendo && <span className="text-2xs font-semibold text-primary shrink-0">Lendo o voucher…</span>}
+          <div className="border border-primary/25 bg-card rounded-xl overflow-hidden" data-testid="card-voucher">
+            <div className="bg-brand-soft/60 border-b border-primary/20 px-4 py-2.5 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" aria-hidden="true" />
+              <span className="text-xs font-semibold text-foreground">Voucher e anexos</span>
+              {voucher.lendo && (
+                <span className="ml-auto inline-flex items-center gap-1.5 text-2xs font-medium text-primary" role="status">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />Lendo o voucher…
+                </span>
+              )}
+            </div>
+            <div className="p-4">
+              <p className="m-0 mb-3 text-xs leading-relaxed text-slate-600">
+                Comece pelo <strong>voucher em PDF</strong>: ele fica guardado como comprovante
+                <strong> e preenche hotel, período e valores</strong>. Serve também para o relatório de reservas
+                do hotel — nele buscamos a reserva desta pessoa.
+              </p>
+              <AttachmentUpload
+                attachmentIds={draft.attachmentIds}
+                onAttachmentsChange={(ids) => set("attachmentIds", ids)}
+                onFileSelected={voucher.lerArquivo}
+              />
             </div>
           </div>
         )}
 
-        {/* Dados do hotel */}
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Dados do hotel</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+        {/* Hotel */}
+        <div className={CARTAO}>
+          <h3 className={`${SECAO} flex items-center gap-1.5`}><BedDouble className="w-3.5 h-3.5" aria-hidden="true" />Hotel</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
             <div>
-              <Label htmlFor={`hotelName-${inclusion.id}`} className={FIELD_LBL}>Nome do hotel<RequiredMark /></Label>
-              <Input id={`hotelName-${inclusion.id}`} placeholder="Ex: Hotel Copacabana Palace" value={draft.hotelName} aria-required="true"
-                {...campoComErro(`hotelName-${inclusion.id}`, erros.hotelName)}
+              <Label htmlFor={id("hotelName")} className={FIELD_LBL}>Nome do hotel<RequiredMark /></Label>
+              <Input id={id("hotelName")} placeholder="Ex.: Hotel Copacabana Palace" value={draft.hotelName} aria-required="true" autoComplete="off"
+                {...campoComErro(id("hotelName"), erros.hotelName)}
                 onChange={(e) => { set("hotelName", e.target.value); limpar("hotelName"); }} data-testid="input-hotel-name" disabled={roMode} />
-              <MensagemDeErro id={`hotelName-${inclusion.id}`} erro={erros.hotelName} />
+              <MensagemDeErro id={id("hotelName")} erro={erros.hotelName} />
             </div>
             <div>
-              <Label htmlFor={`hotelLocation-${inclusion.id}`} className={FIELD_LBL}>Localização<RequiredMark /></Label>
-              <Input id={`hotelLocation-${inclusion.id}`} placeholder="Ex: Copacabana, Rio de Janeiro" value={draft.hotelLocation} aria-required="true"
-                {...campoComErro(`hotelLocation-${inclusion.id}`, erros.hotelLocation)}
+              <Label htmlFor={id("hotelLocation")} className={FIELD_LBL}>Localização<RequiredMark /></Label>
+              <Input id={id("hotelLocation")} placeholder="Ex.: Copacabana, Rio de Janeiro" value={draft.hotelLocation} aria-required="true" autoComplete="off"
+                {...campoComErro(id("hotelLocation"), erros.hotelLocation)}
                 onChange={(e) => { set("hotelLocation", e.target.value); limpar("hotelLocation"); }} data-testid="input-hotel-location" disabled={roMode} />
-              <MensagemDeErro id={`hotelLocation-${inclusion.id}`} erro={erros.hotelLocation} />
+              <MensagemDeErro id={id("hotelLocation")} erro={erros.hotelLocation} />
             </div>
-          </div>
-          <div>
-            <Label htmlFor={`reservationNumber-${inclusion.id}`} className={FIELD_LBL}>Número da reserva</Label>
-            <Input id={`reservationNumber-${inclusion.id}`} placeholder="Ex: RES-123456" value={draft.reservationNumber}
-              onChange={(e) => set("reservationNumber", e.target.value)} className="max-w-[280px]" disabled={roMode} />
+            <div>
+              <Label htmlFor={id("reservationNumber")} className={FIELD_LBL}>Número da reserva</Label>
+              <Input id={id("reservationNumber")} placeholder="Ex.: RES-123456" value={draft.reservationNumber} autoComplete="off"
+                onChange={(e) => set("reservationNumber", e.target.value)} className="font-mono placeholder:font-sans" disabled={roMode} />
+            </div>
           </div>
         </div>
 
-        {/* Check-in / Check-out */}
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-            <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Check-in / Check-out</div>
+        {/* Estadia: check-in / check-out */}
+        <div className={CARTAO}>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
+            <h3 className={`${SECAO} !mb-0 flex items-center gap-1.5`}><CalendarRange className="w-3.5 h-3.5" aria-hidden="true" />Check-in e check-out</h3>
             {periodoDaEscalaPorExtenso && (
-              <div className="flex items-center gap-2.5">
-                {/* O período dito por extenso: "de 11/09 a 15/09/2026" é o
-                    que o operador precisa conferir, e ele estava só
-                    implícito nos campos já preenchidos. */}
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                {/* O período dito por extenso: é o que o operador precisa conferir. */}
                 <span className="text-xs text-muted-foreground" data-testid="periodo-da-escala">
                   Escala: {periodoDaEscalaPorExtenso}
                 </span>
@@ -139,7 +148,7 @@ export function AccommodationDadosTab({
                   <button
                     type="button"
                     onClick={usarPeriodoDaEscala}
-                    className="h-[26px] px-2.5 rounded-lg border border-border bg-card text-xs font-medium text-slate-700 hover:bg-muted transition-colors"
+                    className="pas-alvo inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium text-primary hover:bg-brand-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     data-testid="button-usar-periodo-escala"
                   >
                     Usar o período da escala
@@ -148,81 +157,92 @@ export function AccommodationDadosTab({
               </div>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-success/25 bg-success-soft/40 p-3">
-              <div className="text-2xs font-bold text-success uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowDown className="w-3 h-3" aria-hidden="true" /> Check-in<RequiredMark /></div>
-              <div className="grid grid-cols-[1fr_110px] gap-2">
-                <div>
-                  <Label htmlFor={`checkInDate-${inclusion.id}`} className={ROTULO_DATA}>Data</Label>
-                  <Input id={`checkInDate-${inclusion.id}`} type="date" value={draft.checkInDate} aria-required="true"
-                    {...campoComErro(`checkInDate-${inclusion.id}`, erros.checkInDate)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <fieldset className="m-0 p-0 border-0 min-w-0">
+              <legend className="mb-2 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-success">
+                <LogIn className="w-3.5 h-3.5" aria-hidden="true" />Check-in<RequiredMark />
+              </legend>
+              <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2">
+                <div className="min-w-0">
+                  <Label htmlFor={id("checkInDate")} className={FIELD_LBL}>Data</Label>
+                  <Input id={id("checkInDate")} type="date" value={draft.checkInDate} aria-required="true"
+                    {...campoComErro(id("checkInDate"), erros.checkInDate)}
                     onChange={(e) => { set("checkInDate", e.target.value); limpar("checkInDate"); }} data-testid="input-checkin-date" disabled={roMode} />
-                  <MensagemDeErro id={`checkInDate-${inclusion.id}`} erro={erros.checkInDate} />
+                  <MensagemDeErro id={id("checkInDate")} erro={erros.checkInDate} />
                 </div>
                 <div>
-                  <Label htmlFor={`checkInTime-${inclusion.id}`} className={ROTULO_DATA}>Hora</Label>
-                  <Input id={`checkInTime-${inclusion.id}`} type="time" value={draft.checkInTime}
+                  <Label htmlFor={id("checkInTime")} className={FIELD_LBL}>Hora</Label>
+                  <Input id={id("checkInTime")} type="time" value={draft.checkInTime}
                     onChange={(e) => set("checkInTime", e.target.value)} data-testid="input-checkin-time" disabled={roMode} />
                 </div>
               </div>
-            </div>
-            <div className="rounded-xl border border-warning/25 bg-warning-soft/40 p-3">
-              <div className="text-2xs font-bold text-warning uppercase tracking-[0.06em] mb-2 flex items-center gap-1"><ArrowUp className="w-3 h-3" aria-hidden="true" /> Check-out<RequiredMark /></div>
-              <div className="grid grid-cols-[1fr_110px] gap-2">
-                <div>
-                  <Label htmlFor={`checkOutDate-${inclusion.id}`} className={ROTULO_DATA}>Data</Label>
-                  <Input id={`checkOutDate-${inclusion.id}`} type="date" min={draft.checkInDate || undefined} value={draft.checkOutDate} aria-required="true"
-                    {...campoComErro(`checkOutDate-${inclusion.id}`, erros.checkOutDate)}
+            </fieldset>
+            <fieldset className="m-0 p-0 border-0 min-w-0">
+              <legend className="mb-2 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-success-strong">
+                <LogOut className="w-3.5 h-3.5" aria-hidden="true" />Check-out<RequiredMark />
+              </legend>
+              <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2">
+                <div className="min-w-0">
+                  <Label htmlFor={id("checkOutDate")} className={FIELD_LBL}>Data</Label>
+                  <Input id={id("checkOutDate")} type="date" min={draft.checkInDate || undefined} value={draft.checkOutDate} aria-required="true"
+                    {...campoComErro(id("checkOutDate"), erros.checkOutDate)}
                     onChange={(e) => { set("checkOutDate", e.target.value); limpar("checkOutDate"); }} data-testid="input-checkout-date" disabled={roMode} />
-                  <MensagemDeErro id={`checkOutDate-${inclusion.id}`} erro={erros.checkOutDate} />
+                  <MensagemDeErro id={id("checkOutDate")} erro={erros.checkOutDate} />
                 </div>
                 <div>
-                  <Label htmlFor={`checkOutTime-${inclusion.id}`} className={ROTULO_DATA}>Hora</Label>
-                  <Input id={`checkOutTime-${inclusion.id}`} type="time" value={draft.checkOutTime}
+                  <Label htmlFor={id("checkOutTime")} className={FIELD_LBL}>Hora</Label>
+                  <Input id={id("checkOutTime")} type="time" value={draft.checkOutTime}
                     onChange={(e) => set("checkOutTime", e.target.value)} data-testid="input-checkout-time" disabled={roMode} />
                 </div>
               </div>
-            </div>
+            </fieldset>
           </div>
-          {!isCheckOutAfterCheckIn(draft) && (
-            <p className="mt-2 text-xs text-danger flex items-center gap-1.5" role="alert">
-              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> O check-out deve ser igual ou posterior ao check-in.
-            </p>
-          )}
-          {chegaTarde && (
-            <p className="mt-2 text-xs text-warning bg-warning-soft rounded-xl px-3 py-2" role="alert" data-testid="aviso-chegada-tardia">
-              O check-in é depois do início da escala ({formatDate(escalaInicio)}) — a pessoa fica sem hotel na primeira noite.
-            </p>
-          )}
-          {diariasDoRascunho > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground" data-testid="impacto-no-planejado">
-              {diariasDoRascunho} {diariasDoRascunho === 1 ? "diária" : "diárias"} neste período.
-              O valor da diária e o total são preenchidos no Espelho Operacional.
-            </p>
+          {(!isCheckOutAfterCheckIn(draft) || chegaTarde || diariasDoRascunho > 0) && (
+            <div className="mt-3 space-y-2">
+              {!isCheckOutAfterCheckIn(draft) && (
+                <p className="m-0 text-xs text-danger-strong flex items-center gap-1.5" role="alert">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> O check-out deve ser igual ou posterior ao check-in.
+                </p>
+              )}
+              {chegaTarde && (
+                <p className="pas-entra m-0 flex items-start gap-2 text-xs text-warning bg-warning-soft rounded-lg px-3 py-2" role="alert" data-testid="aviso-chegada-tardia">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px text-warning-strong" aria-hidden="true" />
+                  O check-in é depois do início da escala ({formatDate(escalaInicio)}) — a pessoa fica sem hotel na primeira noite.
+                </p>
+              )}
+              {diariasDoRascunho > 0 && (
+                <p className="m-0 text-xs text-muted-foreground" data-testid="impacto-no-planejado" aria-live="polite">
+                  <span className="font-semibold text-slate-700 tabular-nums">{diariasDoRascunho} {diariasDoRascunho === 1 ? "diária" : "diárias"}</span> neste período.
+                  {" "}O valor da diária e o total são preenchidos no Espelho Operacional.
+                </p>
+              )}
+            </div>
           )}
         </div>
 
         {/* Dados do espelho operacional — só leitura: quem preenche é a Logística. */}
         {accommodation && (
-          <div className="bg-surface-muted border border-border rounded-xl p-4" data-testid="mirror-readonly-block">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados do espelho operacional</div>
+          <div className="rounded-xl border border-border bg-surface-muted p-4" data-testid="mirror-readonly-block">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h3 className={`${SECAO} !mb-0`}>Dados do espelho operacional</h3>
               <span className="text-2xs text-muted-foreground inline-flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" /> Somente leitura — editado no Espelho</span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <dl className="m-0 grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-3">
               <Field label="Tipo de quarto">{accommodation.roomType ? (ROOM_TYPE_LABEL[accommodation.roomType] ?? accommodation.roomType) : "—"}</Field>
               <Field label="Diárias">{accommodation.nightsCount ?? "—"}</Field>
               <Field label="Valor da diária">{brl(accommodation.dailyRate)}</Field>
               <Field label="Total">{brl(accommodation.totalCents)}</Field>
               <Field label="OC do hotel" mono>{accommodation.hotelOc || "—"}</Field>
-            </div>
+            </dl>
           </div>
         )}
 
         {/* Observações */}
-        <div className="bg-card border border-border rounded-xl p-4">
-          <Label htmlFor={`accommodationObservations-${inclusion.id}`} className={FIELD_LBL}>Observações</Label>
-          <Textarea id={`accommodationObservations-${inclusion.id}`} placeholder="Informações adicionais sobre a hospedagem…" value={draft.accommodationObservations}
+        <div className={CARTAO}>
+          <Label htmlFor={id("accommodationObservations")} className={`${SECAO} flex items-center gap-1.5`}>
+            <NotebookPen className="w-3.5 h-3.5" aria-hidden="true" />Observações
+          </Label>
+          <Textarea id={id("accommodationObservations")} placeholder="Informações adicionais sobre a hospedagem…" value={draft.accommodationObservations}
             onChange={(e) => set("accommodationObservations", e.target.value)} className="h-24 resize-none" data-testid="textarea-observations" disabled={roMode} />
         </div>
 
@@ -231,14 +251,9 @@ export function AccommodationDadosTab({
           precisam ser vistos — é onde está o comprovante da reserva.
         */}
         {roMode && (
-          <div className="border border-border rounded-xl overflow-hidden">
-            <div className="bg-surface-muted border-b border-border px-4 py-2.5 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-              <span className="text-2xs font-black text-muted-foreground uppercase tracking-[0.12em]">Anexos</span>
-            </div>
-            <div className="p-4">
-              <AttachmentUpload attachmentIds={draft.attachmentIds} onAttachmentsChange={(ids) => set("attachmentIds", ids)} disabled />
-            </div>
+          <div className={CARTAO}>
+            <h3 className={`${SECAO} flex items-center gap-1.5`}><Paperclip className="w-3.5 h-3.5" aria-hidden="true" />Anexos</h3>
+            <AttachmentUpload attachmentIds={draft.attachmentIds} onAttachmentsChange={(ids) => set("attachmentIds", ids)} disabled />
           </div>
         )}
       </div>

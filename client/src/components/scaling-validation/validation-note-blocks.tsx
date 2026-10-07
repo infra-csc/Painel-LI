@@ -43,9 +43,11 @@ export function ValidationNoteBlock({ note, byName, at, className, id = "obs-val
   const when = fmtWhen(at);
   const meta = [byName?.trim() || (when ? "Validada pela área" : ""), when].filter(Boolean).join(" · ");
   return (
-    <section aria-labelledby={id} className={cn("space-y-1 rounded-xl border border-info/30 bg-info-soft px-3.5 py-3", className)} data-testid="observacao-validacao">
-      <p id={id} className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-info">
-        <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" /> Observação da validação
+    <section aria-labelledby={id} className={cn("relative space-y-1 overflow-hidden rounded-xl border border-info/30 bg-info-soft py-3 pl-4 pr-3.5", className)} data-testid="observacao-validacao">
+      {/* 07/10: filete e título em caixa de frase — o desenho dos outros avisos do detalhe da vaga. */}
+      <span className="absolute inset-y-0 left-0 w-[3px] bg-info opacity-70" aria-hidden="true" />
+      <p id={id} className="flex items-center gap-1.5 text-[13px] font-semibold leading-5 text-info">
+        <MessageSquareText className="h-4 w-4" aria-hidden="true" /> Observação da validação
       </p>
       <p className="whitespace-pre-line break-words text-sm text-foreground">{text}</p>
       {meta && <p className="text-2xs text-slate-600">{meta}</p>}

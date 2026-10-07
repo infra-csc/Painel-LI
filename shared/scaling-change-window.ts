@@ -18,6 +18,12 @@
  * o pedido — mesma escolha já feita para evento encerrado (`event-window.ts`),
  * para não deixar o acerto sem saída.
  *
+ * 07/10 — NOVA REGRA DO DONO: "pedir ajuste pode até depois da passagem". A
+ * compra deixou de fechar a porta para todos: o pedido segue liberado, a
+ * resposta marca `passagemComprada` (a tela avisa) e, se o aprovador aprovar,
+ * Compras recebe o aviso de alteração para remarcar (avisos_de_alteracao).
+ * O bloqueio `passagem_comprada` continua no tipo só por compatibilidade.
+ *
  * Mora em `shared/` porque servidor e client precisam da MESMA resposta: o
  * servidor é a trava (403) e a tela só esconde/explica o que a API vai recusar.
  * Arquivo próprio, e não dentro de `scaling-validation-rules`, porque isto não
@@ -110,6 +116,8 @@ export interface ChangeWindow {
   postScaling: boolean;
   /** true quando só passou porque o ator é administrador (a área veria bloqueio). */
   adminOverride: boolean;
+  /** A vaga já tem passagem comprada/emitida (07/10: não bloqueia mais; a tela avisa). */
+  passagemComprada?: boolean;
 }
 
 export interface ChangeWindowOptions {
@@ -150,9 +158,9 @@ export function changeRequestWindow(
   // Ainda na Validação: o fluxo de sempre, nada a ver com passagem.
   if (!postScaling) return { allowed: true, postScaling: false, adminOverride: false };
 
+  // 07/10: passagem comprada não fecha mais a porta (regra do dono acima).
   if (hasPurchasedTicket(opts.tickets)) {
-    if (!opts.isAdmin) return deny("passagem_comprada");
-    return { allowed: true, postScaling: true, adminOverride: true };
+    return { allowed: true, postScaling: true, adminOverride: false, passagemComprada: true };
   }
 
   return { allowed: true, postScaling: true, adminOverride: false };

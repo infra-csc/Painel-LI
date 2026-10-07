@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, PencilLine } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Info, Loader2, PencilLine, XCircle } from "lucide-react";
 import { formatDateRange } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -49,25 +49,35 @@ export function ApproveRequestDialog({ open, onOpenChange, request, pending, onC
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={<span className="flex flex-wrap items-center gap-2">
-        Aprovar pedido de {CHANGE_REQUEST_TYPE_LABELS[type].toLowerCase()}?
-        <RequestTypeBadge type={type} />
-        {isPostValidationInclusion(request?.inclusionState) && <PostScalingBadge />}
-      </span>}
+      title={`Aprovar pedido de ${CHANGE_REQUEST_TYPE_LABELS[type].toLowerCase()}?`}
+      icon={CheckCircle2}
       cancelLabel="Voltar"
-      confirmLabel="Aprovar"
+      confirmLabel={pending ? "Aprovando…" : "Aprovar"}
       pending={pending}
       onConfirm={onConfirm}
-      className="max-w-lg"
+      className="!max-w-[580px] max-h-[90vh] overflow-y-auto"
     >
-              <p>
-                <span className="font-semibold text-slate-700">{request?.functionName ?? "Função"}</span>
-                {request ? <span className="font-mono text-muted-foreground"> · {targetLabel(request)}</span> : null}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <RequestTypeBadge type={type} />
+                {isPostValidationInclusion(request?.inclusionState) && <PostScalingBadge />}
+              </div>
+              <p className="text-sm">
+                <span className="font-semibold text-foreground">{request?.functionName ?? "Função"}</span>
+                {request ? <span className="text-xs tabular-nums text-muted-foreground"> · {targetLabel(request)}</span> : null}
                 {request?.eventName ? <span className="text-muted-foreground"> · {request.eventName}</span> : null}
               </p>
               {request && type === "ajuste" && <DiffTable diff={request.diff} />}
               {request && type === "inclusao" && <ProposedList proposed={request.proposed} />}
-              <p className="text-xs text-slate-600">{approveConsequence(type, request?.proposed?.quantity ?? 1, isPostValidationInclusion(request?.inclusionState))}</p>
+              <div className="relative overflow-hidden rounded-xl border border-success/25 bg-success-soft/60 py-2.5 pl-4 pr-3.5 text-success">
+                <span className="absolute inset-y-0 left-0 w-[3px] bg-current opacity-70" aria-hidden="true" />
+                <p className="text-[13px] font-semibold leading-5">O que acontece</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-700">{approveConsequence(type, request?.proposed?.quantity ?? 1, isPostValidationInclusion(request?.inclusionState))}</p>
+                {/* d0264d41: ajuste em vaga já escalada com passagem/hospedagem gera
+                    um aviso para Compras — o aprovador sabe disso ANTES de clicar. */}
+                {isPostValidationInclusion(request?.inclusionState) && type === "ajuste" && (
+                  <p className="mt-1 text-xs leading-relaxed text-slate-700">Se a vaga já tiver passagem ou hospedagem, Compras recebe um aviso com o que mudou, para rever.</p>
+                )}
+              </div>
               {/* O caminho de volta, dito antes do clique (04/09) — a mesma
                   linha do diálogo de aprovar vagas validadas. Na vaga já
                   escalada não existe fila para onde voltar: aplica no lugar. */}
@@ -155,9 +165,12 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
 
   return (
     <Dialog open={open} onOpenChange={(o) => !pending && onOpenChange(o)}>
-      <DialogContent className={cn("p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-xl", canEditFields ? "max-w-3xl" : "max-w-lg")}>
-        <DialogHeader className="px-5 sm:px-6 pt-5 pb-3 border-b border-border pr-12 text-left space-y-1">
-          <DialogTitle className="flex flex-wrap items-center gap-2 text-base">
+      <DialogContent className={cn("flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-xl p-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none", canEditFields ? "max-w-3xl" : "max-w-xl")}>
+        <DialogHeader className="space-y-1.5 border-b border-border px-5 pb-3.5 pt-4 pr-12 text-left sm:px-6">
+          <DialogTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-[-0.01em]">
+            {kind === "negar"
+              ? <span className="flex h-7 w-7 items-center justify-center rounded-full bg-danger-soft text-danger" aria-hidden="true"><XCircle className="h-3.5 w-3.5" /></span>
+              : <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-soft text-primary" aria-hidden="true"><PencilLine className="h-3.5 w-3.5" /></span>}
             {title} <RequestTypeBadge type={type} />
             {isPostValidationInclusion(request?.inclusionState) && <PostScalingBadge />}
           </DialogTitle>
@@ -166,11 +179,16 @@ export function ReviewRequestDialog({ open, onOpenChange, kind, request, inclusi
           <DialogDescription asChild>
             <div className="space-y-0.5">
               <p className="text-sm text-slate-700">
-                <span className="font-semibold">{request?.functionName ?? "Função"}</span>
-                {request ? <span className="font-mono text-muted-foreground"> · {targetLabel(request)}</span> : null}
-                {request?.eventName ? <span className="text-muted-foreground"> · {request.eventName}</span> : null}
-                {event?.startDate ? <span className="font-mono tabular-nums text-muted-foreground"> · {formatDateRange(event.startDate, event.endDate, { withYear: true })}</span> : null}
+                <span className="font-semibold text-foreground">{request?.functionName ?? "Função"}</span>
+                {request ? <span className="text-xs tabular-nums text-muted-foreground"> · {targetLabel(request)}</span> : null}
               </p>
+              {(request?.eventName || event?.startDate) && (
+                <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {request?.eventName ? <span className="font-medium text-slate-700">{request.eventName}</span> : null}
+                  {event?.startDate ? <span className="tabular-nums">· {formatDateRange(event.startDate, event.endDate, { withYear: true })}</span> : null}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 {kind === "reajustar"
                   ? "Ajuste o pedido se precisar, escolha o destino da vaga e explique para a área."
@@ -267,10 +285,14 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
   // ── Foco e rolagem no erro (04/09): a mensagem aparecia embaixo e o campo
   // obrigatório ficava fora da vista; agora o campo recebe o foco.
   const commentRef = useRef<HTMLTextAreaElement>(null);
+  /** A área que rola do diálogo — o erro rola SÓ ela (07/10: o scrollIntoView rolava a moldura inteira, que é overflow-hidden, e o rodapé subia deixando um vão branco embaixo). */
+  const corpoRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (error === COMMENT_REQUIRED) {
-      commentRef.current?.focus();
-      commentRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      const campo = commentRef.current;
+      const corpo = corpoRef.current;
+      campo?.focus({ preventScroll: true });
+      if (campo && corpo) corpo.scrollTo({ top: Math.max(0, campo.offsetTop - corpo.clientHeight / 2), behavior: "smooth" });
     }
   }, [error]);
 
@@ -298,7 +320,7 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !pending) { e.preventDefault(); submit(); }
   };
 
-  const passoCls = "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-800 text-2xs font-bold text-white";
+  const passoCls = "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold tabular-nums text-primary-foreground";
 
   return (
     <>
@@ -311,7 +333,7 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
           aria-labelledby="rev-pedido"
         >
           <div className="flex items-center justify-between gap-3">
-            <p id="rev-pedido" className="text-2xs font-bold uppercase tracking-wide text-muted-foreground min-w-0 truncate">
+            <p id="rev-pedido" className="min-w-0 truncate text-[13px] font-semibold text-foreground">
               O que a área pediu
               {request.requestedByName ? <span className="ml-1.5 font-normal normal-case tracking-normal text-muted-foreground">· {request.requestedByName}</span> : null}
               {!pedidoAberto && <span className="ml-1.5 font-semibold normal-case tracking-normal text-slate-600">· {resumoDoPedido}</span>}
@@ -344,13 +366,13 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
         </section>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4">
+      <div ref={corpoRef} className="relative min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
         <div className="space-y-6">
           {/* 0) A vaga inteira, antes de qualquer decisão: o delta sozinho não
               diz se 07:00 é cedo ou tarde para quem trabalha aqueles dias. */}
           {type === "ajuste" && (
             <section className="space-y-2" aria-labelledby="rev-vaga">
-              <h3 id="rev-vaga" className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">A vaga hoje</h3>
+              <h3 id="rev-vaga" className="text-[13px] font-semibold text-foreground">A vaga hoje</h3>
               <VagaCompleta inclusion={inclusion} falhou={vagaFalhou} />
             </section>
           )}
@@ -413,7 +435,7 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
                     const d = diffInclusion(inclusion, fullFromDraft(draft));
                     return (
                       <div>
-                        <p className="text-2xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">Como fica depois do seu ajuste</p>
+                        <p className="mb-1.5 text-xs font-semibold text-foreground">Como fica depois do seu ajuste</p>
                         {d.length > 0
                           ? <DiffTable diff={d} />
                           : <p className="text-xs italic text-muted-foreground">Nenhum campo muda — a vaga segue exatamente como está e o pedido é resolvido.</p>}
@@ -422,7 +444,7 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
                   })()}
                   {preview && type === "inclusao" && (
                     <div>
-                      <p className="text-2xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">Vaga(s) como ficará(ão)</p>
+                      <p className="mb-1.5 text-xs font-semibold text-foreground">Vaga(s) como ficará(ão)</p>
                       <ProposedList proposed={preview} />
                     </div>
                   )}
@@ -451,6 +473,14 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
                 );
               })}
             </RadioGroup>
+            {/* Vaga já escalada (regra do dono): "devolver para validação" não
+                existe — o servidor recusa. A tela diz isso em vez de só sumir com a opção. */}
+            {postScaling && (
+              <p className="flex items-start gap-2 rounded-lg border border-info/30 bg-info-soft px-3 py-2 text-xs leading-relaxed text-info" data-testid="rev-sem-devolver">
+                <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span><span className="font-semibold">Sem “devolver para validação”:</span> a pessoa já está escalada e a vaga não está mais na fila da área — este pedido só pode ser decidido aqui.</span>
+              </p>
+            )}
             <p id="rev-passo-2-dica" className="sr-only">O botão principal repete o destino escolhido.</p>
           </fieldset>
 
@@ -480,13 +510,14 @@ function ReviewForm({ kind, type, request, inclusion, vagaFalhou, event, pending
         </div>
       </div>
 
-      <DialogFooter className="border-t border-border bg-surface-muted/60 px-5 sm:px-6 py-3 gap-2 sm:gap-2 sm:justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={pending} className="rounded-lg bg-card">Cancelar</Button>
+      <DialogFooter className="gap-2 border-t border-border bg-card px-5 py-3 sm:gap-2 sm:justify-end sm:px-6">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={pending} className="val-alvo h-9 rounded-lg bg-card">Cancelar</Button>
         <Button
           type="button" onClick={submit} disabled={pending}
-          className={cn("rounded-lg min-w-[180px]", kind === "negar" ? "bg-danger hover:bg-danger/90 text-white" : "bg-primary hover:bg-primary-hover")}
+          className={cn("val-alvo h-9 min-w-[180px] rounded-lg font-semibold shadow-1", kind === "negar" ? "bg-danger text-white hover:bg-danger/90" : "bg-primary hover:bg-primary-hover")}
           data-testid="rev-submit"
         >
+          {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
           {rotuloAcao}
         </Button>
       </DialogFooter>

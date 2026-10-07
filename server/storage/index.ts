@@ -38,6 +38,7 @@ import * as empresasPagadoras from "./empresas-pagadoras";
 import * as flash from "./flash";
 import * as bagagem from "./bagagem";
 import * as validacaoDeEscala from "./validacao-de-escala";
+import * as avisosDeAlteracao from "./avisos-de-alteracao";
 
 // `excludeSuggestions` (vagas) e `COLUNAS_DA_FUNCAO` (funcoes) são exports
 // auxiliares, não métodos do storage — ficam de fora do objeto.
@@ -64,6 +65,7 @@ export const storage = {
   ...flash,
   ...bagagem,
   ...validacaoDeEscala,
+  ...avisosDeAlteracao,
 };
 
 /** Superfície da camada de dados (o que era `IStorage`). */
@@ -78,4 +80,5 @@ export type { CollaboratorPatch } from "./colaboradores";
 export type { InsertFlashMovementWithSource } from "./flash";
 export type { InsertScalingChangeRequestRow, CancelSuggestionSendParams, CancelSuggestionSendResult } from "./validacao-de-escala";
 export type { SystemLogFilters } from "./logs-do-sistema";
+export type { AvisoDeAlteracaoComVaga } from "./avisos-de-alteracao";
 export { mapSwapRequestRow, type SwapRequestRow } from "./trocas";

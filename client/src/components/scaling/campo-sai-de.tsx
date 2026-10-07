@@ -43,14 +43,16 @@ export function CampoSaiDe({
 }) {
   const erro = validarSaiDe(cidadeDeSaida(saiDeSP, cidade));
   const mostrarErro = !travado && !!erro && forcarErro;
+  // 07/10: controle segmentado, o mesmo do modal da vaga (eram dois botões
+  // cheios em azul, que liam como duas ações e não como uma escolha).
   const botao = (on: boolean) =>
-    `flex-1 px-2 py-1.5 rounded-lg text-2xs font-semibold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50 ${on && !travado ? "bg-primary text-primary-foreground border-primary" : "bg-card text-slate-600 border-border hover:border-slate-300"}`;
+    `esc-alvo flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50 ${on && !travado ? "bg-card text-primary shadow-1" : "text-slate-600 hover:text-foreground"}`;
   return (
     <div className="space-y-1.5" data-testid={id}>
-      <p id={`${id}-rotulo`} className="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <MapPin className="h-3 w-3" aria-hidden="true" /> {rotulo}<RequiredMark />
+      <p id={`${id}-rotulo`} className="flex items-center gap-1 text-xs font-medium text-slate-600">
+        <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> {rotulo}<RequiredMark />
       </p>
-      <div role="radiogroup" aria-labelledby={`${id}-rotulo`} className="flex gap-1.5">
+      <div role="radiogroup" aria-labelledby={`${id}-rotulo`} className={`flex gap-0.5 rounded-lg border border-border bg-muted p-0.5 ${travado ? "opacity-60" : ""}`}>
         <button type="button" role="radio" aria-checked={!travado && saiDeSP} disabled={travado} onClick={() => onChange(true, SAI_DE_SP)} className={botao(saiDeSP)} data-testid={`${id}-sp`}>
           São Paulo - SP
         </button>
@@ -68,7 +70,7 @@ export function CampoSaiDe({
           onChange={(e) => onChange(false, e.target.value)}
           placeholder="Ex: Rio de Janeiro - RJ"
           data-testid={`${id}-cidade`}
-          className={`w-full px-3 py-2 text-sm border rounded-xl bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary ${mostrarErro ? "border-danger/25" : "border-border"}`}
+          className={`w-full h-9 px-3 text-sm border rounded-lg bg-card transition-[border-color,box-shadow] focus:outline-none focus:ring-[3px] focus:ring-primary/12 focus:border-primary ${mostrarErro ? "border-danger/50" : "border-border"}`}
         />
       )}
       <p className={`text-2xs leading-snug ${mostrarErro ? "text-danger-strong" : "text-muted-foreground"}`}>

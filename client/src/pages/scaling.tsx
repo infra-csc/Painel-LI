@@ -46,7 +46,8 @@ import { useConfirmarRapido } from "@/components/scaling/scaling-page/use-confir
 import { useScalingSelection } from "@/components/scaling/scaling-page/use-scaling-selection";
 import { ScalingHeaderBar } from "@/components/scaling/scaling-page/scaling-header-bar";
 import { ScalingQueue } from "@/components/scaling/scaling-page/scaling-queue";
-import { AcessoNegado, EsqueletoDaLista, EstadoVazio } from "@/components/scaling/scaling-page/estados-da-pagina";
+import { AcessoNegado, BotaoTentarDeNovo, EsqueletoDaLista, EstadoVazio } from "@/components/scaling/scaling-page/estados-da-pagina";
+import { queryClient } from "@/lib/queryClient";
 
 export default function Scaling() {
   usePageTitle("Escalação");
@@ -123,7 +124,10 @@ export default function Scaling() {
     // Margens pela variável do layout (23/09): `-mx-6` fixo estourava a largura
     // em 375px (o layout dá 16px ali) e deixava fresta em 1024+.
     <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
-      <ScalingHeaderBar resumoTopo={r.resumoTopo} aba={aba} onAba={filtros.setAba} canExport={canExport} onExportar={exportar.abrirExportar} />
+      <ScalingHeaderBar
+        resumoTopo={r.resumoTopo} aba={aba} onAba={filtros.setAba} canExport={canExport} onExportar={exportar.abrirExportar}
+        estado={isErrorInclusions && !teamInclusions ? "erro" : isLoading && !teamInclusions ? "carregando" : "pronta"}
+      />
 
       {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}
       <div className="px-[var(--page-gutter)] pt-5">
@@ -132,9 +136,12 @@ export default function Scaling() {
 
           {isErrorInclusions && !teamInclusions ? (
             <EstadoVazio
-              icone={<CloudOff className="w-7 h-7" aria-hidden="true" />}
+              tom="erro"
+              testId="erro-escalacao"
+              icone={<CloudOff className="w-5 h-5" aria-hidden="true" />}
               titulo="Não foi possível carregar as escalações"
-              texto={`${describeLoadError(inclusionsError)} Nada do que você escalou foi perdido.`}
+              texto={`${describeLoadError(inclusionsError).replace(/\s*$/, "").replace(/([^.!?…])$/, "$1.")} Nada do que você escalou foi perdido.`}
+              acao={<BotaoTentarDeNovo onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] })} tentando={isFetchingInclusions} />}
             />
           ) : isLoading && !teamInclusions ? (
             <EsqueletoDaLista />

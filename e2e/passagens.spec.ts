@@ -54,7 +54,7 @@ test("registrar a passagem de uma vaga escalada deixa a vaga 'passagem_comprada'
   await expect(comprada).toContainText("Comprada");
 });
 
-test("marcar a passagem como emitida carimba a linha e trava o pedido de ajuste", async ({ page }) => {
+test("marcar a passagem como emitida carimba a linha", async ({ page }) => {
   await page.goto("/tickets");
   const linha = page.getByRole("row").filter({ has: page.getByTestId(`toggle-emitida-${vaga.id}`) });
   await expect(linha).toBeVisible();

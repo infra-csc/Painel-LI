@@ -4,7 +4,7 @@
  * outra vaga (14/09), com o "Sai de" de cada um.
  */
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, AlertCircle } from "lucide-react";
+import { ArrowLeftRight, AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -19,15 +19,8 @@ import { EscolherVagaDaPermuta, candidatasDaPermuta, periodoCurto } from "./swap
 import type { ScalingMutations } from "./use-scaling-mutations";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { CampoSaiDe, saiDeInicial } from "./campo-sai-de";
+import { getStatusBadge } from "./scaling-table-cells";
 
-const STATUS_LABELS: Record<string, string> = {
-  rascunho: "Rascunho", planejado: "Planejado", confirmado: "Confirmado",
-  pendente: "Pendente", reaberto: "Reaberto", escalacao: "Escalado",
-  passagem: "Aguardando passagem", passagem_comprada: "Passagem comprada",
-  hospedagem: "Aguardando hospedagem", hospedagem_comprada: "Hospedagem reservada",
-  hospedagem_passagem_comprada: "Passagem e hospedagem prontas",
-  aprovacao: "Em aprovação", aprovado: "Aprovado", cancelado: "Cancelado",
-};
 
 export interface SwapRequestDialogProps {
   open: boolean;
@@ -98,7 +91,6 @@ export function SwapRequestDialog({
   const canSubmit = !!newCollaboratorId && !isSameCollab && reason.trim().length >= 10 && !erroSaiDe && !erroSaiDeOutro
     && (!permuta || !!vagaPermuta) && !createSwapRequest.isPending;
 
-  const statusLabel = STATUS_LABELS[inclusion.status] || inclusion.status;
   const startDay = parseDay(inclusion.scheduleStartDate);
   const endDay = parseDay(inclusion.scheduleEndDate);
   const startDate = startDay ? format(startDay, "dd/MM/yyyy", { locale: ptBR }) : null;
@@ -115,40 +107,35 @@ export function SwapRequestDialog({
         {/* Altura limitada (dono, 16/09: "o modal está cortando"): cabeçalho e
             botões fixos, só o miolo rola — em tela baixa o "Enviar para
             aprovação" sumia para fora da janela. */}
-        <DialogContent aria-describedby={undefined} className="max-w-[760px] max-h-[92vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden">
-          <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border bg-brand-soft">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-primary shadow-2 flex items-center justify-center shrink-0">
-                <ArrowLeftRight className="h-[17px] w-[17px] text-white" aria-hidden="true" />
+        {/* 07/10: o cabeçalho é o do sistema (título, frase e a vaga numa faixa
+            de dados) — saiu o quadrado azul com sombra e o fundo azul; a
+            situação usa a pílula do app (aparecia "escalado" cru). O rodapé
+            alinha à direita: Cancelar em contorno, Enviar como principal. */}
+        <DialogContent aria-describedby={undefined} className="max-w-[780px] w-[calc(100vw-1rem)] sm:w-[95vw] max-h-[calc(100dvh-1rem)] sm:max-h-[92vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden">
+          <div className="shrink-0 px-5 sm:px-6 pt-5 pb-4 border-b border-border bg-card">
+            <DialogTitle className="pr-8 text-base font-semibold text-foreground leading-tight">Solicitar troca de colaborador</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">A troca só será efetivada após aprovação do time de Compras.</p>
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-border bg-surface-muted px-3.5 py-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto]">
+              <div className="min-w-0">
+                <dt className="text-2xs text-muted-foreground">Evento</dt>
+                <dd className="truncate text-sm font-semibold text-foreground" title={getEventName(inclusion.eventId)}>{getEventName(inclusion.eventId)}</dd>
               </div>
-              <div className="flex-1 min-w-0">
-                <DialogTitle className="text-base font-bold text-foreground leading-tight">Solicitar troca de colaborador</DialogTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">A troca só será efetivada após aprovação do time de Compras.</p>
+              <div className="min-w-0">
+                <dt className="text-2xs text-muted-foreground">Função</dt>
+                <dd className="truncate text-sm font-semibold text-foreground" title={getFunctionName(inclusion.functionId)}>{getFunctionName(inclusion.functionId)}</dd>
               </div>
-            </div>
-            <div className="bg-card rounded-xl border border-border px-4 py-2.5 shadow-1 grid grid-cols-4 gap-3">
-              <div>
-                <div className="text-2xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Evento</div>
-                <div className="text-2xs font-semibold text-slate-700 truncate" title={getEventName(inclusion.eventId)}>{getEventName(inclusion.eventId)}</div>
+              <div className="min-w-0">
+                <dt className="text-2xs text-muted-foreground">Período</dt>
+                <dd className="text-sm font-medium tabular-nums text-slate-700 sm:whitespace-nowrap">{periodo}</dd>
               </div>
-              <div>
-                <div className="text-2xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Função</div>
-                <div className="text-2xs font-semibold text-slate-700 truncate" title={getFunctionName(inclusion.functionId)}>{getFunctionName(inclusion.functionId)}</div>
+              <div className="min-w-0">
+                <dt className="text-2xs text-muted-foreground">Situação</dt>
+                <dd className="mt-0.5">{getStatusBadge(inclusion, "sm")}</dd>
               </div>
-              <div>
-                <div className="text-2xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Período</div>
-                <div className="text-2xs font-medium text-slate-600">{periodo}</div>
-              </div>
-              <div className="flex flex-col">
-                <div className="text-2xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Status</div>
-                <div className="flex items-start">
-                  <span className="text-2xs font-medium bg-brand-soft text-primary border border-primary/25 rounded-full px-2 py-px leading-snug">{statusLabel}</span>
-                </div>
-              </div>
-            </div>
+            </dl>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-3">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-background px-5 sm:px-6 py-4 space-y-4">
             {/* Troca simples × permuta (dono, 14/09): dois colaboradores já
                 escalados no mesmo período não conseguiam trocar de vaga — cada
                 vaga acusava conflito com a outra. */}
@@ -172,35 +159,38 @@ export function SwapRequestDialog({
                       setSaiDeOutro(saiDeInicial(null));
                       setSubmitAttempted(false);
                     }}
-                    className={`rounded-xl border px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "border-primary bg-brand-soft" : "border-border bg-card hover:border-slate-300"}`}
+                    className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "border-primary bg-card ring-1 ring-primary shadow-1" : "border-border bg-card hover:border-slate-300"}`}
                     data-testid={`tipo-de-troca-${k}`}
                   >
-                    <span className={`block text-xs font-semibold ${on ? "text-primary" : "text-slate-700"}`}>{titulo}</span>
-                    <span className="block text-2xs leading-snug text-muted-foreground">{desc}</span>
+                    <span aria-hidden="true" className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${on ? "border-primary" : "border-slate-300"}`}>
+                      {on && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className={`block text-sm font-semibold ${on ? "text-primary" : "text-foreground"}`}>{titulo}</span>
+                      <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{desc}</span>
+                    </span>
                   </button>
                 );
               })}
             </div>
-            <div className="flex items-center gap-3 bg-surface-muted rounded-xl border border-border px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-2xs uppercase tracking-wide font-semibold text-muted-foreground mb-0.5">Colaborador atual</div>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-lg border border-border bg-card px-4 py-3" data-testid="troca-atual-novo">
+              <div className="min-w-0">
+                <div className="text-2xs text-muted-foreground">Colaborador atual</div>
                 <div className="text-sm font-semibold text-foreground leading-snug break-words">{currentCollabName}</div>
               </div>
-              <div className="w-7 h-7 rounded-full bg-card border border-border shadow-1 flex items-center justify-center shrink-0">
-                <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
-              </div>
-              <div className="flex-1 min-w-0 text-right">
-                <div className="text-2xs uppercase tracking-wide font-semibold text-muted-foreground mb-0.5">Novo colaborador</div>
+              <ArrowRight className={`h-4 w-4 shrink-0 transition-colors ${newCollabName ? "text-primary" : "text-muted-foreground/50"}`} aria-hidden="true" />
+              <div className="min-w-0 text-right">
+                <div className="text-2xs text-muted-foreground">Novo colaborador</div>
                 {newCollabName
-                  ? <div className="text-sm font-semibold text-primary leading-snug break-words">{newCollabName}</div>
-                  : <div className="text-xs text-muted-foreground italic">Ainda não selecionado</div>}
+                  ? <div className="esc-entra text-sm font-semibold text-primary leading-snug break-words">{newCollabName}</div>
+                  : <div className="text-sm text-muted-foreground">Ainda não selecionado</div>}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {permuta ? (
               <div>
-                <label className="text-2xs uppercase tracking-wide font-semibold text-muted-foreground mb-1.5 block">Vaga do outro colaborador</label>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Vaga do outro colaborador</label>
                 {vagaPermuta ? (
                   <div className="rounded-lg border border-primary/30 bg-brand-soft px-3 py-2" data-testid="vaga-permuta-escolhida">
                     <div className="flex items-start justify-between gap-2">
@@ -244,7 +234,7 @@ export function SwapRequestDialog({
               </div>
               ) : (
               <div>
-                <label className="text-2xs uppercase tracking-wide font-semibold text-muted-foreground mb-1.5 block">Novo colaborador</label>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Novo colaborador</label>
                 {/* O conflito de agenda aparece NA LISTA, não depois de
                     escolher: descobrir que a pessoa não pode só ao selecioná-la
                     é fazer o trabalho duas vezes. */}
@@ -280,17 +270,18 @@ export function SwapRequestDialog({
               )}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="swap-reason" className="text-2xs uppercase tracking-wide font-semibold text-muted-foreground">Motivo da troca<RequiredMark /></label>
-                  <span className={`text-2xs ${reason.trim().length >= 10 ? "text-success-strong" : "text-muted-foreground"}`}>{reason.trim().length}/10</span>
+                  <label htmlFor="swap-reason" className="text-xs font-medium text-slate-600">Motivo da troca<RequiredMark /></label>
+                  <span className={`text-2xs tabular-nums ${reason.trim().length >= 10 ? "text-success" : "text-muted-foreground"}`}>{reason.trim().length}/10</span>
                 </div>
                 <Textarea
                   id="swap-reason"
                   value={reason}
                   onChange={(e) => { setReason(e.target.value); setSubmitAttempted(false); }}
                   placeholder="Informe o motivo da troca. Ex: colaborador indisponível, ajuste operacional ou substituição solicitada."
-                  className="resize-none text-xs rounded-xl"
+                  className="resize-none text-sm rounded-lg bg-card focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 focus-visible:border-primary"
                   rows={3}
-                  style={{ minHeight: 82 }}
+                  aria-invalid={reasonEmpty || reasonTooShort || undefined}
+                  style={{ minHeight: 88 }}
                 />
                 {(reasonEmpty || reasonTooShort)
                   ? <p className="text-2xs text-danger-strong mt-1">{reasonEmpty ? "Informe um motivo." : "Mínimo de 10 caracteres."}</p>
@@ -343,17 +334,17 @@ export function SwapRequestDialog({
             )}
           </div>
 
-          <div className="shrink-0 px-6 pb-5 pt-3 flex gap-3 border-t border-border">
+          <div className="shrink-0 px-5 sm:px-6 py-3 flex flex-col-reverse gap-2 border-t border-border bg-card sm:flex-row sm:justify-end">
             <Button
               variant="outline"
-              className="flex-1 rounded-xl h-10 text-sm font-medium"
+              className="rounded-lg h-9 px-4 text-sm font-medium"
               onClick={() => { setSubmitAttempted(false); onOpenChange(false); }}
               disabled={createSwapRequest.isPending}
             >
               Cancelar
             </Button>
             <Button
-              className="flex-1 h-10 text-sm font-semibold rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground transition-all"
+              className="h-9 px-5 gap-1.5 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground shadow-1 transition-colors"
               disabled={!canSubmit}
               onClick={() => {
                 setSubmitAttempted(true);
@@ -367,6 +358,7 @@ export function SwapRequestDialog({
                 );
               }}
             >
+              <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
               {createSwapRequest.isPending ? "Enviando…" : "Enviar para aprovação"}
             </Button>
           </div>
@@ -376,15 +368,12 @@ export function SwapRequestDialog({
       {/* Confirmação pós-envio */}
       <Dialog open={success} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
         <DialogContent aria-describedby={undefined} className="max-w-[460px] p-0 gap-0 rounded-xl overflow-hidden">
-          <div className="px-8 py-8">
+          <div className="px-6 py-7 sm:px-8">
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-14 h-14 rounded-full bg-success-soft border border-success/25 flex items-center justify-center mb-4">
-                <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
-                  <circle cx="18" cy="18" r="17" className="stroke-success-strong" strokeWidth="1.5" strokeOpacity="0.25"/>
-                  <path d="M10 19L15.5 24.5L26 13" className="stroke-success-strong" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+              <div className="esc-entra w-12 h-12 rounded-full bg-success-soft flex items-center justify-center mb-3">
+                <CheckCircle2 className="h-6 w-6 text-success" aria-hidden="true" />
               </div>
-              <DialogTitle className="text-base font-bold text-foreground mb-1">Solicitação enviada para aprovação</DialogTitle>
+              <DialogTitle className="text-base font-semibold text-foreground mb-1">Solicitação enviada para aprovação</DialogTitle>
               <p className="text-xs text-muted-foreground leading-relaxed">A troca foi enviada para análise do time de Compras.</p>
             </div>
             <div className="bg-surface-muted rounded-xl border border-border p-4 mb-4 space-y-3">
@@ -417,7 +406,7 @@ export function SwapRequestDialog({
                 {permuta && vagaPermuta && <> Na troca entre vagas, {currentCollabName} vai para a vaga #{vagaPermuta.inclusionNumber} ({getEventName(vagaPermuta.eventId)}), saindo de {cidadeSaidaOutro}.</>}
               </p>
             </div>
-            <Button className="w-full bg-primary hover:bg-primary-hover text-primary-foreground rounded-xl h-10 font-semibold text-sm" onClick={resetAndClose}>
+            <Button className="w-full bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg h-10 font-semibold text-sm" onClick={resetAndClose}>
               Entendi
             </Button>
           </div>

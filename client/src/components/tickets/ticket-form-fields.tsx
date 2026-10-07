@@ -3,7 +3,7 @@
 // de @/lib/ticket-form; aqui só há apresentação. `variant` ajusta o visual
 // (o lote é compacto, o modal é espaçado) sem mudar campos nem regra.
 import { useMemo, type ReactNode } from "react";
-import { Plane, Bus, Truck, CreditCard, AlertTriangle, Calculator } from "lucide-react";
+import { Bus, Truck, CreditCard, AlertTriangle, Calculator, PlaneTakeoff, PlaneLanding } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { Label } from "@/components/ui/label";
@@ -120,7 +120,7 @@ export default function TicketFormFields({
   // Estilos por variante
   const L = isBatch
     ? "text-2xs font-semibold text-muted-foreground uppercase tracking-tight"
-    : "text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block";
+    : "text-xs font-medium text-slate-600 mb-1.5 block";
   const L2 = isBatch ? "text-2xs font-semibold text-muted-foreground uppercase tracking-tight" : L;
   const I = isBatch ? "h-[34px] bg-surface-muted border-border rounded-lg text-xs" : "";
   const IATA = "h-[34px] bg-surface-muted border-border rounded-lg text-2xs font-bold uppercase text-center";
@@ -130,22 +130,21 @@ export default function TicketFormFields({
   const idOf = (name: string) => (idPrefix ? idPrefix(name) : undefined);
 
   // Funções (não componentes): componentes definidos aqui dentro remontariam a cada tecla e perderiam o foco.
+  // 07/10: a cor fica no ícone e no título (ida = marca, volta = âmbar), não
+  // num quadradinho colorido nem num fundo inteiro — e nada de emoji.
   const sectionHeader = ({ title, icon, tone }: { title: string; icon: ReactNode; tone: "blue" | "orange" | "slate" }) => {
+    const tx = tone === "blue" ? "text-primary" : tone === "orange" ? "text-warning" : "text-slate-600";
     if (!isBatch) {
-      const color = tone === "blue" ? "var(--primary)" : tone === "orange" ? "var(--warning)" : undefined;
       return (
-        <div className={`text-2xs font-black uppercase tracking-[0.12em] ${tone === "slate" ? "text-muted-foreground mb-3" : "flex items-center gap-1.5"}`} style={color ? { color } : undefined}>
-          {icon} {title}
-        </div>
+        <h4 className={`m-0 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.06em] ${tx}`}>
+          {icon}{title}
+        </h4>
       );
     }
-    const bg = tone === "blue" ? "bg-brand-soft border-primary/25" : tone === "orange" ? "bg-warning-soft border-warning/25" : "bg-surface-muted border-border";
-    const dot = tone === "orange" ? "bg-warning-strong" : "bg-primary";
-    const tx = tone === "blue" ? "text-primary" : tone === "orange" ? "text-warning-strong" : "text-slate-600";
     return (
-      <div className={`flex items-center gap-2 px-3 py-2.5 border-b ${bg}`}>
-        <div className={`w-5 h-5 rounded-md ${dot} flex items-center justify-center shrink-0`}>{icon}</div>
-        <h4 className={`text-2xs font-black uppercase tracking-widest ${tx}`}>{title}</h4>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-surface-muted">
+        {icon}
+        <h4 className={`m-0 text-2xs font-semibold uppercase tracking-[0.06em] ${tx}`}>{title}</h4>
       </div>
     );
   };
@@ -176,8 +175,8 @@ export default function TicketFormFields({
       <div className={isBatch ? "space-y-3" : "bg-card border border-border rounded-xl p-4 space-y-4"}>
         <section className={isBatch ? card : ""}>
           {isBatch
-            ? sectionHeader({ title: "Dados da van", tone: "slate", icon: <Truck className="w-3 h-3 text-white" aria-hidden="true" /> })
-            : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Dados da van</div>}
+            ? sectionHeader({ title: "Dados da van", tone: "slate", icon: <Truck className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" /> })
+            : <h4 className="m-0 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground"><Truck className="w-3.5 h-3.5" aria-hidden="true" />Dados da van</h4>}
           <div className={isBatch ? "p-3 bg-card space-y-3" : "mt-3 space-y-3"}>
             <div className={fieldWrap}>
               <Label htmlFor={idOf("vanCompany")} className={L}>Nome da Empresa{R("purchaseOrderNumber")}</Label>
@@ -199,8 +198,7 @@ export default function TicketFormFields({
                   placeholder="Horário de saída, ponto de encontro, número de vagas…"
                   value={val("ticketObservations")}
                   onChange={(e) => set("ticketObservations", e.target.value)}
-                  className="text-xs resize-none bg-surface-muted border-border rounded-lg"
-                  style={{ height: 80 }}
+                  className="text-xs resize-none bg-surface-muted border-border rounded-lg h-20"
                   data-testid="textarea-quick-van-observations"
                   disabled={disabled}
                 />
@@ -220,7 +218,7 @@ export default function TicketFormFields({
     const airD = leg === "ida" ? "destinationAirport" : "returnDestinationAirport";
     const exO = leg === "ida" ? "Ex: São Paulo" : "Ex: Rio de Janeiro";
     const exD = leg === "ida" ? "Ex: Rio de Janeiro" : "Ex: São Paulo";
-    const evBadge = <span className="text-2xs font-medium bg-border text-muted-foreground px-1.5 py-0.5 rounded-full normal-case">Local do evento</span>;
+    const evBadge = <span className="text-2xs font-medium bg-muted text-muted-foreground px-1.5 py-px rounded-md normal-case">Local do evento</span>;
 
     if (isBatch && !isRodo) {
       // Aéreo no lote: Cidade + IATA na mesma linha
@@ -229,7 +227,7 @@ export default function TicketFormFields({
           <Label className={L2}>{label}{R(airF)}</Label>
           <div className="flex gap-2">
             <Input placeholder={exCity} value={val(cityF)} onChange={(e) => set(cityF, e.target.value)} className={`${I} flex-1`} data-testid={testId(cityF)} disabled={disabled} />
-            <Input placeholder={exIata} value={val(airF)} onChange={(e) => set(airF, e.target.value)} className={`${IATA}${E(airF)} text-2xs font-bold`} style={{ width: 56 }} data-testid={testId(airF)} disabled={disabled} />
+            <Input placeholder={exIata} value={val(airF)} onChange={(e) => set(airF, e.target.value)} className={`${IATA}${E(airF)} text-2xs font-bold w-14 shrink-0 px-1`} data-testid={testId(airF)} disabled={disabled} />
           </div>
           {M(airF)}
         </div>
@@ -267,11 +265,11 @@ export default function TicketFormFields({
   );
 
   const idaSection = (
-    <section className={isBatch ? card : "bg-surface-muted border border-border rounded-xl p-4 space-y-3"}>
+    <section className={isBatch ? card : "bg-card border border-border rounded-xl p-4 space-y-3"}>
       {sectionHeader({
-        title: isBatch ? (isRodo ? "Embarque" : "Trecho de ida") : "IDA",
+        title: isBatch ? (isRodo ? "Embarque" : "Trecho de ida") : "Ida",
         tone: "blue",
-        icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" aria-hidden="true" /> : <Plane className="w-3 h-3 text-white" aria-hidden="true" />) : (isRodo ? "🚌" : "🛫"),
+        icon: isRodo ? <Bus className="w-3.5 h-3.5 text-primary" aria-hidden="true" /> : <PlaneTakeoff className="w-3.5 h-3.5 text-primary" aria-hidden="true" />,
       })}
       <div className={isBatch ? "p-3 bg-card space-y-2" : "space-y-3"}>
         {legPlace("ida")}
@@ -285,11 +283,11 @@ export default function TicketFormFields({
   );
 
   const voltaSection = (
-    <section className={isBatch ? card : "bg-surface-muted border border-border rounded-xl p-4 space-y-3"}>
+    <section className={isBatch ? card : "bg-card border border-border rounded-xl p-4 space-y-3"}>
       {sectionHeader({
-        title: isBatch ? (isRodo ? "Desembarque" : "Trecho de volta") : "VOLTA",
+        title: isBatch ? (isRodo ? "Desembarque" : "Trecho de volta") : "Volta",
         tone: "orange",
-        icon: isBatch ? (isRodo ? <Bus className="w-3 h-3 text-white" aria-hidden="true" /> : <Plane className="w-3 h-3 text-white rotate-180" aria-hidden="true" />) : (isRodo ? "🚌" : "🛬"),
+        icon: isRodo ? <Bus className="w-3.5 h-3.5 text-warning-strong" aria-hidden="true" /> : <PlaneLanding className="w-3.5 h-3.5 text-warning-strong" aria-hidden="true" />,
       })}
       <div className={isBatch ? "p-3 bg-card space-y-2" : "space-y-3"}>
         {legPlace("volta")}
@@ -306,8 +304,8 @@ export default function TicketFormFields({
   const trechoAusente = (qual: "IDA" | "VOLTA") => (
     <div className="bg-surface-muted border border-dashed border-border rounded-xl p-4 flex items-center justify-center">
       <div className="text-center">
-        <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-1">
-          {isRodo ? "🚌" : qual === "IDA" ? "🛫" : "🛬"} {qual}
+        <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">
+          {isRodo ? <Bus className="w-3.5 h-3.5" aria-hidden="true" /> : qual === "IDA" ? <PlaneTakeoff className="w-3.5 h-3.5" aria-hidden="true" /> : <PlaneLanding className="w-3.5 h-3.5" aria-hidden="true" />}{qual === "IDA" ? "Ida" : "Volta"}
         </div>
         <div className="text-xs text-muted-foreground">
           {qual === "VOLTA" ? "Bilhete só de ida" : "Bilhete só de volta"}
@@ -326,9 +324,9 @@ export default function TicketFormFields({
       {/* Financeiro / Informações da Compra */}
       <section className={card}>
         {isBatch
-          ? sectionHeader({ title: "Dados financeiros", tone: "slate", icon: <CreditCard className="w-3 h-3 text-white" aria-hidden="true" /> })
-          : <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Informações da compra</div>}
-        <div className={isBatch ? "p-3 bg-card grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
+          ? sectionHeader({ title: "Dados financeiros", tone: "slate", icon: <CreditCard className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" /> })
+          : <h4 className="m-0 mb-3 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground"><CreditCard className="w-3.5 h-3.5" aria-hidden="true" />Informações da compra</h4>}
+        <div className={isBatch ? "p-3 bg-card grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"}>
           <div className={fieldWrap}>
             <Label htmlFor={idOf("purchaseOrderNumber")} className={L}>{isRodo ? "Bilhete" : "LOC"}{R("purchaseOrderNumber")}</Label>
             <Input
@@ -356,7 +354,7 @@ export default function TicketFormFields({
             />
             {M("purchaseDate")}
           </div>
-          <div className={isBatch ? fieldWrap : "mt-3 md:col-span-2"}>
+          <div className={isBatch ? fieldWrap : ""}>
             <Label htmlFor={idOf("value")} className={L}>Valor da passagem{R("value")}</Label>
             {/* Guarda o texto como digitado; a conversão para centavos usa parseBrNumber. */}
             <Input
@@ -364,7 +362,7 @@ export default function TicketFormFields({
               placeholder="0,00" type="text" inputMode="decimal"
               value={val("value")}
               onChange={(e) => set("value", e.target.value)}
-              className={`${isBatch ? I : "max-w-[160px]"}${E("value")}`}
+              className={`${isBatch ? I : "tabular-nums"}${E("value")}`}
               data-testid={testId("ticket-value")}
               disabled={disabled}
             />

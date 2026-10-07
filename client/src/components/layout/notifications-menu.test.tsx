@@ -13,7 +13,7 @@ function roteador(sobrescrever: Partial<Record<string, () => Response | Promise<
     const caminho = url.split("?")[0];
     const proprio = sobrescrever[caminho];
     if (proprio) return proprio();
-    if (caminho === "/api/shell/aguardando-gestor") return respostaJson({ count: 0 });
+    if (caminho === "/api/shell/aguardando-gestor" || caminho === "/api/shell/sem-passagem-30d") return respostaJson({ count: 0 });
     return respostaJson([]);
   };
 }
@@ -80,7 +80,8 @@ describe("NotificationsMenu", () => {
     const titulo = document.getElementById(painel.getAttribute("aria-labelledby")!);
     expect(titulo).toHaveTextContent(/^Pendências$/);
     expect(painel).toContainElement(titulo);
-    expect(painel).toHaveTextContent("Pendências · 1");
+    // 07/10: a contagem saiu do "· 1" em texto corrido para uma pílula ao lado do título.
+    expect(within(painel).getByTestId("sino-contagem")).toHaveTextContent(/^1$/);
 
     const item = await within(painel).findByRole("link", { name: /1 troca pendente em Passagens/ });
     expect(item).toHaveTextContent("Compras precisa confirmar a substituição");
@@ -92,6 +93,59 @@ describe("NotificationsMenu", () => {
     await user.click(item);
     expect(historico.at(-1)).toMatch(/^\/tickets\?t=\d+$/);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("alterações aprovadas para remarcar (07/10): uma entrada por tela, contada UMA vez, e leva a Passagens", async () => {
+    const aviso = (id: string, afetaPassagem: boolean, afetaHospedagem: boolean) => ({
+      id, teamInclusionId: `ti-${id}`, eventId: "ev-1", afetaPassagem, afetaHospedagem, mudancas: [],
+      aprovadoPorNome: "Pedro", aprovadoEm: "2026-10-07T10:00:00.000Z", resolvidoEm: null,
+    });
+    const fetchMock = mockarFetch(roteador({
+      "/api/avisos-de-alteracao": () => respostaJson([aviso("a", true, false), aviso("b", true, true), aviso("c", false, true)]),
+    }));
+    const { user, historico } = renderComTudo(<NotificationsMenu />, { user: compras, rota: "/scaling" });
+
+    // a, b → Passagens (2); c → só hospedagem (1). O "b" não conta duas vezes.
+    await user.click(await screen.findByRole("button", { name: "Pendências (3)" }));
+    const painel = await screen.findByRole("dialog", { name: "Pendências" });
+    const passagens = await within(painel).findByRole("link", { name: /2 alterações aprovadas para remarcar/ });
+    expect(passagens).toHaveTextContent("Datas ou horários mudaram depois da passagem registrada");
+    expect(within(painel).getByRole("link", { name: /1 alteração aprovada para remarcar na hospedagem/ })).toBeInTheDocument();
+    expect(urlsChamadas(fetchMock)).toContain("/api/avisos-de-alteracao?situacao=pendente");
+
+    await user.click(passagens);
+    expect(historico.at(-1)).toMatch(/^\/tickets\?t=\d+$/);
+  });
+
+  it("alterações aprovadas: quem não é da logística nem consulta (sem número inventado)", async () => {
+    const fetchMock = mockarFetch(roteador());
+    const { user } = renderComTudo(<NotificationsMenu />, { user: usuarioFake({ role: "function_area" }) });
+    const painel = await abrirSino(user);
+    await within(painel).findByText("Nada pendente para você agora.");
+    expect(urlsChamadas(fetchMock).some((u) => u.startsWith("/api/avisos-de-alteracao"))).toBe(false);
+  });
+
+  it("sem passagem a 30 dias (07/10): só o admin vê; entra no badge e leva à fila Comprar dos próximos 30 dias", async () => {
+    const fetchMock = mockarFetch(roteador({ "/api/shell/sem-passagem-30d": () => respostaJson({ count: 4 }) }));
+    const { user, historico } = renderComTudo(<NotificationsMenu />, { user: usuarioFake({ id: "admin-1", role: "admin" }), rota: "/scaling" });
+
+    await user.click(await screen.findByRole("button", { name: "Pendências (4)" }));
+    const painel = await screen.findByRole("dialog", { name: "Pendências" });
+    const item = await within(painel).findByRole("link", { name: /4 escalações sem passagem a 30 dias/ });
+    expect(item).toHaveTextContent("A ida é nos próximos 30 dias e a passagem ainda não foi registrada");
+    expect(item).toHaveTextContent("Passagens");
+    expect(urlsChamadas(fetchMock)).toContain("/api/shell/sem-passagem-30d");
+
+    await user.click(item);
+    expect(historico.at(-1)).toMatch(/^\/tickets\?status=pending&periodo=30&t=\d+$/);
+  });
+
+  it("sem passagem a 30 dias: Compras nem consulta (só admin)", async () => {
+    const fetchMock = mockarFetch(roteador({ "/api/shell/sem-passagem-30d": () => respostaJson({ count: 4 }) }));
+    const { user } = renderComTudo(<NotificationsMenu />, { user: compras });
+    const painel = await abrirSino(user);
+    await within(painel).findByText("Nada pendente para você agora.");
+    expect(urlsChamadas(fetchMock).some((u) => u.startsWith("/api/shell/sem-passagem-30d"))).toBe(false);
   });
 
   it("'Marcar tudo como visto' apaga o ponto de novidade sem mudar a contagem", async () => {

@@ -84,9 +84,12 @@ export default function EscolherColaborador({
   }
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden" data-testid="escolher-colaborador">
-      <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2">
-        <Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+    // 07/10: a busca tem a altura de um campo de verdade (era uma faixa de
+    // 30px), a lista rola dentro do cartão quando a pessoa pede "ver todos" e
+    // cada nome mostra o "Escolher" ao passar o mouse — a linha inteira é o botão.
+    <div className="rounded-lg border border-border bg-card overflow-hidden shadow-[0_1px_2px_hsl(222_47%_11%/0.04)] focus-within:border-primary/50 focus-within:ring-[3px] focus-within:ring-primary/10 transition-[border-color,box-shadow]" data-testid="escolher-colaborador">
+      <div className="flex h-10 items-center gap-2 border-b border-border bg-card px-3">
+        <Search className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
           autoFocus
           type="text"
@@ -95,13 +98,18 @@ export default function EscolherColaborador({
           placeholder="Buscar colaborador…"
           aria-label="Buscar colaborador"
           data-testid="input-busca-colaborador"
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm placeholder:text-muted-foreground"
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
+        {busca && (
+          <span className="shrink-0 text-2xs tabular-nums text-muted-foreground" aria-live="polite">
+            {filtrados.length} {filtrados.length === 1 ? "nome" : "nomes"}
+          </span>
+        )}
         {onCancelar && (
           <button
             type="button"
             onClick={onCancelar}
-            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-border hover:text-slate-600"
+            className="esc-alvo shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title="Cancelar a troca de colaborador"
             aria-label="Cancelar"
             data-testid="button-cancelar-escolha"
@@ -111,7 +119,7 @@ export default function EscolherColaborador({
         )}
       </div>
 
-      <ul className="divide-y divide-border">
+      <ul className={`divide-y divide-border ${verTodos || busca.trim() ? "max-h-[288px] overflow-y-auto" : ""}`}>
         {visiveis.map((c) => {
           const { sameEvent, dateOverlap, mesmoDia = [] } = getConflitos(c.id, inclusion);
           const conflito = sameEvent.length > 0 || dateOverlap.length > 0;
@@ -130,10 +138,10 @@ export default function EscolherColaborador({
           if (conflito && onPedirTransferencia) {
             return (
               <li key={c.id}>
-                <div className="flex w-full items-center gap-2.5 bg-warning-soft px-3 py-2" data-testid={`opcao-colaborador-${c.id}`}>
+                <div className="flex w-full items-center gap-2.5 bg-warning-soft/70 px-3 py-2" data-testid={`opcao-colaborador-${c.id}`}>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-warning">{nome}</span>
-                    <span className="block truncate text-2xs text-warning">
+                    <span className="block truncate text-sm font-medium text-warning">{nome}</span>
+                    <span className="block truncate text-2xs text-warning/90">
                       {[c.city, tipo].filter(Boolean).join(" · ")}{ondeConflita ? `${c.city || tipo ? " · " : ""}escalado em ${ondeConflita}` : ""}
                     </span>
                   </span>
@@ -141,7 +149,7 @@ export default function EscolherColaborador({
                     type="button"
                     onClick={() => onPedirTransferencia(c.id)}
                     title={`${nome} já tem escalação no mesmo período${ondeConflita ? ` (${ondeConflita})` : ""}. Peça a transferência para esta vaga.`}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/25 bg-card px-2 py-1 text-2xs font-semibold text-warning hover:bg-warning-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-strong"
+                    className="esc-alvo inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/40 bg-card px-2 py-1 text-xs font-semibold text-warning transition-colors hover:bg-warning hover:text-white hover:border-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-strong"
                     data-testid={`pedir-transferencia-${c.id}`}
                   >
                     <AlertTriangle className="w-3 h-3" aria-hidden="true" />Pedir transferência
@@ -166,12 +174,12 @@ export default function EscolherColaborador({
                 // para qualquer uma delas.
                
                 data-testid={`opcao-colaborador-${c.id}`}
-                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                  conflito ? "cursor-not-allowed bg-warning-soft" : "hover:bg-brand-soft"
+                className={`group flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:bg-brand-soft ${
+                  conflito ? "cursor-not-allowed bg-warning-soft/70" : "hover:bg-brand-soft"
                 }`}
               >
                 <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-sm ${conflito ? "text-warning" : "text-foreground"}`}>{nome}</span>
+                  <span className={`block truncate text-sm font-medium ${conflito ? "text-warning" : "text-foreground"}`}>{nome}</span>
                   {(c.city || tipo) && (
                     <span className={`block truncate text-2xs ${conflito ? "text-warning" : "text-muted-foreground"}`}>
                       {[c.city, tipo].filter(Boolean).join(" · ")}
@@ -190,7 +198,9 @@ export default function EscolherColaborador({
                     <AlertTriangle className="w-3 h-3" aria-hidden="true" />Mesmo dia
                   </span>
                 ) : (
-                  <Check className="w-4 h-4 shrink-0 text-primary opacity-0 group-hover:opacity-100" aria-hidden="true" />
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true">
+                    <Check className="w-3.5 h-3.5" />Escolher
+                  </span>
                 )}
               </button>
               </MotivoDesabilitado>
@@ -199,7 +209,7 @@ export default function EscolherColaborador({
         })}
 
         {visiveis.length === 0 && (
-          <li className="px-3 py-4 text-center text-xs text-muted-foreground">
+          <li className="px-3 py-5 text-center text-sm text-muted-foreground">
             Nenhum colaborador com esse nome.
           </li>
         )}
@@ -209,7 +219,7 @@ export default function EscolherColaborador({
         <button
           type="button"
           onClick={() => setVerTodos(true)}
-          className="w-full border-t border-border bg-background px-3 py-2 text-left text-2xs text-muted-foreground hover:text-primary"
+          className="w-full border-t border-border bg-surface-muted px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           data-testid="button-mais-colaboradores"
         >
           +{restantes} {restantes === 1 ? "colaborador" : "colaboradores"} em ordem alfabética — use a busca

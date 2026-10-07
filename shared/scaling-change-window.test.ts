@@ -4,7 +4,7 @@ import {
   hasPurchasedTicket,
   isPostValidationInclusion,
   isTicketPurchased,
-  CHANGE_WINDOW_BLOCK_MSG,
+
 } from "./scaling-change-window";
 
 const sugestao = { phase: "sugestao", status: "sugestao_pendente" };
@@ -69,18 +69,21 @@ describe("changeRequestWindow", () => {
     expect(changeRequestWindow(escalada, { tickets: [{ ticketStatus: "pendente" }] }).allowed).toBe(true);
   });
 
-  it("passagem comprada bloqueia a área com a mensagem da logística", () => {
+  it("passagem comprada NÃO bloqueia mais (dono, 07/10): libera e marca passagemComprada", () => {
     const w = changeRequestWindow(escalada, { tickets: [{ ticketStatus: "comprada" }] });
-    expect(w.allowed).toBe(false);
-    expect(w.block).toBe("passagem_comprada");
-    expect(w.message).toBe(CHANGE_WINDOW_BLOCK_MSG.passagem_comprada);
+    expect(w.allowed).toBe(true);
+    expect(w.passagemComprada).toBe(true);
+    expect(w.postScaling).toBe(true);
+    expect(w.block).toBeUndefined();
+    const emitida = changeRequestWindow(escalada, { tickets: [{ emittedAt: new Date() }] });
+    expect(emitida.allowed).toBe(true);
   });
 
-  it("passagem comprada não bloqueia o administrador, mas marca a exceção", () => {
+  it("administrador com passagem comprada: mesmo resultado, sem exceção especial", () => {
     const w = changeRequestWindow(escalada, { tickets: [{ ticketStatus: "comprada" }], isAdmin: true });
     expect(w.allowed).toBe(true);
-    expect(w.adminOverride).toBe(true);
-    expect(w.postScaling).toBe(true);
+    expect(w.adminOverride).toBe(false);
+    expect(w.passagemComprada).toBe(true);
   });
 
   it("vaga excluída ou cancelada não aceita pedido, nem de admin", () => {

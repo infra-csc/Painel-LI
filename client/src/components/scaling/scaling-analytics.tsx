@@ -65,8 +65,9 @@ interface Props {
 function Kpi({ rotulo, valor, sub, cor }: { rotulo: string; valor: string; sub: string; cor: string }) {
   return (
     <div className="min-w-0 bg-card px-4 py-3.5">
-      <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{rotulo}</p>
-      <p className="mt-1 text-2xl font-semibold leading-none tabular-nums" style={{ color: cor }}>{valor}</p>
+      {/* Rótulo em caixa normal (07/10), como os blocos da fila de trabalho. */}
+      <p className="truncate text-xs font-medium text-slate-600">{rotulo}</p>
+      <p className="mt-1.5 text-2xl font-semibold leading-none tabular-nums tracking-[-0.02em]" style={{ color: cor }}>{valor}</p>
       <p className="mt-1.5 truncate text-xs text-muted-foreground" title={sub}>{sub}</p>
     </div>
   );
@@ -197,7 +198,7 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
                 role="tab"
                 aria-selected={visao === k}
                 onClick={() => setVisao(k)}
-                className={`h-7 rounded-md px-2.5 text-xs font-medium ${visao === k ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700"}`}
+                className={`h-7 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${visao === k ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700"}`}
                 data-testid={`visao-${k}`}
               >
                 {rotulo}

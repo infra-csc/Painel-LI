@@ -20,8 +20,18 @@
  * Desde 25/09 as regras das células moram em `scaling-table-cells.tsx` e a
  * linha em `scaling-table-row.tsx`; este arquivo continua o ponto de importação
  * público (tinha 714 linhas).
+ *
+ * Redesenho 07/10 — a lista se ajusta à LARGURA QUE TEM, não à da janela:
+ * - larga (≥ 1240px): a grade completa, com a coluna de ID;
+ * - compacta (900–1240px, o notebook com a barra lateral aberta): o ID entra
+ *   na célula da vaga e as colunas fixas encolhem — a grade de 1.300px rolava
+ *   de lado em 1366 e a Situação e as ações ficavam fora da tela;
+ * - cartões (< 900px, tablet e celular): uma vaga por cartão, com os mesmos
+ *   dados e ações, e a ordenação em botões acima da lista.
+ * O cabeçalho da tabela gruda no topo da PÁGINA (abaixo da barra de contexto):
+ * uma rolagem só, em vez de a tabela rolar dentro da página que também rola.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,7 +39,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
 import type { PendingChangeRequest } from "./use-scaling-data";
 import type { NormalizedSwap } from "./scaling-utils";
-import { CHECKBOX_CLS, ScalingTableRow } from "./scaling-table-row";
+import { CHECKBOX_CLS, ScalingCardRow, ScalingTableRow } from "./scaling-table-row";
 
 // O vocabulário de status mora em scaling-status.ts (módulo sem JSX, para a
 // fila e as Análises poderem usá-lo). Reexportado aqui porque a tela e o modal
@@ -101,12 +111,75 @@ export interface ScalingTableProps {
   onToggleAllVisible: (ids: string[], select: boolean) => void;
 }
 
+
 const PAGE_SIZE = 150;
 
-/** Cabeçalho próprio: 34px, 11px/500, e a seta SEMPRE visível (não depende de hover). */
-function Th({ field, label, className = "", sortConfig, onSort }: {
+export type FormaDaLista = "larga" | "compacta" | "cartoes";
+
+/** Forma pela largura disponível (ver o comentário do topo). */
+function formaPara(largura: number): FormaDaLista {
+  if (largura < 900) return "cartoes";
+  if (largura < 1240) return "compacta";
+  return "larga";
+}
+
+/**
+ * Mede a largura do contêiner e só re-renderiza quando a FORMA muda — não a
+ * cada pixel do redimensionamento. O chute inicial vem da janela, para a
+ * primeira pintura já sair na forma certa (sem piscar a tabela no celular).
+ */
+function useFormaDaLista(ref: React.RefObject<HTMLElement>): FormaDaLista {
+  const [forma, setForma] = useState<FormaDaLista>(() =>
+    typeof window === "undefined" ? "larga" : formaPara(window.innerWidth - (window.innerWidth >= 1024 ? 330 : 32)));
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const medir = () => setForma(formaPara(el.getBoundingClientRect().width));
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return forma;
+}
+
+const ROTULO_DA_ORDEM: Record<string, string> = { id: "ID", function: "função", collaborator: "colaborador", period: "período", status: "situação" };
+const ORDENS_DO_CARTAO: { field: SortField; label: string }[] = [
+  { field: "id", label: "ID" }, { field: "function", label: "Função" }, { field: "collaborator", label: "Colaborador" },
+  { field: "period", label: "Período" }, { field: "status", label: "Situação" },
+];
+
+function SetaDaOrdem({ dir }: { dir: "asc" | "desc" | null }) {
+  return dir === "asc" ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+    : dir === "desc" ? <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+    : <ChevronsUpDown className="w-3.5 h-3.5 opacity-45" aria-hidden="true" />;
+}
+
+/** Botão de ordenar: o mesmo no cabeçalho da tabela e na faixa dos cartões. */
+function BotaoDeOrdem({ field, label, sortConfig, onSort, className = "" }: {
+  field: SortField; label: string; sortConfig: SortConfig | null; onSort: (f: SortField) => void; className?: string;
+}) {
+  const ativo = sortConfig?.field === field;
+  const dir = ativo ? sortConfig!.direction : null;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(field)}
+      className={`inline-flex items-center gap-1 rounded-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ativo ? "text-primary" : ""} ${className}`}
+      aria-label={`Ordenar por ${label}`}
+    >
+      {label}
+      <SetaDaOrdem dir={dir} />
+    </button>
+  );
+}
+
+/** Cabeçalho próprio: 36px, 11px/600, e a seta SEMPRE visível (não depende de hover). */
+function Th({ field, label, className = "", sortConfig, onSort, children }: {
   field?: SortField; label: string; className?: string;
   sortConfig: SortConfig | null; onSort: (f: SortField) => void;
+  children?: React.ReactNode;
 }) {
   const ativo = !!field && sortConfig?.field === field;
   const dir = ativo ? sortConfig!.direction : null;
@@ -114,28 +187,18 @@ function Th({ field, label, className = "", sortConfig, onSort }: {
     <th
       scope="col"
       aria-sort={dir ? (dir === "asc" ? "ascending" : "descending") : "none"}
-      className={`px-3.5 text-left text-2xs font-medium ${ativo ? "text-primary" : "text-muted-foreground"} ${className}`}
+      className={`px-3 text-left text-2xs font-semibold ${ativo ? "text-primary" : "text-muted-foreground"} ${className}`}
       data-testid={field ? `header-${field}` : undefined}
     >
-      {field ? (
-        <button
-          type="button"
-          onClick={() => onSort(field)}
-          className="inline-flex items-center gap-1 rounded-sm hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`Ordenar por ${label}`}
-        >
-          {label}
-          {dir === "asc" ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
-            : dir === "desc" ? <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
-            : <ChevronsUpDown className="w-3.5 h-3.5 opacity-45" aria-hidden="true" />}
-        </button>
-      ) : label}
+      {children ?? (field ? <BotaoDeOrdem field={field} label={label} sortConfig={sortConfig} onSort={onSort} /> : label)}
     </th>
   );
 }
 
 export default function ScalingTable(props: ScalingTableProps) {
   const { rows, sortConfig, onSort, onConfirmarRapido, selectedIds, getSelectBlockReason, onToggleAllVisible, ...resto } = props;
+  const caixaRef = useRef<HTMLDivElement>(null);
+  const forma = useFormaDaLista(caixaRef);
   // Corte de renderização (auditoria 28/08): sem filtro, a tela montava TODAS
   // as linhas de uma vez e cada tecla na busca repintava tudo. O dado continua
   // inteiro em memória — só o DOM é servido em blocos.
@@ -147,80 +210,106 @@ export default function ScalingTable(props: ScalingTableProps) {
   const allVisibleSelected = selectableIds.length > 0 && selectedVisible === selectableIds.length;
   const someVisibleSelected = selectedVisible > 0 && !allVisibleSelected;
 
-  const ordemLabel = sortConfig
-    ? ({ id: "ID", function: "função", collaborator: "colaborador", period: "período", status: "situação" } as Record<string, string>)[sortConfig.field] ?? sortConfig.field
-    : "evento e função";
-
+  const ordemLabel = sortConfig ? ROTULO_DA_ORDEM[sortConfig.field] ?? sortConfig.field : "evento e função";
   const rowProps = { ...resto, sortConfig, onSort, onConfirmarRapido, selectedIds, getSelectBlockReason, onToggleAllVisible };
+  const larga = forma === "larga";
+
+  const selecionarTodas = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="esc-alvo inline-flex items-center justify-center">
+          <Checkbox
+            checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+            disabled={selectableIds.length === 0}
+            onCheckedChange={(v) => onToggleAllVisible(selectableIds, v === true)}
+            aria-label={allVisibleSelected ? "Desmarcar todas as visíveis" : "Selecionar todas as visíveis que podem ser confirmadas"}
+            data-testid="checkbox-select-all-visible"
+            className={CHECKBOX_CLS}
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-2xs">
+        {selectableIds.length === 0
+          ? "Nenhuma linha visível pode ser confirmada por você"
+          : `Selecionar as ${selectableIds.length} visíveis que você pode confirmar`}
+      </TooltipContent>
+    </Tooltip>
+  );
 
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden">
-      {/* Rolagem INTERNA nos dois eixos com cabeçalho fixo (25/09): em 768/375
-          a grade de 1.300px rolava a página inteira e o cabeçalho sumia na
-          primeira linha. A altura máxima desconta a barra do topo e a de contexto. */}
-      <div className="overflow-auto max-h-[calc(100dvh-var(--sticky-top,3.5rem)-12rem)] overscroll-x-contain">
-        <table className={`table-fixed w-full ${onConfirmarRapido ? "min-w-[1300px]" : "min-w-[1180px]"}`}>
+    // `overflow-clip` (não `hidden`): recorta os cantos sem virar contêiner de
+    // rolagem — é o que deixa o cabeçalho grudar no topo da página.
+    <div ref={caixaRef} className="bg-card rounded-xl border border-border overflow-clip" data-forma={forma} data-testid="lista-escalacao">
+      {forma === "cartoes" ? (
+        <>
+          {/* Faixa de ordenação: no cartão não há cabeçalho de coluna. */}
+          <div className="esc-faixa-ordem flex items-center gap-3 border-b border-border bg-surface-muted pl-[15px] pr-3 py-1.5">
+            {selecionarTodas}
+            <span className="text-2xs font-semibold text-muted-foreground shrink-0">Ordenar</span>
+            <div className="esc-rolagem-x flex min-w-0 items-center gap-3.5 text-2xs font-semibold text-slate-600" role="group" aria-label="Ordenar a lista">
+              {ORDENS_DO_CARTAO.map(({ field, label }) => (
+                <BotaoDeOrdem key={field} field={field} label={label} sortConfig={sortConfig} onSort={onSort} className="esc-alvo whitespace-nowrap" />
+              ))}
+            </div>
+          </div>
+          <ul aria-label="Escalação: vagas do evento com colaborador, função, dias e status">
+            {visibleRows.map((inclusion) => <ScalingCardRow key={inclusion.id} inclusion={inclusion} p={rowProps} />)}
+          </ul>
+        </>
+      ) : (
+        <table className="table-fixed w-full">
           <caption className="sr-only">Escalação: vagas do evento com colaborador, função, dias e status</caption>
           <colgroup>
-            <col style={{ width: "44px" }} />
-            <col style={{ width: "84px" }} />
-            <col style={{ width: "26%" }} />
-            <col style={{ width: "24%" }} />
-            <col style={{ width: "148px" }} />
-            <col style={{ width: "250px" }} />
-            <col style={{ width: "168px" }} />
-            {/* Com o "Confirmar" rápido a coluna de ações precisa de ~200px:
-                86px cabia só os dois ícones e o botão invadia o vizinho (04/09). */}
-            <col style={{ width: onConfirmarRapido ? "200px" : "86px" }} />
+            <col style={{ width: larga ? "46px" : "40px" }} />
+            {larga && <col style={{ width: "76px" }} />}
+            <col />
+            <col />
+            <col style={{ width: larga ? "148px" : "112px" }} />
+            <col style={{ width: larga ? "280px" : "196px" }} />
+            {/* O "Confirmar" rápido mora na Situação desde 07/10 (no lugar do
+                "Falta confirmar"): a coluna de ações tem só os dois ícones. */}
+            <col style={{ width: larga ? "196px" : "164px" }} />
+            <col style={{ width: "80px" }} />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]">
-            <tr className="h-[34px] bg-background">
-              <th scope="col" className="px-3 text-center">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Checkbox
-                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
-                        disabled={selectableIds.length === 0}
-                        onCheckedChange={(v) => onToggleAllVisible(selectableIds, v === true)}
-                        aria-label={allVisibleSelected ? "Desmarcar todas as visíveis" : "Selecionar todas as visíveis que podem ser confirmadas"}
-                        data-testid="checkbox-select-all-visible"
-                        className={CHECKBOX_CLS}
-                      />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-2xs">
-                    {selectableIds.length === 0
-                      ? "Nenhuma linha visível pode ser confirmada por você"
-                      : `Selecionar as ${selectableIds.length} visíveis que você pode confirmar`}
-                  </TooltipContent>
-                </Tooltip>
-              </th>
-              <Th field="id" label="ID" sortConfig={sortConfig} onSort={onSort} />
-              <Th field="function" label="Função / Evento" sortConfig={sortConfig} onSort={onSort} />
+          <thead className="esc-cabecalho sticky z-10 bg-surface-muted shadow-[inset_0_-1px_0_0_var(--border)]">
+            <tr className="h-9">
+              <th scope="col" className="px-3 text-center">{selecionarTodas}</th>
+              {larga && <Th field="id" label="ID" className="!pl-0" sortConfig={sortConfig} onSort={onSort} />}
+              {larga ? (
+                <Th field="function" label="Função / Evento" sortConfig={sortConfig} onSort={onSort} />
+              ) : (
+                // Compacta: o ID mora na célula da vaga — as duas ordens continuam aqui.
+                <Th field={sortConfig?.field === "id" ? "id" : "function"} label="Vaga" sortConfig={sortConfig} onSort={onSort}>
+                  <span className="inline-flex items-center gap-2.5 whitespace-nowrap">
+                    <BotaoDeOrdem field="function" label="Função" sortConfig={sortConfig} onSort={onSort} />
+                    <span aria-hidden="true" className="h-3 w-px bg-border" />
+                    <BotaoDeOrdem field="id" label="ID" sortConfig={sortConfig} onSort={onSort} />
+                  </span>
+                </Th>
+              )}
               <Th field="collaborator" label="Colaborador" sortConfig={sortConfig} onSort={onSort} />
-              <Th field="period" label="Período / diárias" className="whitespace-nowrap" sortConfig={sortConfig} onSort={onSort} />
+              <Th field="period" label={larga ? "Período / diárias" : "Período"} className="whitespace-nowrap" sortConfig={sortConfig} onSort={onSort} />
               <Th label="Precisa de" sortConfig={sortConfig} onSort={onSort} />
               <Th field="status" label="Situação" sortConfig={sortConfig} onSort={onSort} />
-              <Th label="" sortConfig={sortConfig} onSort={onSort} />
+              <th scope="col"><span className="sr-only">Ações</span></th>
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((inclusion) => <ScalingTableRow key={inclusion.id} inclusion={inclusion} p={rowProps} />)}
+            {visibleRows.map((inclusion) => <ScalingTableRow key={inclusion.id} inclusion={inclusion} p={rowProps} compacta={!larga} />)}
           </tbody>
         </table>
-      </div>
+      )}
 
-      <div className="flex items-center gap-3 h-10 px-4 bg-background border-t border-border">
-        <span className="text-xs text-slate-600 tabular-nums whitespace-nowrap">
-          Mostrando {visibleRows.length} de {rows.length} · ordenado por {ordemLabel}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-h-10 px-4 py-2 bg-surface-muted border-t border-border">
+        <span className="text-xs text-slate-600 tabular-nums">
+          Mostrando <b className="font-semibold text-foreground">{visibleRows.length}</b> de {rows.length} · ordenado por {ordemLabel}
         </span>
         {rows.length > visibleCount && (
           <span className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-              className="h-[26px] px-2.5 rounded-md border border-border bg-card text-xs font-medium text-primary hover:border-primary hover:bg-brand-soft whitespace-nowrap"
+              className="esc-alvo h-[26px] px-2.5 rounded-md border border-border bg-card text-xs font-medium text-primary hover:border-primary hover:bg-brand-soft whitespace-nowrap"
               data-testid="button-load-more-rows"
             >
               Mostrar mais {Math.min(PAGE_SIZE, rows.length - visibleCount)}
@@ -228,7 +317,7 @@ export default function ScalingTable(props: ScalingTableProps) {
             <button
               type="button"
               onClick={() => setVisibleCount(rows.length)}
-              className="h-[26px] px-2 rounded-md text-xs font-medium text-muted-foreground hover:text-primary whitespace-nowrap"
+              className="esc-alvo h-[26px] px-2 rounded-md text-xs font-medium text-muted-foreground hover:text-primary whitespace-nowrap"
               data-testid="button-load-all-rows"
             >
               Mostrar todas

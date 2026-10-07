@@ -3,14 +3,14 @@
  * os blocos da fila, a faixa de recarga, os estados vazios, a tabela e a barra
  * de confirmação em lote.
  */
-import { FilterX, Users } from "lucide-react";
+import { FilterX, History, Users } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import ScalingTable, { type ScalingTableProps } from "../scaling-table";
 import ScalingWorkQueue from "../scaling-work-queue";
 import BulkConfirmBar from "../bulk-confirm-bar";
 import type { QueueKey } from "../scaling-queue";
-import { EstadoVazio } from "./estados-da-pagina";
+import { AcaoDoEstado, EstadoVazio } from "./estados-da-pagina";
 
 export interface ScalingQueueProps {
   contagens: Record<QueueKey, number>;
@@ -42,56 +42,45 @@ export function ScalingQueue({ contagens, total, fila, onFila, mostrarGestor, mo
     <>
       <ScalingWorkQueue contagens={contagens} total={total} ativa={fila} onEscolher={onFila} mostrarGestor={mostrarGestor} mostrarTrocas={mostrarTrocas} />
 
-      {/* A faixa de recarga fica ACIMA dos filtros e não os
-          substitui: o toggle que disparou a busca precisa continuar
+      {/* Recarga (07/10): uma barra fina colada no topo da lista, em vez de
+          uma faixa que empurrava a tabela 30px a cada filtro. Ela não
+          substitui os filtros: o toggle que disparou a busca continua
           clicável para poder ser desfeito. */}
-      {isFetching && (
-        <p
-          role="status"
-          className="flex items-center gap-2 rounded-lg border border-border bg-brand-soft px-3 py-1.5 text-xs text-primary"
-          data-testid="aviso-recarregando"
-        >
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />
-          Atualizando a lista…
-        </p>
-      )}
+      <div className="relative -my-2 h-0">
+        {isFetching && (
+          <p role="status" className="absolute inset-x-3 top-0.5 h-0.5 overflow-hidden rounded-full bg-brand-soft" data-testid="aviso-recarregando">
+            <span className="esc-progresso block h-full w-2/5 rounded-full bg-primary" aria-hidden="true" />
+            <span className="sr-only">Atualizando a lista…</span>
+          </p>
+        )}
+      </div>
 
       {semVagas ? (
         <EstadoVazio
-          icone={<Users className="w-7 h-7" aria-hidden="true" />}
+          icone={<Users className="w-5 h-5" aria-hidden="true" />}
           titulo="Nenhuma vaga para escalar"
           texto="As vagas chegam da Inclusão de Equipe quando as funções do evento abrem. Assim que uma for criada, ela aparece aqui."
         />
       ) : visibleRows.length === 0 && eventoPassadoOculto ? (
         <EstadoVazio
-          icone={<FilterX className="w-7 h-7" aria-hidden="true" />}
+          icone={<History className="w-5 h-5" aria-hidden="true" />}
           titulo="Este evento já aconteceu"
           texto={`O recorte "Futuros" (o padrão) esconde as vagas de eventos passados. Para ver e exportar ${eventoPassadoOculto.vagas === 1 ? "a vaga" : `as ${eventoPassadoOculto.vagas} vagas`} de ${eventoPassadoOculto.nome}, mude o recorte para "Todos" ou "Realizados" — ali em cima, ao lado de "Futuros".`}
           acao={
-            <button
-              type="button"
-              onClick={eventoPassadoOculto.onMostrar}
-              className="h-[34px] px-3.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover"
-              data-testid="button-mostrar-evento-passado"
-            >
+            <AcaoDoEstado onClick={eventoPassadoOculto.onMostrar} testId="button-mostrar-evento-passado">
               Mostrar {eventoPassadoOculto.vagas === 1 ? "a vaga" : `as ${eventoPassadoOculto.vagas} vagas`}
-            </button>
+            </AcaoDoEstado>
           }
         />
       ) : visibleRows.length === 0 ? (
         <EstadoVazio
-          icone={<FilterX className="w-7 h-7" aria-hidden="true" />}
+          icone={<FilterX className="w-5 h-5" aria-hidden="true" />}
           titulo="Nenhuma escalação nesse recorte"
           texto={`Filtrando por ${nomesDosFiltrosAtivos || "este recorte"} não sobra nenhuma linha.`}
           acao={
-            <button
-              type="button"
-              onClick={onLimparFiltros}
-              className="h-[34px] px-3.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover"
-              data-testid="button-limpar-filtros"
-            >
-              Limpar filtros
-            </button>
+            <AcaoDoEstado onClick={onLimparFiltros} testId="button-limpar-filtros" principal={false}>
+              <FilterX className="h-4 w-4" aria-hidden="true" />Limpar filtros
+            </AcaoDoEstado>
           }
         />
       ) : (

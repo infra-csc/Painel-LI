@@ -33,7 +33,7 @@ export function SuggestionHistoryCard({ row, open }: { row: SuggestionRow; open:
         // evento que não aconteceu.
         <ol className="relative ml-1.5 space-y-3 border-l border-border">
           <li className="ml-4">
-            <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white bg-slate-300" aria-hidden="true" />
+            <span className="absolute -left-[6px] mt-1 h-3 w-3 rounded-full border-2 border-card bg-slate-300" aria-hidden="true" />
             <p className="text-sm text-foreground">{describeSuggestedVaga(row)}</p>
             {row.suggestionSentAt && (
               <p className="mt-0.5 text-2xs text-muted-foreground">{fmtDateTime(row.suggestionSentAt)}</p>
@@ -51,12 +51,12 @@ export function SuggestionHistoryCard({ row, open }: { row: SuggestionRow; open:
             const agora = i === logsQuery.data!.length - 1;
             return (
               <li key={log.id} className="ml-4">
-                <span className={cn("absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full border border-white", agora ? "bg-primary" : "bg-slate-300")} aria-hidden="true" />
+                <span className={cn("absolute -left-[6px] mt-1 h-3 w-3 rounded-full border-2 border-card", agora ? "bg-primary" : "bg-slate-300")} aria-hidden="true" />
                 <p className="flex flex-wrap items-center gap-1.5 text-sm text-foreground">
                   {/* `whitespace-pre-line`: o log de validação traz a
                       observação numa linha própria ("\nObservação: …"). */}
                   <span className="whitespace-pre-line break-words">{phrase}</span>
-                  {agora && <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-primary">agora</span>}
+                  {agora && <span className="rounded-full bg-brand-soft px-2 py-0.5 text-2xs font-semibold text-primary">agora</span>}
                 </p>
                 {/* Basta um dos dois lados: campo esvaziado tem "de"
                     sem "para", e guardar tudo pelo "para" fazia o

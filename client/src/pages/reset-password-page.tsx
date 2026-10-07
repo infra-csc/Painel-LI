@@ -7,10 +7,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation, useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, KeyRound } from "lucide-react";
+import { Lock, Eye, EyeOff, ArrowLeft, ArrowRight, CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/components/common/use-page-title";
-import norteLogo from "@assets/image_1776349526988.png";
+import { AuthLayout, AuthHeader } from "@/components/layout/auth-layout";
 
 const resetPasswordSchema = z.object({
   token: z.string().min(1, "Token é obrigatório"),
@@ -31,7 +31,7 @@ function EyeToggle({ shown, onToggle, label }: { shown: boolean; onToggle: () =>
       onClick={onToggle}
       aria-label={shown ? `Ocultar ${label}` : `Mostrar ${label}`}
       aria-pressed={shown}
-      className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {shown ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
     </button>
@@ -97,136 +97,118 @@ export default function ResetPasswordPage() {
   const errors = form.formState.errors;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-gradient-to-br from-brand-soft to-secondary">
-      <div className="w-full max-w-[420px] bg-card rounded-xl shadow-3 p-6 sm:p-10">
-        {/* Logo + Title (mesma casca do login) */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-10 overflow-hidden flex items-start">
-            <img
-              src={norteLogo}
-              alt="Norte"
-              className="object-contain object-left max-w-[160px] max-h-[54px] [clip-path:inset(0_0_25%_0)]"
-            />
-          </div>
-          <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground">
-            {done ? "Senha redefinida" : "Redefinir senha"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 text-center">
-            {done
-              ? "Sua senha foi alterada com sucesso."
-              : "Informe o token recebido por e-mail e escolha a nova senha"}
-          </p>
-        </div>
-
-        {done ? (
-          <div role="status" className="flex flex-col items-center text-center gap-4 py-6 px-4 rounded-xl bg-brand-soft border border-primary/20">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground">
-              <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
-            </div>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Você já pode entrar no sistema usando a nova senha.
-            </p>
-            <Button className="w-full font-semibold hover:bg-primary-hover" onClick={() => setLocation("/auth")} data-testid="button-go-to-login">
-              Ir para o login
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={form.handleSubmit(handleResetPassword)} className="space-y-4" noValidate>
-            <div className="space-y-1.5">
-              <Label htmlFor="token">Token de recuperação</Label>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
-                <Input
-                  id="token"
-                  placeholder="Cole o token recebido por e-mail"
-                  autoComplete="one-time-code"
-                  aria-invalid={!!errors.token}
-                  aria-describedby={errors.token ? "token-error" : undefined}
-                  className={cn("pl-9 bg-muted/40", errors.token && "border-destructive focus-visible:ring-destructive")}
-                  {...form.register("token")}
-                  data-testid="input-reset-token"
-                />
-              </div>
-              {errors.token && (
-                <p id="token-error" role="alert" className="text-xs text-destructive">{errors.token.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="newPassword">Nova senha</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
-                <Input
-                  id="newPassword"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Digite sua nova senha"
-                  autoComplete="new-password"
-                  aria-invalid={!!errors.newPassword}
-                  aria-describedby={errors.newPassword ? "newPassword-error" : undefined}
-                  className={cn("pl-9 pr-10 bg-muted/40", errors.newPassword && "border-destructive focus-visible:ring-destructive")}
-                  {...form.register("newPassword")}
-                  data-testid="input-new-password"
-                />
-                <EyeToggle shown={showPassword} onToggle={() => setShowPassword(v => !v)} label="nova senha" />
-              </div>
-              {errors.newPassword && (
-                <p id="newPassword-error" role="alert" className="text-xs text-destructive">{errors.newPassword.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60 pointer-events-none" aria-hidden="true" />
-                <Input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Confirme sua nova senha"
-                  autoComplete="new-password"
-                  aria-invalid={!!errors.confirmPassword}
-                  aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}
-                  className={cn("pl-9 pr-10 bg-muted/40", errors.confirmPassword && "border-destructive focus-visible:ring-destructive")}
-                  {...form.register("confirmPassword")}
-                  data-testid="input-confirm-password"
-                />
-                <EyeToggle shown={showConfirmPassword} onToggle={() => setShowConfirmPassword(v => !v)} label="confirmação da senha" />
-              </div>
-              {errors.confirmPassword && (
-                <p id="confirmPassword-error" role="alert" className="text-xs text-destructive">{errors.confirmPassword.message}</p>
-              )}
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full mt-2 font-semibold hover:bg-primary-hover"
-              disabled={isLoading}
-              data-testid="button-reset-password"
-            >
-              {isLoading ? "Redefinindo…" : "Redefinir senha"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => setLocation("/auth")}
-              data-testid="button-back-to-login"
-            >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-              Voltar ao login
-            </Button>
-          </form>
+    <AuthLayout
+      rodape={done
+        ? <>Problemas para acessar? Fale com o administrador do sistema.</>
+        : <>O token vale por 1 hora. Se expirou, solicite um novo.</>}
+    >
+      <AuthHeader
+        acima={!done && (
+          <button
+            type="button"
+            onClick={() => setLocation("/auth")}
+            data-testid="button-back-to-login"
+            className="inline-flex items-center gap-1.5 h-8 -ml-2 mb-4 px-2 rounded-md border-0 bg-transparent text-[13px] font-medium text-muted-foreground cursor-pointer transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          >
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            Voltar ao login
+          </button>
         )}
+        titulo={done ? "Senha redefinida" : "Redefinir senha"}
+        descricao={done
+          ? "Sua senha foi alterada com sucesso."
+          : "Cole o token recebido por e-mail e escolha a nova senha."}
+      />
 
-        {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-border text-center">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {done
-              ? "Problemas para acessar? Entre em contato com o administrador do sistema."
-              : "O token é válido por 1 hora. Se expirou, solicite um novo."}
-          </p>
+      {done ? (
+        <div role="status" className="casca-surgir space-y-5">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-success-soft border border-success/20">
+            <CheckCircle2 className="w-5 h-5 shrink-0 text-success-strong" aria-hidden="true" />
+            <p className="m-0 text-sm text-foreground/85 leading-snug">Você já pode entrar no sistema usando a nova senha.</p>
+          </div>
+          <Button className="w-full h-10 font-semibold" onClick={() => setLocation("/auth")} data-testid="button-go-to-login">
+            Ir para o login <ArrowRight className="w-4 h-4" aria-hidden="true" />
+          </Button>
         </div>
-      </div>
-    </div>
+      ) : (
+        <form onSubmit={form.handleSubmit(handleResetPassword)} className="space-y-5" noValidate>
+          <div className="space-y-1.5">
+            <Label htmlFor="token">Token de recuperação</Label>
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+              <Input
+                id="token"
+                placeholder="Cole o token recebido por e-mail"
+                autoComplete="one-time-code"
+                aria-invalid={!!errors.token}
+                aria-describedby={errors.token ? "token-error" : undefined}
+                className={cn("h-10 pl-9 bg-card font-mono text-[13px] placeholder:font-sans placeholder:text-sm", errors.token && "border-destructive focus-visible:ring-destructive")}
+                {...form.register("token")}
+                data-testid="input-reset-token"
+              />
+            </div>
+            {errors.token && (
+              <p id="token-error" role="alert" className="text-xs text-destructive">{errors.token.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="newPassword">Nova senha</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+              <Input
+                id="newPassword"
+                type={showPassword ? "text" : "password"}
+                placeholder="Pelo menos 6 caracteres"
+                autoComplete="new-password"
+                aria-invalid={!!errors.newPassword}
+                aria-describedby={errors.newPassword ? "newPassword-error" : undefined}
+                className={cn("h-10 pl-9 pr-10 bg-card", errors.newPassword && "border-destructive focus-visible:ring-destructive")}
+                {...form.register("newPassword")}
+                data-testid="input-new-password"
+              />
+              <EyeToggle shown={showPassword} onToggle={() => setShowPassword(v => !v)} label="nova senha" />
+            </div>
+            {errors.newPassword && (
+              <p id="newPassword-error" role="alert" className="text-xs text-destructive">{errors.newPassword.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+              <Input
+                id="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Repita a nova senha"
+                autoComplete="new-password"
+                aria-invalid={!!errors.confirmPassword}
+                aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}
+                className={cn("h-10 pl-9 pr-10 bg-card", errors.confirmPassword && "border-destructive focus-visible:ring-destructive")}
+                {...form.register("confirmPassword")}
+                data-testid="input-confirm-password"
+              />
+              <EyeToggle shown={showConfirmPassword} onToggle={() => setShowConfirmPassword(v => !v)} label="confirmação da senha" />
+            </div>
+            {errors.confirmPassword && (
+              <p id="confirmPassword-error" role="alert" className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+            )}
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full h-10 font-semibold"
+            disabled={isLoading}
+            aria-busy={isLoading}
+            data-testid="button-reset-password"
+          >
+            {isLoading
+              ? <><Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> Redefinindo…</>
+              : "Redefinir senha"}
+          </Button>
+        </form>
+      )}
+    </AuthLayout>
   );
 }

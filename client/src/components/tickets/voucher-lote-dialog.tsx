@@ -7,10 +7,14 @@
  * - nada é gravado sem o clique em "Registrar"; a leitura é sugestão;
  * - arquivo que o sistema não entende (ou é voucher de hotel) aparece na lista
  *   como não aproveitável, com o motivo, em vez de sumir em silêncio.
+ *
+ * 07/10: a área de soltar acende quando um arquivo passa por cima, cada linha
+ * diz o estado com ícone (pronta, sem vaga, não aproveitável, registrada, erro)
+ * e o modal ocupa a tela inteira no celular.
  */
 import { useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { FileUp, Loader2, CheckCircle2, AlertTriangle, X, Trash2 } from "lucide-react";
+import { FileUp, Loader2, CheckCircle2, AlertTriangle, X, Trash2, FileText, Upload } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -64,6 +68,8 @@ export default function VoucherLoteDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [gravando, setGravando] = useState(false);
+  /** Arquivo passando por cima da área de soltar — acende a moldura. */
+  const [arrastando, setArrastando] = useState(false);
   // 28/09: com vouchers lidos e ainda não registrados, fechar (Esc, clique
   // fora ou "Fechar") descartava a conferência em silêncio.
   const revisaoPendente = linhas.some((l) => l.tipo === "passagem" && l.resultado !== "ok");
@@ -201,32 +207,40 @@ export default function VoucherLoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) pedirParaFechar(fechar); }}>
-      <DialogContent className="max-w-5xl p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-xl">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border pr-12">
-          <DialogTitle className="flex items-center gap-2">
-            <FileUp className="w-5 h-5 text-primary" aria-hidden="true" />
+      <DialogContent className="max-w-5xl p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidden rounded-xl max-sm:w-full max-sm:max-w-none max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none max-sm:border-0">
+        <DialogHeader className="px-5 sm:px-6 pt-5 pb-4 border-b border-border pr-12 text-left">
+          <DialogTitle className="flex items-center gap-2.5 text-base font-semibold">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
+              <FileUp className="w-4 h-4" />
+            </span>
             Registrar passagens pelos vouchers
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm leading-relaxed">
             Solte os PDFs aqui: eu leio cada um, encontro a vaga pelo nome do passageiro e mostro o que
             entendi. <strong>Nada é salvo até você clicar em registrar.</strong>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
           <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); escolher(e.dataTransfer.files); }}
-            className="rounded-xl border-2 border-dashed border-border bg-surface-muted/60 px-6 py-8 text-center"
+            onDragOver={(e) => { e.preventDefault(); if (!arrastando) setArrastando(true); }}
+            onDragLeave={() => setArrastando(false)}
+            onDrop={(e) => { e.preventDefault(); setArrastando(false); escolher(e.dataTransfer.files); }}
+            className={`rounded-xl border-2 border-dashed px-6 ${linhas.length ? "py-5" : "py-9"} text-center transition-colors duration-150 ${
+              arrastando ? "border-primary bg-brand-soft" : "border-border bg-surface-muted/60"
+            }`}
           >
+            <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full mb-2 transition-colors ${arrastando ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground shadow-1"}`} aria-hidden="true">
+              <Upload className="w-5 h-5" />
+            </span>
             <input
               ref={inputRef} type="file" accept="application/pdf" multiple className="hidden"
               onChange={(e) => escolher(e.target.files)}
               data-testid="input-vouchers"
             />
-            <p className="text-sm text-slate-600">Arraste os vouchers em PDF ou</p>
+            <p className="m-0 text-sm text-slate-600">{arrastando ? "Solte para ler os vouchers" : "Arraste os vouchers em PDF ou"}</p>
             <Button
-              type="button" variant="outline" className="mt-2 rounded-lg"
+              type="button" variant="outline" className="mt-2 h-9 rounded-lg"
               onClick={() => inputRef.current?.click()}
               disabled={ler.isPending}
               data-testid="button-escolher-vouchers"
@@ -235,7 +249,7 @@ export default function VoucherLoteDialog({
                 ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" />Lendo…</>
                 : "Escolher arquivos"}
             </Button>
-            <p className="mt-2 text-2xs text-muted-foreground">Até 30 arquivos por vez.</p>
+            <p className="m-0 mt-2 text-2xs text-muted-foreground">Até 30 arquivos por vez.</p>
           </div>
 
           {linhas.length > 0 && (
@@ -245,18 +259,21 @@ export default function VoucherLoteDialog({
                 return (
                   <li
                     key={`${l.arquivo}-${idx}`}
-                    className={`rounded-xl border px-4 py-3 ${
+                    className={`pas-entra rounded-xl border px-4 py-3 ${
                       l.resultado === "ok" ? "border-success/25 bg-success-soft/50"
                       : l.resultado === "erro" ? "border-danger/25 bg-danger-soft/50"
                       : aproveitavel ? "border-border bg-card" : "border-warning/25 bg-warning-soft/40"
                     }`}
                   >
                     <div className="flex items-start gap-3">
+                      {l.resultado === "erro" || !aproveitavel
+                        ? <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${l.resultado === "erro" ? "text-danger" : "text-warning-strong"}`} aria-hidden="true" />
+                        : <FileText className={`w-4 h-4 mt-0.5 shrink-0 ${l.resultado === "ok" ? "text-success" : l.inclusionId ? "text-primary" : "text-warning-strong"}`} aria-hidden="true" />}
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-foreground truncate">{l.arquivo}</p>
+                        <p className="m-0 text-sm font-semibold text-foreground truncate" title={l.arquivo}>{l.arquivo}</p>
                         {aproveitavel ? (
                           <>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="m-0 text-xs text-muted-foreground">
                               {l.pessoa ? <>Passageiro: <strong>{l.pessoa}</strong> · </> : null}
                               {resumoCampos(l.campos)}
                             </p>
@@ -265,7 +282,7 @@ export default function VoucherLoteDialog({
                                 Outro voucher desta vaga: ida e volta serão juntadas numa passagem e os valores somados.
                               </p>
                             )}
-                            <div className="mt-2 flex items-center gap-2">
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
                               <span className="text-2xs text-muted-foreground shrink-0">Vaga:</span>
                               <VagaCombobox
                                 vagas={vagas}
@@ -311,7 +328,7 @@ export default function VoucherLoteDialog({
                           type="button"
                           onClick={() => setLinhas((atuais) => atuais.filter((_, i) => i !== idx))}
                           disabled={gravando}
-                          className="text-muted-foreground hover:text-danger-strong shrink-0"
+                          className="inline-flex items-center justify-center w-8 h-8 -m-1 rounded-md text-muted-foreground hover:bg-danger-soft hover:text-danger shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={`Tirar ${l.arquivo} da lista`}
                         >
                           <Trash2 className="w-4 h-4" aria-hidden="true" />
@@ -325,20 +342,20 @@ export default function VoucherLoteDialog({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-border bg-surface-muted/60 px-6 py-3 flex items-center gap-3">
-          <p className="text-xs text-muted-foreground mr-auto">
+        <div className="shrink-0 border-t border-border bg-surface-muted px-5 sm:px-6 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
+          <p className="m-0 text-xs text-muted-foreground mr-auto" aria-live="polite">
             {prontas.length > 0
               ? `${prontas.length} pronta(s) para registrar`
               : linhas.length > 0 ? "Nenhuma linha pronta — confira as vagas acima." : "Nenhum arquivo ainda."}
           </p>
-          <Button type="button" variant="ghost" onClick={() => pedirParaFechar(fechar)} disabled={gravando}>
+          <Button type="button" variant="ghost" className="h-9 rounded-lg" onClick={() => pedirParaFechar(fechar)} disabled={gravando}>
             <X className="w-4 h-4 mr-1.5" aria-hidden="true" />Fechar
           </Button>
           <Button
             type="button"
             onClick={registrarTudo}
             disabled={prontas.length === 0 || gravando || registrando}
-            className="rounded-lg bg-primary hover:bg-primary-hover"
+            className="h-9 rounded-lg bg-primary hover:bg-primary-hover"
             data-testid="button-registrar-lote-vouchers"
           >
             {gravando

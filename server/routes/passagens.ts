@@ -6,9 +6,11 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { db } from "../db";
+import { db, linhasDe } from "../db";
 import { tickets as ticketsTable, insertTicketSchema } from "@shared/schema";
-import { and, inArray, isNull } from "drizzle-orm";
+import { and, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
+import { analisarPassagens, diaISO, somarDias, type PassagemParaAnalise } from "@shared/analise-de-passagens";
+import { hojeISO } from "@shared/hoje-sp";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
 import {
   montarLogDeAuditoria,
@@ -47,6 +49,132 @@ export function registrarPassagens(app: Express): void {
       res.json(historico);
     } catch {
       res.status(500).json({ message: "Erro ao buscar o histórico de passagens" });
+    }
+  });
+
+  /**
+   * GET /api/tickets/analises?de=&ate=&eventId=&companhia=&transporte= (07/10)
+   *
+   * Aba Análises de passagens — SÓ ADMIN (dono: "pode começar, só aparecer
+   * para admin"). Lê passagens atuais E do histórico de troca (o custo de
+   * quem saiu continua no evento), ligadas à vaga e ao evento, só as colunas
+   * que o cálculo usa. O período é pelo INÍCIO do evento; datas saem em texto
+   * (`to_char`) para não depender de fuso — produção ainda tem `timestamp`.
+   * O cálculo mora em shared/analise-de-passagens.ts (testado).
+   */
+  app.get("/api/tickets/analises", async (req, res) => {
+    const admin = await requireRoles(req, res, ["admin"]);
+    if (!admin) return;
+    const texto = (k: string) => (typeof req.query[k] === "string" ? (req.query[k] as string).trim() : "");
+    const deTxt = texto("de"), ateTxt = texto("ate");
+    const de = deTxt ? diaISO(deTxt) : null;
+    const ate = ateTxt ? diaISO(ateTxt) : null;
+    if ((deTxt && !de) || (ateTxt && !ate)) return res.status(400).json({ message: "Período inválido: use datas no formato AAAA-MM-DD." });
+    if (de && ate && de > ate) return res.status(400).json({ message: "Período inválido: a data inicial é depois da final." });
+    const eventId = eventIdDaQuery(req) ?? null;
+    const companhia = req.query.companhia === undefined ? null : texto("companhia");
+    const transporte = req.query.transporte === undefined ? null : texto("transporte");
+    try {
+      const periodo = drizzleSql.join([
+        drizzleSql`TRUE`,
+        ...(de ? [drizzleSql`e.start_date >= ${de}::date`] : []),
+        ...(ate ? [drizzleSql`e.start_date < (${ate}::date + 1)`] : []),
+      ], drizzleSql` AND `);
+      const [passagensRes, avisosRes] = await Promise.all([
+        db.execute(drizzleSql`
+          SELECT t.id AS ticket_id, t.team_inclusion_id, ti.event_id, e.name AS event_name,
+            to_char(e.start_date, 'YYYY-MM-DD') AS event_start,
+            CASE WHEN t.archived_at IS NULL THEN ti.collaborator_id ELSE t.archived_collaborator_id END AS pessoa_id,
+            (t.archived_at IS NOT NULL) AS arquivada,
+            t.value, t.baggage_total_cents,
+            to_char(t.purchase_date, 'YYYY-MM-DD') AS data_compra,
+            to_char(t.actual_departure_date, 'YYYY-MM-DD') AS data_ida,
+            to_char(t.actual_return_date, 'YYYY-MM-DD') AS data_volta,
+            t.ticket_company, t.transport_type,
+            COALESCE(NULLIF(trim(t.departure_airport), ''), t.departure_city_origin) AS origem,
+            COALESCE(NULLIF(trim(t.destination_airport), ''), t.departure_city_destination) AS destino
+          FROM tickets t
+          JOIN team_inclusions ti ON ti.id = t.team_inclusion_id
+          JOIN events e ON e.id = ti.event_id
+          WHERE ti.deleted_at IS NULL
+            AND ti.phase <> 'sugestao'
+            AND e.status NOT IN ('excluido', 'excluído')
+            AND ${periodo}
+        `),
+        // Remarcação = ajuste aprovado que mexeu em passagem já registrada.
+        db.execute(drizzleSql`
+          SELECT a.event_id, (a.resolvido_em IS NOT NULL) AS resolvido
+          FROM avisos_de_alteracao a
+          JOIN events e ON e.id = a.event_id
+          WHERE a.afeta_passagem = TRUE AND ${periodo}
+        `),
+      ]);
+      type Linha = {
+        ticket_id: string; team_inclusion_id: string; event_id: string; event_name: string; event_start: string | null;
+        pessoa_id: string | null; arquivada: boolean; value: number | null; baggage_total_cents: number | null;
+        data_compra: string | null; data_ida: string | null; data_volta: string | null;
+        ticket_company: string | null; transport_type: string | null; origem: string | null; destino: string | null;
+      };
+      const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+      const passagens: PassagemParaAnalise[] = linhasDe<Linha>(passagensRes).map((l) => ({
+        ticketId: l.ticket_id,
+        teamInclusionId: l.team_inclusion_id,
+        eventId: l.event_id,
+        eventName: l.event_name,
+        eventStartDate: l.event_start,
+        pessoaId: l.pessoa_id,
+        arquivada: l.arquivada === true || String(l.arquivada) === "t",
+        valor: num(l.value),
+        bagagem: num(l.baggage_total_cents),
+        dataCompra: l.data_compra,
+        dataIda: l.data_ida,
+        dataVolta: l.data_volta,
+        companhia: l.ticket_company,
+        transporte: l.transport_type,
+        origem: l.origem,
+        destino: l.destino,
+      }));
+      const avisos = linhasDe<{ event_id: string; resolvido: boolean | string }>(avisosRes)
+        .map((a) => ({ eventId: a.event_id, resolvido: a.resolvido === true || a.resolvido === "t" }));
+      res.set("Cache-Control", "no-store");
+      res.json(analisarPassagens(passagens, avisos, { de, ate, eventId, companhia, transporte }));
+    } catch (error) {
+      console.error("erro nas análises de passagens:", error);
+      res.status(500).json({ message: "Erro ao calcular as análises de passagens" });
+    }
+  });
+
+  /**
+   * GET /api/shell/sem-passagem-30d → { count } (07/10) — SÓ ADMIN.
+   *
+   * Alerta do sino: vagas escaladas (com colaborador), que precisam de
+   * passagem, ainda SEM passagem atual, com a ida (ou o início da escala, se a
+   * ida estiver vazia) entre hoje e hoje + 30 dias — data de São Paulo. Fora:
+   * excluídas, canceladas e as que ainda estão na Validação de Escala.
+   */
+  app.get("/api/shell/sem-passagem-30d", async (req, res) => {
+    const admin = await requireRoles(req, res, ["admin"]);
+    if (!admin) return;
+    try {
+      const hoje = hojeISO();
+      const limite = somarDias(hoje, 30);
+      const rows = await db.execute(drizzleSql`
+        SELECT count(*)::int AS n
+        FROM team_inclusions ti
+        JOIN events e ON e.id = ti.event_id
+        WHERE ti.deleted_at IS NULL
+          AND ti.phase <> 'sugestao'
+          AND ti.status <> 'cancelado'
+          AND ti.collaborator_id IS NOT NULL
+          AND ti.needs_ticket = TRUE
+          AND e.status NOT IN ('excluido', 'excluído')
+          AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.team_inclusion_id = ti.id AND t.archived_at IS NULL)
+          AND COALESCE(ti.flight_departure_date, ti.schedule_start_date)::date BETWEEN ${hoje}::date AND ${limite}::date
+      `);
+      res.set("Cache-Control", "no-store");
+      res.json({ count: Number(linhasDe<{ n: number }>(rows)[0]?.n ?? 0) });
+    } catch {
+      res.status(500).json({ message: "Erro ao contar escalações sem passagem" });
     }
   });
 

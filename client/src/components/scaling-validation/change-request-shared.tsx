@@ -180,8 +180,10 @@ export function ApproverCommentBanner({ info }: { info: LastDecisionInfo | null 
   const when = info.at ? formatDateBr(info.at) : "";
   const typeLabel = CHANGE_REQUEST_TYPE_LABELS[info.requestType] ?? info.requestType;
   return (
-    <div role="note" className="rounded-xl border border-warning/25 bg-warning-soft px-3 py-2.5 space-y-1">
-      <p className="text-2xs font-bold uppercase tracking-wide text-warning">{d.title} · pedido de {typeLabel.toLowerCase()}</p>
+    // 07/10: filete e título em caixa de frase — o mesmo aviso do detalhe da vaga.
+    <div role="note" className="relative space-y-1 overflow-hidden rounded-xl border border-warning/30 bg-warning-soft py-2.5 pl-4 pr-3">
+      <span className="absolute inset-y-0 left-0 w-[3px] bg-warning opacity-70" aria-hidden="true" />
+      <p className="text-[13px] font-semibold leading-5 text-warning">{d.title} · pedido de {typeLabel.toLowerCase()}</p>
       <p className="text-sm text-foreground whitespace-pre-wrap">{info.comment?.trim() ? info.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
       <p className="text-2xs text-slate-600">{info.byName ?? "Aprovador"}{when ? ` · ${when}` : ""}</p>
     </div>

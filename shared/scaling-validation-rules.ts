@@ -636,6 +636,22 @@ export function canValidateInclusion(
   return Boolean(isAdmin) || userRoleForFunction === "validador";
 }
 
+/**
+ * Pedido de AJUSTE em vaga JÁ ESCALADA (modal da Escalação) — regras do dono,
+ * 07/10: "pedir ajuste pode até depois da passagem" e "para todos que são
+ * responsáveis da função normal". Abrem pedido: o administrador, o validador
+ * da função (Escala) e os RESPONSÁVEIS da função no cadastro normal
+ * (function_managers) — qualquer que seja o papel (ex.: Produção).
+ * Na Validação de Escala (vaga ainda em sugestão) continua só o validador.
+ */
+export function podePedirAjusteNaEscalacao(
+  userRoleForFunction: FunctionManagerRole | null | undefined,
+  isAdmin: boolean,
+  ehResponsavelDaFuncao: boolean,
+): boolean {
+  return canValidateInclusion(userRoleForFunction, isAdmin) || ehResponsavelDaFuncao;
+}
+
 /** Pode decidir pedidos / fazer bypass: admin ou aprovador da função. */
 export function canApproveRequest(
   userRoleForFunction: FunctionManagerRole | null | undefined,

@@ -4,23 +4,32 @@
  * Desde 25/09 cada aba mora no seu arquivo (`accommodation-modal-resumo`,
  * `-dados`, `-complementos`) e os estilos/rótulos em `-shared`; aqui ficam o
  * estado do rascunho, a validação, o cabeçalho e o rodapé (tinha 699 linhas).
+ *
+ * 07/10 (redesenho): a MESMA moldura do registro de passagem — cabeçalho
+ * branco com o ícone em marca, título e situação na mesma linha e, embaixo,
+ * "#ID · colaborador · função · evento"; o aviso de alteração aprovada logo
+ * abaixo do cabeçalho (com "Já atuei"); o banner de evento encerrado vale para
+ * as três abas; o progresso dos obrigatórios mora na faixa das abas; rodapé
+ * cinza com "Fechar" e a ação principal na cor da marca (era verde — a única
+ * tela da família com o "registrar" em outra cor). No celular, tela cheia.
  */
 import { useEffect, useRef, useState } from "react";
 import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { useQuery } from "@tanstack/react-query";
-import { Hotel, AlertCircle, Lock, Check } from "lucide-react";
+import { BedDouble, AlertCircle, Lock, Check, Loader2 } from "lucide-react";
 import { useVoucherFill } from "@/components/tickets/use-voucher-fill";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CommentsModal from "@/components/modals/comments-modal";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, TeamInclusionLog } from "@shared/schema";
 import { EMPTY_DRAFT } from "./types";
 import type { AccommodationDraft, NormalizedSwap, UserLite } from "./types";
-import { draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn, toDateInput } from "./utils";
+import { draftFrom, fetchSwaps, formatDate, isCheckOutAfterCheckIn, toDateInput, toTitleCase } from "./utils";
 import { contarDiarias } from "./accommodations-queue";
 import { PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
+import { AvisoDaVaga } from "@/components/avisos-de-alteracao/aviso-da-vaga";
 import { ROTULO_FORA, TAB } from "./accommodation-modal-shared";
 import { AccommodationResumoTab } from "./accommodation-modal-resumo";
 import { AccommodationDadosTab, type ErrosDaHospedagem } from "./accommodation-modal-dados";
@@ -54,6 +63,13 @@ export interface AccommodationModalProps {
   /** `modal={false}` enquanto o diálogo de sucesso está por cima. */
   modal?: boolean;
 }
+
+/**
+ * Moldura do modal — a mesma do registro de passagem: 1100px no computador;
+ * no celular ocupa a tela inteira (um modal de 95vw × 88vh com rodapé fixo
+ * sobrava 20px de cada lado e cortava o formulário no meio).
+ */
+const MOLDURA = "!max-w-[1100px] w-[95vw] max-h-[88vh] sm:h-[min(88vh,820px)] !flex !flex-col p-0 gap-0 overflow-hidden max-sm:w-full max-sm:!max-w-none max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none max-sm:border-0";
 
 export default function AccommodationModal(props: AccommodationModalProps) {
   const { open, onClose, inclusion, modal = true } = props;
@@ -94,7 +110,6 @@ function AccommodationModalContent({
   const [activeTab, setActiveTab] = useState(accommodation ? "resumo" : "dados");
   /** O aviso de check-in tardio só aparece depois que o usuário mexe em algo. */
   const [tocou, setTocou] = useState(false);
-  const [showAllLogs, setShowAllLogs] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const roMode = !canEditRecord;
   // `tocou` liga em qualquer alteração do rascunho — é o "sujo" do descarte.
@@ -171,8 +186,8 @@ function AccommodationModalContent({
     },
   });
 
-  const { data: comments } = useQuery<Comment[]>({ queryKey: ["/api/comments", inclusion.id] });
-  const { data: logs } = useQuery<TeamInclusionLog[]>({ queryKey: ["/api/team-inclusions", inclusion.id, "logs"] });
+  const { data: comments, isLoading: commentsLoading } = useQuery<Comment[]>({ queryKey: ["/api/comments", inclusion.id] });
+  const { data: logs, isLoading: logsLoading } = useQuery<TeamInclusionLog[]>({ queryKey: ["/api/team-inclusions", inclusion.id, "logs"] });
   const { data: swaps } = useQuery<NormalizedSwap[]>({
     queryKey: ["/api/swap-requests/inclusion", inclusion.id],
     queryFn: () => fetchSwaps(`/api/swap-requests/inclusion/${inclusion.id}`),
@@ -204,83 +219,106 @@ function AccommodationModalContent({
     }
   };
 
-  const StatusPill = accommodation ? (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-success-soft text-success text-2xs font-bold rounded-full border border-success/25">
-      <span className="w-1.5 h-1.5 rounded-full bg-success-strong" />Registrada
+  /** Situação no cabeçalho — a mesma pílula de Passagens. */
+  const statusPill = accommodation ? (
+    <span className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-success-soft text-success text-2xs font-medium rounded-md">
+      <span className="w-1.5 h-1.5 rounded-full bg-success-strong" aria-hidden="true" />Registrada
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full border border-warning/25">
-      <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse motion-reduce:animate-none" />Pendente
+    <span className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-warning-soft text-warning text-2xs font-medium rounded-md">
+      <span className="w-1.5 h-1.5 rounded-full bg-warning-strong" aria-hidden="true" />Pendente
     </span>
   );
-
-  const sortedLogs = (logs ?? []).slice().sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  /** Em leitura, o cabeçalho diz logo — e o porquê fica no título da pílula. */
+  const leitura = roMode ? (
+    <span
+      className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-muted text-muted-foreground text-2xs font-medium rounded-md"
+      title={eventLocked ? (eventLockMessage || PAST_EVENT_BLOCK_MSG) : lockedForRole ? "Somente Compras altera hospedagem registrada" : undefined}
+    ><Lock className="w-3 h-3" aria-hidden="true" />Somente leitura</span>
+  ) : null;
+  const nomeDoColaborador = collaborator ? toTitleCase(collaborator.fullName) : "Sem colaborador";
+  const contexto = [func?.name, event?.name].filter(Boolean) as string[];
+  const completo = preenchidos === obrigatorios.length;
 
   return (
-    <DialogContent className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
-      <DialogHeader className="sr-only">
-        <DialogTitle>Registro de hospedagem</DialogTitle>
-        <DialogDescription>Modal de hospedagem</DialogDescription>
-      </DialogHeader>
-
-      {/* ─── HEADER ─── */}
-      <div className="shrink-0 px-6 py-4 flex items-center gap-4 bg-brand-soft border-b border-border">
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-1 shrink-0 bg-primary">
-          <Hotel className="w-5 h-5 text-white" aria-hidden="true" />
+    <DialogContent aria-describedby={undefined} className={MOLDURA}>
+      {/* CABEÇALHO: o que é, de quem, em qual prova — e a situação. */}
+      <div className="px-5 sm:px-6 pt-4 pb-3.5 border-b border-border shrink-0 flex items-start gap-3.5 pr-14 bg-card">
+        <div className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center shrink-0 bg-brand-soft text-primary">
+          <BedDouble className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-black text-foreground leading-tight">Registro de hospedagem</h2>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-            #{inclusion.inclusionNumber || "N/A"} · {event?.name || "—"} · {func?.name || "—"}
+          {/* Título e situação na mesma linha: a pílula não disputa espaço com o X. */}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <DialogTitle className="text-base font-semibold text-foreground leading-6 m-0 p-0">Registro de hospedagem</DialogTitle>
+            {statusPill}
+            {leitura}
+          </div>
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground leading-5">
+            <span className="font-mono font-semibold text-primary">#{inclusion.inclusionNumber || "N/A"}</span>
+            <span className="mx-1.5" aria-hidden="true">·</span>
+            <span className="font-medium text-foreground">{nomeDoColaborador}</span>
+            {contexto.map((c, i) => (
+              <span key={i}><span className="mx-1.5" aria-hidden="true">·</span>{c}</span>
+            ))}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">{StatusPill}</div>
       </div>
 
-      {/*
-        Progresso só na aba Dados: fora dela ele contava "0 de 0" e virava um
-        indicador que media nada.
-      */}
-      {activeTab === "dados" && !roMode && (
-        <div className="shrink-0 px-6 py-2 border-b border-border flex items-center gap-3" data-testid="progresso-obrigatorios">
-          <div
-            className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"
-            role="progressbar"
-            aria-valuenow={preenchidos}
-            aria-valuemin={0}
-            aria-valuemax={obrigatorios.length}
-            aria-label="Campos obrigatórios preenchidos"
-          >
-            <div
-              className={`h-full rounded-full transition-[width] duration-200 ${preenchidos === obrigatorios.length ? "bg-success" : "bg-primary"}`}
-              style={{ width: `${(preenchidos / obrigatorios.length) * 100}%` }}
-            />
-          </div>
-          <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-            {preenchidos} de {obrigatorios.length} campos obrigatórios
-          </span>
-        </div>
-      )}
+      {/* Alteração aprovada depois do registro (07/10): o que mudou + "Já atuei". */}
+      <AvisoDaVaga tipo="hospedagem" teamInclusionId={inclusion.id} className="shrink-0 max-h-[34vh] overflow-y-auto" />
 
       {/* ─── ABAS ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="px-6 border-b border-border shrink-0">
-          <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
-            <TabsTrigger value="resumo" className={TAB}>Resumo</TabsTrigger>
-            <TabsTrigger value="dados" className={TAB}>
-              Dados da hospedagem
-              {accommodation
-                ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-success-soft text-success rounded-full"><Check className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only"> (registrada)</span></span>
-                : <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-warning-soft text-warning rounded-full"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /><span className="sr-only"> (pendente)</span></span>}
-            </TabsTrigger>
-            <TabsTrigger value="complementos" className={TAB}>Complementos e histórico</TabsTrigger>
-          </TabsList>
+        <div className="flex items-center gap-3 pl-3 sm:pl-4 pr-4 sm:pr-6 border-b border-border shrink-0">
+          <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
+            <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
+              <TabsTrigger value="resumo" className={TAB}>Resumo</TabsTrigger>
+              <TabsTrigger value="dados" className={TAB}>
+                <span className="sm:hidden">Dados</span><span className="hidden sm:inline">Dados da hospedagem</span>
+                {accommodation
+                  ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-success-soft text-success rounded-full"><Check className="w-2.5 h-2.5" strokeWidth={3} aria-hidden="true" /><span className="sr-only"> (registrada)</span></span>
+                  : <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-warning-soft text-warning rounded-full"><AlertCircle className="w-2.5 h-2.5" strokeWidth={3} aria-hidden="true" /><span className="sr-only"> (pendente)</span></span>}
+              </TabsTrigger>
+              <TabsTrigger value="complementos" className={TAB}>
+                <span className="sm:hidden">Complementos</span><span className="hidden sm:inline">Complementos e histórico</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          {/*
+            Progresso só na aba Dados: fora dela ele contava "0 de 0" e virava
+            um indicador que media nada. Mora na faixa das abas (era uma faixa
+            própria de 36px entre o cabeçalho e as abas); no celular, só o número.
+          */}
+          {activeTab === "dados" && !roMode && (
+            <div className="pas-entra flex items-center gap-2 shrink-0" data-testid="progresso-obrigatorios">
+              <div
+                className="hidden sm:block w-20 h-1.5 rounded-full bg-muted overflow-hidden"
+                role="progressbar"
+                aria-valuenow={preenchidos}
+                aria-valuemin={0}
+                aria-valuemax={obrigatorios.length}
+                aria-label="Campos obrigatórios preenchidos"
+              >
+                <div
+                  className={`h-full rounded-full transition-[width,background-color] duration-300 ease-out motion-reduce:transition-none ${completo ? "bg-success" : "bg-primary"}`}
+                  style={{ width: `${(preenchidos / obrigatorios.length) * 100}%` }}
+                />
+              </div>
+              <span className={`text-2xs tabular-nums whitespace-nowrap ${completo ? "text-success font-medium" : "text-muted-foreground"}`}>
+                {completo
+                  ? <><Check className="inline w-3 h-3 -mt-px mr-0.5" strokeWidth={3} aria-hidden="true" />Obrigatórios ok</>
+                  : <>{preenchidos} de {obrigatorios.length}<span className="hidden sm:inline"> obrigatórios</span></>}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
           <AccommodationResumoTab
             inclusion={inclusion} accommodation={accommodation} event={event} func={func} collaborator={collaborator}
             collaboratorById={collaboratorById} swaps={swaps} isPurchasingRole={isPurchasingRole}
+            onIrParaDados={roMode ? undefined : () => setActiveTab("dados")}
           />
           <AccommodationDadosTab
             inclusion={inclusion} accommodation={accommodation} draft={draft} set={set} erros={erros} setErros={setErros} roMode={roMode}
@@ -289,34 +327,38 @@ function AccommodationModalContent({
             chegaTarde={chegaTarde} escalaInicio={escalaInicio} diariasDoRascunho={diariasDoRascunho}
           />
           <AccommodationComplementosTab
-            comments={comments} userName={userName} roMode={roMode} onShowComments={() => setShowComments(true)}
-            sortedLogs={sortedLogs} showAllLogs={showAllLogs} setShowAllLogs={setShowAllLogs}
+            comments={comments} commentsLoading={commentsLoading} logs={logs} logsLoading={logsLoading}
+            userName={userName} roMode={roMode} onShowComments={() => setShowComments(true)}
           />
         </div>
       </Tabs>
 
-      {/* ─── FOOTER ─── */}
-      <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3 shrink-0 bg-card">
+      {/* ─── RODAPÉ ─── */}
+      <div className="px-5 sm:px-6 py-3 border-t border-border flex flex-wrap items-center justify-end gap-x-3 gap-y-2 shrink-0 bg-surface-muted">
         {eventLocked && (
-          <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-warning" data-testid="footer-past-event-block">
-            <Lock className="w-3.5 h-3.5" aria-hidden="true" /> {eventLockMessage || PAST_EVENT_BLOCK_MSG}
+          // No celular o banner da aba Dados já diz isso logo acima — o rodapé não repete.
+          <span className="mr-auto max-sm:hidden inline-flex items-center gap-1.5 text-xs text-warning" data-testid="footer-past-event-block">
+            <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {eventLockMessage || PAST_EVENT_BLOCK_MSG}
           </span>
         )}
         {!eventLocked && lockedForRole && (
-          <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Lock className="w-3.5 h-3.5" aria-hidden="true" /> Somente Compras altera hospedagem registrada
+          <span className="mr-auto max-sm:hidden inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> Somente Compras altera hospedagem registrada
           </span>
         )}
-        <Button variant="outline" onClick={fechar} className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium">
-          Fechar
-        </Button>
-        {!roMode && (
-          <Button onClick={handleSave} disabled={isSaving} data-testid="button-register"
-            className="flex items-center gap-2 text-white rounded-xl px-5 py-2 text-sm font-bold bg-success hover:bg-success/90">
-            {isSaving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Hotel className="w-4 h-4" aria-hidden="true" />}
-            {accommodation ? "Atualizar hospedagem" : "Registrar hospedagem"}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={fechar} className="h-9 rounded-lg px-4 text-sm font-medium">
+            Fechar
           </Button>
-        )}
+          {!roMode && (
+            <Button onClick={handleSave} disabled={isSaving} data-testid="button-register"
+              className="h-9 flex items-center gap-2 rounded-lg px-4 text-sm font-semibold bg-primary hover:bg-primary-hover text-primary-foreground">
+              {isSaving
+                ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />{accommodation ? "Atualizando…" : "Registrando…"}</>
+                : <><Check className="w-4 h-4" aria-hidden="true" />{accommodation ? "Atualizar hospedagem" : "Registrar hospedagem"}</>}
+            </Button>
+          )}
+        </div>
       </div>
 
       {DialogoDescarte}

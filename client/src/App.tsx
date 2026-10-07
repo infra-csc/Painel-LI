@@ -49,8 +49,10 @@ const PendenciasPage         = lazy(() => import("@/pages/pendencias"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
-import { hasPermission, getRoleLabel } from "@/lib/role-utils";
-import type { RolePermissions, UserRole } from "@/lib/role-utils";
+import { hasPermission } from "@/lib/role-utils";
+import type { RolePermissions } from "@/lib/role-utils";
+import { TelaDeCarregamento, CarregandoPagina } from "@/components/layout/app-loading";
+import SemAcesso from "@/components/layout/sem-acesso";
 
 // Tema escuro removido (24/09): o app é só claro. Quem ainda tem a preferência
 // antiga gravada não pode acordar com a classe `.dark` no <html>.
@@ -61,19 +63,8 @@ if (typeof window !== "undefined") {
 
 // Placeholder enquanto o chunk da página é baixado. Fica dentro do
 // MainLayout, então a sidebar continua visível e navegável durante a troca —
-// só a área de conteúdo mostra o esqueleto.
-function PageFallback() {
-  return (
-    <div className="bg-card rounded-lg shadow-1 border border-border p-6 animate-pulse motion-reduce:animate-none">
-      <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
-      <div className="space-y-3">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-12 bg-muted rounded"></div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// só a área de conteúdo mostra o esqueleto (mesma geometria do PageHeader, 07/10).
+const PageFallback = CarregandoPagina;
 
 // Primeira página acessível na ordem do sidebar
 const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
@@ -105,30 +96,10 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
 ];
 
 function HomeRedirect() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const first = ORDERED_ROUTES.find(r => hasPermission(user, r.permission));
-  if (!first) {
-    const roleLabel = getRoleLabel((user?.role || "production") as UserRole);
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-4">
-        <div className="text-4xl">🔒</div>
-        <h2 className="text-xl font-semibold text-foreground">Sem acesso</h2>
-        <p className="text-muted-foreground max-w-sm">
-          Sua conta ainda não possui permissão para acessar nenhuma página.
-          Entre em contato com o administrador do sistema.
-        </p>
-        <p className="text-sm text-slate-400">
-          {user?.name} ({user?.email}) — {roleLabel}
-        </p>
-        <button
-          onClick={logout}
-          className="mt-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary-hover transition-colors"
-        >
-          Sair
-        </button>
-      </div>
-    );
-  }
+  // Sem nenhuma tela liberada: estado próprio da casca (07/10, sem-acesso.tsx).
+  if (!first) return <SemAcesso />;
   return <Redirect to={first.path} />;
 }
 
@@ -139,13 +110,7 @@ function Router() {
   // até o usuário recarregar a página inteira).
   const [location] = useLocation();
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse motion-reduce:animate-none text-lg text-muted-foreground">Carregando…</div>
-      </div>
-    );
-  }
+  if (isLoading) return <TelaDeCarregamento />;
 
   return (
     // Limite externo: cobre as rotas públicas (o /reset-password também é
@@ -153,11 +118,7 @@ function Router() {
     // é o Suspense de dentro do MainLayout, preservando a sidebar.
     <ErrorBoundary>
     <Suspense
-      fallback={
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="animate-pulse motion-reduce:animate-none text-lg text-muted-foreground">Carregando…</div>
-        </div>
-      }
+      fallback={<TelaDeCarregamento texto="Carregando…" />}
     >
     <Switch>
       {/* Public routes */}

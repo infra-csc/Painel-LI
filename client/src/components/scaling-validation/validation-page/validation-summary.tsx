@@ -2,15 +2,27 @@
  * Resumo da Validação (25/09 — extraído da página): o funil (vagas → aguardando
  * validação → aguardando aprovação → com pedido) e o recorte "Minhas pendentes".
  * Soma SEMPRE o conjunto exibido (um evento ou todos); cada card filtra a lista.
+ *
+ * 07/10 (redesenho): UMA faixa dividida em células, como a fila da Escalação —
+ * eram cinco cartões com borda dentro de um cartão com faixa azul e título em
+ * caixa alta, e no celular o resumo ocupava a tela inteira antes da primeira
+ * vaga. O recorte "Minhas pendentes" fecha a faixa, separado por um filete
+ * mais forte, e acende quando há trabalho seu esperando.
  */
-import { Gauge, Info } from "lucide-react";
+import { CircleDashed, Clock, Info, Layers, MessageSquareWarning, Stamp, UserCheck, type LucideIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { SECTION_TITLE } from "@/components/scaling-validation/logistics-chips";
 import { KPI_TOOLTIPS, type Kpi } from "./validation-shared";
 import type { ValidationData } from "./use-validation-data";
 
-const KPI_BOX = "rounded-xl border px-3 py-2 text-left";
+/** Ícone de cada indicador — a cor diz de quem é a vez (âmbar: área; azul: aprovador). */
+const ICONE: Record<string, { Icon: LucideIcon; cls: string }> = {
+  Vagas: { Icon: Layers, cls: "text-muted-foreground" },
+  "Aguardando validação": { Icon: Clock, cls: "text-warning" },
+  "Aguardando aprovação": { Icon: Stamp, cls: "text-info" },
+  "Com pedido": { Icon: MessageSquareWarning, cls: "text-primary" },
+  "Minhas pendentes": { Icon: UserCheck, cls: "text-primary" },
+};
 
 export function ValidationSummary({ d, eventId, anyEditable }: { d: ValidationData; eventId: string; anyEditable: boolean }) {
   const { counts, isAdmin, minhasFuncoesIds, onlyMine, setOnlyMine, kpiFiltro, setKpiFiltro } = d;
@@ -33,14 +45,17 @@ export function ValidationSummary({ d, eventId, anyEditable }: { d: ValidationDa
   const RECORTES: Kpi[] = minhasFuncoesIds.size > 0 || !isAdmin
     ? [{ label: "Minhas pendentes", n: counts.minhas, cls: "text-primary", filtro: "minhas", hint: "das suas funções, prontas para você validar" }]
     : [];
-  const renderKpi = ({ label, n, cls, filtro, hint }: Kpi) => {
+  const renderKpi = ({ label, n, filtro, hint }: Kpi, recorte = false) => {
     const tip = KPI_TOOLTIPS[label];
+    const { Icon, cls: iconCls } = ICONE[label] ?? { Icon: CircleDashed, cls: "text-muted-foreground" };
     // "Vagas" é o total — não há o que recortar. "Minhas pendentes"
     // liga os DOIS recortes (minhas funções + aguardando validação): é o que
     // o número conta. Clicar de novo desliga os dois. Os demais recortam por
     // status, um de cada vez.
     const ativo = filtro === "minhas" ? onlyMine && kpiFiltro === "pendentes" : filtro !== undefined && kpiFiltro === filtro;
     const clickable = filtro === "minhas" ? anyEditable : filtro !== undefined && (n > 0 || ativo);
+    /** Trabalho seu esperando: o recorte acende (fundo da marca, número em azul). */
+    const chama = recorte && n > 0 && !ativo;
     const alternar = () => {
       if (filtro === "minhas") {
         const ligar = !(onlyMine && kpiFiltro === "pendentes");
@@ -53,18 +68,28 @@ export function ValidationSummary({ d, eventId, anyEditable }: { d: ValidationDa
     const box = (
       <div
         key={label}
-        className={cn(KPI_BOX, "relative border-border bg-card",
-          clickable && "transition-colors hover:border-primary/30",
-          ativo && "border-primary/30 bg-brand-soft",
-          !clickable && tip && "cursor-help")}
+        className={cn(
+          "val-kpi relative flex min-w-0 flex-col px-3.5 sm:px-4", recorte ? "flex-1 pb-3 pt-1.5" : "bg-card py-2.5 sm:py-3",
+          clickable && "cursor-pointer hover:bg-surface-muted/70",
+          chama && "hover:bg-brand-soft/40",
+          // Ligado: fundo da marca + filete embaixo (o "selecionado" da fila da Escalação).
+          ativo && "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary",
+          ativo && !recorte && "bg-brand-soft/80 hover:bg-brand-soft",
+          !clickable && tip && "cursor-help",
+        )}
         tabIndex={!clickable && tip ? 0 : undefined}
       >
-        <dt className="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}{tip && <Info className="w-3 h-3 text-muted-foreground" aria-hidden="true" />}
+        <dt className={cn("flex items-start gap-1.5 text-xs font-medium", ativo || chama ? "text-primary" : "text-muted-foreground")}>
+          <Icon className={cn("mt-px h-3.5 w-3.5 shrink-0", iconCls)} aria-hidden="true" />
+          <span className="leading-4">{label}</span>
+          {tip && <Info className="mt-0.5 h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />}
         </dt>
-        <dd className={cn("mt-0.5 text-xl font-bold tabular-nums", cls)}>
-          {n}
-          <span className="mt-0.5 block text-2xs font-normal leading-tight text-muted-foreground">{hint}</span>
+        <dd className="mt-1 flex flex-1 flex-col">
+          <span className={cn("val-kpi-n block text-2xl font-semibold leading-7 tracking-tight tabular-nums",
+            n === 0 ? "text-muted-foreground" : ativo || chama ? "text-primary" : "text-foreground")}>
+            {n}
+          </span>
+          <span className="mt-0.5 block text-2xs leading-snug text-muted-foreground">{hint}</span>
           {/* Botão em cima do cartão inteiro: mantém o clique no KPI sem
               quebrar o par <dt>/<dd> (botão não pode conter dt/dd). */}
           {clickable && (
@@ -72,7 +97,7 @@ export function ValidationSummary({ d, eventId, anyEditable }: { d: ValidationDa
               type="button" aria-pressed={ativo}
               aria-label={filtro === "minhas" ? `${label}: ${n}. Filtrar a lista pelas minhas funções` : `${label}: ${n}. ${ativo ? "Tirar o filtro" : "Filtrar a lista"}`}
               onClick={alternar}
-              className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="absolute inset-0 z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             />
           )}
         </dd>
@@ -88,29 +113,31 @@ export function ValidationSummary({ d, eventId, anyEditable }: { d: ValidationDa
   };
 
   return (
-    <section aria-labelledby="val-resumo" className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-brand-soft/60 px-4 py-2.5">
-        <Gauge className="w-4 h-4 text-primary" aria-hidden="true" />
-        <h2 id="val-resumo" className="text-2xs font-black uppercase tracking-[0.12em] text-primary">
+    <section aria-labelledby="val-resumo" className="space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <h2 id="val-resumo" className="text-[13px] font-semibold text-foreground">
           Resumo {eventId ? "do evento" : "de todos os eventos"}
         </h2>
-        <span className="ml-auto text-2xs text-muted-foreground">Clique num indicador para filtrar a lista.</span>
+        <span className="text-2xs text-muted-foreground">Clique num indicador para filtrar a lista.</span>
       </div>
-      <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+      {/* Grade com filetes de 1px (gap sobre o fundo da borda): quebra em
+          duas colunas no celular sem filete solto nem borda dupla. */}
+      {/* Sem recorte (admin sem cadastro de validador), o funil ocupa a faixa toda. */}
+      <div className={cn("grid overflow-hidden rounded-xl border border-border bg-border shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]",
+        RECORTES.length > 0 && "xl:grid-cols-[minmax(0,4fr)_minmax(0,1.2fr)]")}>
         {/* <dl>/<dt>/<dd>: cada KPI é um par rótulo/valor de verdade para o
-            leitor de tela (um <div aria-label> sem role seria ignorado).
-            Grade que QUEBRA (04/09) em vez de rolar para o lado: a faixa
-            de uma linha só escondia o último indicador sem barra visível. */}
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Funil das vagas">
-          {FUNIL.map(renderKpi)}
+            leitor de tela (um <div aria-label> sem role seria ignorado). */}
+        <dl className="grid grid-cols-2 gap-px sm:grid-cols-4" aria-label="Funil das vagas">
+          {FUNIL.map((k) => renderKpi(k))}
         </dl>
         {RECORTES.length > 0 && (
-        <div className="space-y-1.5 border-t border-border pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
-          <p className={SECTION_TITLE}>Recorte de “Aguardando validação”</p>
-          <dl className="grid grid-cols-2 gap-2 xl:grid-cols-[repeat(1,minmax(180px,1fr))]" aria-label="Recorte de aguardando validação">
-            {RECORTES.map(renderKpi)}
-          </dl>
-        </div>
+          <div className={cn("flex flex-col border-t-2 border-border xl:border-l-2 xl:border-t-0",
+            onlyMine && kpiFiltro === "pendentes" ? "bg-brand-soft/80" : counts.minhas > 0 ? "bg-brand-soft/45" : "bg-card")}>
+            <p className="px-3.5 pt-2.5 text-2xs font-medium text-muted-foreground sm:px-4">Recorte de “Aguardando validação”</p>
+            <dl className="grid flex-1 grid-cols-1" aria-label="Recorte de aguardando validação">
+              {RECORTES.map((k) => renderKpi(k, true))}
+            </dl>
+          </div>
         )}
       </div>
     </section>

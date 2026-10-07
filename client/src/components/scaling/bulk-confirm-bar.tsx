@@ -84,36 +84,42 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
   return (
     <>
       {selected.length > 0 && (
-        <div
-          className="sticky bottom-4 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-primary bg-card px-3.5 py-2.5 shadow-3"
-          role="region"
-          aria-label="Ações em massa"
-          data-testid="bulk-confirm-bar"
-        >
-          <div className="w-8 h-8 rounded-lg bg-brand-soft flex items-center justify-center shrink-0">
-            <CheckCheck className="w-4 h-4 text-primary" aria-hidden="true" />
+        // 07/10: barra escura flutuante, centrada — separa-se da lista sem
+        // competir com ela (era uma faixa branca de borda azul da largura da
+        // tela, que se confundia com mais uma linha).
+        <div className="pointer-events-none sticky bottom-4 z-30 mt-4 flex justify-center">
+          <div
+            className="esc-entra pointer-events-auto flex max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-foreground py-2 pl-3.5 pr-2 text-white shadow-3"
+            role="region"
+            aria-label="Ações em massa"
+            data-testid="bulk-confirm-bar"
+          >
+            <CheckCheck className="w-4 h-4 shrink-0 text-white/70" aria-hidden="true" />
+            <p className="min-w-0 text-sm font-semibold" aria-live="polite">
+              {selected.length === 1 ? "1 escalação selecionada" : `${selected.length} escalações selecionadas`}
+              <span className="hidden font-normal text-white/60 sm:inline"> · prontas para confirmar</span>
+            </p>
+            <span aria-hidden="true" className="hidden h-5 w-px bg-white/15 sm:block" />
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                onClick={onClear}
+                className="h-8 rounded-lg px-2.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                data-testid="button-bulk-clear"
+              >
+                <X className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+                Limpar seleção
+              </Button>
+              <Button
+                onClick={() => { setResults(null); setOpen(true); }}
+                className="h-8 rounded-lg px-3 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary-hover"
+                data-testid="button-bulk-confirm"
+              >
+                <Check className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+                Confirmar selecionadas ({selected.length})
+              </Button>
+            </div>
           </div>
-          <p className="text-sm font-semibold text-slate-700 flex-1 min-w-0">
-            {selected.length === 1 ? "1 escalação selecionada" : `${selected.length} escalações selecionadas`}
-            <span className="text-muted-foreground font-normal"> · prontas para confirmar</span>
-          </p>
-          <Button
-            variant="outline"
-            onClick={onClear}
-            className="rounded-xl h-9 text-xs border-border text-slate-600 hover:bg-surface-muted"
-            data-testid="button-bulk-clear"
-          >
-            <X className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-            Limpar seleção
-          </Button>
-          <Button
-            onClick={() => { setResults(null); setOpen(true); }}
-            className="rounded-xl h-9 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary-hover shadow-1"
-            data-testid="button-bulk-confirm"
-          >
-            <Check className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-            Confirmar selecionadas ({selected.length})
-          </Button>
         </div>
       )}
 
@@ -138,11 +144,16 @@ export default function BulkConfirmBar({ selected, onClear, getEventName, getFun
         onConfirm={() => { void run(); }}
         confirmTestId="button-bulk-run"
       >
-        <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-border bg-surface-muted px-3 py-2 space-y-1.5">
+        {running && (
+          <div className="h-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={selected.length} aria-valuenow={progress} aria-label="Progresso da confirmação">
+            <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${Math.round((progress / Math.max(1, selected.length)) * 100)}%` }} />
+          </div>
+        )}
+        <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-border bg-surface-muted p-2 space-y-1.5">
           {(results ?? selected.map(inclusion => ({ inclusion, ok: true as const }))).map((r, idx) => (
             <div
               key={r.inclusion.id}
-              className={`flex items-start gap-2.5 rounded-xl border px-3 py-2 bg-card ${results ? (r.ok ? "border-success/25" : "border-danger/25") : "border-border"}`}
+              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 bg-card transition-colors ${results ? (r.ok ? "border-success/30" : "border-danger/30 bg-danger-soft/40") : running && idx === progress ? "border-primary/40" : "border-border"}`}
               data-testid={`bulk-row-${r.inclusion.id}`}
             >
               {results ? (

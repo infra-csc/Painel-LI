@@ -1,21 +1,28 @@
 /**
- * Barra de filtros de Passagens — uma linha de 34px (02/09).
+ * Barra de filtros de Passagens (02/09; redesenho 07/10).
  *
  * Antes eram duas faixas de 36px DENTRO do card da tabela, com a contagem e o
- * "Limpar" competindo com a ordenação. Agora fica acima do card, no mesmo
- * padrão de `scaling/scaling-filter-bar.tsx`, porque as duas telas são filas
- * de trabalho irmãs.
+ * "Limpar" competindo com a ordenação. Depois virou uma fileira de oito
+ * controles que, em 1366 com o menu aberto, quebrava em duas linhas iguais —
+ * a pessoa lia "status da passagem" com o mesmo peso de "evento".
  *
- * **Nenhum filtro saiu**: busca, evento, funções, colaborador, status da
- * passagem, transporte, situação da inclusão, contagem e limpar continuam
- * todos aqui — só mudaram de forma e de lugar.
+ * 07/10: o que se escolhe todo dia fica à vista (busca, evento, funções,
+ * colaborador, período); as três listas curtas e menos usadas — status da
+ * passagem (a fila acima já faz esse recorte), transporte e situação da
+ * inclusão — moram em "Filtros", com o número de ligados no botão e uma
+ * etiqueta removível embaixo quando fogem do padrão. Um filtro ligado nunca
+ * fica escondido. Mesma anatomia da barra da Escalação.
+ *
+ * **Nenhum filtro saiu**: busca, evento, funções, colaborador, período, status
+ * da passagem, transporte, situação da inclusão, contagem e limpar continuam
+ * todos aqui, com os mesmos valores.
  */
-import { Search, X } from "lucide-react";
-import { FiltroDeLista, FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
+import { FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
 import { DEFAULT_TICKET_FILTERS, type TicketFilters } from "./types";
 import ScalingPeriodFilter from "@/components/scaling/scaling-period-filter";
 import type { DatasDoEvento } from "@/components/scaling/scaling-period";
 import type { TeamInclusion } from "@shared/schema";
+import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros } from "@/components/common/barra-de-filtros";
 
 interface TicketsFilterBarProps {
   filters: TicketFilters;
@@ -37,10 +44,9 @@ interface TicketsFilterBarProps {
   count: number;
   /** Total sem recorte — a contagem vira "N de M" quando há filtro ativo. */
   total?: number;
+  /** Algum recorte que a barra não mostra (o de trocas da fila) está ligado. */
+  recorteDeFora?: boolean;
 }
-
-/** Altura e forma comuns a todos os controles da linha. */
-const CONTROLE = "h-[34px] rounded-lg border border-border bg-card text-sm font-medium text-slate-700";
 
 /** Os mesmos valores dos `<select>` que estavam aqui — nada mudou de opção. */
 const STATUS_DA_PASSAGEM = [
@@ -63,8 +69,15 @@ const SITUACOES_DA_INCLUSAO = [
   { id: "cancelado", nome: "Canceladas" },
 ];
 
+type ChaveDeLista = "ticketStatus" | "transportType" | "inclusionStatus";
+const LISTAS: { chave: ChaveDeLista; titulo: string; etiqueta: string; opcoes: { id: string; nome: string }[]; testid: string }[] = [
+  { chave: "ticketStatus", titulo: "Status da passagem", etiqueta: "Status", opcoes: STATUS_DA_PASSAGEM, testid: "filter-ticket-status" },
+  { chave: "transportType", titulo: "Transporte", etiqueta: "Transporte", opcoes: TRANSPORTES, testid: "filter-transport-type" },
+  { chave: "inclusionStatus", titulo: "Situação da inclusão", etiqueta: "Inclusão", opcoes: SITUACOES_DA_INCLUSAO, testid: "filter-inclusion-status" },
+];
+
 export default function TicketsFilterBar({
-  filters, onChange, onClear, opcoesDeEvento, opcoesDeFuncao, opcoesDeColaborador, linhasSemPeriodo, hoje, datasDoEvento, count, total,
+  filters, onChange, onClear, opcoesDeEvento, opcoesDeFuncao, opcoesDeColaborador, linhasSemPeriodo, hoje, datasDoEvento, count, total, recorteDeFora,
 }: TicketsFilterBarProps) {
   const set = <K extends keyof TicketFilters>(key: K, value: TicketFilters[K]) =>
     onChange(prev => ({ ...prev, [key]: value }));
@@ -73,102 +86,102 @@ export default function TicketsFilterBar({
     ? `${count} de ${total} ${total === 1 ? "vaga" : "vagas"}`
     : `${count} ${count === 1 ? "vaga" : "vagas"}`;
 
+  // Listas fora do padrão (a primeira opção de cada uma é o padrão).
+  const listasLigadas = LISTAS.filter((l) => filters[l.chave] !== l.opcoes[0].id);
+  // O status da passagem já aparece aceso na fila de trabalho (cada status
+  // tem o seu bloco): repetido aqui como etiqueta, ele só fazia barulho e
+  // empurrava "Filtros" para a linha de baixo.
+  const etiquetas = listasLigadas.filter((l) => l.chave !== "ticketStatus");
+  const algumFiltro = recorteDeFora || JSON.stringify(filters) !== JSON.stringify(DEFAULT_TICKET_FILTERS);
+  const limpar = () => { onChange(() => DEFAULT_TICKET_FILTERS); onClear(); };
+
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="relative flex-[1_1_260px] max-w-[320px]">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-        <input
-          type="text"
-          placeholder="Buscar por nome, ID ou função…"
-          aria-label="Buscar por nome, ID ou função"
-          value={filters.searchId ?? ""}
-          onChange={(e) => set("searchId", e.target.value)}
-          className={`w-full ${CONTROLE} pl-[33px] pr-3 placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
-          data-testid="input-search-id"
+    <div className="space-y-2" role="search" aria-label="Filtros das passagens">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.5">
+        <BuscaDaLista
+          valor={filters.searchId ?? ""}
+          onChange={(v) => set("searchId", v)}
+          placeholder="Nome, ID, função"
+          rotulo="Buscar por nome, ID ou função"
         />
+
+        {/* Celular: a fileira rola de lado em vez de empilhar seis controles. */}
+        <div className="pas-rolagem-x -mx-[var(--page-gutter)] flex items-center gap-1.5 px-[var(--page-gutter)] sm:contents">
+          <div className="shrink-0 max-w-[220px]">
+            <FiltroUnico
+              valor={filters.eventId}
+              onChange={(v) => set("eventId", v)}
+              opcoes={opcoesDeEvento}
+              rotuloTodos="Todos os eventos"
+              placeholderBusca="Buscar evento…"
+              testid="filter-event"
+              larguraPopover={360}
+            />
+          </div>
+          <div className="shrink-0 max-w-[200px]">
+            <FiltroMultiplo
+              valores={filters.functionId}
+              onChange={(ids) => set("functionId", ids)}
+              opcoes={opcoesDeFuncao}
+              rotuloTodos="Todas as funções"
+              placeholderBusca="Buscar função…"
+              testid="filter-function"
+            />
+          </div>
+          <div className="shrink-0 max-w-[220px]">
+            <FiltroUnico
+              valor={filters.collaboratorId}
+              onChange={(v) => set("collaboratorId", v)}
+              opcoes={opcoesDeColaborador}
+              rotuloTodos="Todos os colaboradores"
+              placeholderBusca="Buscar colaborador…"
+              testid="filter-collaborator"
+              larguraPopover={340}
+            />
+          </div>
+          {/* O mesmo período da Escalação (04/09): "Já terminou" é o que permite
+              conferir passagens de eventos realizados sem os que ainda vêm.
+              "Data do evento" × "Data da escala" (02/10). */}
+          <div className="shrink-0">
+            <ScalingPeriodFilter valor={filters.periodo} onChange={(v) => set("periodo", v)} linhas={linhasSemPeriodo} hoje={hoje} datasDoEvento={datasDoEvento} />
+          </div>
+
+          {/* Peças compartilhadas com a Hospedagem (07/10): as mesmas classes de antes. */}
+          <MaisFiltros
+            listas={LISTAS}
+            valorDe={(chave) => filters[chave as ChaveDeLista]}
+            onEscolher={(chave, id) => set(chave as ChaveDeLista, id)}
+            contagem={etiquetas.length}
+            mostrarPadrao={listasLigadas.length > 0}
+            onPadrao={() => onChange((prev) => ({
+              ...prev,
+              ticketStatus: DEFAULT_TICKET_FILTERS.ticketStatus,
+              transportType: DEFAULT_TICKET_FILTERS.transportType,
+              inclusionStatus: DEFAULT_TICKET_FILTERS.inclusionStatus,
+            }))}
+          />
+        </div>
+
       </div>
 
-      <div className="w-[168px] shrink-0">
-        <FiltroUnico
-          valor={filters.eventId}
-          onChange={(v) => set("eventId", v)}
-          opcoes={opcoesDeEvento}
-          rotuloTodos="Todos os eventos"
-          placeholderBusca="Buscar evento…"
-          testid="filter-event"
-          larguraPopover={360}
-        />
-      </div>
-      <div className="w-[172px] shrink-0">
-        <FiltroMultiplo
-          valores={filters.functionId}
-          onChange={(ids) => set("functionId", ids)}
-          opcoes={opcoesDeFuncao}
-          rotuloTodos="Todas as funções"
-          placeholderBusca="Buscar função…"
-          testid="filter-function"
-        />
-      </div>
-      <div className="w-[206px] shrink-0">
-        <FiltroUnico
-          valor={filters.collaboratorId}
-          onChange={(v) => set("collaboratorId", v)}
-          opcoes={opcoesDeColaborador}
-          rotuloTodos="Todos os colaboradores"
-          placeholderBusca="Buscar colaborador…"
-          testid="filter-collaborator"
-          larguraPopover={340}
-        />
-      </div>
-      {/* O mesmo período da Escalação (04/09): "Já terminou" é o que permite
-          conferir passagens de eventos realizados sem os que ainda vêm. */}
-      <div className="shrink-0">
-        {/* "Data do evento" × "Data da escala" (02/10): o mesmo seletor da Escalação. */}
-        <ScalingPeriodFilter valor={filters.periodo} onChange={(v) => set("periodo", v)} linhas={linhasSemPeriodo} hoje={hoje} datasDoEvento={datasDoEvento} />
-      </div>
-
-      <div className="w-[210px] shrink-0">
-        <FiltroDeLista
-          valor={filters.ticketStatus}
-          onChange={(v) => set("ticketStatus", v)}
-          opcoes={STATUS_DA_PASSAGEM}
-          testid="filter-ticket-status"
-          larguraPopover={290}
-        />
-      </div>
-      <div className="w-[190px] shrink-0">
-        <FiltroDeLista
-          valor={filters.transportType}
-          onChange={(v) => set("transportType", v)}
-          opcoes={TRANSPORTES}
-          testid="filter-transport-type"
-        />
-      </div>
-      <div className="w-[156px] shrink-0">
-        <FiltroDeLista
-          valor={filters.inclusionStatus}
-          onChange={(v) => set("inclusionStatus", v)}
-          opcoes={SITUACOES_DA_INCLUSAO}
-          testid="filter-inclusion-status"
-        />
-      </div>
-
-      {/* "Limpar" zera também o filtro de trocas pendentes (via onClear). */}
-      <button
-        type="button"
-        onClick={() => { onChange(() => DEFAULT_TICKET_FILTERS); onClear(); }}
-        className={`${CONTROLE} inline-flex items-center gap-1.5 px-3 text-muted-foreground hover:border-danger/25 hover:bg-danger-soft hover:text-danger transition-colors whitespace-nowrap shrink-0`}
-        data-testid="button-clear-filters"
-      >
-        <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar filtros
-      </button>
-
-      <span
-        className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0"
-        data-testid="contagem-passagens"
-      >
-        {contagem}
-      </span>
+      {/* Etiquetas do que está ligado em "Filtros" + Limpar + "N de M vagas" (só com recorte).
+          A contagem de sempre mora no rodapé da tabela, junto da lista que ela conta. */}
+      {(etiquetas.length > 0 || algumFiltro) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {etiquetas.map((l) => (
+            <EtiquetaDeFiltro
+              key={l.chave}
+              etiqueta={l.etiqueta}
+              valor={l.opcoes.find((o) => o.id === filters[l.chave])?.nome}
+              titulo={l.titulo}
+              onTirar={() => set(l.chave, l.opcoes[0].id)}
+            />
+          ))}
+          {/* "Limpar" zera também o filtro de trocas pendentes (via onClear). */}
+          {algumFiltro && <LimparFiltros onClick={limpar} />}
+          <span className="ml-auto text-xs text-muted-foreground tabular-nums" aria-live="polite">{contagem}</span>
+        </div>
+      )}
     </div>
   );
 }

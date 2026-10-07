@@ -3,7 +3,7 @@
  * (agrupada por evento em "Todos os eventos"), a consequência dita antes do
  * clique e a observação opcional para o aprovador.
  */
-import { TriangleAlert } from "lucide-react";
+import { CheckCheck, TriangleAlert } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OptionalMark } from "@/components/forms/required-mark";
@@ -32,6 +32,9 @@ export function ValidateDialog({ sel, act, eventId, functionNameById }: Validate
     <ConfirmDialog
       open={confirmValidate}
       onOpenChange={onValidateDialogChange}
+      // 07/10: ícone de validar e 560px — a lista do lote e o campo respiram.
+      icon={CheckCheck}
+      className="sm:max-w-[560px]"
       title={`Validar ${vagas(nConfirm)}?`}
       cancelLabel="Voltar"
       // O botão declara a consequência — o mesmo padrão dos diálogos de decisão da Aprovação.
@@ -48,11 +51,11 @@ export function ValidateDialog({ sel, act, eventId, functionNameById }: Validate
       {/* A consequência dita ANTES do clique (04/09) — o texto antigo
           prometia "ainda dá para pedir ajuste", o que a regra de
           26/08 não permite. */}
-      <p className="text-xs">{AFTER_VALIDATE_MSG}</p>
+      <p className="text-xs leading-relaxed text-slate-600">{AFTER_VALIDATE_MSG}</p>
       {/* Lote de vários eventos (só em "Todos os eventos"): dito em
           destaque, porque o número no título não conta isso. */}
       {!eventId && validateGroups.length > 1 && (
-        <p role="status" className="flex items-center gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-xs font-medium text-warning">
+        <p role="status" className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning">
           <TriangleAlert className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           Este lote tem vagas de {eventos(validateGroups.length)}.
         </p>
@@ -60,20 +63,23 @@ export function ValidateDialog({ sel, act, eventId, functionNameById }: Validate
       {/* Lista COMPLETA e rolável (04/09): antes eram 5 e "… e mais
           N" — a pessoa confirmava um lote sem poder conferir o que
           havia nele. Em "Todos os eventos", agrupada por evento. */}
-      <ul className="max-h-[220px] overflow-y-auto rounded-lg border border-border bg-card text-xs text-slate-700" aria-label="Vagas deste lote">
+      <ul className="max-h-[220px] overflow-y-auto rounded-lg border border-border bg-surface-muted/50 text-xs text-slate-700" aria-label="Vagas deste lote">
         {(eventId ? [{ key: "__evento__", name: "", period: "", rows: validateRows }] : validateGroups).map((g) => (
           <li key={g.key}>
             {!eventId && (
-              <div className="sticky top-0 border-b border-border bg-surface-muted px-3 py-1">
-                <EventLine row={g.rows[0]} />
+              <div className="sticky top-0 border-b border-border bg-surface-muted px-3 py-1.5">
+                <EventLine row={g.rows[0]} className="flex-wrap" />
               </div>
             )}
             <ul className="divide-y divide-border">
+              {/* Grade com a coluna do nome em minmax(0,1fr) (07/10): num flex, o nome
+                  com `truncate` ainda contava a largura inteira no mínimo do diálogo
+                  e, no celular, empurrava o conteúdo para fora da moldura. */}
               {g.rows.map((r) => (
-                <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
-                  <span className="rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold text-primary">#{r.inclusionNumber}</span>
-                  <span className="truncate font-semibold">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
-                  <span className="ml-auto font-mono text-muted-foreground whitespace-nowrap">{periodLabel(r)}</span>
+                <li key={r.id} className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-2.5 px-3 py-2">
+                  <span className="font-mono text-2xs tabular-nums text-muted-foreground">#{r.inclusionNumber}</span>
+                  <span className="break-words text-[13px] font-medium leading-snug text-foreground">{functionNameById.get(r.functionId) ?? "Sem função"}</span>
+                  <span className="whitespace-nowrap tabular-nums text-muted-foreground">{periodLabel(r)}</span>
                 </li>
               ))}
             </ul>
@@ -83,15 +89,15 @@ export function ValidateDialog({ sel, act, eventId, functionNameById }: Validate
       {/* Observação para o aprovador (dono, 24/09): opcional, vale
           para o lote inteiro. O erro do servidor (400) marca o campo
           e o diálogo continua aberto com o texto preservado. */}
-      <div className="space-y-1 text-left">
-        <Label htmlFor="validation-note" className="text-xs text-slate-600">
+      <div className="space-y-1.5 pt-1 text-left">
+        <Label htmlFor="validation-note" className="text-xs font-medium text-foreground">
           Observação para o aprovador<OptionalMark />
         </Label>
         <Textarea
           id="validation-note" rows={3} maxLength={VALIDATION_NOTE_MAX} value={validationNote}
           onChange={(e) => changeNote(e.target.value)}
           disabled={validateMutation.isPending}
-          className="rounded-lg bg-card text-sm"
+          className="resize-none rounded-lg bg-card text-sm"
           placeholder="Algo que o aprovador precisa saber antes de decidir — fica no histórico da vaga."
           aria-invalid={validationNoteError ? true : undefined}
           aria-describedby={[

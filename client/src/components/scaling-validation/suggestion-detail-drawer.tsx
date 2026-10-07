@@ -4,6 +4,10 @@
  * Desde 25/09 o vocabulário e as peças pequenas moram em
  * `suggestion-detail-helpers.tsx` e o cartão de histórico (com a consulta de
  * logs) em `suggestion-history-card.tsx` — este arquivo tinha 613 linhas.
+ *
+ * 07/10 (redesenho): cabeçalho em três camadas (número e fila; a função em
+ * destaque; evento e status), seções com a moldura do modal da Escalação,
+ * avisos do aprovador com filete de cor e o rodapé com UMA ação forte.
  */
 import { useEffect } from "react";
 import { Link } from "wouter";
@@ -25,7 +29,7 @@ import {
 } from "./types";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { ValidationNoteBlock } from "./validation-note-blocks";
-import { Card, DayChip, fmtDateTime, hasAnyLeg, ondeEstaAVaga } from "./suggestion-detail-helpers";
+import { Card, DayChip, Destaque, fmtDateTime, hasAnyLeg, ondeEstaAVaga } from "./suggestion-detail-helpers";
 import { SuggestionHistoryCard } from "./suggestion-history-card";
 
 interface SuggestionDetailDrawerProps {
@@ -108,7 +112,7 @@ export function SuggestionDetailDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, canNavigate, prevRow, nextRow, onNavigate]);
 
-  const navBtn = "flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-surface-muted disabled:opacity-40 disabled:hover:bg-transparent";
+  const navBtn = "val-alvo flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-card disabled:hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,22 +120,25 @@ export function SuggestionDetailDrawer({
           chips de logística e os dias de trabalho quebravam em duas linhas.
           Com 720px cabem numa linha só, e sobra menos rolagem para conferir. */}
       <DialogContent
-        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden"
+        className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden focus:outline-none"
+        // Foco inicial no próprio diálogo (07/10): ia para o "‹", que abria o
+        // tooltip "Vaga anterior (←)" por cima do título ao abrir — e o
+        // primeiro Esc fechava só o tooltip. O Tab segue a ordem de sempre.
+        onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true }); }}
         // Sem preventDefault: o foco volta para quem abriu o detalhe, e só
         // depois disso a tela abre o diálogo que estava esperando.
         onCloseAutoFocus={() => onClosed?.()}
       >
         {row ? (
           <>
-            <DialogHeader className="shrink-0 border-b border-border bg-card px-5 pb-3 pt-5 text-left space-y-2">
-              <DialogTitle className="flex items-center gap-2 text-base leading-tight">
-                <span className="inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
-                <span className="truncate font-semibold text-foreground">{functionName ?? "Função"}</span>
-                {/* Fila de 14 vagas não pode obrigar a fechar e reabrir. O ‹ ›
-                    fica à esquerda do X (pr-8 reserva o lugar dele). */}
+            <DialogHeader className="shrink-0 space-y-1.5 border-b border-border bg-card px-5 pb-4 pt-4 text-left">
+              {/* Linha 1: número + navegação da fila (‹ ›, à esquerda do X). */}
+              <div className="flex min-h-8 items-center gap-2 pr-8">
+                <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">#{row.inclusionNumber}</span>
+                {/* Fila de 14 vagas não pode obrigar a fechar e reabrir. */}
                 {canNavigate && (
-                  <span className="ml-auto mr-8 flex shrink-0 items-center gap-1.5">
-                    <span className="text-2xs tabular-nums text-muted-foreground">{index + 1} de {queue.length}</span>
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    <span className="mr-1 text-2xs tabular-nums text-muted-foreground">{index + 1} de {queue.length}</span>
                     <MotivoDesabilitado motivo="Vaga anterior (←)" desabilitado={!prevRow}>
                       <button type="button" onClick={() => prevRow && onNavigate!(prevRow)} disabled={!prevRow} aria-label="Vaga anterior" className={navBtn}>
                         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -144,36 +151,39 @@ export function SuggestionDetailDrawer({
                     </MotivoDesabilitado>
                   </span>
                 )}
+              </div>
+              <DialogTitle className="text-lg font-semibold leading-tight tracking-[-0.01em] text-foreground">
+                {functionName ?? "Função"}
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                {event?.name ?? "Evento"}
-                {row.canEdit ? " · você valida esta função" : " · somente leitura"}
+              <DialogDescription className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                {/* Sem `event` (Decididas, Histórico) o nome vem da própria linha — era "Evento" seco. */}
+                <span>{event?.name ?? row.eventName ?? "Evento"}</span>
+                <span aria-hidden="true">·</span>
+                {row.canEdit
+                  ? <span className="font-medium text-primary">você valida esta função</span>
+                  : <span>somente leitura</span>}
               </DialogDescription>
-              <StatusCell row={row} approverNames={approverNames} />
+              <div className="pt-1"><StatusCell row={row} approverNames={approverNames} /></div>
             </DialogHeader>
 
-            <div className="flex-1 min-h-0 overflow-y-auto bg-surface-muted/60">
-              <div className="space-y-3 px-4 py-4">
+            <div key={row.id} className="val-entra flex-1 min-h-0 overflow-y-auto bg-surface-muted/60">
+              <div className="space-y-3 px-4 py-4 sm:px-5">
                 {/* Decisão do aprovador (a vaga voltou) */}
                 {row.lastDecision && decision && (
-                  <section aria-labelledby="det-decisao" className={cn("rounded-xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[decision.tone])}>
-                    <p id="det-decisao" className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide">
-                      <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {decision.title} · pedido de {(CHANGE_REQUEST_TYPE_LABELS[row.lastDecision.requestType] ?? row.lastDecision.requestType).toLowerCase()}
-                    </p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{row.lastDecision.comment?.trim() ? row.lastDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
-                    <p className="text-2xs text-slate-600">{row.lastDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastDecision.at)}</p>
-                  </section>
+                  <Destaque id="det-decisao" tom={DECISION_TONE_CLASS[decision.tone]} icon={Undo2}
+                    title={<>{decision.title} · pedido de {(CHANGE_REQUEST_TYPE_LABELS[row.lastDecision.requestType] ?? row.lastDecision.requestType).toLowerCase()}</>}
+                    meta={<>{row.lastDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastDecision.at)}</>}>
+                    {row.lastDecision.comment?.trim() ? row.lastDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}
+                  </Destaque>
                 )}
 
                 {/* Decisão do aprovador sobre a VAGA (devolvida/reprovada/aprovada) */}
                 {row.lastVagaDecision && vagaDecision && (
-                  <section aria-labelledby="det-decisao-vaga" className={cn("rounded-xl border px-3.5 py-3 space-y-1", DECISION_TONE_CLASS[vagaDecision.tone])}>
-                    <p id="det-decisao-vaga" className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide">
-                      <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> {vagaDecision.title}
-                    </p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{row.lastVagaDecision.comment?.trim() ? row.lastVagaDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}</p>
-                    <p className="text-2xs text-slate-600">{row.lastVagaDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastVagaDecision.at)}</p>
-                  </section>
+                  <Destaque id="det-decisao-vaga" tom={DECISION_TONE_CLASS[vagaDecision.tone]} icon={Undo2}
+                    title={vagaDecision.title}
+                    meta={<>{row.lastVagaDecision.byName ?? "Aprovador"} · {fmtDateTime(row.lastVagaDecision.at)}</>}>
+                    {row.lastVagaDecision.comment?.trim() ? row.lastVagaDecision.comment : <span className="italic text-slate-600">Sem comentário do aprovador.</span>}
+                  </Destaque>
                 )}
 
                 {/* Observação de quem validou (dono, 24/09) — só enquanto a vaga
@@ -184,31 +194,27 @@ export function SuggestionDetailDrawer({
 
                 {/* Pedido pendente */}
                 {pending && (
-                  <section aria-labelledby="det-pedido" className="rounded-xl border border-primary/25 bg-brand-soft/60 px-3.5 py-3 space-y-1">
-                    <p id="det-pedido" className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-primary">
-                      <MessageSquareWarning className="w-3.5 h-3.5" aria-hidden="true" /> Pedido de {(CHANGE_REQUEST_TYPE_LABELS[pending.requestType as ChangeRequestType] ?? pending.requestType).toLowerCase()} aguardando o aprovador
-                    </p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{pending.reason}</p>
-                    <p className="text-2xs text-slate-600">por {pending.requestedByName} · {fmtDateTime(pending.createdAt)}</p>
-                  </section>
+                  <Destaque id="det-pedido" tom="border-primary/25 bg-brand-soft/70 text-primary" icon={MessageSquareWarning}
+                    title={<>Pedido de {(CHANGE_REQUEST_TYPE_LABELS[pending.requestType as ChangeRequestType] ?? pending.requestType).toLowerCase()} aguardando o aprovador</>}
+                    meta={<>por {pending.requestedByName} · {fmtDateTime(pending.createdAt)}</>}>
+                    {pending.reason}
+                  </Destaque>
                 )}
 
                 {/* Período e diárias */}
-                <Card id="det-periodo" title="Período e diárias" icon={CalendarDays}>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+                <Card id="det-periodo" title="Período e diárias" icon={CalendarDays}
+                  acessorio={<span className="inline-flex items-center rounded-full bg-brand-soft px-2 py-0.5 text-2xs font-semibold tabular-nums text-primary">{formatDiarias(days.length || row.dailyRates || 0)}</span>}>
+                  <p className="text-sm font-medium text-foreground">
                     {start ? (
-                      <span className="font-medium">
+                      <>
                         <DayLabel v={start} />
                         {end && end !== start && <> <span className="text-muted-foreground" aria-hidden="true">–</span> <DayLabel v={end} /></>}
-                      </span>
+                      </>
                     ) : (
-                      <span className="text-muted-foreground">Período não definido</span>
+                      <span className="font-normal text-muted-foreground">Período não definido</span>
                     )}
-                    <span className="inline-flex items-center rounded-md bg-brand-soft px-2 py-0.5 text-2xs font-semibold tabular-nums text-primary">
-                      {formatDiarias(days.length || row.dailyRates || 0)}
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 border-t border-border pt-2">
+                  </p>
+                  <div className="space-y-1.5">
                     <p className="text-2xs text-muted-foreground">
                       Dias de trabalho <span className="tabular-nums">({days.length})</span>
                     </p>
@@ -240,7 +246,7 @@ export function SuggestionDetailDrawer({
                       </p>
                     </>
                   ) : (
-                    <p className="text-xs italic text-muted-foreground">Sem logística — esta vaga não precisa de passagem nem de hospedagem.</p>
+                    <p className="text-sm text-muted-foreground">Sem logística — esta vaga não precisa de passagem nem de hospedagem.</p>
                   )}
                 </Card>
 
@@ -249,7 +255,7 @@ export function SuggestionDetailDrawer({
                   {row.observations?.trim() ? (
                     <p className="whitespace-pre-wrap text-sm text-foreground">{row.observations}</p>
                   ) : (
-                    <p className="text-xs italic text-muted-foreground">Sem observações — a logística não escreveu nada para esta vaga.</p>
+                    <p className="text-sm text-muted-foreground">Sem observações — a logística não escreveu nada para esta vaga.</p>
                   )}
                 </Card>
 
@@ -258,19 +264,22 @@ export function SuggestionDetailDrawer({
             </div>
 
             {showFooter && (
-              <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-card px-5 py-3">
+              <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-card px-4 py-3 sm:px-5">
                 {ondeEsta && (
-                  <Link href={ondeEsta.href} className="mr-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-primary transition-colors hover:border-primary/30 hover:bg-brand-soft">
+                  <Link href={ondeEsta.href} className="val-alvo mr-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-primary transition-colors hover:border-primary/30 hover:bg-brand-soft">
                     <ExternalLink className="h-4 w-4" aria-hidden="true" /> {ondeEsta.label}
                   </Link>
                 )}
+                {/* Pedir exclusão é o caminho mais raro: fica à esquerda, em
+                    texto, longe do "Validar" (07/10 — era um contorno vermelho
+                    colado ao botão verde). */}
                 {mayRequest && onDelete && (
-                  <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg border-danger/25 text-danger hover:bg-danger-soft" onClick={() => onDelete(row)}>
+                  <Button type="button" variant="ghost" size="sm" className={cn("val-alvo h-9 rounded-lg px-2.5 text-danger hover:bg-danger-soft hover:text-danger", !ondeEsta && "sm:mr-auto")} onClick={() => onDelete(row)}>
                     <Trash2 className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir exclusão
                   </Button>
                 )}
                 {mayRequest && onAdjust && (
-                  <Button type="button" variant="outline" size="sm" className="h-9 rounded-lg" onClick={() => onAdjust(row)}>
+                  <Button type="button" variant="outline" size="sm" className="val-alvo h-9 rounded-lg" onClick={() => onAdjust(row)}>
                     <PencilLine className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir ajuste
                   </Button>
                 )}
@@ -281,7 +290,7 @@ export function SuggestionDetailDrawer({
                     <TooltipTrigger asChild>
                       <Button
                         type="button" size="sm" variant="outline"
-                        className="h-9 rounded-lg border-success/25 bg-success-soft text-success hover:bg-success-soft"
+                        className="val-alvo h-9 rounded-lg border-success/35 bg-success-soft text-success hover:border-success hover:bg-success-soft hover:text-success max-sm:flex-1"
                         onClick={() => onValidateAndNext(row)}
                       >
                         <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar e próxima
@@ -295,7 +304,7 @@ export function SuggestionDetailDrawer({
                 {mayValidate && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" size="sm" className="h-9 rounded-lg bg-success font-semibold text-white hover:bg-success/90" onClick={() => onValidate!(row)}>
+                      <Button type="button" size="sm" className="val-alvo h-9 rounded-lg bg-success px-3.5 font-semibold text-white shadow-1 hover:bg-success/90 max-sm:w-full" onClick={() => onValidate!(row)}>
                         <CheckCheck className="w-4 h-4 mr-1.5" aria-hidden="true" /> Validar vaga
                       </Button>
                     </TooltipTrigger>

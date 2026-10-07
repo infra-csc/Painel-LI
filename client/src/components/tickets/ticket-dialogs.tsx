@@ -1,6 +1,9 @@
 // Diálogos auxiliares da tela de Passagens: descartar alterações, avisos
 // cronológicos, confirmação e resumo do lote. O modal "Sucesso" + OK saiu em
 // 23/09 — virou toast (`toastSucessoDaVaga` em components/common/toast-sucesso).
+// 07/10: a mesma forma de título/descrição/botões dos outros diálogos da tela;
+// o lote mostra os dados numa tabela de duas colunas e a lista de nomes conta
+// quantos são.
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -36,14 +39,17 @@ export function DiscardChangesDialog({ open, onCancel, onDiscard, backToView }: 
 export function ChronologyWarningsDialog({ warnings, onCancel, onConfirm }: { warnings: string[] | null; onCancel: () => void; onConfirm: () => void }) {
   return (
     <AlertDialog open={!!warnings} onOpenChange={(o) => { if (!o) onCancel(); }}>
-      <AlertDialogContent className="max-w-[480px] border-warning/25">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2 text-warning">
-            <AlertCircle className="w-5 h-5 text-warning-strong" aria-hidden="true" />Confira as datas antes de continuar
+      <AlertDialogContent className="max-w-[480px]">
+        <AlertDialogHeader className="text-left">
+          <AlertDialogTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-warning-soft shrink-0" aria-hidden="true">
+              <AlertCircle className="w-4 h-4 text-warning-strong" />
+            </span>
+            Confira as datas antes de continuar
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2">
-              <ul className="list-disc pl-5 space-y-1 text-sm text-warning bg-warning-soft border border-warning/25 rounded-lg p-3">
+              <ul className="list-disc pl-7 pr-3 py-2.5 space-y-1 text-sm text-warning bg-warning-soft rounded-lg">
                 {warnings?.map((w, i) => <li key={i}>{w}</li>)}
               </ul>
               <p className="text-xs text-muted-foreground">
@@ -54,7 +60,7 @@ export function ChronologyWarningsDialog({ warnings, onCancel, onConfirm }: { wa
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Voltar e corrigir</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-warning-strong hover:bg-warning/90 text-white">Continuar mesmo assim</AlertDialogAction>
+          <AlertDialogAction onClick={onConfirm} className="bg-warning hover:bg-warning/90 text-white">Continuar mesmo assim</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -88,21 +94,24 @@ export function BatchConfirmDialog({ open, quick, names, onCancel, onConfirm }: 
   return (
     <AlertDialog open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
       <AlertDialogContent className="max-w-[560px]">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Aplicar a {n} passageiro{n !== 1 ? "s" : ""}?</AlertDialogTitle>
+        <AlertDialogHeader className="text-left">
+          <AlertDialogTitle className="text-base font-semibold text-foreground">Aplicar a {n} passageiro{n !== 1 ? "s" : ""}?</AlertDialogTitle>
           <AlertDialogDescription>Os mesmos dados abaixo serão registrados em todas as passagens selecionadas. Confira antes de confirmar.</AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-3">
-          <div className="bg-surface-muted border border-border rounded-xl p-3 space-y-1.5 text-xs">
+          <dl className="m-0 rounded-xl border border-border divide-y divide-border text-xs overflow-hidden">
             {rows.map(([k, v]) => (
-              <div key={k} className="flex items-start gap-3">
-                <span className="w-24 shrink-0 text-muted-foreground font-medium">{k}</span>
-                <span className="font-semibold text-slate-700 break-words">{v}</span>
+              <div key={k} className="flex items-start gap-3 px-3 py-2">
+                <dt className="w-24 shrink-0 text-muted-foreground">{k}</dt>
+                <dd className="m-0 font-semibold text-foreground break-words tabular-nums">{v}</dd>
               </div>
             ))}
-          </div>
-          <div className="max-h-32 overflow-y-auto border border-border rounded-xl p-3 text-xs text-slate-600 space-y-0.5">
-            {names.map((nm, i) => <div key={i}>{nm}</div>)}
+          </dl>
+          <div>
+            <p className="m-0 mb-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Passageiros ({n})</p>
+            <ul className="m-0 p-0 list-none max-h-32 overflow-y-auto rounded-xl border border-border px-3 py-2 text-xs text-slate-700 space-y-0.5 [scrollbar-width:thin]">
+              {names.map((nm, i) => <li key={i}>{nm}</li>)}
+            </ul>
           </div>
         </div>
         <AlertDialogFooter>
@@ -119,8 +128,8 @@ export function BatchResultDialog({ result, onClose }: { result: BatchResult | n
   return (
     <Dialog open={!!result} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+        <DialogHeader className="text-left">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             {result && result.failures.length === 0
               ? <><CheckCircle className="w-5 h-5 text-success-strong" aria-hidden="true" /> Lote concluído</>
               : <><AlertCircle className="w-5 h-5 text-warning-strong" aria-hidden="true" /> Lote concluído com falhas</>}
@@ -136,12 +145,12 @@ export function BatchResultDialog({ result, onClose }: { result: BatchResult | n
           </DialogDescription>
         </DialogHeader>
         {result && result.failures.length > 0 && (
-          <ul className="max-h-48 overflow-y-auto bg-danger-soft border border-danger/30 rounded-xl p-3 text-xs text-danger space-y-1 list-disc pl-7" data-testid="batch-failures">
+          <ul className="max-h-48 overflow-y-auto bg-danger-soft rounded-xl py-2.5 pr-3 text-xs text-danger space-y-1 list-disc pl-7" data-testid="batch-failures">
             {result.failures.map((f, i) => <li key={i}>{f}</li>)}
           </ul>
         )}
         <div className="flex justify-end">
-          <Button onClick={onClose} className="bg-primary hover:bg-primary-hover text-primary-foreground rounded-xl px-5">OK</Button>
+          <Button onClick={onClose} className="h-9 bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg px-5">OK</Button>
         </div>
       </DialogContent>
     </Dialog>

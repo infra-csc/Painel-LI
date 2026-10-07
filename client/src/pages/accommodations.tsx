@@ -1,7 +1,18 @@
-import { useState, useCallback, useMemo } from "react";
+// Hospedagem — página. Estado de UI, o registro (modal e lote) e as guardas
+// de tela ficam aqui; dados/índices em use-accommodations-data; a UI em
+// components/accommodations/**.
+//
+// 07/10 (redesenho): a mesma casca de Passagens — barra da tela sangrando até
+// as margens, conteúdo em até 1560px, esqueleto com a geometria real, erro e
+// sem-acesso no mesmo desenho — e o aviso de alteração para Compras: o bloco
+// "Alterações aprovadas para rever a hospedagem" acima da fila, o sinal na
+// linha da vaga e o aviso no topo do modal (com "Abrir hospedagem" e "Já atuei").
+import { useState, useCallback, useMemo, useEffect, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ListChecks } from "lucide-react";
+import { AlertCircle, Layers, ListChecks, Lock, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BlocoDeAvisos, BotaoAvisosResolvidos } from "@/components/avisos-de-alteracao/bloco-de-avisos";
+import { useAvisosPendentes, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 import { useToast } from "@/hooks/use-toast";
 import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
 import { hasPermission } from "@/lib/role-utils";
@@ -77,7 +88,7 @@ export default function Accommodations() {
   // outros três; o hook devolve a lista sem ele para os contadores da fila
   // poderem contar todos os blocos ao mesmo tempo.
   const {
-    events, functions, collaborators, users,
+    teamInclusions, events, functions, collaborators, users,
     isLoading, loadError,
     accommodationMap, eventById, functionById, collaboratorById,
     pendingSwapByInclusion, approvedSwapInclusionIds, filteredData, selectableInclusionIds,
@@ -167,10 +178,12 @@ export default function Accommodations() {
   // ── Handlers de filtro/ordenação/seleção ──
   const patchFilters = useCallback((patch: Partial<AccommodationFilters>) => setFilters((prev) => ({ ...prev, ...patch })), []);
   const clearFilters = () => { setFilters(DEFAULT_FILTERS); setBlocoAtivo(null); };
-  const hasActiveFilters =
+  /** Filtros da barra (sem o bloco da fila) — o vazio diz se são eles que escondem vagas. */
+  const filtrosDaBarra =
     filters.eventId !== "all" || filters.functionId.length > 0 || filters.collaboratorId !== "all" ||
     filters.searchId.trim() !== "" || filters.accommodationStatus !== "all" || filters.inclusionStatus !== "active" ||
-    temRecorteDePeriodo(filters.periodo) || blocoAtivo !== null;
+    temRecorteDePeriodo(filters.periodo);
+  const hasActiveFilters = filtrosDaBarra || blocoAtivo !== null;
 
   const handleSort = (field: AccSortField) => {
     setSortConfig((current) => {
@@ -179,19 +192,42 @@ export default function Accommodations() {
     });
   };
 
-  const toggleRowSelection = (id: string) =>
-    setSelectedForBatch((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  // useCallback (07/10): a linha é memo() — sem referência estável, TODAS as
+  // linhas repintavam a cada marcação.
+  const toggleRowSelection = useCallback((id: string) =>
+    setSelectedForBatch((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]), []);
   // Marcar todos = só os pendentes visíveis (canceladas não têm checkbox).
   const toggleAllSelection = () =>
     setSelectedForBatch(allSelectableSelected ? [] : Array.from(selectableAtivos));
 
   // ── Modal ──
-  const openModal = (inclusion: TeamInclusion) => {
+  const openModal = useCallback((inclusion: TeamInclusion) => {
     if (inclusion.status === "cancelado") return;
     setSelectedInclusion(inclusion);
     setShowModal(true);
-  };
+  }, []);
   const closeModal = () => setShowModal(false);
+
+  // ── Alterações aprovadas para rever a hospedagem (07/10) ──
+  // O mesmo comportamento de Passagens: o aviso pode ser de uma prova fora do
+  // recorte de evento atual (a lista e as hospedagens vêm só do evento
+  // filtrado); aí o filtro passa para a prova do aviso e o modal abre assim
+  // que a vaga chega.
+  const avisos = useAvisosPendentes("hospedagem");
+  const [abrirDepois, setAbrirDepois] = useState<string | null>(null);
+  const abrirPeloAviso = useCallback((aviso: AvisoDeAlteracao) => {
+    const inc = teamInclusions?.find((i) => i.id === aviso.teamInclusionId);
+    if (inc) { openModal(inc); return; }
+    setAbrirDepois(aviso.teamInclusionId);
+    setFilters((prev) => ({ ...prev, eventId: aviso.eventId }));
+    // A lista muda de recorte por baixo do modal — dizer por quê.
+    toast({ title: `Mostrando ${aviso.eventName ?? "a prova do aviso"}`, description: "O filtro de evento mudou para abrir a vaga desta alteração." });
+  }, [teamInclusions, openModal, toast]);
+  useEffect(() => {
+    if (!abrirDepois || isLoading) return;
+    const inc = teamInclusions?.find((i) => i.id === abrirDepois);
+    if (inc) { setAbrirDepois(null); openModal(inc); }
+  }, [abrirDepois, isLoading, teamInclusions, openModal]);
 
   // ── Registro de UMA hospedagem. Compartilhado pelo modal (via mutation) e
   // pelo lote (chamada direta). O status da vaga (hospedagem_comprada /
@@ -321,48 +357,93 @@ export default function Accommodations() {
     }
   };
 
-  // ── Estados de tela ──
-  if (isLoading) {
-    return (
-      <div className="space-y-4 animate-pulse motion-reduce:animate-none" aria-busy="true" aria-label="Carregando hospedagens">
-        <div className="h-14 bg-muted rounded-xl" />
-        <div className="h-[76px] bg-muted rounded-xl" />
-        <div className="h-[34px] bg-muted rounded-lg w-2/3" />
-        <div className="h-64 bg-muted rounded-xl" />
+  // ── Guardas de tela ──
+  // A barra da tela aparece em todos os estados (carregando, erro, sem
+  // acesso): a pessoa sempre sabe onde está, e nada "pula" quando os dados
+  // chegam. A mesma casca de Passagens.
+  const barra = (subtitulo: ReactNode, acoes?: ReactNode) => (
+    <PageHeader variant="bar" title="Hospedagem" subtitle={subtitulo} className="mx-0 mt-0" actions={acoes} />
+  );
+  const casca = (conteudo: ReactNode, subtitulo: ReactNode = null) => (
+    <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
+      {barra(subtitulo)}
+      <div className="px-[var(--page-gutter)] pt-5 pb-6">
+        <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">{conteudo}</div>
       </div>
+    </div>
+  );
+
+  if (!hasPermission(user, "canAccessScreen3")) {
+    return casca(
+      <div className="pas-entra flex flex-col items-center text-center rounded-xl border border-border bg-card px-6 py-14" data-testid="hospedagem-sem-acesso">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted text-muted-foreground mb-3" aria-hidden="true">
+          <Lock className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">Acesso negado</h2>
+        <p className="m-0 mt-1.5 max-w-[420px] text-sm leading-relaxed text-muted-foreground">
+          Você não tem permissão para acessar esta tela. Se precisa registrar hospedagens, peça ao administrador para liberar o seu perfil.
+        </p>
+      </div>,
     );
   }
 
-  if (!hasPermission(user, "canAccessScreen3")) {
-    return (
-      <div className="bg-card rounded-lg shadow-1 border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso negado</h3>
-        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
-      </div>
+  if (isLoading) {
+    // Esqueleto com a geometria real: fila, filtros e as primeiras linhas.
+    return casca(
+      <div role="status" aria-live="polite" aria-busy="true" aria-label="Carregando hospedagens" className="flex flex-col gap-4">
+        <span className="sr-only">Carregando hospedagens…</span>
+        <div aria-hidden="true" className="grid grid-cols-2 sm:grid-cols-4 rounded-xl border border-border bg-card overflow-hidden">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className={`px-3.5 pt-3 pb-3.5 space-y-2 ${i > 0 ? "sm:border-l border-border" : ""}`}>
+              <div className="pas-osso h-3 w-20" />
+              <div className="pas-osso h-5 w-28" />
+            </div>
+          ))}
+        </div>
+        <div aria-hidden="true" className="flex gap-2">
+          <div className="pas-osso h-[34px] flex-[1_1_220px] max-w-[320px] rounded-lg" />
+          <div className="pas-osso h-[34px] w-[164px] rounded-lg hidden sm:block" />
+          <div className="pas-osso h-[34px] w-[152px] rounded-lg hidden sm:block" />
+          <div className="pas-osso h-[34px] w-[176px] rounded-lg hidden md:block" />
+        </div>
+        <div aria-hidden="true" className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="h-10 bg-surface-muted border-b border-border" />
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3.5 border-b border-border last:border-0">
+              <div className="pas-osso h-[22px] w-12" />
+              <div className="flex-1 space-y-1.5"><div className="pas-osso h-3.5 w-3/5" /><div className="pas-osso h-2.5 w-2/5" /></div>
+              <div className="pas-osso h-3.5 w-24 hidden md:block" />
+              <div className="pas-osso h-3.5 w-32 hidden md:block" />
+              <div className="pas-osso h-[22px] w-20" />
+            </div>
+          ))}
+        </div>
+      </div>,
+      <span>Carregando…</span>,
     );
   }
 
   // Sessão expirada ou rede fora: mostrar o motivo em vez de "nenhuma inclusão".
   if (loadError) {
     const isAuthError = loadError.status === 401 || loadError.status === 403;
-    return (
-      <div className="bg-card rounded-xl border border-danger/30 shadow-1 p-8 text-center" role="alert">
-        <div className="w-14 h-14 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-4">
-          <AlertCircle className="w-7 h-7 text-danger" aria-hidden="true" />
-        </div>
-        <h3 className="text-base font-bold text-slate-700 mb-1">
+    return casca(
+      <div role="alert" className="pas-entra flex flex-col items-center text-center rounded-xl border border-danger/25 bg-card px-6 py-14">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-danger-soft text-danger mb-3" aria-hidden="true">
+          <AlertCircle className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">
           {isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as hospedagens"}
-        </h3>
-        <p className="text-sm text-neutral mb-4">
+        </h2>
+        <p className="m-0 mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
           {isAuthError ? "Entre novamente para continuar. Nenhum dado foi perdido." : (loadError.body?.message || "Verifique sua conexão e tente novamente.")}
         </p>
-        <Button variant="outline" className="rounded-lg" onClick={() => {
+        <Button variant="outline" className="mt-5 rounded-lg" onClick={() => {
           ["/api/team-inclusions", "/api/events", "/api/functions", "/api/collaborators", "/api/accommodations"]
             .forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
         }}>
-          Tentar novamente
+          <RotateCw className="w-4 h-4 mr-1.5" aria-hidden="true" />Tentar novamente
         </Button>
-      </div>
+      </div>,
     );
   }
 
@@ -380,92 +461,105 @@ export default function Accommodations() {
   const ordenacao = sortConfig
     ? `ordenado por ${NOME_DA_ORDEM[sortConfig.field] ?? sortConfig.field}`
     : "sem ordenação";
+  const nSel = effectiveSelectedForBatch.length;
 
   return (
-    <div className="space-y-4">
-      {/*
-        Barra de contexto: onde estou, o que estou vendo e a ação primária.
-        Substitui o cabeçalho de 76px cujo subtítulo repetia o nome do menu.
-      */}
-      {/* `top` abaixo da barra do topo (23/09): com `top-0` a barra passava por
-          cima do topo e dos menus dele ao rolar. */}
-      {/* PageHeader `bar` (25/09): era a última barra de contexto desenhada à
-          mão (h-14 fixo, sem quebra) — em 375px o botão de lote saía da tela. */}
-      <PageHeader
-        variant="bar"
-        title="Hospedagem"
-        subtitle={
+    <>
+      {/* Margens pela variável do layout: a barra sangra até as bordas da
+          página e o conteúdo fica em até 1560px — a mesma casca de Passagens. */}
+      <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
+        {/* Barra de contexto (PageHeader `bar`): o resumo do recorte e as ações. */}
+        {barra(
           <span data-testid="resumo-do-recorte">
-            {linhasVisiveis.length} {linhasVisiveis.length === 1 ? "vaga" : "vagas"} em {eventosNoRecorte}{" "}
-            {eventosNoRecorte === 1 ? "evento" : "eventos"} · {semReserva} sem reserva
-          </span>
-        }
-        actions={canEditField && (
-          /*
-           * Sem nada marcado o botão não fica inerte: ele marca as pendentes
-           * visíveis, que é o passo que faltava para o lote existir. Um botão
-           * primário permanentemente desabilitado só ensina a ignorá-lo.
-           */
-          <button
-            type="button"
-            onClick={() => (effectiveSelectedForBatch.length > 0 ? handleApplyToSelected() : toggleAllSelection())}
-            disabled={selectableAtivos.size === 0}
-            className="shrink-0 h-[34px] px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 transition-colors"
-            data-testid="button-batch-primary"
-          >
-            <ListChecks className="w-4 h-4" aria-hidden="true" />
-            {effectiveSelectedForBatch.length > 0
-              ? `Aplicar em lote (${effectiveSelectedForBatch.length})`
-              : `Selecionar pendentes (${selectableAtivos.size})`}
-          </button>
+            {linhasVisiveis.length === 0
+              ? "nenhuma vaga neste recorte"
+              : <>
+                  {linhasVisiveis.length} {linhasVisiveis.length === 1 ? "vaga" : "vagas"} em {eventosNoRecorte}{" "}
+                  {eventosNoRecorte === 1 ? "evento" : "eventos"}{semReserva > 0 ? ` · ${semReserva} sem reserva` : ""}
+                </>}
+          </span>,
+          <>
+            <BotaoAvisosResolvidos tipo="hospedagem" />
+            {canEditField && (
+              /*
+               * Sem nada marcado o botão não fica inerte: ele marca as pendentes
+               * visíveis, que é o passo que faltava para o lote existir. Com
+               * marcadas, vira a ação principal (cheio) e abre a confirmação.
+               */
+              <Button
+                type="button"
+                variant={nSel > 0 ? "default" : "outline"}
+                onClick={() => (nSel > 0 ? handleApplyToSelected() : toggleAllSelection())}
+                disabled={selectableAtivos.size === 0}
+                title={selectableAtivos.size === 0 ? "Nenhuma vaga pendente neste recorte" : undefined}
+                className={`shrink-0 h-[34px] rounded-lg text-sm font-medium ${nSel > 0 ? "bg-primary hover:bg-primary-hover text-primary-foreground" : ""}`}
+                data-testid="button-batch-primary"
+              >
+                {nSel > 0 ? <Layers className="w-4 h-4 mr-1.5" aria-hidden="true" /> : <ListChecks className="w-4 h-4 mr-1.5" aria-hidden="true" />}
+                {nSel > 0 ? `Aplicar em lote (${nSel})` : selectableAtivos.size > 0 ? `Selecionar pendentes (${selectableAtivos.size})` : "Selecionar pendentes"}
+              </Button>
+            )}
+          </>,
         )}
-      />
 
-      {/*
-        A fila de trabalho no lugar dos três cards de resumo e do banner de
-        trocas: aqui cada bloco conta E leva ao trabalho.
-      */}
-      <AccommodationsWorkQueue resumo={resumoDaFila} ativo={blocoAtivo} onEscolher={setBlocoAtivo} />
+        {/* `div`, não `main`: o `<main>` é um só e mora no layout. */}
+        <div className="px-[var(--page-gutter)] pt-5 pb-6">
+          <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">
+            {/* Evento encerrado: banner discreto quando o filtro aponta para um
+                evento já terminado e o usuário não é o administrador. */}
+            <PastEventBanner show={filters.eventId !== "all" && eventLock.isReadOnlyPastEvent(filters.eventId)} />
 
-      <AccommodationsFilterBar
-        filters={filters}
-        onChange={patchFilters}
-        onClear={clearFilters}
-        opcoesDeEvento={opcoesDeEvento}
-        opcoesDeFuncao={opcoesDeFuncao}
-        opcoesDeColaborador={opcoesDeColaborador}
-        linhasSemPeriodo={linhasSemPeriodo}
-        hoje={hojeData}
-        sortConfig={sortConfig}
-        onSortChange={setSortConfig}
-        count={linhasVisiveis.length}
-        total={teamInclusionsWithAccommodation.length}
-      />
+            {/* Alterações aprovadas depois do registro (07/10): o trabalho mais
+                urgente de Compras — fica acima de tudo, e só existe quando há. */}
+            <BlocoDeAvisos tipo="hospedagem" onAbrir={abrirPeloAviso} />
 
-      {/* Evento encerrado: banner discreto quando o filtro aponta para um evento
-          já terminado e o usuário não é o administrador. */}
-      <PastEventBanner show={filters.eventId !== "all" && eventLock.isReadOnlyPastEvent(filters.eventId)} />
+            {/* A fila de trabalho no lugar dos três cards de resumo e do banner
+                de trocas: aqui cada bloco conta E leva ao trabalho. */}
+            <AccommodationsWorkQueue resumo={resumoDaFila} ativo={blocoAtivo} onEscolher={setBlocoAtivo} />
 
-      <AccommodationsTable
-        rows={linhasVisiveis}
-        accommodationMap={accommodationMap} eventById={eventById} functionById={functionById} collaboratorById={collaboratorById}
-        pendingSwapByInclusion={pendingSwapByInclusion}
-        approvedSwapInclusionIds={approvedSwapInclusionIds}
-        sortConfig={sortConfig} onSort={handleSort}
-        selectedIds={selectedForBatch} selectableIds={selectableAtivos} allSelectableSelected={allSelectableSelected}
-        onToggleRow={toggleRowSelection} onToggleAll={toggleAllSelection}
-        canEdit={canEditField} onOpen={openModal}
-        hasActiveFilters={hasActiveFilters} onClearFilters={clearFilters}
-        total={teamInclusionsWithAccommodation.length} ordenacao={ordenacao}
-      />
+            <AccommodationsFilterBar
+              filters={filters}
+              onChange={patchFilters}
+              onClear={clearFilters}
+              opcoesDeEvento={opcoesDeEvento}
+              opcoesDeFuncao={opcoesDeFuncao}
+              opcoesDeColaborador={opcoesDeColaborador}
+              linhasSemPeriodo={linhasSemPeriodo}
+              hoje={hojeData}
+              sortConfig={sortConfig}
+              onSortChange={setSortConfig}
+              count={linhasVisiveis.length}
+              total={teamInclusionsWithAccommodation.length}
+              recorteDeFora={blocoAtivo !== null}
+            />
 
-      <BatchSelectionBar
-        selectedCount={effectiveSelectedForBatch.length}
-        canEdit={canEditField}
-        applying={batchApplying}
-        onClear={() => setSelectedForBatch([])}
-        onApply={handleApplyToSelected}
-      />
+            <AccommodationsTable
+              rows={linhasVisiveis}
+              accommodationMap={accommodationMap} eventById={eventById} functionById={functionById} collaboratorById={collaboratorById}
+              pendingSwapByInclusion={pendingSwapByInclusion}
+              approvedSwapInclusionIds={approvedSwapInclusionIds}
+              vagasComAlteracao={avisos.porVaga}
+              ctxFila={ctxFila}
+              sortConfig={sortConfig} onSort={handleSort}
+              selectedIds={selectedForBatch} selectableIds={selectableAtivos} allSelectableSelected={allSelectableSelected}
+              onToggleRow={toggleRowSelection} onToggleAll={toggleAllSelection}
+              canEdit={canEditField} onOpen={openModal}
+              hasActiveFilters={hasActiveFilters} onClearFilters={clearFilters}
+              total={teamInclusionsWithAccommodation.length} ordenacao={ordenacao}
+              bloco={blocoAtivo} statusDaHospedagem={filters.accommodationStatus} filtrosDaBarra={filtrosDaBarra}
+            />
+
+            {/* Barra de seleção: acompanha a rolagem no rodapé da lista. */}
+            <BatchSelectionBar
+              selectedCount={nSel}
+              canEdit={canEditField}
+              applying={batchApplying}
+              onClear={() => setSelectedForBatch([])}
+              onApply={handleApplyToSelected}
+            />
+          </div>
+        </div>
+      </div>
 
       <BatchConfirmDialog
         open={showBatchConfirm}
@@ -492,7 +586,6 @@ export default function Accommodations() {
         eventLocked={eventLocked} eventLockMessage={eventLock.lockReason(selectedInclusion?.eventId)}
         isSaving={createMutation.isPending || updateMutation.isPending} onSave={handleModalSave}
       />
-
-    </div>
+    </>
   );
 }

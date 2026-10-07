@@ -43,7 +43,8 @@ export function PageHeader({ variant = "default", icon: Icon, title, subtitle, a
         <h1 className="text-base font-semibold text-foreground whitespace-nowrap">{title}</h1>
         {subtitle && (
           <>
-            <span aria-hidden="true" className="w-px h-5 bg-border shrink-0" />
+            {/* No celular o subtítulo desce para a linha de baixo: o filete ficava solto. */}
+            <span aria-hidden="true" className="hidden sm:block w-px h-5 bg-border shrink-0" />
             <p className="min-w-0 text-xs text-muted-foreground truncate" aria-live="polite">{subtitle}</p>
           </>
         )}

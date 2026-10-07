@@ -9,8 +9,8 @@
 import { eq, and, or, isNull, desc, inArray } from "drizzle-orm";
 import { db } from "../db";
 import {
-  teamInclusions, teamInclusionLogs, events, scalingChangeRequests,
-  type TeamInclusion, type InsertTeamInclusion, type InsertTeamInclusionLog,
+  teamInclusions, teamInclusionLogs, events, scalingChangeRequests, avisosDeAlteracao,
+  type TeamInclusion, type InsertAvisoDeAlteracao, type InsertTeamInclusion, type InsertTeamInclusionLog,
   type ScalingChangeRequest,
 } from "@shared/schema";
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
@@ -266,6 +266,11 @@ export async function resolveScalingChangeRequest(
     inclusionInserts?: InsertTeamInclusion[];
     /** Registros das vagas criadas, gravados DENTRO da transação (23/09). */
     logsForCreated?: (created: TeamInclusion[]) => InsertTeamInclusionLog[];
+    /**
+     * Aviso para Compras (02/10): ajuste aprovado em vaga que já tem
+     * passagem/hospedagem. Na MESMA transação — aprovação sem aviso não existe.
+     */
+    aviso?: Omit<InsertAvisoDeAlteracao, "changeRequestId"> | null;
   } = {},
 ): Promise<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null; createdInclusions: TeamInclusion[] }> {
   return await db.transaction(async (tx) => {
@@ -308,6 +313,7 @@ export async function resolveScalingChangeRequest(
       const logs = ops.logsForCreated(createdInclusions);
       if (logs.length > 0) await tx.insert(teamInclusionLogs).values(logs);
     }
+    if (ops.aviso) await tx.insert(avisosDeAlteracao).values({ ...ops.aviso, changeRequestId: requestId });
     const resolvedInclusionId = requestUpdates.resolvedInclusionId
       ?? createdInclusions[0]?.id
       ?? null;

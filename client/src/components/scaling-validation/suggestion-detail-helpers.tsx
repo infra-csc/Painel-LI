@@ -12,7 +12,7 @@ import {
   isSuggestionInclusion,
   type SugestaoStatus, type TransportMode,
 } from "@shared/scaling-validation-rules";
-import { SECTION_TITLE, dayInfo, dayText, legValue } from "./logistics-chips";
+import { dayInfo, dayText, legValue } from "./logistics-chips";
 import { workDaysOf, type SuggestionRow } from "./types";
 
 // ── Vocabulário: nada de chave de banco na tela ──────────────────────────────
@@ -123,11 +123,6 @@ export function valueText(raw: string | null | undefined): string | null {
 
 // ── Estilo ───────────────────────────────────────────────────────────────────
 
-// Título de seção do módulo (04/09): antes 10px/slate-400 só aqui — o mesmo
-// título era 11px/slate-500 nos cartões vizinhos, e o contraste de 400 sobre
-// branco não passa para texto.
-const SECTION = cn("flex items-center gap-1.5", SECTION_TITLE);
-const CARD = "rounded-xl border border-border bg-card p-3.5 space-y-2";
 
 /** "Qua 20/08 14:32" — dia da semana como no resto do módulo. */
 export function fmtDateTime(v: string | Date | null | undefined): string {
@@ -139,16 +134,43 @@ export function fmtDateTime(v: string | Date | null | undefined): string {
   return `${weekday ? `${weekday} ` : ""}${formatDateBr(d)} ${time}`;
 }
 
-export function Card({ id, title, icon: Icon, children }: {
-  id: string; title: string; icon?: LucideIcon; children: React.ReactNode;
+/**
+ * Seção do detalhe (07/10) — a mesma moldura das seções do modal da vaga na
+ * Escalação: cartão branco, cabeçalho de 40px com título em caixa de frase e,
+ * à direita, o que qualifica a seção (contagem, "agora"). Era um título de
+ * 11px em caixa alta espaçada solto dentro do cartão.
+ */
+export function Card({ id, title, icon: Icon, acessorio, children }: {
+  id: string; title: string; icon?: LucideIcon; acessorio?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <section aria-labelledby={id} className={CARD}>
-      <h3 id={id} className={SECTION}>
-        {Icon && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
-        {title}
+    <section aria-labelledby={id} className="rounded-xl border border-border bg-card shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]">
+      <header className="flex min-h-10 items-center gap-2 border-b border-border px-4 py-2">
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+        <h3 id={id} className="text-[13px] font-semibold leading-5 text-foreground">{title}</h3>
+        {acessorio && <div className="ml-auto flex items-center gap-2">{acessorio}</div>}
+      </header>
+      <div className="space-y-2.5 px-4 py-3">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * Aviso em destaque no topo do detalhe (07/10): decisão do aprovador, pedido
+ * em aberto. Filete de cor à esquerda + fundo suave, título em caixa de frase
+ * — o mesmo desenho para os três, mudando só o tom.
+ */
+export function Destaque({ id, tom, icon: Icon, title, meta, children }: {
+  id: string; tom: string; icon: LucideIcon; title: React.ReactNode; meta?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className={cn("relative overflow-hidden rounded-xl border py-3 pl-4 pr-4", tom)}>
+      <span className="absolute inset-y-0 left-0 w-[3px] bg-current opacity-70" aria-hidden="true" />
+      <h3 id={id} className="flex items-center gap-1.5 text-[13px] font-semibold leading-5">
+        <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> {title}
       </h3>
-      {children}
+      <div className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{children}</div>
+      {meta && <p className="mt-1.5 text-2xs text-slate-600">{meta}</p>}
     </section>
   );
 }
@@ -160,9 +182,9 @@ export function DayChip({ v }: { v: string }) {
   // Sem fundo pintado no fim de semana: fundo aqui significaria "marcado"
   // (mesma regra do seletor de dias) — o sinal fica no nome do dia.
   return (
-    <span className="flex flex-col items-center min-w-[52px] rounded-lg border border-border bg-card px-2 py-1 text-2xs leading-tight text-slate-600">
-      <span className="font-semibold tabular-nums">{h.date}</span>
-      <span className={cn("text-2xs", h.isWeekend ? "text-warning" : "text-muted-foreground")}>{h.dayName}</span>
+    <span className="flex min-w-[52px] flex-col items-center rounded-lg border border-border bg-surface-muted/50 px-2 py-1.5 leading-tight">
+      <span className={cn("text-2xs font-medium uppercase tracking-wide", h.isWeekend ? "text-warning" : "text-muted-foreground")}>{h.dayName}</span>
+      <span className="text-sm font-semibold tabular-nums text-foreground">{h.date}</span>
     </span>
   );
 }

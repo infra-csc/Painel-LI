@@ -137,7 +137,10 @@ export interface Need { key: string; icon: ReactNode; label: string; title: stri
 
 const NEED_INFO = "bg-brand-soft text-info";
 const NEED_NEUTRO = "bg-muted text-slate-600";
-const NEED_FALTA = "bg-warning-soft text-warning";
+// 07/10: o que FALTA é contorno âmbar e o que está resolvido é preenchido — com
+// 40 linhas de "Passagem" e "Hotel" pendentes, o âmbar cheio virava uma
+// parede amarela que competia com a situação da vaga. A cor continua a mesma.
+const NEED_FALTA = "bg-card text-warning ring-1 ring-inset ring-warning/40";
 
 export function needsDaLinha(
   inclusion: TeamInclusion,
