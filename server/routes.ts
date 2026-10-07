@@ -24,6 +24,7 @@ import { registrarColaboradores } from "./routes/colaboradores";
 import { registrarEscalacao } from "./routes/escalacao";
 import { registrarPassagens } from "./routes/passagens";
 import { registrarHospedagem } from "./routes/hospedagem";
+import { registrarAvisosDeAlteracao } from "./routes/avisos-de-alteracao";
 import { registrarEspelhoOperacional } from "./routes/espelho-operacional";
 import { registrarFinanceiroLegado } from "./routes/financeiro-legado";
 import { registrarComentarios } from "./routes/comentarios";
@@ -68,6 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registrarEscalacao(app);
   registrarPassagens(app);
   registrarHospedagem(app);
+  registrarAvisosDeAlteracao(app);
   registrarEspelhoOperacional(app);
 
   // ── Transversais ──────────────────────────────────────────────────────────

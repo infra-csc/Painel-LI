@@ -60,8 +60,10 @@ import {
   type TeamInclusionLog,
   type InsertTeamInclusionLog,
   type ScalingChangeRequest,
+  type InsertAvisoDeAlteracao,
   type User,
 } from "@shared/schema";
+import { montarAvisoDeAlteracao, oQueRever } from "@shared/aviso-de-alteracao";
 import {
   SUGESTAO_PHASE,
   SUGESTAO_STATUS,
@@ -1506,6 +1508,41 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   }
 
   /**
+   * Aviso para Compras (02/10 — "quando o Pedro aprovar alteração de data/
+   * horário, preciso saber o que mudou e em qual prova"). Só em vaga JÁ
+   * ESCALADA com passagem/hospedagem registrada e quando o ajuste mexe no que
+   * elas dependem (shared/aviso-de-alteracao.ts). Lido ANTES de aplicar o
+   * ajuste: o "de" é a vaga como estava.
+   */
+  async function avisoParaCompras(
+    inclusion: TeamInclusion, request: ScalingChangeRequest, changes: ProposedChanges,
+    actor: User, now: Date, comment: string | null,
+  ): Promise<Omit<InsertAvisoDeAlteracao, "changeRequestId"> | null> {
+    let diff: ReturnType<typeof diffInclusion>;
+    try { diff = diffInclusion(inclusion, changes); } catch { return null; }
+    if (diff.length === 0) return null;
+    const [passagens, hospedagens] = await Promise.all([
+      storage.getTicketsByInclusionId(inclusion.id), // só as atuais (histórico de troca fica fora)
+      storage.getAccommodationsByInclusionId(inclusion.id),
+    ]);
+    const montado = montarAvisoDeAlteracao(diff, { temPassagem: passagens.length > 0, temHospedagem: hospedagens.length > 0 });
+    if (!montado) return null;
+    return {
+      teamInclusionId: inclusion.id,
+      eventId: inclusion.eventId,
+      ...montado,
+      motivo: request.reason ?? null,
+      pedidoPorNome: request.requestedByName ?? null,
+      comentarioDoAprovador: comment?.trim() || null,
+      aprovadoPor: actor.id,
+      aprovadoPorNome: actor.name ?? "Usuário",
+      aprovadoEm: now,
+    };
+  }
+  const sufixoDoAviso = (aviso: Parameters<typeof oQueRever>[0] | null) =>
+    aviso ? ` — Compras avisada: ${oQueRever(aviso).toLowerCase()} a rever` : "";
+
+  /**
    * Monta as N linhas de team_inclusions de um pedido de inclusão (NÃO grava —
    * quem grava é `storage.resolveScalingChangeRequest`, na mesma transação do
    * pedido).
@@ -1611,6 +1648,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         reviewComment: comment, reviewedBy: actor.id, reviewedByName: actor.name ?? "Usuário", reviewedAt: now,
       };
       let updatedRequest: ScalingChangeRequest;
+      let aviso: Omit<InsertAvisoDeAlteracao, "changeRequestId"> | null = null;
 
       if (request.requestType === "inclusao") {
         // Cria as N vagas + decide o pedido numa única transação (storage).
@@ -1649,11 +1687,15 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
                     deletedAt: now, deletedBy: actor.id, updatedBy: actor.id,
                   };
             })();
+        aviso = postScaling && isAjuste
+          ? await avisoParaCompras(inclusion, request, proposed, actor, now, comment)
+          : null;
         // Vaga + pedido na MESMA transação. O UPDATE da vaga exige que ela
         // AINDA esteja onde estava quando o pedido foi aberto — decisão
         // concorrente (ou vaga que andou na Escalação) → 409 e o pedido
         // continua pendente (a transação aborta inteira).
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
+          aviso,
           inclusionUpdate: {
             id: inclusion.id, patch,
             expected: postScaling
@@ -1663,8 +1705,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         });
         updatedRequest = result.request;
         const updated = result.updatedInclusion!;
+        // De/para no histórico também na aprovação direta (02/10) — o reajuste já tinha.
+        const mudancas = postScaling && isAjuste ? diffPhrase(inclusion, proposed) : "";
         const detail = postScaling
-          ? `Pedido de ajuste aprovado por ${actor.name} — aplicado na vaga já escalada`
+          ? `Pedido de ajuste aprovado por ${actor.name} — aplicado na vaga já escalada${mudancas ? ` — mudanças: ${mudancas}` : ""}${sufixoDoAviso(aviso)}`
           : isAjuste
           ? `Pedido de ajuste aprovado por ${actor.name} — vaga virou Inclusão`
           : `Pedido de exclusão aprovado por ${actor.name} — vaga removida da escala`;
@@ -1675,7 +1719,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       if (comment) await addRequestNote(request.id, actor, comment);
       await createAuditLog("approve", "scaling_change_request", request.id, updatedRequest, actor.id, actor.name, request, req);
-      res.json({ message: "Pedido aprovado", request: updatedRequest, inclusion: inclusionResult });
+      res.json({ message: "Pedido aprovado", request: updatedRequest, inclusion: inclusionResult, avisoParaCompras: aviso ? oQueRever(aviso) : null });
     } catch (error) {
       sendError(res, error, "erro ao aprovar pedido", "Erro ao aprovar pedido");
     }
@@ -1716,6 +1760,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       }
 
       let inclusionResult: TeamInclusion | TeamInclusion[] | null = null;
+      let aviso: Omit<InsertAvisoDeAlteracao, "changeRequestId"> | null = null;
       const newStatus = requestStatusForAction(action) ?? (kind === "reajustar" ? CHANGE_REQUEST_STATUS.REAJUSTADO : CHANGE_REQUEST_STATUS.NEGADO);
       const requestUpdates = {
         status: newStatus,
@@ -1794,9 +1839,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         // Em vaga já escalada, "negar" não muda nada nela — só o pedido é
         // decidido; "reajustar" aplica o que o aprovador editou.
         if (kind === "reajustar" && changesToApply && requestType === "ajuste") Object.assign(patch, proposedToPatch(changesToApply));
+        aviso = postScaling && kind === "reajustar" && changesToApply && requestType === "ajuste"
+          ? await avisoParaCompras(inclusion, request, changesToApply, actor, now, comment)
+          : null;
         // Vaga + pedido na MESMA transação, com o UPDATE guardado: as ações de
         // reajustar/negar só valem com a vaga AINDA onde estava.
         const result = await storage.resolveScalingChangeRequest(request.id, requestUpdates, {
+          aviso,
           inclusionUpdate: {
             id: inclusion.id, patch,
             expected: postScaling
@@ -1820,7 +1869,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
               : "Pedido negado pelo aprovador — a vaga continua escalada como estava")
           : kind === "reajustar"
           ? (then === "reenviar_validacao" ? "Pedido reajustado pelo aprovador — vaga devolvida para validação da área" : "Pedido reajustado e aprovado direto pelo aprovador — vaga virou Inclusão")
-          : (then === "reenviar_validacao" ? "Pedido negado pelo aprovador — vaga devolvida para validação da área" : "Pedido negado e vaga aprovada direto como estava — virou Inclusão")) + sufixoMudancas;
+          : (then === "reenviar_validacao" ? "Pedido negado pelo aprovador — vaga devolvida para validação da área" : "Pedido negado e vaga aprovada direto como estava — virou Inclusão")) + sufixoMudancas + sufixoDoAviso(aviso);
         await inclusionLog(inclusion.id, `change_request_${kind}`, detailsWithComment(detail, comment), stateLabel(inclusion), stateLabel(updated), actor);
         await createAuditLog(`change_request_${kind}`, "team_inclusion", inclusion.id, updated, actor.id, actor.name, inclusion, req);
         inclusionResult = updated;
@@ -1828,7 +1877,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
 
       await addRequestNote(request.id, actor, comment);
       await createAuditLog(kind, "scaling_change_request", request.id, updatedRequest, actor.id, actor.name, request, req);
-      res.json({ message: kind === "reajustar" ? "Pedido reajustado" : "Pedido negado", request: updatedRequest, inclusion: inclusionResult });
+      res.json({ message: kind === "reajustar" ? "Pedido reajustado" : "Pedido negado", request: updatedRequest, inclusion: inclusionResult, avisoParaCompras: aviso ? oQueRever(aviso) : null });
     } catch (error) {
       sendError(res, error, `erro ao ${kind} pedido`, `Erro ao ${kind} pedido`);
     }

@@ -10,6 +10,7 @@ import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, seri
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { isValidHhmm, type ProposedChanges } from "./scaling-validation-rules";
+import type { MudancaDoAviso } from "./aviso-de-alteracao";
 
 // TIPOS DO BANCO (25/09 — auditoria de 23/09). Espelho em produção:
 // scripts/migrations/2026-09-25-jsonb.sql, -timestamptz.sql e -integridade.sql,
@@ -1148,6 +1149,40 @@ export const insertScalingChangeRequestSchema = createInsertSchema(scalingChange
 
 export type ScalingChangeRequest = typeof scalingChangeRequests.$inferSelect;
 export type InsertScalingChangeRequest = z.infer<typeof insertScalingChangeRequestSchema>;
+
+// ===== AVISO DE ALTERAÇÃO PARA COMPRAS (02/10) =====
+// Ajuste aprovado em vaga que JÁ TEM passagem/hospedagem registrada: Compras
+// precisa saber o que mudou e em qual prova para remarcar. Nasce na MESMA
+// transação da aprovação (server/storage/validacao-de-escala.ts) e fica
+// pendente até alguém de Compras marcar "Já atuei". O texto do "de → para"
+// é gravado pronto (shared/aviso-de-alteracao.ts). Criada também pelo
+// server/ensure-schema.ts — a tabela é nova e aditiva.
+export const avisosDeAlteracao = pgTable("avisos_de_alteracao", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  changeRequestId: varchar("change_request_id").references(() => scalingChangeRequests.id, { onDelete: "set null" }),
+  mudancas: jsonb("mudancas").$type<MudancaDoAviso[]>().notNull(),
+  afetaPassagem: boolean("afeta_passagem").notNull().default(false),
+  afetaHospedagem: boolean("afeta_hospedagem").notNull().default(false),
+  motivo: text("motivo"), // motivo de quem pediu o ajuste
+  pedidoPorNome: text("pedido_por_nome"),
+  comentarioDoAprovador: text("comentario_do_aprovador"),
+  aprovadoPor: varchar("aprovado_por"),
+  aprovadoPorNome: text("aprovado_por_nome").notNull(),
+  aprovadoEm: timestamp("aprovado_em", { withTimezone: true }).notNull(),
+  resolvidoEm: timestamp("resolvido_em", { withTimezone: true }),
+  resolvidoPor: varchar("resolvido_por"),
+  resolvidoPorNome: text("resolvido_por_nome"),
+  resolucao: text("resolucao"), // o que Compras fez (opcional)
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("avisos_de_alteracao_pendentes_idx").on(t.aprovadoEm).where(sql`${t.resolvidoEm} IS NULL`),
+  index("avisos_de_alteracao_vaga_idx").on(t.teamInclusionId),
+]);
+
+export type AvisoDeAlteracao = typeof avisosDeAlteracao.$inferSelect;
+export type InsertAvisoDeAlteracao = typeof avisosDeAlteracao.$inferInsert;
 
 // ===== CONTROLE DE BAGAGEM =====
 // Solicitações de bagagem por colaborador/evento (porte do app standalone).
