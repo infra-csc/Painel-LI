@@ -10,7 +10,6 @@
 import { RotateCcw } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { isReadOnly } from "@/lib/interactions";
 import { PastEventBanner } from "@/lib/event-lock";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { SwapRequestDialog } from "./swap-request-panel";
@@ -35,7 +34,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
     setPedirAjusteAberto, contentRef, hasPrev, hasNext, eventLocked, requestLockReason, mostrarPedirAjusteNoRodape, getUserName,
     selectedTicket, accommodation,
   } = st;
-  const { collaborators, getEventName, getFunctionName, getCollaboratorName, canConfirmEscalation, getCollaboratorConflicts } = data;
+  const { collaborators, getEventName, getFunctionName, getCollaboratorName, getCollaboratorConflicts } = data;
   const { comments, historico } = details;
 
   const nome = inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : inclusion?.empreitaEmpresa ? `Empreita · ${inclusion.empreitaEmpresa}` : "Vaga sem nome";
@@ -104,8 +103,12 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                   showAllLogs={showAllLogs}
                   setShowAllLogs={setShowAllLogs}
                   addComment={mutations.addComment}
-                  canComment={!isReadOnly(inclusion, user) && canConfirmEscalation(inclusion)}
-                  canSend={!isReadOnly(inclusion, user)}
+                  // Regra do dono (07/10): comentário "para todos que têm acesso,
+                  // independente da escalação" — comentar não é editar a vaga,
+                  // então não depende de passagem comprada, cancelamento nem de
+                  // responder pela função. O servidor sempre aceitou.
+                  canComment
+                  canSend
                   carregando={details.isLoadingHistorico}
                 />
               </div>

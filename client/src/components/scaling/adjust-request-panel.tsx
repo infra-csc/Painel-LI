@@ -41,6 +41,8 @@ export interface ChangeWindowResponse {
   postScaling: boolean;
   /** Passou só porque é administrador — a área veria bloqueio. */
   adminOverride: boolean;
+  /** 07/10: passagem já comprada não bloqueia mais — só avisa. */
+  passagemComprada?: boolean;
   /** Existe passagem em preparação (ainda não comprada) para esta vaga. */
   ticketInProgress?: boolean;
   /** Pedido em aberto desta vaga, se houver. */
@@ -124,7 +126,21 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
   const { data, isLoading } = useChangeWindow(inclusion.id);
 
   // Enquanto carrega, nada — piscar um botão que pode não existir é pior que esperar.
-  if (isLoading || !data || !data.canRequest) return null;
+  if (isLoading || !data) return null;
+
+  // Sem papel para pedir (07/10, relato da Produção: "não aparece o pedir
+  // ajuste"): o cartão sumia sem explicar. Quem abre pedido é o responsável
+  // da função, o validador ou o administrador — agora a tela diz quem.
+  if (!data.canRequest) {
+    if (inclusion.status === "cancelado" || inclusion.deletedAt) return null;
+    return (
+      <Secao titulo="Precisa mudar algo?" icone={<PencilLine aria-hidden="true" />} testId="card-pedido-ajuste-sem-papel" corpo="px-4 py-3">
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Pedido de ajuste (dias, diárias ou viagem) é aberto pelos responsáveis desta função, por quem a valida na Validação de Escala ou pelo administrador. Se algo precisa mudar, avise um responsável da função ou registre no Histórico desta vaga.
+        </p>
+      </Secao>
+    );
+  }
 
   const pending = data.pendingRequest;
 
@@ -183,9 +199,12 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
       <Secao titulo="Precisa mudar algo?" icone={<PencilLine aria-hidden="true" />} testId="card-pedir-ajuste" corpo="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <p className="min-w-[220px] flex-1 text-xs text-slate-600 leading-snug">
             Dias, diárias ou viagem desta vaga podem ser ajustados por pedido ao aprovador
-            {data.adminOverride
-              ? " — a passagem já foi comprada, e só o administrador consegue abrir este pedido."
-              : ", enquanto a passagem não for comprada."}
+            {"."}
+            {data.passagemComprada && (
+              <span className="block mt-1 text-warning">
+                A passagem desta vaga já foi comprada: se o pedido for aprovado, Compras recebe o aviso para remarcar.
+              </span>
+            )}
             {data.ticketInProgress && (
               <span className="block mt-1 text-warning">
                 A logística já está preparando a passagem desta vaga — mudar datas agora significa refazer a cotação.

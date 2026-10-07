@@ -49,7 +49,7 @@ describe("TicketRow", () => {
     expect(linha).not.toHaveTextContent("BSB→GRU");
   });
 
-  it("'Emitida' aparece só quando a passagem foi emitida e trava o pedido de ajuste", () => {
+  it("'Emitida' aparece só quando a passagem foi emitida", () => {
     const { unmount } = montar({ ticket: passagemFake({ teamInclusionId: "vaga-1", emittedAt: new Date("2026-03-21T10:00:00Z") }) });
     const selo = screen.getByTestId("ticket-emitida-vaga-1");
     expect(selo).toHaveTextContent("Emitida");
@@ -136,7 +136,7 @@ describe("TicketRow", () => {
     const botao = screen.getByRole("button", { name: "Desfazer emissão da passagem" });
     expect(botao).toBeDisabled();
     expect(botao.closest("[aria-disabled='true']")).toHaveAccessibleDescription(
-      "Passagem emitida — clique para desfazer e reabrir o pedido de ajuste",
+      "Passagem emitida — clique para desfazer",
     );
   });
 

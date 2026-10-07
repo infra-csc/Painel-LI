@@ -33,7 +33,7 @@ export interface TicketRowProps {
   locked?: boolean;
   onToggleSelect: (inclusionId: string) => void;
   onOpen: (inclusion: TeamInclusion) => void;
-  /** Marca/desmarca "passagem emitida" — trava o pedido de ajuste da área. */
+  /** Marca/desmarca "passagem emitida" (o bilhete saiu). Desde 07/10 não trava o pedido de ajuste. */
   onToggleEmitida?: (inclusion: TeamInclusion, emitida: boolean) => void;
   emitindo?: boolean;
   /** Índice da linha na lista virtual (o virtualizador mede a altura por ele). */
@@ -313,8 +313,8 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
               pede mais ajuste. Clicar de novo desfaz (erro de clique acontece). */}
           {!cancelado && onToggleEmitida && (
             <MotivoDesabilitado motivo={ticket?.emittedAt
-                ? "Passagem emitida — clique para desfazer e reabrir o pedido de ajuste"
-                : "Marcar como emitida — trava o pedido de ajuste desta vaga"} desabilitado={!canEdit || locked || emitindo}>
+                ? "Passagem emitida — clique para desfazer"
+                : "Marcar como emitida — registra que o bilhete saiu"} desabilitado={!canEdit || locked || emitindo}>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onToggleEmitida(inclusion, !ticket?.emittedAt); }}

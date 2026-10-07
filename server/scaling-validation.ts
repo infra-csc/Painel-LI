@@ -80,6 +80,7 @@ import {
   diffInclusion,
   daysPending,
   canValidateInclusion,
+  podePedirAjusteNaEscalacao,
   canApproveInFunction,
   DEFAULT_APPROVER_SETTING_KEY,
   ALL_EVENTS_ROW_LIMIT,
@@ -1293,7 +1294,12 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       // Permissão ANTES de sondar a vaga/pedido pendente: quem não é validador
       // da função não descobre estado de vagas alheias por aqui.
       const role = await roleFor(body.functionId, actor.id);
-      if (!canValidateInclusion(role, admin)) {
+      const validador = canValidateInclusion(role, admin);
+      // 07/10 (dono): ajuste em vaga JÁ ESCALADA também para os responsáveis da
+      // função — conferido abaixo, depois de saber que a vaga saiu da validação.
+      const pedeNaEscalacao = !validador && body.requestType === "ajuste"
+        && podePedirAjusteNaEscalacao(role, admin, await storage.isUserFunctionManager(body.functionId, actor.id));
+      if (!validador && !pedeNaEscalacao) {
         return res.status(403).json({ message: "Apenas o validador da função (ou admin) pode abrir pedidos" });
       }
 
@@ -1321,6 +1327,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           tickets: isSuggestionInclusion(inclusion) ? null : await storage.getTicketsByInclusionId(inclusion.id),
         });
         if (!window.allowed) return res.status(403).json({ message: window.message });
+        // Quem não é validador só pede ajuste de vaga JÁ escalada (na Validação
+        // de Escala o pedido continua sendo do validador).
+        if (pedeNaEscalacao && !window.postScaling) {
+          return res.status(403).json({ message: "Apenas o validador da função (ou admin) pode abrir pedidos" });
+        }
         // Tirar da escala alguém que JÁ ESTÁ escalado não é pedido de ajuste: a
         // Escalação tem o fluxo de troca/cancelamento, com passagem e hospedagem
         // no meio. Barrar aqui evita um "aprovado" que apagaria a vaga por baixo.
@@ -2155,7 +2166,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         roleFor(inclusion.functionId, actor.id),
         storage.getEvent(inclusion.eventId),
       ]);
-      const canRequest = canValidateInclusion(role, admin);
+      // 07/10: em vaga JÁ escalada, os responsáveis da função também pedem ajuste.
+      const canRequest = canValidateInclusion(role, admin)
+        || (!isSuggestionInclusion(inclusion)
+          && podePedirAjusteNaEscalacao(role, admin, await storage.isUserFunctionManager(inclusion.functionId, actor.id)));
       res.set("Cache-Control", "no-store");
       // Sem papel para pedir: a tela não mostra nada. Devolve cedo para não
       // sondar passagens nem pedidos de vaga alheia.
@@ -2181,7 +2195,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const pending = requests.find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE) ?? null;
       // Passagem já em preparação (linha existe, compra ainda não): mudar data
       // agora significa a logística refazer a cotação — a tela avisa antes.
-      const ticketInProgress = tickets.length > 0 && !window.adminOverride && window.allowed;
+      const ticketInProgress = tickets.length > 0 && !window.passagemComprada && window.allowed;
 
       res.json({
         canRequest: true,
@@ -2192,6 +2206,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         message: window.message ?? null,
         postScaling: window.postScaling,
         adminOverride: window.adminOverride,
+        passagemComprada: window.passagemComprada ?? false,
         ticketInProgress,
         pendingRequest: pending && {
           id: pending.id,

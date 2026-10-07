@@ -447,8 +447,8 @@ export default function Tickets() {
           ? `${n} passagem(ns) marcada(s) como emitida(s)`
           : `${n} passagem(ns) voltaram para "não emitida"`,
         description: vars.emitida
-          ? "A área não pode mais pedir ajuste nessas vagas. O preenchimento dos dados continua liberado."
-          : "A janela de pedido de ajuste foi reaberta nessas vagas.",
+          ? "Se a área pedir ajuste de data depois disso e o aprovador aprovar, Compras recebe o aviso para remarcar. O preenchimento dos dados continua liberado."
+          : "As passagens voltaram para \"não emitida\".",
       });
     },
     onError: () => toast({ title: "Não foi possível marcar as passagens", description: "Tente novamente.", variant: "destructive" }),
@@ -747,7 +747,7 @@ export default function Tickets() {
         {/* Barra de seleção (07/10): era um bloco lá em cima, fora da vista de
             quem marcava a 40ª linha. Agora acompanha a rolagem no rodapé da
             lista. "Emitida" em lote é o aviso de "o bilhete saiu" para várias
-            pessoas de uma vez — não preenche nada, só fecha a janela de ajuste. */}
+            pessoas de uma vez — não preenche nada. Desde 07/10 não trava mais o pedido de ajuste (regra do dono); ajuste aprovado depois vira aviso para Compras. */}
         {nSel > 0 && (
           <div className="sticky bottom-3 z-20 pas-sobe" data-testid="barra-selecao">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-foreground text-background shadow-3 pl-4 pr-2 py-2">
@@ -767,7 +767,7 @@ export default function Tickets() {
                 </div>
                 {podeEmitir && (
                   <p className="m-0 hidden lg:block text-2xs leading-4 text-background/65 truncate">
-                    Marcar como emitida trava o pedido de ajuste da área. Os dados da passagem continuam podendo ser preenchidos depois.
+                    Marcar como emitida registra que o bilhete saiu. Os dados da passagem continuam podendo ser preenchidos depois.
                   </p>
                 )}
               </div>
@@ -786,7 +786,7 @@ export default function Tickets() {
                     type="button"
                     onClick={marcarSelecionadasEmitidas}
                     disabled={emitirMutation.isPending}
-                    title="Trava o pedido de ajuste da área. Os dados da passagem continuam podendo ser preenchidos depois."
+                    title="Registra que o bilhete saiu. Os dados da passagem continuam podendo ser preenchidos depois."
                     className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
                     data-testid="marcar-emitidas-lote"
                   >
