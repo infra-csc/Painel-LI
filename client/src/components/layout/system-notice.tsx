@@ -47,17 +47,21 @@ export default function SystemNoticeBar() {
   };
 
   return (
-    <div role="status" className="flex flex-wrap items-center gap-2.5 px-4 py-2 bg-warning-soft border-b border-warning/25 text-xs text-warning">
-      <Megaphone className="h-4 w-4 text-warning" aria-hidden="true" />
-      <span><span className="font-semibold">{notice.title}</span> — {notice.text}</span>
-      <div className="flex-1" />
+    <div role="status" className="casca-surgir flex items-start sm:items-center gap-3 px-4 lg:px-5 py-2.5 bg-warning-soft border-b border-warning/20 text-[13px] text-warning">
+      <span className="flex items-center justify-center w-6 h-6 shrink-0 rounded-md bg-warning/10">
+        <Megaphone className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+      <p className="m-0 flex-1 min-w-0 leading-snug pt-0.5 sm:pt-0">
+        <span className="font-semibold">{notice.title}</span>
+        <span className="text-warning/90"> — {notice.text}</span>
+      </p>
       <button
         type="button"
         onClick={dismiss}
         aria-label="Dispensar aviso"
-        className="inline-flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-warning cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-md border-0 bg-transparent text-warning cursor-pointer transition-colors hover:bg-warning/10 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
-        <X className="h-[15px] w-[15px]" aria-hidden="true" />
+        <X className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   );

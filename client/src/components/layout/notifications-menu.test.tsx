@@ -80,7 +80,8 @@ describe("NotificationsMenu", () => {
     const titulo = document.getElementById(painel.getAttribute("aria-labelledby")!);
     expect(titulo).toHaveTextContent(/^Pendências$/);
     expect(painel).toContainElement(titulo);
-    expect(painel).toHaveTextContent("Pendências · 1");
+    // 07/10: a contagem saiu do "· 1" em texto corrido para uma pílula ao lado do título.
+    expect(within(painel).getByTestId("sino-contagem")).toHaveTextContent(/^1$/);
 
     const item = await within(painel).findByRole("link", { name: /1 troca pendente em Passagens/ });
     expect(item).toHaveTextContent("Compras precisa confirmar a substituição");

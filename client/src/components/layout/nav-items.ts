@@ -12,15 +12,15 @@
  * aparecer no menu, na trilha do topo e no título da aba (`usePageTitle`).
  *
  * Ícones (23/09): lucide, como o resto do app — Material Symbols saiu do menu.
- * Sem "arco-íris" por grupo: ícone inativo em `text-muted-foreground`, item
- * ativo em `bg-brand-soft text-primary`.
+ * Cor do ícone por GRUPO (voltou em 28/09, ver `CLASSE_DO_TONE`); item ativo
+ * em `bg-brand-soft text-primary`.
  */
 import type { User } from "@shared/schema";
 import type { LucideIcon } from "lucide-react";
 import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
-  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye,
+  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -162,10 +162,19 @@ export interface Breadcrumb {
   icon: LucideIcon;
 }
 
+/**
+ * Rotas reais que NÃO são item do menu, mas merecem trilha no topo (07/10:
+ * em /pendencias a barra do topo ficava em branco). Não dá acesso a nada —
+ * só nomeia a tela em que a pessoa já está.
+ */
+const CRUMBS_FORA_DO_MENU: Record<string, Breadcrumb> = {
+  "/pendencias": { trail: [], label: "Pendências", icon: Inbox },
+};
+
 /** Trilha "Grupo / Subgrupo / Tela atual" derivada da rota. */
 export function breadcrumbFor(path: string): Breadcrumb | null {
   const tab = tabByPath(path);
-  if (!tab) return null;
+  if (!tab) return CRUMBS_FORA_DO_MENU[path.split("?")[0]] ?? null;
   const found = groupOf(tab.id);
   return {
     trail: found ? [found.group.title, ...(found.subLabel ? [found.subLabel] : [])] : [],
