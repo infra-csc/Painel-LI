@@ -800,3 +800,111 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .fun-linha, .fun-linha-escala, .fun-abrir, .fun-cartao, .fun-linha .fun-acao, li .fun-remover { transition: none; }
 }
+
+/* ══ Inclusão de equipe (inc-) — redesenho 07/10 ═══════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem/Eventos (pas-osso,
+ * pas-entra, pas-sobe, pas-alvo, pas-rolagem-x, FilaDeTrabalho). Aqui só o que
+ * é dela: a lista de vagas (cabeçalho grudado no contêiner que rola, linha,
+ * ações discretas, cancelada esmaecida e o cartão abaixo da largura da tabela)
+ * e a grade de montagem (colunas fixas opacas, rodapé "Pessoas por dia",
+ * células de quantidade) — mais as microinterações dos dias e do lote. */
+
+/* Lista: cabeçalho grudado DENTRO do contêiner que rola (base da virtualização). */
+.inc-cabecalho th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linha: só o fundo anima; marcada fica na cor da marca. */
+.inc-linha { background-color: var(--card); transition: background-color 120ms ease; }
+.inc-linha:hover { background-color: color-mix(in srgb, var(--primary) 3.5%, var(--card)); }
+.inc-linha.inc-marcada { background-color: color-mix(in srgb, var(--primary) 7%, var(--card)); }
+
+/* Ações: à vista, discretas até a linha ser apontada (o toque vê tudo inteiro). */
+.inc-linha .inc-acao { opacity: .62; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.inc-linha:hover .inc-acao, .inc-acao:focus-visible { opacity: 1; }
+@media (pointer: coarse) { .inc-linha .inc-acao { opacity: 1; } }
+
+/* Cancelada: esmaecida, mas a situação e as ações continuam legíveis. */
+.inc-linha.inc-cancelada > td.inc-esmaece, .inc-linha.inc-cancelada > td[data-col="id"] { opacity: .55; }
+
+/* Tabela estreita: "Precisa de" só com os ícones (o rótulo fica para o leitor de tela). */
+.inc-compacta .inc-precisa-rotulo {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+/* …e a vaga mostra só o evento (o local truncado em três letras não dizia nada; ele segue no title). */
+.inc-compacta .inc-local { display: none; }
+
+/* ── Cartão (tablet/celular): a MESMA linha em quatro faixas, sem re-renderizar ──
+ *   [☐ #ID  situação ............ ações]
+ *   [colaborador                       ]
+ *   [vaga (função · evento)  | período ]
+ *   [precisa de                        ]                                       */
+.inc-cartao thead { display: none; }
+.inc-cartao table, .inc-cartao tbody, .inc-cartao tr { display: block; width: 100%; }
+.inc-cartao tr.inc-linha { display: flex; flex-wrap: wrap; align-items: center; padding: 8px 4px 12px; }
+.inc-cartao td { display: block; padding: 4px 10px; width: auto; text-align: left !important; }
+.inc-cartao td[data-col="sel"] { order: 1; flex: 0 0 auto; padding-right: 2px; }
+.inc-cartao td[data-col="id"] { order: 2; flex: 0 0 auto; padding-left: 4px; padding-right: 4px; }
+.inc-cartao td[data-col="status"] { order: 3; flex: 1 1 0; min-width: 0; padding-left: 2px; }
+.inc-cartao td[data-col="status"] > div { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.inc-cartao td[data-col="acoes"] { order: 4; flex: 0 0 auto; padding-top: 0; padding-bottom: 0; }
+.inc-cartao td[data-col="colab"] { order: 5; flex: 0 0 100%; padding-top: 6px; }
+.inc-cartao td[data-col="vaga"] { order: 6; flex: 1 1 260px; min-width: 0; }
+.inc-cartao td[data-col="periodo"] { order: 7; flex: 0 0 auto; }
+.inc-cartao td[data-col="precisa"] { order: 8; flex: 0 0 auto; }
+.inc-cartao td.inc-precisa-vazio { display: none; }
+.inc-cartao td[data-col="vaga"]::before,
+.inc-cartao td[data-col="periodo"]::before,
+.inc-cartao td[data-col="precisa"]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+
+/* ── Grade de montagem ──────────────────────────────────────────────────────
+ * `border-separate`: com `collapse`, as células grudadas perdiam a borda ao
+ * rolar. Por isso a linha é desenhada nas células, não no <tr>. */
+.inc-grade thead { background: var(--card); }
+.inc-grade thead th { box-shadow: inset 0 -1px 0 var(--border); }
+.inc-grade-cab, .inc-grade-fixa-cab { background: var(--surface-muted); }
+.inc-grade tbody td { border-bottom: 1px solid var(--border); }
+.inc-grade-fixa { background: var(--card); }
+.inc-grade-fixa-fim { box-shadow: inset -1px 0 0 var(--border); }
+.inc-grade thead th.inc-grade-fixa-fim { box-shadow: inset -1px 0 0 var(--border), inset 0 -1px 0 var(--border); }
+.inc-grade-linha > td { transition: background-color 120ms ease; }
+.inc-grade-linha:hover > td.inc-grade-fixa { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.inc-grade-marcada > td.inc-grade-fixa, .inc-grade-marcada > td:not([class*="bg-warning"]) { background-color: color-mix(in srgb, var(--primary) 6%, var(--card)); }
+.inc-grade tfoot { background: var(--card); }
+.inc-grade-pe, .inc-grade-fixa-pe { background: var(--surface-muted); box-shadow: inset 0 1px 0 var(--border); }
+.inc-grade-fixa-pe.inc-grade-fixa-fim { box-shadow: inset 0 1px 0 var(--border), inset -1px 0 0 var(--border); }
+
+/* Menu ⋯ da linha: discreto até a linha ser apontada. */
+.inc-grade-linha .inc-grade-menu { opacity: .55; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.inc-grade-linha:hover .inc-grade-menu, .inc-grade-menu:focus-visible, .inc-grade-menu[data-state="open"] { opacity: 1; }
+@media (pointer: coarse) { .inc-grade-linha .inc-grade-menu { opacity: 1; } }
+
+/* Célula de quantidade: o número "assenta" ao mudar; o foco é nítido. */
+.inc-qtd { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease; }
+
+/* Dia (editar vaga / diárias em lote): afunda 1 passo no clique. */
+.inc-dia { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 100ms ease; }
+.inc-dia:active { transform: scale(.94); }
+
+/* Diárias em lote: a vaga alterada ganha o filete e o tom da marca. */
+.inc-lote-linha { transition: background-color 160ms ease, box-shadow 160ms ease; }
+.inc-lote-alterada { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); box-shadow: inset 3px 0 0 var(--primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .inc-linha, .inc-linha .inc-acao, .inc-grade-linha > td, .inc-grade-linha .inc-grade-menu, .inc-qtd, .inc-dia, .inc-lote-linha { transition: none; }
+  .inc-dia:active { transform: none; }
+}

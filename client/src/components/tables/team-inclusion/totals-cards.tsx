@@ -1,74 +1,72 @@
 /**
- * Cartões de totais da tabela de inclusões (25/09 — extraídos da tabela).
- * Cada cartão é um atalho de UM recorte por vez; o multi fica na barra de filtros.
+ * Resumo das vagas da Inclusão de equipe (25/09 — extraído da tabela).
+ * Cada bloco é um atalho de UM recorte por vez; o multi fica na barra de filtros.
+ *
+ * 07/10 (redesenho): eram oito cartões coloridos com filete em cima, número de
+ * 24px e "hover que sobe" — o "dashboard genérico" que as outras telas da
+ * Logística já deixaram. Agora é a MESMA faixa de Passagens/Hospedagem/Eventos
+ * (`common/fila-de-trabalho`), em dois grupos que dizem o que contam:
+ *   · Escalação — todas, pendentes (sem colaborador), escaladas, canceladas;
+ *   · Logística — aguardando passagem/hospedagem e já compradas.
+ * Mesmos oito números, mesmos recortes, mesmos `data-testid`; reclicar o
+ * aceso desliga (volta a "Total").
  */
+import { Ban, BedDouble, CircleDashed, Hotel, Layers, Plane, PlaneTakeoff, UserCheck } from "lucide-react";
+import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
 import type { InclusionFilters, TeamInclusionData } from "./use-team-inclusion-data";
 
-const CARDS = (t: TeamInclusionData["totals"]) => ([
-  { value: t.incluidos,           label: "Total",          color: "text-primary",    border: "border-t-primary",    activeBg: "bg-brand-soft",    filterType: "all",        filterValue: "all",                 testId: "total-incluidos" },
-  { value: t.pendentes,           label: "Pendentes",      color: "text-danger-strong",     border: "border-t-danger-strong",     activeBg: "bg-danger-soft",     filterType: "escalation", filterValue: "pending",             testId: "total-pendentes" },
-  { value: t.escalados,           label: "Escalados",      color: "text-success",   border: "border-t-success-strong",   activeBg: "bg-success-soft",   filterType: "escalation", filterValue: "escalated",           testId: "total-escalados" },
-  { value: t.aguardando_passagem, label: "Passagem",       color: "text-warning",  border: "border-t-warning-strong",  activeBg: "bg-warning-soft",  filterType: "status",     filterValue: "passagem",            testId: "total-passagem" },
-  { value: t.hospedagem,          label: "Hospedagem",     color: "text-primary",  border: "border-t-primary",  activeBg: "bg-brand-soft",  filterType: "status",     filterValue: "hospedagem",          testId: "total-hospedagem" },
-  { value: t.passagem_comprada,   label: "Pass. Comprada", color: "text-success", border: "border-t-success-strong", activeBg: "bg-success-soft", filterType: "status",     filterValue: "passagem_comprada",   testId: "total-passagem-comprada" },
-  { value: t.hospedagem_comprada, label: "Hosp. Comprada", color: "text-primary",  border: "border-t-primary",  activeBg: "bg-brand-soft",  filterType: "status",     filterValue: "hospedagem_comprada", testId: "total-hospedagem-comprada" },
-  { value: t.cancelados,          label: "Cancelados",     color: "text-muted-foreground",    border: "border-t-slate-300",    activeBg: "bg-surface-muted",    filterType: "escalation", filterValue: "cancelado",           testId: "total-cancelados" },
-] as const);
+type Chave = "all" | "pending" | "escalated" | "cancelado" | "passagem" | "hospedagem" | "passagem_comprada" | "hospedagem_comprada";
+const TIPO: Record<Chave, "all" | "escalation" | "status"> = {
+  all: "all", pending: "escalation", escalated: "escalation", cancelado: "escalation",
+  passagem: "status", hospedagem: "status", passagem_comprada: "status", hospedagem_comprada: "status",
+};
+const TESTID: Record<Chave, string> = {
+  all: "total-incluidos", pending: "total-pendentes", escalated: "total-escalados", cancelado: "total-cancelados",
+  passagem: "total-passagem", hospedagem: "total-hospedagem", passagem_comprada: "total-passagem-comprada", hospedagem_comprada: "total-hospedagem-comprada",
+};
 
-export function TotalsCards({ totals, filters, setFilters }: {
+const vagas = (n: number) => (n === 1 ? "vaga" : "vagas");
+
+export function TotalsCards({ totals: t, filters, setFilters }: {
   totals: TeamInclusionData["totals"];
   filters: InclusionFilters;
   setFilters: React.Dispatch<React.SetStateAction<InclusionFilters>>;
 }) {
+  // Qual bloco está aceso: só com UM valor marcado (o multi é da barra).
+  const ativa: Chave | null =
+    filters.status.length === 0 && filters.escalationStatus.length === 0 ? "all"
+    : filters.status.length === 1 && filters.escalationStatus.length === 0 && TIPO[filters.status[0] as Chave] === "status" ? (filters.status[0] as Chave)
+    : filters.escalationStatus.length === 1 && filters.status.length === 0 && TIPO[filters.escalationStatus[0] as Chave] === "escalation" ? (filters.escalationStatus[0] as Chave)
+    : null;
+
+  const escolher = (k: Chave | null) => {
+    if (!k || k === "all" || k === ativa) {
+      setFilters(f => ({ ...f, status: [], escalationStatus: [] }));
+    } else if (TIPO[k] === "status") {
+      setFilters(f => ({ ...f, status: [k], escalationStatus: [] }));
+    } else {
+      setFilters(f => ({ ...f, escalationStatus: [k], status: [] }));
+    }
+  };
+
+  const escalacao: BlocoDaFilaDeTrabalho<Chave>[] = [
+    { key: "all", rotulo: "Total", n: t.incluidos, icone: Layers, cor: "text-muted-foreground", sub: vagas(t.incluidos), titulo: `${t.incluidos} vagas no recorte (busca, evento, função e colaborador)` },
+    { key: "pending", rotulo: "Pendentes", n: t.pendentes, icone: CircleDashed, cor: "text-warning-strong", sub: "sem colaborador", titulo: `${t.pendentes} vagas sem colaborador nem empreita` },
+    { key: "escalated", rotulo: "Escalados", n: t.escalados, icone: UserCheck, cor: "text-success", sub: "com nome ou empreita", titulo: `${t.escalados} vagas com colaborador ou empreita` },
+    { key: "cancelado", rotulo: "Cancelados", n: t.cancelados, icone: Ban, cor: "text-muted-foreground", sub: t.cancelados === 1 ? "vaga cancelada" : "vagas canceladas", titulo: `${t.cancelados} vagas canceladas` },
+  ];
+  const logistica: BlocoDaFilaDeTrabalho<Chave>[] = [
+    { key: "passagem", rotulo: "Passagem", n: t.aguardando_passagem, icone: Plane, cor: "text-warning-strong", sub: "aguardando compra", titulo: `${t.aguardando_passagem} vagas aguardando passagem` },
+    { key: "hospedagem", rotulo: "Hospedagem", n: t.hospedagem, icone: BedDouble, cor: "text-warning-strong", sub: "aguardando reserva", titulo: `${t.hospedagem} vagas aguardando hospedagem` },
+    { key: "passagem_comprada", rotulo: "Pass. comprada", n: t.passagem_comprada, icone: PlaneTakeoff, cor: "text-success", sub: "emitidas", titulo: `${t.passagem_comprada} vagas com passagem comprada` },
+    { key: "hospedagem_comprada", rotulo: "Hosp. comprada", n: t.hospedagem_comprada, icone: Hotel, cor: "text-success", sub: "reservadas", titulo: `${t.hospedagem_comprada} vagas com hospedagem comprada` },
+  ];
+
+  const ativaDe = (grupo: BlocoDaFilaDeTrabalho<Chave>[]) => (ativa && grupo.some(b => b.key === ativa) ? ativa : null);
   return (
-    <div className="mb-6">
-      <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
-        {CARDS(totals).map(({ value, label, color, border, activeBg, filterType, filterValue, testId }) => {
-          // Cards continuam sendo atalho de UM recorte por vez; o multi fica
-          // por conta dos dropdowns da barra.
-          const isActive =
-            filterType === "all"
-              ? filters.status.length === 0 && filters.escalationStatus.length === 0
-              : filterType === "status"
-                ? filters.status.length === 1 && filters.status[0] === filterValue
-                : filters.escalationStatus.length === 1 && filters.escalationStatus[0] === filterValue;
-
-          const handleClick = () => {
-            if (filterType === "all") {
-              setFilters(f => ({ ...f, status: [], escalationStatus: [] }));
-            } else if (filterType === "status") {
-              setFilters(f => ({ ...f, status: isActive ? [] : [filterValue], escalationStatus: [] }));
-            } else {
-              setFilters(f => ({ ...f, escalationStatus: isActive ? [] : [filterValue], status: [] }));
-            }
-          };
-
-          return (
-            <div
-              key={testId}
-              role="button"
-              tabIndex={0}
-              aria-pressed={isActive}
-              aria-label={`${label}: ${value}. Filtrar por ${label}`}
-              onClick={handleClick}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleClick();
-                }
-              }}
-              className={`border border-t-2 ${border} rounded-xl px-3 py-2.5 text-center cursor-pointer transition-all duration-150 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                ${isActive
-                  ? `${activeBg} border-border shadow-1`
-                  : "bg-card border-border shadow-1 hover:shadow-2 hover:-translate-y-0.5"}`}
-              data-testid={testId}
-            >
-              <div className={`text-2xl font-bold tabular-nums leading-none ${color}`}>{value}</div>
-              <div className="text-2xs uppercase tracking-widest text-muted-foreground mt-1.5 leading-tight font-semibold">{label}</div>
-            </div>
-          );
-        })}
-      </div>
+    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2.5" data-testid="resumo-vagas">
+      <FilaDeTrabalho blocos={escalacao} ativa={ativaDe(escalacao)} onEscolher={escolher} rotulo="Resumo da escalação — cada indicador filtra a lista" testid={(k) => TESTID[k]} />
+      <FilaDeTrabalho blocos={logistica} ativa={ativaDe(logistica)} onEscolher={escolher} rotulo="Resumo da logística — cada indicador filtra a lista" testid={(k) => TESTID[k]} />
     </div>
   );
 }

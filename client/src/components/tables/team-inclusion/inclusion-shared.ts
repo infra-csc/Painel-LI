@@ -13,8 +13,8 @@ export const getDisplayStatus = (inclusion: TeamInclusion) => {
   return inclusion.status;
 };
 
-// Nº de colunas da tabela (checkbox + 9 dados/ações) — usado pelos espaçadores da virtualização.
-export const COLUNAS_TABELA = 10;
+// Nº de colunas da tabela (checkbox + 7 dados/ações; 07/10: função e evento viraram "Vaga" e passagem/hospedagem viraram "Precisa de") — usado pelos espaçadores da virtualização.
+export const COLUNAS_TABELA = 8;
 
 // Variante do pedido de confirmação (23/09): delete/cancel = destrutivo, confirm = neutro.
 export type ConfirmVariant = "delete" | "cancel" | "confirm";

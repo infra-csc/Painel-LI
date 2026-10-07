@@ -1,13 +1,22 @@
 /**
  * Grade de diárias em lote (25/09 — extraída da tabela). Radix Dialog: Esc,
- * foco preso, aria; linhas com dias alterados ficam em azul.
+ * foco preso, aria; linhas com dias alterados ficam destacadas.
+ *
+ * 07/10 (redesenho, régua dos diálogos da tela): cabeçalho com quantas vagas
+ * o lote atinge e quantas já mudaram; cada vaga é uma linha com nº, pessoa,
+ * função, a contagem de dias e Todos/Nenhum como botões (eram links
+ * sublinhados); a vaga alterada ganha o filete da marca e "alterada" escrito —
+ * antes só a cor de fundo dizia isso ("linhas em azul…" no rodapé). O rodapé
+ * diz o que vai acontecer ("3 vagas serão salvas; o status não muda").
  */
 import { LayoutGrid, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { fixEncoding } from "@/lib/utils";
+import { toTitleCase } from "@/lib/format";
 import { DayButtons } from "./day-buttons";
 import { generateDaysInRange, normDay } from "./inclusion-shared";
+import { CabecalhoDoDialogo, RodapeDoDialogo, moldura } from "./inclusion-ui";
 import type { BulkDays } from "./use-bulk-days";
 import type { TeamInclusionData } from "./use-team-inclusion-data";
 
@@ -17,95 +26,95 @@ export function BulkDaysDialog({ bulk, getCollaboratorName, getFunctionName }: {
   getFunctionName: TeamInclusionData["getFunctionName"];
 }) {
   const { showBatchDiarias, fechar, targets, batchDiariasSelections, toggleBatchDay, setDays, handleSaveBatchDiarias, isPending, descarteLote } = bulk;
+
+  // A mesma comparação que o salvar usa para decidir o que vai no PATCH.
+  const linhas = targets.map((inc) => {
+    const selectedDays = batchDiariasSelections[inc.id] ?? [];
+    const allDays = generateDaysInRange(normDay(inc.scheduleStartDate), normDay(inc.scheduleEndDate));
+    const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
+    const newDays = [...selectedDays].sort();
+    const changed = newDays.join(',') !== origDays.join(',') || newDays.length !== (inc.dailyRates ?? 0);
+    return { inc, selectedDays, allDays, changed };
+  });
+  const alteradas = linhas.filter(l => l.changed).length;
+  const pedirParaFechar = () => descarteLote.pedirParaFechar(fechar);
+
   return (
     <>
-      <Dialog open={showBatchDiarias} onOpenChange={(v) => { if (!v) descarteLote.pedirParaFechar(fechar); }}>
+      <Dialog open={showBatchDiarias} onOpenChange={(v) => { if (!v) pedirParaFechar(); }}>
       {showBatchDiarias && (
-            <DialogContent className="max-w-5xl flex flex-col max-h-[90vh] rounded-xl p-0 gap-0">
+        <DialogContent className={moldura("sm:max-w-5xl")} data-testid="modal-diarias-lote">
+          <CabecalhoDoDialogo
+            icone={LayoutGrid}
+            titulo="Edição de diárias em lote"
+            descricao={`${targets.length} ${targets.length === 1 ? "vaga" : "vagas"} — marque os dias de cada uma; a quantidade de diárias é calculada pelos dias marcados.`}
+            onFechar={pedirParaFechar}
+          />
 
-              {/* Header */}
-              <DialogHeader className="flex flex-row items-center gap-2.5 space-y-0 px-6 py-4 pr-12 border-b border-border shrink-0 text-left">
-                  <div className="w-8 h-8 rounded-xl bg-brand-soft flex items-center justify-center shrink-0">
-                    <LayoutGrid className="w-4 h-4 text-primary" aria-hidden="true" />
+          {/* Rows */}
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border bg-card">
+            {targets.length === 0 && (
+              <p className="m-0 px-6 py-10 text-center text-sm text-muted-foreground">
+                Nenhuma vaga editável na lista — as de evento encerrado ficam de fora.
+              </p>
+            )}
+            {linhas.map(({ inc, selectedDays, allDays, changed }) => (
+              <div
+                key={inc.id}
+                className={`inc-lote-linha px-5 sm:px-6 py-3.5 ${changed ? 'inc-lote-alterada' : ''}`}
+                data-testid={`lote-linha-${inc.id}`}
+              >
+                {/* Info row */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-2.5">
+                  <span className="inline-flex items-center h-[22px] px-1.5 rounded-md bg-brand-soft font-mono text-2xs font-semibold text-primary tabular-nums shrink-0">#{inc.inclusionNumber ?? '—'}</span>
+                  <span className="text-sm font-semibold text-foreground min-w-0 truncate max-w-[260px]">
+                    {inc.collaboratorId
+                      ? toTitleCase(fixEncoding(getCollaboratorName(inc.collaboratorId)))
+                      : <span className="text-muted-foreground font-normal">Não escalado</span>}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate max-w-[200px]">{getFunctionName(inc.functionId)}</span>
+                  <div className="flex items-center gap-1 ml-auto shrink-0">
+                    {changed && <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-primary mr-1">alterada</span>}
+                    <span className={`inline-flex items-center h-[22px] px-2 rounded-full text-2xs font-semibold tabular-nums ${changed ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-600'}`}>
+                      {selectedDays.length} {selectedDays.length === 1 ? 'dia' : 'dias'}
+                    </span>
+                    {allDays.length > 0 && (
+                      <>
+                        <button type="button" onClick={() => setDays(inc.id, allDays)} className="h-7 px-2 rounded-md text-xs font-medium text-primary hover:bg-brand-soft">Todos</button>
+                        <button type="button" onClick={() => setDays(inc.id, [])} className="h-7 px-2 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">Nenhum</button>
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <DialogTitle className="text-sm font-bold text-foreground leading-tight">Edição de diárias em lote</DialogTitle>
-                    <DialogDescription className="text-2xs text-muted-foreground mt-0.5">
-                      {targets.length} inclusão(ões) — selecione os dias de cada uma; a quantidade será calculada automaticamente
-                    </DialogDescription>
-                  </div>
-              </DialogHeader>
-
-              {/* Rows */}
-              <div className="overflow-y-auto flex-1 divide-y divide-border">
-                {targets.map((inc, idx) => {
-                  const selectedDays = batchDiariasSelections[inc.id] ?? [];
-                  const start = normDay(inc.scheduleStartDate);
-                  const end = normDay(inc.scheduleEndDate);
-                  const allDays = generateDaysInRange(start, end);
-                  const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
-                  const newDays = [...selectedDays].sort();
-                  const changed = newDays.join(',') !== origDays.join(',') || newDays.length !== (inc.dailyRates ?? 0);
-
-                  return (
-                    <div
-                      key={inc.id}
-                      className={`px-6 py-4 transition-colors ${changed ? 'bg-brand-soft/50' : idx % 2 === 1 ? 'bg-surface-muted/30' : 'bg-card'}`}
-                    >
-                      {/* Info row */}
-                      <div className="flex items-center gap-4 mb-3">
-                        <span className="text-2xs font-mono text-muted-foreground w-10 shrink-0">#{inc.inclusionNumber ?? '—'}</span>
-                        <span className="text-xs font-semibold text-foreground w-40 shrink-0 truncate">
-                          {inc.collaboratorId
-                            ? fixEncoding(getCollaboratorName(inc.collaboratorId))
-                            : <span className="text-muted-foreground italic font-normal">Não escalado</span>}
-                        </span>
-                        <span className="text-xs text-muted-foreground w-32 shrink-0 truncate">{getFunctionName(inc.functionId)}</span>
-                        <div className="flex items-center gap-1.5 ml-auto shrink-0">
-                          <span className={`text-2xs font-bold px-2.5 py-0.5 rounded-full ${changed ? 'bg-primary text-primary-foreground' : 'bg-muted text-slate-600'}`}>
-                            {selectedDays.length} dia{selectedDays.length !== 1 ? 's' : ''}
-                          </span>
-                          {allDays.length > 0 && (
-                            <>
-                              <button type="button" onClick={() => setDays(inc.id, allDays)} className="text-2xs text-muted-foreground hover:text-primary-hover underline">todos</button>
-                              <button type="button" onClick={() => setDays(inc.id, [])} className="text-2xs text-muted-foreground hover:text-danger-strong underline">nenhum</button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Day picker */}
-                      {allDays.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 ml-14">
-                          <DayButtons allDays={allDays} isSelected={(d) => selectedDays.includes(d)} onToggle={(d) => toggleBatchDay(inc.id, d)} />
-                        </div>
-                      ) : (
-                        <p className="ml-14 text-2xs text-muted-foreground italic">Sem período definido nesta inclusão</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-border px-6 py-4 flex items-center justify-between shrink-0">
-                <p className="text-2xs text-muted-foreground">
-                  Linhas em <span className="text-primary font-semibold">azul</span> têm dias alterados. Status das escalações não será modificado.
-                </p>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => descarteLote.pedirParaFechar(fechar)} className="rounded-xl px-5">
-                    Cancelar
-                  </Button>
-                  <Button type="button" onClick={handleSaveBatchDiarias} disabled={isPending} aria-busy={isPending} className="rounded-xl px-5 font-semibold shadow-1">
-                    {isPending
-                      ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      : <Save className="w-3.5 h-3.5" aria-hidden="true" />}
-                    {isPending ? 'Salvando…' : 'Salvar alterações'}
-                  </Button>
                 </div>
-              </div>
 
-            </DialogContent>
+                {/* Day picker */}
+                {allDays.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Dias da inclusão #${inc.inclusionNumber ?? ''}`}>
+                    <DayButtons allDays={allDays} isSelected={(d) => selectedDays.includes(d)} onToggle={(d) => toggleBatchDay(inc.id, d)} />
+                  </div>
+                ) : (
+                  <p className="m-0 text-xs text-muted-foreground italic">Sem período definido nesta inclusão</p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <RodapeDoDialogo
+            info={alteradas > 0
+              ? <><span className="font-semibold text-primary tabular-nums">{alteradas} {alteradas === 1 ? "vaga alterada" : "vagas alteradas"}</span> · o status das escalações não muda.</>
+              : "Nenhum dia alterado ainda. O status das escalações não muda."}
+          >
+            <Button type="button" variant="outline" onClick={pedirParaFechar} className="h-9 rounded-lg px-4 text-sm font-medium">
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleSaveBatchDiarias} disabled={isPending} aria-busy={isPending} className="h-9 rounded-lg px-4 text-sm font-semibold gap-2 hover:bg-primary-hover" data-testid="button-save-batch-diarias">
+              {isPending
+                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                : <Save className="w-4 h-4" aria-hidden="true" />}
+              {isPending ? 'Salvando…' : 'Salvar alterações'}
+            </Button>
+          </RodapeDoDialogo>
+        </DialogContent>
       )}
       </Dialog>
       {descarteLote.Dialogo}

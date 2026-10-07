@@ -78,7 +78,7 @@ describe("FunctionsGrid", () => {
     expect(screen.getByRole("columnheader", { name: /12\/04/ })).toHaveTextContent("Dom");
     expect(linhaDe("Produção")).toBeInTheDocument();
     expect(linhaDe("Kit")).toBeInTheDocument();
-    expect(resumo()).toHaveTextContent("2 funções · 0 pessoas-dia · 0 registros");
+    expect(resumo()).toHaveTextContent("2 funções · 0 pessoas-dia · 0 vagas");
     expect(screen.getByTestId("button-save-grid")).toBeDisabled();
   });
 
@@ -86,8 +86,8 @@ describe("FunctionsGrid", () => {
     const { user } = montar();
     await user.type(celula("Produção", "Sex 10/04"), "2");
     await user.type(celula("Produção", "Sáb 11/04"), "1");
-    expect(resumo()).toHaveTextContent("2 funções · 3 pessoas-dia · 2 registros");
-    expect(screen.getByTestId("button-save-grid")).toHaveTextContent("Criar 2 Escalação(ões)");
+    expect(resumo()).toHaveTextContent("2 funções · 3 pessoas-dia · 2 vagas");
+    expect(screen.getByTestId("button-save-grid")).toHaveTextContent("Criar 2 vagas");
     expect(screen.getByTestId("button-save-grid")).toBeEnabled();
     // setas ajustam; Delete zera
     await user.keyboard("{ArrowUp}");
@@ -98,7 +98,7 @@ describe("FunctionsGrid", () => {
 
   it("colar do Excel preenche as linhas: função reconhecida, passagem marcada e quantidades por dia, na ordem colada", async () => {
     const { user } = montar();
-    await user.click(screen.getByRole("button", { name: "Colar Excel" }));
+    await user.click(screen.getByRole("button", { name: "Colar do Excel" }));
     const dialogo = await screen.findByRole("dialog", { name: "Colar dados do Excel" });
     await user.click(within(dialogo).getByPlaceholderText("Cole os dados do Excel aqui (Ctrl+V)..."));
     await user.paste("Kit\t10/abr\t9h\t12/abr\t18h\tsim\tnão\t1\t2\t0\nProdução\t\t\t\t\t\t\t3\t3\t3");
@@ -115,7 +115,7 @@ describe("FunctionsGrid", () => {
     expect(screen.getByRole("checkbox", { name: "Precisa de passagem — Kit" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Precisa de hospedagem — Kit" })).not.toBeChecked();
     expect(celula("Produção", "Dom 12/04")).toHaveValue("3");
-    expect(resumo()).toHaveTextContent("2 funções · 12 pessoas-dia · 5 registros");
+    expect(resumo()).toHaveTextContent("2 funções · 12 pessoas-dia · 5 vagas");
   });
 
   // DEFEITO de acessibilidade (grid-dialogs.tsx:132-138): o <Label> "Cole os
@@ -124,14 +124,14 @@ describe("FunctionsGrid", () => {
   // acima usam o placeholder por isso.
   it("o campo de colagem é encontrado pelo rótulo 'Cole os dados aqui:'", async () => {
     const { user } = montar();
-    await user.click(screen.getByRole("button", { name: "Colar Excel" }));
+    await user.click(screen.getByRole("button", { name: "Colar do Excel" }));
     const dialogo = await screen.findByRole("dialog", { name: "Colar dados do Excel" });
     expect(within(dialogo).getByLabelText("Cole os dados aqui:")).toBe(within(dialogo).getByRole("textbox"));
   });
 
   it("colar função que não existe no catálogo avisa e não cria linha", async () => {
     const { user } = montar();
-    await user.click(screen.getByRole("button", { name: "Colar Excel" }));
+    await user.click(screen.getByRole("button", { name: "Colar do Excel" }));
     const dialogo = await screen.findByRole("dialog", { name: "Colar dados do Excel" });
     await user.click(within(dialogo).getByPlaceholderText("Cole os dados do Excel aqui (Ctrl+V)..."));
     await user.paste("Motorista\t\t\t\t\t\t\t1");
@@ -177,7 +177,7 @@ describe("FunctionsGrid", () => {
     await user.type(celula("Produção", "Sáb 11/04"), "2");
     await user.type(celula("Kit", "Dom 12/04"), "1");
     await user.click(screen.getByTestId("button-save-grid"));
-    await esperarToast("3 escalação(ões) criada(s)");
+    await esperarToast("3 vagas criadas");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
@@ -200,7 +200,7 @@ describe("FunctionsGrid", () => {
     expect(screen.queryByTitle("Kit")).toBeNull();
     expect(resumo()).toHaveTextContent("1 função ·");
 
-    await user.click(screen.getByRole("button", { name: "Adicionar Função" }));
+    await user.click(screen.getByRole("button", { name: "Adicionar função" }));
     const dialogo = await screen.findByRole("dialog", { name: "Selecionar função" });
     await user.click(within(dialogo).getByRole("button", { name: /^Kit/ }));
     await waitFor(() => expect(screen.getByTitle("Kit")).toBeInTheDocument());

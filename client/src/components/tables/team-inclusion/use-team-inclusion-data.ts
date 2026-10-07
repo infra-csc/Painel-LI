@@ -15,7 +15,62 @@ import type { SortConfig, SortField } from "@/components/common/sortable-header"
 
 export type InclusionFilters = UniversalFilterValues & { status: string[] };
 
-export function useTeamInclusionData() {
+/** As dimensões do recorte que a barra de filtros e o resumo controlam. */
+export type DimensaoDoRecorte = "eventId" | "functionId" | "collaboratorId" | "status" | "escalationStatus" | "searchId";
+
+/** "Escalação" de uma vaga, com a MESMA regra do filtro (pendente / escalada / cancelada). */
+export const casaComEscalacao = (inclusion: TeamInclusion, v: string) => {
+  const isCanceled = inclusion.status === "cancelado";
+  return v === "pending" ? (!inclusion.collaboratorId && !vagaComEmpreita(inclusion) && !isCanceled)
+    : v === "escalated" ? ((!!inclusion.collaboratorId || vagaComEmpreita(inclusion)) && !isCanceled)
+    : v === "cancelado" ? isCanceled
+    : false;
+};
+
+/**
+ * A regra do recorte, num lugar só (07/10): a lista, os totais do resumo e os
+ * números ao lado de cada opção dos filtros passam por aqui — um contador com
+ * cópia própria da regra mentiria na primeira mudança. `ignorar` deixa de fora
+ * as dimensões que a conta não deve considerar (a própria opção, no contador;
+ * status e escalação, nos totais). O texto é o mesmo de antes, linha por linha.
+ */
+export function passaNoRecorte(inclusion: TeamInclusion, filters: InclusionFilters, ignorar: DimensaoDoRecorte[] = []) {
+  const usa = (d: DimensaoDoRecorte) => !ignorar.includes(d);
+  // Valores marcados no mesmo filtro somam (OU); entre filtros continua E.
+  if (usa("eventId") && filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
+  if (usa("functionId") && filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
+  if (usa("collaboratorId") && filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
+  if (usa("status") && filters.status.length > 0 && !filters.status.includes(inclusion.status)) return false;
+  if (usa("escalationStatus") && filters.escalationStatus.length > 0) {
+    if (!filters.escalationStatus.some((v) => casaComEscalacao(inclusion, v))) return false;
+  }
+  // Busca exata por ID (número de inclusão)
+  if (usa("searchId") && filters.searchId) {
+    const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
+    const n = String(inclusion.inclusionNumber ?? '').toLowerCase();
+    if (!n.includes(q)) return false;
+  }
+  return true;
+}
+
+/** Opções fixas de Status e Escalação — os mesmos valores e rótulos da barra antiga. */
+export const OPCOES_DE_STATUS = [
+  { id: "planejado", nome: "Aguardando escalação" },
+  { id: "escalacao", nome: "Em escalação" },
+  { id: "passagem", nome: "Aguardando passagem" },
+  { id: "hospedagem", nome: "Aguardando hospedagem" },
+  { id: "passagem_comprada", nome: "Passagem comprada" },
+  { id: "hospedagem_comprada", nome: "Hospedagem comprada" },
+  { id: "hospedagem_passagem_comprada", nome: "Hospedagem e passagem compradas" },
+];
+export const OPCOES_DE_ESCALACAO = [
+  { id: "pending", nome: "Pendentes de escalação" },
+  { id: "escalated", nome: "Já escalados" },
+  { id: "aguardando_producao", nome: "Aguardando gestor" },
+  { id: "cancelado", nome: "Cancelados" },
+];
+
+export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } = {}) {
   // Seleção múltipla (28/08): listas; vazia = todos. Também conserta o filtro
   // de Funções, que comparava string com a lista do multi-select e zerava a tela.
   const [filters, setFilters] = useState<InclusionFilters>({
@@ -56,9 +111,11 @@ export function useTeamInclusionData() {
   // contrato 23/09) — a chave leva o id para o cache ser por evento e as
   // invalidações por prefixo (`["/api/team-inclusions"]`) continuarem valendo.
   const eventoFiltrado = filters.eventId.length === 1 ? filters.eventId[0] : null;
-  const { data: teamInclusions, isLoading, isError, error } = useQuery<TeamInclusion[]>({
+  const { data: teamInclusions, isLoading, isError, error, refetch, isFetching } = useQuery<TeamInclusion[]>({
     queryKey: eventoFiltrado ? ["/api/team-inclusions", eventoFiltrado] : ["/api/team-inclusions"],
     queryFn: () => apiRequest("GET", eventoFiltrado ? `/api/team-inclusions?eventId=${eventoFiltrado}` : "/api/team-inclusions").then(r => r.json()),
+    // Sem acesso à tela, nem pede (07/10: os dados subiram para a página, que monta antes da checagem).
+    enabled,
   });
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
@@ -107,30 +164,7 @@ export function useTeamInclusionData() {
 
   // Filter and sort inclusions based on current filters
   const filteredAndSortedInclusions = useMemo(() => {
-    const filtered = teamInclusions?.filter(inclusion => {
-      // Valores marcados no mesmo filtro somam (OU); entre filtros continua E.
-      if (filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
-      if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
-      if (filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
-      if (filters.status.length > 0 && !filters.status.includes(inclusion.status)) return false;
-      if (filters.escalationStatus.length > 0) {
-        const isCanceled = inclusion.status === "cancelado";
-        const matches = filters.escalationStatus.some((v) =>
-          v === "pending" ? (!inclusion.collaboratorId && !vagaComEmpreita(inclusion) && !isCanceled)
-          : v === "escalated" ? ((!!inclusion.collaboratorId || vagaComEmpreita(inclusion)) && !isCanceled)
-          : v === "cancelado" ? isCanceled
-          : false,
-        );
-        if (!matches) return false;
-      }
-      // Busca exata por ID (número de inclusão)
-      if (filters.searchId) {
-        const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
-        const n = String(inclusion.inclusionNumber ?? '').toLowerCase();
-        if (!n.includes(q)) return false;
-      }
-      return true;
-    }) || [];
+    const filtered = teamInclusions?.filter(inclusion => passaNoRecorte(inclusion, filters)) || [];
 
     // Apply custom sorting if configured
     if (sortConfig) {
@@ -175,21 +209,46 @@ export function useTeamInclusionData() {
     });
   }, [teamInclusions, filters, sortConfig, getCollaboratorName, getEventName, getFunctionName]);
 
+  // Em quantos eventos estão as vagas do recorte (para a barra da tela).
+  const eventosNoRecorte = useMemo(
+    () => new Set(filteredAndSortedInclusions.map(i => i.eventId)).size,
+    [filteredAndSortedInclusions],
+  );
+
   // Totals base: only base filters (event, function, collaborator, searchId)
   // Ignores status AND escalationStatus so card counts never change when a card is clicked
   const totalsBase = useMemo(() => {
-    return teamInclusions?.filter(inclusion => {
-      if (filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
-      if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
-      if (filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
-      if (filters.searchId) {
-        const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
-        const n = String(inclusion.inclusionNumber ?? '').toLowerCase();
-        if (!n.includes(q)) return false;
+    return teamInclusions?.filter(inclusion => passaNoRecorte(inclusion, filters, ["status", "escalationStatus"])) || [];
+  }, [teamInclusions, filters]);
+
+  // Opções dos filtros com o número ao lado (07/10): quantas vagas sobram ao
+  // escolher cada uma, mantendo o resto do recorte — a mesma regra da lista.
+  const opcoesDosFiltros = useMemo(() => {
+    const lista = teamInclusions ?? [];
+    const contar = (dim: DimensaoDoRecorte, chave: (i: TeamInclusion) => string | null | undefined) => {
+      const m = new Map<string, number>();
+      for (const i of lista) {
+        if (!passaNoRecorte(i, filters, [dim])) continue;
+        const k = chave(i);
+        if (k) m.set(k, (m.get(k) ?? 0) + 1);
       }
-      return true;
-    }) || [];
-  }, [teamInclusions, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId]);
+      return m;
+    };
+    const porEvento = contar("eventId", i => i.eventId);
+    const porFuncao = contar("functionId", i => i.functionId);
+    const porColaborador = contar("collaboratorId", i => i.collaboratorId);
+    const porStatus = contar("status", i => i.status);
+    const baseEscalacao = lista.filter(i => passaNoRecorte(i, filters, ["escalationStatus"]));
+    return {
+      eventos: (events ?? [])
+        .filter(e => e.status !== 'excluido' && e.status !== 'excluído')
+        .map(e => ({ id: e.id, nome: e.name, n: porEvento.get(e.id) ?? 0 })),
+      funcoes: (functions ?? []).map(f => ({ id: f.id, nome: f.name, n: porFuncao.get(f.id) ?? 0 })),
+      colaboradores: (collaborators ?? []).map(c => ({ id: c.id, nome: fixEncoding(c.fullName) || "Sem nome", n: porColaborador.get(c.id) ?? 0 })),
+      status: OPCOES_DE_STATUS.map(o => ({ ...o, n: porStatus.get(o.id) ?? 0 })),
+      escalacao: OPCOES_DE_ESCALACAO.map(o => ({ ...o, n: baseEscalacao.filter(i => casaComEscalacao(i, o.id)).length })),
+    };
+  }, [teamInclusions, filters, events, functions, collaborators]);
 
   // Calculate real totals from totalsBase (ignores status filter so cards always show correct counts)
   // Cada contador usa EXATAMENTE o mesmo predicado que o clique no card aplica na
@@ -246,7 +305,7 @@ export function useTeamInclusionData() {
     teamInclusions, isLoading, isError, error, functions,
     inclusionById, getEventName, getEventLocation, getFunctionName, getCollaboratorName,
     eventLock, isEventLocked, eventLockReason,
-    filteredAndSortedInclusions, totals,
+    filteredAndSortedInclusions, totals, opcoesDosFiltros, eventosNoRecorte, refetch, isFetching,
     toggleRowSelection, toggleSelectAll, selectedVisibleCount, allVisibleSelected,
   };
 }

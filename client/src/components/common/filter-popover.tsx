@@ -241,7 +241,7 @@ export function FiltroUnico({ valor, onChange, opcoes, rotuloTodos, placeholderB
 }
 
 /** Seleção MÚLTIPLA por array — a semântica que as funções sempre tiveram. */
-export function FiltroMultiplo({ valores, onChange, opcoes, rotuloTodos, placeholderBusca, testid, larguraPopover = 300 }: {
+export function FiltroMultiplo({ valores, onChange, opcoes, rotuloTodos, placeholderBusca, testid, larguraPopover = 300, rotuloVarios }: {
   valores: string[];
   onChange: (v: string[]) => void;
   opcoes: OpcaoDeFiltro[];
@@ -249,13 +249,15 @@ export function FiltroMultiplo({ valores, onChange, opcoes, rotuloTodos, placeho
   placeholderBusca: string;
   testid: string;
   larguraPopover?: number;
+  /** Texto do gatilho com N marcados (padrão: "N funções" — o uso original). */
+  rotuloVarios?: (n: number) => string;
 }) {
   const [busca, setBusca] = useState("");
   const texto = valores.length === 0
     ? rotuloTodos
     : valores.length === 1
-      ? (opcoes.find((o) => o.id === valores[0])?.nome ?? "1 função")
-      : `${valores.length} funções`;
+      ? (opcoes.find((o) => o.id === valores[0])?.nome ?? (rotuloVarios ? rotuloVarios(1) : "1 função"))
+      : (rotuloVarios ? rotuloVarios(valores.length) : `${valores.length} funções`);
 
   return (
     <Popover>
