@@ -1,34 +1,16 @@
 import { memo, useId, useState, type Ref } from "react";
-import { CalendarDays, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { CalendarDays, ChevronDown, MapPin, MessageSquare } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import EventCombobox from "@/components/ui/event-combobox";
 import { cn, formatDateRange } from "@/lib/utils";
 import type { Event } from "@shared/schema";
-import { PERIOD_MARGIN_DAYS } from "./scaling-grid-utils";
-import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 export interface ContextBarProps {
   events: Event[];
   eventId: string;
   onEventChange: (id: string) => void;
   selectedEvent: Event | undefined;
-  periodStart: string;
-  periodEnd: string;
-  /** requestPeriod da página (valida, pede confirmação ao encolher etc.). */
-  onPeriodChange: (start: string, end: string) => void;
-  bounds: { min: string; max: string };
-  /** Dias do período APLICADO (0 = período inválido). */
-  daysCount: number;
-  onEventPeriod: () => void;
-  onShrink: () => void;
-  canShrink: boolean;
-  /** Chip "+1 dia" — simétrico ao "−1 dia"; desabilitado no limite (margem do evento / teto de dias). */
-  onGrow: () => void;
-  canGrow: boolean;
-  /** true = há erro de período (o texto fica inline, acima da grade). */
-  periodInvalid: boolean;
   disabled?: boolean;
   observations: string;
   onObservationsChange: (v: string) => void;
@@ -37,136 +19,110 @@ export interface ContextBarProps {
   eventTriggerRef?: Ref<HTMLButtonElement>;
 }
 
-const CHIP_BTN = "inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-slate-600 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
-const PERIOD_HINT = `A grade pode começar até ${PERIOD_MARGIN_DAYS} dias antes e terminar até ${PERIOD_MARGIN_DAYS} dias depois do evento.`;
+/** Limite do recado (o mesmo `maxLength` de antes). */
+const OBS_MAX = 2000;
 
 /**
- * Barra de contexto da Sugestão de Escala (substitui o cartão alto de evento/
- * período/comentários): uma linha com evento · período do evento · inputs da
- * GRADE · chips de atalho — e os comentários gerais num disclosure.
+ * Linha do evento da Sugestão de Escala.
  *
- * `memo`: a página re-renderiza a cada tecla na grade e a barra não depende
- * das linhas — sem o memo ela era redesenhada junto, à toa.
+ * 07/10 (redesenho): a mesma linha da Validação e da Aprovação, sem moldura —
+ * escolher o evento à esquerda, o que se faz com ele (o recado para as áreas)
+ * à direita e, embaixo, alinhada ao texto do seletor, a linha de fatos
+ * (datas, local). O período da GRADE saiu daqui para o resumo da grade
+ * (`GridSummary`): é propriedade da grade, não do evento, e ficava espremido
+ * entre o seletor e o recado num cartão de duas linhas.
+ *
+ * `memo`: a página re-renderiza a cada tecla na grade e a linha não depende
+ * das linhas da grade — sem o memo ela era redesenhada junto, à toa.
  */
 export const ContextBar = memo(function ContextBar({
-  events, eventId, onEventChange, selectedEvent, periodStart, periodEnd, onPeriodChange, bounds,
-  daysCount, onEventPeriod, onShrink, canShrink, onGrow, canGrow, periodInvalid, disabled, observations, onObservationsChange,
+  events, eventId, onEventChange, selectedEvent, disabled, observations, onObservationsChange,
   eventTestId, eventTriggerRef,
 }: ContextBarProps) {
   const [showComments, setShowComments] = useState(false);
   const obsId = useId();
   const obsFilled = observations.trim().length > 0;
-  const periodDisabled = !eventId || disabled;
+
+  const recadoBtn = (
+    <button
+      type="button"
+      className={cn(
+        "sug-alvo inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        showComments ? "border-primary/30 bg-brand-soft text-primary" : "border-border bg-card text-slate-700 hover:border-primary/30 hover:bg-brand-soft/50 hover:text-primary",
+      )}
+      aria-expanded={showComments} aria-controls={obsId}
+      onClick={() => setShowComments((v) => !v)}
+    >
+      <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+      Recado para as áreas
+      {/* Ponto = "tem recado". O número de caracteres não dizia nada a ninguém. */}
+      {obsFilled && (
+        <>
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+          <span className="sr-only">(preenchido)</span>
+        </>
+      )}
+      <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none", showComments && "rotate-180")} aria-hidden="true" />
+    </button>
+  );
 
   return (
-    <section aria-label="Evento e período da grade" className="rounded-xl border border-border bg-card p-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-primary shrink-0" aria-hidden="true">
-            <CalendarDays className="w-4 h-4" aria-hidden="true" />
-          </span>
-          <div className="w-[250px] max-w-full shrink-0">
+    <section aria-label="Evento" className="space-y-2">
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-4">
+        {/* Cresce até 440px quando há espaço: nome de evento longo cortado
+            deixava a pessoa sem saber em qual evento estava. */}
+        <div className="flex min-w-0 items-center gap-2 sm:max-w-[480px] lg:w-[440px] lg:max-w-[60%]">
+          <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
             {/* Travado durante o envio: trocar de evento no meio do POST fazia o
                 sucesso limpar o rascunho do evento errado. */}
             <EventCombobox
               events={events} value={eventId} showAllOption={false}
               onValueChange={(v) => onEventChange(v === "all" ? "" : v)}
               placeholder="Selecione um evento" testId={eventTestId}
-              className="h-8 font-semibold"
+              className="h-9 font-semibold"
               disabled={disabled}
               triggerRef={eventTriggerRef}
             />
           </div>
-          {selectedEvent && (
-            <p className="text-xs text-muted-foreground truncate max-w-[280px]" title={`Período do evento: ${formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}`}>
-              {selectedEvent.location ? `${selectedEvent.location} · ` : ""}
-              <span className="font-mono">{formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}</span>
-            </p>
-          )}
         </div>
-
-        <span className="hidden md:block h-6 w-px bg-border" aria-hidden="true" />
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">Dias na grade</span>
-          <Label htmlFor="sug-period-start" className="sr-only">Início da grade</Label>
-          <Input
-            id="sug-period-start" type="date" value={periodStart} disabled={periodDisabled}
-            min={bounds.min || undefined} max={bounds.max || undefined}
-            title={PERIOD_HINT}
-            aria-invalid={periodInvalid} aria-describedby={periodInvalid ? "sug-period-error" : undefined}
-            onChange={(e) => onPeriodChange(e.target.value, periodEnd)}
-            className="h-8 w-[138px] rounded-lg text-xs"
-          />
-          <span className="text-xs text-muted-foreground" aria-hidden="true">–</span>
-          <Label htmlFor="sug-period-end" className="sr-only">Fim da grade</Label>
-          <Input
-            id="sug-period-end" type="date" value={periodEnd} disabled={periodDisabled}
-            min={periodStart || bounds.min || undefined} max={bounds.max || undefined}
-            title={PERIOD_HINT}
-            aria-invalid={periodInvalid} aria-describedby={periodInvalid ? "sug-period-error" : undefined}
-            onChange={(e) => onPeriodChange(periodStart, e.target.value)}
-            className="h-8 w-[138px] rounded-lg text-xs"
-          />
-          {daysCount > 0 && (
-            <span className="inline-flex h-8 items-center rounded-lg bg-brand-soft px-2.5 text-xs font-semibold text-primary tabular-nums">
-              {daysCount} {daysCount === 1 ? "dia" : "dias"}
-            </span>
-          )}
-          <MotivoDesabilitado motivo="Voltar a grade para o período do evento" desabilitado={periodDisabled}>
-            <button type="button" className={CHIP_BTN} disabled={periodDisabled} onClick={onEventPeriod}
-           >
-            Período do evento
-          </button>
-          </MotivoDesabilitado>
-          {/* Par simétrico: tirar/acrescentar um dia no FIM da grade. */}
-          <MotivoDesabilitado motivo="Tirar o último dia da grade" desabilitado={periodDisabled || !canShrink}>
-            <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canShrink} onClick={onShrink}
-            aria-label="Tirar o último dia da grade">
-            −1 dia
-          </button>
-          </MotivoDesabilitado>
-          <MotivoDesabilitado motivo={canGrow ? "Acrescentar um dia ao fim da grade" : `A grade já está no limite (${PERIOD_MARGIN_DAYS} dias depois do evento)`} desabilitado={periodDisabled || !canGrow}>
-            <button type="button" className={cn(CHIP_BTN, "tabular-nums")} disabled={periodDisabled || !canGrow} onClick={onGrow}
-           
-            aria-label="Acrescentar um dia ao fim da grade">
-            +1 dia
-          </button>
-          </MotivoDesabilitado>
-        </div>
-
-        {/* Último chip da linha — o textarea abre abaixo, em linha própria. */}
-        <button
-          type="button" className={cn(CHIP_BTN, "ml-auto", showComments && "border-primary/30 bg-brand-soft text-primary")}
-          disabled={!eventId}
-          aria-expanded={showComments} aria-controls={obsId}
-          onClick={() => setShowComments((v) => !v)}
-        >
-          <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
-          Recado para as áreas
-          {/* Ponto = "tem recado". O número de caracteres não dizia nada a ninguém. */}
-          {obsFilled && (
-            <>
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-              <span className="sr-only">(preenchido)</span>
-            </>
-          )}
-          {showComments
-            ? <ChevronUp className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
-            : <ChevronDown className="w-3 h-3 text-muted-foreground" aria-hidden="true" />}
-        </button>
+        {/* O recado só existe com evento: é gravado nas observações DELE. A partir
+            de lg ele fica à direita do seletor; antes disso, depois da linha de fatos. */}
+        {eventId && <div className="ml-auto hidden lg:flex">{recadoBtn}</div>}
       </div>
 
-      {showComments && (
-        <div id={obsId} className="mt-2.5 border-t border-border pt-2.5 space-y-1">
-          <Label htmlFor="sug-event-obs" className="text-xs font-semibold text-slate-600">Recado para as áreas</Label>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs text-muted-foreground">
+        {selectedEvent ? (
+          <>
+            <span className="whitespace-nowrap tabular-nums text-slate-700" title="Período do evento">
+              {formatDateRange(selectedEvent.startDate, selectedEvent.endDate, { withYear: true })}
+            </span>
+            {selectedEvent.location && (
+              <span className="inline-flex min-w-0 items-center gap-1" title={selectedEvent.location}>
+                <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="max-w-[260px] truncate">{selectedEvent.location}</span>
+              </span>
+            )}
+          </>
+        ) : (
+          <span>Escolha o evento para abrir a grade de função × dia.</span>
+        )}
+      </div>
+      {eventId && <div className="flex pl-6 pt-0.5 lg:hidden">{recadoBtn}</div>}
+
+      {eventId && showComments && (
+        <div id={obsId} className="sug-entra ml-6 space-y-1.5 rounded-xl border border-border bg-card px-4 py-3 shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <Label htmlFor="sug-event-obs" className="text-xs font-semibold text-foreground">Recado para as áreas</Label>
+            <span className="text-2xs tabular-nums text-muted-foreground" aria-hidden="true">{observations.length}/{OBS_MAX}</span>
+          </div>
           <Textarea
-            id="sug-event-obs" value={observations} disabled={!eventId || disabled} rows={2} maxLength={2000}
+            id="sug-event-obs" value={observations} disabled={!eventId || disabled} rows={3} maxLength={OBS_MAX}
             placeholder="Orientações gerais para as áreas (horários de montagem, ponto de encontro, restrições…)."
             onChange={(e) => onObservationsChange(e.target.value)}
-            className={cn("w-full rounded-lg text-sm min-h-0", observations && "bg-brand-soft/40 border-primary/20")}
+            className={cn("min-h-0 w-full resize-y rounded-lg text-sm", observations && "border-primary/20 bg-brand-soft/30")}
           />
-          <p className="text-2xs text-muted-foreground">Salvos nas observações do evento junto com o envio da escala.</p>
+          <p className="text-2xs text-muted-foreground">Vai para as observações do evento junto com o envio da escala — as áreas leem como “Nota da logística” na Validação.</p>
         </div>
       )}
     </section>

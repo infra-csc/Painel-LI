@@ -96,7 +96,7 @@ export function CopyEventDialog({
     <Dialog open={open} onOpenChange={close}>
       {/* Abaixo de `sm` o diálogo respira 1rem de cada lado e arredonda (o padrão do shadcn só arredonda a partir de sm). */}
       <DialogContent className="max-w-[560px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-xl sm:w-full">
-        <DialogHeader className="px-5 pt-5 pb-3 pr-12">
+        <DialogHeader className="space-y-1.5 border-b border-border px-5 pb-3.5 pr-12 pt-5 text-left">
           <DialogTitle className="flex items-center gap-2">
             <FolderInput className="w-4 h-4 text-primary" aria-hidden="true" /> Copiar de outro evento
           </DialogTitle>
@@ -105,7 +105,7 @@ export function CopyEventDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="overflow-y-auto px-5 pb-4 space-y-3">
+        <div className="space-y-3 overflow-y-auto px-5 py-4">
           {!currentEventId && (
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-slate-600">1. Primeiro, o evento de destino (o que você vai montar):</p>
@@ -170,16 +170,16 @@ export function CopyEventDialog({
                       const logistica = logisticsLabel(r);
                       return (
                         <li key={r.rowId} className="px-3 py-1.5 text-xs">
-                          <div className="flex items-baseline gap-2">
-                            <span className="w-[150px] shrink-0 truncate font-semibold text-foreground" title={r.functionName}>{r.functionName}</span>
-                            <span className="min-w-0 truncate font-mono tabular-nums text-slate-600">
+                          <div className="sm:flex sm:items-baseline sm:gap-2">
+                            <span className="block truncate font-semibold text-foreground sm:w-[150px] sm:shrink-0" title={r.functionName}>{r.functionName}</span>
+                            <span className="block min-w-0 truncate font-mono tabular-nums text-slate-600">
                               {days.length > 0
                                 ? days.map((d) => `${formatDayMonthBr(d)}×${r.quantities[d]}`).join(" · ")
                                 : "sem quantidades no período atual"}
                             </span>
                           </div>
                           {logistica && (
-                            <p className="mt-0.5 pl-[158px] truncate text-2xs text-muted-foreground" title={logistica}>{logistica}</p>
+                            <p className="mt-0.5 truncate text-2xs text-muted-foreground sm:pl-[158px]" title={logistica}>{logistica}</p>
                           )}
                         </li>
                       );

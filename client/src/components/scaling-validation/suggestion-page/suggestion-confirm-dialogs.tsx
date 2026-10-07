@@ -2,7 +2,13 @@
  * Confirmações da Sugestão de escala (25/09 — extraídas da página):
  * substituir funções (colagem/cópia), dias fora do período, encolher período,
  * remover linha, enviar, cancelar envio e limpar grade.
+ *
+ * 07/10 (redesenho): cada confirmação ganhou o ícone da ação (o mesmo
+ * `ConfirmDialog` da casa, vermelho nas destrutivas) e o "Enviar" mostra o
+ * resumo do que sai — evento, dias da grade e vagas — numa caixa só, para a
+ * pessoa conferir antes do clique que não se desfaz sozinho.
  */
+import { ArrowLeftRight, CalendarMinus, Eraser, Send, Trash2, Undo2 } from "lucide-react";
 import type { Event } from "@shared/schema";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -40,6 +46,7 @@ export function SuggestionConfirmDialogs({ draft, edit, paste, send, selectedEve
       <ConfirmDialog
         open={!!pendingPaste}
         onOpenChange={(o) => { if (!o) setPendingPaste(null); }}
+        icon={ArrowLeftRight}
         title={`Substituir ${pendingPaste?.conflicts.length} ${pendingPaste?.conflicts.length === 1 ? "função" : "funções"} já na grade?`}
         cancelLabel="Voltar"
         confirmLabel="Substituir"
@@ -54,6 +61,7 @@ export function SuggestionConfirmDialogs({ draft, edit, paste, send, selectedEve
       <ConfirmDialog
         open={!!pendingCopy}
         onOpenChange={(o) => { if (!o) setPendingCopy(null); }}
+        icon={ArrowLeftRight}
         title={`Substituir ${pendingCopy?.conflicts.length} ${pendingCopy?.conflicts.length === 1 ? "função" : "funções"} já na grade?`}
         cancelLabel="Voltar"
         confirmLabel="Substituir"
@@ -118,6 +126,7 @@ export function SuggestionConfirmDialogs({ draft, edit, paste, send, selectedEve
       <ConfirmDialog
         open={!!pendingPeriod}
         onOpenChange={(o) => { if (!o) cancelPendingPeriod(); }}
+        icon={CalendarMinus}
         title="Descartar quantidades fora do novo período?"
         cancelLabel="Manter período"
         onCancel={cancelPendingPeriod}
@@ -137,6 +146,7 @@ export function SuggestionConfirmDialogs({ draft, edit, paste, send, selectedEve
       <ConfirmDialog
         open={!!confirmRemove}
         onOpenChange={(o) => { if (!o) setConfirmRemove(null); }}
+        icon={Trash2}
         title={`Remover a linha ${rowToRemove?.functionName}?`}
         confirmLabel="Remover"
         tone="danger"
@@ -149,7 +159,19 @@ export function SuggestionConfirmDialogs({ draft, edit, paste, send, selectedEve
       <ConfirmDialog
         open={confirmSend}
         onOpenChange={(o) => { if (!o) setConfirmSend(false); }}
+        icon={Send}
         title="Enviar escala para validação?"
+        className="sm:max-w-[520px]"
+        detalhes={
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+            <dt className="text-muted-foreground">Evento</dt>
+            <dd className="min-w-0 truncate font-semibold">{selectedEvent?.name}</dd>
+            <dt className="text-muted-foreground">Grade</dt>
+            <dd className="tabular-nums">{formatDateRange(applied.start, applied.end)} · {plural(draft.dates.length, "dia", "dias")}</dd>
+            <dt className="text-muted-foreground">Vagas</dt>
+            <dd className="tabular-nums"><span className="font-semibold">{records.length}</span> · {send.summary.pessoasDia} pessoas-dia em {plural(send.summary.funcoes, "linha", "linhas")}</dd>
+          </dl>
+        }
         cancelLabel="Voltar"
         confirmLabel={busy ? "Enviando…" : "Enviar"}
         pending={busy}
@@ -165,6 +187,7 @@ export function SuggestionConfirmDialogs({ draft, edit, paste, send, selectedEve
       <ConfirmDialog
         open={confirmCancelSend}
         onOpenChange={(o) => { if (!o) setConfirmCancelSend(false); }}
+        icon={Undo2}
         title={`Cancelar o envio e remover ${sentSummary.total} ${sentSummary.total === 1 ? "vaga" : "vagas"} de ${selectedEvent?.name}?`}
         cancelLabel="Voltar"
         confirmLabel={cancelSendMutation.isPending ? "Cancelando…" : "Cancelar envio e remover"}
@@ -188,12 +211,13 @@ export function SuggestionConfirmDialogs({ draft, edit, paste, send, selectedEve
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={(o) => { if (!o) setConfirmClear(false); }}
+        icon={Eraser}
         title="Limpar a grade?"
         confirmLabel="Limpar"
         tone="danger"
         onConfirm={onClearGrid}
       >
-        <p>Todas as linhas, os comentários gerais editados e o rascunho local deste evento serão descartados. Nada é apagado no servidor.</p>
+        <p>Todas as linhas, o recado para as áreas que você editou e o rascunho local deste evento serão descartados. Nada é apagado no servidor.</p>
       </ConfirmDialog>
     </>
   );

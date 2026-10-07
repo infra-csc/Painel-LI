@@ -635,8 +635,6 @@
   .esp-linha > td, .esp-segmento .esp-segmento-n { transition: none; }
   .esp-segmento:not(:disabled):hover .esp-segmento-n { transform: none; }
 }
-/* Cartão de quarto/carro (tablet/celular): o mesmo filete do grupo. */
-.esp-grupo-cartao { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }
 
 /* ══ Eventos (evt-) — redesenho 07/10 ══════════════════════════════════════
  * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
@@ -694,6 +692,8 @@
   .evt-linha, .evt-abrir, .evt-cartao, .evt-chip, .evt-linha .evt-acao { transition: none; }
   .evt-chip:hover { transform: none; }
 }
+/* Cartão de quarto/carro (tablet/celular): o mesmo filete do grupo. */
+.esp-grupo-cartao { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }
 
 /* ══ Colaboradores (col-) — redesenho 07/10 ════════════════════════════════
  * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
@@ -799,6 +799,111 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .fun-linha, .fun-linha-escala, .fun-abrir, .fun-cartao, .fun-linha .fun-acao, li .fun-remover { transition: none; }
+}
+
+/* ══ Sugestão de escala (sug-) — redesenho 07/10 ══════════════════════════
+ * Irmã da Validação (val-) e da Aprovação (apr-): esqueleto com `val-osso`.
+ * Aqui só o que o Tailwind não diz bem: a altura da grade (acompanha a tela
+ * entre a barra do topo e a barra de envio), a célula de quantidade em três
+ * tons, o filete dos dias do evento, o hover da linha por cima do fundo, a
+ * coluna congelada e as microinterações (rápidas, discretas, desligadas com
+ * reduced-motion). */
+
+/* A grade ocupa a tela entre a barra da tela (56px) e a barra de envio (~84px):
+   rolada até ela, o cabeçalho dos dias e o rodapé "Pessoas por dia" ficam à
+   vista juntos. Antes eram 560px fixos — num notebook a grade começava abaixo
+   da dobra e terminava escondida atrás da barra de envio. */
+.sug-grade-rolagem {
+  max-height: max(320px, calc(100dvh - var(--sticky-top, 3.5rem) - 3.5rem - 5.75rem));
+}
+
+/* Linha: o hover é um véu por cima do fundo (sombra interna), não um fundo
+   novo — a zebra e o azul da linha aberta continuam à vista. */
+.sug-linha > td { transition: box-shadow 100ms ease; }
+.sug-linha:hover > td { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent); }
+/* Linha com erro: um filete vermelho na borda da função diz "esta trava o envio". */
+.sug-linha[data-estado="erro"] > td:first-child { box-shadow: inset 3px 0 0 var(--danger-strong); }
+.sug-linha[data-estado="aviso"] > td:first-child { box-shadow: inset 3px 0 0 var(--warning-strong); }
+.sug-linha[data-aberta] > td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+
+/* Coluna congelada (a partir de md): uma sombra curta diz que há grade passando por baixo. */
+@media (min-width: 768px) {
+  .sug-col-funcao { box-shadow: 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha:hover > td.sug-col-funcao { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha[data-estado="erro"] > td.sug-col-funcao { box-shadow: inset 3px 0 0 var(--danger-strong), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha[data-estado="aviso"] > td.sug-col-funcao { box-shadow: inset 3px 0 0 var(--warning-strong), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha[data-aberta] > td.sug-col-funcao { box-shadow: inset 3px 0 0 var(--primary), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+}
+
+/* Dias do evento no cabeçalho: filete da marca em cima (o resto é margem de
+   montagem/desmontagem). Fim de semana: a coluna inteira levemente âmbar. */
+.sug-dia-evento { box-shadow: inset 0 3px 0 var(--primary); }
+.sug-fds { background-color: color-mix(in srgb, var(--warning-soft) 40%, transparent); }
+
+/* Célula de quantidade: vazia, só um contorno de leve; preenchida, o azul da
+   marca em três tons pelo tamanho do número (1–3 · 4–8 · 9+). */
+.sug-qtd { transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.sug-qtd-vazia { border-color: color-mix(in srgb, var(--border) 55%, transparent); }
+.sug-qtd[data-nivel="1"] { background-color: color-mix(in srgb, var(--primary) 7%, var(--card)); }
+.sug-qtd[data-nivel="2"] { background-color: color-mix(in srgb, var(--primary) 13%, var(--card)); }
+.sug-qtd[data-nivel="3"] { background-color: color-mix(in srgb, var(--primary) 21%, var(--card)); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
+.sug-qtd:focus { background-color: var(--card); }
+
+/* Logística na linha: os chips quebram em até duas linhas (antes cortavam o
+   botão "Editar viagem" para fora da tela); o que passa disso fica escondido. */
+.sug-chips { max-height: 3.25rem; overflow: hidden; }
+
+/* Ações da linha: à vista, discretas até a linha ser apontada. */
+.sug-linha .sug-revela { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease, border-color 120ms ease; }
+.sug-linha:hover .sug-revela, .sug-revela:focus-visible, .sug-revela[data-state="open"] { opacity: 1; }
+
+/* Caminhos da grade vazia: o cartão sobe 1px no hover (é um botão, não um aviso). */
+.sug-caminho { transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease; }
+.sug-caminho:hover:not(:disabled) { transform: translateY(-1px); }
+.sug-caminho:active:not(:disabled) { transform: none; }
+
+/* Tecla dos atalhos. */
+.sug-tecla {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem;
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: .3rem;
+  background: var(--surface-muted); color: var(--foreground);
+  font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Rascunho que acabou de ser salvo: o selo acende e se acalma. */
+@keyframes sug-salvo { 0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--success-strong) 22%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.sug-salvo { animation: sug-salvo 900ms ease-out both; }
+
+/* Conteúdo que acabou de aparecer (faixa de estado, painel, recado) e a prévia
+   que sobe da barra de envio. */
+@keyframes sug-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.sug-entra { animation: sug-entra 160ms ease-out both; }
+@keyframes sug-sobe { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+.sug-sobe { animation: sug-sobe 180ms cubic-bezier(.2, 0, 0, 1) both; transform-origin: bottom center; }
+
+/* Enviar: afunda 2% no clique. */
+.sug-enviar { transition: background-color 120ms ease, transform 120ms ease; }
+.sug-enviar:active:not(:disabled) { transform: scale(.98); }
+
+/* Toasts com a barra de envio na tela: a pilha sobe acima dela (cobria o
+   "Enviar" por alguns segundos depois do "Rascunho restaurado"). Diálogo
+   aberto continua com a regra da casca. */
+@media (min-width: 640px) {
+  body:has(.sug-barra-envio):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 84px; }
+}
+
+/* Toque: alvo mínimo de 44px nos controles pequenos; o que só acende no
+   hover fica sempre à vista (no toque não há hover). */
+@media (pointer: coarse) {
+  .sug-alvo { min-height: 44px; min-width: 44px; }
+  .sug-linha .sug-revela { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sug-salvo, .sug-entra, .sug-sobe { animation: none; }
+  .sug-linha > td, .sug-qtd, .sug-linha .sug-revela, .sug-caminho, .sug-enviar { transition: none; }
+  .sug-caminho:hover:not(:disabled), .sug-enviar:active:not(:disabled) { transform: none; }
 }
 
 /* ══ Inclusão de equipe (inc-) — redesenho 07/10 ═══════════════════════════
