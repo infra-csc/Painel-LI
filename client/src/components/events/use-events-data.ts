@@ -22,6 +22,8 @@ export interface ConfirmacaoDeEvento {
   message: string;
   confirmLabel: string;
   variant?: "delete" | "cancel" | "confirm";
+  /** O evento da confirmação — o diálogo mostra qual é (nome, nº, período). */
+  evento?: Event;
   onConfirm: () => void;
 }
 
@@ -87,11 +89,11 @@ export function useEventsData() {
   const [confirmState, setConfirmState] = useState<ConfirmacaoDeEvento>(CONFIRMACAO_FECHADA);
   const closeConfirm = () => setConfirmState(p => ({ ...p, open: false }));
   const confirmDelete = (ev: Event) => setConfirmState({
-    open: true, title: "Excluir evento?", message: `"${ev.name}" será marcado como excluído.`, confirmLabel: "Excluir", variant: "delete",
+    open: true, title: "Excluir evento?", message: `"${ev.name}" será marcado como excluído.`, confirmLabel: "Excluir", variant: "delete", evento: ev,
     onConfirm: () => { closeConfirm(); if (!deleteMutation.isPending) deleteMutation.mutate(ev); },
   });
   const confirmRestore = (ev: Event) => setConfirmState({
-    open: true, title: "Restaurar evento?", message: `"${ev.name}" voltará ao status Planejado.`, confirmLabel: "Restaurar", variant: "confirm",
+    open: true, title: "Restaurar evento?", message: `"${ev.name}" voltará ao status Planejado.`, confirmLabel: "Restaurar", variant: "confirm", evento: ev,
     onConfirm: () => { closeConfirm(); if (!restoreMutation.isPending) restoreMutation.mutate(ev); },
   });
 

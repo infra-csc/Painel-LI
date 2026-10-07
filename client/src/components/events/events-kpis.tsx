@@ -1,11 +1,22 @@
 /**
- * Cartões de indicadores de Eventos (28/09, extraídos de pages/events.tsx):
- * Total / Planejados / Em andamento / Concluídos. Cada cartão também é um
- * filtro de status (`aria-pressed`). Cores semânticas por status — não é a cor
- * de marca por tela.
+ * Resumo de Eventos (28/09, extraído de pages/events.tsx): Ativos /
+ * Planejados / Em andamento / Concluídos. Cada indicador também é um filtro
+ * de status (`aria-pressed`).
+ *
+ * 07/10 (redesenho): eram quatro cartões com filete colorido em cima, ícone
+ * gigante a 20% e "hover que sobe" — o "dashboard genérico" que as outras
+ * telas da Logística já tinham deixado. Agora é a MESMA faixa da fila de
+ * trabalho de Passagens/Hospedagem (`common/fila-de-trabalho`): um bloco por
+ * status, número e uma linha que diz o que ele significa (o próximo evento,
+ * quantos acontecem agora). Reclicar o aceso desliga. Cores do status vêm de
+ * `lib/event-status` — "Em andamento" é a cor da marca, como no selo da lista
+ * (era âmbar aqui e azul no selo).
  */
-import { Calendar, CalendarCheck, CalendarX, List } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CalendarCheck2, CalendarClock, CalendarDays, CalendarRange } from "lucide-react";
+import type { Event } from "@shared/schema";
+import { format } from "date-fns";
+import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
+import { getEventStatus, parseLocalDate } from "@/lib/event-status";
 
 export interface EventsStats {
   total: number;
@@ -14,46 +25,57 @@ export interface EventsStats {
   concluido: number;
 }
 
+type ChaveDoResumo = "active" | "planejado" | "em andamento" | "concluído";
+const CHAVES: ChaveDoResumo[] = ["active", "planejado", "em andamento", "concluído"];
+
 export interface EventsKpisProps {
   stats: EventsStats;
-  /** Valor atual do filtro de status (o cartão cujo `filter` bate fica ativo). */
+  /** Eventos ativos — de onde sai "o próximo começa em…". */
+  events?: Event[];
+  /** Valor atual do filtro de status (o bloco cujo status bate fica aceso). */
   statusFilter: string;
-  onFilter: (status: string) => void;
+  /** `null` = desligar (voltar ao recorte padrão). */
+  onFilter: (status: string | null) => void;
 }
 
-export function EventsKpis({ stats, statusFilter, onFilter }: EventsKpisProps) {
-  const cards = [
-    { label: "Total", value: stats.total, icon: List, filter: "active", tw: { text: "text-primary", border: "border-t-primary", activeBg: "bg-brand-soft", ring: "ring-ring/25" } },
-    { label: "Planejados", value: stats.planejado, icon: Calendar, filter: "planejado", tw: { text: "text-primary", border: "border-t-primary", activeBg: "bg-brand-soft", ring: "ring-ring/25" } },
-    { label: "Em andamento", value: stats.emAndamento, icon: CalendarCheck, filter: "em andamento", tw: { text: "text-warning-strong", border: "border-t-warning-strong", activeBg: "bg-warning-soft", ring: "ring-warning-strong/25" } },
-    { label: "Concluídos", value: stats.concluido, icon: CalendarX, filter: "concluído", tw: { text: "text-success-strong", border: "border-t-success-strong", activeBg: "bg-success-soft", ring: "ring-success-strong/25" } },
+export function EventsKpis({ stats, events = [], statusFilter, onFilter }: EventsKpisProps) {
+  // O próximo planejado: a data que a pessoa quer saber ao olhar a faixa.
+  const proximo = events
+    .filter(e => getEventStatus(e) === "planejado")
+    .map(e => parseLocalDate(e.startDate))
+    .filter((d): d is Date => !!d)
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+
+  const blocos: BlocoDaFilaDeTrabalho<ChaveDoResumo>[] = [
+    {
+      key: "active", rotulo: "Ativos", n: stats.total, icone: CalendarDays, cor: "text-muted-foreground",
+      sub: "fora os excluídos", titulo: `${stats.total} eventos ativos: planejados, em andamento e concluídos`,
+    },
+    {
+      key: "planejado", rotulo: "Planejados", n: stats.planejado, icone: CalendarClock, cor: "text-info",
+      sub: proximo ? `próximo em ${format(proximo, "dd/MM")}` : "nenhum por vir",
+      titulo: `${stats.planejado} eventos planejados${proximo ? ` — o próximo começa em ${format(proximo, "dd/MM/yyyy")}` : ""}`,
+    },
+    {
+      key: "em andamento", rotulo: "Em andamento", n: stats.emAndamento, icone: CalendarRange, cor: "text-primary",
+      sub: stats.emAndamento > 0 ? "acontecendo agora" : "nenhum agora",
+      titulo: `${stats.emAndamento} eventos acontecendo hoje (pelas datas)`,
+    },
+    {
+      key: "concluído", rotulo: "Concluídos", n: stats.concluido, icone: CalendarCheck2, cor: "text-success",
+      sub: "já encerrados", titulo: `${stats.concluido} eventos concluídos`,
+    },
   ];
+
+  const ativa = (CHAVES as string[]).includes(statusFilter) ? (statusFilter as ChaveDoResumo) : null;
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-      {cards.map(c => {
-        const isActive = statusFilter === c.filter;
-        return (
-          <button
-            key={c.label}
-            type="button"
-            aria-pressed={isActive}
-            aria-label={`Filtrar por ${c.label}: ${c.value}`}
-            onClick={() => onFilter(c.filter)}
-            className={cn(
-              "w-full text-left rounded-xl overflow-hidden border-t-[3px] px-4 sm:px-5 py-4 flex justify-between items-start transition-all duration-[180ms] hover:-translate-y-0.5",
-              c.tw.border,
-              isActive ? cn(c.tw.activeBg, "ring-2", c.tw.ring, "shadow-2") : "bg-card shadow-1 hover:shadow-2",
-            )}
-          >
-            <div>
-              <p className={cn("text-2xs font-bold uppercase tracking-[0.08em] mb-1 transition-colors", isActive ? c.tw.text : "text-muted-foreground")}>{c.label}</p>
-              <p className={cn("text-2xl font-extrabold leading-none tabular-nums", c.tw.text)}>{c.value}</p>
-            </div>
-            <c.icon aria-hidden="true" className={cn("h-8 w-8 transition-opacity", c.tw.text, isActive ? "opacity-60" : "opacity-20")} />
-          </button>
-        );
-      })}
-    </div>
+    <FilaDeTrabalho
+      blocos={blocos}
+      ativa={ativa}
+      onEscolher={onFilter}
+      rotulo="Resumo dos eventos — cada indicador filtra a lista"
+      testid={(k) => `resumo-eventos-${k.replace(" ", "-")}`}
+    />
   );
 }
 

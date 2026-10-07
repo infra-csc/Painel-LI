@@ -1,128 +1,137 @@
 /**
- * Barra de busca, filtros, contador e seletor de visualização de Eventos
- * (28/09, extraída de pages/events.tsx sem mudança visual). O estado vem de
- * `useEventsFilters` (URL); aqui só se desenha.
+ * Barra de busca, filtros e seletor de visualização de Eventos (28/09,
+ * extraída de pages/events.tsx). O estado vem de `useEventsFilters` (URL);
+ * aqui só se desenha.
+ *
+ * 07/10 (redesenho): a MESMA anatomia da barra de Passagens/Hospedagem
+ * (peças de `common/barra-de-filtros` e `common/filter-popover`) — busca com
+ * Esc que apaga, e status/mês/ano em listas desenhadas com o número de eventos
+ * que cada opção deixa (eram três `<select>` nativos dentro de um cartão).
+ * O contador foi para a barra da tela, junto do título.
+ *
+ * Semana e Mês mostram todos os eventos ativos — não passam pelos filtros. Em
+ * vez de deixar busca e filtros à vista sem efeito nenhum, a barra diz isso.
+ *
+ * **Nenhum filtro saiu**: busca, status (as mesmas 7 opções), mês, ano,
+ * limpar e as quatro visualizações continuam aqui, com os mesmos valores.
  */
-import { AlignJustify, CalendarDays, CalendarRange, FilterX, List, Search, X } from "lucide-react";
+import { AlignJustify, CalendarDays, CalendarRange, Info, LayoutGrid } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { BuscaDaLista, LimparFiltros } from "@/components/common/barra-de-filtros";
+import { FiltroDeLista } from "@/components/common/filter-popover";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/lib/use-media-query";
-import { MONTHS, SELECT_CLASS, type ViewMode } from "./events-shared";
-import type { EventsFilters } from "./use-events-filters";
+import { MONTHS, type ViewMode } from "./events-shared";
+import { OPCOES_DE_STATUS, type EventsFilters } from "./use-events-filters";
 
-/** Um select de filtro da barra (valor, setter, opções [valor, rótulo]). */
-type SelectDeFiltro = { val: string; set: (v: string) => void; opts: string[][]; test?: string; label: string };
-
-const VIEWS: { key: ViewMode; icon: typeof List; title: string }[] = [
+const VIEWS: { key: ViewMode; icon: typeof AlignJustify; title: string }[] = [
   { key: "table", icon: AlignJustify, title: "Tabela" },
-  { key: "list", icon: List, title: "Lista" },
+  { key: "list", icon: LayoutGrid, title: "Lista" },
   { key: "week", icon: CalendarRange, title: "Semana" },
   { key: "calendar", icon: CalendarDays, title: "Mês" },
 ];
 
+const OPCOES_DE_MES = [{ id: "all", nome: "Todos os meses" }, ...MONTHS.map((m, i) => ({ id: String(i + 1), nome: m }))];
+
 export interface EventsFilterBarProps {
   filtros: EventsFilters;
   availableYears: number[];
-  /** Quantos eventos a visualização atual mostra de fato. */
-  visibleCount: number;
 }
 
-export function EventsFilterBar({ filtros, availableYears, visibleCount }: EventsFilterBarProps) {
-  const {
-    search, setSearch, statusFilter, setStatusFilter, monthFilter, setMonthFilter,
-    yearFilter, setYearFilter, hasFilters, clearFilters, viewMode, setViewMode,
-  } = filtros;
+/** Seletor de visualização: rótulo à vista a partir de 1500px (em 1366, com o menu aberto, ele empurrava a barra para duas linhas); antes, ícone com dica. */
+function SeletorDeVisao({ viewMode, setViewMode, className }: Pick<EventsFilters, "viewMode" | "setViewMode"> & { className?: string }) {
   // Celular (25/09): abaixo de `md` a "Tabela" vira cartões — o mesmo que a
   // "Lista" — então o botão dela some do seletor e "Lista" aparece ativa.
   const isMobile = useIsMobile();
-  // Calendário e semana mostram todos os eventos ativos (não passam pelos filtros
-  // da barra), então o contador precisa refletir a lista realmente exibida.
-  const isCalendarLike = viewMode === "calendar" || viewMode === "week";
+  return (
+    <div role="group" aria-label="Visualização" className={cn("inline-flex shrink-0 items-center h-[34px] p-0.5 gap-0.5 rounded-lg border border-border bg-surface-muted", className)}>
+      {VIEWS.map(v => {
+        if (v.key === "table" && isMobile) return null;
+        const active = viewMode === v.key || (isMobile && v.key === "list" && viewMode === "table");
+        return (
+          <Tooltip key={v.key}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => setViewMode(v.key)}
+                aria-label={`Visualização: ${v.title}`}
+                aria-pressed={active}
+                data-testid={`view-${v.key}`}
+                className={cn(
+                  "pas-alvo inline-flex items-center justify-center gap-1.5 h-full min-w-[34px] px-2 min-[1500px]:px-2.5 rounded-md text-sm transition-[background-color,color,box-shadow] duration-150",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  active ? "bg-card text-foreground font-medium shadow-1" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <v.icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} aria-hidden="true" />
+                <span className="hidden min-[1500px]:inline">{v.title}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="min-[1500px]:hidden">{v.title}</TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
 
-  const selects: SelectDeFiltro[] = [
-    { val: statusFilter, set: setStatusFilter,
-      opts: [["default", "Planejado + Em andamento"], ["all", "Todos os status"], ["active", "Ativos"], ["planejado", "Planejado"], ["em andamento", "Em andamento"], ["concluído", "Concluído"], ["excluído", "Excluído"]],
-      test: "select-status-filter", label: "Filtrar por status" },
-    { val: monthFilter, set: setMonthFilter,
-      opts: [["all", "Todos os meses"], ...MONTHS.map((m, i) => [String(i + 1), m])],
-      test: undefined, label: "Filtrar por mês" },
-    { val: yearFilter, set: setYearFilter,
-      opts: [["all", "Todos os anos"], ...availableYears.map(y => [String(y), String(y)])],
-      test: undefined, label: "Filtrar por ano" },
-  ];
+export function EventsFilterBar({ filtros, availableYears }: EventsFilterBarProps) {
+  const {
+    search, setSearch, statusFilter, setStatusFilter, monthFilter, setMonthFilter,
+    yearFilter, setYearFilter, hasFilters, clearFilters, viewMode, setViewMode, contagens,
+  } = filtros;
+  // Calendário e semana mostram todos os eventos ativos (não passam pelos filtros).
+  const isCalendarLike = viewMode === "calendar" || viewMode === "week";
+  const opcoesDeAno = [{ id: "all", nome: "Todos os anos" }, ...availableYears.map(y => ({ id: String(y), nome: String(y) }))];
 
   return (
-    <div className="bg-card rounded-lg border border-border px-3 py-2.5 shadow-1">
-      <div className="flex items-center gap-2 flex-wrap">
-
-        {/* Search */}
-        <div className="relative flex-[1_1_180px] min-w-[150px]">
-          <Search size={12} className="absolute left-[9px] top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
-          <input
-            id="events-search"
-            aria-label="Buscar evento ou cidade"
-            placeholder="Buscar evento ou cidade…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            data-testid="input-search-event"
-            className={cn("w-full h-8 text-xs pl-7 border border-input rounded-md bg-muted/40 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground", search ? "pr-8" : "pr-2")}
-          />
-          {/* Alvo de 24px (23/09): o ícone de 11px sozinho era difícil de acertar no toque. */}
-          {search && (
-            <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca" className="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X size={12} aria-hidden="true" /></button>
-          )}
-        </div>
-
-        {/* Selects */}
-        {selects.map((s, i) => (
-          <select key={i} value={s.val} onChange={e => s.set(e.target.value)} data-testid={s.test} aria-label={s.label} className={SELECT_CLASS}>
-            {s.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        ))}
-
-        {hasFilters && (
-          <button type="button" onClick={clearFilters} data-testid="button-clear-filters"
-            className="h-8 px-2.5 rounded-md text-primary text-xs font-bold flex items-center gap-1 hover:text-primary-hover hover:bg-brand-soft transition-colors">
-            <FilterX className="h-4 w-4" aria-hidden="true" />
-            Limpar filtros
-          </button>
-        )}
-
-        <span className="text-2xs text-muted-foreground ml-auto whitespace-nowrap" aria-live="polite">
-          {visibleCount} evento{visibleCount !== 1 ? "s" : ""}
-          {isCalendarLike && " (todos os ativos)"}
-        </span>
-
-        <div className="w-px h-[18px] bg-border hidden sm:block" />
-
-        {/* View toggle */}
-        <div className="flex bg-muted rounded-md p-0.5 gap-px">
-          {VIEWS.map(v => {
-            // No celular "Tabela" e "Lista" são a mesma coisa: o botão da tabela some.
-            if (v.key === "table" && isMobile) return null;
-            const active = viewMode === v.key || (isMobile && v.key === "list" && viewMode === "table");
-            return (
-              <Tooltip key={v.key}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode(v.key)}
-                    aria-label={`Visualização: ${v.title}`}
-                    aria-pressed={active}
-                    className={cn(
-                      "flex items-center justify-center w-7 h-7 rounded-md transition-all duration-150",
-                      active ? "bg-card text-primary shadow-1" : "bg-transparent text-muted-foreground hover:text-slate-600",
-                    )}
-                  >
-                    <v.icon className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{v.title}</TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </div>
-      </div>
+    <div role="search" aria-label="Filtros dos eventos" className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
+      {isCalendarLike ? (
+        <p className="pas-entra flex items-start gap-1.5 min-w-0 flex-1 m-0 text-xs leading-5 text-muted-foreground" data-testid="nota-calendario">
+          <Info className="w-3.5 h-3.5 mt-[3px] shrink-0" aria-hidden="true" />
+          <span>
+            {viewMode === "week" ? "A semana" : "O mês"} mostra todos os eventos ativos.
+            <span className="hidden sm:inline"> A busca e os filtros valem para a tabela e a lista.</span>
+          </span>
+        </p>
+      ) : (
+        <>
+          <div className="flex-1 min-w-0 sm:flex-[1_1_180px] sm:max-w-[320px]">
+            <BuscaDaLista
+              valor={search}
+              onChange={setSearch}
+              placeholder="Buscar evento ou cidade"
+              rotulo="Buscar evento ou cidade"
+              testid="input-search-event"
+            />
+          </div>
+          {/* Celular: os filtros descem para uma fileira que rola de lado (abaixo da busca). */}
+          <div className="pas-rolagem-x order-last basis-full -mx-[var(--page-gutter)] px-[var(--page-gutter)] flex items-center gap-1.5 sm:order-none sm:basis-auto sm:mx-0 sm:px-0 sm:overflow-visible">
+            <div role="group" aria-label="Filtrar por status" className="shrink-0 min-w-[150px]">
+              <FiltroDeLista
+                valor={statusFilter}
+                onChange={setStatusFilter}
+                opcoes={OPCOES_DE_STATUS}
+                contagens={contagens.status}
+                testid="select-status-filter"
+                larguraPopover={268}
+              />
+            </div>
+            <div role="group" aria-label="Filtrar por mês" className="shrink-0 min-w-[138px]">
+              <FiltroDeLista valor={monthFilter} onChange={setMonthFilter} opcoes={OPCOES_DE_MES} contagens={contagens.mes} testid="select-month-filter" larguraPopover={220} />
+            </div>
+            <div role="group" aria-label="Filtrar por ano" className="shrink-0 min-w-[128px]">
+              <FiltroDeLista valor={yearFilter} onChange={setYearFilter} opcoes={opcoesDeAno} contagens={contagens.ano} testid="select-year-filter" larguraPopover={200} />
+            </div>
+            {hasFilters && (
+              <div className="pas-entra shrink-0">
+                <LimparFiltros onClick={clearFilters} />
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      <SeletorDeVisao viewMode={viewMode} setViewMode={setViewMode} className="ml-auto" />
     </div>
   );
 }

@@ -630,3 +630,60 @@
 }
 /* Cartão de quarto/carro (tablet/celular): o mesmo filete do grupo. */
 .esp-grupo-cartao { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }
+
+/* ══ Eventos (evt-) — redesenho 07/10 ══════════════════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
+ * pas-rolagem-x, pas-alvo). Aqui só o que é dela: a linha/cartão inteiro que
+ * abre o evento (o ::after do nome cobre a linha), as ações discretas até o
+ * hover, o cabeçalho da tabela grudado e a entrada das visões de calendário. */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px) — só onde a tabela cabe sem
+   rolar de lado: um contêiner que rola prenderia o `sticky` dentro dele. */
+@media (min-width: 1280px) {
+  .evt-moldura { overflow: clip; }
+  .evt-moldura .evt-rolagem { overflow-x: clip; }
+  .evt-tabela > thead > tr > th {
+    position: sticky;
+    top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+    z-index: 2;
+    background: var(--surface-muted);
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+}
+.evt-moldura { border-radius: 0.75rem; }
+.evt-tabela > thead > tr > th:first-child { border-top-left-radius: 0.75rem; }
+.evt-tabela > thead > tr > th:last-child { border-top-right-radius: 0.75rem; }
+
+/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
+.evt-linha, .evt-cartao { position: relative; }
+.evt-linha { transition: background-color 120ms ease; }
+.evt-abrir::after { content: ""; position: absolute; inset: 0; }
+.evt-cartao .evt-abrir::after { border-radius: 0.75rem; }
+.evt-linha:hover .evt-abrir, .evt-cartao:hover .evt-abrir { color: var(--primary); }
+.evt-abrir { transition: color 120ms ease; }
+/* Foco do teclado: o contorno vai na linha/cartão inteiro, não só no nome. */
+.evt-linha:has(.evt-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.evt-cartao:has(.evt-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.evt-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+
+/* Ações: à vista, discretas até a linha ser apontada (antes sumiam por completo). */
+.evt-linha .evt-acao { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.evt-linha:hover .evt-acao, .evt-acao:focus-visible { opacity: 1; }
+@media (pointer: coarse) { .evt-linha .evt-acao { opacity: 1; } }
+
+/* Excluído: esmaecido, mas o "Restaurar" continua inteiro e legível. */
+.evt-excluido > td:not(:last-child) { opacity: .6; }
+
+/* Chip do calendário: sobe 1px no hover (é um botão, não um rótulo). */
+.evt-chip { transition: transform 120ms ease, box-shadow 120ms ease; }
+.evt-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--foreground) 22%, transparent); }
+
+/* Visão de calendário que acabou de abrir. */
+@keyframes evt-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.evt-entra { animation: evt-entra 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .evt-entra { animation: none; }
+  .evt-linha, .evt-abrir, .evt-cartao, .evt-chip, .evt-linha .evt-acao { transition: none; }
+  .evt-chip:hover { transform: none; }
+}
