@@ -7,34 +7,15 @@
  * informava; não levava ao trabalho.
  *
  * Cada bloco é um botão que FILTRA a lista, e reclicar o ativo desliga.
- */
-import { BedDouble, TriangleAlert, ArrowLeftRight, CheckCircle2, type LucideIcon } from "lucide-react";
-import { useLarguraUtil } from "@/components/common/use-largura-util";
-import type { BlocoDaFila, ResumoDaFila } from "./accommodations-queue";
-
-
-interface Def {
-  key: BlocoDaFila;
-  label: string;
-  icone: LucideIcon;
-  /** Uma cor por significado — a mesma da pílula de situação correspondente. */
-  cor: string;
-}
-
-const BLOCOS: Def[] = [
-  { key: "reservar",    label: "Reservar",    icone: BedDouble,      cor: "var(--warning)" },
-  { key: "urgente",     label: "Urgente",     icone: TriangleAlert,  cor: "var(--danger-strong)" },
-  { key: "troca",       label: "Troca",       icone: ArrowLeftRight, cor: "var(--primary)" },
-  { key: "registradas", label: "Registradas", icone: CheckCircle2,   cor: "var(--success-strong)" },
-];
-
-/**
- * Abaixo disto as quatro colunas não cabem e a fila vira 2×2.
  *
- * Nunca 3+1: o bloco que sobra ocupa a faixa inteira sozinho e volta a ler como
- * banner, que é exatamente o que esta fila substituiu.
+ * 07/10 (redesenho): o MESMO desenho da fila de Passagens (peça compartilhada
+ * `FilaDeTrabalho`) — rótulo em caixa normal, filete da ativa que cresce do
+ * centro, fundo de marca na ativa, 2 × 2 no celular. Os quatro blocos, os
+ * números e a regra de cada um não mudaram (accommodations-queue.ts).
  */
-const LARGURA_PARA_QUATRO = 760;
+import { BedDouble, TriangleAlert, ArrowLeftRight, CheckCircle2 } from "lucide-react";
+import { FilaDeTrabalho } from "@/components/common/fila-de-trabalho";
+import { DIAS_DE_ATRASO, DIAS_DE_URGENCIA, type BlocoDaFila, type ResumoDaFila } from "./accommodations-queue";
 
 function plural(n: number, um: string, varios: string) {
   return `${n} ${n === 1 ? um : varios}`;
@@ -45,63 +26,30 @@ export default function AccommodationsWorkQueue({ resumo, ativo, onEscolher }: {
   ativo: BlocoDaFila | null;
   onEscolher: (b: BlocoDaFila | null) => void;
 }) {
-  const { ref, largura } = useLarguraUtil<HTMLElement>();
-  // Antes da primeira medição assume o desktop: piscar 2×2 e saltar para 4 é
-  // pior que assumir o caso comum e corrigir uma vez.
-  const emQuatro = largura === null || largura >= LARGURA_PARA_QUATRO;
-
-  const sub: Record<BlocoDaFila, string> = {
-    reservar: "sem hotel registrado",
-    urgente: "chegam nesta semana ou atrasadas",
-    troca: "aguardando análise",
-    registradas: resumo.registradas === 0
-      ? "nenhuma reserva ainda"
-      : `${plural(resumo.hoteisDistintos, "hotel", "hotéis")} · ${plural(resumo.diarias, "diária", "diárias")}`,
-  };
+  const registradasSub = resumo.registradas === 0
+    ? "nenhuma reserva ainda"
+    : `${plural(resumo.hoteisDistintos, "hotel", "hotéis")} · ${plural(resumo.diarias, "diária", "diárias")}`;
 
   return (
-    <section
-      ref={ref}
-      aria-label="Fila de trabalho da hospedagem"
-      className={`grid rounded-xl border border-border bg-card overflow-hidden ${emQuatro ? "grid-cols-4" : "grid-cols-2"}`}
-    >
-      {BLOCOS.map(({ key, label, icone: Icone, cor }, i) => {
-        const n = resumo[key];
-        const on = ativo === key;
-        // Em 2×2 a borda esquerda cai nos ímpares e a de cima na segunda linha,
-        // senão sobra um traço solto na borda do card.
-        const divisorias = emQuatro
-          ? "border-l border-border first:border-l-0"
-          : `${i % 2 === 1 ? "border-l border-border" : ""} ${i >= 2 ? "border-t border-border" : ""}`;
-
-        return (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={on}
-            // Reclicar o bloco ativo desliga o filtro: uma fila que só liga vira
-            // uma armadilha de mão única.
-            onClick={() => onEscolher(on ? null : key)}
-            className={`min-w-0 text-left px-4 py-[13px] border-b-2 transition-colors ${divisorias} ${
-              on ? "bg-background border-b-primary" : "border-b-transparent hover:bg-background"
-            }`}
-            data-testid={`fila-${key}`}
-          >
-            <span className="flex items-center gap-[7px]">
-              <Icone className="w-[15px] h-[15px] shrink-0" style={{ color: cor }} aria-hidden="true" />
-              <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate" title={label}>
-                {label}
-              </span>
-            </span>
-            <span className="flex items-baseline gap-[7px] mt-1.5">
-              <span className={`text-xl font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-muted-foreground" : "text-foreground"}`}>
-                {n}
-              </span>
-              <span className="text-xs text-muted-foreground truncate" title={sub[key]}>{sub[key]}</span>
-            </span>
-          </button>
-        );
-      })}
-    </section>
+    <FilaDeTrabalho<BlocoDaFila>
+      rotulo="Fila de trabalho da hospedagem"
+      ativa={ativo}
+      onEscolher={onEscolher}
+      testid={(k) => `fila-${k}`}
+      blocos={[
+        // Uma cor por significado — a mesma da pílula de situação correspondente.
+        { key: "reservar", rotulo: "Reservar", n: resumo.reservar, sub: "sem hotel registrado", icone: BedDouble, cor: "text-warning-strong" },
+        {
+          key: "urgente", rotulo: "Urgente", n: resumo.urgente, sub: "chegam nesta semana", icone: TriangleAlert, cor: "text-danger-strong",
+          // A sub-linha curta cabe no bloco; a regra inteira fica no título.
+          titulo: `${resumo.urgente} sem hotel e com chegada entre ${DIAS_DE_ATRASO} dias atrás e ${DIAS_DE_URGENCIA} dias à frente`,
+        },
+        { key: "troca", rotulo: "Troca", n: resumo.troca, sub: "aguardando análise", icone: ArrowLeftRight, cor: "text-info-strong" },
+        {
+          key: "registradas", rotulo: "Registradas", n: resumo.registradas, sub: registradasSub, icone: CheckCircle2, cor: "text-success-strong",
+          titulo: `${resumo.registradas} com hotel registrado · ${registradasSub}`,
+        },
+      ]}
+    />
   );
 }

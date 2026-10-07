@@ -10,10 +10,16 @@
  * Agora o caminho é o inverso: marcar linhas na lista faz subir a barra, e o
  * formulário aparece na confirmação, junto da lista do que vai ser afetado.
  *
+ * 07/10 (redesenho): a barra de seleção é a MESMA de Passagens (escura, larga,
+ * no rodapé da lista, sobe ao aparecer); o diálogo ganhou a forma dos outros
+ * diálogos da família — campos de 36px, rótulos em caixa normal, data e hora
+ * lado a lado sem estourar a caixa, a lista de quem recebe com a contagem e o
+ * motivo do botão desabilitado dito embaixo dele.
+ *
  * **Nenhum campo do lote saiu**: hotel, localização, check-in e check-out com
  * hora e observações continuam todos aqui.
  */
-import { AlertCircle, BedDouble, Save, X } from "lucide-react";
+import { AlertCircle, BedDouble, CheckCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,17 +27,14 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import type { Collaborator, TeamInclusion } from "@shared/schema";
 import type { BatchDraft } from "./types";
-import { isCheckOutAfterCheckIn, toDateInput, toTitleCase } from "./utils";
+import { formatDate, isCheckOutAfterCheckIn, toDateInput, toTitleCase } from "./utils";
 import { RequiredMark } from "@/components/forms/required-mark";
 
-const INPUT = "h-10 bg-surface-muted border-border rounded-xl text-sm";
-const LBL = "text-2xs font-semibold text-muted-foreground uppercase tracking-tight";
+/** Rótulo dos campos — o mesmo do formulário do modal (e do de Passagens). */
+const LBL = "text-xs font-medium text-slate-600 mb-1.5 block";
+const OPCIONAL = "font-normal text-muted-foreground";
 
 /**
  * Barra `sticky` no rodapé da lista, visível só com linhas marcadas.
@@ -50,35 +53,41 @@ export function BatchSelectionBar({ selectedCount, canEdit, applying, onClear, o
   const plural = selectedCount === 1 ? "hospedagem selecionada" : "hospedagens selecionadas";
 
   return (
-    <div
-      className="sticky bottom-4 z-30 mx-auto w-fit max-w-full flex items-center gap-3 h-[38px] px-3 rounded-xl bg-slate-900 text-white shadow-3"
-      role="region"
-      aria-label="Ações da seleção"
-      data-testid="barra-selecao-lote"
-    >
-      <span className="text-sm font-medium tabular-nums whitespace-nowrap">
-        {selectedCount} {plural}
-      </span>
-      <button
-        type="button"
-        onClick={onClear}
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-white transition-colors whitespace-nowrap"
-        data-testid="button-clear-selection"
-      >
-        <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar seleção
-      </button>
-      {canEdit && (
-        <button
-          type="button"
-          onClick={onApply}
-          disabled={applying}
-          className="h-[28px] px-3 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 transition-colors whitespace-nowrap"
-          data-testid="button-apply-to-selected"
-        >
-          <BedDouble className="w-3.5 h-3.5" aria-hidden="true" />
-          {applying ? "Aplicando…" : `Aplicar o mesmo hotel (${selectedCount})`}
-        </button>
-      )}
+    <div className="sticky bottom-3 z-20 pas-sobe" role="region" aria-label="Ações da seleção" data-testid="barra-selecao-lote">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-foreground text-background shadow-3 pl-4 pr-2 py-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2">
+            <p className="m-0 text-sm font-semibold tabular-nums" aria-live="polite">
+              {selectedCount} {plural}
+            </p>
+            <button
+              type="button"
+              onClick={onClear}
+              className="inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-xs font-medium text-background/75 hover:bg-background/10 hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
+              data-testid="button-clear-selection"
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar seleção
+            </button>
+          </div>
+          {canEdit && (
+            <p className="m-0 hidden lg:block text-2xs leading-4 text-background/65 truncate">
+              O mesmo hotel vai para todas as vagas marcadas. Datas em branco usam o período de trabalho de cada uma.
+            </p>
+          )}
+        </div>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={applying}
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60 shrink-0"
+            data-testid="button-apply-to-selected"
+          >
+            {applying ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <BedDouble className="w-4 h-4" aria-hidden="true" />}
+            {applying ? "Aplicando…" : `Aplicar o mesmo hotel (${selectedCount})`}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -109,6 +118,7 @@ export function BatchConfirmDialog({
   // Hotel e localização são os dois campos que o servidor exige; sem eles o
   // botão fica desabilitado em vez de deixar o usuário descobrir no erro.
   const podeAplicar = !!draft.hotelName && !!draft.hotelLocation && datasOk && n > 0 && !applying;
+  const faltando = [!draft.hotelName && "o nome do hotel", !draft.hotelLocation && "a localização"].filter(Boolean) as string[];
 
   // Conflito de período: a data escolhida para todos não cobre o período de
   // trabalho de alguém. É aviso, não impedimento — às vezes é intencional.
@@ -121,9 +131,9 @@ export function BatchConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[560px] rounded-xl" data-testid="dialog-batch-confirm">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-black text-foreground">
+      <DialogContent className="max-w-[580px] gap-0 p-0 overflow-hidden max-sm:w-full max-sm:max-w-none max-sm:h-[100dvh] max-sm:rounded-none max-sm:border-0 flex flex-col max-h-[92vh] max-sm:max-h-none" data-testid="dialog-batch-confirm">
+        <DialogHeader className="text-left px-5 sm:px-6 pt-5 pb-4 pr-12 border-b border-border">
+          <DialogTitle className="text-base font-semibold text-foreground">
             Aplicar a {n} {n === 1 ? "hospedagem" : "hospedagens"}?
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
@@ -131,80 +141,90 @@ export function BatchConfirmDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 [scrollbar-width:thin]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
               <Label htmlFor="batch-hotel-name" className={LBL}>Nome do hotel<RequiredMark /></Label>
-              <Input id="batch-hotel-name" placeholder="Hotel Copacabana" value={draft.hotelName || ""}
-                onChange={(e) => onChange("hotelName", e.target.value)} className={INPUT} data-testid="input-quick-hotel-name" />
+              <Input id="batch-hotel-name" placeholder="Ex.: Hotel Copacabana" value={draft.hotelName || ""} autoComplete="off"
+                onChange={(e) => onChange("hotelName", e.target.value)} data-testid="input-quick-hotel-name" />
             </div>
-            <div className="space-y-1.5">
+            <div>
               <Label htmlFor="batch-hotel-location" className={LBL}>Localização<RequiredMark /></Label>
-              <Input id="batch-hotel-location" placeholder="Rio de Janeiro, RJ" value={draft.hotelLocation || ""}
-                onChange={(e) => onChange("hotelLocation", e.target.value)} className={INPUT} data-testid="input-quick-hotel-location" />
+              <Input id="batch-hotel-location" placeholder="Ex.: Rio de Janeiro, RJ" value={draft.hotelLocation || ""} autoComplete="off"
+                onChange={(e) => onChange("hotelLocation", e.target.value)} data-testid="input-quick-hotel-location" />
             </div>
           </div>
 
           {/* Datas do lote — opcionais: em branco, cada inclusão usa seu período de trabalho. */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className={LBL}>Check-in <span className="text-muted-foreground normal-case">(opcional)</span></Label>
-              <div className="grid grid-cols-[1fr_110px] gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <fieldset className="m-0 p-0 border-0 min-w-0">
+              <legend className={LBL}>Check-in <span className={OPCIONAL}>(opcional)</span></legend>
+              <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
                 <Input type="date" aria-label="Data de check-in do lote" value={draft.checkInDate || ""}
-                  onChange={(e) => onChange("checkInDate", e.target.value)} className={INPUT} data-testid="input-quick-checkin-date" />
+                  onChange={(e) => onChange("checkInDate", e.target.value)} data-testid="input-quick-checkin-date" />
                 <Input type="time" aria-label="Hora de check-in do lote" value={draft.checkInTime || ""}
-                  onChange={(e) => onChange("checkInTime", e.target.value)} className={INPUT} data-testid="input-quick-checkin-time" />
+                  onChange={(e) => onChange("checkInTime", e.target.value)} data-testid="input-quick-checkin-time" />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className={LBL}>Check-out <span className="text-muted-foreground normal-case">(opcional)</span></Label>
-              <div className="grid grid-cols-[1fr_110px] gap-2">
+            </fieldset>
+            <fieldset className="m-0 p-0 border-0 min-w-0">
+              <legend className={LBL}>Check-out <span className={OPCIONAL}>(opcional)</span></legend>
+              <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
                 <Input type="date" aria-label="Data de check-out do lote" min={draft.checkInDate || undefined} value={draft.checkOutDate || ""}
-                  onChange={(e) => onChange("checkOutDate", e.target.value)} className={INPUT} data-testid="input-quick-checkout-date" />
+                  aria-invalid={!datasOk || undefined}
+                  className={!datasOk ? "border-danger-strong focus-visible:ring-danger/25" : undefined}
+                  onChange={(e) => onChange("checkOutDate", e.target.value)} data-testid="input-quick-checkout-date" />
                 <Input type="time" aria-label="Hora de check-out do lote" value={draft.checkOutTime || ""}
-                  onChange={(e) => onChange("checkOutTime", e.target.value)} className={INPUT} data-testid="input-quick-checkout-time" />
+                  onChange={(e) => onChange("checkOutTime", e.target.value)} data-testid="input-quick-checkout-time" />
               </div>
-            </div>
+            </fieldset>
           </div>
 
           {!datasOk && (
-            <p className="text-xs text-danger flex items-center gap-1.5" role="alert">
+            <p className="m-0 -mt-1 text-xs text-danger-strong flex items-center gap-1.5" role="alert">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> O check-out deve ser igual ou posterior ao check-in.
             </p>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="batch-observations" className={LBL}>Observações <span className="text-muted-foreground normal-case">(opcional)</span></Label>
-            <Textarea id="batch-observations" placeholder="Informações adicionais…" value={draft.accommodationObservations || ""}
-              onChange={(e) => onChange("accommodationObservations", e.target.value)}
-              className="text-sm resize-none bg-surface-muted border-border rounded-xl h-[64px]" data-testid="textarea-quick-accommodation-observations" />
-          </div>
-
           {(!draft.checkInDate || !draft.checkOutDate) && (
-            <p className="text-xs text-primary bg-brand-soft rounded-xl px-3 py-2">
+            <p className="m-0 text-xs text-slate-600 leading-relaxed">
               As datas em branco usam o período de trabalho de cada inclusão.
             </p>
           )}
 
           {comConflito.length > 0 && (
-            <p className="text-xs text-warning bg-warning-soft rounded-xl px-3 py-2" role="alert">
+            <p className="pas-entra m-0 flex items-start gap-2 text-xs text-warning bg-warning-soft rounded-lg px-3 py-2" role="alert">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px text-warning-strong" aria-hidden="true" />
               {comConflito.length === 1
                 ? "1 pessoa começa a trabalhar antes deste check-in — ela fica sem hotel na primeira noite."
                 : `${comConflito.length} pessoas começam a trabalhar antes deste check-in — ficam sem hotel na primeira noite.`}
             </p>
           )}
 
-          <div className="rounded-xl border border-border overflow-hidden">
-            <p className="px-3 py-2 bg-surface-muted text-2xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
-              Vai ser aplicado a
+          <div>
+            <Label htmlFor="batch-observations" className={LBL}>Observações <span className={OPCIONAL}>(opcional)</span></Label>
+            <Textarea id="batch-observations" placeholder="Informações adicionais…" value={draft.accommodationObservations || ""}
+              onChange={(e) => onChange("accommodationObservations", e.target.value)}
+              className="text-sm resize-none h-[72px]" data-testid="textarea-quick-accommodation-observations" />
+          </div>
+
+          <div>
+            <p className="m-0 mb-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Vai ser aplicado a ({n})
             </p>
-            <ul className="max-h-[132px] overflow-y-auto divide-y divide-border" data-testid="lista-do-lote">
+            <ul className="m-0 p-0 list-none max-h-[148px] overflow-y-auto rounded-xl border border-border divide-y divide-border [scrollbar-width:thin]" data-testid="lista-do-lote">
               {inclusoes.map((i) => {
                 const c = i.collaboratorId ? collaboratorById.get(i.collaboratorId) : undefined;
+                const inicio = toDateInput(i.scheduleStartDate);
+                const fim = toDateInput(i.scheduleEndDate);
                 return (
                   <li key={i.id} className="px-3 py-1.5 text-sm text-slate-700 flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground tabular-nums shrink-0">#{i.inclusionNumber}</span>
-                    <span className="truncate">{toTitleCase(c?.fullName) || "Sem colaborador"}</span>
+                    <span className="text-2xs font-mono font-semibold text-primary tabular-nums shrink-0">#{i.inclusionNumber}</span>
+                    <span className="truncate min-w-0 flex-1">{toTitleCase(c?.fullName) || "Sem colaborador"}</span>
+                    {(inicio || fim) && (
+                      <span className="text-2xs text-muted-foreground tabular-nums shrink-0" title="Período de trabalho da escala">
+                        {inicio ? formatDate(inicio).slice(0, 5) : "—"} → {fim ? formatDate(fim).slice(0, 5) : "—"}
+                      </span>
+                    )}
                   </li>
                 );
               })}
@@ -212,29 +232,35 @@ export function BatchConfirmDialog({
           </div>
         </div>
 
-        <DialogFooter className="sm:justify-between">
+        <DialogFooter className="px-5 sm:px-6 py-3 border-t border-border bg-surface-muted flex-row flex-wrap items-center gap-2 sm:justify-between sm:space-x-0">
+          {/* Por que o "Confirmar" está apagado — dito ao lado dele, não descoberto no erro. */}
+          {!podeAplicar && !applying && faltando.length > 0 && (
+            <p className="m-0 w-full text-right text-2xs text-muted-foreground" aria-live="polite" data-testid="lote-falta">
+              Falta {faltando.join(" e ")} para aplicar.
+            </p>
+          )}
           <Button
             variant="ghost"
-            className="rounded-xl text-muted-foreground hover:text-slate-700"
+            className="h-9 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:text-slate-700"
             onClick={onClearDraft}
             disabled={rascunhoVazio}
             data-testid="button-clear-quick"
           >
             Limpar campos
           </Button>
-          <div className="flex items-center gap-2">
-          <Button variant="outline" className="rounded-xl" onClick={() => onOpenChange(false)} data-testid="button-cancel-batch">
-            Cancelar
-          </Button>
-          <Button
-            onClick={onConfirm}
-            disabled={!podeAplicar}
-            className="rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground disabled:opacity-50"
-            data-testid="button-confirm-batch"
-          >
-            <Save className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            {applying ? "Aplicando…" : "Confirmar e aplicar"}
-          </Button>
+          <div className="flex items-center gap-2 ml-auto">
+            <Button variant="outline" className="h-9 rounded-lg px-4 text-sm font-medium" onClick={() => onOpenChange(false)} data-testid="button-cancel-batch">
+              Cancelar
+            </Button>
+            <Button
+              onClick={onConfirm}
+              disabled={!podeAplicar}
+              className="h-9 rounded-lg px-4 text-sm font-semibold bg-primary hover:bg-primary-hover text-primary-foreground"
+              data-testid="button-confirm-batch"
+            >
+              {applying ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" /> : <CheckCircle className="w-4 h-4 mr-1.5" aria-hidden="true" />}
+              {applying ? "Aplicando…" : "Confirmar e aplicar"}
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -261,32 +287,32 @@ export function BatchResultDialog({ resultado, onClose }: {
   const houveFalha = (resultado?.falhas.length ?? 0) > 0;
 
   return (
-    <AlertDialog open={aberto} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <AlertDialogContent className="max-w-[460px] rounded-xl" data-testid="dialog-batch-result">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="text-lg font-black text-foreground">
-            {houveFalha ? "Lote concluído com falhas" : "Lote concluído"}
-          </AlertDialogTitle>
-          <AlertDialogDescription className="text-sm text-muted-foreground">
+    <Dialog open={aberto} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-[480px]" data-testid="dialog-batch-result">
+        <DialogHeader className="text-left">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+            {houveFalha
+              ? <><AlertCircle className="w-5 h-5 text-warning-strong" aria-hidden="true" /> Lote concluído com falhas</>
+              : <><CheckCircle className="w-5 h-5 text-success-strong" aria-hidden="true" /> Lote concluído</>}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
             {resultado?.registradas ?? 0} {resultado?.registradas === 1 ? "hospedagem registrada" : "hospedagens registradas"}
             {houveFalha ? ` · ${resultado!.falhas.length} ${resultado!.falhas.length === 1 ? "falha" : "falhas"}` : ""}.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
+          </DialogDescription>
+        </DialogHeader>
 
         {houveFalha && (
-          <ul className="max-h-[180px] overflow-y-auto rounded-xl border border-danger/25 bg-danger-soft divide-y divide-danger/25" data-testid="lista-falhas-lote">
-            {resultado!.falhas.map((f, i) => (
-              <li key={i} className="px-3 py-1.5 text-xs text-danger">{f}</li>
-            ))}
+          <ul className="m-0 max-h-48 overflow-y-auto bg-danger-soft rounded-xl py-2.5 pr-3 text-xs text-danger space-y-1 list-disc pl-7" data-testid="lista-falhas-lote">
+            {resultado!.falhas.map((f, i) => <li key={i}>{f}</li>)}
           </ul>
         )}
 
-        <AlertDialogFooter>
-          <AlertDialogAction className="w-full rounded-xl bg-primary hover:bg-primary-hover" data-testid="button-batch-result-ok">
+        <div className="flex justify-end">
+          <Button onClick={onClose} className="h-9 bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg px-5" data-testid="button-batch-result-ok">
             OK
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

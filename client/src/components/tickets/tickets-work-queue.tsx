@@ -19,6 +19,7 @@
  */
 import { ShoppingCart, Clock, ArrowLeftRight, CheckCircle2 } from "lucide-react";
 import { formatBrl, type TicketsData } from "./use-tickets-data";
+import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
 
 /** Qual bloco está ativo — deriva dos filtros, não é estado novo. */
 export type FilaDePassagens = "comprar" | "sem-chegada" | "troca" | "compradas" | null;
@@ -46,14 +47,9 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
   ativa: FilaDePassagens;
   onEscolher: (k: FilaDePassagens) => void;
 }) {
-  const blocos: {
-    key: Exclude<FilaDePassagens, null>;
-    rotulo: string;
-    n: number;
-    sub: string;
-    /** O que o cartão antigo dizia e não cabe na sub-linha. */
-    titulo?: string;
-  }[] = [
+  type Chave = Exclude<FilaDePassagens, null>;
+  // `titulo`: o que o cartão antigo dizia e não cabe na sub-linha.
+  const blocos: Omit<BlocoDaFilaDeTrabalho<Chave>, "icone" | "cor">[] = [
     { key: "comprar", rotulo: "Comprar", n: kpis.aguardando, sub: "sem passagem registrada" },
     { key: "sem-chegada", rotulo: "Sem chegada", n: kpis.semChegada, sub: "horário não informado" },
     ...(mostrarTrocas
@@ -79,54 +75,14 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
     },
   ];
 
+  // Desenho compartilhado com a Hospedagem (07/10) — as mesmas classes de antes.
   return (
-    <section
-      aria-label="Fila de trabalho das passagens"
-      className="grid grid-cols-2 sm:flex rounded-xl border border-border bg-card overflow-hidden"
-    >
-      {blocos.map(({ key, rotulo, n, sub, titulo }, idx) => {
-        const Icone = ICONE[key];
-        const on = ativa === key;
-        return (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={on}
-            title={titulo ?? `${n} ${sub}`}
-            // Reclicar o bloco ativo desliga o filtro: uma fila que só liga
-            // vira armadilha de mão única.
-            onClick={() => onEscolher(on ? null : key)}
-            className={[
-              "group relative flex flex-col justify-start flex-1 min-w-0 text-left px-3.5 pt-2.5 pb-3 transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
-              // Divisórias: na grade 2 × 2 do celular, só entre colunas e entre fileiras.
-              idx % 2 === 1 ? "border-l border-border" : "",
-              idx >= 2 ? "border-t border-border sm:border-t-0" : "",
-              idx > 0 ? "sm:border-l sm:border-border" : "",
-              // Sem o bloco de trocas sobram três: o último ocupa a fileira toda.
-              blocos.length % 2 === 1 && idx === blocos.length - 1 ? "col-span-2 border-l-0" : "",
-              on ? "bg-brand-soft" : "hover:bg-surface-muted",
-            ].join(" ")}
-            data-testid={`fila-passagens-${key}`}
-          >
-            {/* Filete da ativa: cresce do centro (a mesma microinteração da Escalação). */}
-            <span
-              aria-hidden="true"
-              className={`absolute inset-x-0 bottom-0 h-0.5 bg-primary transition-transform duration-200 ease-out motion-reduce:transition-none ${on ? "scale-x-100" : "scale-x-0"}`}
-            />
-            <span className="flex items-center gap-1.5">
-              <Icone className={`w-3.5 h-3.5 shrink-0 ${COR[key]}`} aria-hidden="true" />
-              <span className={`text-xs font-medium truncate ${on ? "text-primary" : "text-slate-600"}`}>{rotulo}</span>
-            </span>
-            <span className="flex flex-wrap items-baseline gap-x-1.5 mt-1">
-              <span className={`text-xl leading-6 font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-muted-foreground" : "text-foreground"}`}>
-                {n}
-              </span>
-              <span className="min-w-0 text-2xs sm:text-xs text-muted-foreground truncate">{sub}</span>
-            </span>
-          </button>
-        );
-      })}
-    </section>
+    <FilaDeTrabalho<Chave>
+      rotulo="Fila de trabalho das passagens"
+      blocos={blocos.map((b) => ({ ...b, icone: ICONE[b.key], cor: COR[b.key] }))}
+      ativa={ativa}
+      onEscolher={onEscolher}
+      testid={(k) => `fila-passagens-${k}`}
+    />
   );
 }

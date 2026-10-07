@@ -451,3 +451,28 @@
 .pas-cartao .pas-local { white-space: normal; }
 /* A busca tem o próprio "limpar" — o X nativo do navegador ficava duplicado. */
 .pas-busca::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+/* ══ Hospedagem (hos-) — redesenho 07/10 ═══════════════════════════════════
+ * A Hospedagem usa as MESMAS classes de Passagens (pas-tabela, pas-cabecalho,
+ * pas-linha, pas-cartao, pas-osso…) — é a mesma família. Aqui só o que é dela:
+ * as duas células próprias no cartão do celular/tablet, Estadia e Hotel, nas
+ * posições da Viagem e da Sugestão de Passagens:
+ *   [☐ #ID  situação ............ ações]
+ *   [hóspede                           ]
+ *   [evento + local    | função        ]
+ *   [estadia           | hotel         ]                                      */
+.hos-cartao td[data-col="estadia"] { order: 8; flex: 0 0 58%; min-width: 0; white-space: normal; }
+.hos-cartao td[data-col="hotel"] { order: 9; flex: 0 0 42%; min-width: 0; }
+.hos-cartao td[data-col="estadia"]::before,
+.hos-cartao td[data-col="hotel"]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+/* No cartão o hotel tem largura própria: o nome volta a quebrar em vez de cortar. */
+.hos-cartao td[data-col="hotel"] .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
