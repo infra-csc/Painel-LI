@@ -687,3 +687,65 @@
   .evt-linha, .evt-abrir, .evt-cartao, .evt-chip, .evt-linha .evt-acao { transition: none; }
   .evt-chip:hover { transform: none; }
 }
+
+/* ══ Colaboradores (col-) — redesenho 07/10 ════════════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
+ * pas-rolagem-x, pas-alvo, FilaDeTrabalho, BuscaDaLista). Aqui só o que é
+ * dela: a linha/cartão inteiro que abre a ficha (o ::after do nome cobre a
+ * linha), as ações discretas até o hover, o inativo esmaecido, o cabeçalho
+ * da tabela grudado e as microinterações. */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px) — só onde a tabela cabe
+   sem rolar de lado: um contêiner que rola prenderia o `sticky` dentro dele. */
+@media (min-width: 1024px) {
+  .col-moldura { overflow: clip; }
+  .col-moldura .col-rolagem { overflow-x: clip; }
+  .col-tabela > thead > tr > th {
+    position: sticky;
+    top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+    z-index: 2;
+    background: var(--surface-muted);
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+}
+
+/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
+.col-linha, .col-cartao { position: relative; }
+.col-linha { transition: background-color 120ms ease; }
+.col-linha:hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.col-abrir::after { content: ""; position: absolute; inset: 0; }
+.col-cartao .col-abrir::after { border-radius: 0.75rem; }
+.col-abrir { transition: color 120ms ease; }
+.col-linha:hover .col-abrir, .col-cartao:hover .col-abrir { color: var(--primary); }
+/* Foco do teclado: o contorno vai na linha/cartão inteiro, não só no nome. */
+.col-linha:has(.col-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.col-cartao:has(.col-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.col-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.col-cartao:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+
+/* Ações: à vista, discretas até a linha ser apontada ("Aprovar" fica inteiro). */
+.col-linha .col-acao:not(.col-aprovar) { opacity: .65; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.col-linha:hover .col-acao, .col-acao:focus-visible { opacity: 1; }
+.col-aprovar { transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease; }
+.col-aprovar:active:not(:disabled) { transform: scale(.97); }
+@media (pointer: coarse) { .col-linha .col-acao { opacity: 1; } }
+
+/* Inativo: esmaecido, mas a situação e as ações (Reativar) continuam legíveis. */
+.col-linha.col-inativa > td.col-esmaece { opacity: .62; }
+.col-cartao.col-inativa > :not(:last-child) { opacity: .7; }
+
+/* Tipo de vínculo (segmentado): a marca desliza de opção em opção. */
+.col-segmento { transition: background-color 140ms ease, color 140ms ease; }
+
+/* Ficha que acabou de abrir / trocar de pessoa; aviso de campo que apareceu. */
+@keyframes col-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.col-entra { animation: col-entra 180ms ease-out both; }
+
+/* Grupo do formulário de cadastro: a borda acende quando ele tem pendência. */
+.col-secao { transition: border-color 160ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .col-entra { animation: none; }
+  .col-linha, .col-abrir, .col-cartao, .col-linha .col-acao, .col-aprovar, .col-segmento, .col-secao { transition: none; }
+  .col-aprovar:active:not(:disabled) { transform: none; }
+}

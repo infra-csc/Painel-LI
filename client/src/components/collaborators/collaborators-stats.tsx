@@ -1,34 +1,39 @@
 /**
- * Cartões de contagem dos Colaboradores (25/09 — extraídos de pages/collaborator-management.tsx).
+ * Faixa de situação dos Colaboradores (07/10 — no lugar dos cinco cartões de
+ * contagem, extraídos de pages/collaborator-management.tsx em 25/09).
+ *
+ * A mesma peça da Hospedagem e de Passagens (`common/fila-de-trabalho`): cada
+ * bloco conta E filtra a lista pela situação; reclicar desliga. Os números
+ * respeitam o tipo e a busca atuais — o que o bloco promete é o que a lista
+ * mostra. Total, freelancers, casa e local (os outros cartões) foram para o
+ * resumo da barra da tela e para o seletor de tipo, com o número de cada um.
  */
-import { Clock, Home, IdCard, ShieldCheck, Users } from "lucide-react";
+import { Ban, Clock, ShieldCheck, XCircle } from "lucide-react";
+import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
 import type { CollaboratorsList } from "./use-collaborators-list";
 
-export function CollaboratorsStats({ counts }: { counts: CollaboratorsList["counts"] }) {
-  const { totalCount, pendingCount, approvedCount, freelaCount, casaCount } = counts;
-  const cards = [
-    { label: "Total",      value: totalCount,    stripe: "bg-slate-700",   icon: Users,          iconBg: "bg-muted", iconTx: "text-slate-600", valTx: "var(--foreground)" },
-    { label: "Aprovados",  value: approvedCount, stripe: "bg-success-strong", icon: ShieldCheck,     iconBg: "bg-success-soft", iconTx: "text-success", valTx: "var(--success)" },
-    { label: "Pendentes",  value: pendingCount,  stripe: "bg-warning-strong",   icon: Clock,          iconBg: "bg-warning-soft",  iconTx: "text-warning-strong", valTx: "var(--warning)" },
-    { label: "Freelancers", value: freelaCount,  stripe: "bg-primary",    icon: IdCard,         iconBg: "bg-brand-soft",   iconTx: "text-primary",  valTx: "var(--primary)" },
-    { label: "Casa",       value: casaCount,     stripe: "bg-primary",  icon: Home,           iconBg: "bg-brand-soft", iconTx: "text-primary", valTx: "var(--primary)" },
+type Situacao = "pendente" | "aprovado" | "rejeitado" | "inativo";
+
+export function CollaboratorsStats({ porStatus, ativa, onEscolher }: {
+  porStatus: CollaboratorsList["porStatus"];
+  /** Situação filtrada agora (`all` = nenhuma). */
+  ativa: string;
+  onEscolher: (status: string) => void;
+}) {
+  const blocos: BlocoDaFilaDeTrabalho<Situacao>[] = [
+    { key: "pendente",  rotulo: "Pendentes",  n: porStatus.pendente,  sub: "aguardando aprovação", icone: Clock,       cor: "text-warning-strong", titulo: "Cadastros esperando aprovação ou rejeição" },
+    { key: "aprovado",  rotulo: "Aprovados",  n: porStatus.aprovado,  sub: "cadastros liberados",  icone: ShieldCheck, cor: "text-success",        titulo: "Cadastros aprovados (ativos e inativos)" },
+    { key: "rejeitado", rotulo: "Rejeitados", n: porStatus.rejeitado, sub: "não entram na escala", icone: XCircle,     cor: "text-danger",         titulo: "Cadastros rejeitados na aprovação" },
+    { key: "inativo",   rotulo: "Inativos",   n: porStatus.inativo,   sub: "fora das escalações",  icone: Ban,         cor: "text-muted-foreground", titulo: "Inativados — não aparecem nas escalações, mas seguem no histórico" },
   ];
+  const situacaoAtiva = (["pendente", "aprovado", "rejeitado", "inativo"] as const).find(k => k === ativa) ?? null;
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-      {cards.map(card => (
-        <div key={card.label} className="bg-card rounded-xl border border-border shadow-1 overflow-hidden">
-          <div className={`h-1 w-full ${card.stripe}`} />
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconTx}`}>
-                <card.icon className="h-4 w-4" aria-hidden="true" />
-              </div>
-            </div>
-            <p className="text-2xs font-bold tracking-widest text-muted-foreground uppercase mb-0.5">{card.label}</p>
-            <p className="text-2xl font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
-          </div>
-        </div>
-      ))}
-    </div>
+    <FilaDeTrabalho
+      blocos={blocos}
+      ativa={situacaoAtiva}
+      onEscolher={(k) => onEscolher(k ?? "all")}
+      rotulo="Situação dos cadastros"
+      testid={(k) => `col-fila-${k}`}
+    />
   );
 }
