@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plane, BedDouble, Loader2, Save, Luggage } from "lucide-react";
+import { Plane, BedDouble, Loader2, Save, Luggage, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Ticket, Accommodation } from "@shared/schema";
 import type { MirrorRow } from "@shared/operational-mirror-types";
@@ -146,6 +146,13 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
   // impossibilitando informar centavos. A conversão acontece só no salvamento.
   const [draft, setDraft] = useState<Record<string, string | boolean>>({});
   const [saving, setSaving] = useState(false);
+  /**
+   * Trocar de aba ou fechar com campos mexidos descartava tudo calado (07/10).
+   * Agora a ação fica em espera e o rodapé pergunta — sem diálogo dentro de
+   * drawer: "Descartar e sair" ou "Continuar editando".
+   */
+  const [emEspera, setEmEspera] = useState<{ rotulo: string; acao: () => void } | null>(null);
+  useEffect(() => { if (!open) setEmEspera(null); }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -209,6 +216,23 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
     if (String(a) !== String(next)) alterados.add(f.field);
   }
 
+  const seguirOuPerguntar = (rotulo: string, acao: () => void) => {
+    if (alterados.size === 0 || saving) { acao(); return; }
+    setEmEspera({ rotulo, acao });
+  };
+  const trocarAba = (chave: DrawerKind) => {
+    if (chave === aba) return;
+    const destino = ABAS.find((x) => x.chave === chave)?.rotulo ?? "";
+    seguirOuPerguntar(`Ir para ${destino}`, () => { setEmEspera(null); setAba(chave); });
+  };
+  const fechar = () => seguirOuPerguntar("Fechar", () => { setEmEspera(null); onOpenChange(false); });
+
+  // Check-out antes do check-in: avisado no próprio campo, enquanto se digita
+  // (o toast continua no Salvar — é ele que impede gravar).
+  const ci = String(draft["accommodation.checkInDate"] ?? "").trim();
+  const co = String(draft["accommodation.checkOutDate"] ?? "").trim();
+  const datasInvalidas = aba === "accommodation" && !!ci && !!co && co < ci;
+
   const abaAtual = ABAS.find((a) => a.chave === aba) ?? ABAS[0];
   const Icone = abaAtual.Icone;
   const tomIcone = abaAtual.tom;
@@ -223,9 +247,10 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
   }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
-      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col gap-0">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b space-y-0 text-left">
+    <Sheet open={open} onOpenChange={(o) => { if (saving) return; if (o) onOpenChange(o); else fechar(); }}>
+      <SheetContent className="w-full sm:max-w-[520px] p-0 flex flex-col gap-0">
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => { e.preventDefault(); if (alterados.size > 0) void handleSave(); }}>
+        <SheetHeader className="px-6 pt-5 pb-0 border-b space-y-0 text-left">
           <div className="flex items-start gap-3">
             <span className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tomIcone}`}>
               <Icone className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -233,10 +258,10 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
             <div className="min-w-0">
               {/* O nome manda: é a pessoa que se edita, e as abas dizem o quê. */}
               <SheetTitle className="text-base leading-tight truncate">{rowName || "Colaborador"}</SheetTitle>
-              <SheetDescription>{abaAtual.rotulo}</SheetDescription>
+              <SheetDescription className="text-xs">{abaAtual.rotulo} · o que mudar aqui vai para a grade</SheetDescription>
             </div>
           </div>
-          <div className="mt-3 -mb-4 flex gap-1" role="tablist" aria-label="Blocos da pessoa">
+          <div className="mt-3 flex gap-1" role="tablist" aria-label="Blocos da pessoa">
             {ABAS.map((a) => (
               <button
                 key={a.chave}
@@ -244,8 +269,8 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                 role="tab"
                 aria-selected={aba === a.chave}
                 disabled={saving}
-                onClick={() => setAba(a.chave)}
-                className={`h-[34px] border-b-2 px-3 text-sm transition-colors disabled:opacity-60 ${
+                onClick={() => trocarAba(a.chave)}
+                className={`-mb-px h-[38px] border-b-2 px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-60 ${
                   aba === a.chave ? "border-primary font-semibold text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
               >
                 {a.rotulo}
@@ -254,11 +279,11 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div key={aba} className="pas-entra flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {secoes.map((sec) => (
             <section key={sec.nome || "geral"}>
               {sec.nome && (
-                <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                <h3 className="mb-3 flex items-center gap-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground after:h-px after:flex-1 after:bg-border">
                   {sec.nome}
                 </h3>
               )}
@@ -266,6 +291,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                 {sec.campos.map((f) => {
                   const inputId = `drawer-${f.field.replace(/\./g, "-")}`;
                   const mudou = alterados.has(f.field);
+                  const invalido = datasInvalidas && f.field === "accommodation.checkOutDate";
                   return (
                     <div key={f.field} className={f.span === 2 ? "col-span-2" : "col-span-1"}>
                       <Label htmlFor={inputId} className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
@@ -299,7 +325,8 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                           )}
                           <Input
                             id={inputId}
-                            className={`h-9 ${f.type === "money" ? "pl-9" : ""} ${mudou ? "border-primary/50" : ""}`}
+                            className={`h-9 ${f.type === "money" ? "pl-9" : ""} ${invalido ? "border-danger focus-visible:ring-danger/30" : mudou ? "border-primary/50 bg-brand-soft/40" : ""}`}
+                            aria-invalid={invalido || undefined}
                             type={f.type === "time" ? "time" : f.type === "date" ? "date" : f.type === "money" || f.type === "int" ? "number" : "text"}
                             step={f.type === "money" ? "0.01" : undefined}
                             inputMode={f.type === "money" ? "decimal" : f.type === "int" ? "numeric" : undefined}
@@ -309,6 +336,7 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
                           />
                         </div>
                       )}
+                      {invalido && <p className="mt-1 text-2xs font-medium leading-snug text-danger" role="alert">A saída não pode ser antes da entrada.</p>}
                       {f.hint && <p className="mt-1 text-2xs leading-snug text-muted-foreground">{f.hint}</p>}
                     </div>
                   );
@@ -318,18 +346,33 @@ export function EditDrawer({ open, onOpenChange, kind, rowId, rowName, source, o
           ))}
         </div>
 
-        <SheetFooter className="px-6 py-4 border-t bg-muted/30 flex-row items-center gap-3 sm:justify-between">
+        {emEspera ? (
+          <div className="pas-entra flex items-center gap-2 border-t border-warning/30 bg-warning-soft px-6 py-3" role="alertdialog" aria-label="Alterações não salvas">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <span className="mr-auto min-w-0 text-sm font-medium leading-tight text-warning">
+              {alterados.size} {alterados.size === 1 ? "alteração não salva" : "alterações não salvas"}
+              <span className="block text-2xs font-normal text-warning/90">{emEspera.rotulo} descarta o que mudou em {abaAtual.rotulo}.</span>
+            </span>
+            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => setEmEspera(null)} autoFocus>Continuar</Button>
+            <Button type="button" size="sm" variant="outline" className="shrink-0 border-warning/40 bg-card text-warning hover:bg-warning/10" onClick={() => emEspera.acao()}>
+              Descartar
+            </Button>
+          </div>
+        ) : (
+        <SheetFooter className="px-6 py-3.5 border-t bg-surface-muted flex-row items-center gap-2 sm:justify-between sm:space-x-0">
           <span className="text-xs text-muted-foreground mr-auto" aria-live="polite">
             {alterados.size === 0
               ? "Nenhuma alteração"
-              : `${alterados.size} ${alterados.size === 1 ? "campo alterado" : "campos alterados"}`}
+              : <span className="inline-flex items-center gap-1.5 font-medium text-primary"><span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />{`${alterados.size} ${alterados.size === 1 ? "campo alterado" : "campos alterados"}`}</span>}
           </span>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving || alterados.size === 0} data-testid="button-save-drawer">
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
+          <Button type="button" variant="ghost" onClick={fechar} disabled={saving}>Cancelar</Button>
+          <Button type="submit" disabled={saving || alterados.size === 0} data-testid="button-save-drawer">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
             {saving ? "Salvando…" : "Salvar"}
           </Button>
         </SheetFooter>
+        )}
+        </form>
       </SheetContent>
     </Sheet>
   );

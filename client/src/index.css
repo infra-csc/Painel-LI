@@ -555,3 +555,78 @@
   .apr-linha, .apr-linha .apr-abrir, .apr-kpi, .apr-kpi .apr-kpi-n { transition: none; }
   .apr-kpi:hover .apr-kpi-n { transform: none; }
 }
+
+/* ══ Espelho operacional (esp-) — redesenho 07/10 ══════════════════════════
+ * Uma planilha operacional: o que o Tailwind não diz bem é a geometria da
+ * grade (altura que acompanha a tela, linhas com borda em `border-separate`
+ * para o cabeçalho grudado manter as dele, sombra da coluna congelada) e os
+ * estados da célula (salvando/salvo/erro, foco de planilha). Esqueleto,
+ * entrada e "sobe" usam as classes `pas-` da família Passagens/Hospedagem. */
+
+/* Barra de trabalho: grudada abaixo da barra da tela (56px) a partir de md. */
+@media (min-width: 768px) {
+  .esp-ferramentas { top: calc(var(--sticky-top, 3.5rem) + 3.5rem); }
+}
+
+/* A grade ocupa o que sobra da tela abaixo das duas barras grudadas (barra da
+   tela 56 + barra de trabalho 52 + faixa "Ir para" e status ~72 + margem de
+   baixo da página 56): rolada até o fim, o cartão inteiro cabe entre a barra
+   de trabalho e o pé da tela — uma rolagem vertical só, a da grade. */
+.esp-grade-rolagem { max-height: calc(100dvh - var(--sticky-top, 3.5rem) - 3.5rem - 3.25rem - 4.5rem - 3.5rem); }
+
+/* Linhas: borda por célula (com border-separate a borda do <tr> não existe). */
+.esp-grade > tbody > tr > td { border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+.esp-grade > tbody > tr:last-child > td { border-bottom-color: transparent; }
+/* Hover da linha: um véu por cima do fundo (sombra interna), não um fundo
+   novo — assim o âmbar de "falta preencher" continua à vista e as colunas
+   congeladas continuam opacas por cima da grade que passa por baixo. */
+.esp-linha > td { transition: box-shadow 100ms ease; }
+.esp-linha:hover > td:not(.esp-erro) { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent); }
+.esp-linha:hover > td.esp-congelada { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+
+/* Coluna congelada: uma sombra curta diz que há grade passando por baixo. */
+.esp-congelada { box-shadow: 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+
+/* Foco de planilha: o contorno da célula selecionada, por dentro. */
+.esp-celula:focus { outline: none; }
+.esp-celula:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--primary), inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 6%, transparent); position: relative; z-index: 1; }
+
+/* Campo aberto na célula: borda de marca e uma sombra, acima das vizinhas. */
+.esp-campo { box-shadow: inset 0 0 0 2px var(--primary), 0 4px 12px -4px color-mix(in srgb, var(--primary) 35%, transparent); border-radius: 2px; }
+
+/* Salvo: o verde aparece e se desfaz (antes sumia de uma vez em 1,2 s). */
+@keyframes esp-salvo { 0% { background-color: color-mix(in srgb, var(--success-strong) 22%, var(--card)); } 100% { background-color: transparent; } }
+.esp-salvo { animation: esp-salvo 1.2s ease-out both; }
+
+/* Erro: fica até a próxima edição — vermelho por dentro e fundo de alerta. */
+.esp-erro { background-color: var(--danger-soft); box-shadow: inset 0 0 0 1.5px var(--danger-strong); }
+
+/* Segmento do placar: o número sobe 1px no hover (é um filtro, não um rótulo). */
+.esp-segmento .esp-segmento-n { transition: transform 140ms ease, color 140ms ease; }
+.esp-segmento:not(:disabled):hover .esp-segmento-n { transform: translateY(-1px); }
+
+/* Faixa que rola de lado sem barra visível (visões no celular). */
+.esp-rolagem-x { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.esp-rolagem-x::-webkit-scrollbar { display: none; }
+/* Abaixo de 1340px as visões podem não caber: a borda direita esmaece e diz "tem mais". */
+@media (max-width: 1339.98px) {
+  .esp-rolagem-x { -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent); mask-image: linear-gradient(to right, black calc(100% - 28px), transparent); }
+}
+
+/* Grupos (quartos, carros): o filete do grupo e a separação entre eles. */
+.esp-grupo > td:first-child { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }
+
+/* Toque: alvo mínimo de 44px nos controles pequenos; e o que só aparece no
+   hover (Mover, Tirar da roteirização) fica sempre à vista — no toque não há hover. */
+@media (pointer: coarse) {
+  .esp-alvo { min-height: 44px; min-width: 44px; }
+  .esp-revela { opacity: 1 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esp-salvo { animation: none; background-color: color-mix(in srgb, var(--success-strong) 12%, var(--card)); }
+  .esp-linha > td, .esp-segmento .esp-segmento-n { transition: none; }
+  .esp-segmento:not(:disabled):hover .esp-segmento-n { transform: none; }
+}
+/* Cartão de quarto/carro (tablet/celular): o mesmo filete do grupo. */
+.esp-grupo-cartao { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }

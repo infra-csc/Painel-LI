@@ -3,7 +3,7 @@
  * Navegação estilo planilha, estados de gravação e o rótulo humano de cada campo.
  */
 import { useState, useRef, useEffect } from "react";
-import { Loader2, Check, Pencil } from "lucide-react";
+import { Loader2, Check, Pencil, AlertCircle } from "lucide-react";
 import type { EstadoCelula } from "@shared/mirror-cell-state";
 import { brl, fmtDate, type CellType, type CellValue } from "./mirror-shared";
 
@@ -70,6 +70,13 @@ export function EditableCell({
   // gravada duas vezes. Também substitui o antigo cancelledRef, que ficava preso em
   // true quando o blur não vinha depois do Esc e engolia silenciosamente a edição seguinte.
   const editingRef = useRef(false);
+  /**
+   * O texto que a pessoa digitou e o servidor recusou (07/10). Antes a célula
+   * piscava vermelho por 2s e voltava ao valor antigo — o que foi digitado se
+   * perdia. Agora o vermelho fica até a próxima edição, e Enter reabre o campo
+   * com o texto recusado, para corrigir ou tentar de novo sem redigitar.
+   */
+  const falhaRef = useRef<string | null>(null);
 
   useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [editing]);
 
@@ -144,7 +151,12 @@ export function EditableCell({
   }
 
   /** `inicial` vem de quem começou a digitar direto na célula, como no Excel. */
-  function startEdit(inicial?: string) { setDraft(inicial ?? toDraft()); editingRef.current = true; setEditing(true); }
+  function startEdit(inicial?: string) {
+    setDraft(inicial ?? falhaRef.current ?? toDraft());
+    falhaRef.current = null;
+    if (state === "error") setState("idle");
+    editingRef.current = true; setEditing(true);
+  }
 
   /** Teclas com a célula selecionada (sem estar editando). */
   function teclasNaCelula(e: React.KeyboardEvent) {
@@ -189,23 +201,23 @@ export function EditableCell({
     // O toast de erro vem de saveCell (uma instância de useToast para a tela inteira);
     // aqui só marcamos a célula em vermelho.
     try { await onSave(rowId, field, next, prev as CellValue); setState("saved"); setTimeout(() => setState((s) => s === "saved" ? "idle" : s), 1200); }
-    catch { setState("error"); setTimeout(() => setState((s) => s === "error" ? "idle" : s), 2000); }
+    catch { falhaRef.current = draft; setState("error"); }
   }
   async function toggleBool() {
     if (state === "saving") return; // evita duplo clique enquanto a gravação está em voo
     setState("saving");
     try { await onSave(rowId, field, !value, value); setState("saved"); setTimeout(() => setState((s) => s === "saved" ? "idle" : s), 1200); }
-    catch { setState("error"); setTimeout(() => setState((s) => s === "error" ? "idle" : s), 2000); }
+    catch { setState("error"); }
   }
   const pad = compact ? "px-2 py-1" : "px-2 py-1.5";
   // Barra vertical colorida no começo de cada etapa: é o que faz a pessoa
   // enxergar onde termina "Passagem" e começa "Hospedagem" numa grade de ~36
   // colunas, em vez de um mar de células iguais.
-  const div = etapa ? `border-l-[3px] ${etapa}` : "";
+  const div = etapa ? `border-l-2 ${etapa}` : "";
   const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
-  const ring = state === "saving" ? "bg-brand-soft/60"
-    : state === "saved" ? "bg-success-soft/60"
-    : state === "error" ? "ring-1 ring-inset ring-danger-strong bg-danger-soft/60"
+  const ring = state === "saving" ? "bg-brand-soft/70"
+    : state === "saved" ? "esp-salvo"
+    : state === "error" ? "esp-erro"
     // O âmbar é o que faz a grade responder "o que falta comprar" de longe.
     // Só aparece quando o campo é obrigatório PARA ESTA PESSOA — pintar todo
     // vazio deixaria a tela amarela e a cor viraria ruído.
@@ -213,21 +225,22 @@ export function EditableCell({
 
   if (!editMode) {
     return (
-      <td ref={tdRef} className={`relative z-0 border-r border-border/30 ${div} ${pad} text-xs whitespace-nowrap ${alignCls} ${align !== "left" ? "tabular-nums" : ""}`}>
+      <td ref={tdRef} className={`relative z-0 border-r border-border/40 ${div} ${pad} text-xs whitespace-nowrap ${alignCls} ${align !== "left" ? "tabular-nums" : ""} ${estado === "falta" ? "bg-warning-soft/60" : ""}`}>
         <span className="truncate inline-block max-w-[180px] align-middle">{display()}</span>
       </td>
     );
   }
   if (type === "bool") {
     return (
-      <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
+      <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/40 ${div} ${ring}`}>
         <button type="button" onClick={toggleBool} disabled={state === "saving"}
+          title={state === "error" ? "Não foi salvo — clique para tentar de novo" : undefined}
           /* Fora da ordem de tabulação: quem anda dentro da grade são as setas.
              Ver a "porta de entrada" em GradeView. */
           data-cell-focus tabIndex={-1} onKeyDown={teclasNaCelula}
           role="switch" aria-checked={!!value} aria-label={rotuloCampo(field)}
-          className={`w-full h-full ${pad} hover:bg-muted/50 transition-colors flex items-center justify-center disabled:cursor-wait`}>
-          {state === "saving" ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : display()}
+          className={`esp-celula w-full h-full ${pad} hover:bg-muted/60 transition-colors flex items-center justify-center disabled:cursor-wait`}>
+          {state === "saving" ? <Loader2 className="h-3 w-3 animate-spin text-primary motion-reduce:animate-none" aria-hidden="true" /> : state === "error" ? <AlertCircle className="h-3.5 w-3.5 text-danger" aria-hidden="true" /> : display()}
         </button>
       </td>
     );
@@ -235,12 +248,13 @@ export function EditableCell({
   if (editing && type === "select") {
     // <select> nativo: cabe na célula e fecha no blur/Esc como o input de texto.
     return (
-      <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
+      <td ref={tdRef} className={`relative z-10 p-0 border-r border-border/40 ${div}`}>
+        <span className={`invisible block whitespace-nowrap ${pad} text-xs`} aria-hidden="true">{display()}</span>
         <select autoFocus defaultValue={draft} aria-label={rotuloCampo(field)}
           onChange={(e) => { setDraft(e.target.value); }}
           onBlur={commit}
           onKeyDown={teclasNoCampo}
-          className={`w-full min-w-[80px] ${pad} text-xs bg-background outline-none ring-1 ring-inset ring-primary rounded-sm`}>
+          className={`esp-campo absolute left-0 top-0 h-full min-w-full w-[104px] ${pad} text-xs bg-card outline-none`}>
           <option value="">—</option>
           {(options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -249,17 +263,22 @@ export function EditableCell({
   }
   if (editing) {
     const inputType = type === "date" ? "date" : type === "money" || type === "int" ? "number" : type === "time" ? "time" : "text";
+    // O campo abre POR CIMA da célula, como o editor de uma planilha: a coluna
+    // não muda de largura enquanto se digita (o seletor de data precisa de
+    // ~140px e empurrava a grade inteira para o lado).
+    const largura = type === "date" ? "w-[148px]" : type === "time" ? "w-[104px]" : "w-full";
     return (
-      <td ref={tdRef} className={`relative z-0 p-0 border-r border-border/30 ${div} ${ring}`}>
+      <td ref={tdRef} className={`relative z-10 p-0 border-r border-border/40 ${div}`}>
+        <span className={`invisible block whitespace-nowrap ${pad} text-xs`} aria-hidden="true">{display()}</span>
         <input ref={inputRef} type={inputType} step={type === "money" ? "0.01" : undefined} defaultValue={draft} aria-label={rotuloCampo(field)}
           onChange={(e) => setDraft(e.target.value)} onBlur={commit}
           onKeyDown={teclasNoCampo}
-          className={`w-full min-w-[68px] ${pad} text-xs bg-background outline-none ring-1 ring-inset ring-primary rounded-sm ${alignCls}`} />
+          className={`esp-campo absolute left-0 top-0 h-full min-w-full ${largura} ${pad} text-xs bg-card outline-none ${alignCls}`} />
       </td>
     );
   }
   return (
-    <td ref={tdRef} className={`p-0 border-r border-border/30 ${div} relative z-0 group/cell ${ring}`}>
+    <td ref={tdRef} className={`p-0 border-r border-border/40 ${div} relative z-0 group/cell ${ring}`}>
       {/* Sem aria-label aqui de propósito: o nome acessível do botão é o próprio
           valor da célula, que é o que interessa ouvir. */}
       <button
@@ -268,15 +287,21 @@ export function EditableCell({
         // aprovou: o clique leva para a visão onde ela se confirma.
         onClick={estado === "a_confirmar" && aoConfirmar ? aoConfirmar : () => startEdit()}
         onKeyDown={teclasNaCelula} data-cell-focus tabIndex={-1}
-        title={estado === "a_confirmar" && aoConfirmar ? "Sugestão ainda não confirmada — abrir para confirmar" : `Editar ${rotuloCampo(field)}`}
-        className={`w-full h-full ${pad} ${onEdit ? "pr-6" : ""} text-xs hover:bg-muted/50 transition-colors whitespace-nowrap ${align !== "left" ? "tabular-nums" : ""} flex items-center gap-1 ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}>
-        {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" aria-hidden="true" />}
+        title={state === "error" ? "Não foi salvo — Enter reabre com o que você digitou"
+          : estado === "a_confirmar" && aoConfirmar ? "Sugestão ainda não confirmada — abrir para confirmar" : `Editar ${rotuloCampo(field)}`}
+        aria-invalid={state === "error" || undefined}
+        className={`esp-celula w-full h-full ${pad} ${onEdit ? "pr-7" : ""} text-xs hover:bg-muted/60 transition-colors whitespace-nowrap ${align !== "left" ? "tabular-nums" : ""} flex items-center gap-1 ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}>
+        {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0 motion-reduce:animate-none" aria-hidden="true" />}
         {state === "saved" && <Check className="h-3 w-3 text-success shrink-0" aria-hidden="true" />}
+        {state === "error" && <AlertCircle className="h-3 w-3 text-danger shrink-0" aria-hidden="true" />}
+        {state === "saving" && <span className="sr-only">Salvando</span>}
+        {state === "saved" && <span className="sr-only">Salvo</span>}
+        {state === "error" && <span className="sr-only">Não foi salvo</span>}
         <span className="truncate max-w-[180px]">{display()}</span>
       </button>
       {onEdit && (
         <button type="button" onClick={onEdit} title="Editar em detalhe" aria-label="Editar em detalhe"
-          className="opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded bg-background border shadow-1 hover:bg-muted">
+          className="opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 inline-flex items-center justify-center rounded-md bg-card border border-border text-muted-foreground shadow-1 hover:border-primary/40 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Pencil className="h-3 w-3" aria-hidden="true" />
         </button>
       )}

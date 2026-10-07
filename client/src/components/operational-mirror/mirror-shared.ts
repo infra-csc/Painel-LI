@@ -2,9 +2,10 @@
  * Espelho operacional — o que as visões compartilham (25/09).
  *
  * Tipos, constantes e formatadores puros que antes viviam soltos no topo da
- * página de 2.900 linhas. Aqui não há JSX: o que renderiza fica em cada
+ * página de 2.900 linhas. Aqui não há JSX (só um hook de largura, no fim): o que renderiza fica em cada
  * `*-view.tsx`, o que calcula fica em `use-mirror-*.ts`.
  */
+import { useEffect, useState } from "react";
 import type { MirrorRow, MirrorCollaborator } from "@shared/operational-mirror-types";
 import type { ContextoDaLinha } from "@shared/mirror-cell-state";
 import type { BlocoDeCusto } from "@shared/mirror-pendencia";
@@ -187,4 +188,23 @@ export interface GroupViewProps<G> {
   canEdit: boolean;
   onConfirm: (id: string) => void;
   pendingId: string | null | undefined;
+}
+
+/**
+ * A tela tem pelo menos `px` de largura (07/10). Quartos e Uber trocam a
+ * tabela por cartões abaixo de 1024px: rolar de lado escondia justamente a
+ * coluna de confirmar. Renderiza UMA forma por vez (sem DOM duplicado).
+ */
+export function useLarguraMinima(px: number): boolean {
+  const consulta = `(min-width: ${px}px)`;
+  const [atende, setAtende] = useState(() => typeof window === "undefined" || typeof window.matchMedia !== "function" || window.matchMedia(consulta).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(consulta);
+    const aplicar = () => setAtende(mq.matches);
+    aplicar();
+    mq.addEventListener("change", aplicar);
+    return () => mq.removeEventListener("change", aplicar);
+  }, [consulta]);
+  return atende;
 }
