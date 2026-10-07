@@ -756,3 +756,47 @@
   .col-linha, .col-abrir, .col-cartao, .col-linha .col-acao, .col-aprovar, .col-segmento, .col-secao { transition: none; }
   .col-aprovar:active:not(:disabled) { transform: none; }
 }
+
+/* ══ Funções (fun-) — redesenho 07/10 ══════════════════════════════════════
+ * A tela usa as peças da família Passagens/Eventos (pas-osso, pas-entra,
+ * pas-alvo, pas-rolagem-x). Aqui só o que é dela: o cabeçalho da lista grudado
+ * abaixo da barra da tela, a linha inteira que abre a função (o ::after do
+ * nome cobre a linha) e as ações discretas até o hover. */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px). `clip` em vez de
+   `hidden`/`auto`: um contêiner que rola prenderia o `sticky` dentro dele. */
+.fun-moldura { overflow: clip; }
+.fun-moldura .fun-rolagem { overflow-x: clip; }
+.fun-tabela > thead > tr > th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linha: o nome é o botão; o ::after dele cobre a linha inteira. Controles da
+   célula (pessoas, +, ações) ficam por cima com `relative z-[1]`. */
+.fun-linha, .fun-linha-escala { position: relative; transition: background-color 120ms ease; }
+.fun-abrir::after { content: ""; position: absolute; inset: 0; }
+.fun-cartao .fun-abrir::after { border-radius: 0.75rem; }
+.fun-abrir { transition: color 120ms ease; }
+.fun-linha:hover .fun-abrir, .fun-cartao:hover .fun-abrir { color: var(--primary); }
+.fun-linha:has(.fun-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.fun-cartao:has(.fun-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.fun-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.fun-cartao:has(.fun-abrir):hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+
+/* Ações: à vista, discretas até a linha ser apontada (antes sumiam por completo). */
+.fun-linha .fun-acao { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.fun-linha:hover .fun-acao, .fun-acao:focus-visible { opacity: 1; }
+@media (pointer: coarse) { .fun-linha .fun-acao { opacity: 1; } }
+
+/* Remover do popover de responsáveis: discreto até a pessoa ser apontada. */
+li .fun-remover { opacity: .55; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
+@media (pointer: coarse) { li .fun-remover { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fun-linha, .fun-linha-escala, .fun-abrir, .fun-cartao, .fun-linha .fun-acao, li .fun-remover { transition: none; }
+}
