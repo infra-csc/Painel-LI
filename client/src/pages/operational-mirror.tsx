@@ -227,7 +227,13 @@ function EspelhoOperacional() {
                       {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows}
                         onMover={(c, de, para) => m.mover.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })}
                         onSeparar={pedirSeparacao} canEdit={canEditMirror}
-                        onPatch={(id, campos) => m.patchRoom.mutate({ id, campos })}
+                        onPatch={(id, campos) => {
+                          // "Confirmado" clicável pede para reabrir o quarto (07/10): o
+                          // quarto não tem rota própria de reabrir — é o PATCH com
+                          // confirmed=false. Antes ia "__reabrir" e o servidor ignorava.
+                          if (campos.__reabrir) { m.patchRoom.mutate({ id, campos: { confirmed: false } }); return; }
+                          m.patchRoom.mutate({ id, campos });
+                        }}
                         onPatchMembro={(membroId, campos) => m.patchMembroQuarto.mutate({ id: membroId, campos })}
                         onConfirm={(id: string) => m.confirmRoom.mutate(id)} pendingId={m.confirmRoom.isPending ? m.confirmRoom.variables : null}
                         onRecalc={pedirRecalculo} recalcPending={m.recalc.isPending} />}
