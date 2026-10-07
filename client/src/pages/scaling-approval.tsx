@@ -5,19 +5,21 @@
  * Desde 25/09 a página só compõe (tinha 951 linhas): filtros/aba em
  * `page/use-approval-filters`, dados em `page/use-approval-data`, o overlay
  * (Sheet + diálogos + deep-link) em `page/use-approval-overlay`, as vagas
- * (aguardando aprovação / paradas) em `page/use-approval-vagas`, a barra de
- * contexto em `page/approval-filter-bar` e a linha das abas em `page/approval-tab-bar`.
+ * (aguardando aprovação / paradas) em `page/use-approval-vagas`, a barra, o
+ * evento, o resumo e os filtros em `page/approval-filter-bar` e as abas em
+ * `page/approval-tab-bar`.
+ *
+ * 07/10 (redesenho premium): barra de 56px grudada como na Validação e na
+ * Escalação, evento numa linha, resumo numa faixa, abas segmentadas, busca e
+ * status dentro da aba que eles filtram, listas que viram cartões abaixo de
+ * 1280px, lote em barra escura flutuante e estados (carregando, vazio, erro,
+ * sem acesso) no desenho do módulo. Lógica intacta.
  */
 import { useMemo } from "react";
-import { CheckCircle2, EyeOff, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, CloudOff, Inbox, SearchX, Stamp } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ToastAction } from "@/components/ui/toast";
 import { PageContainer } from "@/components/common/page-container";
-import { PageHeader } from "@/components/common/page-header";
-import { EmptyState } from "@/components/common/empty-state";
-import { ErrorState } from "@/components/common/error-state";
-import { LoadingState } from "@/components/common/loading-state";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -32,17 +34,16 @@ import { RequestDetailDialog } from "@/components/scaling-approval/request-detai
 import { ApproveRequestDialog, ReviewRequestDialog } from "@/components/scaling-approval/decision-dialogs";
 import { StalledSuggestions } from "@/components/scaling-approval/stalled-suggestions";
 import { AwaitingApproval } from "@/components/scaling-approval/awaiting-approval";
-import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
 import { DecidedPanel } from "@/components/scaling-validation/decided-panel";
+import { AcaoDoEstado, BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
 import { useDecisionMutations } from "@/components/scaling-approval/use-decisions";
 import { BASE_PATH, contarPendentes, filtrarPedidos, useApprovalFilters, type ApprovalTab } from "@/components/scaling-approval/page/use-approval-filters";
 import { useApprovalData } from "@/components/scaling-approval/page/use-approval-data";
 import { useApprovalOverlay } from "@/components/scaling-approval/page/use-approval-overlay";
 import { useApprovalVagas } from "@/components/scaling-approval/page/use-approval-vagas";
-import { ApprovalFilterBar } from "@/components/scaling-approval/page/approval-filter-bar";
-import { ApprovalTabBar } from "@/components/scaling-approval/page/approval-tab-bar";
-
-const SUBTITLE = "O aprovador de cada função aprova as vagas já validadas pelas áreas e decide os pedidos de ajuste, inclusão e exclusão abertos na Validação de Escala.";
+import { ApprovalHeader, ApprovalSummary, FilaToolbar } from "@/components/scaling-approval/page/approval-filter-bar";
+import { ApprovalTabBar, MinhasFuncoesToggle, temFiltroMinhasFuncoes } from "@/components/scaling-approval/page/approval-tab-bar";
+import { AcessoNegadoAprovacao, EsqueletoDaLista } from "@/components/scaling-approval/page/estados-da-aprovacao";
 
 export default function ScalingApprovalPage() {
   usePageTitle("Aprovação de escala");
@@ -92,7 +93,9 @@ export default function ScalingApprovalPage() {
           onClick={() => openDetail(next)}
           className="whitespace-nowrap border-border bg-card hover:bg-brand-soft hover:text-primary"
         >
-          Abrir próximo pendente
+          {/* Rótulo curto (07/10): com o aviso para Compras na descrição, o
+              botão longo espremia o texto do toast numa coluna estreita. */}
+          Próximo pendente
         </ToastAction>
       );
     },
@@ -115,16 +118,15 @@ export default function ScalingApprovalPage() {
   // ── Render ──
   if (!canAccess) {
     // Dentro do shell da tela (04/09): o bloco solto "Acesso negado" parecia
-    // um erro do sistema. Com cabeçalho e estado vazio a pessoa sabe ONDE está
-    // e o que fazer a seguir.
+    // um erro do sistema. Com a barra da tela a pessoa sabe ONDE está.
     return (
       <PageContainer fluid>
-        <PageHeader icon={ShieldCheck} title="Aprovação de escala" subtitle={SUBTITLE} />
-        <EmptyState
-          icon={ShieldCheck}
-          title="Você não tem acesso à Aprovação de Escala"
-          description="Esta tela é dos aprovadores de função e dos perfis de decisão. Se você deveria decidir pedidos ou vagas de alguma função, fale com o administrador."
-        />
+        <header className="sticky top-[var(--sticky-top)] z-30 -mx-[var(--page-gutter)] -mt-[var(--page-gutter)] flex h-14 items-center border-b border-border bg-card px-[var(--page-gutter)]">
+          <h1 className="flex items-center gap-2 text-base font-semibold tracking-[-0.01em] text-foreground">
+            <Stamp className="h-[18px] w-[18px] text-primary" aria-hidden="true" /> Aprovação de escala
+          </h1>
+        </header>
+        <AcessoNegadoAprovacao />
       </PageContainer>
     );
   }
@@ -132,37 +134,42 @@ export default function ScalingApprovalPage() {
   /** "Posso decidir" (contador + filtro) só faz sentido para quem decide alguma coisa. */
   const showMineFilter = !isAdmin && !readOnlyMode;
   const vagasErro = (
-    <ErrorState title="Não foi possível carregar as vagas" description={apiErrorMessage(suggestionsQuery.error, "Tente novamente.")} onRetry={() => suggestionsQuery.refetch()} />
+    <EstadoDaValidacao
+      tom="erro"
+      icone={<CloudOff aria-hidden="true" />}
+      titulo="Não foi possível carregar as vagas"
+      texto={apiErrorMessage(suggestionsQuery.error, "Verifique sua conexão e tente novamente.")}
+      acao={<BotaoTentarDeNovo onClick={() => suggestionsQuery.refetch()} tentando={suggestionsQuery.isFetching} />}
+      testId="aprovacao-vagas-erro"
+    />
   );
+  /** Barra das abas de vagas: só existe quando há o filtro "Só as minhas funções" a mostrar. */
+  const barraDasVagas = (aba: "aprovacao" | "paradas") =>
+    temFiltroMinhasFuncoes(aba, v) ? <div className="flex flex-wrap items-center gap-2"><MinhasFuncoesToggle tab={aba} v={v} /></div> : null;
 
   return (
-    <PageContainer fluid>
-      <PageHeader icon={ShieldCheck} title="Aprovação de escala" subtitle={SUBTITLE} actions={<ScalingModuleNav current="approval" eventId={eventId} />} />
+    <PageContainer fluid className="pb-28">
+      <ApprovalHeader d={d} v={v} eventId={eventId} setEventId={setEventId} isApprover={isApprover} readOnlyMode={readOnlyMode && !forbidden} />
 
-      <ApprovalFilterBar f={f} d={d} v={v} counts={counts} eventId={eventId} setEventId={setEventId} isApprover={isApprover} showMineFilter={showMineFilter} />
+      <ApprovalSummary f={f} d={d} v={v} counts={counts} isApprover={isApprover} showMineFilter={showMineFilter} />
 
-      {readOnlyMode && !forbidden && (
-        <div role="status" className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-2.5 text-xs text-slate-700">
-          <EyeOff className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span><span className="font-semibold">Modo leitura</span> — você acompanha os pedidos, mas não decide. Quem decide é o aprovador de cada função.</span>
-        </div>
-      )}
-
-      <Tabs value={f.tab} onValueChange={(val) => (val === "fila" ? f.openFilaTab() : f.switchTab(val as ApprovalTab))} className="space-y-3">
-        <ApprovalTabBar f={f} v={v} counts={counts} isApprover={isApprover} showMineFilter={showMineFilter} filteredCount={filtered.length} itemsCount={items.length} />
+      <Tabs value={f.tab} onValueChange={(val) => (val === "fila" ? f.openFilaTab() : f.switchTab(val as ApprovalTab))} className="space-y-4">
+        <ApprovalTabBar f={f} v={v} counts={counts} isApprover={isApprover} showMineFilter={showMineFilter} filteredCount={filtered.length} itemsCount={items.length} filaIndisponivel={listQuery.isLoading || !!loadError} />
 
         {isApprover && (
-          <TabsContent value="aprovacao" className="mt-0 space-y-3">
+          <TabsContent value="aprovacao" className="val-entra mt-0 space-y-3">
+            {barraDasVagas("aprovacao")}
             {/* Sem evento a aba mostra as vagas de TODOS os eventos — o estado
                 vazio só aparece quando está vazio DE VERDADE (regra do dono). */}
             {suggestionsQuery.isLoading ? (
-              <LoadingState count={4} label="Carregando vagas…" />
+              <EsqueletoDaLista label="Carregando vagas…" />
             ) : suggestionsQuery.error ? vagasErro : (
               awaitingRows.length === 0 && awaitingRowsAll.length > 0 ? (
-                <EmptyState
-                  icon={CheckCircle2}
-                  title="Nenhuma vaga aguardando aprovação nas suas funções"
-                  description={`Há ${awaitingRowsAll.length} vaga(s) aguardando em funções de outros aprovadores. Desmarque "Só as minhas funções" para vê-las.`}
+                <EstadoDaValidacao
+                  icone={<CheckCircle2 aria-hidden="true" />}
+                  titulo="Nenhuma vaga aguardando aprovação nas suas funções"
+                  texto={`Há ${awaitingRowsAll.length} ${awaitingRowsAll.length === 1 ? "vaga aguardando" : "vagas aguardando"} em funções de outros aprovadores. Desmarque "Só as minhas funções" para vê-las.`}
+                  acao={<AcaoDoEstado principal={false} onClick={() => v.setOnlyMineAwaiting(false)}>Mostrar todas</AcaoDoEstado>}
                 />
               ) : (
                 <AwaitingApproval
@@ -183,42 +190,58 @@ export default function ScalingApprovalPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="fila" className="mt-0 space-y-3">
+        <TabsContent value="fila" className="val-entra mt-0 space-y-3">
+          {!forbidden && <FilaToolbar f={f} counts={counts} showMineFilter={showMineFilter} />}
           {listQuery.isLoading ? (
-            <LoadingState count={6} label="Carregando pedidos…" />
+            <EsqueletoDaLista label="Carregando pedidos…" />
           ) : loadError ? (
-            <ErrorState
+            forbidden ? (
               // 403 aqui = o perfil não vê a fila por papel E não é aprovador de
               // nenhuma função. Nada de mandar o usuário "virar aprovador": para
               // os perfis de leitura isso seria o oposto da matriz de permissões.
-              title={forbidden ? "Sem pedidos para você nesta tela" : "Não foi possível carregar os pedidos"}
-              description={forbidden
-                ? "Seu perfil não acompanha a fila de pedidos. Se você deveria decidir os pedidos de alguma função, fale com o administrador."
-                : apiErrorMessage(loadError, "Verifique sua conexão e tente novamente.")}
-              onRetry={forbidden ? undefined : () => listQuery.refetch()}
-            />
+              <EstadoDaValidacao
+                icone={<Inbox aria-hidden="true" />}
+                titulo="Sem pedidos para você nesta tela"
+                texto="Seu perfil não acompanha a fila de pedidos. Se você deveria decidir os pedidos de alguma função, fale com o administrador."
+                testId="aprovacao-fila-sem-acesso"
+              />
+            ) : (
+              <EstadoDaValidacao
+                tom="erro"
+                icone={<CloudOff aria-hidden="true" />}
+                titulo="Não foi possível carregar os pedidos"
+                texto={apiErrorMessage(loadError, "Verifique sua conexão e tente novamente.")}
+                acao={<BotaoTentarDeNovo onClick={() => listQuery.refetch()} tentando={listQuery.isFetching} />}
+                testId="aprovacao-fila-erro"
+              />
+            )
           ) : filtered.length === 0 ? (
             f.hasActiveFilters || items.length > 0 ? (
               // O botão diz o que faz (04/09): `clearFilters` não limpa tudo —
-              // volta ao padrão da tela, que é "pendentes". "Limpar filtros"
-              // prometia uma lista sem recorte e entregava outra.
-              <EmptyState
-                variant="filtered"
-                title="Nenhum pedido com esses filtros"
-                description="Nenhum pedido bate com a busca e os recortes escolhidos."
-                action={<Button type="button" variant="outline" size="sm" onClick={f.clearFilters}>Voltar aos pendentes</Button>}
+              // volta ao padrão da tela, que é "pendentes".
+              <EstadoDaValidacao
+                icone={<SearchX aria-hidden="true" />}
+                titulo="Nenhum pedido com esses filtros"
+                texto="Nenhum pedido bate com a busca e os recortes escolhidos."
+                acao={<AcaoDoEstado principal={false} onClick={f.clearFilters}>Voltar aos pendentes</AcaoDoEstado>}
+                testId="aprovacao-sem-resultado"
               />
             ) : awaitingMine.length > 0 ? (
               // Fila vazia MAS com vagas esperando o aprovador: "bom trabalho"
               // aqui era mentira — a outra fila dele estava cheia.
-              <EmptyState
-                icon={ShieldCheck}
-                title="Nenhum pedido pendente"
-                description={`Mas há ${awaitingMine.length} ${awaitingMine.length === 1 ? "vaga aguardando" : "vagas aguardando"} a sua aprovação.`}
-                action={<Button type="button" size="sm" className="rounded-lg" onClick={() => f.switchTab("aprovacao")}>Ver vagas aguardando aprovação</Button>}
+              <EstadoDaValidacao
+                icone={<Stamp aria-hidden="true" />}
+                titulo="Nenhum pedido pendente"
+                texto={`Mas há ${awaitingMine.length} ${awaitingMine.length === 1 ? "vaga aguardando" : "vagas aguardando"} a sua aprovação.`}
+                acao={<AcaoDoEstado onClick={() => f.switchTab("aprovacao")}>Ver vagas aguardando aprovação</AcaoDoEstado>}
               />
             ) : (
-              <EmptyState icon={CheckCircle2} title="Nenhum pedido pendente" description={eventId ? "Não há pedidos aguardando decisão neste evento." : "Não há pedidos aguardando decisão. Bom trabalho!"} />
+              <EstadoDaValidacao
+                icone={<CheckCircle2 aria-hidden="true" />}
+                titulo="Nenhum pedido pendente"
+                texto={eventId ? "Não há pedidos aguardando decisão neste evento." : "Não há pedidos aguardando decisão. Bom trabalho!"}
+                testId="aprovacao-fila-vazia"
+              />
             )
           ) : (
             <RequestQueue
@@ -237,16 +260,18 @@ export default function ScalingApprovalPage() {
         </TabsContent>
 
         {isApprover && (
-          <TabsContent value="paradas" className="mt-0 space-y-3">
+          <TabsContent value="paradas" className="val-entra mt-0 space-y-3">
+            {barraDasVagas("paradas")}
             {/* Idem: "Vagas paradas" não exige mais escolher um evento. */}
             {suggestionsQuery.isLoading ? (
-              <LoadingState count={4} label="Carregando vagas…" />
+              <EsqueletoDaLista label="Carregando vagas…" />
             ) : suggestionsQuery.error ? vagasErro : (
               stalledRows.length === 0 && stalledRowsAll.length > 0 ? (
-                <EmptyState
-                  icon={CheckCircle2}
-                  title="Nenhuma vaga parada nas suas funções"
-                  description={`Há ${stalledRowsAll.length} vaga(s) parada(s) em funções de outros aprovadores. Desmarque "Só as minhas funções" para vê-las.`}
+                <EstadoDaValidacao
+                  icone={<CheckCircle2 aria-hidden="true" />}
+                  titulo="Nenhuma vaga parada nas suas funções"
+                  texto={`Há ${stalledRowsAll.length} ${stalledRowsAll.length === 1 ? "vaga parada" : "vagas paradas"} em funções de outros aprovadores. Desmarque "Só as minhas funções" para vê-las.`}
+                  acao={<AcaoDoEstado principal={false} onClick={() => v.setOnlyMineStalled(false)}>Mostrar todas</AcaoDoEstado>}
                 />
               ) : (
                 <StalledSuggestions
@@ -266,7 +291,7 @@ export default function ScalingApprovalPage() {
         )}
 
         {/* Histórico do que o aprovador já decidiu (28/08) — leitura pura. */}
-        <TabsContent value="decididas" className="mt-0 space-y-3">
+        <TabsContent value="decididas" className="val-entra mt-0 space-y-3">
           <DecidedPanel eventId={eventId} functionNameById={functionNameById} podeLimpar={isAdmin} />
         </TabsContent>
       </Tabs>

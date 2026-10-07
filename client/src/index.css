@@ -476,3 +476,82 @@
 }
 /* No cartão o hotel tem largura própria: o nome volta a quebrar em vez de cortar. */
 .hos-cartao td[data-col="hotel"] .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
+
+/* ══ Aprovação de escala (apr-) — redesenho 07/10 ══════════════════════════
+ * As tabelas da tela (pedidos, vagas aguardando, paradas) viram CARTÕES
+ * abaixo de 1280px pelo CSS — a mesma marcação nas duas formas, sem uma
+ * segunda lista escondida (que dobrava botões e nomes para o leitor de tela).
+ * O resto (entrada, esqueleto, alvo de toque) usa as classes `val-` do módulo. */
+
+/* Cabeçalho da tabela: abaixo da barra do app E da barra da tela (56px). */
+.apr-cabecalho { top: calc(var(--sticky-top, 3.5rem) + 3.5rem); }
+
+/* Linha: só o fundo anima; o "›" do pedido decidido acende no hover. */
+.apr-linha { transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.apr-linha .apr-abrir { opacity: .55; transition: opacity 120ms ease, color 120ms ease; }
+.apr-linha:hover .apr-abrir { opacity: 1; }
+.apr-clicavel { cursor: pointer; }
+
+/* A busca tem o próprio "limpar" — o X nativo do navegador ficava duplicado. */
+.apr-busca::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+/* Indicador do resumo: o número sobe 1px no hover (é um atalho, não um rótulo). */
+.apr-kpi { transition: background-color 140ms ease; }
+.apr-kpi .apr-kpi-n { transition: transform 140ms ease, color 140ms ease; }
+.apr-kpi:hover .apr-kpi-n { transform: translateY(-1px); }
+
+/* "Só aparece no cartão" (rótulo do selecionar-todas). */
+.apr-so-cartao { display: none; }
+
+@media (max-width: 1279.98px) {
+  .apr-tabela > table, .apr-tabela > table > thead, .apr-tabela > table > tbody { display: block; width: 100%; }
+  .apr-tabela > table > thead { position: static; background: none; border: 0; }
+  .apr-tabela > table > thead > tr { display: flex; align-items: center; min-height: 0; }
+  .apr-tabela > table > thead th { display: none; }
+  .apr-tabela > table > thead th[data-col="sel"] { display: flex; align-items: center; gap: 10px; padding: 0 0 10px 15px; width: auto; border: 0; background: none; }
+  .apr-tabela .apr-so-cartao { display: inline; }
+  .apr-tabela > table > tbody { display: grid; gap: 10px; }
+  .apr-tabela tr.apr-linha {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: start;
+    position: relative; overflow: hidden;
+    border: 1px solid var(--border); border-radius: 12px; background-color: var(--card);
+    box-shadow: 0 1px 2px hsl(222 47% 11% / 0.04);
+  }
+  .apr-tabela tr.apr-linha > td { display: block; grid-column: 2; min-width: 0; width: auto; padding: 0 14px; border: 0; text-align: left; white-space: normal; }
+  .apr-tabela tr.apr-linha > td + td { margin-top: 10px; }
+  .apr-tabela tr.apr-linha > td[data-col="rail"] { position: absolute; inset: 0 auto 0 0; width: 3px; padding: 0; margin: 0; }
+  .apr-tabela tr.apr-linha > td[data-col="rail"] > span { inset: 0; border-radius: 0; }
+  .apr-tabela tr.apr-linha > td[data-col="sel"] { grid-column: 1; grid-row: 1 / span 2; padding: 13px 0 0 15px; margin: 0; }
+  .apr-tabela tr.apr-linha > td[data-col="sel"] + td { margin-top: 0; }
+  .apr-tabela tr.apr-linha > td[data-primeira] { padding-top: 12px; }
+  .apr-tabela tr.apr-linha > td[data-col="so-tabela"] { display: none; }
+  .apr-tabela tr.apr-linha > td[data-rotulo]::before {
+    content: attr(data-rotulo); display: block; margin-bottom: 3px;
+    font-size: 11px; line-height: 14px; color: var(--muted-foreground);
+  }
+  /* O rodapé de ações cola no fundo do cartão: lado a lado, os cartões têm
+     a altura do mais alto e os botões ficam na mesma linha. */
+  .apr-tabela tr.apr-linha:has(> td[data-col="acoes"]) { padding-bottom: 62px; }
+  .apr-tabela tr.apr-linha > td[data-col="acoes"] {
+    position: absolute; inset: auto 0 0 0; grid-column: auto; grid-row: auto; min-height: 50px; display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+    margin: 0; padding: 8px 10px 8px 14px; border-top: 1px solid var(--border);
+    background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--card));
+  }
+  .apr-tabela tr.apr-linha > td[data-col="acoes"] > * { margin-left: auto; }
+  .apr-tabela tr.apr-linha[data-selecionada="true"] { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); background-color: color-mix(in srgb, var(--primary) 5%, var(--card)); }
+}
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .apr-tabela > table > tbody { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* A conversa do pedido (BudgetChat) dentro do cartão da seção: sem o filete
+   e o cabeçalho próprios — o cartão já tem título. */
+.apr-conversa > section { border-top: 0; }
+.apr-conversa > section > div:first-child { display: none; }
+.apr-conversa > section > div { margin-left: 0 !important; margin-right: 0 !important; }
+.apr-conversa > section > div:last-child { margin-bottom: 0 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .apr-linha, .apr-linha .apr-abrir, .apr-kpi, .apr-kpi .apr-kpi-n { transition: none; }
+  .apr-kpi:hover .apr-kpi-n { transform: none; }
+}

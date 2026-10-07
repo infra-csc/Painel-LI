@@ -1,3 +1,4 @@
+import { Fragment, createElement, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { ToastActionElement } from "@/components/ui/toast";
@@ -36,6 +37,31 @@ export function reviewOutcomeMessage(kind: "reajustar" | "negar", then: ReviewBo
   if (requestType === "inclusao") return "Pedido negado. Nada foi criado.";
   if (requestType === "exclusao") return "Pedido negado; a vaga foi mantida e aprovada como estava (virou Inclusão).";
   return "Pedido negado; a vaga foi aprovada como estava e virou Inclusão.";
+}
+
+/**
+ * O que o servidor devolve em `avisoParaCompras` ao aprovar/reajustar um
+ * AJUSTE em vaga já escalada que tem passagem ou hospedagem (d0264d41):
+ * "Passagem", "Hospedagem", "Passagem e hospedagem" — ou null quando Compras
+ * não precisa fazer nada. O aprovador precisa SABER que Compras foi avisada:
+ * sem esta linha ele aprovava a troca de data e ligava para Compras à toa
+ * (ou, pior, não ligava achando que ninguém sabia).
+ */
+export function avisoParaComprasTexto(aviso: unknown): string | null {
+  if (aviso === "Passagem") return "Compras foi avisada para remarcar a passagem.";
+  if (aviso === "Hospedagem") return "Compras foi avisada para rever a hospedagem.";
+  if (aviso === "Passagem e hospedagem") return "Compras foi avisada para remarcar a passagem e rever a hospedagem.";
+  return null;
+}
+
+/** Descrição do toast com o aviso para Compras numa linha própria, quando houver. */
+function comAvisoParaCompras(texto: string, data: unknown): ReactNode {
+  const aviso = avisoParaComprasTexto((data as { avisoParaCompras?: unknown } | null)?.avisoParaCompras);
+  if (!aviso) return texto;
+  return createElement(Fragment, null,
+    createElement("span", { className: "block" }, texto),
+    createElement("span", { className: "mt-1.5 block font-semibold text-foreground", "data-testid": "toast-aviso-compras" }, aviso),
+  );
 }
 
 /**
@@ -123,9 +149,9 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
   const approve = useMutation({
     mutationFn: async (vars: { id: string; comment?: string }) =>
       (await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.requests}/${vars.id}/approve`, vars.comment ? { comment: vars.comment } : {})).json(),
-    onSuccess: () => {
+    onSuccess: (data) => {
       invalidateAll();
-      toast({ title: "Pedido aprovado", description: "A decisão foi aplicada na vaga.", action: opts.successAction?.() });
+      toast({ title: "Pedido aprovado", description: comAvisoParaCompras("A decisão foi aplicada na vaga.", data), action: opts.successAction?.() });
       opts.onSettledRequest?.();
     },
     onError: fail("Não foi possível aprovar o pedido"),
@@ -134,10 +160,10 @@ export function useDecisionMutations(opts: DecisionOptions = {}) {
   const review = useMutation({
     mutationFn: async (vars: { id: string; kind: "reajustar" | "negar"; body: ReviewBody; requestType?: ReviewRequestType }) =>
       (await apiRequest("PATCH", `${APPROVAL_QUERY_KEYS.requests}/${vars.id}/${vars.kind}`, vars.body)).json(),
-    onSuccess: (_data, vars) => {
+    onSuccess: (data, vars) => {
       invalidateAll();
       const what = vars.kind === "reajustar" ? "Pedido reajustado" : "Pedido negado";
-      toast({ title: what, description: reviewOutcomeMessage(vars.kind, vars.body.then, vars.requestType), action: opts.successAction?.() });
+      toast({ title: what, description: comAvisoParaCompras(reviewOutcomeMessage(vars.kind, vars.body.then, vars.requestType), data), action: opts.successAction?.() });
       opts.onSettledRequest?.();
     },
     onError: (err: ApiError, vars) => fail(vars.kind === "reajustar" ? "Não foi possível reajustar o pedido" : "Não foi possível negar o pedido")(err),

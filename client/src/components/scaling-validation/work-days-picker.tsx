@@ -100,9 +100,8 @@ export function WorkDaysPicker({ rangeStart, rangeEnd, value, onChange, disabled
           ? `A área pediu este dia · ${on ? "marcado" : "desmarcado por você"}`
           : inEvent ? undefined : "Fora do período do evento";
         return (
-          <MotivoDesabilitado motivo={titulo} desabilitado={disabled}>
+          <MotivoDesabilitado key={d} motivo={titulo} desabilitado={disabled}>
             <button
-            key={d}
             type="button"
             disabled={disabled}
             aria-pressed={on}
