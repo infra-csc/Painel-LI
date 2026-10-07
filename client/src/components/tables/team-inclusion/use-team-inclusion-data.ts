@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { fixEncoding } from "@/lib/utils";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 import { apiRequest } from "@/lib/queryClient";
 import { useSwapRequests } from "@/hooks/use-swap-requests";
 import { useEventLock } from "@/lib/event-lock";
@@ -24,6 +25,9 @@ export const casaComEscalacao = (inclusion: TeamInclusion, v: string) => {
   return v === "pending" ? (!inclusion.collaboratorId && !vagaComEmpreita(inclusion) && !isCanceled)
     : v === "escalated" ? ((!!inclusion.collaboratorId || vagaComEmpreita(inclusion)) && !isCanceled)
     : v === "cancelado" ? isCanceled
+    // "Aguardando gestor" (cenotécnica esperando a aprovação da produção): a
+    // opção existia no filtro mas caía no "false" e nunca casava (07/10).
+    : v === "aguardando_producao" ? inclusion.status === "aguardando_producao"
     : false;
 };
 
@@ -34,7 +38,11 @@ export const casaComEscalacao = (inclusion: TeamInclusion, v: string) => {
  * as dimensões que a conta não deve considerar (a própria opção, no contador;
  * status e escalação, nos totais). O texto é o mesmo de antes, linha por linha.
  */
-export function passaNoRecorte(inclusion: TeamInclusion, filters: InclusionFilters, ignorar: DimensaoDoRecorte[] = []) {
+export function passaNoRecorte(
+  inclusion: TeamInclusion, filters: InclusionFilters, ignorar: DimensaoDoRecorte[] = [],
+  /** Nome do colaborador da vaga, para a busca "ID ou nome" achar pelo nome (07/10). */
+  nomeDoColaborador?: (collaboratorId?: string) => string,
+) {
   const usa = (d: DimensaoDoRecorte) => !ignorar.includes(d);
   // Valores marcados no mesmo filtro somam (OU); entre filtros continua E.
   if (usa("eventId") && filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
@@ -44,11 +52,15 @@ export function passaNoRecorte(inclusion: TeamInclusion, filters: InclusionFilte
   if (usa("escalationStatus") && filters.escalationStatus.length > 0) {
     if (!filters.escalationStatus.some((v) => casaComEscalacao(inclusion, v))) return false;
   }
-  // Busca exata por ID (número de inclusão)
+  // Busca "ID ou nome": número da inclusão OU nome do colaborador. Até 07/10
+  // só o número era olhado — o nome digitado nunca achava nada.
   if (usa("searchId") && filters.searchId) {
     const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
     const n = String(inclusion.inclusionNumber ?? '').toLowerCase();
-    if (!n.includes(q)) return false;
+    const nome = inclusion.collaboratorId && nomeDoColaborador
+      ? normalizarBusca(nomeDoColaborador(inclusion.collaboratorId))
+      : "";
+    if (!n.includes(q) && !(nome && nome.includes(normalizarBusca(q)))) return false;
   }
   return true;
 }
@@ -111,9 +123,13 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
   // contrato 23/09) — a chave leva o id para o cache ser por evento e as
   // invalidações por prefixo (`["/api/team-inclusions"]`) continuarem valendo.
   const eventoFiltrado = filters.eventId.length === 1 ? filters.eventId[0] : null;
+  // "Mostrar excluídos" (07/10): o interruptor existia mas a consulta nunca
+  // pedia as excluídas — o servidor aceita `includeDeleted=true`.
+  const comExcluidas = !!filters.showDeleted;
+  const parametros = [eventoFiltrado ? `eventId=${eventoFiltrado}` : "", comExcluidas ? "includeDeleted=true" : ""].filter(Boolean).join("&");
   const { data: teamInclusions, isLoading, isError, error, refetch, isFetching } = useQuery<TeamInclusion[]>({
-    queryKey: eventoFiltrado ? ["/api/team-inclusions", eventoFiltrado] : ["/api/team-inclusions"],
-    queryFn: () => apiRequest("GET", eventoFiltrado ? `/api/team-inclusions?eventId=${eventoFiltrado}` : "/api/team-inclusions").then(r => r.json()),
+    queryKey: ["/api/team-inclusions", ...(eventoFiltrado ? [eventoFiltrado] : []), ...(comExcluidas ? ["com-excluidas"] : [])],
+    queryFn: () => apiRequest("GET", `/api/team-inclusions${parametros ? `?${parametros}` : ""}`).then(r => r.json()),
     // Sem acesso à tela, nem pede (07/10: os dados subiram para a página, que monta antes da checagem).
     enabled,
   });
@@ -164,7 +180,7 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
 
   // Filter and sort inclusions based on current filters
   const filteredAndSortedInclusions = useMemo(() => {
-    const filtered = teamInclusions?.filter(inclusion => passaNoRecorte(inclusion, filters)) || [];
+    const filtered = teamInclusions?.filter(inclusion => passaNoRecorte(inclusion, filters, [], getCollaboratorName)) || [];
 
     // Apply custom sorting if configured
     if (sortConfig) {
@@ -218,8 +234,8 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
   // Totals base: only base filters (event, function, collaborator, searchId)
   // Ignores status AND escalationStatus so card counts never change when a card is clicked
   const totalsBase = useMemo(() => {
-    return teamInclusions?.filter(inclusion => passaNoRecorte(inclusion, filters, ["status", "escalationStatus"])) || [];
-  }, [teamInclusions, filters]);
+    return teamInclusions?.filter(inclusion => passaNoRecorte(inclusion, filters, ["status", "escalationStatus"], getCollaboratorName)) || [];
+  }, [teamInclusions, filters, getCollaboratorName]);
 
   // Opções dos filtros com o número ao lado (07/10): quantas vagas sobram ao
   // escolher cada uma, mantendo o resto do recorte — a mesma regra da lista.
@@ -228,7 +244,7 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
     const contar = (dim: DimensaoDoRecorte, chave: (i: TeamInclusion) => string | null | undefined) => {
       const m = new Map<string, number>();
       for (const i of lista) {
-        if (!passaNoRecorte(i, filters, [dim])) continue;
+        if (!passaNoRecorte(i, filters, [dim], getCollaboratorName)) continue;
         const k = chave(i);
         if (k) m.set(k, (m.get(k) ?? 0) + 1);
       }
@@ -238,7 +254,7 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
     const porFuncao = contar("functionId", i => i.functionId);
     const porColaborador = contar("collaboratorId", i => i.collaboratorId);
     const porStatus = contar("status", i => i.status);
-    const baseEscalacao = lista.filter(i => passaNoRecorte(i, filters, ["escalationStatus"]));
+    const baseEscalacao = lista.filter(i => passaNoRecorte(i, filters, ["escalationStatus"], getCollaboratorName));
     return {
       eventos: (events ?? [])
         .filter(e => e.status !== 'excluido' && e.status !== 'excluído')
@@ -248,7 +264,7 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
       status: OPCOES_DE_STATUS.map(o => ({ ...o, n: porStatus.get(o.id) ?? 0 })),
       escalacao: OPCOES_DE_ESCALACAO.map(o => ({ ...o, n: baseEscalacao.filter(i => casaComEscalacao(i, o.id)).length })),
     };
-  }, [teamInclusions, filters, events, functions, collaborators]);
+  }, [teamInclusions, filters, events, functions, collaborators, getCollaboratorName]);
 
   // Calculate real totals from totalsBase (ignores status filter so cards always show correct counts)
   // Cada contador usa EXATAMENTE o mesmo predicado que o clique no card aplica na
