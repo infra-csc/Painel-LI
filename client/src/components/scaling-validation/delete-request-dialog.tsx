@@ -2,6 +2,7 @@
  * Pedido de EXCLUSÃO de uma vaga (25/09 — extraído de change-request-dialogs.tsx).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
@@ -54,7 +55,7 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
       <DialogContent className={`${DIALOG_SHELL} !max-w-[560px]`}>
-        <DialogHeader className={DIALOG_HEADER}>
+        <DialogHeader className={`${DIALOG_HEADER} text-left`}>
           <DialogTitle>Pedir exclusão da vaga #{vaga?.inclusionNumber ?? "…"}</DialogTitle>
           <DialogDescription>
             {functionName ?? "Função"} — a vaga fica aguardando o aprovador. Se ele aprovar a exclusão, ela sai da escala e fica registrada como negada; se negar, volta para você validar.
@@ -68,9 +69,11 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
           {vaga && (
             <>
               <VagaCard row={vaga} functionName={functionName} rotuloLogistica="Logística que deixa de ser necessária" />
-              <section className="rounded-xl border border-warning/25 bg-warning-soft/60 p-3 space-y-1.5" aria-labelledby="del-afeta">
-                <p id="del-afeta" className="text-2xs font-bold uppercase tracking-wide text-warning">O que isso afeta</p>
-                <ul className="list-disc space-y-1 pl-4 text-xs text-slate-700">
+              <section className="space-y-2 rounded-xl border border-warning/30 bg-warning-soft/60 px-4 py-3" aria-labelledby="del-afeta">
+                <p id="del-afeta" className="flex items-center gap-1.5 text-[13px] font-semibold text-warning">
+                  <TriangleAlert className="h-4 w-4" aria-hidden="true" /> O que isso afeta
+                </p>
+                <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-700 marker:text-warning">
                   <li>
                     Saem <span className="font-semibold tabular-nums">{pessoasDiaDaVaga(vaga)}</span>{" "}
                     {pessoasDiaDaVaga(vaga) === 1 ? "pessoa-dia" : "pessoas-dia"} do total da escala deste evento.
@@ -100,8 +103,10 @@ export function DeleteRequestDialog({ open, onOpenChange, inclusion, functionNam
           {error && <p id="del-erro" role="alert" className="text-xs font-medium text-danger">{error}</p>}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" className="rounded-lg bg-card" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
-            <Button type="button" variant="destructive" className="rounded-lg" onClick={submit} disabled={mutation.isPending}>
-              {mutation.isPending ? "Enviando…" : "Pedir exclusão"}
+            <Button type="button" variant="destructive" className="rounded-lg min-w-[150px]" onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending
+                ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Enviando…</>
+                : <><Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />Pedir exclusão</>}
             </Button>
           </DialogFooter>
         </div>

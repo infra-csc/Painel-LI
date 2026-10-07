@@ -8,6 +8,9 @@
  * painel lê o MESMO endpoint do Histórico da Escala (event-view) e lista as
  * aprovadas (viraram Inclusão) e as negadas, mais recentes primeiro. É leitura
  * pura — decisão continua nas abas de trabalho.
+ *
+ * 07/10 (redesenho da Validação): pílulas do StatusBadge único, cabeçalho em
+ * caixa de frase, cartões no celular, esqueleto e erro com "Tentar de novo".
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,13 +19,13 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
-import { CheckCircle2, ChevronRight, ExternalLink, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronRight, ClipboardCheck, CloudOff, ExternalLink, SearchX, Trash2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateBr } from "@/lib/dates";
 import { scalingHref } from "@/lib/use-scaling-event";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
-import { LoadingState } from "@/components/common/loading-state";
-import { EmptyState } from "@/components/common/empty-state";
+import { StatusBadge } from "@/components/common/status-badge";
+import { BotaoTentarDeNovo, EstadoDaValidacao } from "./validation-page/estados";
 import { periodLabel } from "./suggestions-list";
 import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
 import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type SuggestionRow } from "./types";
@@ -147,120 +150,180 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
   /** As negadas visíveis (com os filtros da barra) — alvo do "Excluir negadas da lista". */
   const idsNegadas = rows.filter((r) => r.decisao === "negada").map((r) => r.row.id);
 
-  if (query.isLoading) return <LoadingState label="Carregando as vagas decididas…" />;
+  if (query.isLoading) {
+    return (
+      <div className="space-y-0 overflow-hidden rounded-xl border border-border bg-card" aria-busy="true" data-testid="decididas-carregando">
+        <div className="h-10 border-b border-border bg-surface-muted" aria-hidden="true" />
+        {[["52%", "40%"], ["64%", "30%"], ["46%", "44%"]].map(([a, b], i) => (
+          <div key={i} className="flex items-start gap-4 border-b border-border px-4 py-3.5 last:border-b-0" aria-hidden="true">
+            <div className="flex-1 space-y-1.5"><div className="val-osso h-3.5" style={{ width: a }} /><div className="val-osso h-2.5 w-12" /></div>
+            <div className="hidden flex-1 md:block"><div className="val-osso h-3" style={{ width: b }} /></div>
+            <div className="w-40 space-y-1.5"><div className="val-osso h-5 w-24 rounded-full" /><div className="val-osso h-2.5 w-36" /></div>
+          </div>
+        ))}
+        <p role="status" className="sr-only">Carregando as vagas decididas…</p>
+      </div>
+    );
+  }
   if (query.isError) {
-    return <EmptyState title="Não foi possível carregar" description="Tente recarregar a página." />;
+    return (
+      <EstadoDaValidacao
+        tom="erro"
+        icone={<CloudOff aria-hidden="true" />}
+        titulo="Não foi possível carregar as decididas"
+        texto="A lista do que o aprovador já decidiu não chegou. Tente de novo — se continuar, recarregue a página."
+        acao={<BotaoTentarDeNovo onClick={() => query.refetch()} tentando={query.isFetching} />}
+        testId="decididas-erro"
+      />
+    );
   }
   if (rows.length === 0 && temFiltro) {
-    return <EmptyState variant="filtered" title="Nenhuma vaga decidida com esses filtros" description="Os filtros da barra acima valem aqui também." />;
+    return (
+      <EstadoDaValidacao
+        icone={<SearchX aria-hidden="true" />}
+        titulo="Nenhuma vaga decidida com esses filtros"
+        texto="Os filtros da barra acima valem aqui também."
+      />
+    );
   }
   if (rows.length === 0) {
     return (
-      <EmptyState
-        title="Nenhuma vaga decidida ainda"
-        description={eventId
+      <EstadoDaValidacao
+        icone={<ClipboardCheck aria-hidden="true" />}
+        titulo="Nenhuma vaga decidida ainda"
+        texto={eventId
           ? "Quando o aprovador aprovar ou negar vagas deste evento, elas aparecem aqui."
           : "Quando o aprovador aprovar ou negar vagas, elas aparecem aqui."}
       />
     );
   }
 
+  /** A pílula da decisão — a mesma na tabela e no cartão. */
+  const pilula = (decisao: "aprovada" | "negada") => decisao === "aprovada"
+    ? <StatusBadge tone="success" icon={CheckCircle2}>Aprovada — virou Inclusão</StatusBadge>
+    : <StatusBadge tone="danger" icon={XCircle}>Negada</StatusBadge>;
+  /** Como e por quem (11/09): sem isto toda linha dizia a mesma coisa. */
+  const comoEQuem = (row: EventViewRow) => row.decisao ? (
+    <div className="mt-1.5 space-y-1 text-xs leading-snug text-slate-600" title={row.decisao.resumo || undefined}>
+      <p className="break-words">
+        {CAMINHO_POR_ACAO[row.decisao.action] ?? row.decisao.resumo}
+        {row.decisao.byName ? <> · por <span className="font-medium text-foreground">{row.decisao.byName}</span></> : null}
+      </p>
+      {row.decisao.comment && (
+        <p className="break-words border-l-2 border-border pl-2 italic text-muted-foreground">“{row.decisao.comment}”</p>
+      )}
+    </div>
+  ) : (
+    <p className="mt-1.5 text-xs text-muted-foreground">Sem registro de quem decidiu.</p>
+  );
+  const quandoTexto = (row: EventViewRow) => formatDateBr(row.decisao?.at ?? row.updatedAt) || "Sem data";
+  const botaoExcluir = (row: EventViewRow) => (
+    <MotivoDesabilitado motivo="Excluir da lista" desabilitado={limparMutation.isPending}>
+      <button
+        type="button"
+        onClick={() => setLimpar([row.id])}
+        disabled={limparMutation.isPending}
+        className="val-alvo inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        aria-label={"Excluir da lista a vaga negada #" + row.inclusionNumber}
+        data-testid={"decidida-excluir-" + row.id}
+      >
+        <Trash2 className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </MotivoDesabilitado>
+  );
+  const botaoDetalhe = (row: EventViewRow) => (
+    <button
+      type="button"
+      onClick={() => setDetailId(row.id)}
+      className="val-alvo val-abrir inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`Abrir detalhes da vaga #${row.inclusionNumber}`}
+      title="Ver detalhes"
+      data-testid={`decidida-detalhe-${row.id}`}
+    >
+      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+    </button>
+  );
+  /** Nome da função + número — abre o detalhe (o mesmo nas duas formas). */
+  const nomeDaVaga = (row: EventViewRow) => (
+    <button
+      type="button"
+      onClick={() => setDetailId(row.id)}
+      className="group block max-w-full rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`Ver detalhes da vaga #${row.inclusionNumber}`}
+    >
+      <span className="block break-words text-sm font-semibold leading-5 text-foreground transition-colors group-hover:text-primary">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
+      <span className="block font-mono text-2xs tabular-nums text-muted-foreground">#{row.inclusionNumber}</span>
+    </button>
+  );
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {podeLimpar && idsNegadas.length > 0 && (
-        <div className="flex flex-wrap items-center justify-end gap-2" data-testid="limpar-negadas">
-          <span className="text-2xs text-muted-foreground">Vagas negadas não têm mais ação. Você pode tirá-las desta lista.</span>
-          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg border-danger/25 text-danger hover:bg-danger-soft"
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-muted/60 px-3.5 py-2.5 sm:flex-row sm:items-center" data-testid="limpar-negadas">
+          <span className="text-xs text-slate-600 sm:mr-auto">Vagas negadas não têm mais ação. Você pode tirá-las desta lista.</span>
+          <Button type="button" variant="outline" size="sm" className="val-alvo h-8 rounded-lg border-danger/30 bg-card text-danger hover:bg-danger-soft hover:text-danger"
             onClick={() => setLimpar(idsNegadas)} disabled={limparMutation.isPending} data-testid="button-limpar-negadas">
             <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Excluir negadas da lista ({idsNegadas.length})
           </Button>
         </div>
       )}
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      {/* Tabela (≥ md) — 07/10: cabeçalho em caixa de frase, linhas pelo topo,
+          número da vaga sob o nome (como na Lista). Abaixo de md, cartões:
+          a tabela de 760px rolava de lado no celular. */}
+      <div className="hidden overflow-x-auto rounded-xl border border-border bg-card shadow-[0_1px_2px_hsl(222_47%_11%/0.04)] md:block">
         <table className="w-full min-w-[760px] text-sm">
           <caption className="sr-only">Vagas já decididas pelo aprovador</caption>
           <thead className="bg-surface-muted">
             <tr>
               {["Vaga", "Evento", "Período / diárias", "Decisão · como · quem", "Quando"].map((h) => (
-                <th key={h} scope="col" className="border-b border-border px-3 py-2 text-left text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
+                <th key={h} scope="col" className="border-b border-border px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap first:pl-4">{h}</th>
               ))}
-              <th scope="col" className={cn(podeLimpar ? "w-20" : "w-10", "border-b border-border px-2 py-2")}><span className="sr-only">Ações</span></th>
+              <th scope="col" className={cn(podeLimpar ? "w-20" : "w-12", "border-b border-border px-2 py-2")}><span className="sr-only">Ações</span></th>
             </tr>
           </thead>
           <tbody>
             {rows.map(({ row, decisao }) => (
-              <tr key={row.id} className="border-b border-border last:border-0">
-                <td className="px-3 py-2">
-                  <button
-                    type="button"
-                    onClick={() => setDetailId(row.id)}
-                    className="group inline-flex items-center rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`Ver detalhes da vaga #${row.inclusionNumber}`}
-                  >
-                    <span className="mr-2 inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums text-primary">#{row.inclusionNumber}</span>
-                    <span className="font-medium text-foreground group-hover:text-primary group-hover:underline">{functionNameById.get(row.functionId) ?? "Sem função"}</span>
-                  </button>
+              <tr key={row.id} className="val-linha border-b border-border align-top last:border-0 hover:bg-surface-muted/60">
+                <td className="py-3 pl-4 pr-3">{nomeDaVaga(row)}</td>
+                <td className="max-w-[240px] whitespace-normal break-words px-3 py-3 text-[13px] text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "Sem evento"}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-[13px] tabular-nums text-slate-700">{periodLabel(row)}</td>
+                <td className="max-w-[420px] px-3 py-3">
+                  {pilula(decisao)}
+                  {comoEQuem(row)}
                 </td>
-                <td className="max-w-[260px] whitespace-normal break-words px-3 py-2 text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "Sem evento"}</td>
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums text-slate-700">{periodLabel(row)}</td>
-                <td className="max-w-[420px] px-3 py-2">
-                  {decisao === "aprovada" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success-soft px-2 py-0.5 text-2xs font-semibold text-success">
-                      <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Aprovada — virou Inclusão
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-danger/25 bg-danger-soft px-2 py-0.5 text-2xs font-semibold text-danger">
-                      <XCircle className="h-3 w-3" aria-hidden="true" /> Negada
-                    </span>
-                  )}
-                  {/* Como e por quem (11/09): sem isto toda linha dizia a mesma coisa. */}
-                  {row.decisao ? (
-                    <div className="mt-1 space-y-0.5 text-xs leading-snug text-slate-600" title={row.decisao.resumo || undefined}>
-                      <p className="break-words">
-                        {CAMINHO_POR_ACAO[row.decisao.action] ?? row.decisao.resumo}
-                        {row.decisao.byName ? <> · por <span className="font-medium text-foreground">{row.decisao.byName}</span></> : null}
-                      </p>
-                      {row.decisao.comment && (
-                        <p className="break-words italic text-muted-foreground">“{row.decisao.comment}”</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-xs text-muted-foreground">Sem registro de quem decidiu.</p>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{formatDateBr(row.decisao?.at ?? row.updatedAt) || "Sem data"}</td>
-                <td className="px-2 py-2 text-right whitespace-nowrap">
-                  {podeLimpar && decisao === "negada" && (
-                    <MotivoDesabilitado motivo="Excluir da lista" desabilitado={limparMutation.isPending}>
-                      <button
-                      type="button"
-                      onClick={() => setLimpar([row.id])}
-                      disabled={limparMutation.isPending}
-                      className="mr-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                      aria-label={"Excluir da lista a vaga negada #" + row.inclusionNumber}
-                     
-                      data-testid={"decidida-excluir-" + row.id}
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    </MotivoDesabilitado>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setDetailId(row.id)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`Abrir detalhes da vaga #${row.inclusionNumber}`}
-                    title="Ver detalhes"
-                    data-testid={`decidida-detalhe-${row.id}`}
-                  >
-                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                <td className="whitespace-nowrap px-3 py-3 text-xs tabular-nums text-muted-foreground">{quandoTexto(row)}</td>
+                <td className="whitespace-nowrap px-2 py-2 text-right">
+                  {podeLimpar && decisao === "negada" && botaoExcluir(row)}
+                  {botaoDetalhe(row)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <ul className="space-y-2.5 md:hidden" aria-label="Vagas já decididas pelo aprovador">
+        {rows.map(({ row, decisao }) => (
+          <li key={row.id} className="val-cartao rounded-xl border border-border bg-card px-4 py-3">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">{nomeDaVaga(row)}</div>
+              <div className="-mr-2 -mt-1 flex shrink-0 items-center">
+                {podeLimpar && decisao === "negada" && botaoExcluir(row)}
+                {botaoDetalhe(row)}
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-slate-600">
+              <span className="break-words">{row.eventName ?? "Sem evento"}</span>
+              <span className="text-muted-foreground" aria-hidden="true"> · </span>
+              <span className="whitespace-nowrap tabular-nums">{periodLabel(row)}</span>
+            </p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {pilula(decisao)}
+              <span className="text-2xs tabular-nums text-muted-foreground">{quandoTexto(row)}</span>
+            </div>
+            {comoEQuem(row)}
+          </li>
+        ))}
+      </ul>
       <p className="text-2xs text-muted-foreground">
         {rows.length === MAX_LINHAS ? `Mostrando as ${MAX_LINHAS} decisões mais recentes. ` : ""}
         O detalhe completo — quem validou, pedidos e comentários — está no{" "}

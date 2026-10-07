@@ -2,6 +2,7 @@
  * Pedido de INCLUSÃO (vaga nova) — 25/09, extraído de change-request-dialogs.tsx.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +15,7 @@ import { TravelFields, EMPTY_TRAVEL, validateTravel, type TravelDraft } from "./
 import { WorkDaysPicker } from "./work-days-picker";
 import { DiariasDerivadas } from "./vaga-card";
 import {
-  BLOCO_INVALIDO, DIALOG_BODY, DIALOG_HEADER, DIALOG_SHELL_WIDE, DIALOG_STICKY, DICA_DIARIAS, DICA_VIAGEM,
+  BLOCO_INVALIDO, DIALOG_BODY, DIALOG_HEADER, DIALOG_SHELL_WIDE, DIALOG_STICKY, DIALOG_TWO_COLS, DICA_DIARIAS, DICA_VIAGEM,
   Passo, ReasonField, useCreateChangeRequest, useFocoNoErro, type ErroForm, type OnRequestSent,
 } from "./change-request-shared";
 
@@ -111,18 +112,25 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
       <DialogContent className={DIALOG_SHELL_WIDE}>
-        <DialogHeader className={DIALOG_HEADER}>
+        <DialogHeader className={cn(DIALOG_HEADER, "text-left")}>
           <DialogTitle>Incluir escalação{event ? ` — ${event.name}` : ""}</DialogTitle>
           {/* "Inclusão de equipe" é o nome da fase (o mesmo do Histórico e da Aprovação); "Inclusão" solta parecia outra coisa. */}
           <DialogDescription>Pedido de vaga nova para o aprovador da função. Se aprovado, as vagas nascem já como Inclusão de Equipe (aguardando escalação).</DialogDescription>
         </DialogHeader>
 
         <div className={DIALOG_BODY}>
+          {/* Duas colunas a partir de lg (07/10), como o "Pedir ajuste": a vaga
+              (função, dias, observações) à esquerda, a viagem à direita — a
+              viagem ficava abaixo da dobra e o pedido exigia rolar o diálogo. */}
+          <div className={DIALOG_TWO_COLS}>
+          <div className="space-y-4">
           <section className="space-y-2" aria-labelledby="inc-passo-1">
             <Passo n={1} id="inc-passo-1" obrigatorio>Função</Passo>
-            <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+            {/* 07/10: uma coluna de 440px — a segunda (quantidade) saiu em 04/09 e
+                deixava um buraco à direita; o rótulo repetia o título do passo. */}
+            <div className="grid gap-3">
               <div className="space-y-1">
-                <Label htmlFor="inc-function" className="text-xs text-slate-600">Função</Label>
+                <Label htmlFor="inc-function" className="sr-only">Função</Label>
                 <Select value={functionId} onValueChange={(v) => { setFunctionId(v); if (error?.campo === "function") setError(null); }} disabled={mutation.isPending || sorted.length === 0}>
                   <SelectTrigger id="inc-function" aria-invalid={error?.campo === "function" || undefined} aria-describedby={error?.campo === "function" ? "inc-erro" : undefined}
                     className={cn("h-9 rounded-lg", error?.campo === "function" && "border-danger-strong focus:ring-danger/25")}>
@@ -155,14 +163,17 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
             </div>
           </section>
 
+          </div>
+
           <section className="space-y-2" aria-labelledby="inc-passo-3">
             <Passo n={3} id="inc-passo-3" dica={DICA_VIAGEM}>Viagem — ida e volta (não é diária)</Passo>
             <div className={cn(error?.campo === "travel" && BLOCO_INVALIDO)} aria-describedby={error?.campo === "travel" ? "inc-erro" : undefined}>
-              <TravelFields idPrefix="inc" layout="linha" value={travel} workDays={workDays} disabled={mutation.isPending}
+              <TravelFields idPrefix="inc" value={travel} workDays={workDays} disabled={mutation.isPending}
                 eventStartDate={event?.startDate} eventEndDate={event?.endDate}
                 onChange={(p) => { setTravel((t) => ({ ...t, ...p })); if (error?.campo === "travel") setError(null); }} />
             </div>
           </section>
+          </div>
         </div>
 
         <div className={DIALOG_STICKY}>
@@ -174,7 +185,9 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" className="rounded-lg bg-card" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancelar</Button>
             <Button type="button" onClick={submit} disabled={mutation.isPending || !event} className="rounded-lg min-w-[200px] bg-primary hover:bg-primary-hover">
-              {mutation.isPending ? "Enviando…" : rotuloEnviar}
+              {mutation.isPending
+                ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Enviando…</>
+                : <><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />{rotuloEnviar}</>}
             </Button>
           </DialogFooter>
         </div>

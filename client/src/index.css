@@ -386,3 +386,68 @@
 }
 /* Tabela entre 960 e 1180px: sem o círculo de iniciais (o nome cabe numa linha). */
 .pas-estreita .pas-avatar { display: none; }
+
+/* ══ Validação de escala (val-) — redesenho 07/10 ══════════════════════════
+ * Só o que o Tailwind não diz bem: o cabeçalho da tabela grudado abaixo da
+ * barra da tela, o realce da vaga que acabou de mudar, o esqueleto com brilho
+ * e as microinterações (rápidas, discretas, desligadas com reduced-motion). */
+
+/* Cabeçalho da tabela: abaixo da barra do app E da barra da tela (56px, uma
+   linha só a partir de md — a tabela só existe de xl para cima). */
+.val-cabecalho { top: calc(var(--sticky-top, 3.5rem) + 3.5rem); }
+
+/* Linhas e cartões: só o fundo anima; o "›" do detalhe acende no hover. */
+.val-linha, .val-cartao { transition: background-color 120ms ease, border-color 120ms ease; }
+.val-linha .val-abrir { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.val-linha:hover .val-abrir, .val-abrir:focus-visible { opacity: 1; }
+
+/* Indicador do resumo: o número sobe 1px no hover (é um filtro, não um rótulo). */
+.val-kpi { transition: background-color 140ms ease; }
+.val-kpi .val-kpi-n { transition: transform 140ms ease, color 140ms ease; }
+.val-kpi:hover .val-kpi-n { transform: translateY(-1px); }
+
+/* Vaga que acabou de receber pedido / validação parcial: fica tingida na cor
+   da marca enquanto a tela a realça (2 s, ou 5 s no "Ver quais") e acende duas
+   vezes ao chegar (antes: animate-pulse piscando a linha toda). */
+@keyframes val-realce { 0% { background-color: color-mix(in srgb, var(--primary) 20%, var(--card)); } 100% { background-color: color-mix(in srgb, var(--primary) 7%, var(--card)); } }
+.val-realce {
+  background-color: color-mix(in srgb, var(--primary) 7%, var(--card)) !important;
+  box-shadow: inset 3px 0 0 var(--primary);
+  animation: val-realce 700ms ease-out 2;
+}
+
+/* Conteúdo que acabou de trocar (aba, painel da nota, barra do lote). */
+@keyframes val-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.val-entra { animation: val-entra 160ms ease-out both; }
+@keyframes val-sobe { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.val-sobe { animation: val-sobe 180ms cubic-bezier(.2, 0, 0, 1) both; }
+
+/* Esqueleto: brilho que passa, em vez de piscar o bloco inteiro. */
+@keyframes val-brilho { 0% { background-position: -320px 0; } 100% { background-position: 320px 0; } }
+.val-osso {
+  background: linear-gradient(90deg, var(--muted) 0, color-mix(in srgb, var(--muted) 45%, var(--card)) 40px, var(--muted) 80px) no-repeat;
+  background-size: 640px 100%;
+  background-color: var(--muted);
+  animation: val-brilho 1.3s linear infinite;
+  border-radius: 6px;
+}
+
+/* Faixa que rola de lado sem barra visível (abas no celular). */
+.val-rolagem-x { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.val-rolagem-x::-webkit-scrollbar { display: none; }
+
+/* Toque: alvo mínimo de 44px nos controles pequenos da lista e dos diálogos. */
+@media (pointer: coarse) {
+  .val-alvo { min-height: 44px; min-width: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .val-realce { animation: none; }
+  .val-entra, .val-sobe, .val-osso { animation: none; }
+  .val-linha, .val-cartao, .val-linha .val-abrir, .val-kpi, .val-kpi .val-kpi-n { transition: none; }
+  .val-kpi:hover .val-kpi-n { transform: none; }
+}
+/* No cartão o local do evento volta a quebrar linha (há largura e não há coluna vizinha). */
+.pas-cartao .pas-local { white-space: normal; }
+/* A busca tem o próprio "limpar" — o X nativo do navegador ficava duplicado. */
+.pas-busca::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }

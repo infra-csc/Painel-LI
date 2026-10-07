@@ -4,15 +4,18 @@
  * Só orquestra: dados/escopo (`useValidationData`), seleção
  * (`useValidationSelection`), ações (`useValidationActions`) e os blocos em
  * components/scaling-validation/validation-page/*. Tinha 1.300 linhas.
+ *
+ * 07/10 (redesenho premium): barra da tela grudada (título, passos do módulo,
+ * "Incluir escalação"), resumo numa faixa só, abas segmentadas, filtros sem
+ * moldura, lista que vira cartões abaixo de 1280px e estados (vazio, erro,
+ * sem acesso, carregando) no desenho da Escalação. Lógica intacta.
  */
 import { useState } from "react";
 import { Link } from "wouter";
-import { ClipboardCheck, CloudOff, Eye, History, Info, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CalendarDays, ClipboardCheck, CloudOff, Eye, History, Inbox, Info, List, Plus, SearchX } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PageContainer } from "@/components/common/page-container";
-import { EmptyState } from "@/components/common/empty-state";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -21,7 +24,6 @@ import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
 import { ALL_EVENTS_ROW_LIMIT, SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
 import { VALIDATION_NOTE_MAX } from "@/components/scaling-validation/validation-note";
 import { SuggestionsList } from "@/components/scaling-validation/suggestions-list";
-import { SECTION_TITLE } from "@/components/scaling-validation/logistics-chips";
 import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
 import { AdjustRequestDialog, DeleteRequestDialog, IncludeRequestDialog } from "@/components/scaling-validation/change-request-dialogs";
 import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
@@ -37,6 +39,12 @@ import { ValidationSummary } from "@/components/scaling-validation/validation-pa
 import { ValidationToolbar } from "@/components/scaling-validation/validation-page/validation-toolbar";
 import { BulkActionBar } from "@/components/scaling-validation/validation-page/bulk-action-bar";
 import { ValidateDialog } from "@/components/scaling-validation/validation-page/validate-dialog";
+import { AcaoDoEstado, AcessoNegadoValidacao, BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
+
+/** Aba segmentada (07/10) — o mesmo desenho das abas da Escalação. */
+const ABA = "val-alvo h-8 gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-[color,background-color,box-shadow] duration-150 hover:text-foreground data-[state=active]:bg-card data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-1 data-[state=active]:ring-1 data-[state=active]:ring-border focus-visible:ring-offset-0";
+/** Aviso em faixa (lista cortada, seleção oculta, quadro sem filtro). */
+const AVISO = "val-entra flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-xs leading-relaxed";
 
 export default function ScalingValidationPage() {
   usePageTitle("Validação de escala");
@@ -64,10 +72,7 @@ export default function ScalingValidationPage() {
   if (!canAccess) {
     return (
       <PageContainer>
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-2">Acesso negado</h3>
-          <p className="text-muted-foreground text-sm">Você não tem permissão para acessar a Validação de Escala.</p>
-        </div>
+        <AcessoNegadoValidacao />
       </PageContainer>
     );
   }
@@ -81,10 +86,10 @@ export default function ScalingValidationPage() {
 
   /** Vaga já aprovada saiu da sugestão: quem ajusta é a Escalação (tela 2). */
   const approvedGoesToScaling = (
-    <p className="text-center text-xs text-muted-foreground">
+    <p className="pt-1 text-center text-xs text-muted-foreground">
       Vagas já aprovadas saem desta tela e são ajustadas na{" "}
       {hasPermission(user, "canAccessScreen2")
-        ? <Link href="/scaling" className="text-primary underline-offset-2 hover:underline">Escalação</Link>
+        ? <Link href="/scaling" className="font-medium text-primary underline-offset-2 hover:underline">Escalação</Link>
         : <span className="font-semibold">Escalação</span>}.
     </p>
   );
@@ -102,22 +107,22 @@ export default function ScalingValidationPage() {
   })();
 
   return (
-    <PageContainer fluid className="pb-24">
-      <div ref={topRef} aria-hidden="true" />
+    <PageContainer fluid className="pb-28">
       <ValidationHeader d={d} eventId={eventId} setEventId={setEventId} includeDisabledReason={includeDisabledReason} onInclude={() => act.setIncludeOpen(true)} />
+      {/* Âncora do "voltar ao topo" depois de validar — logo abaixo da barra
+          grudada; o scroll-margin grande faz a página parar no topo de verdade. */}
+      <div ref={topRef} aria-hidden="true" className="scroll-mt-[60vh]" />
 
-      {/* Resumo — soma SEMPRE o conjunto exibido (um evento ou todos). Card
-          com faixa de cabeçalho (04/09), como os cartões do detalhe da
-          inclusão: os seis números soltos na página pareciam parte dos
-          filtros. Funil de um lado, recortes do outro — "Atrasadas" e
-          "Minhas pendentes" são fatias de "Aguardando validação", não etapas,
-          e lado a lado com o funil pareciam somar com ele. */}
+      {/* Resumo — soma SEMPRE o conjunto exibido (um evento ou todos). Funil de
+          um lado, recorte do outro — "Minhas pendentes" é fatia de
+          "Aguardando validação", não etapa, e lado a lado com o funil parecia
+          somar com ele. */}
       {rows.length > 0 && <ValidationSummary d={d} eventId={eventId} anyEditable={anyEditable} />}
 
       {/* Teto do modo "todos os eventos": a lista foi cortada, o filtro é a saída. */}
       {truncated && (
-        <p role="status" className="flex items-start gap-2 rounded-xl border border-warning/25 bg-warning-soft px-3 py-2 text-xs text-warning">
-          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+        <p role="status" className={cn(AVISO, "border-warning/30 bg-warning-soft text-warning")}>
+          <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             <span className="font-semibold">Mostrando as {ALL_EVENTS_ROW_LIMIT} vagas que esperam há mais tempo</span> — há outras fora da lista.
             Escolha um evento no filtro acima para ver a lista completa dele.
@@ -128,71 +133,82 @@ export default function ScalingValidationPage() {
       {suggestionsQuery.isLoading || permissoesCarregando ? (
         <ValidationSkeleton label={loadingFunctions ? "Carregando funções…" : "Carregando escala sugerida…"} />
       ) : loadError ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5">
-          <CloudOff className="w-4 h-4 shrink-0 text-danger" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-danger">Não foi possível carregar a escala</p>
-            <p className="text-xs text-danger">{apiErrorMessage(loadError, "Verifique sua conexão e tente novamente.")}</p>
-          </div>
-          <Button variant="outline" size="sm" className="ml-auto rounded-lg" onClick={() => suggestionsQuery.refetch()}>Tentar novamente</Button>
-        </div>
+        <EstadoDaValidacao
+          tom="erro"
+          icone={<CloudOff aria-hidden="true" />}
+          titulo="Não foi possível carregar a escala"
+          texto={apiErrorMessage(loadError, "Verifique sua conexão e tente novamente.")}
+          acao={<BotaoTentarDeNovo onClick={() => suggestionsQuery.refetch()} tentando={suggestionsQuery.isFetching} />}
+          testId="validacao-erro"
+        />
       ) : rows.length === 0 ? (
-        <div className="space-y-2">
-          <EmptyState
-            title={eventId ? "Nenhuma vaga sugerida neste evento" : "Nenhuma vaga em validação"}
-            description={eventId
+        <div className="space-y-6">
+          <EstadoDaValidacao
+            icone={<Inbox aria-hidden="true" />}
+            titulo={eventId ? "Nenhuma vaga sugerida neste evento" : "Nenhuma vaga em validação"}
+            texto={eventId
               ? "A logística ainda não enviou a escala sugerida deste evento, ou todas as vagas já foram aprovadas e seguiram para a Inclusão de Equipe. Você pode pedir a inclusão de uma vaga nova a qualquer momento."
               : "Nenhum evento tem vaga aguardando validação, pedido em aberto ou vaga esperando aprovação. Para pedir a inclusão de uma vaga nova, escolha um evento no filtro acima."}
-            // O botão "Incluir escalação" já está no cabeçalho; aqui o mesmo
-            // caminho vira um link, para não haver dois botões primários iguais.
-            action={!readOnlyMode && eventId && !includeDisabledReason ? (
-              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-primary" onClick={() => act.setIncludeOpen(true)}>
-                <Plus className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Pedir uma vaga nova
-              </Button>
+            // O botão "Incluir escalação" já está na barra da tela; aqui o mesmo
+            // caminho é secundário, para não haver dois botões primários iguais.
+            acao={(!readOnlyMode && eventId && !includeDisabledReason) || hasPermission(user, "canAccessScalingEventView") ? (
+              <>
+                {!readOnlyMode && eventId && !includeDisabledReason && (
+                  <AcaoDoEstado principal={false} onClick={() => act.setIncludeOpen(true)}>
+                    <Plus className="h-4 w-4" aria-hidden="true" /> Pedir uma vaga nova
+                  </AcaoDoEstado>
+                )}
+                {hasPermission(user, "canAccessScalingEventView") && (
+                  <Link href={scalingHref("/scaling-event-view", eventId)} className="val-alvo inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-primary transition-colors hover:bg-brand-soft/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <History className="h-4 w-4" aria-hidden="true" /> {eventId ? "Ver histórico completo do evento" : "Ver o histórico da escala"}
+                  </Link>
+                )}
+              </>
             ) : undefined}
+            testId="validacao-vazia"
           />
-          {hasPermission(user, "canAccessScalingEventView") && (
-            <p className="text-center">
-              <Link href={scalingHref("/scaling-event-view", eventId)} className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-primary underline-offset-2 hover:underline">
-                <History className="w-3 h-3" aria-hidden="true" /> {eventId ? "Ver histórico completo do evento" : "Ver o histórico da escala"}
-              </Link>
-            </p>
-          )}
           {/* Fila vazia costuma significar TUDO APROVADO — e era justamente
               quando as Decididas ficavam inalcançáveis (o vazio engolia as
               abas). O histórico aparece aqui mesmo, sem aba. */}
-          <div className="pt-3">
-            <h3 className={cn("mb-2 flex items-center gap-1.5", SECTION_TITLE)}>
-              <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" /> Decididas
+          <section aria-labelledby="val-decididas-vazio" className="space-y-2.5">
+            <h3 id="val-decididas-vazio" className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+              <ClipboardCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Decididas
+              <span className="font-normal text-muted-foreground">· o que o aprovador já aprovou ou negou</span>
             </h3>
             <DecidedPanel eventId={eventId} functionNameById={functionNameById} podeLimpar={isAdmin} />
-          </div>
+          </section>
         </div>
       ) : (
-        <Tabs value={boardTab} onValueChange={(v) => setTab(v as ValidationTab)} className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList className="rounded-xl">
-              <TabsTrigger value="lista" className="rounded-lg">Lista</TabsTrigger>
+        <Tabs value={boardTab} onValueChange={(v) => setTab(v as ValidationTab)} className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <TabsList className="h-auto gap-0.5 rounded-lg border border-border bg-background p-[3px]">
+              <TabsTrigger value="lista" className={ABA}><List className="h-[15px] w-[15px]" aria-hidden="true" />Lista</TabsTrigger>
               {/* O quadro é função × dia DE UM evento: sem evento escolhido ele
                   somaria dias de eventos diferentes na mesma coluna. */}
-              {eventId && <TabsTrigger value="escala" className="rounded-lg">Escala</TabsTrigger>}
-              <TabsTrigger value="decididas" className="rounded-lg">Decididas</TabsTrigger>
+              {eventId && <TabsTrigger value="escala" className={ABA}><CalendarDays className="h-[15px] w-[15px]" aria-hidden="true" />Escala</TabsTrigger>}
+              <TabsTrigger value="decididas" className={ABA}><ClipboardCheck className="h-[15px] w-[15px]" aria-hidden="true" />Decididas</TabsTrigger>
             </TabsList>
-            <p className="text-xs text-muted-foreground" aria-live="polite">{contadorDaAba}</p>
+            <p className="text-xs tabular-nums text-muted-foreground" aria-live="polite">{contadorDaAba}</p>
           </div>
 
-          <TabsContent value="lista" className="space-y-3 mt-0">
+          <TabsContent value="lista" className="val-entra mt-0 space-y-3">
             <ValidationToolbar d={d} anyEditable={anyEditable} />
 
             {hiddenSelectedCount > 0 && (
-              <p role="status" className="flex items-center gap-2 rounded-xl border border-warning/25 bg-warning-soft px-3 py-2 text-xs text-warning">
-                <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                {hiddenSelectedCount} {hiddenSelectedCount === 1 ? "vaga selecionada ficou oculta" : "vagas selecionadas ficaram ocultas"} pelo filtro — {hiddenSelectedCount === 1 ? "ela continua" : "elas continuam"} na seleção.
+              <p role="status" className={cn(AVISO, "border-warning/30 bg-warning-soft text-warning")}>
+                <Eye className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>{hiddenSelectedCount} {hiddenSelectedCount === 1 ? "vaga selecionada ficou oculta" : "vagas selecionadas ficaram ocultas"} pelo filtro — {hiddenSelectedCount === 1 ? "ela continua" : "elas continuam"} na seleção.</span>
               </p>
             )}
 
             {filteredRows.length === 0 ? (
-              <EmptyState variant="filtered" title="Nenhuma vaga com esses filtros" onClearFilters={hasActiveFilters ? clearFilters : undefined} />
+              <EstadoDaValidacao
+                icone={<SearchX aria-hidden="true" />}
+                titulo="Nenhuma vaga com esses filtros"
+                texto="A busca, as funções marcadas ou o indicador do resumo escondem todas as vagas. Tire um filtro para ver o resto."
+                acao={hasActiveFilters ? <AcaoDoEstado principal={false} onClick={clearFilters}>Limpar filtros</AcaoDoEstado> : undefined}
+                testId="validacao-sem-resultado"
+              />
             ) : (
               <SuggestionsList
                 rows={filteredRows}
@@ -218,13 +234,13 @@ export default function ScalingValidationPage() {
             {approvedGoesToScaling}
           </TabsContent>
 
-          <TabsContent value="escala" className="mt-0 space-y-2">
+          <TabsContent value="escala" className="val-entra mt-0 space-y-2.5">
             {/* O quadro soma TODAS as vagas do evento, sempre — quem chega da
                 Lista com filtro ligado precisa saber que os números aqui não
                 são os da lista filtrada (04/09). */}
             {hasActiveFilters && (
-              <p role="status" className="flex items-center gap-2 rounded-xl border border-border bg-surface-muted px-3 py-2 text-xs text-slate-600">
-                <Info className="w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <p role="status" className={cn(AVISO, "border-border bg-surface-muted text-slate-600")}>
+                <Info className="mt-px h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                 O quadro sempre soma todas as áreas — os filtros da Lista não valem aqui.
               </p>
             )}
@@ -234,7 +250,7 @@ export default function ScalingValidationPage() {
 
           {/* Histórico do que já foi decidido (28/08): a vaga aprovada sumia da
               tela e a área não sabia se tinha dado certo. Leitura pura. */}
-          <TabsContent value="decididas" className="mt-0 space-y-3">
+          <TabsContent value="decididas" className="val-entra mt-0 space-y-3">
             <ValidationToolbar d={d} anyEditable={anyEditable} />
             <DecidedPanel eventId={eventId} functionNameById={functionNameById} filtro={filtroDasDecididas} podeLimpar={isAdmin} />
           </TabsContent>

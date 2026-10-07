@@ -39,26 +39,39 @@ function periodEnds(row: SuggestionRow): [string, string] {
   return [ymd(row.scheduleStartDate), ymd(row.scheduleEndDate)];
 }
 
-/** "Sáb 05/09 – Ter 08/09 · 4 diárias" com "N dias" (lista de dias) em tooltip. */
-export function PeriodCell({ row, className }: { row: SuggestionRow; className?: string }) {
+/**
+ * "Sáb 05/09 – Ter 08/09 · 4 diárias" com "N dias" (lista de dias) em tooltip.
+ *
+ * `stacked` (07/10): datas numa linha e as diárias embaixo, em cinza — a coluna
+ * "Período" da tabela. Em uma linha só, numa coluna estreita, "Sáb 21/11 –
+ * Seg 23/11 · 3 diárias" quebrava em três pedaços soltos.
+ */
+export function PeriodCell({ row, className, stacked = false }: { row: SuggestionRow; className?: string; stacked?: boolean }) {
   const days = workDaysOf(row);
   const [start, end] = periodEnds(row);
-  const label = (
-    <span className={cn("font-mono tabular-nums", className)}>
-      {start
-        ? <>
-            <DayLabel v={start} />
-            {end && end !== start && <> – <DayLabel v={end} /></>}
-          </>
-        // Travessão solto não diz nada a quem lê: a falta vira frase.
-        : <span className="font-sans italic text-muted-foreground">Sem período</span>}
-      {" "}<span className="text-muted-foreground font-sans">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
+  const datas = start
+    ? <>
+        <DayLabel v={start} />
+        {end && end !== start && <> <span className="text-muted-foreground" aria-hidden="true">–</span> <DayLabel v={end} /></>}
+      </>
+    // Travessão solto não diz nada a quem lê: a falta vira frase.
+    : <span className="font-sans italic text-muted-foreground">Sem período</span>;
+  const diarias = formatDiarias(days.length || row.dailyRates || 0);
+  const label = stacked ? (
+    <span className={cn("inline-flex flex-col", className)}>
+      <span className="whitespace-nowrap text-[13px] tabular-nums text-foreground">{datas}</span>
+      <span className="text-2xs text-muted-foreground">{diarias}</span>
+    </span>
+  ) : (
+    <span className={cn("tabular-nums", className)}>
+      {datas}
+      {" "}<span className="text-muted-foreground">· {diarias}</span>
     </span>
   );
   if (days.length === 0) return label;
   return (
     <Tooltip>
-      <TooltipTrigger asChild><span tabIndex={0} className="cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2">{label}</span></TooltipTrigger>
+      <TooltipTrigger asChild><span tabIndex={0} className="cursor-help rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{label}</span></TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-xs">
         <p className="font-semibold">{days.length} {days.length === 1 ? "dia" : "dias"} de trabalho</p>
         <p className="font-mono">{days.map((d) => dayText(d) || formatDayMonthBr(d)).join(", ")}</p>
@@ -71,9 +84,10 @@ export function PeriodCell({ row, className }: { row: SuggestionRow; className?:
  * Ida/volta + o que a vaga precisa, em chips (uma coluna só de "Logística") —
  * mesma linguagem visual da grade da Sugestão (`logistics-chips`).
  *
- * `responsive` (04/09): abaixo de `xl` os chips saem na versão curta (só
- * "Ida · 15/10"), que cabe na coluna estreita; de `xl` para cima, a versão
- * inteira. São dois blocos com `hidden`, não uma media query em JS — a lista
+ * `responsive` (04/09): abaixo de `2xl` os chips saem na versão curta (só
+ * "Ida · 15/10"), que cabe na coluna estreita; de `2xl` para cima, a versão
+ * inteira (07/10: era `xl` — com a tabela a partir de 1280px, em 1366 a
+ * versão longa empilhava ida, volta e passagem em três linhas). São dois blocos com `hidden`, não uma media query em JS — a lista
  * não precisa re-renderizar ao redimensionar.
  */
 export function LogisticsChips({ row, responsive = false }: { row: SuggestionRow; responsive?: boolean }) {
@@ -84,7 +98,7 @@ export function LogisticsChips({ row, responsive = false }: { row: SuggestionRow
     row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime,
   ].some((v) => legValue(v) !== null);
   if (!hasLeg && !row.needsTicket && !row.needsAccommodation) {
-    return <span className="text-2xs italic text-muted-foreground">Sem logística</span>;
+    return <span className="text-xs text-muted-foreground">Sem logística</span>;
   }
   const chips = (compact: boolean) => (
     <>
@@ -96,17 +110,22 @@ export function LogisticsChips({ row, responsive = false }: { row: SuggestionRow
   if (!responsive) return <div className="flex flex-wrap items-center gap-1.5">{chips(false)}</div>;
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5 xl:hidden">{chips(true)}</div>
-      <div className="hidden flex-wrap items-center gap-1.5 xl:flex">{chips(false)}</div>
+      <div className="flex flex-wrap items-center gap-1 2xl:hidden">{chips(true)}</div>
+      <div className="hidden flex-wrap items-center gap-1.5 2xl:flex">{chips(false)}</div>
     </>
   );
 }
 
+/**
+ * O número da vaga (07/10): mono e discreto, ao lado da observação — como o
+ * "#130 · evento" da Escalação. Era um selo azul que competia com o nome da
+ * função pelo primeiro olhar.
+ */
 export function IdChip({ row, onClick }: { row: SuggestionRow; onClick?: () => void }) {
-  const cls = "inline-flex items-center rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums text-primary";
+  const cls = "inline-flex shrink-0 items-center rounded-sm font-mono text-2xs font-medium tabular-nums text-muted-foreground";
   if (!onClick) return <span className={cls}>#{row.inclusionNumber}</span>;
   return (
-    <button type="button" onClick={onClick} className={cn(cls, "hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+    <button type="button" onClick={onClick} className={cn(cls, "transition-colors hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
       aria-label={`Ver detalhes da vaga #${row.inclusionNumber}`}>
       #{row.inclusionNumber}
     </button>
@@ -117,7 +136,7 @@ export function LockedHint({ reason }: { reason: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span role="img" tabIndex={0} className="inline-flex items-center justify-center text-muted-foreground rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={reason}>
+        <span role="img" tabIndex={0} className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground/70 rounded-sm hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={reason}>
           <Lock className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       </TooltipTrigger>
