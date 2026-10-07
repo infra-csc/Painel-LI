@@ -162,11 +162,12 @@ describe("ScalingTableRow", () => {
     expect(caixa).toBeDisabled();
   });
 
-  it("'Precisa de': passagem comprada em azul, hospedagem faltando em âmbar; sem nada, 'Sem logística'", () => {
+  it("'Precisa de': passagem comprada em azul, hospedagem faltando em contorno âmbar; sem nada, 'Sem logística'", () => {
     const vaga = vagaFake({ id: "vaga-1", inclusionNumber: 101, needsTicket: true, needsAccommodation: true });
     const { unmount } = montar(vaga, { getTicket: () => passagemFake({ teamInclusionId: "vaga-1" }) });
     expect(screen.getByTitle("Passagem comprada")).toHaveClass("bg-brand-soft");
-    expect(screen.getByTitle("Precisa de hospedagem — ainda não reservada")).toHaveClass("bg-warning-soft");
+    // 07/10: o que falta é contorno âmbar (texto e anel), não mais fundo cheio.
+    expect(screen.getByTitle("Precisa de hospedagem — ainda não reservada")).toHaveClass("text-warning", "ring-warning/40");
     unmount();
     montar(VAGA());
     expect(screen.getByText("Sem logística")).toBeInTheDocument();

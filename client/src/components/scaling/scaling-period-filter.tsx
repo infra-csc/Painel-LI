@@ -58,7 +58,14 @@ function Opcao({ label, n, ativo, onClick, testid }: {
   );
 }
 
-export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChange, linhas, hoje, presets, datasDoEvento }: Props<T>) {
+export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChange, linhas, hoje, presets, datasDoEvento, realceAtivo = false }: Props<T> & {
+  /**
+   * Filtro ligado ganha o fundo da marca (07/10, Escalação): a barra dela
+   * pinta assim os filtros ativos. Desligado por padrão — Passagens e
+   * Hospedagem continuam como estão.
+   */
+  realceAtivo?: boolean;
+}) {
   const ativo = temRecorteDePeriodo(valor);
   const hojeBr = `hoje é ${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}`;
 
@@ -85,8 +92,8 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
           type="button"
           data-testid="button-filtro-periodo"
           title={valor.base === "evento" ? "Filtrar pela data do evento" : "Filtrar pelo período da escala"}
-          className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-sm font-medium text-slate-700 max-w-[240px] hover:bg-muted transition-colors ${
-            ativo ? "border-primary/40" : "border-border"
+          className={`inline-flex shrink-0 items-center gap-1.5 h-[34px] px-3 rounded-lg border text-sm font-medium max-w-[240px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary ${
+            ativo && realceAtivo ? "border-primary/40 bg-brand-soft text-primary hover:bg-brand-soft" : ativo ? "border-primary/40 bg-card text-slate-700 hover:bg-muted" : "border-border bg-card text-slate-700 hover:bg-muted"
           }`}
         >
           <CalendarRange className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
@@ -95,7 +102,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-[460px] p-0 rounded-xl overflow-hidden">
+      <PopoverContent align="start" collisionPadding={12} className="w-[min(460px,calc(100vw-24px))] max-h-[min(80vh,640px)] overflow-y-auto p-0 rounded-xl">
         <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-border">
           <span className="text-sm font-semibold text-foreground">{datasDoEvento ? "Período" : "Período da escala"}</span>
           <span className="text-xs text-muted-foreground truncate">{hojeBr}</span>
@@ -140,8 +147,8 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
           </div>
         )}
 
-        <div className="flex">
-          <div className="w-[228px] shrink-0 p-2.5 border-r border-border">
+        <div className="flex flex-col sm:flex-row">
+          <div className="sm:w-[228px] shrink-0 p-2.5 border-b border-border sm:border-b-0 sm:border-r">
             <p className="mb-1.5 ml-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
               Quando acontece
             </p>

@@ -99,8 +99,8 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
 
   return (
     <Dialog open={open} onOpenChange={(o) => !exporting && onOpenChange(o)}>
-      <DialogContent className="!max-w-[980px] w-[95vw] p-0 gap-0 flex flex-col max-h-[92vh] overflow-hidden rounded-xl">
-        <DialogHeader className="px-6 pt-6 pb-3 border-b border-border pr-12">
+      <DialogContent className="!max-w-[980px] w-[calc(100vw-1rem)] sm:w-[95vw] p-0 gap-0 flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[92vh] overflow-hidden rounded-xl">
+        <DialogHeader className="px-5 sm:px-6 pt-6 pb-3 border-b border-border pr-12 text-left">
           <DialogTitle>Exportar escalações</DialogTitle>
           <DialogDescription>
             {typeof quantasLinhas === "number" && (
@@ -114,8 +114,8 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
-          <fieldset className="rounded-xl border border-border bg-surface-muted/60 px-3 py-2">
+        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-3 space-y-3">
+          <fieldset className="rounded-lg border border-border bg-surface-muted px-3 py-2">
             <legend className="px-1 text-2xs font-bold uppercase tracking-wide text-muted-foreground">Quais linhas</legend>
             <div className="flex flex-wrap gap-2">
               {EXPORT_SCOPES.map((s) => (
@@ -137,8 +137,8 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
             </div>
           </fieldset>
 
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground tabular-nums">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
               {marcadas.length} de {ALL_EXPORT_COLUMNS.length} colunas marcadas
             </p>
             <div className="flex gap-2">
@@ -153,7 +153,7 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
             {EXPORT_COLUMN_GROUPS.map((grupo) => {
               const todasDoGrupo = grupo.keys.every((k) => !desmarcadas.has(k));
               return (
-                <fieldset key={grupo.label} className="rounded-xl border border-border px-3 pb-2 pt-1">
+                <fieldset key={grupo.label} className="rounded-lg border border-border bg-card px-3 pb-2 pt-1">
                   <legend className="px-1">
                     <label className="flex cursor-pointer items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-600">
                       <Checkbox
@@ -195,7 +195,7 @@ export function ExportColumnsDialog({ open, onOpenChange, onExport, exporting, q
             </MotivoDesabilitado>
             <Button type="button" disabled={marcadas.length === 0 || exporting}
               onClick={() => exportar("xlsx")}
-              className="rounded-lg bg-success text-white hover:bg-success/90">
+              className="rounded-lg bg-primary text-primary-foreground hover:bg-primary-hover shadow-1">
               <FileSpreadsheet className="mr-1.5 h-4 w-4" aria-hidden="true" />
               {exporting ? "Exportando…" : "Excel"}
             </Button>

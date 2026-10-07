@@ -164,8 +164,14 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
 
   return (
     <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
-      <DialogContent className={DIALOG_SHELL_WIDE}>
-        <DialogHeader className={DIALOG_HEADER}>
+      {/* Foco inicial no próprio diálogo (07/10, Escalação): ia para o primeiro
+          botão dos dias, que abria o tooltip "Marca todos os dias…" por cima do
+          formulário ao abrir. O Tab segue a ordem de sempre a partir do topo. */}
+      <DialogContent
+        className={cn(DIALOG_SHELL_WIDE, "focus:outline-none")}
+        onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true }); }}
+      >
+        <DialogHeader className={cn(DIALOG_HEADER, "text-left")}>
           <DialogTitle>Pedir ajuste da vaga #{vaga?.inclusionNumber ?? "…"}</DialogTitle>
           <DialogDescription>
             {nomeFuncao ?? "Função"}{event ? ` · ${event.name}` : ""}. Altere só o que precisa — o aprovador vê o “de/para”.

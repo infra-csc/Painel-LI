@@ -25,6 +25,7 @@ import { CHANGE_REQUEST_TYPE_LABELS, PROPOSED_FIELD_LABELS, type InclusionDiffEn
 import { formatProposedValue } from "@/components/scaling-approval/request-badges";
 import type { ChangeWindowBlock } from "@shared/scaling-change-window";
 import type { Event, TeamInclusion } from "@shared/schema";
+import { Secao } from "./inclusion-details/details-shared";
 
 /** Resposta de GET /api/team-inclusions/:id/change-window */
 export interface ChangeWindowResponse {
@@ -96,9 +97,6 @@ function changeText(diff: InclusionDiffEntry[] | undefined): string {
     .join(" · ");
 }
 
-const CARD = "mt-5 border rounded-xl overflow-hidden";
-const HEAD = "border-b px-4 py-2.5 flex items-center gap-2 flex-wrap";
-const HEAD_LABEL = "text-2xs font-black uppercase tracking-[0.12em]";
 
 /**
  * O ajuste pode ser pedido agora? Mesma leitura que decide o botão do cartão —
@@ -132,13 +130,16 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
 
   if (pending) {
     const tipo = CHANGE_REQUEST_TYPE_LABELS[pending.requestType] ?? pending.requestType;
+    // 07/10: mesma moldura de seção do modal (era um cartão próprio com
+    // título em caixa alta e tracking largo).
     return (
-      <div className={`${CARD} border-warning/25`} data-testid="card-pedido-ajuste-pendente">
-        <div className={`${HEAD} bg-warning-soft border-warning/25`}>
-          <Clock className="w-4 h-4 text-warning-strong" aria-hidden="true" />
-          <span className={`${HEAD_LABEL} text-warning`}>Pedido de {tipo.toLowerCase()} em análise</span>
-        </div>
-        <div className="px-4 py-3 space-y-2">
+      <Secao
+        titulo={`Pedido de ${tipo.toLowerCase()} em análise`}
+        icone={<Clock className="text-warning-strong" aria-hidden="true" />}
+        tom="atencao"
+        testId="card-pedido-ajuste-pendente"
+        corpo="px-4 py-3 space-y-2"
+      >
           {/* O QUE muda vem primeiro, em de/para — o card mostrava só o motivo
               e não dizia o que o aprovador está decidindo. */}
           {(pending.diff?.length ?? 0) > 0 && (
@@ -162,8 +163,7 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
             {pending.createdAt ? ` · ${formatDateBr(pending.createdAt)}` : ""}
             {" · aguardando o aprovador. A escalação continua como está até a decisão."}
           </p>
-        </div>
-      </div>
+      </Secao>
     );
   }
 
@@ -172,27 +172,16 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
     // status, e um aviso de "ajuste indisponível" só ocuparia espaço.
     if (data.block === "vaga_cancelada" || data.block === "vaga_excluida") return null;
     return (
-      <div className={`${CARD} border-border`} data-testid="card-pedido-ajuste-bloqueado">
-        <div className={`${HEAD} bg-surface-muted border-border`}>
-          <Lock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-          <span className={`${HEAD_LABEL} text-muted-foreground`}>Ajuste indisponível</span>
-        </div>
-        <div className="px-4 py-3">
-          <p className="text-sm text-slate-600 leading-relaxed">{data.message}</p>
-        </div>
-      </div>
+      <Secao titulo="Ajuste indisponível" icone={<Lock aria-hidden="true" />} testId="card-pedido-ajuste-bloqueado" corpo="px-4 py-3">
+        <p className="text-sm text-slate-600 leading-relaxed">{data.message}</p>
+      </Secao>
     );
   }
 
   return (
     <>
-      <div className={`${CARD} border-border`} data-testid="card-pedir-ajuste">
-        <div className={`${HEAD} bg-surface-muted border-border`}>
-          <PencilLine className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-          <span className={`${HEAD_LABEL} text-muted-foreground`}>Precisa mudar algo?</span>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-slate-600 leading-snug max-w-xl">
+      <Secao titulo="Precisa mudar algo?" icone={<PencilLine aria-hidden="true" />} testId="card-pedir-ajuste" corpo="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-[220px] flex-1 text-xs text-slate-600 leading-snug">
             Dias, diárias ou viagem desta vaga podem ser ajustados por pedido ao aprovador
             {data.adminOverride
               ? " — a passagem já foi comprada, e só o administrador consegue abrir este pedido."
@@ -205,14 +194,13 @@ export function AdjustRequestPanel({ inclusion, event, functionName, aberto, onA
           </p>
           <Button
             type="button" variant="outline" onClick={() => setOpen(true)}
-            className="rounded-lg bg-card border-border hover:bg-brand-soft hover:text-primary"
+            className="h-9 shrink-0 rounded-lg bg-card border-border hover:border-primary/40 hover:bg-brand-soft hover:text-primary"
             data-testid="button-pedir-ajuste-escalacao"
           >
             <PencilLine className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
             Pedir ajuste
           </Button>
-        </div>
-      </div>
+      </Secao>
 
       <AdjustRequestDialog
         open={open}

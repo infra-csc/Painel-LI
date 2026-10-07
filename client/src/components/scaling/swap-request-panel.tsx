@@ -26,21 +26,21 @@ export { SwapRequestDialog, type SwapRequestDialogProps } from "./swap-request-d
 
 const VARIANTS: Record<string, { bg: string; border: string; icon: ReactNode; title: string; badge: string; badgeClass: string; msg: string }> = {
   pendente: {
-    bg: "bg-warning-soft/80", border: "border-warning/25",
+    bg: "bg-warning-soft/70", border: "border-warning/35",
     icon: <Clock className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />,
     title: "Troca solicitada", badge: "Aguardando aprovação",
     badgeClass: "bg-warning-soft text-warning border-warning/25",
     msg: "O colaborador atual será mantido até a aprovação.",
   },
   aprovado: {
-    bg: "bg-success-soft/80", border: "border-success/25",
+    bg: "bg-success-soft/70", border: "border-success/30",
     icon: <Check className="w-3.5 h-3.5 text-success shrink-0" aria-hidden="true" />,
     title: "Troca aprovada", badge: "Aprovada por Compras",
     badgeClass: "bg-success-soft text-success border-success/25",
     msg: "A alteração do colaborador foi liberada.",
   },
   rejeitado: {
-    bg: "bg-danger-soft/70", border: "border-danger/25",
+    bg: "bg-danger-soft/70", border: "border-danger/30",
     icon: <X className="w-3.5 h-3.5 text-danger-strong shrink-0" aria-hidden="true" />,
     title: "Troca recusada", badge: "Reprovada por Compras",
     badgeClass: "bg-danger-soft text-danger border-danger/25",
@@ -88,17 +88,21 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
 
   return (
     <>
-      <div className={`rounded-xl border ${v.border} ${v.bg} px-3 py-2.5 space-y-2`}>
-        <div className="flex items-center justify-between gap-2">
+      {/* 07/10: cartão branco com o cabeçalho tingido pela situação — antes o
+          bloco inteiro era âmbar, com um cartão branco dentro e um cinza dentro
+          dele (três molduras para uma informação). */}
+      <div className={`rounded-lg border ${v.border} bg-card overflow-hidden`} data-testid={`swap-status-${swap.status}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-2 border-b ${v.border} ${v.bg} px-3 py-2`}>
           <div className="flex items-center gap-1.5">
             {v.icon}
-            <span className="text-xs font-semibold text-slate-700">{permuta ? v.title.replace("Troca", "Troca entre vagas") : transferencia ? v.title.replace("Troca", "Transferência") : v.title}</span>
+            <span className="text-xs font-semibold text-foreground">{permuta ? v.title.replace("Troca", "Troca entre vagas") : transferencia ? v.title.replace("Troca", "Transferência") : v.title}</span>
           </div>
-          <span className={`text-2xs font-medium border rounded-full px-2 py-px leading-tight ${v.badgeClass}`}>{v.badge}</span>
+          <span className={`text-2xs font-semibold border rounded-full px-2 py-px leading-tight bg-card ${v.badgeClass}`}>{v.badge}</span>
         </div>
+        <div className="px-3 py-2.5 space-y-2">
 
         {isResolved ? (
-          <div className="bg-card/70 rounded-lg border border-border p-2 space-y-1.5">
+          <div className="space-y-1.5">
             {permuta ? <LinhasDaPermuta swap={swap} getCollaboratorName={getCollaboratorName} /> : transferencia ? <LinhasDaTransferencia swap={swap} getCollaboratorName={getCollaboratorName} /> : (<>
             <div className="flex items-center gap-1.5 text-2xs">
               <span className="text-muted-foreground line-through">{currentCollabName || "—"}</span>
@@ -124,9 +128,9 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
                 <span>{swap.status === "aprovado" ? "Aprovada" : "Rejeitada"} por <span className="font-medium text-slate-600">{swap.reviewedByName}</span>{swap.reviewedAt && <> · {formatShortDateTime(swap.reviewedAt)}</>}</span>
               </div>
             )}
-            <div className="flex items-start gap-1 text-2xs text-muted-foreground">
+            <div className="flex items-start gap-1 text-xs text-muted-foreground">
               <span className="shrink-0">Motivo:</span>
-              <span className="text-muted-foreground leading-snug">{swap.reason}</span>
+              <span className="text-slate-700 leading-snug">{swap.reason}</span>
             </div>
             {swap.reviewComment && (
               <div className="flex items-start gap-1 text-2xs text-muted-foreground">
@@ -136,8 +140,8 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
             )}
           </div>
         ) : (
-          <div className="space-y-1">
-            <p className="text-2xs text-muted-foreground leading-snug">Aguardando análise do time de Compras.</p>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground leading-snug">Aguardando análise do time de Compras.</p>
             {swap.requestedByName && (
               <div className="flex items-center gap-1 text-2xs text-muted-foreground">
                 <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
@@ -145,9 +149,9 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               </div>
             )}
             <ExplicacaoDaTroca troca={trocaExplicada} titulo="Se for aprovada" />
-            <div className="flex items-start gap-1.5 text-2xs">
+            <div className="flex items-start gap-1.5 text-xs">
               <span className="text-muted-foreground shrink-0">Motivo:</span>
-              <span className="text-slate-600 leading-snug">{swap.reason}</span>
+              <span className="text-slate-700 leading-snug">{swap.reason}</span>
             </div>
             {isAdminOrPurchasing && blocked && (
               <p className="pt-1.5 text-2xs text-warning bg-warning-soft border border-warning/25 rounded-lg px-2 py-1.5 leading-snug" role="status" data-testid="text-swap-block-reason">
@@ -155,37 +159,38 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
               </p>
             )}
             {isAdminOrPurchasing && !blocked && (
-              <div className="flex gap-2 pt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setConfirmAction("approve")}
-                  disabled={busy}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-success hover:bg-success/90 text-white text-2xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                  data-testid="button-approve-swap"
-                >
-                  <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />Aprovar troca
-                </button>
+              <div className="flex gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => { setConfirmAction("reject"); setRejectReason(""); }}
                   disabled={busy}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-danger hover:bg-danger/90 text-white text-2xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  className="esc-alvo flex-1 flex items-center justify-center gap-1.5 border border-danger/30 bg-card text-danger hover:bg-danger-soft text-xs font-semibold px-3 h-8 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:opacity-50"
                   data-testid="button-reject-swap"
                 >
                   <XCircle className="w-3.5 h-3.5" aria-hidden="true" />Recusar troca
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmAction("approve")}
+                  disabled={busy}
+                  className="esc-alvo flex-1 flex items-center justify-center gap-1.5 bg-success hover:bg-success/90 text-white text-xs font-semibold px-3 h-8 rounded-lg shadow-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success-strong focus-visible:ring-offset-1 disabled:opacity-50"
+                  data-testid="button-approve-swap"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />Aprovar troca
                 </button>
               </div>
             )}
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-0.5">
-          <p className="text-2xs text-muted-foreground italic leading-tight">{v.msg}</p>
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t border-border bg-surface-muted px-3 py-1.5">
+          <p className="text-2xs text-muted-foreground leading-tight">{v.msg}</p>
           {canCancel && (
             <button
               type="button"
               onClick={() => setShowCancelConfirm(true)}
-              className="text-2xs text-muted-foreground hover:text-danger-strong transition-colors underline underline-offset-2 shrink-0"
+              className="esc-alvo text-2xs font-medium text-muted-foreground hover:text-danger transition-colors underline underline-offset-2 shrink-0"
             >
               Cancelar solicitação
             </button>
@@ -254,7 +259,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
             id="swap-reject-reason"
             value={rejectReason}
             onChange={e => setRejectReason(e.target.value)}
-            className="mt-1.5 w-full border border-border rounded-xl p-2.5 text-sm text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
+            className="mt-1.5 w-full border border-border rounded-lg p-2.5 text-sm text-slate-700 resize-none focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
             rows={3}
             placeholder="Descreva o motivo da recusa…"
           />
@@ -277,13 +282,13 @@ export function RequestSwapButton({ onClick, blockReason }: { onClick: () => voi
         onClick={blocked ? undefined : onClick}
         disabled={blocked}
         data-testid="button-request-swap"
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-primary/25 bg-brand-soft/60 text-primary text-xs font-medium transition-all hover:bg-brand-soft hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-1 active:bg-brand-soft disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-soft/60"
+        className="esc-alvo w-full flex items-center justify-center gap-2 h-9 px-3 rounded-lg border border-border bg-card text-primary text-sm font-semibold transition-colors hover:bg-brand-soft hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-brand-soft disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-card"
       >
-        <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+        <ArrowLeftRight className="w-4 h-4 shrink-0" aria-hidden="true" />
         Solicitar troca
       </button>
       </MotivoDesabilitado>
-      <p className="text-center text-2xs text-muted-foreground leading-tight">
+      <p className="text-center text-2xs text-muted-foreground leading-snug">
         {blocked ? blockReason : "Requer aprovação de Compras"}
       </p>
     </div>

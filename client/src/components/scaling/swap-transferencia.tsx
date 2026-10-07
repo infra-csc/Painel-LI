@@ -43,7 +43,7 @@ export interface TransferRequestDialogProps {
   onEnviado?: () => void;
 }
 
-const LABEL = "text-2xs uppercase tracking-wide font-semibold text-muted-foreground";
+const LABEL = "text-xs font-medium text-slate-600";
 
 export function TransferRequestDialog({
   open, onOpenChange, inclusion, collaboratorId, origens, collaborators,
@@ -105,40 +105,43 @@ export function TransferRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && !createSwapRequest.isPending) onOpenChange(false); }}>
-      <DialogContent className="max-w-[640px] p-0 gap-0 rounded-xl overflow-hidden">
-        <div className="px-6 pt-5 pb-4 border-b border-border bg-brand-soft/70">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0">
-              <ArrowLeftRight className="w-[17px] h-[17px] text-white" aria-hidden="true" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <DialogTitle className="text-base font-bold text-foreground leading-tight">Pedir transferência de colaborador</DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+      {/* 07/10: o mesmo desenho do "Solicitar troca" — cabeçalho do sistema,
+          a vaga de destino numa faixa de dados, "quem vem → quem sai" lado a
+          lado, a origem como lista de opções e o rodapé à direita. */}
+      <DialogContent className="max-w-[660px] w-[calc(100vw-1rem)] sm:w-[95vw] max-h-[calc(100dvh-1rem)] sm:max-h-[92vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden">
+        <div className="shrink-0 px-5 sm:px-6 pt-5 pb-4 border-b border-border bg-card">
+          <div>
+            <div className="min-w-0">
+              <DialogTitle className="pr-8 text-base font-semibold text-foreground leading-tight">Pedir transferência de colaborador</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground mt-1">
                 {quemSai
                   ? `A pessoa sai da vaga onde está e entra nesta no lugar de ${quemSai} — só depois da aprovação do time de Compras.`
                   : "A pessoa sai da vaga onde está e entra nesta — só depois da aprovação do time de Compras."}
               </DialogDescription>
             </div>
           </div>
-          <div className="mt-3 rounded-xl border border-border bg-card px-4 py-2.5 text-xs text-slate-700" data-testid="transferencia-destino">
-            <span className={LABEL}>Para esta vaga</span>
+          <div className="mt-3 rounded-lg border border-border bg-surface-muted px-3.5 py-2.5 text-sm text-foreground" data-testid="transferencia-destino">
+            <span className="text-2xs text-muted-foreground">Para esta vaga</span>
             <p className="mt-0.5 break-words font-semibold">
               #{inclusion.inclusionNumber} · {getEventName(inclusion.eventId)} · {getFunctionName(inclusion.functionId)} · {periodoCurto(inclusion)}
             </p>
           </div>
         </div>
 
-        <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-          <div className={quemSai ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : undefined}>
-            <div>
-              <span className={LABEL}>Quem vem</span>
-              <p className="mt-0.5 text-sm font-semibold text-foreground break-words" data-testid="transferencia-quem">{nome || "?"}</p>
+        <div className="flex-1 min-h-0 bg-background px-5 sm:px-6 py-4 space-y-4 overflow-y-auto">
+          <div className={`grid items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 ${quemSai ? "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : "grid-cols-1"}`}>
+            <div className="min-w-0">
+              <span className="text-2xs text-muted-foreground">Quem vem</span>
+              <p className="mt-0.5 text-sm font-semibold text-primary break-words" data-testid="transferencia-quem">{nome || "?"}</p>
             </div>
             {quemSai && (
-              <div>
-                <span className={LABEL}>Quem sai desta vaga</span>
-                <p className="mt-0.5 text-sm font-semibold text-foreground break-words" data-testid="transferencia-quem-sai">{quemSai}</p>
-              </div>
+              <>
+                <ArrowLeftRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <div className="min-w-0 text-right">
+                  <span className="text-2xs text-muted-foreground">Quem sai desta vaga</span>
+                  <p className="mt-0.5 text-sm font-semibold text-foreground break-words" data-testid="transferencia-quem-sai">{quemSai}</p>
+                </div>
+              </>
             )}
           </div>
 
@@ -159,10 +162,13 @@ export function TransferRequestDialog({
                       role="radio"
                       aria-checked={on}
                       onClick={() => { setOrigemId(o.id); setTentou(false); }}
-                      className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "border-primary bg-brand-soft text-foreground" : "border-border bg-card text-slate-700 hover:border-slate-300"}`}
+                      className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${on ? "border-primary bg-card ring-1 ring-primary text-foreground" : "border-border bg-card text-slate-700 hover:border-slate-300"}`}
                       data-testid={`transferencia-origem-${o.id}`}
                     >
-                      <span className="font-semibold">#{o.inclusionNumber}</span> · {getEventName(o.eventId)} · {getFunctionName(o.functionId)} · {periodoCurto(o)}
+                      <span aria-hidden="true" className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${on ? "border-primary" : "border-slate-300"}`}>
+                        {on && <span className="h-2 w-2 rounded-full bg-primary" />}
+                      </span>
+                      <span className="min-w-0"><span className="font-semibold">#{o.inclusionNumber}</span> · {getEventName(o.eventId)} · {getFunctionName(o.functionId)} · {periodoCurto(o)}</span>
                     </button>
                   );
                 })}
@@ -181,7 +187,7 @@ export function TransferRequestDialog({
           />
 
           {origem && (
-            <p className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-2xs leading-snug text-warning" role="status">
+            <p className="esc-entra flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2.5 text-xs leading-snug text-warning" role="status">
               <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warning-strong" aria-hidden="true" />
               <span>
                 Aprovada a transferência, {nome} sai da vaga #{origem.inclusionNumber} ({getEventName(origem.eventId)}) e ela fica aberta — a área precisa escalar outra pessoa nela.
@@ -193,14 +199,15 @@ export function TransferRequestDialog({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label htmlFor="transferencia-motivo" className={LABEL}>Motivo<RequiredMark /></label>
-              <span className={`text-2xs ${motivo.length >= 10 ? "text-success" : "text-muted-foreground"}`}>{motivo.length}/10</span>
+              <span className={`text-2xs tabular-nums ${motivo.length >= 10 ? "text-success" : "text-muted-foreground"}`}>{motivo.length}/10</span>
             </div>
             <Textarea
               id="transferencia-motivo"
               value={reason}
               onChange={(e) => { setReason(e.target.value); setTentou(false); }}
               placeholder="Por que esta pessoa precisa vir para esta vaga?"
-              className="resize-none text-xs rounded-xl"
+              className="resize-none text-sm rounded-lg bg-card focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 focus-visible:border-primary"
+              aria-invalid={(tentou && !motivo) || motivoCurto || undefined}
               rows={3}
             />
             {((tentou && !motivo) || motivoCurto)
@@ -209,21 +216,22 @@ export function TransferRequestDialog({
           </div>
         </div>
 
-        <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-border">
+        <div className="shrink-0 px-5 sm:px-6 py-3 flex flex-col-reverse gap-2 border-t border-border bg-card sm:flex-row sm:justify-end">
           <Button
             variant="outline"
-            className="flex-1 rounded-xl h-10 text-sm font-medium"
+            className="rounded-lg h-9 px-4 text-sm font-medium"
             onClick={() => onOpenChange(false)}
             disabled={createSwapRequest.isPending}
           >
             Cancelar
           </Button>
           <Button
-            className="flex-1 h-10 text-sm font-semibold rounded-xl text-primary-foreground bg-primary"
+            className="h-9 px-5 gap-1.5 text-sm font-semibold rounded-lg text-primary-foreground bg-primary hover:bg-primary-hover shadow-1"
             disabled={!pode}
             onClick={enviar}
             data-testid="button-enviar-transferencia"
           >
+            <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
             {createSwapRequest.isPending ? "Enviando…" : "Enviar para aprovação"}
           </Button>
         </div>

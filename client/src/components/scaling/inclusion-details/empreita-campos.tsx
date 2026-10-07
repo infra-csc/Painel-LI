@@ -13,15 +13,16 @@ export function EmpreitaCampos({ modalData, setModalData, disabled }: {
   setModalData: React.Dispatch<React.SetStateAction<ModalData>>;
   disabled?: boolean;
 }) {
-  const campo = "w-full px-3 py-2 text-sm border border-border rounded-xl bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-60";
-  const rotulo = "text-2xs font-semibold text-slate-600";
+  // 07/10: mesmos campos do resto do modal (36px, raio 8, anel de foco de 3px).
+  const campo = "w-full h-9 px-3 text-sm border border-border rounded-lg bg-card transition-[border-color,box-shadow] focus:outline-none focus:ring-[3px] focus:ring-primary/12 focus:border-primary disabled:opacity-60";
+  const rotulo = "text-xs font-medium text-slate-600";
   const erro = validarEmpreita({
     empresa: modalData.empreitaEmpresa,
     pessoas: Number(modalData.empreitaPessoas || ""),
     valorCents: Math.round(Number(modalData.empreitaValor || "") * 100),
   });
   return (
-    <div className="space-y-2.5 rounded-xl border border-primary/25 bg-brand-soft/40 p-3" data-testid="empreita-campos">
+    <div className="space-y-2.5 rounded-lg border border-border bg-surface-muted p-3" data-testid="empreita-campos">
       <div className="space-y-1">
         <label htmlFor="empreita-empresa" className={rotulo}>Empresa<RequiredMark /></label>
         <input id="empreita-empresa" type="text" maxLength={120} value={modalData.empreitaEmpresa} disabled={disabled}

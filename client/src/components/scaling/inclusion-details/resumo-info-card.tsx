@@ -1,16 +1,23 @@
 /**
- * Resumo · Col 1 — Informações básicas da vaga (25/09 — extraído do dialog):
- * evento, ID, função, status, Nota Fiscal e as etapas de passagem/hospedagem.
+ * Resumo · A vaga (25/09 — extraído do dialog): evento, função, período, Nota
+ * Fiscal, as etapas de passagem/hospedagem, troca pendente e observações.
+ *
+ * 07/10: virou um painel de propriedades (rótulo à esquerda, valor à direita,
+ * uma linha por dado) no lugar da pilha "rótulo em cima, valor embaixo" que
+ * fazia o cartão ter 340px para cinco dados. O ID e a situação moram no
+ * cabeçalho do modal (a mesma pílula) e não se repetem aqui. O período e as
+ * observações, que eram cartões próprios, entraram no painel. Passagem e
+ * hospedagem viraram atalhos para as abas.
  */
-import { ArrowLeftRight, Plane } from "lucide-react";
+import { ArrowLeftRight, BedDouble, ChevronRight, Plane } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
-import { getStatusBadge } from "../scaling-table";
 import type { ScalingData, InclusionDetails } from "../use-scaling-data";
 import type { ScalingMutations } from "../use-scaling-mutations";
 import type { InclusionDialogState } from "./use-inclusion-dialog-state";
-import { lbl, val } from "./details-shared";
+import { Propriedade, Secao } from "./details-shared";
+import { PeriodoDaVaga } from "./resumo-periodo-card";
 
 export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
   inclusion: TeamInclusion;
@@ -20,37 +27,45 @@ export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
   st: InclusionDialogState;
 }) {
   const { getEventName, getFunctionName, canManageFunction, isAdminOrPurchasing } = data;
-  const { eventLocked, requestLockReason, actionLockReason, selectedTicket, accommodation } = st;
+  const { eventLocked, requestLockReason, actionLockReason, selectedTicket, accommodation, setActiveTab } = st;
   const { pendingSwap } = details;
   const emitsNf = inclusion.emitsNf !== false;
   // Mesmo gate do Confirmar: responsável pela função, admin ou Compras
   // Pedido em análise trava aqui também: a NF entra na
   // conta do que o aprovador está decidindo.
   const canToggleNf = canManageFunction(inclusion.functionId) && !eventLocked && !requestLockReason;
-  const badgeCls = `inline-flex items-center gap-1.5 px-2.5 py-1 text-2xs font-bold rounded-full transition-colors ${emitsNf ? "bg-success-soft text-success" : "bg-muted text-muted-foreground"}`;
-  const dot = <span className={`w-1.5 h-1.5 rounded-full ${emitsNf ? "bg-success-strong" : "bg-slate-400"}`} />;
+  const badgeCls = `inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full transition-colors ${emitsNf ? "bg-success-soft text-success" : "bg-muted text-muted-foreground"}`;
+  const dot = <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full ${emitsNf ? "bg-success-strong" : "bg-slate-400"}`} />;
   const label = emitsNf ? "Emite NF" : "Não emite NF";
+
+  /** Atalho para a aba: o chip diz o estado e leva até o detalhe. */
+  const etapa = (aba: "passagem" | "hospedagem", pronto: boolean, Icone: typeof Plane, texto: string) => (
+    <button
+      type="button"
+      onClick={() => setActiveTab(aba)}
+      title={`Abrir a aba ${aba === "passagem" ? "Passagem" : "Hospedagem"}`}
+      className={`esc-alvo group inline-flex items-center gap-1 rounded-md border px-2 py-[3px] text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        pronto ? "border-primary/25 bg-brand-soft text-primary hover:border-primary/50" : "border-warning/40 bg-card text-warning hover:bg-warning-soft"
+      }`}
+    >
+      <Icone className="h-3.5 w-3.5" aria-hidden="true" />{texto}
+      <ChevronRight className="h-3 w-3 opacity-60 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+    </button>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="bg-surface-muted rounded-xl border border-border p-4 space-y-3">
-        <div>
-          <div className={lbl}>Evento</div>
-          <div className="text-sm font-semibold text-primary leading-snug">{getEventName(inclusion.eventId)}</div>
-        </div>
-        <div>
-          <div className={lbl}>ID</div>
-          <div className="text-sm font-bold text-slate-700 font-mono">#{inclusion.inclusionNumber || "N/A"}</div>
-        </div>
-        <div>
-          <div className={lbl}>Função</div>
-          <div className={val}>{getFunctionName(inclusion.functionId)}</div>
-        </div>
-        <div>
-          <div className={lbl}>Status</div>
-          {getStatusBadge(inclusion, "md")}
-        </div>
-        <div>
-          <div className={lbl}>Nota fiscal</div>
+    <Secao titulo="A vaga" corpo="py-1">
+      <dl className="divide-y divide-border">
+        <Propriedade rotulo="Evento">
+          <span className="font-semibold text-primary leading-snug">{getEventName(inclusion.eventId)}</span>
+        </Propriedade>
+        <Propriedade rotulo="Função">
+          <span className="font-medium">{getFunctionName(inclusion.functionId)}</span>
+        </Propriedade>
+        <Propriedade rotulo="Período">
+          <PeriodoDaVaga inclusion={inclusion} />
+        </Propriedade>
+        <Propriedade rotulo="Nota fiscal">
           {!canToggleNf ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -63,49 +78,43 @@ export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
               </TooltipContent>
             </Tooltip>
           ) : (
-            <MotivoDesabilitado motivo="Clique para alternar. Define se a tela de Notas Fiscais cobra nota deste escalado." desabilitado={mutations.toggleEmitsNf.isPending}>
-              <button
-              type="button"
-              disabled={mutations.toggleEmitsNf.isPending}
-              onClick={() => mutations.toggleEmitsNf.mutate({ id: inclusion.id, emitsNf: !emitsNf })}
-              className={`${badgeCls} disabled:opacity-50 ${emitsNf ? "hover:bg-success/20" : "hover:bg-border"}`}
-              data-testid="button-toggle-emits-nf"
-            >
-              {dot}{label}
-            </button>
-            </MotivoDesabilitado>
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <MotivoDesabilitado motivo="Clique para alternar. Define se a tela de Notas Fiscais cobra nota deste escalado." desabilitado={mutations.toggleEmitsNf.isPending}>
+                <button
+                  type="button"
+                  disabled={mutations.toggleEmitsNf.isPending}
+                  onClick={() => mutations.toggleEmitsNf.mutate({ id: inclusion.id, emitsNf: !emitsNf })}
+                  className={`${badgeCls} esc-alvo disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${emitsNf ? "hover:bg-success/20" : "hover:bg-border"}`}
+                  data-testid="button-toggle-emits-nf"
+                >
+                  {dot}{label}
+                </button>
+              </MotivoDesabilitado>
+              {mutations.toggleEmitsNf.isPending && <span className="text-2xs text-muted-foreground" role="status">Gravando…</span>}
+            </span>
           )}
-        </div>
+        </Propriedade>
         {(inclusion.needsTicket || inclusion.needsAccommodation) && (
-          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border">
-            {inclusion.needsTicket && (
-              selectedTicket ? (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-primary text-2xs font-bold rounded-lg border border-primary/25">
-                  <Plane style={{ width: 9, height: 9 }} aria-hidden="true" />Passagem registrada
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25">
-                  <Plane style={{ width: 9, height: 9 }} aria-hidden="true" />Passagem pendente
-                </span>
-              )
-            )}
-            {inclusion.needsAccommodation && (
-              accommodation ? (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-primary text-2xs font-bold rounded-lg border border-primary/25">🏨 Hospedagem registrada</span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25">🏨 Hospedagem pendente</span>
-              )
-            )}
-          </div>
+          <Propriedade rotulo="Logística">
+            <span className="flex flex-wrap gap-1.5">
+              {inclusion.needsTicket && etapa("passagem", !!selectedTicket, Plane, selectedTicket ? "Passagem registrada" : "Passagem pendente")}
+              {inclusion.needsAccommodation && etapa("hospedagem", !!accommodation, BedDouble, accommodation ? "Hospedagem registrada" : "Hospedagem pendente")}
+            </span>
+          </Propriedade>
         )}
         {isAdminOrPurchasing && pendingSwap && (
-          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border">
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-warning-soft text-warning text-2xs font-bold rounded-lg border border-warning/25">
-              <ArrowLeftRight style={{ width: 9, height: 9 }} aria-hidden="true" />Troca pendente
+          <Propriedade rotulo="Troca">
+            <span className="inline-flex items-center gap-1 rounded-md border border-warning/30 bg-warning-soft px-2 py-[3px] text-xs font-semibold text-warning">
+              <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />Troca pendente
             </span>
-          </div>
+          </Propriedade>
         )}
-      </div>
-    </div>
+        {inclusion.observations && (
+          <Propriedade rotulo="Observações" testId="resumo-observacoes">
+            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{inclusion.observations}</p>
+          </Propriedade>
+        )}
+      </dl>
+    </Secao>
   );
 }

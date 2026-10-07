@@ -4,7 +4,8 @@
  * atendimento, tipo do percurseiro (desligado), cidade de saída, transferência
  * e os avisos de conflito de agenda.
  */
-import { AlertCircle, Bike, MapPin, Users } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, ArrowLeftRight, Bike, MapPin, Users } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
 import { ATENDIMENTO_TIPOS } from "@shared/atendimento";
 import { PERCURSEIRO_TIPOS, percurseiroDiariaCents } from "@shared/calculation-rules";
@@ -24,12 +25,14 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
   const { pendingSwap, latestSwap } = details;
   const { requestLockReason, actionLockReason, isCenoEmpreitaInclusion, isPercursoInclusion, systemSettings, escolhendoColaborador, setEscolhendoColaborador, setTransferirColaboradorId, setShowSwapModal } = st;
   const cityLabel = modalData.collaboratorId ? (modalData.city || getCollaboratorCity(modalData.collaboratorId)) : "";
+  /** O campo da cidade só ganha foco quando a pessoa pede "Outra cidade". */
+  const [cidadeEmFoco, setCidadeEmFoco] = useState(false);
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {/* Empreita por empresa (dono, 10/09): só cenotécnica. Em vez de
           um nome, a empresa que manda as pessoas. */}
       {isCenoEmpreitaInclusion && (
-        <div role="radiogroup" aria-label="Quem preenche a vaga" className="inline-flex rounded-lg border border-border bg-surface-muted p-0.5" data-testid="toggle-empreita">
+        <div role="radiogroup" aria-label="Quem preenche a vaga" className="inline-flex rounded-lg border border-border bg-muted p-0.5" data-testid="toggle-empreita">
           {([["colaborador", "Colaborador"], ["empreita", "Empreita (empresa)"]] as const).map(([k, label]) => {
             const on = (k === "empreita") === !!modalData.empreitaModo;
             return (
@@ -37,7 +40,7 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
                 key={k} type="button" role="radio" aria-checked={on} disabled={!!requestLockReason}
                 onClick={() => setModalData(prev => ({ ...prev, empreitaModo: k === "empreita" }))}
                 data-testid={`toggle-empreita-${k}`}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? "bg-card text-primary shadow-1" : "text-slate-600 hover:bg-card/60"}`}
+                className={`esc-alvo rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? "bg-card text-primary shadow-1" : "text-slate-600 hover:text-foreground"}`}
               >
                 {label}
               </button>
@@ -48,7 +51,7 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
       {modalData.empreitaModo ? (
         <EmpreitaCampos modalData={modalData} setModalData={setModalData} disabled={!!requestLockReason} />
       ) : (
-      <div className={!modalData.collaboratorId && !isEscalated(inclusion) ? "rounded-lg ring-1 ring-warning/25" : ""}>
+      <div className={!modalData.collaboratorId && !isEscalated(inclusion) ? "rounded-lg ring-1 ring-warning/40" : ""}>
         {escolhendoColaborador ? (
           <EscolherColaborador
             colaboradores={collaborators}
@@ -71,13 +74,13 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
             disabledReason={requestLockReason}
           />
         ) : (
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-muted px-3 py-2.5">
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-slate-700" data-testid="text-collaborator-escolhido">
+              <span className="block truncate text-[15px] font-semibold text-foreground" data-testid="text-collaborator-escolhido">
                 {modalData.collaboratorId ? getCollaboratorName(modalData.collaboratorId) : "Nenhum colaborador escolhido"}
               </span>
               {modalData.collaboratorId && cityLabel && (
-                <span className="block truncate text-2xs text-muted-foreground">{cityLabel}</span>
+                <span className="block truncate text-xs text-muted-foreground">{cityLabel}</span>
               )}
             </span>
             <MotivoDesabilitado motivo={requestLockReason ?? "Escolher outro colaborador para esta vaga"} desabilitado={!!requestLockReason}>
@@ -86,7 +89,7 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
               onClick={() => setEscolhendoColaborador(true)}
               disabled={!!requestLockReason}
               data-testid="select-collaborator-escalation"
-              className="shrink-0 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-primary hover:border-primary hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
+              className="esc-alvo shrink-0 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:border-primary/50 hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
             >
               {modalData.collaboratorId ? "Trocar" : "Escolher"}
             </button>
@@ -96,8 +99,8 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
       </div>
       )}
       {!modalData.empreitaModo && !modalData.collaboratorId && !isEscalated(inclusion) && (
-        <p className="text-2xs text-warning flex items-center gap-1" data-testid="hint-collaborator-required">
-          <AlertCircle className="w-3 h-3 shrink-0" aria-hidden="true" />Obrigatório para confirmar a escalação.
+        <p className="text-xs text-warning flex items-center gap-1.5" data-testid="hint-collaborator-required">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />Obrigatório para confirmar a escalação.
         </p>
       )}
       {/* Tipo de atendimento — obrigatório quando a função é de atendimento */}
@@ -105,8 +108,8 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
         const missing = isAtendimentoMissing(inclusion, modalData, data);
         return (
           <div className="space-y-1.5">
-            <label htmlFor="select-atendimento-tipo" className="text-2xs font-semibold text-slate-600 flex items-center gap-1">
-              <Users className="w-3 h-3" aria-hidden="true" />
+            <label htmlFor="select-atendimento-tipo" className="text-xs font-medium text-slate-600 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
               Tipo de atendimento<RequiredMark />
             </label>
             <select
@@ -117,7 +120,7 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
               disabled={!!requestLockReason}
               title={requestLockReason ?? undefined}
               aria-invalid={missing}
-              className={`w-full px-3 py-2 text-sm border rounded-xl bg-card focus:outline-none focus:ring-2 focus:border-transparent ${missing ? "border-danger/25 focus:ring-danger/25" : "border-border focus:ring-ring"}`}
+              className={`w-full h-9 px-3 text-sm border rounded-lg bg-card focus:outline-none focus:ring-[3px] ${missing ? "border-danger/40 focus:ring-danger/15" : "border-border focus:border-primary focus:ring-primary/12"}`}
             >
               <option value="">Selecione…</option>
               {ATENDIMENTO_TIPOS.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
@@ -180,33 +183,36 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
           </div>
         );
       })()}
-      {/* Cidade de saída */}
-      <div className="space-y-1.5">
-        <label className="text-2xs font-semibold text-slate-600 flex items-center gap-1">
-          <MapPin className="w-3 h-3" aria-hidden="true" />
+      {/* Cidade de saída — controle segmentado (07/10): antes eram dois
+          botões cheios de cores diferentes (azul × grafite), e o "ligado" não
+          era óbvio. O campo da cidade só ganha foco quando a pessoa escolhe
+          "Outra cidade" (o autoFocus pulava para ele ao abrir qualquer vaga). */}
+      <div className="space-y-1.5 pt-1">
+        <p id="rotulo-sai-de" className="text-xs font-medium text-slate-600 flex items-center gap-1">
+          <MapPin className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
           Sai de
-        </label>
-        <div className="flex gap-1.5">
-          <MotivoDesabilitado motivo={requestLockReason ?? undefined} desabilitado={!!requestLockReason}>
-            <button
-            type="button"
-            onClick={() => setModalData(prev => ({ ...prev, departureFromSP: true, city: "São Paulo - SP" }))}
-            disabled={!!requestLockReason}
-            className={`flex-1 px-2 py-1.5 rounded-lg text-2xs font-semibold border transition-all ${modalData.departureFromSP ? "bg-primary text-primary-foreground border-primary" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
-          >
-            São Paulo - SP
-          </button>
-          </MotivoDesabilitado>
-          <MotivoDesabilitado motivo={requestLockReason ?? undefined} desabilitado={!!requestLockReason}>
-            <button
-            type="button"
-            onClick={() => setModalData(prev => ({ ...prev, departureFromSP: false, city: "" }))}
-            disabled={!!requestLockReason}
-            className={`flex-1 px-2 py-1.5 rounded-lg text-2xs font-semibold border transition-all ${!modalData.departureFromSP ? "bg-slate-700 text-white border-slate-700" : "bg-card text-slate-600 border-border hover:border-slate-300"}`}
-          >
-            Outra cidade
-          </button>
-          </MotivoDesabilitado>
+        </p>
+        <div role="radiogroup" aria-labelledby="rotulo-sai-de" className="grid grid-cols-2 gap-0.5 rounded-lg border border-border bg-muted p-0.5">
+          {([[true, "São Paulo - SP"], [false, "Outra cidade"]] as const).map(([sp, rotulo]) => {
+            const on = modalData.departureFromSP === sp;
+            return (
+              <MotivoDesabilitado key={rotulo} motivo={requestLockReason ?? undefined} desabilitado={!!requestLockReason} className="flex">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => {
+                    if (!sp) setCidadeEmFoco(true);
+                    setModalData(prev => sp ? ({ ...prev, departureFromSP: true, city: "São Paulo - SP" }) : ({ ...prev, departureFromSP: false, city: "" }));
+                  }}
+                  disabled={!!requestLockReason}
+                  className={`esc-alvo w-full rounded-md px-2 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed ${on ? "bg-card text-primary shadow-1" : "text-slate-600 hover:text-foreground"}`}
+                >
+                  {rotulo}
+                </button>
+              </MotivoDesabilitado>
+            );
+          })}
         </div>
         {!modalData.departureFromSP && (
           <input
@@ -214,9 +220,10 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
             value={modalData.city || ""}
             onChange={(e) => setModalData(prev => ({ ...prev, city: e.target.value }))}
             placeholder="Ex: Rio de Janeiro - RJ"
+            aria-label="Cidade de onde o colaborador sai"
             disabled={!!requestLockReason}
-            autoFocus
-            className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+            autoFocus={cidadeEmFoco}
+            className="w-full h-9 px-3 text-sm border border-border rounded-lg bg-card transition-[border-color,box-shadow] focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 disabled:opacity-60"
           />
         )}
       </div>
@@ -239,10 +246,10 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
         const conflicts = conflitosUnicos(data, modalData.collaboratorId, inclusion);
         if (!conflicts.length) return null;
         return (
-          <div className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2.5">
-            <AlertCircle className="w-3.5 h-3.5 text-danger-strong shrink-0 mt-0.5" aria-hidden="true" />
-            <div className="text-2xs text-danger leading-snug space-y-1">
-              <p className="font-bold">Escalação bloqueada — colaborador já escalado:</p>
+          <div className="flex items-start gap-2.5 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2.5" role="alert" data-testid="aviso-conflito-agenda">
+            <AlertCircle className="w-4 h-4 text-danger-strong shrink-0 mt-px" aria-hidden="true" />
+            <div className="min-w-0 text-xs text-danger leading-snug space-y-1">
+              <p className="font-semibold">Escalação bloqueada — colaborador já escalado:</p>
               {conflicts.map(inc => {
                 const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString("pt-BR") : "";
                 const endStr = inc.scheduleEndDate ? new Date(inc.scheduleEndDate).toLocaleDateString("pt-BR") : "";
@@ -253,15 +260,15 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
                   </p>
                 );
               })}
-              <p className="text-danger-strong mt-0.5">Para trazer esta pessoa, peça a transferência: aprovada por Compras, ela sai da outra vaga e entra nesta.</p>
+              <p className="text-danger/90 mt-0.5">Para trazer esta pessoa, peça a transferência: aprovada por Compras, ela sai da outra vaga e entra nesta.</p>
               {!inclusion.collaboratorId && !pendingSwap && (
                 <button
                   type="button"
                   onClick={() => setTransferirColaboradorId(modalData.collaboratorId)}
-                  className="mt-1 inline-flex items-center rounded-md border border-danger/25 bg-card px-2 py-1 text-2xs font-semibold text-danger hover:bg-danger-soft"
+                  className="esc-alvo mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-danger/30 bg-card px-2.5 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
                   data-testid="button-pedir-transferencia-conflito"
                 >
-                  Pedir transferência
+                  <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />Pedir transferência
                 </button>
               )}
             </div>
@@ -273,10 +280,10 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
         const { mesmoDia } = getCollaboratorConflicts(modalData.collaboratorId, inclusion);
         if (!mesmoDia?.length) return null;
         return (
-          <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2.5" data-testid="aviso-mesmo-dia">
-            <AlertCircle className="w-3.5 h-3.5 text-warning-strong shrink-0 mt-0.5" aria-hidden="true" />
-            <div className="text-2xs text-warning leading-snug space-y-1">
-              <p className="font-bold">Atenção: também viaja neste mesmo dia</p>
+          <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2.5" data-testid="aviso-mesmo-dia">
+            <AlertCircle className="w-4 h-4 text-warning-strong shrink-0 mt-px" aria-hidden="true" />
+            <div className="min-w-0 text-xs text-warning leading-snug space-y-1">
+              <p className="font-semibold">Atenção: também viaja neste mesmo dia</p>
               {mesmoDia.map(inc => {
                 const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString("pt-BR") : "";
                 const endStr = inc.scheduleEndDate ? new Date(inc.scheduleEndDate).toLocaleDateString("pt-BR") : "";

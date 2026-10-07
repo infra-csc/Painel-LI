@@ -81,13 +81,15 @@ const BotaoFiltro = forwardRef<HTMLButtonElement, {
       type="button"
       data-testid={testid}
       {...props}
-      className={`inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-sm font-medium text-slate-700 ${maxW} hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary ${
-        ativo ? "border-primary/40" : "border-border"
+      // 07/10: filtro LIGADO se anuncia também pela cor (fundo da marca), não
+      // só pelo texto; a seta vira quando o popover abre.
+      className={`esc-alvo group/filtro inline-flex shrink-0 items-center gap-1.5 h-[34px] px-3 rounded-lg border text-sm font-medium ${maxW} transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary data-[state=open]:border-primary/60 ${
+        ativo ? "border-primary/40 bg-brand-soft text-primary hover:bg-brand-soft" : "border-border bg-card text-slate-700 hover:bg-muted hover:border-slate-300"
       } ${className ?? ""}`}
     >
       {icone}
       <span className="truncate">{texto}</span>
-      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
+      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-150 group-data-[state=open]/filtro:rotate-180" aria-hidden="true" />
     </button>
   ),
 );
@@ -139,7 +141,7 @@ function PopoverDeMarcacao({ icone, rotulo, vazio, placeholder, testid, marcados
       <PopoverTrigger asChild>
         <BotaoFiltro ativo={ids.length > 0} icone={icone} texto={texto} testid={`button-filtro-${testid}`} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[420px] p-0 rounded-xl overflow-hidden">
+      <PopoverContent align="start" collisionPadding={12} className="w-[min(420px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
           <input
@@ -244,169 +246,201 @@ export default function ScalingFilterBar(p: Props) {
   const nFlags = contarFlagsAtivas(p.flags);
   const alternaFlag = (key: FlagKey) => p.onFlags({ ...p.flags, [key]: !p.flags[key] });
 
+
+  const temAlgoMarcado = temMarcacao;
+
+  /*
+   * Duas linhas com papéis diferentes (07/10):
+   *  1. O QUE PROCURAR — busca, evento, função, período e os filtros;
+   *  2. O ESCOPO E O QUE ESTÁ LIGADO — Futuros/Todos/Realizados, Excluídas,
+   *     as marcações (com o "×" de cada uma) e a contagem.
+   * Antes eram três linhas que se formavam ao acaso pela quebra do flex. No
+   * celular, a busca ocupa a linha e os botões rolam de lado (eram cinco
+   * linhas empilhadas antes da primeira vaga).
+   */
   return (
     <div className="space-y-2">
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="relative flex-[1_1_260px] max-w-[320px]">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
-        <input
-          type="text"
-          value={p.busca}
-          onChange={(e) => p.onBusca(e.target.value)}
-          aria-label="Buscar por ID, nome ou função"
-          placeholder="Buscar por ID, nome ou função…"
-          data-testid="input-busca-escalacao"
-          className="w-full h-[34px] pl-[33px] pr-3 rounded-lg border border-border bg-card text-sm text-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
-        />
-      </div>
-
-      <PopoverDeMarcacao
-        icone={<CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
-        rotulo="evento" vazio="Todos os eventos" placeholder="Buscar evento…" testid="evento"
-        marcados={p.eventos} onMarcados={p.onEventos} opcoes={p.opcoesDeEvento}
-      />
-
-      {/* Função (dono, 10/09): o mesmo popover do evento. */}
-      <PopoverDeMarcacao
-        icone={<Briefcase className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
-        rotulo="função" vazio="Todas as funções" placeholder="Buscar função…" testid="funcao"
-        marcados={p.funcoes} onMarcados={p.onFuncoes} opcoes={p.opcoesDeFuncao}
-      />
-
-      <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} presets={PRESETS_SEM_REALIZADOS} datasDoEvento={p.datasDoEvento} />
-
-      <Popover open={filtrosAberto} onOpenChange={setFiltrosAberto}>
-        <PopoverTrigger asChild>
-          <BotaoFiltro
-            ativo={nFlags > 0}
-            icone={<SlidersHorizontal className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
-            texto={nFlags === 0 ? "Filtros" : `Filtros · ${nFlags}`}
-            testid="button-filtros"
-            maxW="max-w-[200px]"
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative sm:flex-[1_1_240px] sm:max-w-[340px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+          <input
+            type="text"
+            value={p.busca}
+            onChange={(e) => p.onBusca(e.target.value)}
+            aria-label="Buscar por ID, nome ou função"
+            placeholder="Buscar por ID, nome ou função…"
+            data-testid="input-busca-escalacao"
+            className={`w-full h-[34px] pl-[33px] ${p.busca ? "pr-8" : "pr-3"} rounded-lg border border-border bg-card text-sm text-foreground outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground hover:border-slate-300 focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
           />
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-[560px] p-0 rounded-xl overflow-hidden">
-          <div className="flex items-center px-3.5 py-3 border-b border-border">
-            <span className="text-sm font-semibold text-foreground">Filtros</span>
-            {/* Dentro da lista OU, entre listas E: escrito porque é o que
-                permite "precisa de passagem E não comprada" e ninguém adivinha.
-                Passagem e Hospedagem têm duas listas cada (o traço separa). */}
-            <span className="ml-2 text-xs text-muted-foreground" title="O número ao lado de cada opção é quantas vagas do recorte atual ela alcança.">
-              mesma lista soma · entre listas cruza · nº = quantas do recorte
-            </span>
-            {nFlags > 0 && (
-              <button
-                type="button"
-                onClick={() => p.onFlags({})}
-                className="ml-auto h-[26px] px-2.5 rounded-md text-xs font-medium text-primary hover:bg-brand-soft"
-                data-testid="button-limpar-flags"
-              >
-                Limpar
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-3.5 max-h-[70vh] overflow-y-auto">
-            {FLAG_GROUPS.map((g) => (
-              <div key={g.id}>
-                <p className="mb-1 px-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                  {g.titulo}
-                </p>
-                <div className="flex flex-col gap-px">
-                  {g.opcoes.map((o, idx) => (
-                    <Fragment key={o.key}>
-                    {idx > 0 && o.eixo !== g.opcoes[idx - 1].eixo && (
-                      <div className="my-1 mx-2 border-t border-border" aria-hidden="true" data-testid={`flag-eixo-${g.id}-${o.eixo}`} />
-                    )}
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={!!p.flags[o.key]}
-                      onClick={() => alternaFlag(o.key)}
-                      className={`flex items-center gap-2.5 min-h-[30px] px-2 rounded-md text-sm text-left hover:bg-muted ${
-                        p.flags[o.key] ? "text-primary font-medium" : "text-slate-700"
-                      }`}
-                      data-testid={`flag-${o.key}`}
-                    >
-                      <Caixa on={!!p.flags[o.key]} />
-                      <span className="flex-1 min-w-0 truncate">{o.label}</span>
-                      <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
-                        {contagens[o.key] ?? 0}
-                      </span>
-                    </button>
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      <button
-        type="button"
-        role="switch"
-        aria-checked={p.verExcluidos}
-        onClick={() => p.onVerExcluidos(!p.verExcluidos)}
-        data-testid="toggle-excluidas"
-        className={`inline-flex items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-lg border text-sm font-medium shrink-0 transition-colors ${
-          p.verExcluidos ? "border-primary/40 bg-brand-soft text-primary" : "border-border bg-card text-slate-700 hover:bg-muted"
-        }`}
-      >
-        <span className={`relative inline-flex items-center w-8 h-[18px] rounded-full shrink-0 transition-colors ${p.verExcluidos ? "bg-primary" : "bg-slate-300"}`}>
-          <span
-            className="absolute left-0.5 h-3.5 w-3.5 rounded-full bg-card shadow-1 transition-transform"
-            style={{ transform: `translateX(${p.verExcluidos ? "14px" : "0"})` }}
-          />
-        </span>
-        Excluídas
-      </button>
-
-      {/* Recorte de eventos (04/09): a tela abre em "Futuros"; "Todos" tira o
-          recorte e "Realizados" mostra só o que já terminou. */}
-      <div role="radiogroup" aria-label="Recorte de eventos" className="inline-flex h-[34px] shrink-0 items-center rounded-lg border border-border bg-card p-0.5" data-testid="recorte-eventos">
-        {(["futuros", "todos", "realizados"] as RecorteDeEventos[]).map((k) => {
-          const on = p.recorteEventos === k;
-          return (
+          {p.busca && (
             <button
-              key={k}
               type="button"
-              role="radio"
-              aria-checked={on}
-              onClick={() => p.onRecorteEventos(k)}
-              data-testid={`recorte-eventos-${k}`}
-              title={k === "futuros" ? "Eventos que ainda vão acontecer ou estão acontecendo (vaga sem data conta como futura)" : k === "realizados" ? "Só eventos que já terminaram" : "Sem recorte de evento"}
-              className={`inline-flex h-[28px] items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                on ? "bg-brand-soft text-primary" : "text-slate-600 hover:bg-muted"
-              }`}
+              onClick={() => p.onBusca("")}
+              aria-label="Limpar a busca"
+              title="Limpar a busca"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              data-testid="button-limpar-busca"
             >
-              {RECORTE_EVENTOS_LABEL[k]}
-              <span className="text-2xs tabular-nums text-muted-foreground">{p.contagemPorRecorte[k]}</span>
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
-          );
-        })}
+          )}
+        </div>
+
+        {/* No celular os botões rolam de lado; do tablet para cima o invólucro some (`contents`). */}
+        <div className="esc-rolagem-x -mx-[var(--page-gutter)] flex items-center gap-2 px-[var(--page-gutter)] sm:contents">
+          <PopoverDeMarcacao
+            icone={<CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
+            rotulo="evento" vazio="Todos os eventos" placeholder="Buscar evento…" testid="evento"
+            marcados={p.eventos} onMarcados={p.onEventos} opcoes={p.opcoesDeEvento}
+          />
+
+          {/* Função (dono, 10/09): o mesmo popover do evento. */}
+          <PopoverDeMarcacao
+            icone={<Briefcase className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
+            rotulo="função" vazio="Todas as funções" placeholder="Buscar função…" testid="funcao"
+            marcados={p.funcoes} onMarcados={p.onFuncoes} opcoes={p.opcoesDeFuncao}
+          />
+
+          <ScalingPeriodFilter valor={p.periodo} onChange={p.onPeriodo} linhas={p.linhasSemPeriodo} hoje={p.hoje} presets={PRESETS_SEM_REALIZADOS} datasDoEvento={p.datasDoEvento} realceAtivo />
+
+          <Popover open={filtrosAberto} onOpenChange={setFiltrosAberto}>
+            <PopoverTrigger asChild>
+              <BotaoFiltro
+                ativo={nFlags > 0}
+                icone={<SlidersHorizontal className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
+                texto={nFlags === 0 ? "Filtros" : `Filtros · ${nFlags}`}
+                testid="button-filtros"
+                maxW="max-w-[200px]"
+              />
+            </PopoverTrigger>
+            <PopoverContent align="start" collisionPadding={12} className="w-[min(560px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3.5 py-3 border-b border-border">
+                <span className="text-sm font-semibold text-foreground">Filtros</span>
+                {/* Dentro da lista OU, entre listas E: escrito porque é o que
+                    permite "precisa de passagem E não comprada" e ninguém adivinha.
+                    Passagem e Hospedagem têm duas listas cada (o traço separa). */}
+                <span className="text-xs text-muted-foreground" title="O número ao lado de cada opção é quantas vagas do recorte atual ela alcança.">
+                  mesma lista soma · entre listas cruza · nº = quantas do recorte
+                </span>
+                {nFlags > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => p.onFlags({})}
+                    className="ml-auto h-[26px] px-2.5 rounded-md text-xs font-medium text-primary hover:bg-brand-soft"
+                    data-testid="button-limpar-flags"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 p-3.5 max-h-[min(70vh,560px)] overflow-y-auto">
+                {FLAG_GROUPS.map((g) => (
+                  <div key={g.id}>
+                    <p className="mb-1 px-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                      {g.titulo}
+                    </p>
+                    <div className="flex flex-col gap-px">
+                      {g.opcoes.map((o, idx) => (
+                        <Fragment key={o.key}>
+                        {idx > 0 && o.eixo !== g.opcoes[idx - 1].eixo && (
+                          <div className="my-1 mx-2 border-t border-border" aria-hidden="true" data-testid={`flag-eixo-${g.id}-${o.eixo}`} />
+                        )}
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={!!p.flags[o.key]}
+                          onClick={() => alternaFlag(o.key)}
+                          className={`esc-alvo flex items-center gap-2.5 min-h-[30px] px-2 rounded-md text-sm text-left transition-colors hover:bg-muted ${
+                            p.flags[o.key] ? "text-primary font-medium" : "text-slate-700"
+                          }`}
+                          data-testid={`flag-${o.key}`}
+                        >
+                          <Caixa on={!!p.flags[o.key]} />
+                          <span className="flex-1 min-w-0 truncate">{o.label}</span>
+                          <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
+                            {contagens[o.key] ?? 0}
+                          </span>
+                        </button>
+                        </Fragment>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
-      <span className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0" data-testid="contagem-vagas">
-        {p.contagem}
-      </span>
-    </div>
+      <div className="esc-rolagem-x -mx-[var(--page-gutter)] flex items-center gap-2 px-[var(--page-gutter)] sm:mx-0 sm:flex-wrap sm:px-0">
+        {/* Recorte de eventos (04/09): a tela abre em "Futuros"; "Todos" tira o
+            recorte e "Realizados" mostra só o que já terminou. */}
+        <div role="radiogroup" aria-label="Recorte de eventos" className="inline-flex h-[34px] shrink-0 items-center rounded-lg border border-border bg-card p-0.5" data-testid="recorte-eventos">
+          {(["futuros", "todos", "realizados"] as RecorteDeEventos[]).map((k) => {
+            const on = p.recorteEventos === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => p.onRecorteEventos(k)}
+                data-testid={`recorte-eventos-${k}`}
+                title={k === "futuros" ? "Eventos que ainda vão acontecer ou estão acontecendo (vaga sem data conta como futura)" : k === "realizados" ? "Só eventos que já terminaram" : "Sem recorte de evento"}
+                className={`esc-alvo inline-flex h-[28px] items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  on ? "bg-brand-soft text-primary" : "text-slate-600 hover:bg-muted"
+                }`}
+              >
+                {RECORTE_EVENTOS_LABEL[k]}
+                <span className={`text-2xs tabular-nums ${on ? "text-primary/70" : "text-muted-foreground"}`}>{p.contagemPorRecorte[k]}</span>
+              </button>
+            );
+          })}
+        </div>
 
-    {/* Marcações visíveis, uma a uma, com o "×" — sem isto o botão dizia
-        "2 eventos" e não havia como tirar só um (10/09). */}
-    {temMarcacao && (
-      <div className="flex flex-wrap items-center gap-1.5" data-testid="chips-selecao">
-        <ChipsDaSelecao grupo="evento" marcados={p.eventos} onMarcados={p.onEventos} opcoes={p.opcoesDeEvento} nomeFallback="Evento" />
-        <ChipsDaSelecao grupo="função" marcados={p.funcoes} onMarcados={p.onFuncoes} opcoes={p.opcoesDeFuncao} nomeFallback="Função" />
         <button
           type="button"
-          onClick={() => { p.onEventos({}); p.onFuncoes({}); }}
-          className="h-6 px-2 rounded-md text-xs font-medium text-slate-600 hover:bg-muted"
-          data-testid="button-limpar-marcacoes"
+          role="switch"
+          aria-checked={p.verExcluidos}
+          onClick={() => p.onVerExcluidos(!p.verExcluidos)}
+          data-testid="toggle-excluidas"
+          className={`esc-alvo inline-flex items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-lg border text-sm font-medium shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            p.verExcluidos ? "border-primary/40 bg-brand-soft text-primary" : "border-border bg-card text-slate-700 hover:bg-muted"
+          }`}
         >
-          Limpar marcações
+          <span className={`relative inline-flex items-center w-8 h-[18px] rounded-full shrink-0 transition-colors ${p.verExcluidos ? "bg-primary" : "bg-slate-300"}`}>
+            <span
+              className="absolute left-0.5 h-3.5 w-3.5 rounded-full bg-card shadow-1 transition-transform duration-150"
+              style={{ transform: `translateX(${p.verExcluidos ? "14px" : "0"})` }}
+            />
+          </span>
+          Excluídas
         </button>
+
+        {/* Marcações visíveis, uma a uma, com o "×" — sem isto o botão dizia
+            "2 eventos" e não havia como tirar só um (10/09). Moram na linha do
+            escopo: é ali que se lê o que está ligado. */}
+        {temAlgoMarcado && (
+          <>
+            <div className="flex shrink-0 items-center gap-1.5 sm:shrink sm:flex-wrap" data-testid="chips-selecao">
+              <ChipsDaSelecao grupo="evento" marcados={p.eventos} onMarcados={p.onEventos} opcoes={p.opcoesDeEvento} nomeFallback="Evento" />
+              <ChipsDaSelecao grupo="função" marcados={p.funcoes} onMarcados={p.onFuncoes} opcoes={p.opcoesDeFuncao} nomeFallback="Função" />
+              <button
+                type="button"
+                onClick={() => { p.onEventos({}); p.onFuncoes({}); }}
+                className="esc-alvo h-6 px-2 rounded-md text-xs font-medium text-slate-600 whitespace-nowrap hover:bg-muted hover:text-foreground"
+                data-testid="button-limpar-marcacoes"
+              >
+                Limpar marcações
+              </button>
+            </div>
+          </>
+        )}
+
+        <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground tabular-nums whitespace-nowrap" data-testid="contagem-vagas">
+          {p.contagem}
+        </span>
       </div>
-    )}
     </div>
   );
 }

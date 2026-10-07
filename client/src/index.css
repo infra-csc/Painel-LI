@@ -175,6 +175,57 @@
   background: var(--neutral);
 }
 
+/* ══ Escalação (esc-) — redesenho 07/10 ═══════════════════════════════════
+ * Só o que o Tailwind não diz bem: o topo do cabeçalho grudado, a rolagem
+ * lateral sem barra das faixas de filtro no celular, o alvo de toque e as
+ * microinterações (rápidas, discretas, desligadas com reduced-motion). */
+
+/* Cabeçalho da tabela grudado no topo da PÁGINA, abaixo da barra do app e da
+   barra de contexto da Escalação (56px — ela não quebra linha onde há tabela). */
+.esc-cabecalho { top: calc(var(--sticky-top, 3.5rem) + 3.5rem); }
+
+/* Faixa que rola de lado sem barra visível (filtros e fila no celular). */
+.esc-rolagem-x {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.esc-rolagem-x::-webkit-scrollbar { display: none; }
+
+/* Linhas e cartões: só o fundo anima. */
+.esc-linha, .esc-cartao { transition: background-color 120ms ease; }
+.esc-linha .esc-abrir { opacity: .55; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.esc-linha:hover .esc-abrir, .esc-linha:focus-visible .esc-abrir, .esc-abrir:focus-visible { opacity: 1; }
+
+/* Conteúdo que acabou de trocar (aba do modal, resultado do filtro). */
+@keyframes esc-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.esc-entra { animation: esc-entra 160ms ease-out both; }
+
+/* Barra fina de recarga no topo da lista — não empurra o layout. */
+@keyframes esc-progresso { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+.esc-progresso { animation: esc-progresso 1.1s cubic-bezier(.4, 0, .2, 1) infinite; }
+
+/* Esqueleto: brilho que passa, em vez de piscar o bloco inteiro. */
+@keyframes esc-brilho { 0% { background-position: -320px 0; } 100% { background-position: 320px 0; } }
+.esc-osso {
+  background: linear-gradient(90deg, var(--muted) 0, color-mix(in srgb, var(--muted) 45%, var(--card)) 40px, var(--muted) 80px) no-repeat;
+  background-size: 640px 100%;
+  background-color: var(--muted);
+  animation: esc-brilho 1.3s linear infinite;
+  border-radius: 6px;
+}
+
+/* Toque: alvo mínimo de 44px nos controles pequenos da lista e do modal. */
+@media (pointer: coarse) {
+  .esc-alvo { min-height: 44px; min-width: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esc-entra, .esc-progresso, .esc-osso { animation: none; }
+  .esc-linha, .esc-cartao, .esc-linha .esc-abrir { transition: none; }
+}
+
 /* ── CASCA (07/10) ─────────────────────────────────────────────────────────
  * Só o que a casca do app (menu, topo, sino, paleta, entrada, carregamento)
  * precisa e o Tailwind não dá pronto. Prefixo `casca-` para não colidir com
