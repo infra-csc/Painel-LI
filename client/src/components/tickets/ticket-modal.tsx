@@ -2,7 +2,7 @@
 // + rodapé. Queries e mutations que dependem da inclusão selecionada vivem aqui.
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Edit, CheckCircle, FileText } from "lucide-react";
+import { Plane, Edit, CheckCircle, FileText, Bus, Truck, Lock, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +38,15 @@ import SuggestedDates from "./suggested-dates";
 import type { TicketsData, SwapRequestRow } from "./use-tickets-data";
 import type { FormFieldHelpers, TicketFormHandlers } from "./types";
 import { RequiredMark } from "@/components/forms/required-mark";
+import { AvisoDaVaga } from "@/components/avisos-de-alteracao/aviso-da-vaga";
+import { SECAO } from "./ticket-summary-tab";
+
+/**
+ * Moldura do modal (07/10): 1100px no computador; no celular ocupa a tela
+ * inteira (um modal de 95vw × 88vh com rodapé fixo sobrava 20px de cada lado
+ * e cortava o formulário no meio).
+ */
+const MOLDURA = "!max-w-[1100px] w-[95vw] max-h-[88vh] sm:h-[min(88vh,820px)] !flex !flex-col p-0 gap-0 overflow-hidden max-sm:w-full max-sm:!max-w-none max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none max-sm:border-0";
 
 interface TicketModalProps {
   open: boolean;
@@ -160,7 +169,7 @@ export default function TicketModal({
   if (!inclusion) {
     return (
       <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }}>
-        <DialogContent aria-describedby={undefined} className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden" />
+        <DialogContent aria-describedby={undefined} className={MOLDURA} />
       </Dialog>
     );
   }
@@ -176,7 +185,9 @@ export default function TicketModal({
   const isFormMode = !ticket || isEditing;
   const suggestion = extractTravelSuggestion(inclusion);
   const dis = roMode || !canEditTicket;
-  const tabTrigger = "relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent px-4 pb-3 pt-2 text-sm font-medium shadow-none hover:text-slate-700 transition-colors";
+  const tabTrigger = "relative shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 sm:px-4 pb-2.5 pt-2.5 text-sm font-medium shadow-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
+  const ModoIcone = ticket?.transportType === "van" ? Truck : ticket?.transportType === "rodoviario" ? Bus : Plane;
+  const contexto = [data.getFunctionName(inclusion.functionId), data.getEventName(inclusion.eventId)].filter(Boolean);
 
   const onTransportChange = (value: string) => {
     const eventLocation = data.getEventLocation(inclusion.eventId);
@@ -207,55 +218,71 @@ export default function TicketModal({
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }}>
-        <DialogContent aria-describedby={undefined} className="!max-w-[1100px] w-[95vw] max-h-[88vh] !flex !flex-col p-0 gap-0 overflow-hidden">
-          {/* HEADER */}
-          <div className="px-6 pt-5 pb-4 border-b border-border shrink-0 flex items-center gap-4 pr-14 bg-brand-soft">
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-primary-foreground shrink-0 bg-primary shadow-2">
-              <Plane className="h-5 w-5" aria-hidden="true" />
+        <DialogContent aria-describedby={undefined} className={MOLDURA}>
+          {/* CABEÇALHO: o que é, de quem, em qual prova — e a situação. */}
+          <div className="px-5 sm:px-6 pt-4 pb-3.5 border-b border-border shrink-0 flex items-start gap-3.5 pr-14 bg-card">
+            <div className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center shrink-0 bg-brand-soft text-primary">
+              <ModoIcone className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-lg font-bold text-foreground leading-tight m-0 p-0">Registro de passagem</DialogTitle>
-              <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                <span className="font-mono font-bold text-muted-foreground">#{inclusion.inclusionNumber || "N/A"}</span>
-                <span className="mx-1.5 text-muted-foreground">·</span>
-                {collaboratorName}
+              {/* Título e situação na mesma linha: a pílula não disputa espaço com o X. */}
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <DialogTitle className="text-base font-semibold text-foreground leading-6 m-0 p-0">Registro de passagem</DialogTitle>
+                {roMode ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-warning-soft text-warning text-2xs font-medium rounded-md"
+                    title={eventLocked ? PAST_EVENT_BLOCK_MSG : undefined}
+                  ><Lock className="w-3 h-3" aria-hidden="true" />Somente leitura</span>
+                ) : ticket && !isEditing ? (
+                  <span className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-success-soft text-success text-2xs font-medium rounded-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-success-strong" aria-hidden="true" />Comprada
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-warning-soft text-warning text-2xs font-medium rounded-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-warning-strong" aria-hidden="true" />{isEditing ? "Editando" : "Pendente"}
+                  </span>
+                )}
+                {ticket?.emittedAt && (
+                  <span className="inline-flex items-center gap-1 h-[22px] px-2 bg-brand-soft text-primary text-2xs font-medium rounded-md" title="Passagem emitida — a área não pede mais ajuste nesta vaga">
+                    <Lock className="w-3 h-3" aria-hidden="true" />Emitida
+                  </span>
+                )}
               </div>
+              <p className="m-0 mt-0.5 text-xs text-muted-foreground leading-5">
+                <span className="font-mono font-semibold text-primary">#{inclusion.inclusionNumber || "N/A"}</span>
+                <span className="mx-1.5" aria-hidden="true">·</span>
+                <span className="font-medium text-foreground">{collaboratorName}</span>
+                {contexto.map((c, i) => (
+                  <span key={i}><span className="mx-1.5" aria-hidden="true">·</span>{c}</span>
+                ))}
+              </p>
             </div>
-            {roMode ? (
-              <span
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full shrink-0 border border-warning/25"
-                title={eventLocked ? PAST_EVENT_BLOCK_MSG : undefined}
-              >Somente leitura</span>
-            ) : ticket && !isEditing ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-success-soft text-success text-2xs font-bold rounded-full shrink-0 border border-success/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-success-strong" />Comprada
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-warning-soft text-warning text-2xs font-bold rounded-full shrink-0 border border-warning/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-warning-strong animate-pulse motion-reduce:animate-none" />Pendente
-              </span>
-            )}
           </div>
 
-          <PastEventBanner show={eventLocked} message={eventLock.bannerMessage(inclusion.eventId)} className="mx-6 mt-3" />
+          {/* Alteração aprovada depois do registro (07/10): o que mudou + "Já atuei". */}
+          <AvisoDaVaga tipo="passagem" teamInclusionId={inclusion.id} className="shrink-0 max-h-[34vh] overflow-y-auto" />
+
+          <PastEventBanner show={eventLocked} message={eventLock.bannerMessage(inclusion.eventId)} className="mx-5 sm:mx-6 mt-3 shrink-0" />
 
           {/* ABAS */}
           <Tabs value={activeTab} onValueChange={onTabChange} className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div className="px-6 border-b border-border shrink-0">
+            <div className="px-3 sm:px-4 border-b border-border shrink-0 overflow-x-auto [scrollbar-width:none]">
               <TabsList className="bg-transparent p-0 h-auto gap-0 rounded-none -mb-px">
                 <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
                 <TabsTrigger value="dados" className={tabTrigger}>
                   Dados da passagem
                   {ticket && !isEditing
-                    ? <span className="ml-1.5 bg-success-soft text-success text-2xs font-bold px-1.5 py-0.5 rounded-full">✓</span>
-                    : <span className="ml-1.5 bg-warning-soft text-warning text-2xs font-bold px-1.5 py-0.5 rounded-full">!</span>}
+                    ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-success-soft text-success text-2xs font-bold leading-none" title="Registrada">✓</span>
+                    : <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-warning-soft text-warning text-2xs font-bold leading-none" title="A preencher">!</span>}
                 </TabsTrigger>
-                <TabsTrigger value="complementos" className={tabTrigger}>Complementos e histórico</TabsTrigger>
+                <TabsTrigger value="complementos" className={tabTrigger}>
+                  <span className="sm:hidden">Complementos</span><span className="hidden sm:inline">Complementos e histórico</span>
+                </TabsTrigger>
               </TabsList>
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0">
-              <TabsContent value="resumo" className="m-0 p-6">
+              <TabsContent value="resumo" className="m-0 p-4 sm:p-6 pas-entra">
                 <TicketSummaryTab
                   inclusion={inclusion}
                   ticket={ticket}
@@ -275,7 +302,7 @@ export default function TicketModal({
                 <PassagensDeHistorico teamInclusionId={inclusion.id} passagemAtualCentavos={ticket?.value ?? null} />
               </TabsContent>
 
-              <TabsContent value="dados" className="m-0 p-6">
+              <TabsContent value="dados" className="m-0 p-4 sm:p-6 pas-entra">
                 {ticket && !isEditing ? (
                   <TicketViewDetails ticket={ticket} inclusion={inclusion} />
                 ) : (
@@ -283,18 +310,20 @@ export default function TicketModal({
                     {/* Voucher/anexo em primeiro lugar (28/08): é por aqui que a
                         passagem começa — o arquivo é o comprovante e a fonte
                         dos dados ao mesmo tempo. */}
-                    <div className="border border-primary/25 bg-brand-soft/40 rounded-xl overflow-hidden">
-                      <div className="bg-brand-soft border-b border-primary/25 px-4 py-2.5 flex items-center gap-2">
+                    <div className="border border-primary/25 bg-card rounded-xl overflow-hidden">
+                      <div className="bg-brand-soft/60 border-b border-primary/20 px-4 py-2.5 flex items-center gap-2">
                         <FileText className="w-4 h-4 text-primary" aria-hidden="true" />
-                        <span className="text-2xs font-black text-primary uppercase tracking-[0.12em]">
+                        <span className="text-xs font-semibold text-foreground">
                           Voucher e anexos
                         </span>
                         {voucher.lendo && (
-                          <span className="ml-auto text-2xs font-semibold text-primary">Lendo o voucher…</span>
+                          <span className="ml-auto inline-flex items-center gap-1.5 text-2xs font-medium text-primary" role="status">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />Lendo o voucher…
+                          </span>
                         )}
                       </div>
                       <div className="p-4">
-                        <p className="text-xs text-slate-600 mb-3">
+                        <p className="text-xs leading-relaxed text-slate-600 mb-3">
                           Anexe aqui o <strong>voucher em PDF</strong>: ele fica guardado como comprovante
                           <strong> e preenche os campos da passagem automaticamente</strong>. Outros arquivos
                           (imagem, comprovante extra) também podem ser anexados — esses só são guardados.
@@ -310,22 +339,22 @@ export default function TicketModal({
 
                     {/* Configuração */}
                     <div className="bg-card border border-border rounded-xl p-4">
-                      <div className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground mb-3">Configuração</div>
+                      <h3 className={`${SECAO} flex items-center gap-1.5`}><Settings2 className="w-3.5 h-3.5" aria-hidden="true" />Configuração</h3>
                       <div className="flex items-end gap-6 flex-wrap">
                         <div className="flex-1 min-w-[180px]">
-                          <Label className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Modalidade<RequiredMark /></Label>
+                          <Label className="text-xs font-medium text-slate-600 mb-1.5 block">Modalidade<RequiredMark /></Label>
                           <Select value={form.transportType || "aereo"} onValueChange={onTransportChange}>
                             <SelectTrigger data-testid={`select-transport-type-${sid}`}><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="aereo">✈️ Aérea</SelectItem>
-                              <SelectItem value="rodoviario">🚌 Rodoviária</SelectItem>
-                              <SelectItem value="van">🚐 Van</SelectItem>
+                              <SelectItem value="aereo"><span className="inline-flex items-center gap-2"><Plane className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Aérea</span></SelectItem>
+                              <SelectItem value="rodoviario"><span className="inline-flex items-center gap-2"><Bus className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Rodoviária</span></SelectItem>
+                              <SelectItem value="van"><span className="inline-flex items-center gap-2"><Truck className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Van</span></SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         {form.transportType !== "van" && (
                           <div className="pb-1">
-                            <Label className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Trechos deste bilhete</Label>
+                            <Label className="text-xs font-medium text-slate-600 mb-1.5 block">Trechos deste bilhete</Label>
                             {/* Três recortes (28/08): a volta pode ter sido emitida por OUTRA
                                 agência, virando um bilhete só de volta. */}
                             <div className="inline-flex rounded-lg border border-border bg-surface-muted p-0.5" role="radiogroup" aria-label="Trechos deste bilhete">
@@ -350,7 +379,7 @@ export default function TicketModal({
                                         isReturnOnly: op.chave === "so_volta",
                                       });
                                     }}
-                                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    className={`rounded-md px-3 h-8 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                                       ativo ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700"}`}
                                     data-testid={`trecho-${op.chave}-${sid}`}
                                   >
@@ -386,7 +415,7 @@ export default function TicketModal({
                     />
 
                     <div className="bg-card border border-border rounded-xl p-4">
-                      <Label htmlFor={`ticketObservations-${sid}`} className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1 block">Observações sobre a Passagem</Label>
+                      <Label htmlFor={`ticketObservations-${sid}`} className="text-xs font-medium text-slate-600 mb-1.5 block">Observações sobre a Passagem</Label>
                       <Textarea
                         id={`ticketObservations-${sid}`}
                         placeholder="Informações adicionais sobre a passagem…"
@@ -402,7 +431,7 @@ export default function TicketModal({
                 )}
               </TabsContent>
 
-              <TabsContent value="complementos" className="m-0 p-6">
+              <TabsContent value="complementos" className="m-0 p-4 sm:p-6 pas-entra">
                 <TicketExtrasTab
                   comments={comments}
                   commentsLoading={commentsLoading}
@@ -417,12 +446,12 @@ export default function TicketModal({
           </Tabs>
 
           {/* FOOTER */}
-          <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3 shrink-0 bg-card">
+          <div className="px-5 sm:px-6 py-3 border-t border-border flex items-center justify-end gap-2 shrink-0 bg-surface-muted">
             {!isFormMode ? (
               <>
-                <Button variant="outline" onClick={onRequestClose} className="border border-border text-slate-600 hover:bg-surface-muted rounded-xl px-5 py-2 text-sm font-medium">Fechar</Button>
+                <Button variant="outline" onClick={onRequestClose} className="h-9 rounded-lg px-4 text-sm font-medium">Fechar</Button>
                 {!roMode && canEditTicket && ticket && (
-                  <Button variant="outline" onClick={() => onStartEdit(ticket)} className="flex items-center gap-2 border border-primary/25 text-primary bg-brand-soft hover:bg-brand-soft rounded-xl px-5 py-2 text-sm font-medium">
+                  <Button onClick={() => onStartEdit(ticket)} className="h-9 flex items-center gap-2 rounded-lg px-4 text-sm font-medium bg-primary hover:bg-primary-hover text-primary-foreground">
                     <Edit className="w-4 h-4" aria-hidden="true" />Editar Passagem
                   </Button>
                 )}
@@ -430,16 +459,16 @@ export default function TicketModal({
             ) : (
               <>
                 {/* Sem "Salvar rascunho": ou registra completo, ou descarta. Em edição, "Cancelar" volta à visualização. */}
-                <Button variant="ghost" onClick={isEditing ? onCancelEdit : onRequestClose} className="text-muted-foreground hover:text-slate-700 rounded-xl px-5 py-2 text-sm font-medium">Cancelar</Button>
+                <Button variant="ghost" onClick={isEditing ? onCancelEdit : onRequestClose} className="h-9 text-slate-600 hover:text-foreground rounded-lg px-4 text-sm font-medium">Cancelar</Button>
                 {!roMode && canEditTicket && (
                   <Button
                     onClick={onSubmit}
                     disabled={isSubmitting}
-                    className="bg-primary hover:bg-primary-hover text-primary-foreground rounded-xl px-5 py-2 text-sm font-bold flex items-center gap-2"
+                    className="h-9 bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg px-4 text-sm font-semibold flex items-center gap-2"
                     data-testid={`button-register-ticket-${sid}`}
                   >
                     {isSubmitting
-                      ? (isEditing ? "Atualizando…" : "Registrando…")
+                      ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />{isEditing ? "Atualizando…" : "Registrando…"}</>
                       : <><CheckCircle className="w-4 h-4" aria-hidden="true" /> {isEditing ? "Atualizar passagem" : "Registrar passagem"}</>}
                   </Button>
                 )}

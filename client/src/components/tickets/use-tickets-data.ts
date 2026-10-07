@@ -17,7 +17,7 @@ import type { TicketFilters } from "./types";
 import { useSwapRequests } from "@/hooks/use-swap-requests";
 import { vagasDaTroca } from "@/lib/swap-types";
 
-import { formatarMoeda } from "@/lib/format";
+import { formatarMoeda, toTitleCase as nomeEmTitulo } from "@/lib/format";
 /** Linha crua de /api/swap-requests (SQL direto → snake_case junto com o tipo drizzle). */
 export type SwapRequestRow = SwapRequest & {
   team_inclusion_id?: string;
@@ -49,7 +49,9 @@ export const toTitleCase = (str: string) => {
   if (!str) return str;
   const lower = str.toLowerCase();
   if (lower === "não escalado") return "Não escalado";
-  return lower.replace(/\b\w/g, (c) => c.toUpperCase());
+  // 07/10: a regra única do app (@/lib/format) — o `\b\w` local tratava a
+  // letra acentuada como fim de palavra e escrevia "AraúJo", "ViníCius".
+  return nomeEmTitulo(str);
 };
 
 // Formata sem passar por new Date(): "YYYY-MM-DD" no construtor é lido como

@@ -23,7 +23,9 @@ describe("TicketRow", () => {
   it("passagem comprada: ida e volta com data, horários e aeroportos, resumo LOC · valor · tipo", () => {
     const passagem = PASSAGEM();
     const { linha } = montar({ ticket: passagem });
-    expect(linha).toHaveTextContent("✓ Passagem confirmada");
+    // 07/10: o "✓ Passagem confirmada" visível repetia a pílula "Comprada" da
+    // mesma linha; ficou para o leitor de tela.
+    expect(within(linha).getByText("Passagem confirmada")).toHaveClass("sr-only");
     expect(linha).toHaveTextContent("09/04/2026");
     expect(linha).toHaveTextContent("08:00 → 10:00");
     expect(linha).toHaveTextContent("13/04/2026");
@@ -70,10 +72,27 @@ describe("TicketRow", () => {
     expect(screen.getByText("Cancelado")).toBeInTheDocument();
   });
 
-  it("modo cartão (celular): cada célula carrega o rótulo em data-rotulo para o CSS empilhar", () => {
+  it("modo cartão (celular): cada célula carrega o rótulo em data-rotulo e a coluna em data-col para o CSS montar o cartão", () => {
     const { linha } = montar({ ticket: PASSAGEM() });
     const rotulos = Array.from(linha.querySelectorAll("td[data-rotulo]")).map((td) => td.getAttribute("data-rotulo"));
-    expect(rotulos).toEqual(["Evento", "Função", "Passageiro", "Destino", "Ida e volta", "Sugestões", "Situação"]);
+    // 07/10: "Destino" deixou de ser coluna — o local do evento mora sob o
+    // nome do evento e o trecho (GRU→BSB) junto da data de cada perna.
+    expect(rotulos).toEqual(["Evento", "Função", "Passageiro", "Viagem", "Sugestão", "Situação"]);
+    const colunas = Array.from(linha.querySelectorAll("td[data-col]")).map((td) => td.getAttribute("data-col"));
+    expect(colunas).toEqual(["sel", "id", "evento", "funcao", "colab", "viagem", "sugestao", "status", "acoes"]);
+    expect(within(linha).getByText("Brasília, DF")).toBeInTheDocument();
+  });
+
+  it("alteração aprovada para remarcar: sinal discreto ao lado do ID e borda de 'espera você'", () => {
+    const { linha, unmount } = montar({ ticket: PASSAGEM(), alteracaoPendente: true });
+    const sinal = screen.getByTestId("ticket-alteracao-vaga-1");
+    expect(sinal).toHaveAttribute("title", "Alteração aprovada depois da compra — confira e remarque");
+    expect(sinal).toHaveTextContent("Alteração aprovada para remarcar");
+    expect(linha).toHaveClass("border-l-warning-strong");
+    unmount();
+    const { linha: semAviso } = montar({ ticket: PASSAGEM() });
+    expect(screen.queryByTestId("ticket-alteracao-vaga-1")).toBeNull();
+    expect(semAviso).toHaveClass("border-l-success-strong");
   });
 
   it("pendente: 'Não comprada' + pílula Pendente, checkbox de lote e botão 'Registrar passagem' para quem edita", async () => {

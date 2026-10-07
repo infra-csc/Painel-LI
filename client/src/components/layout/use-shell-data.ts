@@ -5,7 +5,10 @@
  * que o app JÁ faz e que o servidor autoriza para o usuário logado:
  *   • `/api/swap-requests`  → trocas pendentes (Passagens, Hospedagem, Escalação);
  *   • `/api/scaling-change-requests?status=pendente` → pedidos de ajuste/inclusão/
- *     exclusão aguardando decisão (só quem tem acesso à Aprovação de Escala).
+ *     exclusão aguardando decisão (só quem tem acesso à Aprovação de Escala);
+ *   • `/api/avisos-de-alteracao?situacao=pendente` → ajuste aprovado em vaga que
+ *     já tinha passagem/hospedagem (07/10) — só a logística (admin/Compras/
+ *     Produção), os mesmos papéis da rota; 403 vira lista vazia, sem erro.
  * O que não existe de forma barata e confiável NÃO vira badge (nem zero):
  *   • "vagas aguardando aprovação" exige `eventId` no GET /api/scaling-suggestions;
  *   • pendências de Financeiro/Cadastros não têm endpoint de contagem.
@@ -24,8 +27,9 @@ import { statusDaVagaDaTroca } from "@/lib/swap-types";
 import { getSeenState, type SeenState } from "@/lib/seenSwaps";
 import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "./shell-prefs";
+import { buscarAvisos, podeVerAvisos, CHAVE_AVISOS_CASCA, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 
-import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp } from "lucide-react";
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
@@ -234,6 +238,24 @@ export function useShellData() {
     [suggestionsForBadge],
   );
 
+  /**
+   * Alterações aprovadas para Compras remarcar (07/10). O aviso nasce no
+   * servidor quando um ajuste aprovado mexe em vaga com passagem/hospedagem.
+   * Um aviso pode afetar as duas coisas: conta UMA vez no sino e entra no
+   * badge de cada tela que precisa revê-lo.
+   */
+  const veAvisos = !!user && podeVerAvisos(user.role);
+  const { data: avisosPendentes } = useQuery<AvisoDeAlteracao[]>({
+    queryKey: [...CHAVE_AVISOS_CASCA],
+    queryFn: ({ signal }) => buscarAvisos("pendente", signal),
+    enabled: veAvisos,
+    staleTime: 60_000,
+  });
+  const avisosPassagem = veAvisos ? (avisosPendentes ?? []).filter((a) => a.afetaPassagem).length : 0;
+  const avisosHospedagem = veAvisos ? (avisosPendentes ?? []).filter((a) => a.afetaHospedagem).length : 0;
+  /** Só hospedagem (sem passagem): a entrada do sino aponta para Hospedagem. */
+  const avisosSoHospedagem = veAvisos ? (avisosPendentes ?? []).filter((a) => a.afetaHospedagem && !a.afetaPassagem).length : 0;
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -282,6 +304,12 @@ export function useShellData() {
     // (é espera, não erro — antes era vermelho).
     const AMBAR = "bg-warning-soft text-warning";
 
+    // Alteração aprovada depois da compra: é o trabalho mais urgente de
+    // Compras (o bilhete emitido ficou com data errada) — entra antes das trocas.
+    const alteracoes = (n: number) => `${n} ${n === 1 ? "alteração aprovada" : "alterações aprovadas"} para remarcar`;
+    entrada(avisosPassagem, "avisos:/tickets", alteracoes(avisosPassagem), "Datas ou horários mudaram depois da passagem registrada", "Passagens", "/tickets", CalendarClock, AMBAR);
+    entrada(avisosSoHospedagem, "avisos:/accommodations", `${alteracoes(avisosSoHospedagem)} na hospedagem`, "As noites mudaram depois da hospedagem registrada", "Hospedagem", "/accommodations", CalendarClock, AMBAR);
+
     if (isPurchasing) {
       entrada(ticketSwapCount, "swap:/tickets", `${trocas(ticketSwapCount)} em Passagens`, "Compras precisa confirmar a substituição", "Passagens", "/tickets", ArrowLeftRight, AMBAR);
       entrada(accommodationSwapCount, "swap:/accommodations", `${trocas(accommodationSwapCount)} em Hospedagem`, "Compras precisa confirmar a substituição", "Hospedagem", "/accommodations", ArrowLeftRight, AMBAR);
@@ -294,19 +322,21 @@ export function useShellData() {
     entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
   }, [user?.id, notifications]);
 
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
-  const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount;
+  const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount
+    + avisosPassagem + avisosSoHospedagem;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
-    tickets: ticketSwapCount,
-    accommodations: accommodationSwapCount,
+    // + alterações aprovadas para remarcar (07/10).
+    tickets: ticketSwapCount + avisosPassagem,
+    accommodations: accommodationSwapCount + avisosHospedagem,
     // Trocas + cenotécnica aguardando o gestor (15/09).
     scaling: (isPurchasing ? scalingSwapCount : myScalingSwapsCount) + aguardandoGestorCount,
     // Tudo que espera ação do aprovador: pedidos + vagas validadas aguardando ele.

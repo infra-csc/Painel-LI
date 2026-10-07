@@ -1,10 +1,10 @@
 // Compra de Passagens — página. Estado de UI, validação compartilhada e o
 // upsert idempotente ficam aqui; dados/índices em use-tickets-data; a UI em
 // components/tickets/**. Regras do formulário: @/lib/ticket-form.
-import { useState, useMemo, useEffect, useCallback, useDeferredValue } from "react";
+import { useState, useMemo, useEffect, useCallback, useDeferredValue, useRef, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { AlertCircle, Stamp, FileUp } from "lucide-react";
+import { AlertCircle, Stamp, FileUp, Layers, Lock, RotateCw, X } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { PageHeader } from "@/components/common/page-header";
@@ -32,6 +32,8 @@ import { useTicketUpsert } from "@/components/tickets/use-ticket-upsert";
 import { filtersFromSearch, searchFromFilters } from "@/components/tickets/filters-url";
 import { contarPorOpcao, passaNosFiltrosBase } from "@/components/tickets/tickets-filtering";
 import { DEFAULT_PERIOD } from "@/components/scaling/scaling-period";
+import { BlocoDeAvisos, BotaoAvisosResolvidos } from "@/components/avisos-de-alteracao/bloco-de-avisos";
+import { useAvisosPendentes, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 import TicketsWorkQueue, { type FilaDePassagens } from "@/components/tickets/tickets-work-queue";
 import TicketsFilterBar from "@/components/tickets/tickets-filter-bar";
 import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
@@ -41,6 +43,7 @@ import TicketModal from "@/components/tickets/ticket-modal";
 import {
   DiscardChangesDialog, ChronologyWarningsDialog, BatchConfirmDialog, BatchResultDialog,
 } from "@/components/tickets/ticket-dialogs";
+import { DEFAULT_TICKET_FILTERS } from "@/components/tickets/types";
 import type {
   TicketFilters, TicketFormState, FieldErrorsState, BatchResult, FormFieldHelpers, TicketFormHandlers,
 } from "@/components/tickets/types";
@@ -89,6 +92,7 @@ export default function Tickets() {
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [batchExpanded, setBatchExpanded] = useState(false);
+  const painelLoteRef = useRef<HTMLDivElement | null>(null);
   const [voucherLoteAberto, setVoucherLoteAberto] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [modalActiveTab, setModalActiveTab] = useState("resumo");
@@ -299,6 +303,26 @@ export default function Tickets() {
     }));
   }, [eventById, data.collaboratorById]);
 
+  // ── Alterações aprovadas para remarcar (07/10) ──
+  // O aviso pode ser de uma prova fora do recorte de evento atual (a lista e
+  // as passagens vêm só do evento filtrado): aí o filtro passa para a prova
+  // do aviso e o modal abre assim que a vaga chega.
+  const avisos = useAvisosPendentes("passagem");
+  const [abrirDepois, setAbrirDepois] = useState<string | null>(null);
+  const abrirPeloAviso = useCallback((aviso: AvisoDeAlteracao) => {
+    const inc = data.teamInclusions?.find((i) => i.id === aviso.teamInclusionId);
+    if (inc) { openModal(inc); return; }
+    setAbrirDepois(aviso.teamInclusionId);
+    setFilters((prev) => ({ ...prev, eventId: aviso.eventId }));
+    // A lista muda de recorte por baixo do modal — dizer por quê.
+    toast({ title: `Mostrando ${aviso.eventName ?? "a prova do aviso"}`, description: "O filtro de evento mudou para abrir a vaga desta alteração." });
+  }, [data.teamInclusions, openModal, toast]);
+  useEffect(() => {
+    if (!abrirDepois || data.isLoading) return;
+    const inc = data.teamInclusions?.find((i) => i.id === abrirDepois);
+    if (inc) { setAbrirDepois(null); openModal(inc); }
+  }, [abrirDepois, data.isLoading, data.teamInclusions, openModal]);
+
   const closeModalDiscarding = () => {
     setDiscardTarget(null);
     setShowModal(false);
@@ -465,64 +489,143 @@ export default function Tickets() {
     .map(inc => `#${inc.inclusionNumber ?? "?"} ${toTitleCase(getCollaboratorName(inc.collaboratorId))}`);
 
   // ── Guardas de tela ──
-  if (!hasPermission(user, "canAccessScreen3")) {
-    return (
-      <div className="bg-card rounded-lg shadow-1 border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso negado</h3>
-        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
+  // A barra da tela aparece em todos os estados (carregando, erro, sem
+  // acesso): a pessoa sempre sabe onde está, e nada "pula" quando os dados chegam.
+  const barra = (subtitulo: ReactNode, acoes?: ReactNode) => (
+    <PageHeader
+      variant="bar"
+      title="Passagens"
+      subtitle={subtitulo}
+      className="mx-0 mt-0"
+      actions={acoes}
+    />
+  );
+  const casca = (conteudo: ReactNode, subtitulo: ReactNode = null) => (
+    <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
+      {barra(subtitulo)}
+      <div className="px-[var(--page-gutter)] pt-5 pb-6">
+        <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">{conteudo}</div>
       </div>
+    </div>
+  );
+
+  if (!hasPermission(user, "canAccessScreen3")) {
+    return casca(
+      <div className="pas-entra flex flex-col items-center text-center rounded-xl border border-border bg-card px-6 py-14" data-testid="passagens-sem-acesso">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted text-muted-foreground mb-3" aria-hidden="true">
+          <Lock className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">Acesso negado</h2>
+        <p className="m-0 mt-1.5 max-w-[420px] text-sm leading-relaxed text-muted-foreground">
+          Você não tem permissão para acessar esta tela. Se precisa registrar passagens, peça ao administrador para liberar o seu perfil.
+        </p>
+      </div>,
     );
   }
   if (data.isLoading) {
-    return (
-      <div className="animate-pulse motion-reduce:animate-none">
-        <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
-        <div className="h-64 bg-muted rounded"></div>
-      </div>
+    // Esqueleto com a geometria real: fila, filtros e as primeiras linhas.
+    return casca(
+      <div role="status" aria-live="polite" aria-busy="true" className="flex flex-col gap-4">
+        <span className="sr-only">Carregando passagens…</span>
+        <div aria-hidden="true" className="grid grid-cols-2 sm:grid-cols-4 rounded-xl border border-border bg-card overflow-hidden">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className={`px-3.5 pt-3 pb-3.5 space-y-2 ${i > 0 ? "sm:border-l border-border" : ""}`}>
+              <div className="pas-osso h-3 w-20" />
+              <div className="pas-osso h-5 w-28" />
+            </div>
+          ))}
+        </div>
+        <div aria-hidden="true" className="flex gap-2">
+          <div className="pas-osso h-[34px] flex-[1_1_220px] max-w-[320px] rounded-lg" />
+          <div className="pas-osso h-[34px] w-[164px] rounded-lg hidden sm:block" />
+          <div className="pas-osso h-[34px] w-[152px] rounded-lg hidden sm:block" />
+          <div className="pas-osso h-[34px] w-[176px] rounded-lg hidden md:block" />
+        </div>
+        <div aria-hidden="true" className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="h-10 bg-surface-muted border-b border-border" />
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3.5 border-b border-border last:border-0">
+              <div className="pas-osso h-[22px] w-12" />
+              <div className="flex-1 space-y-1.5"><div className="pas-osso h-3.5 w-3/5" /><div className="pas-osso h-2.5 w-2/5" /></div>
+              <div className="pas-osso h-3.5 w-24 hidden md:block" />
+              <div className="pas-osso h-3.5 w-32 hidden md:block" />
+              <div className="pas-osso h-[22px] w-20" />
+            </div>
+          ))}
+        </div>
+      </div>,
+      <span>Carregando…</span>,
     );
   }
   if (data.loadError) {
     const isAuthError = data.loadError.status === 401 || data.loadError.status === 403;
-    return (
-      <div className="bg-card rounded-xl border border-danger/25 shadow-1 p-8 text-center">
-        <div className="w-14 h-14 rounded-xl bg-danger-soft flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-7 h-7 text-danger-strong" aria-hidden="true" /></div>
-        <h3 className="text-base font-bold text-slate-700 mb-1">{isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as passagens"}</h3>
-        <p className="text-sm text-muted-foreground mb-4">
+    return casca(
+      <div role="alert" className="pas-entra flex flex-col items-center text-center rounded-xl border border-danger/25 bg-card px-6 py-14">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-danger-soft text-danger mb-3" aria-hidden="true">
+          <AlertCircle className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">{isAuthError ? "Sessão expirada ou sem permissão" : "Não foi possível carregar as passagens"}</h2>
+        <p className="m-0 mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
           {isAuthError ? "Entre novamente para continuar. Nenhum dado foi perdido." : (data.loadError.body?.message || "Verifique sua conexão e tente novamente.")}
         </p>
-        <Button variant="outline" onClick={data.retryLoad} className="rounded-lg">Tentar novamente</Button>
-      </div>
+        <Button variant="outline" onClick={data.retryLoad} className="mt-5 rounded-lg">
+          <RotateCw className="w-4 h-4 mr-1.5" aria-hidden="true" />Tentar novamente
+        </Button>
+      </div>,
     );
   }
+
+  /** Algum recorte ligado (filtros da barra ou o de trocas da fila)? */
+  const temFiltro = showOnlyPendingSwaps || JSON.stringify(filters) !== JSON.stringify(DEFAULT_TICKET_FILTERS);
+  const limparFiltros = () => { setFilters(DEFAULT_TICKET_FILTERS); setShowOnlyPendingSwaps(false); };
+  const nSel = effectiveSelectedTickets.length;
+  /** Abre o painel de lote e leva a pessoa até ele (a seleção costuma estar lá embaixo). */
+  const abrirLote = () => {
+    setBatchExpanded(true);
+    setTimeout(() => painelLoteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
 
   return (
     <>
       {/* Margens pela variável do layout (23/09): `-mx-6` fixo estourava a
           largura em 375px (o layout dá 16px ali) e deixava fresta em 1024+. */}
       <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
-        {/* Barra de contexto: 56px no lugar do bloco de ~76px que repetia o que
-            o breadcrumb já dizia. O "Total geral" do KPI vira o resumo daqui —
-            nenhum número se perdeu. Fica abaixo da barra do topo (`--sticky-top`)
-            — `z-25` não existe no Tailwind, por isso ela não fixava (23/09). */}
-        {/* PageHeader `bar` (25/09): o mesmo componente das outras barras de
-            contexto — esta era a cópia original, desenhada à mão. */}
-        <PageHeader
-          variant="bar"
-          title="Passagens"
-          subtitle={<span data-testid="resumo-passagens">{resumoTopo}</span>}
-          className="mx-0 mt-0"
-          actions={canEdit && (
+        {/* Barra de contexto (PageHeader `bar`, 25/09): o resumo do recorte
+            ("Total geral" do KPI antigo) e as ações da tela. 07/10: "Aplicar em
+            lote" saiu de uma faixa própria de 56px para cá — o painel continua
+            o mesmo, só abre daqui (ou da barra de seleção). */}
+        {barra(
+          <span data-testid="resumo-passagens">{resumoTopo}</span>,
+          <>
+            <BotaoAvisosResolvidos tipo="passagem" />
             <Button
               type="button"
-              onClick={() => setVoucherLoteAberto(true)}
-              className="shrink-0 h-[34px] rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-medium"
-              data-testid="abrir-voucher-lote"
+              variant="outline"
+              onClick={() => (batchExpanded ? setBatchExpanded(false) : abrirLote())}
+              aria-expanded={batchExpanded}
+              aria-controls="painel-lote-passagens"
+              className={`shrink-0 h-[34px] rounded-lg text-sm font-medium ${batchExpanded ? "border-primary/40 bg-brand-soft text-primary hover:bg-brand-soft" : ""}`}
+              data-testid="abrir-lote"
             >
-              <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              Registrar pelos vouchers (PDF)
+              <Layers className="w-4 h-4 mr-1.5" aria-hidden="true" />
+              <span className="sm:hidden">Lote</span>
+              <span className="hidden sm:inline">Aplicar em lote</span>
             </Button>
-          )}
-        />
+            {canEdit && (
+              <Button
+                type="button"
+                onClick={() => setVoucherLoteAberto(true)}
+                className="shrink-0 h-[34px] rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-medium"
+                data-testid="abrir-voucher-lote"
+              >
+                <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                {/* No celular o rótulo encurta para os dois botões caberem numa fileira. */}
+                <span className="sm:hidden">Vouchers (PDF)</span>
+                <span className="hidden sm:inline">Registrar pelos vouchers (PDF)</span>
+              </Button>
+            )}
+          </>,
+        )}
 
       {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}
       <div className="px-[var(--page-gutter)] pt-5 pb-6">
@@ -531,6 +634,10 @@ export default function Tickets() {
             já terminado e o usuário não é o administrador. */}
         <PastEventBanner show={!!filteredEvent && data.isEventLocked({ eventId: filteredEvent.id })} />
 
+        {/* Alterações aprovadas depois da compra (07/10): o trabalho mais urgente
+            de Compras — fica acima de tudo, e só existe quando há. */}
+        <BlocoDeAvisos tipo="passagem" onAbrir={abrirPeloAviso} />
+
         <TicketsWorkQueue
           kpis={kpis}
           trocasPendentes={pendingTicketSwapsCount}
@@ -538,44 +645,23 @@ export default function Tickets() {
           ativa={filaAtiva}
           onEscolher={escolherFila}
         />
-        {/* Emitidas em lote: aparece assim que há linhas marcadas, acima do
-            painel de aplicar dados. É o aviso de "o bilhete saiu" para várias
-            pessoas de uma vez — não preenche nada, só fecha a janela de ajuste. */}
-        {podeEmitir && effectiveSelectedTickets.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/25 bg-brand-soft px-4 py-3">
-            <Stamp className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
-            <p className="text-sm text-primary mr-auto">
-              <strong>{effectiveSelectedTickets.length}</strong>{" "}
-              {effectiveSelectedTickets.length === 1 ? "passagem selecionada" : "passagens selecionadas"} — marcar como emitida trava o pedido de ajuste da área.
-              <span className="block text-2xs text-primary/80">Os dados da passagem continuam podendo ser preenchidos depois.</span>
-            </p>
-            <Button
-              type="button"
-              onClick={marcarSelecionadasEmitidas}
-              disabled={emitirMutation.isPending}
-              className="rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground"
-              data-testid="marcar-emitidas-lote"
-            >
-              <Stamp className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              {emitirMutation.isPending ? "Marcando…" : `Marcar como emitida (${effectiveSelectedTickets.length})`}
-            </Button>
-          </div>
-        )}
 
-        <QuickBatchPanel
-          expanded={batchExpanded}
-          onToggle={() => setBatchExpanded(v => !v)}
-          quick={ticketData["quick"]}
-          helpers={helpers}
-          handlers={handlers}
-          filteredEvent={filteredEvent}
-          impactCtx={batchImpactCtx}
-          selectedCount={effectiveSelectedTickets.length}
-          canEdit={canEdit}
-          isPending={isSubmitting}
-          onClear={() => clearScope("quick")}
-          onApply={handleApplyToSelected}
-        />
+        <div ref={painelLoteRef} id="painel-lote-passagens" className="scroll-mt-[calc(var(--sticky-top,3.5rem)+4.5rem)] empty:hidden">
+          <QuickBatchPanel
+            expanded={batchExpanded}
+            onToggle={() => setBatchExpanded(v => !v)}
+            quick={ticketData["quick"]}
+            helpers={helpers}
+            handlers={handlers}
+            filteredEvent={filteredEvent}
+            impactCtx={batchImpactCtx}
+            selectedCount={nSel}
+            canEdit={canEdit}
+            isPending={isSubmitting}
+            onClear={() => clearScope("quick")}
+            onApply={handleApplyToSelected}
+          />
+        </div>
 
         <TicketsFilterBar
           filters={filters}
@@ -589,9 +675,11 @@ export default function Tickets() {
           datasDoEvento={datasDoEvento}
           count={filteredTicketInclusions.length}
           total={ticketInclusions.length}
+          recorteDeFora={showOnlyPendingSwaps}
         />
 
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {/* `overflow-clip` (07/10): `hidden` prendia o cabeçalho grudado da tabela. */}
+        <div className="bg-card rounded-xl border border-border overflow-clip">
           <TicketsTable
             data={data}
             filters={filtrosAplicados}
@@ -605,8 +693,67 @@ export default function Tickets() {
             canEdit={canEdit}
             onToggleEmitida={podeEmitir ? toggleEmitida : undefined}
             emitindo={emitirMutation.isPending}
+            vagasComAlteracao={avisos.porVaga}
+            temFiltro={temFiltro}
+            onLimparFiltros={limparFiltros}
+            total={ticketInclusions.length}
           />
         </div>
+
+        {/* Barra de seleção (07/10): era um bloco lá em cima, fora da vista de
+            quem marcava a 40ª linha. Agora acompanha a rolagem no rodapé da
+            lista. "Emitida" em lote é o aviso de "o bilhete saiu" para várias
+            pessoas de uma vez — não preenche nada, só fecha a janela de ajuste. */}
+        {nSel > 0 && (
+          <div className="sticky bottom-3 z-20 pas-sobe" data-testid="barra-selecao">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-foreground text-background shadow-3 pl-4 pr-2 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <p className="m-0 text-sm font-semibold tabular-nums" aria-live="polite">
+                    {nSel} {nSel === 1 ? "passagem selecionada" : "passagens selecionadas"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTickets([])}
+                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-xs font-medium text-background/75 hover:bg-background/10 hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
+                    data-testid="limpar-selecao"
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar seleção
+                  </button>
+                </div>
+                {podeEmitir && (
+                  <p className="m-0 hidden lg:block text-2xs leading-4 text-background/65 truncate">
+                    Marcar como emitida trava o pedido de ajuste da área. Os dados da passagem continuam podendo ser preenchidos depois.
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {canEdit && !batchExpanded && (
+                  <button
+                    type="button"
+                    onClick={abrirLote}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
+                  >
+                    <Layers className="w-4 h-4" aria-hidden="true" />Preencher dados em lote
+                  </button>
+                )}
+                {podeEmitir && (
+                  <button
+                    type="button"
+                    onClick={marcarSelecionadasEmitidas}
+                    disabled={emitirMutation.isPending}
+                    title="Trava o pedido de ajuste da área. Os dados da passagem continuam podendo ser preenchidos depois."
+                    className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
+                    data-testid="marcar-emitidas-lote"
+                  >
+                    <Stamp className="w-4 h-4" aria-hidden="true" />
+                    {emitirMutation.isPending ? "Marcando…" : `Marcar como emitida (${nSel})`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
       </div>

@@ -281,3 +281,108 @@
   .casca-progresso::after { animation-duration: 2.4s; }
   .casca-surgir, .casca-pulso { animation: none; }
 }
+
+/* ══ Passagens (pas-) — redesenho 07/10 ════════════════════════════════════
+ * Só o que o Tailwind não dá pronto: cabeçalho grudado, o cartão do celular
+ * desenhado sobre a MESMA árvore de células da tabela, microinterações e o
+ * esqueleto. Prefixo `pas-` para não colidir com as outras telas. */
+
+/* Tabela larga: `clip` (e não `hidden`/`auto`) para o cabeçalho poder grudar
+   na janela — um contêiner que rola prende o `sticky` dentro dele. */
+.pas-tabela { overflow-x: clip; }
+.pas-cabecalho th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linhas: só o fundo anima; o "abrir" fica discreto até o mouse chegar. */
+.pas-linha { transition: background-color 120ms ease; }
+.pas-linha .pas-abrir { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.pas-linha:hover .pas-abrir, .pas-abrir:focus-visible { opacity: 1; }
+
+/* "de → para" dos avisos: rótulo numa coluna, mudança na outra. */
+.pas-mudancas { grid-template-columns: max-content minmax(0, 1fr); }
+
+/* Sinal de alteração aprovada na linha: dois pulsos ao aparecer, depois quieto. */
+@keyframes pas-sinal {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning-strong) 45%, transparent); }
+  100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--warning-strong) 0%, transparent); }
+}
+.pas-sinal { animation: pas-sinal 1.2s ease-out 2; }
+
+/* Conteúdo que acabou de aparecer (bloco de avisos, etiqueta de filtro, vazio). */
+@keyframes pas-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.pas-entra { animation: pas-entra 180ms ease-out both; }
+
+/* Barra de seleção: sobe do rodapé quando a primeira linha é marcada. */
+@keyframes pas-sobe { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.pas-sobe { animation: pas-sobe 200ms cubic-bezier(.2, 0, 0, 1) both; }
+
+/* Faixa que rola de lado sem barra visível (filtros no celular). */
+.pas-rolagem-x { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.pas-rolagem-x::-webkit-scrollbar { display: none; }
+
+/* Esqueleto: brilho que passa, em vez de piscar o bloco inteiro. */
+@keyframes pas-brilho { 0% { background-position: -320px 0; } 100% { background-position: 320px 0; } }
+.pas-osso {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--muted) 0, color-mix(in srgb, var(--muted) 40%, var(--card)) 160px, var(--muted) 320px);
+  background-size: 640px 100%;
+  animation: pas-brilho 1.3s linear infinite;
+}
+
+/* ── Cartão (celular, tablet e lista estreita) ──────────────────────────────
+ * A linha vira um cartão de quatro faixas, sem re-renderizar nada:
+ *   [☐ #ID  situação ............ ações]
+ *   [passageiro                        ]
+ *   [evento + local    | função        ]
+ *   [viagem            | sugestão      ]                                      */
+.pas-cartao thead { display: none; }
+.pas-cartao table, .pas-cartao tbody { display: block; width: 100%; }
+.pas-cartao tr.pas-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 8px 4px 12px;
+}
+.pas-cartao td { display: block; padding: 4px 10px; width: auto; text-align: left !important; }
+.pas-cartao td[data-col="sel"] { order: 1; flex: 0 0 auto; padding-right: 2px; }
+.pas-cartao td[data-col="sel"] label { margin: -10px -8px; }
+.pas-cartao td[data-col="id"] { order: 2; flex: 0 0 auto; padding-left: 6px; padding-right: 4px; }
+.pas-cartao td[data-col="status"] { order: 3; flex: 1 1 0; min-width: 0; padding-left: 4px; }
+.pas-cartao td[data-col="acoes"] { order: 4; flex: 0 0 auto; padding-top: 0; }
+.pas-cartao td[data-col="colab"] { order: 5; flex: 0 0 100%; padding-top: 6px; }
+.pas-cartao td[data-col="evento"] { order: 6; flex: 0 0 58%; min-width: 0; }
+.pas-cartao td[data-col="funcao"] { order: 7; flex: 0 0 42%; min-width: 0; }
+.pas-cartao td[data-col="viagem"] { order: 8; flex: 0 0 58%; min-width: 0; white-space: normal; }
+.pas-cartao td[data-col="sugestao"] { order: 9; flex: 0 0 42%; min-width: 0; }
+.pas-cartao td[data-col="status"] > div { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.pas-cartao td[data-col="status"] .pas-resumo { max-width: 100%; }
+.pas-cartao td[data-col="evento"]::before,
+.pas-cartao td[data-col="funcao"]::before,
+.pas-cartao td[data-col="viagem"]::before,
+.pas-cartao td[data-col="sugestao"]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+
+/* Toque: alvo mínimo de 44px nos controles pequenos. */
+@media (pointer: coarse) {
+  .pas-alvo { min-height: 44px; min-width: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pas-sinal, .pas-entra, .pas-sobe, .pas-osso { animation: none; }
+  .pas-linha, .pas-linha .pas-abrir { transition: none; }
+}
+/* Tabela entre 960 e 1180px: sem o círculo de iniciais (o nome cabe numa linha). */
+.pas-estreita .pas-avatar { display: none; }

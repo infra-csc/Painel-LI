@@ -1,6 +1,14 @@
 // Uma linha da tabela de Passagens.
+//
+// 07/10 (redesenho): a coluna "Destino" deixou de existir como coluna — o
+// local do evento passou para baixo do nome do evento (é o mesmo para todas as
+// vagas da prova) e o trecho comprado (GRU → POA, cidades no rodoviário, a
+// empresa da van) foi para junto da data e do horário de cada perna, onde é
+// lido. Nenhum dado saiu da linha; a tabela cabe em 1366 com o menu aberto.
+// No celular/tablet a MESMA árvore de células vira um cartão por CSS
+// (`.pas-cartao` no index.css) — nada é renderizado de outro jeito.
 import { forwardRef, memo } from "react";
-import { Eye, Plane, ArrowLeftRight, Lock, Stamp, Bus, PlaneTakeoff, PlaneLanding, MapPin } from "lucide-react";
+import { Eye, Plane, ArrowLeftRight, Lock, Stamp, Bus, PlaneTakeoff, PlaneLanding, MapPin, CalendarClock, Truck } from "lucide-react";
 import type { TeamInclusion, Ticket } from "@shared/schema";
 import { extractTravelSuggestion, formatSuggestionDate, hasSuggestionValue } from "@/lib/ticket-form";
 import { formatDate, formatBrl, isOneWayTicket, toTitleCase } from "./use-tickets-data";
@@ -17,6 +25,8 @@ export interface TicketRowProps {
   eventLocation: string;
   hasPendingSwap: boolean;
   hasApprovedSwap: boolean;
+  /** Alteração aprovada depois da compra, esperando Compras remarcar (07/10). */
+  alteracaoPendente?: boolean;
   selected: boolean;
   canEdit: boolean;
   /** Evento encerrado: a linha não entra em ações em lote (servidor devolve 403). */
@@ -44,15 +54,51 @@ export function ticketSummaryLine(t: Ticket): string {
   return parts.join(" · ");
 }
 
+/**
+ * Uma perna da viagem em duas linhas curtas: a data, e embaixo partida →
+ * chegada e o trecho (GRU→CNF). Cabe numa coluna de 176px sem cortar nada;
+ * no rodoviário o trecho são cidades e ganha linha própria.
+ */
+function Perna({ ida, data, partida, chegada, origem, destino, rodo }: {
+  ida: boolean; data: string | null | undefined; partida: string | null | undefined; chegada: string | null | undefined;
+  origem: string | null | undefined; destino: string | null | undefined; rodo: boolean;
+}) {
+  const Icone = rodo ? Bus : ida ? PlaneTakeoff : PlaneLanding;
+  const temTrecho = !!(origem || destino);
+  return (
+    <div className="pas-perna">
+      <div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0">
+        <Icone className={`h-3.5 w-3.5 shrink-0 ${ida ? "text-success" : "text-success-strong"}`} aria-hidden="true" />
+        <span className="sr-only">{ida ? "Ida" : "Volta"}:</span>
+        <span className="font-semibold text-slate-700 tabular-nums">{data ? formatDate(data) : "—"}</span>
+      </div>
+      {(partida || (temTrecho && !rodo)) && (
+        <div className="pl-[18px] flex flex-wrap gap-x-1.5 text-2xs leading-4 text-muted-foreground">
+          {partida && <span className="tabular-nums whitespace-nowrap">{partida}{chegada ? ` → ${chegada}` : ""}</span>}
+          {temTrecho && !rodo && (
+            <span className="font-medium uppercase tracking-tight whitespace-nowrap"><span>{origem || "—"}</span>→<span>{destino || "—"}</span></span>
+          )}
+        </div>
+      )}
+      {/* Rodoviário: o trecho são cidades (nomes longos) — linha própria, sem cortar. */}
+      {temTrecho && rodo && (
+        <div className="pl-[18px] text-2xs font-medium leading-4 text-muted-foreground break-words">
+          <span>{origem || "—"}</span>→<span>{destino || "—"}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 28/09: `forwardRef` para a tabela virtualizada medir a altura real da linha
 // (nomes que quebram, sugestões em duas linhas) — sem isso o espaçador chuta
 // e a rolagem "pula".
 const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function TicketRow({
   inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation, onToggleEmitida, emitindo,
-  hasPendingSwap, hasApprovedSwap, selected, canEdit, locked, onToggleSelect, onOpen, "data-index": dataIndex,
+  hasPendingSwap, hasApprovedSwap, alteracaoPendente, selected, canEdit, locked, onToggleSelect, onOpen, "data-index": dataIndex,
 }, ref) {
   const cancelado = inclusion.status === "cancelado";
-  const cellCls = `px-4 py-3 cursor-pointer ${cancelado ? "opacity-60" : ""}`;
+  const cellCls = `px-2.5 py-2.5 align-top cursor-pointer ${cancelado ? "opacity-60" : ""}`;
   const open = () => onOpen(inclusion);
   const name = toTitleCase(collaboratorName);
   const initials = collaboratorName === "Não escalado" ? "?" : collaboratorName.split(" ").filter(Boolean).slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -60,34 +106,48 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   const idaVazia = !hasSuggestionValue(suggestion.ida);
   const voltaVazia = !hasSuggestionValue(suggestion.retorno);
   const summary = ticket ? ticketSummaryLine(ticket) : "";
+  const rodo = ticket?.transportType === "rodoviario";
+  // A borda esquerda diz de quem é a vez: âmbar = espera você (compra
+  // pendente, troca em análise, alteração aprovada para remarcar); verde =
+  // comprada; cinza = cancelada.
+  const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado);
 
   return (
     <tr
       ref={ref}
       data-index={dataIndex}
       /* Hover por classe: o style.backgroundColor inline no mouseleave apagava o âmbar da linha com troca pendente. */
-      className={cn(`transition-colors group border-b border-border last:border-0 ${hasPendingSwap ? "bg-warning-soft/40 hover:bg-warning-soft/70" : rowIdx % 2 === 1 ? "bg-surface-muted/50 hover:bg-brand-soft/40" : "bg-card hover:bg-brand-soft/40"}`, (cancelado ? "opacity-50" : "opacity-100"), (hasPendingSwap ? "border-l-[3px] border-l-warning-strong" : cancelado ? "border-l-[3px] border-l-border" : ticket ? "border-l-[3px] border-l-success-strong" : "border-l-[3px] border-l-warning-strong"))}
+      className={cn(
+        "pas-linha group border-b border-border last:border-0 border-l-[3px]",
+        selected
+          ? "bg-brand-soft/70 hover:bg-brand-soft"
+          : hasPendingSwap || alteracaoPendente
+          ? "bg-warning-soft/35 hover:bg-warning-soft/60"
+          : rowIdx % 2 === 1 ? "bg-surface-muted/50 hover:bg-brand-soft/40" : "bg-card hover:bg-brand-soft/40",
+        cancelado ? "opacity-50" : "opacity-100",
+        cancelado ? "border-l-border" : esperaVoce ? "border-l-warning-strong" : "border-l-success-strong",
+      )}
     >
       {/* Checkbox — só para PENDENTES */}
-      <td className="px-4 py-3 whitespace-nowrap w-10" onClick={(e) => e.stopPropagation()}>
+      <td data-col="sel" className="pl-3 pr-1 py-2.5 align-top whitespace-nowrap w-9" onClick={(e) => e.stopPropagation()}>
         {/* O alvo é o <label> de 40x40: margem não amplia área de clique e
             padding em checkbox nativo não funciona. */}
         {!ticket && !cancelado && !locked ? (
-          <label className="flex items-center justify-center w-10 h-10 -m-2 cursor-pointer">
+          <label className="flex items-center justify-center w-10 h-10 -m-2.5 cursor-pointer">
             <input
               type="checkbox"
               checked={selected}
               onChange={() => onToggleSelect(inclusion.id)}
               aria-label={`Selecionar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
-              className="rounded border-slate-300 accent-primary"
+              className="rounded border-slate-300 accent-primary w-4 h-4 cursor-pointer"
               data-testid={`checkbox-ticket-${inclusion.id}`}
             />
           </label>
         ) : <div className="w-4 h-4" />}
       </td>
 
-      {/* ID */}
-      <td className={`px-3 py-3 w-[64px] ${cancelado ? "opacity-60" : "cursor-pointer"}`} onClick={cancelado ? undefined : open}>
+      {/* ID (+ sinal de alteração aprovada) */}
+      <td data-col="id" className={`px-1.5 py-2.5 align-top whitespace-nowrap ${cancelado ? "opacity-60" : "cursor-pointer"}`} onClick={cancelado ? undefined : open}>
         {/* A linha abre no clique (mouse); pelo teclado o acesso é este botão, invisível até receber foco. */}
         {!cancelado && (
           <button
@@ -98,39 +158,58 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
             Abrir vaga #{inclusion.inclusionNumber || ""}
           </button>
         )}
-        <span className={`${PILULA} bg-brand-soft text-primary font-mono tabular-nums`}>
-          #{inclusion.inclusionNumber || "N/A"}
+        <span className="inline-flex items-center gap-1">
+          <span className={`${PILULA} bg-brand-soft text-primary font-mono tabular-nums`}>
+            #{inclusion.inclusionNumber || "N/A"}
+          </span>
+          {alteracaoPendente && (
+            <span
+              className="pas-sinal inline-flex items-center justify-center w-[22px] h-[22px] rounded-md bg-warning-soft text-warning-strong"
+              title="Alteração aprovada depois da compra — confira e remarque"
+              data-testid={`ticket-alteracao-${inclusion.id}`}
+            >
+              <CalendarClock className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="sr-only">Alteração aprovada para remarcar</span>
+            </span>
+          )}
         </span>
       </td>
 
-      {/* Evento */}
-      <td className={cellCls} data-rotulo="Evento" onClick={open}>
+      {/* Evento (+ local do evento, que era a primeira linha da coluna Destino) */}
+      <td data-col="evento" className={cellCls} data-rotulo="Evento" onClick={open}>
         {eventName === "Evento não encontrado" ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-danger-soft text-danger-strong text-2xs font-semibold rounded-md">⚠ Não encontrado</span>
         ) : (
-          <p className="text-sm font-semibold text-foreground">{eventName}</p>
+          <p className="m-0 text-sm font-semibold leading-5 text-foreground">{eventName}</p>
         )}
+        {/* Uma linha só (o endereço inteiro no título): é o mesmo para a
+            prova toda e não pode transformar cada vaga numa torre. */}
+        <p className="m-0 mt-0.5 flex items-center gap-1 min-w-0 text-2xs leading-4 text-muted-foreground" title={`Destino: ${eventLocation}`}>
+          <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <span className="sr-only">Destino:</span>
+          <span className="pas-local truncate">{eventLocation}</span>
+        </p>
       </td>
 
       {/* Função — coluna própria (02/10: "incluir a coluna de função na tela") */}
-      <td className={cellCls} data-rotulo="Função" onClick={open}>
-        <p className="text-sm text-foreground">{functionName}</p>
+      <td data-col="funcao" className={cellCls} data-rotulo="Função" onClick={open}>
+        <p className="m-0 text-sm leading-5 text-foreground">{functionName}</p>
       </td>
 
       {/* Colaborador */}
-      <td className={cellCls} data-rotulo="Passageiro" onClick={open}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-2xs font-bold shrink-0 bg-brand-soft text-primary">{initials}</div>
-          <div>
-            <span className="text-sm font-[500] text-foreground">{name}</span>
+      <td data-col="colab" className={cellCls} data-rotulo="Passageiro" onClick={open}>
+        <div className="flex items-start gap-2.5">
+          <div className="pas-avatar w-7 h-7 rounded-full flex items-center justify-center text-2xs font-semibold shrink-0 bg-brand-soft text-primary" aria-hidden="true">{initials}</div>
+          <div className="min-w-0 flex flex-col items-start gap-0.5">
+            <span className="text-sm font-medium leading-5 text-foreground">{name}</span>
             {hasPendingSwap && (
-              <span className={`${PILULA} bg-warning-soft text-warning mt-0.5`}>
+              <span className={`${PILULA} bg-warning-soft text-warning`}>
                 <span className="w-[5px] h-[5px] rounded-full bg-warning shrink-0" aria-hidden="true" />
                 Troca pendente
               </span>
             )}
             {!hasPendingSwap && hasApprovedSwap && (
-              <span className={`${PILULA} bg-success-soft text-success mt-0.5`}>
+              <span className={`${PILULA} bg-success-soft text-success`}>
                 <ArrowLeftRight className="w-3 h-3" aria-hidden="true" />Troca aprovada
               </span>
             )}
@@ -138,114 +217,59 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
         </div>
       </td>
 
-      {/* Destino */}
-      <td className={cellCls} data-rotulo="Destino" onClick={open}>
-        {ticket ? (
-          <div className="flex flex-col gap-0.5">
-            <p className="text-sm font-semibold text-foreground">{eventLocation}</p>
-            {ticket.transportType === "van" ? (
-              ticket.purchaseOrderNumber && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Bus className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                  <span className="text-2xs font-medium text-muted-foreground">{ticket.purchaseOrderNumber}</span>
-                </div>
-              )
-            ) : ticket.transportType === "rodoviario" ? (
-              <>
-                {(ticket.departureCityOrigin || ticket.departureCityDestination) && (
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <Bus className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                    <span className="text-2xs font-medium text-muted-foreground">{ticket.departureCityOrigin || "—"}</span>
-                    <span className="text-2xs text-muted-foreground">→</span>
-                    <span className="text-2xs font-medium text-muted-foreground">{ticket.departureCityDestination || "—"}</span>
-                  </div>
-                )}
-                {(ticket.returnCityOrigin || ticket.returnCityDestination) && (
-                  <div className="flex items-center gap-1">
-                    <Bus className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                    <span className="text-2xs font-medium text-muted-foreground">{ticket.returnCityOrigin || "—"}</span>
-                    <span className="text-2xs text-muted-foreground">→</span>
-                    <span className="text-2xs font-medium text-muted-foreground">{ticket.returnCityDestination || "—"}</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              (ticket.departureAirport || ticket.destinationAirport) && (
-                <>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <PlaneTakeoff className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                    <span className="text-2xs font-medium text-muted-foreground uppercase">{ticket.departureAirport || "—"}</span>
-                    <span className="text-2xs text-muted-foreground">→</span>
-                    <span className="text-2xs font-medium text-muted-foreground uppercase">{ticket.destinationAirport || "—"}</span>
-                  </div>
-                  {!isOneWayTicket(ticket) && (
-                    <div className="flex items-center gap-1">
-                      <PlaneLanding className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                      <span className="text-2xs font-medium text-muted-foreground uppercase">{ticket.destinationAirport || "—"}</span>
-                      <span className="text-2xs text-muted-foreground">→</span>
-                      <span className="text-2xs font-medium text-muted-foreground uppercase">{ticket.departureAirport || "—"}</span>
-                    </div>
-                  )}
-                </>
-              )
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-            <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span>{eventLocation}</span>
-          </div>
-        )}
-      </td>
-
-      {/* Datas e Horários */}
-      <td className={`${cellCls} whitespace-nowrap`} data-rotulo="Ida e volta" onClick={open} title={summary || undefined}>
+      {/* Viagem: datas, horários e o trecho de cada perna */}
+      <td data-col="viagem" className={`${cellCls} !pr-1 overflow-hidden`} data-rotulo="Viagem" onClick={open} title={summary || undefined}>
         {ticket ? (
           ticket.transportType === "van" ? (
-            <div className="flex flex-col gap-1">
-              <span className="text-2xs font-bold text-success tracking-wide">✓ Van confirmada</span>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="sr-only">Van confirmada</span>
+              <Truck className="h-3.5 w-3.5 text-success shrink-0" aria-hidden="true" />
+              <span className="font-semibold text-slate-700">Van</span>
+              {ticket.purchaseOrderNumber && <span className="text-muted-foreground truncate">{ticket.purchaseOrderNumber}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-1">
-              <span className="text-2xs font-bold text-success tracking-wide mb-0.5">✓ Passagem confirmada</span>
-              <div className="flex items-center gap-2 text-xs">
-                {ticket.transportType === "rodoviario" ? <Bus className="h-3.5 w-3.5 text-success" aria-hidden="true" /> : <PlaneTakeoff className="h-3.5 w-3.5 text-success" aria-hidden="true" />}
-                <span className="font-bold text-slate-700">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "—"}</span>
-                {ticket.actualDepartureTime && <span className="text-muted-foreground font-medium">{ticket.actualDepartureTime}{ticket.actualArrivalTime ? ` → ${ticket.actualArrivalTime}` : ""}</span>}
-              </div>
+              <span className="sr-only">Passagem confirmada</span>
+              <Perna
+                ida data={ticket.actualDepartureDate} partida={ticket.actualDepartureTime} chegada={ticket.actualArrivalTime}
+                origem={rodo ? ticket.departureCityOrigin : ticket.departureAirport}
+                destino={rodo ? ticket.departureCityDestination : ticket.destinationAirport}
+                rodo={rodo}
+              />
               {!isOneWayTicket(ticket) && (
-                <div className="flex items-center gap-2 text-xs">
-                  {ticket.transportType === "rodoviario" ? <Bus className="h-3.5 w-3.5 text-success-strong" aria-hidden="true" /> : <PlaneLanding className="h-3.5 w-3.5 text-success-strong" aria-hidden="true" />}
-                  <span className="font-bold text-slate-700">{ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "—"}</span>
-                  {ticket.actualReturnTime && <span className="text-muted-foreground font-medium">{ticket.actualReturnTime}{ticket.returnArrivalTime ? ` → ${ticket.returnArrivalTime}` : ""}</span>}
-                </div>
+                <Perna
+                  ida={false} data={ticket.actualReturnDate} partida={ticket.actualReturnTime} chegada={ticket.returnArrivalTime}
+                  origem={rodo ? ticket.returnCityOrigin : ticket.destinationAirport}
+                  destino={rodo ? ticket.returnCityDestination : ticket.departureAirport}
+                  rodo={rodo}
+                />
               )}
             </div>
           )
         ) : (
-          <span className="text-sm text-muted-foreground italic">Não comprada</span>
+          <span className="text-xs text-muted-foreground italic whitespace-nowrap">Não comprada</span>
         )}
       </td>
 
       {/* Sugestões */}
-      <td className={cellCls} data-rotulo="Sugestões" onClick={open}>
+      <td data-col="sugestao" className={`${cellCls} overflow-hidden`} data-rotulo="Sugestão" onClick={open}>
         {idaVazia && voltaVazia ? (
-          <span className="text-2xs text-muted-foreground italic">—</span>
+          <span className="text-2xs text-muted-foreground">—</span>
         ) : (
-          <div className="flex flex-col gap-0.5" title="Horário sugerido — ainda não confirmado">
-            <span className="text-2xs font-black uppercase tracking-widest text-warning-strong mb-0.5">Sugestão</span>
+          <div className="flex flex-col gap-0.5" title="Horário sugerido pela escalação — ainda não confirmado">
+            <span className="sr-only">Sugestão</span>
             {!idaVazia && (
-              <div className="flex items-center gap-1 text-2xs flex-nowrap">
+              <div className="flex items-center gap-1 text-2xs whitespace-nowrap">
                 <PlaneTakeoff className="h-3 w-3 text-warning-strong shrink-0" aria-hidden="true" />
-                <span className="font-semibold text-slate-700 whitespace-nowrap">{formatSuggestionDate(suggestion.ida)}</span>
-                {hasSuggestionValue(suggestion.chegada) && <span className="text-muted-foreground whitespace-nowrap">{suggestion.chegada}</span>}
+                <span className="font-semibold text-slate-700 tabular-nums">{formatSuggestionDate(suggestion.ida)}</span>
+                {hasSuggestionValue(suggestion.chegada) && <span className="text-muted-foreground">{suggestion.chegada}</span>}
               </div>
             )}
             {!voltaVazia && (
-              <div className="flex items-center gap-1 text-2xs flex-nowrap">
+              <div className="flex items-center gap-1 text-2xs whitespace-nowrap">
                 <PlaneLanding className="h-3 w-3 text-warning-strong shrink-0" aria-hidden="true" />
-                <span className="font-semibold text-slate-700 whitespace-nowrap">{formatSuggestionDate(suggestion.retorno)}</span>
-                {hasSuggestionValue(suggestion.horario) && <span className="text-muted-foreground whitespace-nowrap">{suggestion.horario}</span>}
+                <span className="font-semibold text-slate-700 tabular-nums">{formatSuggestionDate(suggestion.retorno)}</span>
+                {hasSuggestionValue(suggestion.horario) && <span className="text-muted-foreground">{suggestion.horario}</span>}
               </div>
             )}
           </div>
@@ -253,24 +277,26 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
       </td>
 
       {/* Status (+ resumo LOC/valor/tipo) */}
-      <td className={`${cellCls} text-center`} data-rotulo="Situação" onClick={open}>
+      <td data-col="status" className={`${cellCls} text-left`} data-rotulo="Situação" onClick={open}>
         {cancelado ? (
           <span className={`${PILULA} bg-muted text-muted-foreground`}>Cancelado</span>
         ) : ticket ? (
-          <div className="flex flex-col items-center gap-1" title={summary}>
-            {ticket.emittedAt && (
-              <span
-                className={`${PILULA} bg-brand-soft text-primary`}
-                title="Passagem emitida — a área não pede mais ajuste nesta vaga"
-                data-testid={`ticket-emitida-${inclusion.id}`}
-              >
-                <Lock className="w-3 h-3" aria-hidden="true" />Emitida
+          <div className="flex flex-col items-start gap-1 min-w-0" title={summary}>
+            <span className="flex flex-wrap items-center gap-1">
+              <span className={`${PILULA} bg-success-soft text-success`}>
+                <span className="w-[5px] h-[5px] rounded-full bg-success shrink-0" aria-hidden="true" />Comprada
               </span>
-            )}
-            <span className={`${PILULA} bg-success-soft text-success`}>
-              <span className="w-[5px] h-[5px] rounded-full bg-success shrink-0" aria-hidden="true" />Comprada
+              {ticket.emittedAt && (
+                <span
+                  className={`${PILULA} bg-brand-soft text-primary`}
+                  title="Passagem emitida — a área não pede mais ajuste nesta vaga"
+                  data-testid={`ticket-emitida-${inclusion.id}`}
+                >
+                  <Lock className="w-3 h-3" aria-hidden="true" />Emitida
+                </span>
+              )}
             </span>
-            <span className="text-2xs text-muted-foreground whitespace-nowrap max-w-[210px] truncate" title={summary} data-testid={`ticket-summary-${inclusion.id}`}>{summary}</span>
+            <span className="pas-resumo block text-2xs text-muted-foreground whitespace-nowrap max-w-full truncate" title={summary} data-testid={`ticket-summary-${inclusion.id}`}>{summary}</span>
           </div>
         ) : (
           <span className={`${PILULA} bg-warning-soft text-warning`}>
@@ -280,50 +306,54 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
       </td>
 
       {/* Ações */}
-      <td className="py-3 text-center whitespace-nowrap w-[72px]">
-        {/* Emitida: o carimbo de quem compra. Marcar não exige a passagem
-            preenchida — é aviso de que o bilhete saiu e de que a área não
-            pede mais ajuste. Clicar de novo desfaz (erro de clique acontece). */}
-        {!cancelado && onToggleEmitida && (
-          <MotivoDesabilitado motivo={ticket?.emittedAt
-              ? "Passagem emitida — clique para desfazer e reabrir o pedido de ajuste"
-              : "Marcar como emitida — trava o pedido de ajuste desta vaga"} desabilitado={!canEdit || locked || emitindo}>
-            <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onToggleEmitida(inclusion, !ticket?.emittedAt); }}
-            disabled={!canEdit || locked || emitindo}
-           
-            aria-label={ticket?.emittedAt ? "Desfazer emissão da passagem" : "Marcar passagem como emitida"}
-            data-testid={`toggle-emitida-${inclusion.id}`}
-            className={`mb-1 w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${ticket?.emittedAt ? "bg-brand-soft text-primary" : "bg-muted text-muted-foreground hover:bg-brand-soft hover:text-primary-hover"}`}
-          >
-            <Stamp className="w-4 h-4" aria-hidden="true" />
-          </button>
-          </MotivoDesabilitado>
-        )}
-        {!cancelado && (
-          ticket ? (
-            <button
-              onClick={open}
-              data-testid={`view-ticket-${inclusion.inclusionNumber}`}
-              title="Visualizar passagem"
-              aria-label={`Visualizar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
-              className="w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors bg-muted text-muted-foreground hover:bg-brand-soft hover:text-primary"
-            >
-              <Eye className="w-4 h-4" aria-hidden="true" />
-            </button>
-          ) : canEdit ? (
-            <button
-              onClick={open}
-              data-testid={`buy-ticket-${inclusion.inclusionNumber}`}
-              title="Registrar passagem"
-              aria-label={`Registrar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
-              className="w-8 h-8 flex items-center justify-center mx-auto transition-colors bg-brand-soft text-primary hover:bg-primary hover:text-primary-foreground border-0 rounded-lg cursor-pointer"
-            >
-              <Plane className="w-4 h-4" aria-hidden="true" />
-            </button>
-          ) : null
-        )}
+      <td data-col="acoes" className="pl-1 pr-2 py-2 align-top whitespace-nowrap">
+        <div className="pas-acoes flex items-center justify-end gap-1">
+          {/* Emitida: o carimbo de quem compra. Marcar não exige a passagem
+              preenchida — é aviso de que o bilhete saiu e de que a área não
+              pede mais ajuste. Clicar de novo desfaz (erro de clique acontece). */}
+          {!cancelado && onToggleEmitida && (
+            <MotivoDesabilitado motivo={ticket?.emittedAt
+                ? "Passagem emitida — clique para desfazer e reabrir o pedido de ajuste"
+                : "Marcar como emitida — trava o pedido de ajuste desta vaga"} desabilitado={!canEdit || locked || emitindo}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggleEmitida(inclusion, !ticket?.emittedAt); }}
+                disabled={!canEdit || locked || emitindo}
+                aria-label={ticket?.emittedAt ? "Desfazer emissão da passagem" : "Marcar passagem como emitida"}
+                aria-pressed={!!ticket?.emittedAt}
+                data-testid={`toggle-emitida-${inclusion.id}`}
+                className={`pas-alvo w-8 h-8 rounded-lg flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed ${ticket?.emittedAt ? "bg-brand-soft text-primary hover:bg-primary/15" : "text-muted-foreground hover:bg-brand-soft hover:text-primary"}`}
+              >
+                <Stamp className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </MotivoDesabilitado>
+          )}
+          {!cancelado && (
+            ticket ? (
+              <button
+                type="button"
+                onClick={open}
+                data-testid={`view-ticket-${inclusion.inclusionNumber}`}
+                title="Visualizar passagem"
+                aria-label={`Visualizar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
+                className="pas-alvo pas-abrir w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-muted-foreground hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Eye className="w-4 h-4" aria-hidden="true" />
+              </button>
+            ) : canEdit ? (
+              <button
+                type="button"
+                onClick={open}
+                data-testid={`buy-ticket-${inclusion.inclusionNumber}`}
+                title="Registrar passagem"
+                aria-label={`Registrar passagem da inclusão #${inclusion.inclusionNumber ?? ""}`}
+                className="pas-alvo w-8 h-8 flex items-center justify-center transition-colors bg-brand-soft text-primary hover:bg-primary hover:text-primary-foreground rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plane className="w-4 h-4" aria-hidden="true" />
+              </button>
+            ) : null
+          )}
+        </div>
       </td>
     </tr>
   );

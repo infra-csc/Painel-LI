@@ -95,6 +95,36 @@ describe("NotificationsMenu", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("alterações aprovadas para remarcar (07/10): uma entrada por tela, contada UMA vez, e leva a Passagens", async () => {
+    const aviso = (id: string, afetaPassagem: boolean, afetaHospedagem: boolean) => ({
+      id, teamInclusionId: `ti-${id}`, eventId: "ev-1", afetaPassagem, afetaHospedagem, mudancas: [],
+      aprovadoPorNome: "Pedro", aprovadoEm: "2026-10-07T10:00:00.000Z", resolvidoEm: null,
+    });
+    const fetchMock = mockarFetch(roteador({
+      "/api/avisos-de-alteracao": () => respostaJson([aviso("a", true, false), aviso("b", true, true), aviso("c", false, true)]),
+    }));
+    const { user, historico } = renderComTudo(<NotificationsMenu />, { user: compras, rota: "/scaling" });
+
+    // a, b → Passagens (2); c → só hospedagem (1). O "b" não conta duas vezes.
+    await user.click(await screen.findByRole("button", { name: "Pendências (3)" }));
+    const painel = await screen.findByRole("dialog", { name: "Pendências" });
+    const passagens = await within(painel).findByRole("link", { name: /2 alterações aprovadas para remarcar/ });
+    expect(passagens).toHaveTextContent("Datas ou horários mudaram depois da passagem registrada");
+    expect(within(painel).getByRole("link", { name: /1 alteração aprovada para remarcar na hospedagem/ })).toBeInTheDocument();
+    expect(urlsChamadas(fetchMock)).toContain("/api/avisos-de-alteracao?situacao=pendente");
+
+    await user.click(passagens);
+    expect(historico.at(-1)).toMatch(/^\/tickets\?t=\d+$/);
+  });
+
+  it("alterações aprovadas: quem não é da logística nem consulta (sem número inventado)", async () => {
+    const fetchMock = mockarFetch(roteador());
+    const { user } = renderComTudo(<NotificationsMenu />, { user: usuarioFake({ role: "function_area" }) });
+    const painel = await abrirSino(user);
+    await within(painel).findByText("Nada pendente para você agora.");
+    expect(urlsChamadas(fetchMock).some((u) => u.startsWith("/api/avisos-de-alteracao"))).toBe(false);
+  });
+
   it("'Marcar tudo como visto' apaga o ponto de novidade sem mudar a contagem", async () => {
     mockarFetch(roteador({ "/api/swap-requests": () => respostaJson([trocaPendenteEmPassagens]) }));
     const { user } = renderComTudo(<NotificationsMenu />, { user: compras });

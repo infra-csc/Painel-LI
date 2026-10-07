@@ -64,7 +64,7 @@ export function PassagensDeHistorico({ teamInclusionId, passagemAtualCentavos }:
             <li key={t.id} className="px-4 py-3 text-xs text-slate-700 space-y-1">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                 <span className="font-semibold text-foreground">Era de {t.archivedCollaboratorName ?? "colaborador anterior"}</span>
-                <span className="font-mono tabular-nums font-semibold text-foreground">{t.value ? formatarMoeda(t.value) : "sem valor"}</span>
+                <span className="tabular-nums font-semibold text-foreground">{t.value ? formatarMoeda(t.value) : "sem valor"}</span>
               </div>
               {t.archivedReason && (
                 <div className="text-muted-foreground">{t.archivedReason}{t.archivedAt ? ` · ${dataBr(t.archivedAt)}` : ""}</div>
@@ -98,7 +98,7 @@ export function PassagensDeHistorico({ teamInclusionId, passagemAtualCentavos }:
         <span className="text-xs text-slate-600">
           Total de passagens desta vaga: atual {formatarMoeda(atual)} + histórico {formatarMoeda(totalHistorico)}
         </span>
-        <span className="font-mono tabular-nums text-sm font-bold text-foreground">{formatarMoeda(atual + totalHistorico)}</span>
+        <span className="tabular-nums text-sm font-bold text-foreground">{formatarMoeda(atual + totalHistorico)}</span>
       </div>
     </section>
   );

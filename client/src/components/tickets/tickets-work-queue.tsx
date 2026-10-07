@@ -12,8 +12,10 @@
  * comprado" virou a sub-linha de "Compradas" — com a média no título, que era
  * o outro dado do cartão antigo.
  *
- * Mesma anatomia de `scaling/scaling-work-queue.tsx`: as duas telas são filas
- * de trabalho irmãs e devem se ler igual.
+ * 07/10 (redesenho): mesma anatomia da fila da Escalação redesenhada — rótulo
+ * em caixa normal, filete da ativa que cresce do centro, fundo de marca na
+ * ativa. No celular continua 2 × 2 (são só quatro blocos e o "Compradas"
+ * carrega o valor em R$, que numa pílula sumiria), mais baixa.
  */
 import { ShoppingCart, Clock, ArrowLeftRight, CheckCircle2 } from "lucide-react";
 import { formatBrl, type TicketsData } from "./use-tickets-data";
@@ -21,21 +23,12 @@ import { formatBrl, type TicketsData } from "./use-tickets-data";
 /** Qual bloco está ativo — deriva dos filtros, não é estado novo. */
 export type FilaDePassagens = "comprar" | "sem-chegada" | "troca" | "compradas" | null;
 
-// Tom → classe de token (28/09): antes era `style={{ color: "var(--…)" }}`
-// por item; agora a cor sai da classe, como no `TONE_CLASS` da pílula de
-// status. Mesmos tokens, mesmo visual.
-type TomDaFila = "warning" | "danger" | "primary" | "success";
-const TOM: Record<Exclude<FilaDePassagens, null>, TomDaFila> = {
-  comprar: "warning",
-  "sem-chegada": "danger",
-  troca: "primary",
-  compradas: "success",
-};
-const TONE_CLASS: Record<TomDaFila, string> = {
-  warning: "text-warning",
-  danger: "text-danger-strong",
-  primary: "text-primary",
-  success: "text-success-strong",
+/** Uma cor por significado — a mesma da pílula de status correspondente. */
+const COR: Record<Exclude<FilaDePassagens, null>, string> = {
+  comprar: "text-warning-strong",
+  "sem-chegada": "text-danger-strong",
+  troca: "text-info-strong",
+  compradas: "text-success-strong",
 };
 
 const ICONE = {
@@ -87,9 +80,11 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
   ];
 
   return (
-    // 2 × 2 no celular (25/09): em 4 colunas de 90px os rótulos viravam "CO… SE… TR…".
-    <section aria-label="Fila de trabalho das passagens" className="grid grid-cols-2 sm:flex rounded-xl border border-border bg-card overflow-hidden">
-      {blocos.map(({ key, rotulo, n, sub, titulo }) => {
+    <section
+      aria-label="Fila de trabalho das passagens"
+      className="grid grid-cols-2 sm:flex rounded-xl border border-border bg-card overflow-hidden"
+    >
+      {blocos.map(({ key, rotulo, n, sub, titulo }, idx) => {
         const Icone = ICONE[key];
         const on = ativa === key;
         return (
@@ -97,26 +92,37 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
             key={key}
             type="button"
             aria-pressed={on}
-            title={titulo}
+            title={titulo ?? `${n} ${sub}`}
             // Reclicar o bloco ativo desliga o filtro: uma fila que só liga
             // vira armadilha de mão única.
             onClick={() => onEscolher(on ? null : key)}
-            className={`flex-1 min-w-0 text-left px-3.5 py-[13px] border-l border-border first:border-l-0 border-b-2 transition-colors ${
-              on ? "bg-background border-b-primary" : "border-b-transparent hover:bg-background"
-            }`}
+            className={[
+              "group relative flex flex-col justify-start flex-1 min-w-0 text-left px-3.5 pt-2.5 pb-3 transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+              // Divisórias: na grade 2 × 2 do celular, só entre colunas e entre fileiras.
+              idx % 2 === 1 ? "border-l border-border" : "",
+              idx >= 2 ? "border-t border-border sm:border-t-0" : "",
+              idx > 0 ? "sm:border-l sm:border-border" : "",
+              // Sem o bloco de trocas sobram três: o último ocupa a fileira toda.
+              blocos.length % 2 === 1 && idx === blocos.length - 1 ? "col-span-2 border-l-0" : "",
+              on ? "bg-brand-soft" : "hover:bg-surface-muted",
+            ].join(" ")}
             data-testid={`fila-passagens-${key}`}
           >
-            <span className="flex items-center gap-[7px]">
-              <Icone className={`w-[15px] h-[15px] shrink-0 ${TONE_CLASS[TOM[key]]}`} aria-hidden="true" />
-              <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate">
-                {rotulo}
-              </span>
+            {/* Filete da ativa: cresce do centro (a mesma microinteração da Escalação). */}
+            <span
+              aria-hidden="true"
+              className={`absolute inset-x-0 bottom-0 h-0.5 bg-primary transition-transform duration-200 ease-out motion-reduce:transition-none ${on ? "scale-x-100" : "scale-x-0"}`}
+            />
+            <span className="flex items-center gap-1.5">
+              <Icone className={`w-3.5 h-3.5 shrink-0 ${COR[key]}`} aria-hidden="true" />
+              <span className={`text-xs font-medium truncate ${on ? "text-primary" : "text-slate-600"}`}>{rotulo}</span>
             </span>
-            <span className="flex items-baseline gap-[7px] mt-1.5">
-              <span className={`text-xl font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-muted-foreground" : "text-foreground"}`}>
+            <span className="flex flex-wrap items-baseline gap-x-1.5 mt-1">
+              <span className={`text-xl leading-6 font-semibold tabular-nums tracking-[-0.02em] ${n === 0 ? "text-muted-foreground" : "text-foreground"}`}>
                 {n}
               </span>
-              <span className="text-xs text-muted-foreground truncate">{sub}</span>
+              <span className="min-w-0 text-2xs sm:text-xs text-muted-foreground truncate">{sub}</span>
             </span>
           </button>
         );
