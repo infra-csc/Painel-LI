@@ -207,11 +207,18 @@ function BulkApplyBlock({ functions, users, onDone, onClose }: {
       const existing = (f.managers ?? []).find(m => m.userId === userId);
       try {
         if (existing?.role === role) { kept++; continue; }
+        // Grava no cadastro PRÓPRIO da Escala (scaling_function_managers),
+        // como os botões individuais desta aba. Até 07/10 este lote gravava na
+        // lista de Responsáveis do cadastro normal (/api/functions/:id/managers)
+        // — dava poder de responsável na Escalação e não mudava nada aqui.
         if (existing) {
-          await apiRequest("PATCH", `/api/functions/${f.id}/managers/${userId}`, { role });
+          // Trocar de papel = tirar do papel antigo e pôr no novo (unicidade por
+          // função + usuário + papel), igual ao moveMutation.
+          await apiRequest("DELETE", `/api/scaling-function-managers/${f.id}/${userId}`);
+          await apiRequest("POST", "/api/scaling-function-managers", { functionId: f.id, userId, role });
           moved++;
         } else {
-          await apiRequest("POST", `/api/functions/${f.id}/managers`, { userId, role });
+          await apiRequest("POST", "/api/scaling-function-managers", { functionId: f.id, userId, role });
           added++;
         }
       } catch { failed++; }
