@@ -277,6 +277,13 @@
   background-position: -1px -1px;
 }
 
+/* Toasts com modal aberto (07/10): no desktop eles ficam no canto de baixo e
+   cobriam o botão principal do rodapé do modal (ex.: Salvar colaborador).
+   Com um diálogo aberto, a pilha sobe acima da faixa do rodapé. */
+@media (min-width: 640px) {
+  body:has([role="dialog"][data-state="open"]) .casca-toasts { padding-bottom: 104px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .casca-progresso::after { animation-duration: 2.4s; }
   .casca-surgir, .casca-pulso { animation: none; }
