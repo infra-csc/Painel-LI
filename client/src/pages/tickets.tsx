@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { toastSucessoDaVaga } from "@/components/common/toast-sucesso";
-import { hasPermission } from "@/lib/role-utils";
+import { hasPermission, isAdmin } from "@/lib/role-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { PastEventBanner } from "@/lib/event-lock";
 import { useAuth } from "@/hooks/use-auth";
@@ -44,6 +44,9 @@ import {
   DiscardChangesDialog, ChronologyWarningsDialog, BatchConfirmDialog, BatchResultDialog,
 } from "@/components/tickets/ticket-dialogs";
 import { DEFAULT_TICKET_FILTERS } from "@/components/tickets/types";
+import { AbasDePassagens, abaDaUrl, comAba, type AbaDePassagens } from "@/components/tickets/analises/abas-de-passagens";
+import AnalisesDePassagens from "@/components/tickets/analises/analises-de-passagens";
+import { mesmaVisao, visaoDaUrl, type VisaoDaAnalise } from "@/components/tickets/analises/url-da-analise";
 import type {
   TicketFilters, TicketFormState, FieldErrorsState, BatchResult, FormFieldHelpers, TicketFormHandlers,
 } from "@/components/tickets/types";
@@ -63,19 +66,43 @@ export default function Tickets() {
   const [filters, setFilters] = useState<TicketFilters>(initial.filters);
   const [showOnlyPendingSwaps, setShowOnlyPendingSwaps] = useState(initial.swaps);
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ field: "id", direction: "desc" });
+  // Lista | Análises (07/10) — a aba Análises é SÓ do admin; para os outros
+  // papéis a tela é sempre a Lista e `?aba=` nem chega à URL.
+  const ehAdmin = isAdmin(user);
+  const [abaEscolhida, setAba] = useState<AbaDePassagens>(() => abaDaUrl(typeof window !== "undefined" ? window.location.search : search));
+  const aba: AbaDePassagens = ehAdmin ? abaEscolhida : "lista";
+  // Filtros e alternadores da aba Análises (`an_*` na URL): recarregar ou
+  // compartilhar o link abre a mesma visão. Ficam na memória ao ir para a
+  // Lista — voltar às Análises devolve o que estava.
+  const [visaoAnalise, setVisaoAnalise] = useState<VisaoDaAnalise>(() => visaoDaUrl(typeof window !== "undefined" ? window.location.search : search));
 
-  // Persiste filtros na URL (replace — não polui o histórico).
+  // Persiste filtros (e a aba) na URL (replace — não polui o histórico).
   useEffect(() => {
-    const qs = searchFromFilters(filters, showOnlyPendingSwaps);
+    const qs = comAba(searchFromFilters(filters, showOnlyPendingSwaps), aba, visaoAnalise);
     const current = (typeof window !== "undefined" ? window.location.search : "").replace(/^\?/, "");
     if (qs !== current) setLocation(`${location}${qs ? `?${qs}` : ""}`, { replace: true });
-  }, [filters, showOnlyPendingSwaps]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters, showOnlyPendingSwaps, aba, visaoAnalise]); // eslint-disable-line react-hooks/exhaustive-deps
   // URL mudou por fora (link do menu, voltar do navegador): re-sincroniza o estado.
   useEffect(() => {
     const fromUrl = filtersFromSearch(search);
     if (JSON.stringify(fromUrl.filters) !== JSON.stringify(filters)) setFilters(fromUrl.filters);
     if (fromUrl.swaps !== showOnlyPendingSwaps) setShowOnlyPendingSwaps(fromUrl.swaps);
+    const abaNaUrl = abaDaUrl(search);
+    if (abaNaUrl !== abaEscolhida) setAba(abaNaUrl);
+    // Só a URL das Análises carrega a visão; a da Lista não a apaga.
+    if (abaNaUrl === "analises") {
+      const visaoNaUrl = visaoDaUrl(search);
+      if (!mesmaVisao(visaoNaUrl, visaoAnalise)) setVisaoAnalise(visaoNaUrl);
+    }
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Análises → Lista já filtrada pelo evento clicado (todas as situações: a análise conta as canceladas também). */
+  const verEventoNaLista = useCallback((eventId: string) => {
+    setShowOnlyPendingSwaps(false);
+    setFilters({ ...DEFAULT_TICKET_FILTERS, eventId, inclusionStatus: "all" });
+    setAba("lista");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  }, []);
 
   // Formulários e erros inline por escopo ("quick" ou inclusionId).
   const [ticketData, setTicketData] = useState<TicketFormState>({});
@@ -491,12 +518,19 @@ export default function Tickets() {
   // ── Guardas de tela ──
   // A barra da tela aparece em todos os estados (carregando, erro, sem
   // acesso): a pessoa sempre sabe onde está, e nada "pula" quando os dados chegam.
+  // Lista | Análises: só existe para o admin (o componente some para os outros).
+  // Celular (07/10): eram 3 linhas (título, resumo, abas + ações quebradas).
+  // Agora são 2 — título + abas em cima, as ações inteiras embaixo. O resumo
+  // sai só no celular do admin (a fila logo abaixo traz os mesmos números);
+  // no tablet e no desktop nada muda. Os outros papéis ficam como eram.
   const barra = (subtitulo: ReactNode, acoes?: ReactNode) => (
     <PageHeader
       variant="bar"
       title="Passagens"
-      subtitle={subtitulo}
+      subtitle={ehAdmin ? <span className="hidden sm:inline">{subtitulo}</span> : subtitulo}
       className="mx-0 mt-0"
+      context={ehAdmin ? <AbasDePassagens aba={aba} onAba={setAba} className="sm:hidden" /> : undefined}
+      tabs={ehAdmin ? <AbasDePassagens aba={aba} onAba={setAba} className="hidden sm:inline-flex" /> : undefined}
       actions={acoes}
     />
   );
@@ -520,6 +554,14 @@ export default function Tickets() {
           Você não tem permissão para acessar esta tela. Se precisa registrar passagens, peça ao administrador para liberar o seu perfil.
         </p>
       </div>,
+    );
+  }
+  // Aba Análises (só admin): não depende da lista de vagas — abre mesmo
+  // enquanto ela carrega ou se ela falhar.
+  if (aba === "analises") {
+    return casca(
+      <AnalisesDePassagens visao={visaoAnalise} onVisao={setVisaoAnalise} onVerEvento={verEventoNaLista} />,
+      <span>Quanto e quando gastamos com passagens</span>,
     );
   }
   if (data.isLoading) {
@@ -620,8 +662,10 @@ export default function Tickets() {
               >
                 <FileUp className="w-4 h-4 mr-1.5" aria-hidden="true" />
                 {/* No celular o rótulo encurta para os dois botões caberem numa fileira. */}
-                <span className="sm:hidden">Vouchers (PDF)</span>
-                <span className="hidden sm:inline">Registrar pelos vouchers (PDF)</span>
+                {/* Admin tem as abas Lista | Análises na mesma barra (07/10): o
+                    rótulo curto vai até 1536px para a barra caber em uma linha. */}
+                <span className={ehAdmin ? "2xl:hidden" : "sm:hidden"}>Vouchers (PDF)</span>
+                <span className={ehAdmin ? "hidden 2xl:inline" : "hidden sm:inline"}>Registrar pelos vouchers (PDF)</span>
               </Button>
             )}
           </>,

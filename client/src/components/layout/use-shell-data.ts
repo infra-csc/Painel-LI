@@ -8,7 +8,9 @@
  *     exclusão aguardando decisão (só quem tem acesso à Aprovação de Escala);
  *   • `/api/avisos-de-alteracao?situacao=pendente` → ajuste aprovado em vaga que
  *     já tinha passagem/hospedagem (07/10) — só a logística (admin/Compras/
- *     Produção), os mesmos papéis da rota; 403 vira lista vazia, sem erro.
+ *     Produção), os mesmos papéis da rota; 403 vira lista vazia, sem erro;
+ *   • `/api/shell/sem-passagem-30d` → escalações sem passagem com a ida nos
+ *     próximos 30 dias (07/10) — SÓ admin, contado no servidor.
  * O que não existe de forma barata e confiável NÃO vira badge (nem zero):
  *   • "vagas aguardando aprovação" exige `eventId` no GET /api/scaling-suggestions;
  *   • pendências de Financeiro/Cadastros não têm endpoint de contagem.
@@ -29,7 +31,7 @@ import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestTy
 import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "./shell-prefs";
 import { buscarAvisos, podeVerAvisos, CHAVE_AVISOS_CASCA, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 
-import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock } from "lucide-react";
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
@@ -256,6 +258,21 @@ export function useShellData() {
   /** Só hospedagem (sem passagem): a entrada do sino aponta para Hospedagem. */
   const avisosSoHospedagem = veAvisos ? (avisosPendentes ?? []).filter((a) => a.afetaHospedagem && !a.afetaPassagem).length : 0;
 
+  /**
+   * Escalações sem passagem a 30 dias da ida (07/10) — SÓ ADMIN (dono: "só
+   * aparecer para admin"). Vaga escalada, que precisa de passagem, sem
+   * passagem registrada e com a ida (ou o início da escala) até daqui a 30
+   * dias. Contado no servidor; a rota recusa os outros papéis.
+   */
+  const veSemPassagem = isAdmin(user);
+  const { data: semPassagemData } = useQuery<{ count: number }>({
+    queryKey: ["shell", "sem-passagem-30d"],
+    queryFn: ({ signal }) => fetchJson<{ count: number }>("/api/shell/sem-passagem-30d", signal),
+    enabled: veSemPassagem,
+    staleTime: 60_000,
+  });
+  const semPassagem30d = veSemPassagem ? (semPassagemData?.count ?? 0) : 0;
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -309,6 +326,8 @@ export function useShellData() {
     const alteracoes = (n: number) => `${n} ${n === 1 ? "alteração aprovada" : "alterações aprovadas"} para remarcar`;
     entrada(avisosPassagem, "avisos:/tickets", alteracoes(avisosPassagem), "Datas ou horários mudaram depois da passagem registrada", "Passagens", "/tickets", CalendarClock, AMBAR);
     entrada(avisosSoHospedagem, "avisos:/accommodations", `${alteracoes(avisosSoHospedagem)} na hospedagem`, "As noites mudaram depois da hospedagem registrada", "Hospedagem", "/accommodations", CalendarClock, AMBAR);
+    // 30 dias sem passagem (só admin): leva à fila "Comprar" dos próximos 30 dias.
+    entrada(semPassagem30d, "sem-passagem-30d", `${semPassagem30d} ${semPassagem30d === 1 ? "escalação" : "escalações"} sem passagem a 30 dias`, "A ida é nos próximos 30 dias e a passagem ainda não foi registrada", "Passagens", "/tickets?status=pending&periodo=30", PlaneTakeoff, AMBAR);
 
     if (isPurchasing) {
       entrada(ticketSwapCount, "swap:/tickets", `${trocas(ticketSwapCount)} em Passagens`, "Compras precisa confirmar a substituição", "Passagens", "/tickets", ArrowLeftRight, AMBAR);
@@ -322,7 +341,7 @@ export function useShellData() {
     entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
@@ -330,12 +349,12 @@ export function useShellData() {
 
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
   const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount
-    + avisosPassagem + avisosSoHospedagem;
+    + avisosPassagem + avisosSoHospedagem + semPassagem30d;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
-    // + alterações aprovadas para remarcar (07/10).
-    tickets: ticketSwapCount + avisosPassagem,
+    // + alterações aprovadas para remarcar (07/10) + sem passagem a 30 dias (só admin).
+    tickets: ticketSwapCount + avisosPassagem + semPassagem30d,
     accommodations: accommodationSwapCount + avisosHospedagem,
     // Trocas + cenotécnica aguardando o gestor (15/09).
     scaling: (isPurchasing ? scalingSwapCount : myScalingSwapsCount) + aguardandoGestorCount,

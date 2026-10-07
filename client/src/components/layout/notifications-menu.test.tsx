@@ -13,7 +13,7 @@ function roteador(sobrescrever: Partial<Record<string, () => Response | Promise<
     const caminho = url.split("?")[0];
     const proprio = sobrescrever[caminho];
     if (proprio) return proprio();
-    if (caminho === "/api/shell/aguardando-gestor") return respostaJson({ count: 0 });
+    if (caminho === "/api/shell/aguardando-gestor" || caminho === "/api/shell/sem-passagem-30d") return respostaJson({ count: 0 });
     return respostaJson([]);
   };
 }
@@ -123,6 +123,29 @@ describe("NotificationsMenu", () => {
     const painel = await abrirSino(user);
     await within(painel).findByText("Nada pendente para você agora.");
     expect(urlsChamadas(fetchMock).some((u) => u.startsWith("/api/avisos-de-alteracao"))).toBe(false);
+  });
+
+  it("sem passagem a 30 dias (07/10): só o admin vê; entra no badge e leva à fila Comprar dos próximos 30 dias", async () => {
+    const fetchMock = mockarFetch(roteador({ "/api/shell/sem-passagem-30d": () => respostaJson({ count: 4 }) }));
+    const { user, historico } = renderComTudo(<NotificationsMenu />, { user: usuarioFake({ id: "admin-1", role: "admin" }), rota: "/scaling" });
+
+    await user.click(await screen.findByRole("button", { name: "Pendências (4)" }));
+    const painel = await screen.findByRole("dialog", { name: "Pendências" });
+    const item = await within(painel).findByRole("link", { name: /4 escalações sem passagem a 30 dias/ });
+    expect(item).toHaveTextContent("A ida é nos próximos 30 dias e a passagem ainda não foi registrada");
+    expect(item).toHaveTextContent("Passagens");
+    expect(urlsChamadas(fetchMock)).toContain("/api/shell/sem-passagem-30d");
+
+    await user.click(item);
+    expect(historico.at(-1)).toMatch(/^\/tickets\?status=pending&periodo=30&t=\d+$/);
+  });
+
+  it("sem passagem a 30 dias: Compras nem consulta (só admin)", async () => {
+    const fetchMock = mockarFetch(roteador({ "/api/shell/sem-passagem-30d": () => respostaJson({ count: 4 }) }));
+    const { user } = renderComTudo(<NotificationsMenu />, { user: compras });
+    const painel = await abrirSino(user);
+    await within(painel).findByText("Nada pendente para você agora.");
+    expect(urlsChamadas(fetchMock).some((u) => u.startsWith("/api/shell/sem-passagem-30d"))).toBe(false);
   });
 
   it("'Marcar tudo como visto' apaga o ponto de novidade sem mudar a contagem", async () => {
