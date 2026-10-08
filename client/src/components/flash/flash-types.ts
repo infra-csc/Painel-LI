@@ -2,6 +2,7 @@
 // respostas da API, constantes-alvo do adiantamento e utilitários puros da
 // Conta corrente Flash. Sem React.
 import { formatarMoeda } from "@/lib/format";
+import { hojeISO } from "@shared/hoje-sp";
 
 // Valores-alvo do adiantamento: o colaborador deve sempre ter esses saldos
 // disponíveis no Flash Benefícios (crédito inicial na admissão; cada evento
@@ -15,8 +16,9 @@ export function fmtDate(d?: string | null) {
   const [y, m, day] = String(d).split("T")[0].split("-");
   return `${day}/${m}/${y}`;
 }
+// Hoje no fuso da operação: em UTC, depois das 21h o lançamento nascia no dia seguinte.
 export function todayISO() {
-  return new Date().toISOString().split("T")[0];
+  return hojeISO();
 }
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];

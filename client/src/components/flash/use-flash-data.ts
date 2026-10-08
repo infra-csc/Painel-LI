@@ -100,17 +100,18 @@ export function useFlashData(args: { search: string; selectedCollabId: string; s
   }, [extrato, sourceFilter]);
   const hasAutomatic = useMemo(() => extrato.some(m => isAutomaticFlashMovement(m)), [extrato]);
 
-  // Critério único de "tem conta": QUALQUER movimento registrado (mesmo o que o
-  // servidor usa para rejeitar o crédito inicial). `balances` não serve — ele
-  // ignora categorias desconhecidas e mentiria para dados legados/manuais.
+  // Critério de "conta aberta": algum lançamento MANUAL — o mesmo que o servidor
+  // usa para rejeitar o crédito inicial (23/09). Crédito automático (comparativo
+  // aprovado) não abre a conta. `balances` não serve — ele ignora categorias
+  // desconhecidas e mentiria para dados legados/manuais.
   const collabsWithMovements = useMemo(
-    () => new Set(movements.map(m => m.collaboratorId)),
+    () => new Set(movements.filter(m => !isAutomaticFlashMovement(m)).map(m => m.collaboratorId)),
     [movements],
   );
 
-  // Admitidos sem crédito inicial: colaboradores ativos sem NENHUM lançamento
+  // Admitidos sem crédito inicial: colaboradores ativos sem lançamento manual
   // (o crédito inicial só vale para conta nova — o servidor rejeita se já houver
-  // movimentos). Fecha o fluxo "crédito na admissão".
+  // lançamento manual). Fecha o fluxo "crédito na admissão".
   const admittedWithoutInitialCredit = useMemo(() => {
     return collaborators
       .filter(c => c.active !== false && !collabsWithMovements.has(c.id))

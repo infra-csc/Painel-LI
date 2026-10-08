@@ -158,7 +158,7 @@ export function AdmittedWithoutCreditPanel({ collaborators, open, onToggle, onLa
             {n === 1 ? "1 colaborador ativo sem crédito inicial" : `${n} colaboradores ativos sem crédito inicial`}
           </p>
           <p className="m-0 mt-0.5 text-xs leading-5 text-warning">
-            Nenhum lançamento na conta Flash ainda — lance o crédito da admissão ({formatCurrency(TARGET_FOOD_CENTS)} alimentação + {formatCurrency(TARGET_MOBILITY_CENTS)} mobilidade).
+            Nenhum lançamento manual na conta Flash ainda — lance o crédito da admissão ({formatCurrency(TARGET_FOOD_CENTS)} alimentação + {formatCurrency(TARGET_MOBILITY_CENTS)} mobilidade).
           </p>
         </div>
         <button
