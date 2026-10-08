@@ -10,6 +10,7 @@ import type { BudgetActual, BudgetComparison, BudgetPlanned, TeamInclusion } fro
 import { agruparPor, chaveComposta } from "@/lib/indices";
 import type { ComparisonRow, StatusFilterKey } from "@/components/budget/comparison-utils";
 import { isCasaType } from "@/components/budget/types";
+import { totaisDoGrupoNoComparativo } from "@shared/comparativo";
 
 export interface EntradaDosDadosDoComparativo {
   budgetPlanned: BudgetPlanned[] | undefined;
@@ -80,9 +81,12 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
 
       const children = splitChildrenMap.get(a.id) || [];
       const isSplit = children.length > 0;
-      // If the planned record is marked as not attended, their values are excluded from totals
-      const isNotAttendedPlanned = !!matchingPlanned?.didNotAttend;
-      const groupActualTotal = isNotAttendedPlanned ? 0 : (a.totalValue + children.reduce((s, c) => s + c.totalValue, 0));
+      // "Não participou" no Planejado OU no Realizado (o critério do Realizado,
+      // em @shared/comparativo): fica fora do realizado, do planejado e da
+      // diferença. Antes só o Planejado contava — marcado só no Realizado, a
+      // pessoa aparecia com "economia" negativa e o planejado entrava no total.
+      // Divisão: o total do grupo contra o planejado cheio da vaga.
+      const t = totaisDoGrupoNoComparativo(a, children, matchingPlanned);
 
       data.push({
         collaboratorId: a.collaboratorId,
@@ -90,11 +94,12 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
         functionId: a.functionId,
         planned: matchingPlanned || null,
         actual: a,
-        // For split groups: variance is based on the group total vs original full planned; 0 if not attended
-        variance: isNotAttendedPlanned ? 0 : (matchingPlanned ? (groupActualTotal - matchingPlanned.totalValue) : groupActualTotal),
+        variance: t.variacao,
         isSplit,
         splitChildren: children,
-        groupActualTotal,
+        groupActualTotal: t.realizado,
+        naoParticipou: t.naoParticipou,
+        plannedNosTotais: t.planejado,
       });
     });
     return data;
@@ -182,10 +187,9 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
 
   const totals = useMemo(() => {
     // Always recompute from grouped data to avoid double-counting split children.
-    // "Não participou" fica fora dos DOIS lados: o realizado já é zerado no
-    // groupActualTotal e o planejado do ausente também não entra na soma.
-    const totalPlanned = comparisonData.reduce(
-      (s, r) => s + (r.planned && !r.planned.didNotAttend ? r.planned.totalValue : 0), 0);
+    // "Não participou" (Planejado OU Realizado) fica fora dos DOIS lados: o
+    // realizado já sai do groupActualTotal e o planejado do ausente também.
+    const totalPlanned = comparisonData.reduce((s, r) => s + r.plannedNosTotais, 0);
     const totalActual = comparisonData.reduce((s, r) => s + r.groupActualTotal, 0);
     // Casa × Freela (redesenho 08/10): o mesmo realizado de grupo, separado pelo tipo.
     const casa = comparisonData.filter(r => isCasaType(r.collaboratorType));
@@ -209,7 +213,8 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
   // Totais do conjunto selecionado — exibidos no rodapé de decisão e no modal de confirmação
   const selectedTotals = useMemo(() => {
     const rows = sortedData.filter(r => selectedItems.has(r.actual.id));
-    const planned = rows.reduce((s, r) => s + (r.planned?.totalValue || 0), 0);
+    // Mesma regra dos totais: o planejado de quem não participou fica fora.
+    const planned = rows.reduce((s, r) => s + r.plannedNosTotais, 0);
     const actual = rows.reduce((s, r) => s + r.groupActualTotal, 0);
     return { planned, actual, diff: actual - planned };
   }, [sortedData, selectedItems]);

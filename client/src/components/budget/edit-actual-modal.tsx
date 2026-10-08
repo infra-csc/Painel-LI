@@ -30,7 +30,6 @@ import { formatCurrency } from "./types";
 
 export interface EditActualModalProps {
   editor: EditorDoRealizado;
-  budgetActual: BudgetActual[] | undefined;
   plannedLogs: ActivityLog[];
   /** Comentário geral do RH no comparativo (devolvido/rejeitado). */
   rhComment: string | null | undefined;
@@ -38,8 +37,8 @@ export interface EditActualModalProps {
   getFunctionName: (id?: string | null) => string;
   getItemInclusion: (item: BudgetActual) => TeamInclusion | undefined;
   getItemDayCounts: (item: BudgetActual) => DayCounts;
-  getPlannedRef: (item: BudgetActual) => BudgetPlanned | undefined;
-  proportionalPlanned: (item: BudgetActual, rawPlan: BudgetPlanned) => BudgetPlanned;
+  /** Planejado da prestação — o mesmo do cartão (`useBudgetActualData`). */
+  getPlannedDaPrestacao: (item: BudgetActual) => BudgetPlanned | undefined;
   isSaving: boolean;
   onSave: () => void;
 }
@@ -50,7 +49,7 @@ const MOLDURA = "!max-w-[700px] w-[95vw] max-h-[90vh] !flex !flex-col p-0 gap-0 
 const ddmmAno = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 export function EditActualModal(p: EditActualModalProps) {
-  const { editor, budgetActual, plannedLogs, rhComment, getCollaboratorName, getFunctionName, getItemInclusion, getItemDayCounts, getPlannedRef, proportionalPlanned, isSaving, onSave } = p;
+  const { editor, plannedLogs, rhComment, getCollaboratorName, getFunctionName, getItemInclusion, getItemDayCounts, getPlannedDaPrestacao, isSaving, onSave } = p;
   const { editingItem, editFormData, editDayEntries, modalActualTab, setModalActualTab, fechar, fecharBotao } = editor;
 
   // Alterações não salvas: o que o salvar mandaria agora × o que mandaria ao
@@ -90,22 +89,9 @@ export function EditActualModal(p: EditActualModalProps) {
           const modalPercurso = isPercursoFunction(modalFunctionName);
           const modalFuncaoLocal = isFuncaoLocal(modalFunctionName);
           const semAlimentacao = modalPercurso || modalFuncaoLocal;
-          const rawPlannedModal = (() => {
-            const own = getPlannedRef(editingItem);
-            if (own) return own;
-            // Split child: no planned for the new collaborator — fall back to parent's planned
-            if (editingItem.splitParentId) {
-              const parent = budgetActual?.find(a => a.id === editingItem.splitParentId);
-              return parent ? getPlannedRef(parent) : undefined;
-            }
-            return undefined;
-          })();
-          // For split children: scale using real weekday/weekend counts from the group
-          const planned = (() => {
-            if (!rawPlannedModal) return undefined;
-            if (!editingItem.splitParentId) return rawPlannedModal;
-            return proportionalPlanned(editingItem, rawPlannedModal);
-          })();
+          // O MESMO planejado do cartão (08/10): titular e filhos de divisão com
+          // o rateio proporcional aos dias — antes o titular via o cheio aqui.
+          const planned = getPlannedDaPrestacao(editingItem);
           const plannedSubDiarias = planned ? subtotalDiariasDe(planned) : 0;
           const { valorUtil: plannedValorUtil, valorFds: plannedValorFds } =
             reconstructDailyValues(plannedSubDiarias, itemDays.weekdays, itemDays.weekends);

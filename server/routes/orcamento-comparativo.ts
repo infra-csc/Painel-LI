@@ -9,6 +9,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { budgetComparison as budgetComparisonTable, insertBudgetComparisonSchema, type BudgetActual, type BudgetPlanned, type MudancaDoComparativo } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { totaisDoGrupoNoComparativo } from "@shared/comparativo";
 import { safeSyncFlashFromComparison, safeReverseFlashFromComparison, type FlashSyncActor } from "../flash-credit";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
 
@@ -70,7 +71,8 @@ export function registrarOrcamentoComparativo(app: Express): void {
 
       // Espelha EXATAMENTE o cálculo da tela Comparativo (budget-comparison.tsx):
       // processa só os pais enviados; o total do grupo é pai(já reduzido pelo
-      // split) + TODOS os filhos; "não participou" (no planejado) zera o grupo.
+      // split) + os filhos que participaram; "não participou" do titular (no
+      // planejado ou no realizado) tira o grupo do planejado e da diferença.
       // A versão anterior excluía os filhos de split e subcontava o realizado.
       const splitChildren = new Map<string, BudgetActual[]>();
       for (const a of allActual) {
@@ -87,11 +89,11 @@ export function registrarOrcamentoComparativo(app: Express): void {
       let totalActual = 0;
       let totalPlanned = 0;
       for (const p of parents) {
-        const mp = matchPlanned(p);
-        const notAttended = !!mp?.didNotAttend;
-        const kids = splitChildren.get(p.id) || [];
-        totalActual += notAttended ? 0 : (p.totalValue || 0) + kids.reduce((s, c) => s + (c.totalValue || 0), 0);
-        totalPlanned += mp?.totalValue || 0;
+        // "Não participou" (no Planejado OU no Realizado) sai dos dois lados —
+        // a mesma função da tela (@shared/comparativo, 08/10).
+        const t = totaisDoGrupoNoComparativo(p, splitChildren.get(p.id) || [], matchPlanned(p));
+        totalActual += t.realizado;
+        totalPlanned += t.planejado;
       }
       // Convenção da tela: variância positiva = realizado acima do planejado
       const variance = totalActual - totalPlanned;

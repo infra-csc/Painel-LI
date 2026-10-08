@@ -20,6 +20,7 @@ import {
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { cn } from "@/lib/utils";
+import { digitosDoCnpj, erroDoCnpj, mascararCnpj } from "@shared/cnpj";
 
 export function usePaymentCompanyForm() {
   // Company confirmation state (for the CNPJ blocking screen)
@@ -96,9 +97,16 @@ export function PaymentCompanyGate({ paymentCompanies, form, mutation: setEventC
   const pcs = paymentCompanies;
   const selectedPc = pcs.find(c => String(c.id) === confirmCompanyId);
   const isManual = confirmCompanyId === "__manual__" || pcs.length === 0;
+  // CNPJ validado pelos dígitos verificadores (08/10) — a mesma regra do
+  // servidor (@shared/cnpj). No campo, o erro aparece ao sair dele ou com os
+  // 14 dígitos digitados; da empresa cadastrada, assim que ela é escolhida.
+  const [tocouCnpj, setTocouCnpj] = useState(false);
+  const erroCnpjManual = erroDoCnpj(confirmCustomCnpj);
+  const mostraErroCnpj = !!erroCnpjManual && (tocouCnpj || digitosDoCnpj(confirmCustomCnpj).length >= 14);
+  const erroCnpjCadastrado = !isManual && selectedPc ? erroDoCnpj(selectedPc.cnpj) : null;
   const canConfirm = isManual
-    ? confirmCustomName.trim() && confirmCustomCnpj.trim()
-    : !!selectedPc;
+    ? !!confirmCustomName.trim() && !!confirmCustomCnpj.trim() && !erroCnpjManual
+    : !!selectedPc && !erroCnpjCadastrado;
   const chosenName = isManual ? confirmCustomName.trim() : (selectedPc?.name || "");
   const chosenCnpj = isManual ? confirmCustomCnpj.trim() : (selectedPc?.cnpj || "");
   const handleConfirm = () => {
@@ -109,8 +117,9 @@ export function PaymentCompanyGate({ paymentCompanies, form, mutation: setEventC
 
   const oQueFalta = isManual
     ? (!confirmCustomName.trim() && !confirmCustomCnpj.trim() ? "Informe o nome e o CNPJ da empresa"
-      : !confirmCustomName.trim() ? "Informe o nome da empresa" : "Informe o CNPJ da empresa")
-    : "Escolha a empresa pagadora";
+      : !confirmCustomName.trim() ? "Informe o nome da empresa"
+      : !confirmCustomCnpj.trim() ? "Informe o CNPJ da empresa" : (erroCnpjManual ?? ""))
+    : erroCnpjCadastrado ? "O CNPJ cadastrado desta empresa não confere" : "Escolha a empresa pagadora";
 
   return (
     <section
@@ -153,6 +162,11 @@ export function PaymentCompanyGate({ paymentCompanies, form, mutation: setEventC
                 icone={<PenLine className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />}
               />
             </div>
+            {erroCnpjCadastrado && (
+              <p role="alert" className="m-0 text-xs leading-relaxed text-danger" data-testid="nf-pagadora-cnpj-cadastrado-invalido">
+                O CNPJ cadastrado desta empresa ({selectedPc?.cnpj}) não é válido. Corrija o cadastro em Valores padrão (Empresas pagadoras) ou use “Outra empresa”.
+              </p>
+            )}
           </fieldset>
         )}
 
@@ -183,11 +197,18 @@ export function PaymentCompanyGate({ paymentCompanies, form, mutation: setEventC
                 type="text"
                 inputMode="numeric"
                 value={confirmCustomCnpj}
-                onChange={e => setConfirmCustomCnpj(e.target.value)}
+                onChange={e => setConfirmCustomCnpj(mascararCnpj(e.target.value))}
+                onBlur={() => setTocouCnpj(true)}
                 placeholder="00.000.000/0000-00"
+                maxLength={18}
                 aria-required="true"
-                className={`${CAMPO} tabular-nums`}
+                aria-invalid={mostraErroCnpj || undefined}
+                aria-describedby={mostraErroCnpj ? "nf-pagadora-cnpj-erro" : undefined}
+                className={cn(`${CAMPO} tabular-nums`, mostraErroCnpj && "border-danger focus:border-danger focus:ring-danger/15")}
               />
+              {mostraErroCnpj && (
+                <p id="nf-pagadora-cnpj-erro" className="m-0 mt-1 text-xs leading-4 text-danger">{erroCnpjManual}</p>
+              )}
             </div>
           </div>
         )}

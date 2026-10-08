@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { Chip } from "./budget-card";
 import { CabecalhoDoExtrato, LinhaDoExtrato } from "./comparison-blocks";
 import { dailySubtotalOf, fmt, fmtDate, fmtDateShort, isWknd, type SplitDetailState } from "./comparison-utils";
+import { idaEVoltaDaMobilidade } from "@shared/comparativo";
 
 export interface SplitDetailDialogProps {
   splitDetail: SplitDetailState | null;
@@ -127,14 +128,14 @@ export function SplitDetailDialog({ splitDetail, onClose, getCollaboratorName, g
                 <div role="group" aria-label="Mobilidade" className="cmp-bloco">
                   <LinhaDoExtrato nivel="grupo" cor="bg-slate-400" rotulo="Mobilidade" planned={mobPlan} actual={mobAct} />
                   {(pp?.mobility || fa.mobility) ? (() => {
-                    const pIda   = pp?.mobilityIda   ?? Math.ceil((pp?.mobility  || 0) / 2);
-                    const pVolta = pp?.mobilityVolta ?? Math.floor((pp?.mobility || 0) / 2);
-                    const aIda   = fa.mobilityIda    ?? Math.ceil(fa.mobility  / 2);
-                    const aVolta = fa.mobilityVolta  ?? Math.floor(fa.mobility / 2);
+                    // Ida/volta gravadas como 0 + 0 com mobilidade > 0 contam como
+                    // vazias (antes só o nulo caía na metade e a linha saía zerada).
+                    const plano = idaEVoltaDaMobilidade(pp?.mobility, pp?.mobilityIda, pp?.mobilityVolta);
+                    const real = idaEVoltaDaMobilidade(fa.mobility, fa.mobilityIda, fa.mobilityVolta);
                     return (
                       <>
-                        <LinhaDoExtrato rotulo="Ida" planned={pIda} actual={aIda} />
-                        <LinhaDoExtrato rotulo="Volta" planned={pVolta} actual={aVolta} />
+                        <LinhaDoExtrato rotulo="Ida" planned={plano.ida} actual={real.ida} />
+                        <LinhaDoExtrato rotulo="Volta" planned={plano.volta} actual={real.volta} />
                       </>
                     );
                   })() : null}

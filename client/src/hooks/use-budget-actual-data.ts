@@ -155,6 +155,16 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
     return proportionalPlanned(item, rawPlan);
   }, [budgetActual, getPlannedRef, proportionalPlanned]);
 
+  // O planejado de UMA prestação — o cartão e o modal usam este mesmo cálculo
+  // (08/10: o titular de uma divisão mostrava o proporcional no cartão e o
+  // cheio no modal). Titular e filhos de divisão recebem o rateio pelos dias;
+  // quem é titular sai do grupo INTEIRO, não do recorte filtrado da lista.
+  const getPlannedDaPrestacao = useCallback((item: BudgetActual): BudgetPlanned | undefined => {
+    const isGChild = !!item.splitParentId;
+    const isGParent = !isGChild && (actualsPorGrupo.get(item.id)?.length ?? 0) > 1;
+    return getCardPlanned(item, { isGParent, isGChild });
+  }, [actualsPorGrupo, getCardPlanned]);
+
   // `useDeferredValue` (23/09): a lista é grande e refiltrar a cada tecla
   // travava a digitação. O input continua controlado por `searchTerm`.
   const buscaAplicada = useDeferredValue(searchTerm);
@@ -327,7 +337,7 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
     situacao, setSituacao, contagemPorSituacao, valorPorSituacao, recusadasNaFila, opcoesDeFuncao, algumFiltro, limparFiltros,
     eventItems, totaisDoRecorte, totaisDoEvento,
     selectedCards, setSelectedCards, toggleSelect, selectAll,
-    actualsPorGrupo, getPlannedRef, hasItemDivergence, getItemInclusion, getItemDayCounts, proportionalPlanned, getCardPlanned,
+    actualsPorGrupo, getPlannedRef, hasItemDivergence, getItemInclusion, getItemDayCounts, proportionalPlanned, getCardPlanned, getPlannedDaPrestacao,
     filteredItems, splitGroupsMap, orderedRenderItems, isDidNotAttend,
     totalRealizado, totalPlanejado, totalDifference, prestacaoCount, pendingCount, pendingFiltered, selectableCount,
     hasAnyEditable, sentForReview, devolvedItems, getGroupOriginalPeriod,

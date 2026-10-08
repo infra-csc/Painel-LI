@@ -13,7 +13,7 @@ import { memo } from "react";
 import { ChevronRight } from "lucide-react";
 import { formatarMoeda } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { EventGroup } from "./prestacao-types";
+import { ACTIONABLE_STATUSES, type EventGroup } from "./prestacao-types";
 import { CartaoPrestacao } from "./cartao-prestacao";
 import type { ToastFn } from "./cartao-prestacao-linha";
 import { periodoDoEvento } from "./prestacao-utils";
@@ -85,6 +85,10 @@ export const RhEventGroup = memo(function RhEventGroup({
     { n: statuses.recusada || 0, texto: statuses.recusada === 1 ? "recusado" : "recusados", tom: "crh-comp-erro", dica: "Recusada" },
   ].filter(c => c.n > 0);
 
+  // "N pendentes" somava o que está com o responsável e os devolvidos (08/10):
+  // agora o número em destaque é só o do RH, e o total vem à parte, discreto.
+  const pendentesNoTotal = group.items.filter(i => ACTIONABLE_STATUSES.includes(i.status) || i.rhPrecisaAgir).length;
+
   const periodo = periodoDoEvento(group.event);
   const temValor = group.items.some(i => (i.actual ?? i.planned) && !(i.planned?.didNotAttend || i.actual?.didNotAttend));
 
@@ -101,7 +105,16 @@ export const RhEventGroup = memo(function RhEventGroup({
           <span className="block truncate text-sm font-semibold text-foreground">{group.event.name}</span>
           <span className="block truncate text-xs text-muted-foreground tabular-nums">
             {periodo}{periodo ? " · " : ""}{plural(group.items.length, "item", "itens")}
-            {group.actionNeeded > 0 && <span className="text-warning font-medium"> · {plural(group.actionNeeded, "pendente", "pendentes")}</span>}
+            {group.rhNeeded > 0 && (
+              <span className="text-warning font-medium" title="Esperam o RH: comparativo, planejamento, nota a aprovar ou check-in" data-testid="crh-grupo-com-rh">
+                {" "}· {group.rhNeeded} com o RH
+              </span>
+            )}
+            {pendentesNoTotal > group.rhNeeded && (
+              <span title="Pendentes no total: com o RH, com o responsável (aguardando prestação) e devolvidas" data-testid="crh-grupo-pendentes">
+                {" "}· {plural(pendentesNoTotal, "pendente", "pendentes")}{group.rhNeeded > 0 ? " no total" : ""}
+              </span>
+            )}
             {group.event.location && <span title={group.event.location}> · {group.event.location}</span>}
           </span>
         </span>

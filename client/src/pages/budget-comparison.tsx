@@ -264,6 +264,7 @@ export default function BudgetComparisonPage() {
           comparisonData={comparisonData}
           totals={dados.totals}
           naoEnviadas={dados.naoEnviadas}
+          statusDoComparativo={comparison?.status}
         />
         {/* ── Fechamento do comparativo (crédito no Flash — regra 19/08) ── */}
         {isRhOrAdmin && comparison && (

@@ -26,7 +26,6 @@ export interface RhFiltros {
   showConcluded: boolean;
   setShowConcluded: (v: boolean) => void;
   hasActiveFilters: boolean;
-  isRhFilterActive: boolean;
 }
 
 export function useRhFiltros(userId: string | undefined): RhFiltros {
@@ -73,7 +72,6 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
   // Os 4 card-filtros (rh_action, col_action, nf_andamento, concluidos) contam
   // como filtro ativo — consistente com o badge "Filtros (N)".
   const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || filterStatus !== "all" || filterInvoiceStatus !== "all" || searchTerm !== "" || filterCheckinOnly;
-  const isRhFilterActive = filterStatus === "rh_action";
 
   return {
     filterEvent, setFilterEvent,
@@ -84,6 +82,6 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
     filterInvoiceStatus, setFilterInvoiceStatus,
     searchTerm, setSearchTerm, buscaAplicada,
     showConcluded, setShowConcluded,
-    hasActiveFilters, isRhFilterActive,
+    hasActiveFilters,
   };
 }

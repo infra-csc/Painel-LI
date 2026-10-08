@@ -41,9 +41,13 @@ describe("CartaoPrestacao", () => {
   });
 
   it("isento na escalação: badge 'Não emite NF' e nada a cobrar", () => {
-    montar({ item: aprovadaParaFaturamento({ emiteNf: false, invoice: null }) });
+    const { container } = montar({ item: aprovadaParaFaturamento({ emiteNf: false, invoice: null }) });
     expect(screen.getByText("Não emite NF")).toBeInTheDocument();
     expect(screen.queryByText("Ag. nota fiscal")).toBeNull();
+    // Sem o filete âmbar de "nota pendente" (08/10).
+    const linha = container.querySelector("[data-prestacao-id]");
+    expect(linha).toHaveClass("crh-tom-sem-nf");
+    expect(linha).not.toHaveClass("crh-tom-nf-pendente");
   });
 
   it("aprovada sem NF enviada: 'Ag. nota fiscal'; expandido, o rodapé diz 'Aguardando envio da nota fiscal'", () => {

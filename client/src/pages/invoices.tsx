@@ -11,7 +11,7 @@
 // abas de verdade abaixo, e a lista de cada aba com pílulas de situação e
 // busca. A barra aparece em todos os estados (carregando, erro, vazio,
 // bloqueio): a pessoa sempre sabe onde está.
-import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -157,9 +157,16 @@ export default function InvoicesPage() {
     if (activeTab === "aprovacao" && !canRH) setActiveTab("lancamento");
   }, [activeTab, canRH, setActiveTab]);
 
-  // Auto-select the first active event when the list loads (if nothing is selected yet)
+  // Escolhe o primeiro evento ativo quando a lista chega e nada está escolhido —
+  // MAS não depois que a pessoa limpou o evento no "×": antes este efeito
+  // escolhia de novo na mesma hora e o "×" parecia não fazer nada.
+  const limpouOEventoRef = useRef(false);
+  const trocarEvento = useCallback((id: string) => {
+    limpouOEventoRef.current = !id;
+    setSelectedEventId(id);
+  }, [setSelectedEventId]);
   useEffect(() => {
-    if (!selectedEventId && activeEvents.length > 0) {
+    if (!selectedEventId && activeEvents.length > 0 && !limpouOEventoRef.current) {
       setSelectedEventId(activeEvents[0].id);
     }
   }, [activeEvents, selectedEventId, setSelectedEventId]);
@@ -214,7 +221,7 @@ export default function InvoicesPage() {
             <EventSearchSelect
               variante="barra"
               value={selectedEventId}
-              onValueChange={setSelectedEventId}
+              onValueChange={trocarEvento}
               events={activeEvents}
               detalhe={detalheDoEvento}
             />
@@ -276,7 +283,7 @@ export default function InvoicesPage() {
           Selecione um evento para gerenciar as notas fiscais: o envio de cada colaborador, a análise do RH e o check-in financeiro.
         </p>
         <div className="mt-5 w-full max-w-sm text-left">
-          <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={activeEvents} className="sm:w-full" />
+          <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={activeEvents} className="sm:w-full" />
         </div>
       </div>
     );

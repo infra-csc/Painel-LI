@@ -44,7 +44,7 @@ const GRADE: Record<number, string> = { 1: "grid-cols-1", 2: "grid-cols-2", 3: "
 
 export function ActualGroupList(p: ActualGroupListProps) {
   const { dados, getCollaboratorName, getFunctionName, eventNotes, plannedLogs, collapsedCards, highlightCardId, isRhOrAdmin, splitPending, onToggleCollapse, onEdit, onSplit, onDelete, onClearFilters } = p;
-  const { orderedRenderItems, splitGroupsMap, filteredItems, getPlannedRef, hasItemDivergence, getItemDayCounts, getCardPlanned, isDidNotAttend, selectedCards, toggleSelect, getGroupOriginalPeriod } = dados;
+  const { orderedRenderItems, splitGroupsMap, filteredItems, getPlannedRef, hasItemDivergence, getItemDayCounts, getPlannedDaPrestacao, isDidNotAttend, selectedCards, toggleSelect, getGroupOriginalPeriod } = dados;
   const { ref: refLargura, largura } = useLarguraUtil<HTMLDivElement>();
   const colunas = colunasPara(largura);
 
@@ -57,8 +57,9 @@ export function ActualGroupList(p: ActualGroupListProps) {
       collabName={getCollaboratorName(cardItem.collaboratorId)}
       functionName={getFunctionName(cardItem.functionId)}
       cardDays={getItemDayCounts(cardItem)}
-      // Proportional planned for split cards using real weekday/weekend counts from the group
-      cardPlanned={getCardPlanned(cardItem, { isGParent, isGChild })}
+      // Planejado da prestação: o MESMO cálculo do modal (rateio proporcional
+      // aos dias para titular e filhos de divisão, decidido pelo grupo inteiro)
+      cardPlanned={getPlannedDaPrestacao(cardItem)}
       diverges={isGChild ? false : hasItemDivergence(cardItem)}
       // "Não participou": fica fora dos totais do resumo — o card sinaliza isso visualmente
       notAttended={isDidNotAttend(cardItem)}

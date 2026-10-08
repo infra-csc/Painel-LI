@@ -23,6 +23,7 @@ import { Metrica } from "./budget-overview-cards";
 import { diferencaComSinal } from "./actual-overview";
 import { formatCurrency, formatEventDate } from "./types";
 import type { ComparisonRow } from "./comparison-utils";
+import { etapaDoComparativo as etapaDoComparativoRegra } from "@shared/comparativo";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
@@ -34,12 +35,11 @@ const ETAPAS = [
   { label: "Nota fiscal", desc: "Liberada no envio do Realizado" },
 ];
 
-/** Etapa atual — a mesma regra do stepper de antes: enquanto houver item sem
- *  envio/decisão, ainda é a Prestação; tudo aprovado → Nota fiscal. */
-export function etapaDoComparativo(eventItems: BudgetActual[]): number {
-  const allSentOrDecided = eventItems.length > 0 && eventItems.every(i => i.sentForReview || ["aprovado", "devolvido", "rejeitado"].includes(i.rhStatus || ""));
-  const allApproved = eventItems.length > 0 && eventItems.every(i => i.rhStatus === "aprovado");
-  return allApproved ? 4 : allSentOrDecided ? 3 : 2;
+/** Etapa atual: enquanto houver item sem envio/decisão, ainda é a Prestação;
+ *  tudo enviado/decidido → Aprovação RH, que só passa para a Nota fiscal
+ *  quando o comparativo é APROVADO (fechado) — regra em @shared/comparativo. */
+export function etapaDoComparativo(eventItems: BudgetActual[], statusDoComparativo?: string | null): number {
+  return etapaDoComparativoRegra(eventItems, statusDoComparativo);
 }
 
 /**
@@ -100,16 +100,18 @@ export interface ResumoDoComparativoProps {
   comparisonData: ComparisonRow[];
   totals: TotaisDoComparativo;
   naoEnviadas: number;
+  /** Status do comparativo do evento: só o aprovado (fechado) leva o trilho à Nota fiscal. */
+  statusDoComparativo?: string | null;
 }
 
 /** Painel de resumo: o número da tela, a comparação e o andamento da análise. */
-export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonData, totals, naoEnviadas }: ResumoDoComparativoProps) {
+export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonData, totals, naoEnviadas, statusDoComparativo }: ResumoDoComparativoProps) {
   const { totalPlanned, totalActual, difference } = totals;
   const igual = Math.abs(difference) <= 1;
   const pct = totalPlanned > 0 && !igual ? Math.round((difference / totalPlanned) * 1000) / 10 : null;
   const n = comparisonData.length;
   const nAprovadas = comparisonData.filter(r => r.actual.rhStatus === "aprovado").length;
-  const nAusentes = comparisonData.filter(r => r.planned?.didNotAttend).length;
+  const nAusentes = comparisonData.filter(r => r.naoParticipou).length;
   const tudoAprovado = n > 0 && nAprovadas === n;
   const pctAprovado = n > 0 ? Math.round((nAprovadas / n) * 100) : 0;
 
@@ -172,7 +174,7 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
           </span>
         </div>
         <div className="md:ml-auto min-w-0">
-          <TrilhoDoComparativo atual={etapaDoComparativo(budgetActual)} />
+          <TrilhoDoComparativo atual={etapaDoComparativo(budgetActual, statusDoComparativo)} />
         </div>
       </div>
     </section>

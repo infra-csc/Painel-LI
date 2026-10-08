@@ -334,15 +334,13 @@ export default function BudgetActualPage() {
 
       <EditActualModal
         editor={editor}
-        budgetActual={budgetActual}
         plannedLogs={q.plannedLogs}
         rhComment={rhComment}
         getCollaboratorName={getCollaboratorName}
         getFunctionName={getFunctionName}
         getItemInclusion={dados.getItemInclusion}
         getItemDayCounts={dados.getItemDayCounts}
-        getPlannedRef={dados.getPlannedRef}
-        proportionalPlanned={dados.proportionalPlanned}
+        getPlannedDaPrestacao={dados.getPlannedDaPrestacao}
         isSaving={updateMutation.isPending}
         onSave={salvarPrestacao}
       />

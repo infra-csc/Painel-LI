@@ -54,6 +54,9 @@ export interface ComparisonCardProps {
   onSplitDetail: (s: SplitDetailState) => void;
 }
 
+/** Motivo de quem não participou: o do Planejado, senão o do Realizado. */
+const motivoDaAusencia = (row: ComparisonRow) => row.planned?.didNotAttendReason || row.actual.didNotAttendReason || null;
+
 const fmtPeriodDate = (d: string) => {
   const dt = new Date(d + "T12:00:00");
   return dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -168,7 +171,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
         <div className="mb-2">
           <Nota icone={UserX} titulo="Colaborador não participou do evento">
             <p className="m-0">Planejado, Realizado e Diferença ficam fora dos totais. Os valores abaixo são só referência.</p>
-            {row.planned?.didNotAttendReason && <p className="m-0 mt-0.5 italic">Motivo: {row.planned.didNotAttendReason}</p>}
+            {motivoDaAusencia(row) && <p className="m-0 mt-0.5 italic">Motivo: {motivoDaAusencia(row)}</p>}
           </Nota>
         </div>
       )}
@@ -293,7 +296,9 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
   const isResubmitted = a.resubmitted;
   const colName = getCollaboratorName(row.collaboratorId);
   const cardKey = `${row.collaboratorId}-${row.functionId}`;
-  const isNotAttended = !!row.planned?.didNotAttend;
+  // Planejado OU Realizado marcado (o critério do Realizado — @shared/comparativo).
+  const isNotAttended = row.naoParticipou;
+  const motivoAusencia = motivoDaAusencia(row);
   const temNotas = eventNotes.length > 0 && eventNotes.some(n => n.entityId === a.id);
   // Item devolvido está com o responsável — o RH não edita até o reenvio
   const podeEditar = isRhOrAdmin && !["aprovado", "rejeitado", "devolvido"].includes(a.rhStatus || "");
@@ -367,8 +372,8 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
             </p>
           )}
           {/* Trechos: motivo de quem não participou, comentário do RH na devolução/recusa, observações. */}
-          {isNotAttended && row.planned?.didNotAttendReason && (
-            <p className="m-0 mt-1 text-2xs italic text-muted-foreground truncate">{row.planned.didNotAttendReason}</p>
+          {isNotAttended && motivoAusencia && (
+            <p className="m-0 mt-1 text-2xs italic text-muted-foreground truncate">{motivoAusencia}</p>
           )}
           {isDecided && a.rhComment && (itemRhStatus === "rejeitado" || itemRhStatus === "devolvido") && (
             <p className={cn("m-0 mt-1 text-2xs italic truncate", itemRhStatus === "rejeitado" ? "text-danger" : "text-warning")}>

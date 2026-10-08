@@ -95,6 +95,16 @@ describe("tomDaLinha", () => {
     expect(tomDaLinha(dias(10), undefined)).toBe("parada");
     expect(tomDaLinha(dias(2), undefined)).toBe("recente");
   });
+
+  it("quem NÃO emite NF não ganha o filete âmbar de 'nota pendente' (08/10)", () => {
+    const semNf = { status: "aprovada_faturamento", actual: {}, emiteNf: false, lastActivityDate: null } as unknown as PrestacaoItem;
+    expect(tomDaLinha(semNf, undefined)).toBe("sem-nf");
+    // Se mesmo assim houver nota, vale a situação dela (a mesma ordem do selo).
+    expect(tomDaLinha(semNf, nota("devolvida"))).toBe("nf-pendente");
+    expect(tomDaLinha(semNf, nota("aprovada"))).toBe("nf-aprovada");
+    const emite = { ...semNf, emiteNf: true } as PrestacaoItem;
+    expect(tomDaLinha(emite, undefined)).toBe("nf-pendente");
+  });
 });
 
 describe("periodoDoEvento", () => {

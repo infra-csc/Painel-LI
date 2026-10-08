@@ -33,6 +33,7 @@ import * as schema from "@shared/schema";
 import { faseParaStatus, type StatusDaVaga } from "@shared/vaga-status";
 import { hojeISO } from "@shared/hoje-sp";
 import { isCenotecnicaFunction } from "@shared/alimentacao";
+import { completarCnpj } from "@shared/cnpj";
 
 type Db = NeonDatabase<typeof schema>;
 /** Linha da vaga como o Drizzle grava (aceita createdAt/updatedAt, ao contrário do InsertTeamInclusion do zod). */
@@ -115,8 +116,10 @@ function cpf(n: number): string {
   const s = String(100_000_000 + n * 7919).padStart(9, "0").slice(-9);
   return `${s.slice(0, 3)}.${s.slice(3, 6)}.${s.slice(6, 9)}-${String((n * 13) % 100).padStart(2, "0")}`;
 }
+// CNPJ fictício COM dígitos verificadores certos (08/10): a empresa pagadora
+// agora é validada no campo e na API (@shared/cnpj).
 function cnpjDeDemo(n: number): string {
-  return `12.345.${String(600 + n).padStart(3, "0")}/0001-${String((n * 37) % 100).padStart(2, "0")}`;
+  return completarCnpj(`12345${String(600 + n).padStart(3, "0")}0001`);
 }
 
 // ── Plano das vagas por evento ──────────────────────────────────────────────

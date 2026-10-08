@@ -43,7 +43,10 @@ export type PrestacaoItem = Omit<LinhaDoControleRh, "actual"> & { actual: Realiz
 export interface EventGroup {
   event: EventoParaControle;
   items: PrestacaoItem[];
+  /** Pendentes em geral: com o RH, com o responsável e devolvidas (ordena a fila). */
   actionNeeded: number;
+  /** Só as que esperam o RH (`rhPrecisaAgir`: comparativo, planejamento, NF a aprovar, check-in). */
+  rhNeeded: number;
 }
 
 export const STATUS_ORDER: StatusDaPrestacao[] = [

@@ -334,3 +334,28 @@ describe("Comparativo: /api/budget-comparison/:id/{approve,reject}", () => {
 
 // Usado só para o tipo — evita "declared but never read" se o harness mudar.
 void criarUsuario;
+
+describe("POST /api/budget-comparison/calculate/:eventId — 'não participou' (08/10)", () => {
+  it("marcado só no Realizado: fica fora do realizado E do planejado (mesma regra da tela)", async () => {
+    const { agent, user } = await agenteLogado("admin");
+    const evento = await criarEvento();
+    const funcao = await criarFuncao();
+    const presente = await criarColaborador();
+    const ausente = await criarColaborador();
+    const [pPresente, pAusente] = await ctx.db.insert(ctx.schema.budgetPlanned).values([
+      { eventId: evento.id, collaboratorId: presente.id, functionId: funcao.id, collaboratorType: "freela", dailyQuantity: 2, dailyValue: 10_000, totalValue: 20_000, createdBy: user.id },
+      { eventId: evento.id, collaboratorId: ausente.id, functionId: funcao.id, collaboratorType: "freela", dailyQuantity: 3, dailyValue: 10_000, totalValue: 30_000, createdBy: user.id },
+    ]).returning();
+    await ctx.db.insert(ctx.schema.budgetActual).values([
+      { plannedId: pPresente.id, eventId: evento.id, collaboratorId: presente.id, functionId: funcao.id, collaboratorType: "freela",
+        dailyQuantity: 2, dailyValue: 10_000, totalValue: 25_000, sentForReview: true, rhStatus: "pendente", createdBy: user.id },
+      { plannedId: pAusente.id, eventId: evento.id, collaboratorId: ausente.id, functionId: funcao.id, collaboratorType: "freela",
+        dailyQuantity: 0, dailyValue: 10_000, totalValue: 0, sentForReview: true, rhStatus: "pendente", createdBy: user.id, didNotAttend: true },
+    ]);
+    const res = await mutacao(agent.post(`/api/budget-comparison/calculate/${evento.id}`)).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.totalActual).toBe(25_000);
+    expect(res.body.totalPlanned).toBe(20_000);
+    expect(res.body.variance).toBe(5_000);
+  });
+});

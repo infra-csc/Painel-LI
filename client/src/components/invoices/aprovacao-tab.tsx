@@ -6,8 +6,9 @@
 // 08/10 (redesenho): a tabela da família de Passagens/Bagagem — cabeçalho
 // grudado abaixo da barra, larguras-guia, valores alinhados, cartão abaixo de
 // 960px úteis. Em ordem de nome (o banco devolvia em qualquer ordem), busca
-// por colaborador, função ou OC, e o pé com quantas estão na tela e os totais
-// do evento (que antes se sobrepunham dentro de uma célula).
+// por colaborador, função ou OC, e o pé com quantas estão na tela e quanto
+// ELAS somam (que antes se sobrepunham dentro de uma célula e, até 08/10,
+// somavam o evento inteiro mesmo com filtro).
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { FileText, SearchX, ArrowRight } from "lucide-react";
 import type { Invoice } from "@shared/schema";
@@ -19,7 +20,7 @@ import { buildHistory, daysSince, HistoryPanel } from "./invoice-history";
 import { formatCurrency, paraBusca } from "./invoice-format";
 import { AprovacaoRow } from "./aprovacao-row";
 import { AprovacaoActionPanel } from "./aprovacao-action-panel";
-import { AprovacaoTotalsFooter } from "./aprovacao-totals-footer";
+import { AprovacaoTotalsFooter, somarNotas } from "./aprovacao-totals-footer";
 import { EstadoDaLista, BOTAO_SAIDA } from "./estado-da-lista";
 import { useAprovacaoMutations } from "./use-invoice-actions";
 import type { AbaBaseProps, ActiveAprovAction, AprovAction } from "./types";
@@ -157,20 +158,10 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
       ? buscadas
       : buscadas.filter(i => getEffectiveStatus(i) === filterStatus);
 
-    // Totals footer
-    const approvedTotal = invoices.reduce((sum: number, inv) => {
-      if (inv.status !== "aprovada") return sum;
-      const actual = getActual(inv.budgetActualId);
-      return sum + (actual?.totalValue || 0);
-    }, 0);
-    const waitingTotal = invoices.reduce((sum: number, inv) => {
-      if (inv.status !== "enviada") return sum;
-      const actual = getActual(inv.budgetActualId);
-      return sum + (actual?.totalValue || 0);
-    }, 0);
-    const grandTotal = approvedTotal + waitingTotal;
-
+    // Totais do pé: o MESMO conjunto da lista na tela (antes somavam o evento
+    // inteiro ao lado de "Mostrando N de M" e os números não batiam).
     const temRecorte = filterStatus !== "all" || !!q;
+    const totais = somarNotas(filteredInvoices, id => getActual(id)?.totalValue || 0);
     const resumo = `${temRecorte ? `Mostrando ${filteredInvoices.length} de ${invoices.length}` : invoices.length} ${invoices.length === 1 ? "nota" : "notas"}`;
 
     return (
@@ -289,9 +280,12 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
             </div>
           )}
           <AprovacaoTotalsFooter
-            approvedTotal={approvedTotal}
-            waitingTotal={waitingTotal}
-            grandTotal={grandTotal}
+            approvedTotal={totais.aprovadas.valor}
+            waitingTotal={totais.aguardando.valor}
+            grandTotal={totais.total}
+            nAprovadas={totais.aprovadas.n}
+            nAguardando={totais.aguardando.n}
+            doRecorte={temRecorte}
             resumo={filteredInvoices.length > 0 ? resumo : undefined}
           />
         </div>

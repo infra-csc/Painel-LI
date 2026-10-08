@@ -153,7 +153,10 @@ export const getNavigationTarget = (item: PrestacaoItem): NavigationTarget | nul
 // de 4px e fundo tingido; agora devolve o TOM do filete de 3px da linha. A
 // regra é a mesma, ramo por ramo: situação da NF para os aprovados, recusa, e
 // tempo parado (> 30, > 7, > 0 dias) para os demais.
-export type TomDaLinha = "nf-aprovada" | "nf-recusada" | "nf-analise" | "nf-pendente" | "recusada" | "atrasada" | "parada" | "recente" | "nova";
+// 08/10 (correção): sem nota e quem NÃO emite NF (definido na escalação) não
+// tem "nota pendente" — "sem-nf" não pinta filete (antes ficava o âmbar), na
+// mesma ordem do selo da etapa (`seloDaEtapa`: "Não emite NF").
+export type TomDaLinha = "nf-aprovada" | "nf-recusada" | "nf-analise" | "nf-pendente" | "sem-nf" | "recusada" | "atrasada" | "parada" | "recente" | "nova";
 export const tomDaLinha = (item: PrestacaoItem, invoice: NotaParaControle | null | undefined): TomDaLinha => {
   if (CONCLUDED_STATUSES.includes(item.status)) {
     if (item.status === "aprovada_faturamento") {
@@ -162,6 +165,7 @@ export const tomDaLinha = (item: PrestacaoItem, invoice: NotaParaControle | null
       if (nfSt === "aprovada") return "nf-aprovada";
       if (nfSt === "recusada") return "nf-recusada";
       if (nfSt === "enviada") return "nf-analise";
+      if (nfSt === "pendente" && item.emiteNf === false) return "sem-nf";
       return "nf-pendente"; // devolvida ou ainda sem nota
     }
     return "recusada";
