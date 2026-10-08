@@ -3115,3 +3115,70 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .aud-linha, .aud-c-abrir, .aud-trilha, .aud-dia, .aud-pivo, .aud-nav, .aud-tecnico-seta { transition: none; }
   .aud-linha:hover .aud-c-abrir { transform: none; }
 }
+
+/* ══ Usuários (usr-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças da família Funções/Colaboradores (pas-osso, pas-entra,
+ * pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que é dela: o
+ * cabeçalho da lista grudado abaixo da barra da tela, a linha/cartão inteiro
+ * que abre a edição (o ::after do nome cobre a linha), o pendente marcado por
+ * um filete à esquerda, a conta sem acesso esmaecida, as ações discretas até
+ * o hover e as microinterações (rápidas, desligadas com reduced-motion). */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px). `clip` em vez de
+   `hidden`/`auto`: um contêiner que rola prenderia o `sticky` dentro dele. */
+.usr-moldura { overflow: clip; }
+.usr-moldura .usr-rolagem { overflow-x: clip; }
+.usr-tabela > thead > tr > th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
+.usr-linha, .usr-cartao { position: relative; }
+.usr-linha { transition: background-color 120ms ease; }
+.usr-linha:hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.usr-abrir::after { content: ""; position: absolute; inset: 0; }
+.usr-cartao .usr-abrir::after { border-radius: 0.75rem; }
+.usr-abrir { transition: color 120ms ease; }
+.usr-linha:hover .usr-abrir, .usr-cartao:hover .usr-abrir { color: var(--primary); }
+.usr-linha:has(.usr-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.usr-cartao:has(.usr-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.usr-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.usr-cartao:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+
+/* Pendente: um filete âmbar à esquerda (antes a linha inteira ficava amarela). */
+.usr-linha.usr-pendente > td:first-child { box-shadow: inset 3px 0 0 var(--warning-strong); }
+.usr-cartao.usr-pendente { border-left: 3px solid var(--warning-strong); }
+
+/* Sem acesso (inativo/rejeitado): esmaecido, mas situação e ações seguem legíveis. */
+.usr-apagada .usr-esmaece { opacity: .6; }
+
+/* Ações: à vista, discretas até a linha ser apontada; a ação forte fica inteira. */
+.usr-linha .usr-acao:not(.usr-forte):not(.usr-ligado) { opacity: .62; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.usr-linha:hover .usr-acao, .usr-acao:focus-visible { opacity: 1; }
+.usr-forte { transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease; }
+.usr-forte:active:not(:disabled) { transform: scale(.97); }
+@media (pointer: coarse) { .usr-linha .usr-acao { opacity: 1; } }
+
+/* Mapa de acesso: os filetes crescem da esquerda quando a lista aparece. */
+@keyframes usr-enche { from { transform: scaleX(0); } to { transform: none; } }
+.usr-mapa span[style] { transform-origin: left center; animation: usr-enche 320ms cubic-bezier(.2, 0, 0, 1) both; }
+
+/* Força da senha: cada filete acende com uma transição curta. */
+.usr-filete { transition: background-color 160ms ease; }
+
+/* Seção do modal: a borda acende quando o perfil vira Administrador. */
+.usr-secao { transition: border-color 160ms ease; }
+
+/* Aviso/realce que acabou de aparecer. */
+@keyframes usr-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.usr-entra { animation: usr-entra 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .usr-entra, .usr-mapa span[style] { animation: none; }
+  .usr-linha, .usr-abrir, .usr-cartao, .usr-linha .usr-acao, .usr-forte, .usr-filete, .usr-secao { transition: none; }
+  .usr-forte:active:not(:disabled) { transform: none; }
+}
