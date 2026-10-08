@@ -42,6 +42,8 @@ export interface BudgetFiltersProps {
   filtros: FiltrosDoPlanejado;
   vista: VistaDoPlanejado;
   onVista: (v: VistaDoPlanejado) => void;
+  /** Sem permissão de gravar (08/10): a Planilha de edição não aparece. */
+  semPlanilha?: boolean;
   /** Vagas do evento antes do filtro — o contador vira "N de M". */
   total: number;
 }
@@ -81,7 +83,7 @@ function TrocaDeVista({ vista, onVista }: Pick<BudgetFiltersProps, "vista" | "on
   );
 }
 
-export function BudgetFilters({ filtros: f, vista, onVista, total }: BudgetFiltersProps) {
+export function BudgetFilters({ filtros: f, vista, onVista, total, semPlanilha }: BudgetFiltersProps) {
   const tipoLigado = f.filterType !== "all";
   const n = f.filteredBudgets.length;
   const contagem = f.algumFiltro
@@ -91,7 +93,7 @@ export function BudgetFilters({ filtros: f, vista, onVista, total }: BudgetFilte
   return (
     <div className="space-y-2" role="search" aria-label="Filtros do planejado">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.5">
-        <TrocaDeVista vista={vista} onVista={onVista} />
+        {!semPlanilha && <TrocaDeVista vista={vista} onVista={onVista} />}
         <span aria-hidden="true" className="hidden sm:block w-px h-5 mx-1 bg-border shrink-0" />
         <BuscaDaLista
           valor={f.searchTerm}

@@ -34,7 +34,6 @@ import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { isRhOrAdmin } from "@/lib/role-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { normalizeRole } from "@shared/roles";
 import type { Event } from "@shared/schema";
 import { BudgetOverviewCards } from "@/components/budget/budget-overview-cards";
 import { BudgetFilters, FilaDoPlanejado, type VistaDoPlanejado } from "@/components/budget/budget-filters";
@@ -44,6 +43,7 @@ import { BudgetEditModal } from "@/components/budget/budget-edit-modal";
 import { ConfirmSendDialog } from "@/components/budget/confirm-send-dialog";
 import { NaoParticipouDialog, RestoreParticipacaoDialog } from "@/components/budget/nao-participou-dialog";
 import { EnviarParaRealizadoBar } from "@/components/budget/enviar-para-realizado-bar";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ddmm, nomeDaVaga as nomeDaVagaDe, type CalculatedBudget } from "@/components/budget/types";
 
 /** "09/10 – 11/10/2026" (ou só o dia de início). */
@@ -76,12 +76,17 @@ export default function BudgetPlannedPage() {
 
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<VistaDoPlanejado>("overview");
+  // "Atualizar padrões" grava nos registros do servidor: pede confirmação (08/10).
+  const [confirmarPadroes, setConfirmarPadroes] = useState(false);
 
-  // `normalizeRole` (23/09): papéis legados ("administrador", "producao")
-  // perdiam a edição nesta tela.
-  const papel = normalizeRole(user?.role);
-  const canEdit = papel === "admin" || papel === "production";
-  const canMarkNotAttended = isRhOrAdmin(user);
+  // Quem grava no Planejado e envia ao Realizado é quem o SERVIDOR aceita
+  // (requireFinWrite: admin e Financeiro/RH) — decisão do dono, 08/10: a tela
+  // liberava a edição para a Produção (que levava 403 ao salvar) e escondia do
+  // RH no card e no modal, embora a Planilha deixasse. Agora é uma regra só
+  // para editar, selecionar, enviar e "Atualizar padrões".
+  const podeGravar = isRhOrAdmin(user);
+  const canEdit = podeGravar;
+  const canMarkNotAttended = podeGravar;
 
   const q = useBudgetQueries(selectedEventId, {
     planned: true, actual: true, inclusions: true, notes: "planned", functionValues: true, tickets: true, settings: true,
@@ -179,11 +184,11 @@ export default function BudgetPlannedPage() {
 
   const acoesDaBarra = (
     <>
-      {isRhOrAdmin(user) && (
+      {podeGravar && (
         <MotivoDesabilitado motivo="Aplica os valores padrão configurados em Sistema a todos os orçamentos ainda não enviados" desabilitado={acoes.isApplyingDefaults}>
           <Button
             variant="outline"
-            onClick={acoes.handleApplyDefaults}
+            onClick={() => setConfirmarPadroes(true)}
             disabled={acoes.isApplyingDefaults}
             className="pas-alvo shrink-0 h-[34px] rounded-lg px-3 text-sm font-medium gap-1.5"
             data-testid="planejado-atualizar-padroes"
@@ -193,7 +198,7 @@ export default function BudgetPlannedPage() {
           </Button>
         </MotivoDesabilitado>
       )}
-      {temLista && !todosEnviados && (
+      {podeGravar && temLista && !todosEnviados && (
         /* Sem nada marcado o botão não fica inerte: marca os pendentes visíveis.
            Com marcados, vira a ação principal (cheio) e abre a confirmação. */
         <Button
@@ -323,10 +328,10 @@ export default function BudgetPlannedPage() {
 
         {calculatedBudgets.length > 0 && <FilaDoPlanejado filtros={filtros} />}
         {calculatedBudgets.length > 0 && (
-          <BudgetFilters filtros={filtros} vista={activeTab} onVista={setActiveTab} total={calculatedBudgets.length} />
+          <BudgetFilters filtros={filtros} vista={podeGravar ? activeTab : "overview"} onVista={setActiveTab} total={calculatedBudgets.length} semPlanilha={!podeGravar} />
         )}
 
-        {activeTab === "overview" || calculatedBudgets.length === 0 ? (
+        {activeTab === "overview" || !podeGravar || calculatedBudgets.length === 0 ? (
           <BudgetCards
             filteredBudgets={filteredBudgets}
             totalCalculated={calculatedBudgets.length}
@@ -381,13 +386,13 @@ export default function BudgetPlannedPage() {
         )}
 
         {/* Barra de seleção: acompanha a rolagem no rodapé da lista. */}
-        <EnviarParaRealizadoBar
+        {podeGravar && <EnviarParaRealizadoBar
           selectedIds={selectedIds}
           totalSelecionado={totalSelecionado}
           onSend={enviarLote}
           onLimpar={filtros.clearSelection}
           isSending={isSending}
-        />
+        />}
       </>
     );
   }
@@ -402,6 +407,19 @@ export default function BudgetPlannedPage() {
           <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">{conteudo}</div>
         </div>
       </div>
+
+      {/* "Atualizar padrões" grava no servidor: confirma antes (08/10). */}
+      <ConfirmDialog
+        open={confirmarPadroes}
+        onOpenChange={setConfirmarPadroes}
+        icon={RefreshCw}
+        title="Atualizar com os valores padrão?"
+        description="Os valores padrão configurados em Sistema serão aplicados a todos os orçamentos deste evento que ainda não foram enviados ao Realizado. Os já enviados não mudam."
+        confirmLabel="Atualizar padrões"
+        pending={acoes.isApplyingDefaults}
+        testId="planejado-confirmar-padroes"
+        onConfirm={() => { acoes.handleApplyDefaults(); setConfirmarPadroes(false); }}
+      />
 
       {/* Modal de Edição */}
       <BudgetEditModal ctrl={modal} />

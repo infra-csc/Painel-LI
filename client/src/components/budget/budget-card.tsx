@@ -221,7 +221,7 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
         <div className="pt-0.5 shrink-0 w-4 flex justify-center">
           {isNotAttended ? (
             <UserX className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-          ) : !isSent ? (
+          ) : !isSent && canEdit ? (
             <Checkbox
               checked={isSelected}
               onCheckedChange={() => p.onToggleSelect(id)}
@@ -389,7 +389,7 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
                   Editar
                 </button>
               )}
-              {!isSent && (
+              {canEdit && !isSent && (
                 <button
                   type="button"
                   className={cn(ACAO, "text-primary bg-brand-soft hover:bg-primary hover:text-primary-foreground")}
