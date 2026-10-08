@@ -114,10 +114,11 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
   const pctAprovado = n > 0 ? Math.round((nAprovadas / n) * 100) : 0;
 
   return (
-    <section aria-label="Resumo do comparativo" className="pla-resumo rea-resumo rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-comparativo">
-      <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]">
+    <section aria-label="Resumo do comparativo" className="pla-resumo pla-resumo-medido rea-resumo rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-comparativo">
+      {/* Grade pela largura do painel — a mesma do Planejado e do Realizado (pla-resumo-grade). */}
+      <div className="pla-resumo-grade">
         {/* O número da tela. */}
-        <div className="col-span-2 lg:col-span-1 min-w-0 px-4 pt-3.5 pb-3 max-lg:border-b border-border">
+        <div className="pla-resumo-total min-w-0 px-4 pt-3.5 pb-3">
           <p className="m-0 text-xs font-medium text-slate-600">
             Total realizado
             {selectedEvent?.startDate && <span className="text-muted-foreground font-normal"> · {formatEventDate(selectedEvent.startDate)}</span>}
