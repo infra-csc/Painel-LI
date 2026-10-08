@@ -141,13 +141,17 @@ export interface PeriodViewProps {
   setCurrentDate: (d: Date) => void;
 }
 
+/** A semana começa na SEGUNDA (dono, 08/10): sábado e domingo — o fim de
+ * semana das provas — ficam juntos no fim da linha, como no Calendário. */
+const SEMANA_DA_SEGUNDA = [...WEEK_SHORT.slice(1), WEEK_SHORT[0]];
+
 const MOLDURA = "evt-entra bg-card rounded-xl border border-border shadow-1 overflow-hidden";
 
 export function CalendarView({ events, onEdit, currentDate, setCurrentDate }: PeriodViewProps) {
   const isMobile = useIsMobile();
   const monthStart = startOfMonth(currentDate);
-  const calStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-  const calEnd = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 });
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const calEnd = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
   const today = new Date();
   const MAX = 3;
@@ -174,7 +178,7 @@ export function CalendarView({ events, onEdit, currentDate, setCurrentDate }: Pe
           <div className="min-w-[640px]">
             {/* Dias da semana */}
             <div className="grid grid-cols-7 border-b border-border bg-surface-muted">
-              {WEEK_SHORT.map((d) => (
+              {SEMANA_DA_SEGUNDA.map((d) => (
                 <div key={d} className="py-2 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-[0.06em]">{d}</div>
               ))}
             </div>
@@ -184,7 +188,7 @@ export function CalendarView({ events, onEdit, currentDate, setCurrentDate }: Pe
               {days.map((day, i) => {
                 const inMonth = isSameMonth(day, currentDate);
                 const isToday = isSameDay(day, today);
-                const fds = i % 7 === 0 || i % 7 === 6;
+                const fds = i % 7 >= 5; // Sáb e Dom (a grade começa na segunda)
                 const chips = eventsOnDay(events, day);
                 return (
                   <div
@@ -235,8 +239,8 @@ export function CalendarView({ events, onEdit, currentDate, setCurrentDate }: Pe
 
 export function WeekView({ events, onEdit, currentDate, setCurrentDate }: PeriodViewProps) {
   const isMobile = useIsMobile();
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 });
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
   const today = new Date();
 
@@ -262,14 +266,14 @@ export function WeekView({ events, onEdit, currentDate, setCurrentDate }: Period
           <div className="grid grid-cols-7 min-w-[640px]">
             {days.map((day, i) => {
               const isToday = isSameDay(day, today);
-              const fds = i === 0 || i === 6;
+              const fds = i >= 5;
               const chips = eventsOnDay(events, day);
               return (
                 <div key={i} className={cn("min-h-[220px] flex flex-col", i < 6 && "border-r border-border", isToday ? "bg-brand-soft/40" : fds && "bg-surface-muted/50")}>
                   {/* Cabeçalho do dia */}
                   <div className={cn("flex items-center justify-center gap-2 py-2.5 px-2 border-b border-border", isToday ? "bg-brand-soft/70" : "bg-surface-muted")}>
                     <span className={cn("text-2xs font-semibold uppercase tracking-[0.06em]", isToday ? "text-primary" : "text-muted-foreground")}>
-                      {WEEK_SHORT[i]}
+                      {SEMANA_DA_SEGUNDA[i]}
                     </span>
                     <span className={cn(
                       "inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-semibold tabular-nums",

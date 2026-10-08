@@ -52,7 +52,7 @@ export function EventsKpis({ stats, events = [], statusFilter, onFilter }: Event
       sub: "fora os excluídos", titulo: `${stats.total} eventos ativos: planejados, em andamento e concluídos`,
     },
     {
-      key: "planejado", rotulo: "Planejados", n: stats.planejado, icone: CalendarClock, cor: "text-info",
+      key: "planejado", rotulo: "Planejados", n: stats.planejado, icone: CalendarClock, cor: "text-slate-500",
       sub: proximo ? `próximo em ${format(proximo, "dd/MM")}` : "nenhum por vir",
       titulo: `${stats.planejado} eventos planejados${proximo ? ` — o próximo começa em ${format(proximo, "dd/MM/yyyy")}` : ""}`,
     },

@@ -25,7 +25,7 @@ import { computeWeekBars, type EventBar } from "./week-bars";
 import { HiddenEventsPopover } from "./hidden-events-popover";
 import { Agenda, type LinhaDaAgenda } from "./agenda";
 import {
-  MONTH_NAMES_LOWER, WEEKDAY_SHORT, getCfg, getEffectiveStatus, isInRange, isSameDay, nomeFalado, parseLocalDate, posDoAlvo, type SelectEventFn,
+  MONTH_NAMES_LOWER, WEEK_DAY_SHORT, getCfg, getEffectiveStatus, isInRange, isSameDay, nomeFalado, parseLocalDate, posDoAlvo, type SelectEventFn,
 } from "./calendar-shared";
 
 const MAX_VISIBLE_LANES = 3;
@@ -141,7 +141,9 @@ function OverflowRow({ bars, week, allEvents, onOpenPopover }: {
 /** Semanas do mês (com os dias de borda), cortando a última linha se for só do mês seguinte e sem eventos. */
 function buildWeeks(year: number, month: number, events: Event[]): Date[][] {
   const firstDay = new Date(year, month, 1);
-  const startPad = firstDay.getDay();
+  // A grade começa na SEGUNDA (dono, 08/10): sábado e domingo — o fim de
+  // semana das provas — ficam juntos no fim da linha, como na Semana.
+  const startPad = (firstDay.getDay() + 6) % 7;
   const lastDayNum = new Date(year, month + 1, 0).getDate();
 
   const allDays: Date[] = [];
@@ -239,8 +241,8 @@ export function MonthView({ year, month, events, onSelectEvent, aviso }: {
       <div data-testid="cal-mes">
         {/* Dias da semana */}
         <div className="grid grid-cols-7 border-b border-border bg-surface-muted" aria-hidden="true">
-          {WEEKDAY_SHORT.map((d, i) => (
-            <div key={d} className={cn("py-2 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-[0.06em]", (i === 0 || i === 6) && "cal-fds-cab")}>{d}</div>
+          {WEEK_DAY_SHORT.map((d, i) => (
+            <div key={d} className={cn("py-2 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-[0.06em]", i >= 5 && "cal-fds-cab")}>{d}</div>
           ))}
         </div>
 
@@ -258,7 +260,7 @@ export function MonthView({ year, month, events, onSelectEvent, aviso }: {
                 <div className="absolute inset-0 grid grid-cols-7" aria-hidden="true">
                   {week.map((day, di) => {
                     const isToday = isSameDay(day, today);
-                    const isWeekend = di === 0 || di === 6;
+                    const isWeekend = di >= 5; // Sáb e Dom (grade começa na segunda)
                     return (
                       <div
                         key={di}

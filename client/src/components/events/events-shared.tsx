@@ -75,7 +75,7 @@ export function eventsOnDay(events: Event[], day: Date) {
   });
 }
 
-// StatusBadge único (23/09): o tom vem de lib/event-status (planejado = info,
+// StatusBadge único (23/09): o tom vem de lib/event-status (planejado = neutro desde 08/10,
 // em andamento = primary, concluído = success, excluído = neutral).
 export function EventStatusBadge({ ds }: { ds: string }) {
   const sc = STATUS[ds] ?? STATUS["planejado"];
