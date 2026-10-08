@@ -2034,254 +2034,6 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .fla-abre, .fla-conta-sel::before, .fla-valor-mudou, .fla-acesa > td, .fla-linha.fla-acesa { animation: none; }
 }
 
-/* ══ Valores padrão (cfg-) — redesenho 08/10 ═══════════════════════════════
- * A tela usa as peças da família (pas-osso, pas-entra, pas-sobe, pas-alvo,
- * barra de 56px do PageHeader). Aqui só o que é dela: o índice grudado, o
- * painel do que está valendo, os grupos em linhas medidos pela própria
- * largura, o campo numérico com os estados alterado/erro, a grade da
- * empreita, a tabela por função que vira cartão e a barra de alterações.
- * Tudo rápido e desligado com reduced-motion. */
-
-/* ── Página: índice à esquerda quando sobra largura ───────────────────────── */
-.cfg-pagina { container-type: inline-size; }
-.cfg-pagina-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
-.cfg-pagina-indice { display: none; }
-.cfg-pagina-corpo { display: flex; flex-direction: column; gap: 16px; max-width: 1280px; }
-@container (min-width: 1180px) {
-  .cfg-pagina-grade { grid-template-columns: 196px minmax(0, 1fr); }
-  .cfg-pagina-indice { display: block; position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 20px); }
-}
-.cfg-grupo { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 16px); }
-.cfg-indice-item { position: relative; }
-.cfg-indice-item[aria-current="location"]::before {
-  content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: var(--primary);
-}
-
-/* Rótulo de zona entre os grupos ("Entram no cálculo", "Cadastros e reserva"). */
-.cfg-zona {
-  margin: 8px 0 -6px; padding: 0 2px;
-  font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-.cfg-zona:first-child { margin-top: 4px; }
-
-/* ── Resumo: cinco métricas pela largura DO PAINEL ────────────────────────── */
-.cfg-resumo, .cfg-resumo-grade { container-type: inline-size; }
-.cfg-resumo-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.cfg-resumo-grade > .cfg-metrica { border-top: 1px solid var(--border); }
-.cfg-resumo-grade > .cfg-metrica:nth-child(-n+2) { border-top: 0; }
-.cfg-resumo-grade > .cfg-metrica:nth-child(even) { border-left: 1px solid var(--border); }
-.cfg-resumo-grade > .cfg-metrica:last-child:nth-child(odd) { grid-column: 1 / -1; }
-@container (min-width: 760px) {
-  .cfg-resumo-grade { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .cfg-resumo .cfg-resumo-grade > .cfg-metrica:nth-child(n):nth-last-child(n) { border-top: 0; border-left: 1px solid var(--border); grid-column: auto; }
-  .cfg-resumo .cfg-resumo-grade > .cfg-metrica:first-child:nth-last-child(n) { border-left: 0; }
-}
-
-/* ── Grupo e linha de ajuste ──────────────────────────────────────────────── */
-.cfg-grupo { container-type: inline-size; }
-.cfg-linha {
-  display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px 32px;
-  padding: 16px 20px;
-}
-.cfg-linha + .cfg-linha { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
-@container (min-width: 760px) {
-  .cfg-linha { grid-template-columns: minmax(200px, 340px) minmax(0, 1fr); }
-  .cfg-linha-texto { padding-top: 2px; }
-}
-@container (max-width: 480px) {
-  .cfg-linha { padding: 14px 16px; }
-}
-.cfg-campos { display: grid; gap: 12px 14px; align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@container (min-width: 560px) {
-  .cfg-campos-3, .cfg-campos-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@container (min-width: 760px) {
-  .cfg-campos { max-width: 720px; }
-  .cfg-campos-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .cfg-campos-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-@container (max-width: 340px) {
-  .cfg-campos { grid-template-columns: minmax(0, 1fr); }
-}
-.cfg-nota {
-  margin: 0; padding: 12px 20px 14px; border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-  font-size: 12px; line-height: 18px; color: var(--muted-foreground);
-}
-
-/* ── Campo numérico ───────────────────────────────────────────────────────── */
-.cfg-rotulo {
-  display: block; margin: 0 0 6px;
-  font-size: 12px; font-weight: 500; line-height: 16px;
-  color: var(--slate-600, var(--muted-foreground));
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.cfg-campo {
-  position: relative; display: flex; align-items: center; gap: 6px;
-  height: 40px; padding: 0 12px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--card);
-  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
-}
-.cfg-campo:hover { border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
-.cfg-campo:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent); }
-.cfg-campo-unidade { flex-shrink: 0; font-size: 13px; font-weight: 500; color: var(--muted-foreground); user-select: none; }
-.cfg-campo-input {
-  flex: 1 1 auto; min-width: 0; width: 100%; height: 100%;
-  border: 0; background: transparent; outline: none; padding: 0;
-  font-size: 14px; font-weight: 500; color: var(--foreground);
-  text-align: right; font-variant-numeric: tabular-nums;
-}
-.cfg-campo-alterado { border-color: var(--warning-strong); background: color-mix(in srgb, var(--warning-soft) 35%, var(--card)); }
-.cfg-campo-alterado:hover { border-color: var(--warning-strong); }
-.cfg-campo-alterado:focus-within { border-color: var(--warning-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning-strong) 18%, transparent); }
-.cfg-campo-erro, .cfg-campo-erro:hover { border-color: var(--danger); background: var(--card); }
-.cfg-campo-erro:focus-within { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
-.cfg-apoio {
-  display: flex; align-items: center; gap: 4px;
-  margin: 4px 0 0; min-height: 16px;
-  font-size: 11px; line-height: 16px;
-}
-.cfg-apoio-alterado { color: var(--warning); animation: pas-entra 160ms ease-out both; }
-.cfg-desfazer {
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 20px; height: 20px; border-radius: 5px; color: var(--warning);
-  transition: background-color 120ms ease;
-}
-.cfg-desfazer:hover { background: color-mix(in srgb, var(--warning-soft) 80%, transparent); }
-.cfg-desfazer:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
-
-/* Total calculado ao vivo, na altura do campo, sem cara de campo. */
-.cfg-total-valor {
-  display: flex; align-items: center; justify-content: flex-end; height: 40px; padding: 0 12px;
-  border-radius: 8px; background: var(--surface-muted);
-  font-size: 14px; font-weight: 600; color: var(--foreground);
-}
-
-/* Exemplo da deflação: três degraus com a barra do percentual. */
-.cfg-exemplo { margin-top: 14px; max-width: 720px; }
-.cfg-degraus { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 8px 0 0; padding: 0; list-style: none; }
-.cfg-degrau { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cfg-degrau-barra { display: block; height: 4px; margin-bottom: 4px; border-radius: 9999px; background: var(--muted); overflow: hidden; }
-.cfg-degrau-barra > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width 400ms cubic-bezier(.2, 0, 0, 1); }
-
-/* Composição da diária do percurseiro. */
-.cfg-composicao { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 14px; margin-top: 14px; max-width: 720px; }
-.cfg-composicao-tipo { padding: 10px 12px; border-radius: 8px; background: var(--surface-muted); }
-
-/* ── Cenotécnicos empreita: grade modalidade × dias ───────────────────────── */
-.cfg-empreita { padding: 6px 20px 8px; }
-.cfg-empreita-cabeca { display: none; }
-.cfg-empreita-linha {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; align-items: start;
-  padding: 14px 0;
-}
-.cfg-empreita-linha + .cfg-empreita-linha { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
-.cfg-empreita-nome { grid-column: 1 / -1; }
-.cfg-empreita-inc { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 8px; background: var(--surface-muted); }
-@container (min-width: 560px) {
-  .cfg-empreita-linha { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-}
-@container (min-width: 860px) {
-  .cfg-empreita-cabeca, .cfg-empreita-linha { display: grid; grid-template-columns: minmax(140px, 1.15fr) repeat(5, minmax(0, 1fr)) minmax(110px, .95fr); gap: 0 12px; align-items: center; }
-  .cfg-empreita-cabeca {
-    padding: 10px 0 8px; border-bottom: 1px solid var(--border);
-    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground);
-  }
-  .cfg-empreita-linha { padding: 10px 0; }
-  .cfg-empreita-linha + .cfg-empreita-linha { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
-  .cfg-empreita-nome, .cfg-empreita-inc { grid-column: auto; }
-  .cfg-empreita-inc { display: block; padding: 0; background: none; text-align: right; }
-  .cfg-empreita-inc-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .cfg-empreita .cfg-rotulo-grade { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
-  .cfg-empreita .cfg-apoio { position: absolute; }
-  .cfg-empreita .cfg-campo-bloco { position: relative; }
-  .cfg-empreita .cfg-campo-bloco[data-alterado], .cfg-empreita .cfg-campo-bloco[data-erro] { padding-bottom: 18px; margin-bottom: -18px; }
-}
-@container (max-width: 480px) {
-  .cfg-empreita { padding: 4px 16px 6px; }
-}
-
-/* ── Diária por função: a linha editável e o cartão no estreito ───────────── */
-.cfg-funcoes-caixa { container-type: inline-size; }
-.cfg-funcoes-tabela td { padding: 6px 16px; vertical-align: middle; border-top: 1px solid var(--border); }
-.cfg-funcoes-tabela tbody tr:first-child td { border-top: 0; }
-.cfg-funcao-linha { transition: background-color 120ms ease; }
-.cfg-funcao-linha:hover { background: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
-.cfg-funcao-base { background: color-mix(in srgb, var(--brand-soft) 45%, var(--card)); }
-.cfg-funcao-alterada > td:first-child { box-shadow: inset 2px 0 0 var(--warning-strong); }
-.cfg-funcao-nome { height: 48px; }
-.cfg-celula {
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-  min-height: 36px; margin: 0 -8px; padding: 2px 8px; border-radius: 6px; cursor: pointer;
-  transition: background-color 120ms ease;
-}
-.cfg-celula:hover { background: var(--muted); }
-.cfg-celula:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
-.cfg-lapis { color: var(--muted-foreground); opacity: .35; transition: opacity 120ms ease; }
-.cfg-celula:hover .cfg-lapis, .cfg-celula:focus-visible .cfg-lapis { opacity: 1; }
-.cfg-celula-alterada .cfg-lapis { color: var(--warning); opacity: .8; }
-.cfg-celula-edicao { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
-.cfg-campo-compacto { height: 34px; width: 132px; padding: 0 10px; }
-.cfg-icone-botao {
-  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px;
-  transition: background-color 120ms ease;
-}
-.cfg-icone-botao:hover { background: var(--muted); }
-@container (max-width: 460px) {
-  .cfg-funcoes-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .cfg-funcoes-tabela, .cfg-funcoes-tabela tbody { display: block; width: 100%; }
-  .cfg-funcoes-tabela tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; padding: 10px 14px 8px; border-top: 1px solid var(--border); }
-  .cfg-funcoes-tabela tbody tr:first-child { border-top: 0; }
-  .cfg-funcoes-tabela td { display: block; padding: 0; border: 0; }
-  .cfg-funcao-nome { grid-column: 1 / -1; height: auto; padding-bottom: 4px !important; }
-  .cfg-funcao-valor::before {
-    content: attr(data-rotulo); display: block; margin-bottom: 2px;
-    font-size: 11px; font-weight: 500; color: var(--muted-foreground);
-  }
-  .cfg-funcao-valor .cfg-celula { justify-content: space-between; margin: 0 -8px; }
-  .cfg-funcao-valor .cfg-celula > span { align-items: flex-start; }
-  .cfg-funcao-alterada > td:first-child { box-shadow: none; }
-  .cfg-funcao-alterada { box-shadow: inset 2px 0 0 var(--warning-strong); }
-  .cfg-campo-compacto { width: 100%; }
-  .cfg-celula-edicao { justify-content: flex-start; }
-}
-
-/* ── Histórico: linha do tempo com "antes → depois" em colunas ────────────── */
-.cfg-historico-item { position: relative; display: flex; gap: 12px; padding-top: 14px; }
-.cfg-historico-item + .cfg-historico-item { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
-.cfg-historico-avatar {
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 28px; height: 28px; border-radius: 9999px; font-size: 11px; font-weight: 600;
-}
-.cfg-historico-mudancas, .cfg-lista-mudancas {
-  display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 6px 16px; align-items: baseline;
-}
-.cfg-historico-mudancas { margin: 8px 0 0; max-width: 720px; }
-@container (max-width: 480px) {
-  .cfg-historico-mudancas { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .cfg-historico-mudancas dd { margin-bottom: 6px; }
-}
-
-/* ── Barra de alterações e toque ──────────────────────────────────────────── */
-.cfg-barra { margin-top: 4px; }
-/* Com a barra no rodapé, os avisos sobem acima dela (não cobrem o Salvar). */
-body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 120px; }
-@media (max-width: 639.98px) {
-  body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 0; }
-}
-@media (pointer: coarse) {
-  .cfg-campo { height: 44px; }
-  .cfg-total-valor { height: 44px; }
-  .cfg-celula { min-height: 44px; }
-  .cfg-desfazer { width: 28px; height: 28px; }
-  .cfg-indice-item { height: 40px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cfg-campo, .cfg-funcao-linha, .cfg-celula, .cfg-lapis, .cfg-degrau-barra > span, .cfg-desfazer, .cfg-icone-botao { transition: none; }
-  .cfg-apoio-alterado { animation: none; }
-}
-
 /* ══ Regras de cálculo (rgc-) — redesenho 08/10 ═════════════════════════════
  * A página vira documentação: índice lateral grudado (faixa de atalhos quando
  * falta largura útil), documento único com seções separadas por filete,
@@ -2643,4 +2395,487 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
 @media (prefers-reduced-motion: reduce) {
   .rgc-chip, .rgc-indice-item, .rgc-ancora, .rgc-linha > *, .rgc-passo-item, .rgc-campo, .rgc-passo, .rgc-passo-botao { transition: none; }
   .rgc-regua-dia, .rgc-chegou .rgc-titulo { animation: none; }
+}
+
+/* ══ Valores padrão (cfg-) — redesenho 08/10 ═══════════════════════════════
+ * A tela usa as peças da família (pas-osso, pas-entra, pas-sobe, pas-alvo,
+ * barra de 56px do PageHeader). Aqui só o que é dela: o índice grudado, o
+ * painel do que está valendo, os grupos em linhas medidos pela própria
+ * largura, o campo numérico com os estados alterado/erro, a grade da
+ * empreita, a tabela por função que vira cartão e a barra de alterações.
+ * Tudo rápido e desligado com reduced-motion. */
+
+/* ── Página: índice à esquerda quando sobra largura ───────────────────────── */
+.cfg-pagina { container-type: inline-size; }
+.cfg-pagina-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.cfg-pagina-indice { display: none; }
+.cfg-pagina-corpo { display: flex; flex-direction: column; gap: 16px; max-width: 1280px; }
+@container (min-width: 1180px) {
+  .cfg-pagina-grade { grid-template-columns: 196px minmax(0, 1fr); }
+  .cfg-pagina-indice { display: block; position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 20px); }
+}
+.cfg-grupo { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 16px); }
+.cfg-indice-item { position: relative; }
+.cfg-indice-item[aria-current="location"]::before {
+  content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: var(--primary);
+}
+
+/* Rótulo de zona entre os grupos ("Entram no cálculo", "Cadastros e reserva"). */
+.cfg-zona {
+  margin: 8px 0 -6px; padding: 0 2px;
+  font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.cfg-zona:first-child { margin-top: 4px; }
+
+/* ── Resumo: cinco métricas pela largura DO PAINEL ────────────────────────── */
+.cfg-resumo, .cfg-resumo-grade { container-type: inline-size; }
+.cfg-resumo-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cfg-resumo-grade > .cfg-metrica { border-top: 1px solid var(--border); }
+.cfg-resumo-grade > .cfg-metrica:nth-child(-n+2) { border-top: 0; }
+.cfg-resumo-grade > .cfg-metrica:nth-child(even) { border-left: 1px solid var(--border); }
+.cfg-resumo-grade > .cfg-metrica:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@container (min-width: 760px) {
+  .cfg-resumo-grade { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cfg-resumo .cfg-resumo-grade > .cfg-metrica:nth-child(n):nth-last-child(n) { border-top: 0; border-left: 1px solid var(--border); grid-column: auto; }
+  .cfg-resumo .cfg-resumo-grade > .cfg-metrica:first-child:nth-last-child(n) { border-left: 0; }
+}
+
+/* ── Grupo e linha de ajuste ──────────────────────────────────────────────── */
+.cfg-grupo { container-type: inline-size; }
+.cfg-linha {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px 32px;
+  padding: 16px 20px;
+}
+.cfg-linha + .cfg-linha { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+@container (min-width: 760px) {
+  .cfg-linha { grid-template-columns: minmax(200px, 340px) minmax(0, 1fr); }
+  .cfg-linha-texto { padding-top: 2px; }
+}
+@container (max-width: 480px) {
+  .cfg-linha { padding: 14px 16px; }
+}
+.cfg-campos { display: grid; gap: 12px 14px; align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 560px) {
+  .cfg-campos-3, .cfg-campos-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container (min-width: 760px) {
+  .cfg-campos { max-width: 720px; }
+  .cfg-campos-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cfg-campos-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container (max-width: 340px) {
+  .cfg-campos { grid-template-columns: minmax(0, 1fr); }
+}
+.cfg-nota {
+  margin: 0; padding: 12px 20px 14px; border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  font-size: 12px; line-height: 18px; color: var(--muted-foreground);
+}
+
+/* ── Campo numérico ───────────────────────────────────────────────────────── */
+.cfg-rotulo {
+  display: block; margin: 0 0 6px;
+  font-size: 12px; font-weight: 500; line-height: 16px;
+  color: var(--slate-600, var(--muted-foreground));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cfg-campo {
+  position: relative; display: flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+.cfg-campo:hover { border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+.cfg-campo:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent); }
+.cfg-campo-unidade { flex-shrink: 0; font-size: 13px; font-weight: 500; color: var(--muted-foreground); user-select: none; }
+.cfg-campo-input {
+  flex: 1 1 auto; min-width: 0; width: 100%; height: 100%;
+  border: 0; background: transparent; outline: none; padding: 0;
+  font-size: 14px; font-weight: 500; color: var(--foreground);
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.cfg-campo-alterado { border-color: var(--warning-strong); background: color-mix(in srgb, var(--warning-soft) 35%, var(--card)); }
+.cfg-campo-alterado:hover { border-color: var(--warning-strong); }
+.cfg-campo-alterado:focus-within { border-color: var(--warning-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning-strong) 18%, transparent); }
+.cfg-campo-erro, .cfg-campo-erro:hover { border-color: var(--danger); background: var(--card); }
+.cfg-campo-erro:focus-within { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
+.cfg-apoio {
+  display: flex; align-items: center; gap: 4px;
+  margin: 4px 0 0; min-height: 16px;
+  font-size: 11px; line-height: 16px;
+}
+.cfg-apoio-alterado { color: var(--warning); animation: pas-entra 160ms ease-out both; }
+.cfg-desfazer {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 20px; height: 20px; border-radius: 5px; color: var(--warning);
+  transition: background-color 120ms ease;
+}
+.cfg-desfazer:hover { background: color-mix(in srgb, var(--warning-soft) 80%, transparent); }
+.cfg-desfazer:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+
+/* Total calculado ao vivo, na altura do campo, sem cara de campo. */
+.cfg-total-valor {
+  display: flex; align-items: center; justify-content: flex-end; height: 40px; padding: 0 12px;
+  border-radius: 8px; background: var(--surface-muted);
+  font-size: 14px; font-weight: 600; color: var(--foreground);
+}
+
+/* Exemplo da deflação: três degraus com a barra do percentual. */
+.cfg-exemplo { margin-top: 14px; max-width: 720px; }
+.cfg-degraus { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 8px 0 0; padding: 0; list-style: none; }
+.cfg-degrau { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cfg-degrau-barra { display: block; height: 4px; margin-bottom: 4px; border-radius: 9999px; background: var(--muted); overflow: hidden; }
+.cfg-degrau-barra > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width 400ms cubic-bezier(.2, 0, 0, 1); }
+
+/* Composição da diária do percurseiro. */
+.cfg-composicao { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 14px; margin-top: 14px; max-width: 720px; }
+.cfg-composicao-tipo { padding: 10px 12px; border-radius: 8px; background: var(--surface-muted); }
+
+/* ── Cenotécnicos empreita: grade modalidade × dias ───────────────────────── */
+.cfg-empreita { padding: 6px 20px 8px; }
+.cfg-empreita-cabeca { display: none; }
+.cfg-empreita-linha {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; align-items: start;
+  padding: 14px 0;
+}
+.cfg-empreita-linha + .cfg-empreita-linha { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+.cfg-empreita-nome { grid-column: 1 / -1; }
+.cfg-empreita-inc { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 8px; background: var(--surface-muted); }
+@container (min-width: 560px) {
+  .cfg-empreita-linha { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@container (min-width: 860px) {
+  .cfg-empreita-cabeca, .cfg-empreita-linha { display: grid; grid-template-columns: minmax(140px, 1.15fr) repeat(5, minmax(0, 1fr)) minmax(110px, .95fr); gap: 0 12px; align-items: center; }
+  .cfg-empreita-cabeca {
+    padding: 10px 0 8px; border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground);
+  }
+  .cfg-empreita-linha { padding: 10px 0; }
+  .cfg-empreita-linha + .cfg-empreita-linha { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .cfg-empreita-nome, .cfg-empreita-inc { grid-column: auto; }
+  .cfg-empreita-inc { display: block; padding: 0; background: none; text-align: right; }
+  .cfg-empreita-inc-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .cfg-empreita .cfg-rotulo-grade { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+  .cfg-empreita .cfg-apoio { position: absolute; }
+  .cfg-empreita .cfg-campo-bloco { position: relative; }
+  .cfg-empreita .cfg-campo-bloco[data-alterado], .cfg-empreita .cfg-campo-bloco[data-erro] { padding-bottom: 18px; margin-bottom: -18px; }
+}
+@container (max-width: 480px) {
+  .cfg-empreita { padding: 4px 16px 6px; }
+}
+
+/* ── Diária por função: a linha editável e o cartão no estreito ───────────── */
+.cfg-funcoes-caixa { container-type: inline-size; }
+.cfg-funcoes-tabela td { padding: 6px 16px; vertical-align: middle; border-top: 1px solid var(--border); }
+.cfg-funcoes-tabela tbody tr:first-child td { border-top: 0; }
+.cfg-funcao-linha { transition: background-color 120ms ease; }
+.cfg-funcao-linha:hover { background: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
+.cfg-funcao-base { background: color-mix(in srgb, var(--brand-soft) 45%, var(--card)); }
+.cfg-funcao-alterada > td:first-child { box-shadow: inset 2px 0 0 var(--warning-strong); }
+.cfg-funcao-nome { height: 48px; }
+.cfg-celula {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  min-height: 36px; margin: 0 -8px; padding: 2px 8px; border-radius: 6px; cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.cfg-celula:hover { background: var(--muted); }
+.cfg-celula:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.cfg-lapis { color: var(--muted-foreground); opacity: .35; transition: opacity 120ms ease; }
+.cfg-celula:hover .cfg-lapis, .cfg-celula:focus-visible .cfg-lapis { opacity: 1; }
+.cfg-celula-alterada .cfg-lapis { color: var(--warning); opacity: .8; }
+.cfg-celula-edicao { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.cfg-campo-compacto { height: 34px; width: 132px; padding: 0 10px; }
+.cfg-icone-botao {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+.cfg-icone-botao:hover { background: var(--muted); }
+@container (max-width: 460px) {
+  .cfg-funcoes-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cfg-funcoes-tabela, .cfg-funcoes-tabela tbody { display: block; width: 100%; }
+  .cfg-funcoes-tabela tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; padding: 10px 14px 8px; border-top: 1px solid var(--border); }
+  .cfg-funcoes-tabela tbody tr:first-child { border-top: 0; }
+  .cfg-funcoes-tabela td { display: block; padding: 0; border: 0; }
+  .cfg-funcao-nome { grid-column: 1 / -1; height: auto; padding-bottom: 4px !important; }
+  .cfg-funcao-valor::before {
+    content: attr(data-rotulo); display: block; margin-bottom: 2px;
+    font-size: 11px; font-weight: 500; color: var(--muted-foreground);
+  }
+  .cfg-funcao-valor .cfg-celula { justify-content: space-between; margin: 0 -8px; }
+  .cfg-funcao-valor .cfg-celula > span { align-items: flex-start; }
+  .cfg-funcao-alterada > td:first-child { box-shadow: none; }
+  .cfg-funcao-alterada { box-shadow: inset 2px 0 0 var(--warning-strong); }
+  .cfg-campo-compacto { width: 100%; }
+  .cfg-celula-edicao { justify-content: flex-start; }
+}
+
+/* ── Histórico: linha do tempo com "antes → depois" em colunas ────────────── */
+.cfg-historico-item { position: relative; display: flex; gap: 12px; padding-top: 14px; }
+.cfg-historico-item + .cfg-historico-item { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.cfg-historico-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 9999px; font-size: 11px; font-weight: 600;
+}
+.cfg-historico-mudancas, .cfg-lista-mudancas {
+  display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 6px 16px; align-items: baseline;
+}
+.cfg-historico-mudancas { margin: 8px 0 0; max-width: 720px; }
+@container (max-width: 480px) {
+  .cfg-historico-mudancas { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .cfg-historico-mudancas dd { margin-bottom: 6px; }
+}
+
+/* ── Barra de alterações e toque ──────────────────────────────────────────── */
+.cfg-barra { margin-top: 4px; }
+/* Com a barra no rodapé, os avisos sobem acima dela (não cobrem o Salvar). */
+body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 120px; }
+@media (max-width: 639.98px) {
+  body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 0; }
+}
+@media (pointer: coarse) {
+  .cfg-campo { height: 44px; }
+  .cfg-total-valor { height: 44px; }
+  .cfg-celula { min-height: 44px; }
+  .cfg-desfazer { width: 28px; height: 28px; }
+  .cfg-indice-item { height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cfg-campo, .cfg-funcao-linha, .cfg-celula, .cfg-lapis, .cfg-degrau-barra > span, .cfg-desfazer, .cfg-icone-botao { transition: none; }
+  .cfg-apoio-alterado { animation: none; }
+}
+
+/* ══ Controle RH (crh-) — redesenho 08/10 ════════════════════════════════════
+ * A tela usa as peças do Financeiro (pla-resumo, pla-resumo-grade, pla-metrica,
+ * pla-progresso, pla-etapa-atual) e da família Passagens (pas-osso, pas-entra,
+ * pas-alvo, pas-rolagem-x, FilaDeTrabalho, barra de filtros comum). Aqui só o
+ * que é dela: a tabela da fila agrupada por evento (colunas, cabeçalho
+ * grudado, faixa do grupo, linha com filete de tempo/decisão), o extrato da
+ * prestação aberta (trilho das seis etapas, blocos), o interruptor, a linha
+ * do recorte e o modo cartão da largura útil estreita (container query: o
+ * menu lateral muda o espaço sem mudar a janela). */
+
+.crh-lista { container: crh-lista / inline-size; }
+.crh-tabela {
+  /* Colaborador · Etapa · Prazo · Valor · Nota fiscal · Próxima ação · abrir */
+  --crh-colunas: minmax(0, 1.8fr) minmax(7.5rem, 1fr) minmax(8rem, 1.05fr) minmax(7.5rem, .9fr) minmax(7.5rem, .95fr) minmax(8.5rem, 1fr) 2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.crh-cabecalho, .crh-topo {
+  display: grid;
+  grid-template-columns: var(--crh-colunas);
+  column-gap: 16px;
+  padding: 0 10px 0 18px;
+}
+.crh-num { text-align: right; justify-self: stretch; }
+
+/* Cabeçalho das colunas: gruda abaixo da barra de contexto de 56px. */
+.crh-cabecalho {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 3;
+  align-items: center;
+  height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--surface-muted) 70%, var(--card));
+  border-bottom: 1px solid var(--border);
+  border-radius: 11px 11px 0 0;
+}
+
+/* ── Faixa do evento ─────────────────────────────────────────────────────── */
+.crh-grupo + .crh-grupo { border-top: 1px solid var(--border); }
+.crh-grupo-topo {
+  display: grid;
+  grid-template-columns: var(--crh-colunas);
+  column-gap: 16px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 10px 10px 18px;
+  text-align: left;
+  background: color-mix(in srgb, var(--surface-muted) 45%, var(--card));
+  transition: background-color 120ms ease;
+}
+.crh-grupo-topo:hover { background: color-mix(in srgb, var(--surface-muted) 85%, var(--card)); }
+.crh-grupo-topo:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.crh-grupo:last-child:not(.crh-grupo-aberto) .crh-grupo-topo { border-radius: 0 0 11px 11px; }
+.crh-grupo-seta { transition: transform 160ms ease; }
+.crh-grupo-aberto .crh-grupo-seta { transform: rotate(90deg); }
+.crh-grupo-nome { grid-column: 1 / 4; grid-row: 1; display: flex; flex-direction: column; padding-left: 22px; }
+.crh-grupo-topo > .crh-grupo-seta { grid-column: 1; grid-row: 1; justify-self: start; margin-left: -4px; }
+.crh-grupo-soma { grid-column: 4; grid-row: 1; text-align: right; font-size: 13px; font-weight: 600; color: var(--foreground); }
+.crh-grupo-composicao { grid-column: 5 / 8; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-width: 0; }
+.crh-grupo-aberto .crh-grupo-topo { border-bottom: 1px solid var(--border); }
+.crh-comp { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+.crh-comp > .tabular-nums { color: var(--foreground); }
+.crh-comp-ponto { width: 6px; height: 6px; border-radius: 999px; background: var(--border); flex-shrink: 0; }
+.crh-comp-rh .crh-comp-ponto { background: var(--primary); }
+.crh-comp-rh { color: var(--slate-700, var(--foreground)); }
+.crh-comp-atencao .crh-comp-ponto { background: var(--warning-strong); }
+.crh-comp-neutro .crh-comp-ponto { background: color-mix(in srgb, var(--muted-foreground) 55%, transparent); }
+.crh-comp-ok .crh-comp-ponto { background: var(--success-strong); }
+.crh-comp-erro .crh-comp-ponto { background: var(--danger-strong); }
+
+/* ── Linha da prestação ──────────────────────────────────────────────────── */
+.crh-grupo-linhas > div + div .crh-linha { border-top: 1px solid var(--border); }
+.crh-grupo:last-child .crh-grupo-linhas > div:last-child .crh-linha { border-radius: 0 0 11px 11px; }
+.crh-linha { position: relative; transition: background-color 120ms ease; }
+.crh-topo { align-items: center; padding-top: 11px; padding-bottom: 11px; cursor: pointer; }
+.crh-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 45%, var(--card)); }
+.crh-linha-aberta, .crh-linha-aberta:hover { background-color: color-mix(in srgb, var(--surface-muted) 40%, var(--card)); }
+/* Filete à esquerda: tempo parado (pendentes) ou situação da nota (aprovados). */
+.crh-linha::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+.crh-tom-atrasada::before, .crh-tom-recusada::before, .crh-tom-nf-recusada::before { background: var(--danger-strong); }
+.crh-tom-parada::before { background: var(--warning-strong); }
+.crh-tom-nf-aprovada::before { background: var(--success-strong); }
+.crh-tom-nf-analise::before { background: color-mix(in srgb, var(--primary) 45%, transparent); }
+.crh-tom-nf-pendente::before { background: color-mix(in srgb, var(--warning-strong) 30%, transparent); }
+.crh-grupo:last-child .crh-grupo-linhas > div:last-child .crh-linha::before { border-bottom-left-radius: 11px; }
+.crh-linha-sem-colab .crh-c-colab h4 { color: var(--muted-foreground); font-style: italic; font-weight: 500; }
+.crh-c-acao { display: flex; align-items: center; min-width: 0; }
+.crh-c-abrir { display: flex; justify-content: flex-end; margin-right: -4px; }
+.crh-acao { transition: background-color 120ms ease, transform 80ms ease; }
+.crh-acao:active { transform: scale(.97); }
+/* Ação da linha: tom de marca suave em repouso (uma fila com 40 "Planejar" azuis
+   gritava); acende cheia quando a linha está sob o mouse ou o botão em foco. */
+.crh-acao-forte { background: var(--brand-soft); color: var(--primary); }
+.crh-linha:hover .crh-acao-forte, .crh-acao-forte:focus-visible, .crh-acao-forte:hover { background: var(--primary); color: var(--primary-foreground); }
+.crh-linha:hover .crh-acao-forte:hover { background: var(--primary-hover); }
+
+/* ── Prestação aberta ────────────────────────────────────────────────────── */
+.crh-corpo { container-type: inline-size; padding: 0 16px 16px 18px; cursor: default; }
+.crh-trilho { border-top: 1px dashed var(--border); padding: 14px 0 12px; }
+.crh-etapas { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(6, minmax(84px, 1fr)); min-width: 540px; }
+.crh-etapa { position: relative; display: flex; justify-content: center; }
+.crh-etapa-alvo { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: default; position: relative; z-index: 1; }
+.crh-liga::before, .crh-liga-feita::before {
+  content: ""; position: absolute; top: 10px; height: 1px;
+  left: calc(-50% + 16px); right: calc(50% + 16px);
+  background: var(--border);
+}
+.crh-liga-feita::before { background: color-mix(in srgb, var(--success-strong) 60%, transparent); }
+.crh-etapa-ponto {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 999px; margin-bottom: 4px;
+  background: var(--muted); border: 1px solid var(--border); color: var(--card);
+}
+.crh-etapa-miolo { width: 8px; height: 8px; border-radius: 999px; background: currentColor; }
+.crh-etapa-feita .crh-etapa-ponto { background: var(--success-strong); border-color: var(--success-strong); color: #fff; }
+.crh-etapa-atual .crh-etapa-ponto { background: var(--card); border: 2px solid var(--primary); color: var(--primary); }
+.crh-etapa-espera .crh-etapa-ponto { background: var(--card); border: 2px solid var(--warning-strong); color: var(--warning-strong); }
+.crh-etapa-erro .crh-etapa-ponto { background: var(--danger-strong); border-color: var(--danger-strong); color: #fff; }
+.crh-etapa-nome { font-size: 12px; line-height: 16px; color: var(--muted-foreground); white-space: nowrap; }
+.crh-etapa-feita .crh-etapa-nome { color: var(--success); }
+.crh-etapa-atual .crh-etapa-nome { color: var(--foreground); font-weight: 600; }
+.crh-etapa-espera .crh-etapa-nome { color: var(--warning); font-weight: 600; }
+.crh-etapa-erro .crh-etapa-nome { color: var(--danger); font-weight: 600; }
+.crh-etapa-sub { font-size: 11px; line-height: 14px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.crh-corpo-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@container (min-width: 720px) {
+  .crh-corpo-grade { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  .crh-corpo-grade-um { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+}
+.crh-bloco { border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 11px 14px 12px; min-width: 0; }
+.crh-bloco-titulo { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); }
+.crh-bloco-comentario { background: color-mix(in srgb, var(--surface-muted) 50%, var(--card)); }
+.crh-totais { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 14px; margin-top: 8px; }
+.crh-totais > div:not(.ml-auto) { display: flex; flex-direction: column; }
+.crh-rotulo { font-size: 11px; line-height: 14px; color: var(--muted-foreground); }
+.crh-detalhe { margin-top: 10px; padding-top: 4px; border-top: 1px dashed var(--border); }
+.crh-detalhe-linha { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6.5rem, auto) minmax(6.5rem, auto); column-gap: 12px; align-items: center; min-height: 28px; font-size: 12px; }
+.crh-detalhe-linha > span:first-child { color: var(--muted-foreground); }
+.crh-detalhe-linha > span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; color: var(--slate-600, var(--foreground)); white-space: nowrap; }
+.crh-detalhe-linha > span:last-child { color: var(--foreground); }
+.crh-detalhe-cab { min-height: 24px; font-size: 11px; }
+.crh-detalhe-cab > span { color: var(--muted-foreground) !important; }
+.crh-rodape { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* ── Interruptor e recorte (barra de filtros) ───────────────────────────── */
+.crh-chave { position: relative; display: inline-block; width: 26px; height: 16px; border-radius: 999px; background: var(--border); transition: background-color 150ms ease; flex-shrink: 0; }
+.crh-chave > span { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 25%, transparent); transition: transform 150ms ease; }
+.crh-chave-on { background: var(--primary); }
+.crh-chave-on > span { transform: translateX(10px); }
+.crh-recorte {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  min-height: 26px; padding: 2px 3px 2px 8px; border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  background: var(--brand-soft); color: var(--primary); font-size: 12px; font-weight: 500;
+}
+.crh-recorte-limpar { margin-left: 2px; height: 20px; padding: 0 6px; border-radius: 4px; font-weight: 600; transition: background-color 120ms ease; }
+.crh-recorte-limpar:hover { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.crh-recorte-limpar:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+
+/* ── Modo cartão (largura útil < 880px: tablet, celular, menu aberto) ──────
+ *   faixa:  [▸ evento · datas ............ soma]
+ *           [  composição                       ]
+ *   linha:  [colaborador · função ...... etapa ⌄]
+ *           [prazo        valor        nota     ]
+ *           [próxima ação                       ]                            */
+@container crh-lista (max-width: 879.98px) {
+  .crh-cabecalho { display: none; }
+  .crh-tabela { border: 0; background: transparent; display: flex; flex-direction: column; gap: 14px; }
+  .crh-grupo + .crh-grupo { border-top: 0; }
+  .crh-grupo-topo {
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    grid-template-areas: "seta nome soma" ". comp comp";
+    row-gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+  }
+  .crh-grupo-aberto .crh-grupo-topo { border-bottom: 1px solid var(--border); border-radius: 12px; }
+  .crh-grupo:last-child:not(.crh-grupo-aberto) .crh-grupo-topo { border-radius: 12px; }
+  .crh-grupo-topo > .crh-grupo-seta { grid-area: seta; margin-left: 0; }
+  .crh-grupo-topo > .crh-grupo-nome { grid-area: nome; padding-left: 0; }
+  .crh-grupo-soma { grid-area: soma; align-self: start; }
+  .crh-grupo-composicao { grid-area: comp; }
+  .crh-grupo-nome > span { white-space: normal; overflow: visible; text-overflow: clip; }
+  .crh-grupo-linhas { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .crh-grupo-linhas > div + div .crh-linha { border-top: 1px solid var(--border); }
+  .crh-linha, .crh-grupo:last-child .crh-grupo-linhas > div:last-child .crh-linha { border: 1px solid var(--border); border-radius: 12px; background-color: var(--card); overflow: hidden; }
+  .crh-topo {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) 2rem;
+    grid-template-areas: "colab colab colab etapa abrir" "prazo valor nf acao acao";
+    column-gap: 10px;
+    row-gap: 10px;
+    align-items: start;
+    padding: 12px 8px 12px 14px;
+  }
+  .crh-c-colab { grid-area: colab; }
+  .crh-c-etapa { grid-area: etapa; justify-self: end; padding-top: 1px; }
+  .crh-c-prazo { grid-area: prazo; }
+  .crh-c-valor { grid-area: valor; text-align: left; }
+  .crh-c-valor > span { align-items: flex-start !important; }
+  .crh-c-nf { grid-area: nf; }
+  .crh-c-acao { grid-area: acao; justify-content: flex-end; align-self: center; }
+  .crh-c-acao:empty { display: none; }
+  .crh-c-abrir { grid-area: abrir; margin-top: -6px; }
+  .crh-c-prazo[data-rotulo]::before, .crh-c-valor[data-rotulo]::before, .crh-c-nf[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .crh-corpo { padding: 0 12px 12px 14px; }
+  .crh-rodape { justify-content: flex-start; }
+}
+@container crh-lista (max-width: 560px) {
+  .crh-topo { grid-template-columns: repeat(3, minmax(0, 1fr)) 2rem; grid-template-areas: "colab colab etapa abrir" "prazo valor nf nf" "acao acao acao acao"; }
+  .crh-c-acao { justify-content: flex-start; }
+}
+@container crh-lista (max-width: 420px) {
+  .crh-topo { grid-template-areas: "colab colab colab abrir" "etapa etapa etapa etapa" "prazo valor nf nf" "acao acao acao acao"; }
+  .crh-c-etapa { justify-self: start; padding-top: 0; }
+  .crh-detalhe-linha { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 10px; font-size: 11.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crh-linha, .crh-grupo-topo, .crh-grupo-seta, .crh-acao, .crh-chave, .crh-chave > span, .crh-recorte-limpar { transition: none; }
 }

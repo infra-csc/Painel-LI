@@ -98,7 +98,7 @@ function fmtEventDate(start?: string, end?: string) {
  * item ativo é anunciado por `aria-activedescendant`, o foco volta ao botão
  * que abriu e as cores são tokens do tema.
  */
-export function EventSearchSelect({ value, onValueChange, events, className, variante = "campo", detalhe }: EventSelectProps & {
+export function EventSearchSelect({ value, onValueChange, events, className, variante = "campo", detalhe, rotuloVazio }: EventSelectProps & {
   /**
    * `campo` (padrão): a caixa de 44px de sempre. `barra` (08/10, Planejado):
    * o nome do evento É o gatilho, sem moldura, com uma linha miúda embaixo
@@ -108,6 +108,12 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
   variante?: "campo" | "barra";
   /** Segunda linha do gatilho na variante `barra` (datas · vagas…). */
   detalhe?: string;
+  /**
+   * Variante `barra`: o texto quando nenhum evento está escolhido e "nenhum"
+   * é uma escolha válida (o Controle RH abre em "Todos os eventos", 08/10).
+   * Sem ele, fica o convite "Selecionar evento" em cinza, como sempre.
+   */
+  rotuloVazio?: string;
 }) {
   const sorted = useSortedEvents(events);
   const [search, setSearch] = useState("");
@@ -328,7 +334,7 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
           onClick={handleOpen}
           aria-haspopup="dialog"
           aria-expanded={isOpen}
-          aria-label={selectedEvent ? `Evento: ${selectedEvent.name}. Trocar evento` : "Selecionar evento"}
+          aria-label={selectedEvent ? `Evento: ${selectedEvent.name}. Trocar evento` : rotuloVazio ? `${rotuloVazio}. Escolher um evento` : "Selecionar evento"}
           title={selectedEvent ? [selectedEvent.name, detalhe].filter(Boolean).join(" — ") : undefined}
           className={cn(
             "group flex h-[42px] min-w-0 max-w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors hover:bg-muted",
@@ -337,10 +343,10 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
           )}
         >
           <span className="min-w-0 flex-1">
-            <span className={cn("block truncate text-sm font-semibold leading-5", selectedEvent ? "text-foreground" : "text-muted-foreground")}>
-              {selectedEvent ? selectedEvent.name : "Selecionar evento"}
+            <span className={cn("block truncate text-sm font-semibold leading-5", selectedEvent || rotuloVazio ? "text-foreground" : "text-muted-foreground")}>
+              {selectedEvent ? selectedEvent.name : rotuloVazio ?? "Selecionar evento"}
             </span>
-            {detalhe && selectedEvent && (
+            {detalhe && (selectedEvent || rotuloVazio) && (
               <span className="block truncate text-2xs leading-4 tabular-nums text-muted-foreground">{detalhe}</span>
             )}
           </span>

@@ -1,14 +1,22 @@
-// Extraído de rh-control.tsx em 25/09 (modularização): o acordeão de um
-// evento na fila (cabeçalho com contadores por etapa + tooltip "Etapas
-// presentes") e a lista de cartões memoizados dentro dele.
-// Desde o endpoint agregado a linha já traz NF (`invoice`) e isenção
-// (`emiteNf`) — os resolvedores por id da página deixaram de existir.
+// Extraído de rh-control.tsx em 25/09 (modularização); redesenho 08/10.
+//
+// Um evento da fila. Antes: um cartão-acordeão com sombra por evento, contador
+// "N pendentes", pílulas coloridas por etapa (repetidas num tooltip "Etapas
+// presentes") e, dentro, cartões com borda grossa à esquerda.
+//
+// Agora é uma FAIXA de grupo dentro da tabela única da fila: o nome do evento
+// lidera, ao lado as datas e o local; à direita a composição do evento numa
+// linha de leitura (ponto + número + etapa, só as que existem) e quanto ele
+// soma. Clicar recolhe/abre; as linhas ficam nas colunas da tabela.
+// Os números e as regras de cada etapa são os de antes.
 import { memo } from "react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChevronRight } from "lucide-react";
+import { formatarMoeda } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { EventGroup } from "./prestacao-types";
 import { CartaoPrestacao } from "./cartao-prestacao";
 import type { ToastFn } from "./cartao-prestacao-linha";
+import { periodoDoEvento } from "./prestacao-utils";
 
 export interface RhEventGroupProps {
   group: EventGroup;
@@ -27,12 +35,14 @@ export interface RhEventGroupProps {
   toast: ToastFn;
 }
 
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
 export const RhEventGroup = memo(function RhEventGroup({
   group, isOpen, onToggle, expandedCards, expandedDetails, approvingInvoiceId, nfApproving, canRh,
   toggleExpand, toggleDetails, navigate, setApprovingInvoiceId, setNfApproving, toast,
 }: RhEventGroupProps) {
   const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
-  // Split aprovada_faturamento: only truly concluded when NF is approved
+  // Aprovada para faturamento só é "concluída" com a NF aprovada E o check-in feito.
   const nfApprovedCount = group.items.filter(i => {
     if (i.status !== "aprovada_faturamento" || !i.actual) return false;
     const inv = i.invoice;
@@ -55,75 +65,81 @@ export const RhEventGroup = memo(function RhEventGroup({
     const isChkPending = inv?.status === "aprovada" && !inv?.checkinAt;
     return !isDone && !isChkPending;
   }).length;
+
+  // Quanto o recorte do evento vale: o realizado quando existe, senão o planejado
+  // (sem quem não participou) — a mesma leitura da coluna Valor.
+  const soma = group.items.reduce((s, i) => {
+    if (i.planned?.didNotAttend || i.actual?.didNotAttend) return s;
+    return s + (i.actual?.totalValue ?? i.planned?.totalValue ?? 0);
+  }, 0);
+
+  // Composição: só as etapas presentes, na ordem do trabalho. Tom = de quem é a vez.
+  const composicao: { n: number; texto: string; tom: string; dica: string }[] = [
+    { n: statuses.prestacao_recebida || 0, texto: statuses.prestacao_recebida === 1 ? "comparativo" : "comparativos", tom: "crh-comp-rh", dica: "Comparativo — o RH analisa" },
+    { n: statuses.planejamento_pendente || 0, texto: statuses.planejamento_pendente === 1 ? "planejamento" : "planejamentos", tom: "crh-comp-rh", dica: "Planejamento pendente — o RH planeja os valores" },
+    { n: checkinPendingGroupCount, texto: "check-in", tom: "crh-comp-rh", dica: "Nota aprovada — falta o Check-in Financeiro" },
+    { n: statuses.devolvida_para_ajuste || 0, texto: statuses.devolvida_para_ajuste === 1 ? "devolvido" : "devolvidos", tom: "crh-comp-atencao", dica: "Devolvida — o responsável corrige e reenvia" },
+    { n: statuses.aguardando_prestacao || 0, texto: "aguardando", tom: "crh-comp-neutro", dica: "Aguardando prestação — o responsável preenche o realizado" },
+    { n: agNfCount, texto: "ag. NF", tom: "crh-comp-atencao", dica: "Aguardando Nota Fiscal" },
+    { n: nfApprovedCount, texto: nfApprovedCount === 1 ? "concluído" : "concluídos", tom: "crh-comp-ok", dica: "Concluído — NF aprovada e check-in feito" },
+    { n: statuses.recusada || 0, texto: statuses.recusada === 1 ? "recusado" : "recusados", tom: "crh-comp-erro", dica: "Recusada" },
+  ].filter(c => c.n > 0);
+
+  const periodo = periodoDoEvento(group.event);
+  const temValor = group.items.some(i => (i.actual ?? i.planned) && !(i.planned?.didNotAttend || i.actual?.didNotAttend));
+
   return (
-    <div className="rounded-xl bg-card border border-border overflow-hidden shadow-1">
+    <section className={cn("crh-grupo", isOpen && "crh-grupo-aberto")} aria-label={group.event.name}>
       <button
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-muted/60 transition-colors"
+        type="button"
+        className="crh-grupo-topo"
         onClick={() => onToggle(group.event.id)}
+        aria-expanded={isOpen}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
-          <div className="text-left min-w-0">
-            <p className="text-sm font-bold text-foreground truncate">{group.event.name}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-muted-foreground">{group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}</span>
-              {group.actionNeeded > 0 && (
-                <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">
-                  {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-        <TooltipProvider delayDuration={300}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 shrink-0">
-                {statuses.prestacao_recebida ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary border border-primary/25">{statuses.prestacao_recebida} comparativo{statuses.prestacao_recebida !== 1 ? 's' : ''}</span> : null}
-                {statuses.planejamento_pendente ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">{statuses.planejamento_pendente} planejamento{statuses.planejamento_pendente !== 1 ? 's' : ''}</span> : null}
-                {statuses.devolvida_para_ajuste ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">{statuses.devolvida_para_ajuste} devolvido{statuses.devolvida_para_ajuste !== 1 ? 's' : ''}</span> : null}
-                {statuses.aguardando_prestacao ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{statuses.aguardando_prestacao} aguardando</span> : null}
-                {agNfCount > 0 ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-warning-soft text-warning border border-warning/25">{agNfCount} ag. NF</span> : null}
-                {checkinPendingGroupCount > 0 ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary border border-primary/40">{checkinPendingGroupCount} check-in</span> : null}
-                {nfApprovedCount > 0 ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-success-soft text-success border border-success/25">{nfApprovedCount} concluído{nfApprovedCount !== 1 ? 's' : ''}</span> : null}
-                {statuses.recusada ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-danger-soft text-danger border border-danger/25">{statuses.recusada} recusado{statuses.recusada !== 1 ? 's' : ''}</span> : null}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="text-2xs space-y-1 p-2.5">
-              <div className="font-semibold text-slate-600 mb-1.5">Etapas presentes</div>
-              {statuses.prestacao_recebida ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" /><span className="text-primary">Comparativo ({statuses.prestacao_recebida})</span></div> : null}
-              {statuses.planejamento_pendente ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning-strong shrink-0" /><span className="text-warning">Planejamento pendente ({statuses.planejamento_pendente})</span></div> : null}
-              {statuses.devolvida_para_ajuste ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning-strong shrink-0" /><span className="text-warning">Devolvida ({statuses.devolvida_para_ajuste})</span></div> : null}
-              {statuses.aguardando_prestacao ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" /><span className="text-muted-foreground">Aguardando prestação ({statuses.aguardando_prestacao})</span></div> : null}
-              {agNfCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" /><span className="text-primary">Aguardando Nota Fiscal ({agNfCount})</span></div> : null}
-              {nfApprovedCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-success-strong shrink-0" /><span className="text-success">Concluído ({nfApprovedCount})</span></div> : null}
-              {statuses.recusada ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-danger-strong shrink-0" /><span className="text-danger">Recusada ({statuses.recusada})</span></div> : null}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <ChevronRight className="crh-grupo-seta w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
+        <span className="crh-grupo-nome min-w-0">
+          <span className="block truncate text-sm font-semibold text-foreground">{group.event.name}</span>
+          <span className="block truncate text-xs text-muted-foreground tabular-nums">
+            {periodo}{periodo ? " · " : ""}{plural(group.items.length, "item", "itens")}
+            {group.actionNeeded > 0 && <span className="text-warning font-medium"> · {plural(group.actionNeeded, "pendente", "pendentes")}</span>}
+            {group.event.location && <span title={group.event.location}> · {group.event.location}</span>}
+          </span>
+        </span>
+        <span className="crh-grupo-composicao">
+          {composicao.map(c => (
+            <span key={c.texto} className={cn("crh-comp", c.tom)} title={`${c.dica} (${c.n})`}>
+              <span className="crh-comp-ponto" aria-hidden="true" />
+              <span className="tabular-nums font-semibold">{c.n}</span> {c.texto}
+            </span>
+          ))}
+        </span>
+        <span className="crh-grupo-soma tabular-nums" title="Soma do realizado (ou do planejado, onde ainda não há realizado) dos itens visíveis — sem quem não participou">
+          {temValor ? formatarMoeda(soma) : <span className="text-xs font-normal text-muted-foreground">sem valores</span>}
+        </span>
       </button>
 
       {isOpen && (
-        <div className="border-t border-border px-3 py-2 space-y-1.5 bg-surface-muted/40">
+        <div className="crh-grupo-linhas" role="list" aria-label={`Prestações de ${group.event.name}`}>
           {group.items.map(item => (
-            <CartaoPrestacao
-              key={item.id}
-              item={item}
-              expandido={expandedCards.has(item.id)}
-              detalhes={expandedDetails.has(item.id)}
-              approvingInvoiceId={approvingInvoiceId}
-              nfApproving={nfApproving}
-              canRh={canRh}
-              toggleExpand={toggleExpand}
-              toggleDetails={toggleDetails}
-              navigate={navigate}
-              setApprovingInvoiceId={setApprovingInvoiceId}
-              setNfApproving={setNfApproving}
-              toast={toast}
-            />
+            <div role="listitem" key={item.id}>
+              <CartaoPrestacao
+                item={item}
+                expandido={expandedCards.has(item.id)}
+                detalhes={expandedDetails.has(item.id)}
+                approvingInvoiceId={approvingInvoiceId}
+                nfApproving={nfApproving}
+                canRh={canRh}
+                toggleExpand={toggleExpand}
+                toggleDetails={toggleDetails}
+                navigate={navigate}
+                setApprovingInvoiceId={setApprovingInvoiceId}
+                setNfApproving={setNfApproving}
+                toast={toast}
+              />
+            </div>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 });

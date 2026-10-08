@@ -44,6 +44,8 @@ export interface RhControlData {
   funcoes: { id: string; name: string }[];
   /** Eventos com escalação — as opções do select de evento. */
   eventosDoSelect: EventoDoSelect[];
+  /** Os mesmos eventos, inteiros — o seletor da barra de contexto mostra datas e local. */
+  eventos: Event[];
 }
 
 const CONTADORES_VAZIOS: ControleRh["contadores"] = {
@@ -58,6 +60,7 @@ const CONTADORES_VAZIOS: ControleRh["contadores"] = {
 
 const SEM_ITENS: PrestacaoItem[] = [];
 const SEM_FUNCOES: ControleRh["funcoes"] = [];
+const SEM_EVENTOS: Event[] = [];
 
 /**
  * @param eventoSelecionado id do evento filtrado, ou `null` em "Todos os eventos".
@@ -112,5 +115,6 @@ export function useRhControlData(eventoSelecionado: string | null, filterStatus:
     rhActionCount: contadores.rhAction,
     concludedCount, totalForProgress, progressPct,
     funcoes, eventosDoSelect,
+    eventos: qEventsWithInclusions.data ?? SEM_EVENTOS,
   };
 }

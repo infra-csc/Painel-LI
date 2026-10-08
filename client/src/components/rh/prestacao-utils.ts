@@ -47,17 +47,8 @@ export function contarParaProgresso(
   return total;
 }
 
-const RH_AVATAR_COLORS = [
-  'bg-info-strong','bg-primary','bg-success-strong','bg-warning-strong',
-  'bg-primary','bg-primary','bg-warning','bg-info-strong','bg-danger-strong','bg-info-strong',
-];
-export function avatarColorRh(name: string) {
-  const idx = name.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % RH_AVATAR_COLORS.length;
-  return RH_AVATAR_COLORS[idx];
-}
-export function initialsRh(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-}
+// 08/10 (redesenho): o círculo de iniciais colorido (avatarColorRh/initialsRh)
+// saiu — a fila é uma tabela como a do Comparativo, onde o nome lidera a linha.
 
 export function timeInStatus(date: Date | string | null | undefined): string {
   if (!date) return "-";
@@ -157,25 +148,76 @@ export const getNavigationTarget = (item: PrestacaoItem): NavigationTarget | nul
   return null;
 };
 
-// `invoice` é a nota do `item.actual` (a linha já chega com ela do servidor) — a
-// função antes chamava `getInvoiceForActual(item.actual.id)`; o resultado é o mesmo.
-export const getLeftBorderStyle = (item: PrestacaoItem, invoice: NotaParaControle | null | undefined): { border: string; bg: string } => {
+// `invoice` é a nota do `item.actual` (a linha já chega com ela do servidor).
+// 08/10 (redesenho): era `getLeftBorderStyle`, que devolvia classes de borda
+// de 4px e fundo tingido; agora devolve o TOM do filete de 3px da linha. A
+// regra é a mesma, ramo por ramo: situação da NF para os aprovados, recusa, e
+// tempo parado (> 30, > 7, > 0 dias) para os demais.
+export type TomDaLinha = "nf-aprovada" | "nf-recusada" | "nf-analise" | "nf-pendente" | "recusada" | "atrasada" | "parada" | "recente" | "nova";
+export const tomDaLinha = (item: PrestacaoItem, invoice: NotaParaControle | null | undefined): TomDaLinha => {
   if (CONCLUDED_STATUSES.includes(item.status)) {
     if (item.status === "aprovada_faturamento") {
       const nfInv = item.actual ? invoice : undefined;
       const nfSt = nfInv?.status || "pendente";
-      // Green = NF approved (concluded); red = NF refused (terminal); blue = NF in review; amber = pending/returned
-      if (nfSt === "aprovada") return { border: "border-l-4 border-l-success-strong", bg: "" };
-      if (nfSt === "recusada") return { border: "border-l-4 border-l-danger-strong", bg: "" };
-      if (nfSt === "enviada") return { border: "border-l-4 border-l-primary/40", bg: "" };
-      if (nfSt === "devolvida") return { border: "border-l-4 border-l-warning/25", bg: "" };
-      return { border: "border-l-4 border-l-warning/25", bg: "" };
+      if (nfSt === "aprovada") return "nf-aprovada";
+      if (nfSt === "recusada") return "nf-recusada";
+      if (nfSt === "enviada") return "nf-analise";
+      return "nf-pendente"; // devolvida ou ainda sem nota
     }
-    return { border: "border-l-4 border-l-danger-strong", bg: "" };
+    return "recusada";
   }
   const days = getDiffDays(item.lastActivityDate);
-  if (days > 30) return { border: "border-l-4 border-l-danger-strong", bg: "bg-danger-soft/20" };
-  if (days > 7)  return { border: "border-l-4 border-l-warning-strong", bg: "bg-warning-soft/20" };
-  if (days > 0)  return { border: "border-l-4 border-l-info-strong", bg: "" };
-  return { border: "border-l-4 border-l-border", bg: "" };
+  if (days > 30) return "atrasada";
+  if (days > 7) return "parada";
+  if (days > 0) return "recente";
+  return "nova";
 };
+
+// ── Prazo da linha (coluna "Prazo") ─────────────────────────────────────────
+// Era um IIFE dentro da linha do cartão; virou função pura com a MESMA regra:
+// o que é do RH mede o prazo pelo evento (encerrado há N dias, ou começa em
+// até 14 dias); o resto mede o tempo parado na etapa (> 30 dias é alerta).
+// 08/10: quando o item do RH não tem alerta de evento, a coluna mostra o tempo
+// parado (antes ficava vazia) — o mesmo dado, sem regra nova.
+export interface PrazoDaLinha { texto: string; tom: "perigo" | "atencao" | "neutro"; alerta: boolean }
+
+/** "YYYY-MM-DD" como data LOCAL — `new Date(string)` interpretaria como UTC. */
+function dataLocal(s: string | Date | null | undefined): Date | null {
+  if (!s) return null;
+  const [y, m, d] = String(s).split("T")[0].split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+export function prazoDaLinha(item: PrestacaoItem, agora: Date = new Date()): PrazoDaLinha | null {
+  if (item.status === "aprovada_faturamento") return null;
+  const hoje = new Date(agora); hoje.setHours(0, 0, 0, 0);
+  const days = getDiffDays(item.lastActivityDate);
+  const parado = (): PrazoDaLinha | null => {
+    if (days > 30) return { texto: timeInStatus(item.lastActivityDate), tom: "perigo", alerta: true };
+    return days > 0 ? { texto: timeInStatus(item.lastActivityDate), tom: "neutro", alerta: false } : null;
+  };
+  const doRh = item.status === "planejamento_pendente" || item.status === "prestacao_recebida";
+  if (!doRh) return parado();
+  const fim = dataLocal(item.event.endDate);
+  const inicio = dataLocal(item.event.startDate);
+  if (fim && fim < hoje) {
+    const n = Math.floor((hoje.getTime() - fim.getTime()) / 864e5);
+    return { texto: `Evento encerrado há ${n} dia${n !== 1 ? "s" : ""}`, tom: "perigo", alerta: true };
+  }
+  if (inicio) {
+    const n = Math.floor((inicio.getTime() - hoje.getTime()) / 864e5);
+    if (n <= 14) return { texto: `Evento em ${n <= 0 ? "andamento" : `${n} dia${n !== 1 ? "s" : ""}`}`, tom: "atencao", alerta: true };
+  }
+  const p = parado();
+  return p ? { ...p, tom: "neutro", alerta: false } : null;
+}
+
+/** "11/09 – 12/09/2026" (ou só o dia) — o mesmo desenho do Planejado e do Comparativo. */
+export function periodoDoEvento(e: { startDate?: string | null; endDate?: string | null }): string {
+  if (!e.startDate) return "";
+  const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const ano = e.startDate.slice(0, 4);
+  if (!e.endDate || e.endDate === e.startDate) return `${dm(e.startDate)}/${ano}`;
+  return `${dm(e.startDate)} – ${dm(e.endDate)}/${e.endDate.slice(0, 4)}`;
+}
