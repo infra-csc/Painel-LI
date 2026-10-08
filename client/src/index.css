@@ -2281,3 +2281,366 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .cfg-campo, .cfg-funcao-linha, .cfg-celula, .cfg-lapis, .cfg-degrau-barra > span, .cfg-desfazer, .cfg-icone-botao { transition: none; }
   .cfg-apoio-alterado { animation: none; }
 }
+
+/* ══ Regras de cálculo (rgc-) — redesenho 08/10 ═════════════════════════════
+ * A página vira documentação: índice lateral grudado (faixa de atalhos quando
+ * falta largura útil), documento único com seções separadas por filete,
+ * tabelas limpas que viram cartão em largura estreita, a ordem do cálculo, a
+ * calculadora de deflação com a régua dos dias e os exemplos. Usa as peças da
+ * família (pas-osso, pas-entra, pas-alvo, pas-rolagem-x). As trocas de layout
+ * medem a LARGURA ÚTIL (container queries), não a janela: o menu lateral
+ * aberto ou compacto muda o espaço sem mudar a janela. */
+
+.rgc-pagina { container: rgc-pagina / inline-size; }
+.rgc-casca { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.rgc-lateral { display: none; }
+
+/* Onde a leitura começa: barra do app + barra da tela + faixa de atalhos.
+   O índice usa a MESMA medida (scroll-margin-top) para acender a seção. */
+.rgc-secao { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 3rem + 12px); }
+@media (max-width: 639.98px) {
+  .rgc-secao { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3rem + 12px); }
+}
+
+/* ── Faixa de atalhos (largura útil estreita) ─────────────────────────────── */
+.rgc-faixa {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 20;
+  margin: -20px calc(-1 * var(--page-gutter, 1rem)) 16px;
+  padding: 0 var(--page-gutter, 1rem);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+@media (max-width: 639.98px) { .rgc-faixa { top: var(--sticky-top, 3.5rem); } }
+.rgc-faixa-rolagem { display: flex; gap: 6px; padding: 8px 0; }
+.rgc-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.rgc-chip:hover { color: var(--foreground); border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+.rgc-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.rgc-chip-ativo, .rgc-chip-ativo:hover { background: var(--brand-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+
+/* ── Índice lateral (largura útil ≥ 1000px) ───────────────────────────────── */
+@container rgc-pagina (min-width: 1000px) {
+  .rgc-casca { grid-template-columns: 208px minmax(0, 1fr); column-gap: 36px; }
+  .rgc-lateral { display: block; position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 1.25rem); }
+  .rgc-faixa { display: none; }
+  .rgc-secao { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 20px); }
+}
+.rgc-indice-titulo {
+  margin-bottom: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+.rgc-indice-grupo + .rgc-indice-grupo { margin-top: 16px; }
+.rgc-indice-grupo-rotulo { display: block; padding-bottom: 6px; font-size: 12px; font-weight: 600; line-height: 16px; color: var(--foreground); }
+.rgc-indice-grupo > ol { border-left: 1px solid var(--border); }
+.rgc-indice-item {
+  position: relative;
+  display: block;
+  margin-left: -1px;
+  padding: 5px 10px 5px 13px;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--muted-foreground);
+  transition: color 120ms ease, background-color 120ms ease, border-color 160ms ease;
+}
+.rgc-indice-item:hover { color: var(--foreground); background: color-mix(in srgb, var(--muted) 70%, transparent); }
+.rgc-indice-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.rgc-indice-ativo, .rgc-indice-ativo:hover { color: var(--primary); font-weight: 500; border-left-color: var(--primary); }
+.rgc-indice-rodape {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+}
+
+/* ── Documento ────────────────────────────────────────────────────────────── */
+.rgc-documento {
+  container: rgc-doc / inline-size;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.rgc-secao { padding: 28px 32px 32px; }
+.rgc-secao + .rgc-secao { border-top: 1px solid var(--border); }
+@container rgc-doc (max-width: 560px) { .rgc-secao { padding: 22px 16px 26px; } }
+.rgc-grupo { font-size: 11px; font-weight: 600; line-height: 16px; text-transform: uppercase; letter-spacing: .06em; color: var(--primary); }
+.rgc-ancora { opacity: 0; transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease; }
+.rgc-titulo:hover .rgc-ancora, .rgc-ancora:focus-visible { opacity: 1; }
+@media (hover: none) { .rgc-ancora { display: none; } }
+/* Chegada pelo índice: o título acende uma vez para o olho achar onde parou. */
+@keyframes rgc-chegou { 0%, 30% { background-color: color-mix(in srgb, var(--brand-soft) 90%, transparent); } 100% { background-color: transparent; } }
+.rgc-chegou .rgc-titulo { border-radius: 6px; animation: rgc-chegou 1.2s ease-out both; }
+
+/* ── Tabela de referência ─────────────────────────────────────────────────── */
+.rgc-quadro { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.rgc-tabela { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; line-height: 20px; }
+.rgc-th {
+  padding: 9px 16px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+.rgc-td { padding: 10px 16px; border-top: 1px solid var(--border); vertical-align: middle; color: var(--foreground); }
+.rgc-td-rotulo { text-align: left; font-weight: 500; }
+.rgc-tabela .rgc-th-num { text-align: right; }
+/* Muitas colunas de número (empreita): menos respiro lateral, mais coluna. */
+.rgc-densa .rgc-th, .rgc-densa .rgc-td { padding-left: 10px; padding-right: 10px; }
+.rgc-densa .rgc-th:first-child, .rgc-densa .rgc-td:first-child { padding-left: 16px; }
+.rgc-densa .rgc-th:last-child, .rgc-densa .rgc-td:last-child { padding-right: 16px; }
+.rgc-tabela tbody > tr:first-child > * { border-top: 0; }
+.rgc-linha > * { transition: background-color 120ms ease; }
+.rgc-linha:hover > * { background: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
+.rgc-grupo-linha > th {
+  padding: 7px 16px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 55%, var(--card));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: left;
+  color: var(--slate-600, var(--muted-foreground));
+}
+.rgc-total > *, .rgc-total:hover > * { background: color-mix(in srgb, var(--surface-muted) 65%, var(--card)); font-weight: 600; }
+.rgc-total-forte > *, .rgc-total-forte:hover > * { background: color-mix(in srgb, var(--brand-soft) 70%, var(--card)); }
+
+/* Cartão: abaixo de 620px úteis a linha vira bloco — rótulo em cima, valores
+   numa grade com o nome da coluna sobre cada um. Sem rolagem lateral. */
+@container rgc-doc (max-width: 620px) {
+  .rgc-com-cartao .rgc-tabela, .rgc-com-cartao .rgc-tabela tbody { display: block; width: 100%; }
+  .rgc-com-cartao thead, .rgc-com-cartao colgroup { display: none; }
+  .rgc-com-cartao tr.rgc-linha {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 10px 16px;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .rgc-com-cartao tbody > tr:first-child { border-top: 0; }
+  .rgc-com-cartao tr.rgc-linha > *, .rgc-com-cartao.rgc-densa tr.rgc-linha > * { display: block; padding: 0; border: 0; text-align: left !important; }
+  .rgc-com-cartao .rgc-td-rotulo { grid-column: 1 / -1; font-weight: 600; }
+  .rgc-com-cartao .rgc-td::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted-foreground);
+  }
+  .rgc-com-cartao .rgc-grupo-linha, .rgc-com-cartao .rgc-grupo-linha > th { display: block; }
+  .rgc-com-cartao tbody > tr.rgc-grupo-linha:first-child > th { border-top: 0; }
+  .rgc-com-cartao .rgc-alterado { align-items: flex-start; }
+}
+/* Tabela de TEXTO (matriz "quem recebe o quê"): vira cartão já abaixo de
+   860px úteis — seis colunas de frase espremidas quebravam em 4 linhas. */
+@container rgc-doc (max-width: 860px) {
+  .rgc-cartao-largo .rgc-tabela, .rgc-cartao-largo .rgc-tabela tbody { display: block; width: 100%; }
+  .rgc-cartao-largo thead, .rgc-cartao-largo colgroup { display: none; }
+  .rgc-cartao-largo tr.rgc-linha {
+    display: grid;
+    /* diária · dias · deflação (curta) · alimentação (longa) · mobilidade */
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, .6fr) minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 10px 16px;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .rgc-cartao-largo tbody > tr:first-child { border-top: 0; }
+  .rgc-cartao-largo tr.rgc-linha > * { display: block; padding: 0; border: 0; text-align: left !important; }
+  .rgc-cartao-largo .rgc-td-rotulo { grid-column: 1 / -1; font-weight: 600; }
+  .rgc-cartao-largo .rgc-td::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted-foreground);
+  }
+}
+@container rgc-doc (max-width: 620px) {
+  .rgc-cartao-largo tr.rgc-linha { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Marca da matriz "quem recebe o quê". */
+.rgc-marca { display: inline-flex; align-items: flex-start; gap: 8px; line-height: 18px; }
+.rgc-marca-icone { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 9999px; }
+
+/* ── Lista de regras: título | explicação ─────────────────────────────────── */
+.rgc-regra {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  gap: 2px 20px;
+  padding: 10px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 13px;
+  line-height: 20px;
+}
+.rgc-regra:first-child { border-top: 0; padding-top: 0; }
+.rgc-regra:last-child { padding-bottom: 0; }
+.rgc-regra-titulo { font-weight: 500; color: var(--foreground); }
+.rgc-regra-texto { display: block; color: var(--slate-600, var(--muted-foreground)); }
+.rgc-regra-texto::first-letter { text-transform: uppercase; }
+@container rgc-doc (max-width: 560px) { .rgc-regra { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── Ordem do cálculo ─────────────────────────────────────────────────────── */
+.rgc-passos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.rgc-passos > li + li { border-left: 1px solid var(--border); }
+.rgc-passo-item { display: flex; flex-direction: column; gap: 10px; height: 100%; padding: 14px 16px 16px; transition: background-color 120ms ease; }
+.rgc-passo-item:hover { background: color-mix(in srgb, var(--surface-muted) 60%, var(--card)); }
+.rgc-passo-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.rgc-passo-n {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--brand-soft);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+@container rgc-doc (max-width: 780px) {
+  .rgc-passos { grid-template-columns: minmax(0, 1fr); }
+  .rgc-passos > li + li { border-left: 0; border-top: 1px solid var(--border); }
+  .rgc-passo-item { flex-direction: row; gap: 12px; padding: 12px 14px; }
+}
+.rgc-formula { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; }
+.rgc-formula-termo { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 10px; border-radius: 6px; background: var(--surface-muted); color: var(--foreground); font-weight: 500; }
+.rgc-formula-total { background: var(--primary); color: var(--primary-foreground); }
+.rgc-formula-op { color: var(--muted-foreground); font-weight: 500; }
+
+/* ── Deflação: faixas, calculadora e régua ────────────────────────────────── */
+.rgc-documento [data-faixa="1"] { --rgc-cor: var(--primary); }
+.rgc-documento [data-faixa="2"] { --rgc-cor: color-mix(in srgb, var(--primary) 55%, var(--card)); }
+.rgc-documento [data-faixa="3"] { --rgc-cor: color-mix(in srgb, var(--primary) 28%, var(--card)); }
+.rgc-faixas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.rgc-faixa-item { position: relative; display: flex; flex-direction: column; padding: 14px 16px 12px; }
+.rgc-faixa-item + .rgc-faixa-item { border-left: 1px solid var(--border); }
+.rgc-faixa-item::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--rgc-cor); }
+@container rgc-doc (max-width: 420px) { .rgc-faixa-item { padding: 12px 10px 10px 12px; } }
+
+.rgc-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-muted) 45%, var(--card));
+}
+.rgc-calc-campos { display: grid; grid-template-columns: minmax(0, 1fr) 168px; gap: 12px; align-items: start; }
+@container rgc-doc (max-width: 520px) { .rgc-calc-campos { grid-template-columns: minmax(0, 1fr); } }
+.rgc-rotulo { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--slate-600, var(--muted-foreground)); }
+.rgc-campo {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 13px;
+  color: var(--foreground);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.rgc-campo:focus-visible, .rgc-passo:focus-within {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 18%, transparent);
+}
+.rgc-passo { display: flex; height: 36px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); overflow: hidden; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.rgc-passo-botao { flex: 0 0 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted-foreground); transition: background-color 120ms ease, color 120ms ease; }
+.rgc-passo-botao:hover:not(:disabled) { background: var(--muted); color: var(--foreground); }
+.rgc-passo-botao:active:not(:disabled) { background: color-mix(in srgb, var(--foreground) 10%, var(--muted)); }
+.rgc-passo-botao:disabled { opacity: .4; cursor: not-allowed; }
+.rgc-passo-botao:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.rgc-passo-campo {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: transparent;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.rgc-passo-campo:focus { outline: none; }
+.rgc-passo-campo::-webkit-inner-spin-button, .rgc-passo-campo::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+@media (pointer: coarse) {
+  .rgc-campo, .rgc-passo { height: 44px; }
+  .rgc-passo-botao { flex-basis: 44px; }
+}
+
+.rgc-regua { display: flex; gap: 3px; height: 8px; }
+.rgc-regua-dia { flex: 1 1 0; max-width: 28px; border-radius: 3px; background: var(--rgc-cor); animation: rgc-dia 180ms ease-out both; }
+@keyframes rgc-dia { from { opacity: 0; transform: scaleY(.3); } to { opacity: 1; transform: none; } }
+.rgc-memoria { overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.rgc-memoria table { border-collapse: collapse; font-size: 13px; line-height: 20px; }
+.rgc-memoria-linha > * { padding: 9px 14px; border-bottom: 1px solid var(--border); }
+.rgc-faixa-ponto { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--rgc-cor); }
+.rgc-memoria-total {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "titulo valor" "eco valor";
+  align-items: center;
+  gap: 2px 16px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--brand-soft) 55%, var(--card));
+}
+.rgc-memoria-titulo { grid-area: titulo; }
+.rgc-memoria-valor { grid-area: valor; }
+.rgc-memoria-eco { grid-area: eco; }
+/* Estreito: o total sobe ao lado do rótulo e a economia ganha a linha toda. */
+@container rgc-doc (max-width: 520px) {
+  .rgc-memoria-total { grid-template-areas: "titulo valor" "eco eco"; }
+}
+
+/* ── Exemplo numérico ─────────────────────────────────────────────────────── */
+.rgc-exemplo { padding: 2px 0 2px 14px; border-left: 3px solid color-mix(in srgb, var(--primary) 45%, var(--card)); }
+.rgc-exemplo-rotulo { margin-bottom: 2px; font-size: 11px; font-weight: 600; line-height: 16px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rgc-chip, .rgc-indice-item, .rgc-ancora, .rgc-linha > *, .rgc-passo-item, .rgc-campo, .rgc-passo, .rgc-passo-botao { transition: none; }
+  .rgc-regua-dia, .rgc-chegou .rgc-titulo { animation: none; }
+}
