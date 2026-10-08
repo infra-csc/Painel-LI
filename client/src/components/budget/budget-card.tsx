@@ -53,16 +53,19 @@ export interface BudgetCardProps {
   onRestore: (s: RestoreModalState) => void;
 }
 
-type Tom = "neutro" | "marca" | "alerta" | "ok";
+// `info` e `perigo` (08/10) são do Realizado (em revisão, recusado), que reaproveita o Chip.
+export type Tom = "neutro" | "marca" | "alerta" | "ok" | "info" | "perigo";
 const TOM: Record<Tom, string> = {
   neutro: "bg-muted text-slate-600 border-transparent",
   marca: "bg-brand-soft text-primary border-transparent",
   alerta: "bg-warning-soft text-warning border-warning/25",
   ok: "bg-success-soft text-success border-transparent",
+  info: "bg-info-soft text-info border-transparent",
+  perigo: "bg-danger-soft text-danger border-danger/25",
 };
 
 /** Etiqueta curta do card (tipo, modalidade, situação). */
-function Chip({ tom = "neutro", title, children, className }: { tom?: Tom; title?: string; children: React.ReactNode; className?: string }) {
+export function Chip({ tom = "neutro", title, children, className }: { tom?: Tom; title?: string; children: React.ReactNode; className?: string }) {
   return (
     <span title={title} className={cn("pla-chip inline-flex items-center gap-1 h-5 px-1.5 rounded-md border text-2xs font-medium whitespace-nowrap", TOM[tom], className)}>
       {children}
@@ -71,7 +74,7 @@ function Chip({ tom = "neutro", title, children, className }: { tom?: Tom; title
 }
 
 /** Linha de lançamento do extrato: rótulo · conta miúda · valor. */
-function Lancamento({ rotulo, cor, valor, riscado, children }: {
+export function Lancamento({ rotulo, cor, valor, riscado, children }: {
   rotulo: string; cor: string; valor: number; riscado: boolean; children: React.ReactNode;
 }) {
   return (
@@ -89,7 +92,7 @@ function Lancamento({ rotulo, cor, valor, riscado, children }: {
 }
 
 /** "1 dia útil · R$ 465,00" — a conta de uma faixa, na mesma linha (só o valor do lançamento fica na coluna da direita). */
-function Conta({ rotulo, valor, title }: { rotulo: React.ReactNode; valor?: React.ReactNode; title?: string }) {
+export function Conta({ rotulo, valor, title }: { rotulo: React.ReactNode; valor?: React.ReactNode; title?: string }) {
   return (
     <span className="min-w-0" title={title}>
       {rotulo}

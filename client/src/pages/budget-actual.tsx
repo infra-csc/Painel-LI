@@ -1,19 +1,26 @@
 /**
- * Orçamento REALIZADO — página de composição (25/09, modularização).
+ * Orçamento REALIZADO — página de composição (25/09, modularização);
+ * redesenho 08/10.
  *
- * Até 24/09 este arquivo tinha ~2.600 linhas. Agora:
- *  - dados: `useBudgetQueries` (consultas), `useBudgetActualData` (índices,
- *    filtros, totais, seleção), `useBudgetActualEditor` (estado do modal, com
- *    viagem/alimentação DERIVADAS) e `useBudgetActualActions` (mutations);
- *  - apresentação: components/budget/actual-* e edit-actual-*.
- * Nada de comportamento mudou — só o lugar onde cada pedaço vive.
+ * Dados (inalterados): `useBudgetQueries` (consultas), `useBudgetActualData`
+ * (índices, filtros, totais, seleção), `useBudgetActualEditor` (estado do
+ * modal, com viagem/alimentação DERIVADAS) e `useBudgetActualActions`
+ * (mutations).
+ *
+ * Apresentação (08/10) — o passo seguinte do Planejado, com a MESMA casca:
+ * barra de contexto de 56px grudada com o título, o evento como seletor
+ * (nome + datas · prestações) e a ação forte ("Enviar para revisão (N)");
+ * conteúdo até 1560px com o aviso de devolvidas, o resumo do evento num painel
+ * só (total, planejado, diferença, casa/freela, aprovação e etapas), a fila de
+ * situações que conta e recorta, a barra de filtros, a grade de extratos e a
+ * barra de seleção que sobe do rodapé. O rodapé fixo de antes (e a folga de
+ * 9rem que ele exigia) saiu.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearch } from "wouter";
-import { ArrowRight, ClipboardCheck } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCheck, ClipboardCheck, RotateCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EventSearchSelect } from "@/components/event-select";
-import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { QueryError } from "@/components/common/query-state";
@@ -22,17 +29,26 @@ import { useBudgetQueries } from "@/hooks/use-budget-queries";
 import { useBudgetActualData } from "@/hooks/use-budget-actual-data";
 import { useBudgetActualEditor } from "@/hooks/use-budget-actual-editor";
 import { useBudgetActualActions } from "@/hooks/use-budget-actual-actions";
-import { useSidebar } from "@/contexts/sidebar-context";
 import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { useQuery } from "@tanstack/react-query";
 import { normalizeRole } from "@shared/roles";
 import type { Event } from "@shared/schema";
-import { ActualStepper, ActualTotalBanner, DevolvedBanner } from "@/components/budget/actual-overview";
-import { ActualFilters } from "@/components/budget/actual-filters";
+import { DevolvedBanner, ResumoDoRealizado } from "@/components/budget/actual-overview";
+import { ActualFilters, FilaDoRealizado } from "@/components/budget/actual-filters";
 import { ActualGroupList } from "@/components/budget/actual-group-list";
 import { EditActualModal } from "@/components/budget/edit-actual-modal";
 import { SendForReviewBar, SendForReviewDialog } from "@/components/budget/send-for-review-bar";
 import { DeleteActualDialog, SplitDialog } from "@/components/budget/actual-dialogs";
+import { EsqueletoDosCards } from "@/components/budget/budget-cards";
+import { ddmm, formatCurrency } from "@/components/budget/types";
+
+/** "11/09 – 12/09/2026" (ou só o dia de início) — o mesmo do Planejado. */
+function periodoDoEvento(e: Event | undefined): string {
+  if (!e?.startDate) return "";
+  const ano = e.startDate.slice(0, 4);
+  if (!e.endDate || e.endDate === e.startDate) return `${ddmm(e.startDate)}/${ano}`;
+  return `${ddmm(e.startDate)} – ${ddmm(e.endDate)}/${e.endDate.slice(0, 4)}`;
+}
 
 export default function BudgetActualPage() {
   usePageTitle("Realizado");
@@ -50,13 +66,12 @@ export default function BudgetActualPage() {
   const { eventId: selectedEventId, setEventId: setSelectedEventId, sanitize: sanearEventoEmFoco } = useEventoEmFoco();
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const { user } = useAuth();
-  const { sidebarWidth } = useSidebar();
 
   const q = useBudgetQueries(selectedEventId, {
     planned: true, actual: true, comparison: true, inclusions: true, notes: "actual", notesStaleTime: 30000,
     plannedLogs: true, tickets: true, settings: true,
   });
-  const { events, functions, collaborators, budgetActual, budgetPlanned, comparison: budgetComparison, teamInclusions, selectedEvent, getCollaboratorName, getFunctionName, functionNameById, ticketByInclusion, estado: estadoEvento } = q;
+  const { events, collaborators, budgetActual, budgetPlanned, comparison: budgetComparison, teamInclusions, selectedEvent, getCollaboratorName, getFunctionName, functionNameById, ticketByInclusion, estado: estadoEvento } = q;
   const isLoading = q.qActual.isLoading;
   // Evento em foco que não existe mais (excluído) é descartado assim que a lista chega (23/09).
   useEffect(() => { if (events?.length) sanearEventoEmFoco(events.map(e => e.id)); }, [events, sanearEventoEmFoco]);
@@ -92,7 +107,7 @@ export default function BudgetActualPage() {
   }, [budgetActual, urlCollaboratorId, urlFunctionId]);
 
   const dados = useBudgetActualData({ selectedEventId, budgetActual, budgetPlanned, teamInclusions, selectedEvent, getCollaboratorName, getFunctionName });
-  const { filteredItems, selectedCards, setSelectedCards, totalRealizado, prestacaoCount, pendingCount, pendingFiltered, sentForReview } = dados;
+  const { filteredItems, selectedCards, setSelectedCards, pendingFiltered, sentForReview } = dados;
 
   const editor = useBudgetActualEditor({
     getItemInclusion: dados.getItemInclusion, getItemDayCounts: dados.getItemDayCounts, getPlannedRef: dados.getPlannedRef,
@@ -115,111 +130,207 @@ export default function BudgetActualPage() {
     });
   }, []);
   const trocarEvento = (v: string) => { setSelectedEventId(v); setCollapsedCards(new Set()); };
-  const limparFiltros = () => { dados.setSearchTerm(""); dados.setFilterType("all"); dados.setFilterFunction("all"); };
 
   const allSentForReview = sentForReview;
-  const eventItems = useMemo(() => (budgetActual || []).filter(a => a.eventId === selectedEventId), [budgetActual, selectedEventId]);
+  const nSel = selectedCards.size;
+  const totalSelecionado = useMemo(
+    () => filteredItems.reduce((s, i) => (selectedCards.has(i.id) ? s + i.totalValue : s), 0),
+    [filteredItems, selectedCards],
+  );
+  const itemParaRemover = acoes.confirmDeleteId ? budgetActual?.find(a => a.id === acoes.confirmDeleteId) : undefined;
 
-  return (
-    <div className="space-y-7 max-w-5xl mx-auto pb-36">
+  // ── Estados ──
+  const carregando = !!selectedEventId && (isLoading || estadoEvento.isLoading);
+  const comErro = !!selectedEventId && !carregando && estadoEvento.isError;
+  const semPrestacoes = !!selectedEventId && !carregando && !comErro && dados.eventItems.length === 0;
+  const temLista = !!selectedEventId && !carregando && !comErro && !semPrestacoes;
 
-      {/* ── Cabeçalho ── */}
-      <PageHeader
-        icon={ClipboardCheck}
-        title="Realizado"
-        subtitle="Prestação de contas — escalas enviadas do Planejado"
-        actions={selectedEventId && (
-          <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={eventsWithPlanned} />
-        )}
-      />
+  // ── Barra de contexto ──
+  const detalheDoEvento = selectedEvent
+    ? [periodoDoEvento(selectedEvent), temLista ? `${dados.eventItems.length} ${dados.eventItems.length === 1 ? "prestação" : "prestações"}` : null, selectedEvent.location]
+        .filter(Boolean).join(" · ")
+    : undefined;
 
-      {/* ── Banner: prestações devolvidas pelo RH ── */}
-      {selectedEventId && <DevolvedBanner devolvedItems={dados.devolvedItems} getCollaboratorName={getCollaboratorName} />}
+  const acoesDaBarra = temLista ? (
+    allSentForReview ? (
+      <span className="inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg bg-success-soft text-sm font-medium text-success" data-testid="realizado-tudo-enviado">
+        <CheckCheck className="w-4 h-4" aria-hidden="true" />Tudo enviado para revisão
+      </span>
+    ) : (
+      /* A ação forte da tela: com marcadas, envia as marcadas; sem, as
+         pendentes visíveis (sempre com a confirmação, que diz quantas e quanto). */
+      <Button
+        type="button"
+        // Sem pendente no recorte (ex.: fila em "Aprovadas") o botão fica neutro, não um azul apagado.
+        variant={nSel === 0 && pendingFiltered.length === 0 ? "outline" : "default"}
+        onClick={() => acoes.setConfirmSend(nSel > 0 ? "selected" : "all")}
+        disabled={(nSel === 0 && pendingFiltered.length === 0) || sendForReviewMutation.isPending}
+        title={nSel === 0 && pendingFiltered.length === 0 ? "Nenhuma prestação pendente neste recorte" : undefined}
+        className={`pas-alvo shrink-0 h-[34px] rounded-lg px-3 text-sm font-medium gap-1.5 ${nSel === 0 && pendingFiltered.length === 0 ? "" : "bg-primary hover:bg-primary-hover text-primary-foreground"}`}
+        data-testid="realizado-acao-principal"
+      >
+        <Send className="w-4 h-4" aria-hidden="true" />
+        {nSel > 0
+          ? `Enviar selecionadas (${nSel})`
+          : <>Enviar para revisão{pendingFiltered.length > 0 ? ` (${pendingFiltered.length})` : ""}</>}
+      </Button>
+    )
+  ) : null;
 
-      {/* ── Tela 1: Seleção de evento ── */}
-      {!selectedEventId ? (
-        <EmptyState
-          live={false}
-          icon={ClipboardCheck}
-          title="Selecione um evento"
-          description="Registre a prestação de contas com os valores efetivamente gastos em cada escala."
-          className="py-20"
-          action={
-            <div className="w-full max-w-sm text-left">
-              {qEventsWithPlanned.isError ? (
-                <QueryError error={qEventsWithPlanned.error} onRetry={() => qEventsWithPlanned.refetch()} title="Não foi possível carregar os eventos" />
-              ) : (
-                <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={eventsWithPlanned} />
-              )}
-            </div>
-          }
+  const barra = (
+    <PageHeader
+      variant="bar"
+      title="Realizado"
+      // No celular a barra tem três andares: grudada, comia um quarto da tela (como no Planejado).
+      className="mx-0 mt-0 gap-x-3 max-sm:static"
+      subtitle={selectedEventId ? undefined : "prestação de contas das escalas enviadas do Planejado"}
+      // Sem evento, quem escolhe é o seletor grande do centro — a barra não repete.
+      context={selectedEventId ? <>
+        <span aria-hidden="true" className="hidden sm:block w-px h-5 bg-border shrink-0" />
+        <EventSearchSelect
+          variante="barra"
+          value={selectedEventId}
+          onValueChange={trocarEvento}
+          events={eventsWithPlanned}
+          detalhe={detalheDoEvento}
         />
-      ) : estadoEvento.isError ? (
-        <QueryError error={estadoEvento.error} onRetry={estadoEvento.retry} title="Não foi possível carregar o Realizado deste evento" />
-      ) : isLoading || estadoEvento.isLoading ? (
-        <div className="flex items-center justify-center py-20" role="status" aria-label="Carregando…">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : filteredItems.length === 0 && !dados.buscaAplicada && dados.filterType === "all" && dados.filterFunction === "all" ? (
-        <div className="text-center py-16 bg-card rounded-xl border border-border">
-          <ClipboardCheck className="w-16 h-16 text-slate-200 mx-auto mb-4" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-slate-700 mb-2">Nenhuma prestação disponível</h3>
-          <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
-            Envie escalas do Planejado para iniciar o Realizado deste evento
-          </p>
-          <Link href="/budget-planned">
-            <Button className="bg-primary hover:bg-primary-hover">
-              <ArrowRight className="w-4 h-4 mr-2" aria-hidden="true" />
-              Ir para Planejado
-            </Button>
-          </Link>
-        </div>
-      ) : (
-        <>
-          <ActualStepper eventItems={eventItems} />
-          <ActualTotalBanner
-            filteredItems={filteredItems}
-            prestacaoCount={prestacaoCount}
-            totalRealizado={totalRealizado}
-            totalPlanejado={dados.totalPlanejado}
-            totalDifference={dados.totalDifference}
-            selectedEventId={selectedEventId}
-          />
-          <ActualFilters dados={dados} functions={functions} />
-          <ActualGroupList
-            dados={dados}
-            getCollaboratorName={getCollaboratorName}
-            getFunctionName={getFunctionName}
-            eventNotes={q.eventNotes}
-            plannedLogs={q.plannedLogs}
-            collapsedCards={collapsedCards}
-            highlightCardId={highlightCardId}
-            isRhOrAdmin={isRhOrAdmin}
-            splitPending={splitMutation.isPending}
-            onToggleCollapse={toggleCollapse}
-            onEdit={editor.openEditModal}
-            onSplit={acoes.setSplittingItem}
-            onDelete={acoes.setConfirmDeleteId}
-            onClearFilters={limparFiltros}
-          />
-        </>
-      )}
+      </> : undefined}
+      actions={acoesDaBarra}
+    />
+  );
 
-      {selectedEventId && filteredItems.length > 0 && (
+  // ── Conteúdo ──
+  let conteudo: ReactNode;
+  if (!selectedEventId) {
+    conteudo = (
+      <div className="pas-entra flex flex-col items-center text-center rounded-xl border border-border bg-card px-6 py-16" data-testid="realizado-sem-evento">
+        <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-brand-soft text-primary mb-3.5" aria-hidden="true">
+          <ClipboardCheck className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">Selecione um evento</h2>
+        <p className="m-0 mt-1.5 max-w-[460px] text-sm leading-relaxed text-muted-foreground">
+          Registre a prestação de contas com os valores efetivamente gastos em cada escala — diárias, alimentação e mobilidade — e envie para a análise do RH.
+        </p>
+        <div className="mt-5 w-full max-w-sm text-left">
+          {qEventsWithPlanned.isError ? (
+            <QueryError error={qEventsWithPlanned.error} onRetry={() => qEventsWithPlanned.refetch()} title="Não foi possível carregar os eventos" />
+          ) : (
+            <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={eventsWithPlanned} className="sm:w-full" />
+          )}
+        </div>
+      </div>
+    );
+  } else if (carregando) {
+    // Esqueleto com a geometria real: resumo, fila, filtros e os primeiros cards.
+    conteudo = (
+      <div role="status" aria-live="polite" aria-busy="true" aria-label="Carregando o realizado" className="flex flex-col gap-4" data-testid="realizado-carregando">
+        <span className="sr-only">Carregando o realizado…</span>
+        <div aria-hidden="true" className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="grid grid-cols-2 md:grid-cols-[1.5fr_repeat(4,1fr)]">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className={`px-4 py-3.5 space-y-2 ${i === 0 ? "col-span-2 md:col-span-1" : ""}`}>
+                <div className="pas-osso h-3 w-20" /><div className={`pas-osso ${i === 0 ? "h-7 w-40" : "h-5 w-24"}`} /><div className="pas-osso h-2.5 w-16" />
+              </div>
+            ))}
+          </div>
+          <div className="h-10 border-t border-border bg-surface-muted/60" />
+        </div>
+        <div aria-hidden="true" className="grid grid-cols-2 sm:grid-cols-5 rounded-xl border border-border bg-card overflow-hidden">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className={`px-3.5 pt-3 pb-3.5 space-y-2 ${i > 0 ? "sm:border-l border-border" : ""}`}>
+              <div className="pas-osso h-3 w-20" /><div className="pas-osso h-5 w-24" />
+            </div>
+          ))}
+        </div>
+        <div aria-hidden="true" className="flex gap-2">
+          <div className="pas-osso h-[34px] flex-[1_1_220px] max-w-[320px] rounded-lg" />
+          <div className="pas-osso h-[34px] w-[160px] rounded-lg hidden sm:block" />
+          <div className="pas-osso h-[34px] w-[96px] rounded-lg hidden sm:block" />
+        </div>
+        <EsqueletoDosCards />
+      </div>
+    );
+  } else if (comErro) {
+    conteudo = (
+      <div role="alert" className="pas-entra flex flex-col items-center text-center rounded-xl border border-danger/25 bg-card px-6 py-14" data-testid="realizado-erro">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-danger-soft text-danger mb-3" aria-hidden="true">
+          <AlertCircle className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">Não foi possível carregar o Realizado deste evento</h2>
+        <p className="m-0 mt-1.5 max-w-[460px] text-sm leading-relaxed text-muted-foreground">
+          As prestações, o planejado ou a escalação deste evento não chegaram — sem eles os valores e as diferenças sairiam errados. Verifique sua conexão e tente de novo.
+        </p>
+        <Button variant="outline" className="mt-5 rounded-lg" onClick={estadoEvento.retry} data-testid="realizado-tentar-novamente">
+          <RotateCw className="w-4 h-4 mr-1.5" aria-hidden="true" />Tentar novamente
+        </Button>
+      </div>
+    );
+  } else if (semPrestacoes) {
+    conteudo = (
+      <div className="pas-entra flex flex-col items-center text-center rounded-xl border border-border bg-card px-6 py-14" data-testid="realizado-vazio">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted text-muted-foreground mb-3" aria-hidden="true">
+          <ClipboardCheck className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">Nenhuma prestação ainda</h2>
+        <p className="m-0 mt-1.5 max-w-[460px] text-sm leading-relaxed text-muted-foreground">
+          As prestações nascem quando o orçamento de cada colaborador é enviado do Planejado. Envie as escalas deste evento para começar.
+        </p>
+        <Button asChild variant="outline" className="mt-5 rounded-lg gap-1.5">
+          <Link href="/budget-planned">Ir para o Planejado<ArrowRight className="w-4 h-4" aria-hidden="true" /></Link>
+        </Button>
+      </div>
+    );
+  } else {
+    conteudo = (
+      <>
+        <DevolvedBanner
+          devolvedItems={dados.devolvedItems}
+          getCollaboratorName={getCollaboratorName}
+          onVer={dados.situacao === "devolvidas" ? undefined : () => dados.setSituacao("devolvidas")}
+        />
+        <ResumoDoRealizado selectedEvent={selectedEvent} eventItems={dados.eventItems} totais={dados.totaisDoEvento} />
+        <FilaDoRealizado dados={dados} />
+        <ActualFilters dados={dados} />
+        <ActualGroupList
+          dados={dados}
+          getCollaboratorName={getCollaboratorName}
+          getFunctionName={getFunctionName}
+          eventNotes={q.eventNotes}
+          plannedLogs={q.plannedLogs}
+          collapsedCards={collapsedCards}
+          highlightCardId={highlightCardId}
+          isRhOrAdmin={isRhOrAdmin}
+          splitPending={splitMutation.isPending}
+          onToggleCollapse={toggleCollapse}
+          onEdit={editor.openEditModal}
+          onSplit={acoes.setSplittingItem}
+          onDelete={acoes.setConfirmDeleteId}
+          onClearFilters={dados.limparFiltros}
+        />
+
+        {/* Barra de seleção: acompanha a rolagem no rodapé da lista. */}
         <SendForReviewBar
-          sidebarWidth={sidebarWidth}
-          totalRealizado={totalRealizado}
-          prestacaoCount={prestacaoCount}
-          pendingCount={pendingCount}
-          selectedCount={selectedCards.size}
-          allSentForReview={allSentForReview}
+          selectedCount={nSel}
+          totalSelecionado={totalSelecionado}
           isPending={sendForReviewMutation.isPending}
           onClearSelection={() => setSelectedCards(new Set())}
           // Passa pela mesma confirmação do "Enviar todas" (não preenchidos + aviso de NF)
           onSendSelected={() => { if (selectedEventId) acoes.setConfirmSend("selected"); }}
-          onSendAll={() => { if (selectedEventId) acoes.setConfirmSend("all"); }}
         />
-      )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {/* Margens pela variável do layout: a barra sangra até as bordas da
+          página e o conteúdo fica em até 1560px — a casca do Planejado. */}
+      <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
+        {barra}
+        <div className="px-[var(--page-gutter)] pt-5 pb-6">
+          <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">{conteudo}</div>
+        </div>
+      </div>
 
       <EditActualModal
         editor={editor}
@@ -253,12 +364,14 @@ export default function BudgetActualPage() {
 
       <DeleteActualDialog
         confirmDeleteId={acoes.confirmDeleteId}
+        nome={itemParaRemover ? getCollaboratorName(itemParaRemover.collaboratorId) : undefined}
+        detalhe={itemParaRemover ? `${getFunctionName(itemParaRemover.functionId)} · ${formatCurrency(itemParaRemover.totalValue)}` : undefined}
         onClose={() => acoes.setConfirmDeleteId(null)}
         isPending={deleteMutation.isPending}
         onConfirm={id => deleteMutation.mutate(id)}
       />
 
-      {/* ── Split Escalação Modal ── */}
+      {/* ── Divisão de escalação (modal compartilhado com a Escalação) ── */}
       <SplitDialog
         splittingItem={acoes.splittingItem}
         budgetActual={budgetActual}
@@ -269,6 +382,6 @@ export default function BudgetActualPage() {
         onClose={() => acoes.setSplittingItem(null)}
         onConfirm={(id, payload) => splitMutation.mutate({ id, payload })}
       />
-    </div>
+    </>
   );
 }

@@ -1,181 +1,173 @@
 /**
- * Topo do Orçamento Realizado — 25/09 (modularização). Extraído de
- * budget-actual.tsx: banner de prestações devolvidas pelo RH, stepper de
- * etapas e o banner "Total realizado" com KPIs e barra de aprovação.
+ * Topo do Orçamento Realizado — 25/09 (modularização); redesenho 08/10.
+ *
+ * Antes eram três blocos empilhados: o aviso de devolução, um stepper de
+ * quatro etapas num cartão próprio e o banner "Total realizado" (faixa azul
+ * cheia + quatro KPIs e uma barra) — ~430px antes do primeiro colaborador.
+ *
+ * Agora é o MESMO painel do Planejado (a etapa anterior do fluxo), lido como
+ * um extrato: o total realizado, o planejado de referência, a diferença, e a
+ * divisão Casa × Freela; embaixo, numa faixa fina, o andamento da aprovação
+ * do RH e em qual etapa o evento está. Nada saiu: total, planejado, diferença
+ * (com o sentido), prestações, em revisão, aprovadas, devolvidas e as quatro
+ * etapas. Os números são do EVENTO inteiro (a busca não mexe no painel); o
+ * recorte dos filtros aparece na contagem da lista.
  */
-import { AlertCircle, CheckCircle2, Clock, TrendingDown, TrendingUp, Users } from "lucide-react";
-import { formatarMoeda } from "@/lib/format";
-import type { BudgetActual } from "@shared/schema";
+import { AlertCircle, Calculator, Check, Equal, Home, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { BudgetActual, Event } from "@shared/schema";
+import { Metrica, TrilhoDeEtapas } from "./budget-overview-cards";
+import { formatCurrency, formatEventDate } from "./types";
 
-const formatCurrency = formatarMoeda;
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
-/** Banner: prestações devolvidas pelo RH (derivado dos itens, item a item —
+/** Aviso: prestações devolvidas pelo RH (derivado dos itens, item a item —
  *  o status agregado do comparativo ficava stale). */
-export function DevolvedBanner({ devolvedItems, getCollaboratorName }: { devolvedItems: BudgetActual[]; getCollaboratorName: (id?: string | null) => string }) {
+export function DevolvedBanner({ devolvedItems, getCollaboratorName, onVer }: {
+  devolvedItems: BudgetActual[];
+  getCollaboratorName: (id?: string | null) => string;
+  /** Recorta a lista nas devolvidas (fila de situações). */
+  onVer?: () => void;
+}) {
   if (devolvedItems.length === 0) return null;
   const commented = devolvedItems.filter(i => i.rhComment);
   const shown = commented.slice(0, 3);
   return (
-    <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl border border-warning/25 bg-warning-soft shadow-1">
-      <div className="w-8 h-8 rounded-lg bg-warning-soft border border-warning/25 flex items-center justify-center shrink-0">
-        <AlertCircle className="w-4 h-4 text-warning" aria-hidden="true" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-bold text-warning m-0">
-          {devolvedItems.length === 1
-            ? "Prestação devolvida pelo RH"
-            : `${devolvedItems.length} prestações devolvidas pelo RH`}
+    <div role="status" className="pas-entra flex flex-wrap items-start gap-x-3 gap-y-2 rounded-xl border border-warning/25 bg-warning-soft px-4 py-3" data-testid="realizado-devolvidas">
+      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-warning-strong" aria-hidden="true" />
+      <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-1.75rem)]">
+        <p className="m-0 text-sm font-semibold text-warning">
+          {devolvedItems.length === 1 ? "1 prestação devolvida pelo RH" : `${devolvedItems.length} prestações devolvidas pelo RH`}
+          <span className="font-normal"> — corrija e reenvie para revisão.</span>
         </p>
-        {shown.map(i => (
-          <p key={i.id} className="text-xs text-warning mt-0.5 m-0">
-            <span className="font-semibold">{getCollaboratorName(i.collaboratorId)}:</span> {i.rhComment}
-          </p>
-        ))}
+        {shown.length > 0 && (
+          <ul className="m-0 mt-1 p-0 list-none space-y-0.5">
+            {shown.map(i => (
+              <li key={i.id} className="text-xs leading-5 text-warning">
+                <span className="font-semibold">{getCollaboratorName(i.collaboratorId)}:</span> {i.rhComment}
+              </li>
+            ))}
+          </ul>
+        )}
         {commented.length > shown.length && (
-          <p className="text-xs text-warning/80 mt-0.5 m-0">
+          <p className="m-0 mt-0.5 text-xs text-warning/80">
             + {commented.length - shown.length} {commented.length - shown.length === 1 ? "outro comentário" : "outros comentários"} nos cards devolvidos
           </p>
         )}
-        <p className="text-2xs text-warning/80 mt-1 m-0">Corrija os itens marcados como "Devolvido" e reenvie para revisão.</p>
       </div>
+      {onVer && (
+        <button
+          type="button"
+          onClick={onVer}
+          className="pas-alvo shrink-0 max-sm:ml-7 inline-flex items-center h-8 px-2.5 rounded-lg text-xs font-semibold text-warning border border-warning/30 bg-card/60 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="realizado-ver-devolvidas"
+        >
+          Ver devolvidas
+        </button>
+      )}
     </div>
   );
 }
 
-const STEPS = [
-  { label: "Escalação", desc: "Inclusões confirmadas" },
-  { label: "Planejamento RH", desc: "Valores previstos" },
-  { label: "Prestação", desc: "Resp. preenche realizado" },
-  { label: "Aprovação RH", desc: "Análise e aprovação" },
-];
-
-/** Stepper — avança para "Aprovação RH" quando todos os itens do evento já foram enviados ou aprovados. */
-export function ActualStepper({ eventItems }: { eventItems: BudgetActual[] }) {
-  const allSentOrApproved = eventItems.length > 0 && eventItems.every(i => i.sentForReview || i.rhStatus === "aprovado");
-  const currentStep = allSentOrApproved ? 3 : 2;
-  const steps = STEPS;
-  return (
-    <div className="bg-card border border-border rounded-xl px-5 py-4">
-      <div className="flex items-center">
-        {steps.map((step, i) => {
-          const isDone = i < currentStep;
-          const isActive = i === currentStep;
-          const isLast = i === steps.length - 1;
-          return (
-            <div key={i} className="flex items-center flex-1">
-              <div className="flex flex-col items-center gap-1.5">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
-                  isDone ? "bg-success-strong text-primary-foreground shadow-2  " :
-                  isActive ? "bg-primary text-primary-foreground shadow-2   ring-4 ring-primary/25 " :
-                  "bg-muted  text-muted-foreground "
-                }`}>
-                  {isDone ? (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (i + 1)}
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xs font-semibold leading-tight ${
-                    isDone ? "text-success " :
-                    isActive ? "text-primary " :
-                    "text-muted-foreground"
-                  }`}>{step.label}</div>
-                  <div className="text-2xs text-muted-foreground mt-0.5 hidden sm:block">{step.desc}</div>
-                </div>
-              </div>
-              {!isLast && (
-                <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
-                  isDone ? "bg-success-strong" : "bg-muted "
-                }`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-export interface ActualTotalBannerProps {
-  filteredItems: BudgetActual[];
-  prestacaoCount: number;
+export interface TotaisDoResumo {
   totalRealizado: number;
   totalPlanejado: number;
-  totalDifference: number;
-  selectedEventId: string;
+  totalCasa: number;
+  totalFreela: number;
+  prestacaoCount: number;
 }
 
-/** Banner Total Realizado. */
-export function ActualTotalBanner({ filteredItems, prestacaoCount, totalRealizado, totalPlanejado, totalDifference, selectedEventId }: ActualTotalBannerProps) {
-  const nAprovadas  = filteredItems.filter(i => i.rhStatus === "aprovado").length;
-  const nRevisao    = filteredItems.filter(i => i.sentForReview && !["aprovado", "devolvido", "rejeitado"].includes(i.rhStatus || "")).length;
-  const nDevolvidas = filteredItems.filter(i => i.rhStatus === "devolvido").length;
+export interface ResumoDoRealizadoProps {
+  selectedEvent: Event | undefined;
+  /** Prestações do evento (sem filtro). */
+  eventItems: BudgetActual[];
+  totais: TotaisDoResumo;
+}
+
+/** "+R$ 630,00" / "−R$ 120,00" / "R$ 0,00" — a diferença com o sentido escrito. */
+export function diferencaComSinal(d: number): string {
+  if (Math.abs(d) <= 1) return formatCurrency(0);
+  return `${d > 0 ? "+" : "−"}${formatCurrency(Math.abs(d))}`;
+}
+
+export function ResumoDoRealizado({ selectedEvent, eventItems, totais }: ResumoDoRealizadoProps) {
+  const { totalRealizado, totalPlanejado, totalCasa, totalFreela, prestacaoCount } = totais;
+  const diferenca = totalRealizado - totalPlanejado;
+  const igual = Math.abs(diferenca) <= 1;
+  const pct = totalPlanejado > 0 && !igual ? Math.round((diferenca / totalPlanejado) * 1000) / 10 : null;
+
+  // Etapa: tudo enviado ou aprovado → a bola está com o RH (Aprovação).
+  const allSentOrApproved = eventItems.length > 0 && eventItems.every(i => i.sentForReview || i.rhStatus === "aprovado");
+  const etapaAtual = allSentOrApproved ? 3 : 2;
+
+  // Andamento da aprovação, contado por escalação (os filhos de uma divisão seguem o titular).
+  const titulares = eventItems.filter(i => !i.splitParentId);
+  const nAprovadas = titulares.filter(i => i.rhStatus === "aprovado").length;
+  const nAusentes = titulares.filter(i => i.didNotAttend).length;
+  const tudoAprovado = prestacaoCount > 0 && nAprovadas === prestacaoCount;
   const pctAprovado = prestacaoCount > 0 ? Math.round((nAprovadas / prestacaoCount) * 100) : 0;
+
   return (
-    <div className="bg-card/88 border border-primary/12 rounded-xl shadow-2 overflow-hidden" style={{
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-    }}>
-      {/* Faixa accent roxo topo */}
-      <div className="h-[3px] bg-primary" />
-      <div className="flex items-stretch flex-wrap">
-        {/* Esquerda — total */}
-        <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden w-full sm:w-auto sm:min-w-[230px] bg-primary-hover">
-          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-white/60">Total realizado</p>
-          <div className="text-3xl font-semibold text-white leading-none mt-1.5 tracking-[-0.03em]">
-            {formatCurrency(totalRealizado)}
-          </div>
-          {totalPlanejado > 0 && (
-            <div className="text-2xs text-white/40 mt-0.5 tabular-nums">
-              Planejado: {formatCurrency(totalPlanejado)}
-            </div>
-          )}
-          <div className={`text-2xs mt-1.5 font-medium flex items-center gap-1 ${totalDifference === 0 ? "text-white/45" : totalDifference < 0 ? "text-success-soft" : "text-danger-soft"}`}>
-            {totalDifference < 0 && <TrendingDown className="w-3 h-3" aria-hidden="true" />}
-            {totalDifference > 0 && <TrendingUp className="w-3 h-3" aria-hidden="true" />}
-            {!selectedEventId ? "Selecione um evento" : totalDifference === 0 ? "= planejado" : `${totalDifference > 0 ? "+" : ""}${formatCurrency(totalDifference)} vs planejado`}
-          </div>
-        </div>
-        {/* Separador */}
-        <div className="bg-primary-hover/10" style={{ width: 1 }} />
-        {/* Direita — KPIs + barra */}
-        <div className="flex-1 px-6 py-5 flex flex-col justify-between">
-          <div className="flex items-start gap-0 flex-wrap gap-y-3">
-            <div className="flex-1 flex flex-col items-center gap-1 px-3">
-              <div className="text-2xl font-bold leading-none tracking-tight text-primary">{prestacaoCount}</div>
-              <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" aria-hidden="true" />Prestações</div>
-            </div>
-            <div className="bg-primary-hover/8" style={{ width: 1, height: 36 }} />
-            <div className="flex-1 flex flex-col items-center gap-1 px-3">
-              <div className="text-2xl font-bold leading-none tracking-tight text-primary">{nRevisao}</div>
-              <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" aria-hidden="true" />Em revisão</div>
-            </div>
-            <div className="bg-primary-hover/8" style={{ width: 1, height: 36 }} />
-            <div className="flex-1 flex flex-col items-center gap-1 px-3">
-              <div className="text-2xl font-bold leading-none tracking-tight text-success">{nAprovadas}</div>
-              <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3" aria-hidden="true" />Aprovadas</div>
-            </div>
-            {nDevolvidas > 0 && (
-              <>
-                <div className="bg-primary-hover/8" style={{ width: 1, height: 36 }} />
-                <div className="flex-1 flex flex-col items-center gap-1 px-3">
-                  <div className="text-2xl font-bold leading-none tracking-tight text-warning">{nDevolvidas}</div>
-                  <div className="text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-1"><AlertCircle className="w-3 h-3" aria-hidden="true" />Devolvidas</div>
-                </div>
-              </>
+    <section aria-label="Resumo do realizado" className="pla-resumo rea-resumo rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-realizado">
+      <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]">
+        {/* O número da tela. */}
+        <div className="col-span-2 lg:col-span-1 min-w-0 px-4 pt-3.5 pb-3 max-lg:border-b border-border">
+          <p className="m-0 text-xs font-medium text-slate-600">
+            Total realizado
+            {selectedEvent?.startDate && (
+              <span className="text-muted-foreground font-normal"> · {formatEventDate(selectedEvent.startDate)}</span>
             )}
-          </div>
-          {prestacaoCount > 0 && (
-            <div className="mt-4">
-              <div className="h-2 rounded-full overflow-hidden bg-primary-hover/25">
-                <div className="h-full bg-success-strong rounded-full transition-all duration-500" style={{ width: `${pctAprovado}%` }} />
-              </div>
-              <div className="text-2xs text-muted-foreground mt-1.5 font-light">{nAprovadas} de {prestacaoCount} aprovadas</div>
-            </div>
-          )}
+          </p>
+          <p className="m-0 mt-0.5 text-[1.625rem] leading-8 font-semibold tracking-[-0.02em] tabular-nums text-primary" data-testid="total-realizado">
+            {formatCurrency(totalRealizado)}
+          </p>
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground tabular-nums truncate">
+            {/* Com divisão, a escalação vira mais de uma prestação: as duas contagens aparecem. */}
+            {eventItems.length !== prestacaoCount
+              ? <>{plural(prestacaoCount, "escalação", "escalações")} · {plural(eventItems.length, "prestação", "prestações")}</>
+              : plural(prestacaoCount, "prestação", "prestações")}
+            {nAusentes > 0 && <span title="Quem não participou fica fora dos totais"> · {nAusentes} não {nAusentes === 1 ? "participou" : "participaram"}</span>}
+          </p>
+        </div>
+        <Metrica icon={Calculator} label="Planejado" value={formatCurrency(totalPlanejado)} sub="enviado do Planejado" cor="text-muted-foreground"
+          tooltip="Soma do planejado de referência das prestações (sem quem não participou)" />
+        <Metrica
+          icon={igual ? Equal : diferenca > 0 ? TrendingUp : TrendingDown}
+          label="Diferença"
+          value={diferencaComSinal(diferenca)}
+          corValor={igual ? "text-foreground" : diferenca > 0 ? "text-danger" : "text-success"}
+          sub={igual ? "igual ao planejado" : pct !== null ? `${Math.abs(pct).toLocaleString("pt-BR")}% ${diferenca > 0 ? "acima" : "abaixo"} do previsto` : `${diferenca > 0 ? "acima" : "abaixo"} do planejado`}
+          cor={igual ? "text-muted-foreground" : diferenca > 0 ? "text-danger" : "text-success"}
+          tooltip="Realizado menos planejado: positivo = gastou mais que o previsto"
+        />
+        <Metrica icon={Home} label="Casa" value={formatCurrency(totalCasa)} sub={plural(titulares.filter(i => i.collaboratorType === "casa").length, "colaborador", "colaboradores")} cor="text-primary" tooltip="Colaboradores que trabalham no próprio estado" />
+        <Metrica icon={UserCheck} label="Freela" value={formatCurrency(totalFreela)} sub={plural(titulares.filter(i => i.collaboratorType === "freela").length, "colaborador", "colaboradores")} cor="text-warning" tooltip="Colaboradores contratados por evento" />
+      </div>
+
+      {/* Andamento: quanto o RH já aprovou e em que etapa o evento está. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 border-t border-border bg-surface-muted/60">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0 max-sm:w-full" data-testid="progresso-aprovacao">
+          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Aprovação do RH</span>
+          <span
+            role="progressbar"
+            aria-label="Prestações aprovadas pelo RH"
+            aria-valuemin={0}
+            aria-valuemax={prestacaoCount}
+            aria-valuenow={nAprovadas}
+            className="relative w-28 sm:w-36 h-1.5 rounded-full bg-border overflow-hidden shrink-0 max-sm:flex-1"
+          >
+            <span className="pla-progresso absolute inset-y-0 left-0 rounded-full bg-success-strong" style={{ width: `${pctAprovado}%` }} />
+          </span>
+          <span className={cn("text-xs tabular-nums whitespace-nowrap", tudoAprovado ? "text-success font-semibold" : "text-muted-foreground")}>
+            {tudoAprovado
+              ? <><Check className="inline w-3.5 h-3.5 -mt-0.5 mr-0.5" aria-hidden="true" />Todas aprovadas</>
+              : `${nAprovadas} de ${prestacaoCount} aprovadas`}
+          </span>
+        </div>
+        <div className="md:ml-auto min-w-0">
+          <TrilhoDeEtapas atual={etapaAtual} />
         </div>
       </div>
-    </div>
+    </section>
   );
 }

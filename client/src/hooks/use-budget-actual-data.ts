@@ -9,7 +9,41 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "rea
 import type { BudgetActual, BudgetPlanned, Event, TeamInclusion } from "@shared/schema";
 import { agruparPor, chaveComposta, indexarPorId } from "@/lib/indices";
 import { contarDiasUteisEFds } from "@/lib/format";
-import { getProportionalPlanned, isWeekendDate, type DayCounts } from "@/components/budget/actual-utils";
+import { getProportionalPlanned, isUnfilledItem, isWeekendDate, type DayCounts } from "@/components/budget/actual-utils";
+
+/**
+ * Situação da prestação (redesenho 08/10) — só exibição, na MESMA ordem de
+ * prioridade do selo do card: decisão do RH primeiro (aprovada, devolvida ou
+ * recusada), depois "em revisão" (enviada), e entre as não enviadas, as que
+ * nunca foram salvas ("a preencher") e as já salvas ("salvas").
+ */
+export type SituacaoDoRealizado = "todas" | "preencher" | "salvas" | "revisao" | "devolvidas" | "aprovadas";
+export type SituacaoDaPrestacao = Exclude<SituacaoDoRealizado, "todas">;
+
+export function situacaoDaPrestacao(i: BudgetActual): SituacaoDaPrestacao {
+  if (i.rhStatus === "aprovado") return "aprovadas";
+  if (i.rhStatus === "devolvido" || i.rhStatus === "rejeitado") return "devolvidas";
+  if (i.sentForReview) return "revisao";
+  return isUnfilledItem(i) ? "preencher" : "salvas";
+}
+
+/** Somas de uma lista de prestações — as MESMAS regras de antes (só reunidas
+ *  numa função para valerem igual no recorte e no evento inteiro). */
+function somarTotais(items: BudgetActual[], isDidNotAttend: (i: BudgetActual) => boolean, getPlannedRef: (i: BudgetActual) => BudgetPlanned | undefined) {
+  const attendedItems = items.filter(i => !isDidNotAttend(i));
+  return {
+    totalRealizado: attendedItems.reduce((sum, item) => sum + item.totalValue, 0),
+    totalCasa: attendedItems.filter(i => i.collaboratorType === "casa").reduce((s, i) => s + i.totalValue, 0),
+    totalFreela: attendedItems.filter(i => i.collaboratorType === "freela").reduce((s, i) => s + i.totalValue, 0),
+    totalPlanejado: items
+      // "Não participou" fica fora do planejado também — igual ao realizado acima
+      .filter(item => !item.splitParentId && !isDidNotAttend(item))
+      // Sem planejado correspondente soma 0 — usar item.totalValue inflava o planejado
+      .reduce((sum, item) => { const planned = getPlannedRef(item); return sum + (planned ? planned.totalValue : 0); }, 0),
+    prestacaoCount: items.filter(item => !item.splitParentId).length,
+    pendingCount: items.filter(item => !item.splitParentId && !item.sentForReview).length,
+  };
+}
 
 export interface EntradaDosDadosDoRealizado {
   selectedEventId: string;
@@ -28,6 +62,7 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
   const [sortBy, setSortBy] = useState<string>("adjusted");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
+  const [situacao, setSituacao] = useState<SituacaoDoRealizado>("todas");
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
 
   // Índices O(1) (23/09): os `.find` abaixo rodavam por card e por dia do modal.
@@ -123,26 +158,27 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
   // `useDeferredValue` (23/09): a lista é grande e refiltrar a cada tecla
   // travava a digitação. O input continua controlado por `searchTerm`.
   const buscaAplicada = useDeferredValue(searchTerm);
+  // Prestações do evento, sem filtro nenhum (base do resumo do evento).
+  const eventItems = useMemo(
+    () => (budgetActual || []).filter(item => item.eventId === selectedEventId),
+    [budgetActual, selectedEventId],
+  );
+  // Cada dimensão do filtro como predicado — para a fila e o filtro de função
+  // contarem "quantas sobram se eu escolher isto" sem a própria dimensão.
+  const passaBusca = useCallback((item: BudgetActual) => {
+    if (!buscaAplicada) return true;
+    const term = buscaAplicada.toLowerCase();
+    const name = getCollaboratorName(item.collaboratorId).toLowerCase();
+    const fn = getFunctionName(item.functionId).toLowerCase();
+    return name.includes(term) || fn.includes(term);
+  }, [buscaAplicada, getCollaboratorName, getFunctionName]);
+  const passaTipo = useCallback((item: BudgetActual) => filterType === "all" || item.collaboratorType === filterType, [filterType]);
+  const passaFuncao = useCallback((item: BudgetActual) => filterFunction === "all" || item.functionId === filterFunction, [filterFunction]);
+  const passaSituacao = useCallback((item: BudgetActual) => situacao === "todas" || situacaoDaPrestacao(item) === situacao, [situacao]);
+
   const filteredItems = useMemo(() => {
     if (!budgetActual) return [];
-    let items = [...budgetActual].filter(item => item.eventId === selectedEventId);
-
-    if (buscaAplicada) {
-      const term = buscaAplicada.toLowerCase();
-      items = items.filter(item => {
-        const name = getCollaboratorName(item.collaboratorId).toLowerCase();
-        const fn = getFunctionName(item.functionId).toLowerCase();
-        return name.includes(term) || fn.includes(term);
-      });
-    }
-
-    if (filterType !== "all") {
-      items = items.filter(item => item.collaboratorType === filterType);
-    }
-
-    if (filterFunction !== "all") {
-      items = items.filter(item => item.functionId === filterFunction);
-    }
+    const items = eventItems.filter(item => passaBusca(item) && passaTipo(item) && passaFuncao(item) && passaSituacao(item));
 
     if (sortBy === "adjusted") {
       items.sort((a, b) => {
@@ -158,7 +194,40 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
     }
 
     return items;
-  }, [budgetActual, selectedEventId, buscaAplicada, filterType, filterFunction, sortBy, getCollaboratorName, getFunctionName, hasItemDivergence]);
+  }, [budgetActual, eventItems, passaBusca, passaTipo, passaFuncao, passaSituacao, sortBy, getCollaboratorName, hasItemDivergence]);
+
+  // Fila de situações: quantas e quanto em cada uma, respeitando a busca, o
+  // tipo e a função de agora (a situação escolhida não esconde as outras).
+  const { contagemPorSituacao, valorPorSituacao, recusadasNaFila } = useMemo(() => {
+    const c: Record<SituacaoDaPrestacao, number> = { preencher: 0, salvas: 0, revisao: 0, devolvidas: 0, aprovadas: 0 };
+    const v: Record<SituacaoDaPrestacao, number> = { preencher: 0, salvas: 0, revisao: 0, devolvidas: 0, aprovadas: 0 };
+    let r = 0; // recusadas (contam junto das devolvidas)
+    eventItems.forEach(i => {
+      if (!passaBusca(i) || !passaTipo(i) || !passaFuncao(i)) return;
+      const s = situacaoDaPrestacao(i);
+      c[s]++; v[s] += i.totalValue;
+      if (i.rhStatus === "rejeitado") r++;
+    });
+    return { contagemPorSituacao: c, valorPorSituacao: v, recusadasNaFila: r };
+  }, [eventItems, passaBusca, passaTipo, passaFuncao]);
+
+  // Funções que existem nas prestações do evento, com quantas sobram ao escolher cada uma.
+  const opcoesDeFuncao = useMemo(() => {
+    const n = new Map<string, number>();
+    eventItems.forEach(i => {
+      if (!i.functionId) return;
+      if (!n.has(i.functionId)) n.set(i.functionId, 0);
+      if (passaBusca(i) && passaTipo(i) && passaSituacao(i)) n.set(i.functionId, (n.get(i.functionId) ?? 0) + 1);
+    });
+    return Array.from(n.entries())
+      .map(([id, qtd]) => ({ id, nome: getFunctionName(id), n: qtd }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+  }, [eventItems, passaBusca, passaTipo, passaSituacao, getFunctionName]);
+
+  const algumFiltro = !!searchTerm || filterType !== "all" || filterFunction !== "all" || situacao !== "todas";
+  const limparFiltros = useCallback(() => {
+    setSearchTerm(""); setFilterType("all"); setFilterFunction("all"); setSituacao("todas");
+  }, []);
 
   // ── Split group computation ─────────────────────────────────────────────
   // Map from parentId → list of split children in the filtered set
@@ -197,28 +266,11 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
   // Itens marcados como "não participou" são excluídos das somas do banner (o Comparativo também os zera)
   const isDidNotAttend = useCallback((item: BudgetActual): boolean =>
     !!item.didNotAttend || !!getPlannedRef(item)?.didNotAttend, [getPlannedRef]);
-  const { totalRealizado } = useMemo(() => {
-    const attendedItems = filteredItems.filter(i => !isDidNotAttend(i));
-    return {
-      totalRealizado: attendedItems.reduce((sum, item) => sum + item.totalValue, 0),
-      totalCasa: attendedItems.filter(i => i.collaboratorType === "casa").reduce((s, i) => s + i.totalValue, 0),
-      totalFreela: attendedItems.filter(i => i.collaboratorType === "freela").reduce((s, i) => s + i.totalValue, 0),
-    };
-  }, [filteredItems, isDidNotAttend]);
-  const totalPlanejado = useMemo(() => {
-    return filteredItems
-      // "Não participou" fica fora do planejado também — igual ao realizado acima
-      .filter(item => !item.splitParentId && !isDidNotAttend(item))
-      .reduce((sum, item) => {
-        const planned = getPlannedRef(item);
-        // Sem planejado correspondente soma 0 — usar item.totalValue inflava o planejado
-        return sum + (planned ? planned.totalValue : 0);
-      }, 0);
-  }, [filteredItems, getPlannedRef, isDidNotAttend]);
-  const { prestacaoCount, pendingCount } = useMemo(() => ({
-    prestacaoCount: filteredItems.filter(item => !item.splitParentId).length,
-    pendingCount: filteredItems.filter(item => !item.splitParentId && !item.sentForReview).length,
-  }), [filteredItems]);
+  // Somas do RECORTE (filtros de agora) — as de sempre — e do EVENTO inteiro
+  // (o painel de resumo, que não muda com a busca, como no Planejado).
+  const totaisDoRecorte = useMemo(() => somarTotais(filteredItems, isDidNotAttend, getPlannedRef), [filteredItems, isDidNotAttend, getPlannedRef]);
+  const totaisDoEvento = useMemo(() => somarTotais(eventItems, isDidNotAttend, getPlannedRef), [eventItems, isDidNotAttend, getPlannedRef]);
+  const { totalRealizado, totalPlanejado, prestacaoCount, pendingCount } = totaisDoRecorte;
   // Itens que ainda podem ser selecionados/enviados (não travados por sentForReview)
   const pendingFiltered = useMemo(() => filteredItems.filter(i => !i.sentForReview), [filteredItems]);
   const selectableCount = pendingFiltered.length;
@@ -226,7 +278,7 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
   // visível viravam "seleção fantasma" e entravam no envio em lote sem o usuário ver
   useEffect(() => {
     setSelectedCards(new Set());
-  }, [searchTerm, filterType, filterFunction]);
+  }, [searchTerm, filterType, filterFunction, situacao]);
   const totalDifference = totalRealizado - totalPlanejado;
   const hasAnyEditable = useMemo(() => {
     if (!budgetActual) return true;
@@ -272,6 +324,8 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
 
   return {
     searchTerm, setSearchTerm, sortBy, setSortBy, filterType, setFilterType, filterFunction, setFilterFunction, buscaAplicada,
+    situacao, setSituacao, contagemPorSituacao, valorPorSituacao, recusadasNaFila, opcoesDeFuncao, algumFiltro, limparFiltros,
+    eventItems, totaisDoRecorte, totaisDoEvento,
     selectedCards, setSelectedCards, toggleSelect, selectAll,
     actualsPorGrupo, getPlannedRef, hasItemDivergence, getItemInclusion, getItemDayCounts, proportionalPlanned, getCardPlanned,
     filteredItems, splitGroupsMap, orderedRenderItems, isDidNotAttend,

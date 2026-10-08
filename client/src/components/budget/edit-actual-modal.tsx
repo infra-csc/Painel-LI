@@ -1,22 +1,32 @@
 /**
- * Modal "Editar prestação de contas" do Realizado (casca) — 25/09
- * (modularização). Extraído de budget-actual.tsx: cabeçalho com planejado ×
- * realizado, banner somente-leitura, abas e rodapé. A aba Custos vive em
+ * Modal "Prestação de contas" do Realizado (casca) — 25/09 (modularização);
+ * redesenho 08/10.
+ *
+ * Cabeçalho, avisos, abas e rodapé. A aba Custos vive em
  * `EditActualCustosTab`; o estado em `useBudgetActualEditor`.
+ *
+ * 08/10: a MESMA moldura do modal do Planejado — cabeçalho branco (iniciais,
+ * nome, tipo, função · período, dias úteis/fds e os selos), abas sublinhadas
+ * de verdade (tablist), corpo que rola e rodapé fixo numa faixa só: o total
+ * realizado que será gravado, a diferença para o planejado, a conta por bloco
+ * (com o planejado ao lado) e as ações. Tela cheia no celular. Fechar com
+ * alterações pergunta antes de descartar (o mesmo diálogo do app inteiro).
+ * Os cálculos abaixo são os mesmos.
  */
-import { AlertTriangle, Calendar, Check, CheckCircle2, Lock, TrendingDown, TrendingUp } from "lucide-react";
-import { formatarMoeda } from "@/lib/format";
+import { useRef } from "react";
+import { Calendar, CheckCheck, Loader2, Lock, MessageSquareWarning, Sun, Briefcase, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ActivityTimeline, type ActivityLog } from "@/components/activity-timeline";
 import { BudgetChat } from "@/components/budget-chat";
+import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { isFuncaoLocal, isPercursoFunction } from "@shared/calculation-rules";
 import type { BudgetActual, BudgetPlanned, TeamInclusion } from "@shared/schema";
 import type { EditorDoRealizado } from "@/hooks/use-budget-actual-editor";
+import { cn } from "@/lib/utils";
 import { EditActualCustosTab } from "./edit-actual-custos-tab";
 import { reconstructDailyValues, subtotalDiariasDe, type DayCounts } from "./actual-utils";
-
-const formatCurrency = formatarMoeda;
+import { formatCurrency } from "./types";
 
 export interface EditActualModalProps {
   editor: EditorDoRealizado;
@@ -34,18 +44,33 @@ export interface EditActualModalProps {
   onSave: () => void;
 }
 
-const ddmm = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+/** Mesma moldura dos modais da família: rodapé fixo, corpo rola; tela cheia no celular. */
+const MOLDURA = "!max-w-[700px] w-[95vw] max-h-[90vh] !flex !flex-col p-0 gap-0 overflow-hidden rounded-xl max-sm:w-full max-sm:!max-w-none max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none max-sm:border-0";
+
+const ddmmAno = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 export function EditActualModal(p: EditActualModalProps) {
   const { editor, budgetActual, plannedLogs, rhComment, getCollaboratorName, getFunctionName, getItemInclusion, getItemDayCounts, getPlannedRef, proportionalPlanned, isSaving, onSave } = p;
   const { editingItem, editFormData, editDayEntries, modalActualTab, setModalActualTab, fechar, fecharBotao } = editor;
 
+  // Alterações não salvas: o que o salvar mandaria agora × o que mandaria ao
+  // abrir (fotografado na primeira renderização de cada prestação).
+  const fotoRef = useRef<{ id: string; payload: string } | null>(null);
+  const payloadAtual = editingItem && editFormData && !editingItem.sentForReview
+    ? JSON.stringify(editor.montarPayloadParaSalvar()?.data ?? null)
+    : null;
+  if (editingItem && payloadAtual !== null && fotoRef.current?.id !== editingItem.id) {
+    fotoRef.current = { id: editingItem.id, payload: payloadAtual };
+  }
+  if (!editingItem && fotoRef.current) fotoRef.current = null;
+  const sujo = !!editingItem && payloadAtual !== null && fotoRef.current?.id === editingItem.id && fotoRef.current.payload !== payloadAtual;
+  const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(sujo, { salvando: isSaving });
+
   return (
-    <Dialog open={!!editingItem && !!editFormData} onOpenChange={fechar}>
-      <DialogContent aria-describedby={undefined} className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6 flex flex-col" style={{ maxHeight: "90vh" }}>
-        <DialogHeader className="sr-only">
-          <DialogTitle>Editar prestação de contas</DialogTitle>
-        </DialogHeader>
+    <>
+    <Dialog open={!!editingItem && !!editFormData} onOpenChange={(v) => { if (!v) pedirParaFechar(fechar); }}>
+      <DialogContent aria-describedby={undefined} className={MOLDURA}>
+        {!(editingItem && editFormData) && <DialogTitle className="sr-only">Prestação de contas</DialogTitle>}
 
         {editingItem && editFormData && (() => {
           const isReadOnly = !!editingItem.sentForReview;
@@ -88,90 +113,91 @@ export function EditActualModal(p: EditActualModalProps) {
           const rawDifference = modalTotal - plannedTotal;
           const hasDivergence = planned && Math.abs(rawDifference) > 1;
           const difference = Math.abs(rawDifference) <= 1 ? 0 : rawDifference;
-
-          const statusBadge = !planned ? null : !hasDivergence
-            ? { label: "Dentro do planejado", bg: "bg-success-soft", text: "text-success", border: "border-success/25", icon: <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> }
-            : difference > 0
-              ? { label: "Acima do planejado", bg: "bg-danger-soft", text: "text-danger", border: "border-danger/25", icon: <TrendingUp className="w-3 h-3" aria-hidden="true" /> }
-              : { label: "Abaixo do planejado", bg: "bg-warning-soft", text: "text-warning", border: "border-warning/25", icon: <TrendingDown className="w-3 h-3" aria-hidden="true" /> };
+          const plannedAlim = planned ? planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner : 0;
 
           const mName = getCollaboratorName(editingItem.collaboratorId);
           const mInit = mName.split(" ").filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
+          const isCasa = editingItem.collaboratorType === "casa";
+          const planejadoAlterado = !!editingItem.plannedId && plannedLogs.some(l => l.entity_id === editingItem.plannedId && l.action === "update");
+          const comentarioRh = editingItem.rhStatus === "devolvido" ? (editingItem.rhComment || rhComment) : null;
+          const periodo = itemDays.startDate && itemDays.endDate
+            ? (itemDays.startDate === itemDays.endDate ? ddmmAno(itemDays.startDate) : `${ddmmAno(itemDays.startDate)} a ${ddmmAno(itemDays.endDate)}`)
+            : itemDays.startDate ? ddmmAno(itemDays.startDate) : itemDays.endDate ? ddmmAno(itemDays.endDate) : null;
+
+          // Linha do extrato do rodapé: realizado e, quando há referência, o planejado.
+          const linhaRodape = (rotulo: string, real: number, plano: number | null) => (
+            <>
+              <dt>{rotulo}</dt>
+              <dd className="m-0 text-right font-medium text-slate-700">{formatCurrency(real)}</dd>
+              {planned && <dd className="m-0 text-right max-sm:hidden">{plano !== null ? formatCurrency(plano) : "—"}</dd>}
+            </>
+          );
 
           return (
             <>
-              {/* ── Header ── */}
-              <div className="shrink-0 bg-primary-hover">
-                <div className="flex items-center gap-3 py-3.5 px-5">
-                  <div className="rounded-lg bg-card/20 border border-white/30 flex items-center justify-center flex-shrink-0" style={{ width: 38, height: 38 }}>
-                    <span className="text-white text-sm font-bold">{mInit || "?"}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="font-bold text-white truncate leading-tight text-base">{getCollaboratorName(editingItem.collaboratorId)}</h2>
-                    <p className="text-2xs text-white/70">{getFunctionName(editingItem.functionId)}</p>
-                    <div className="flex items-center gap-1 mt-1 flex-wrap">
-                      <span className={`inline-flex items-center text-2xs font-bold px-2 rounded-md ${editingItem.collaboratorType === "casa" ? "bg-primary/30 text-primary-foreground/80" : "bg-warning-strong/30 text-warning-soft"}`} style={{ height: 20 }}>
-                        {editingItem.collaboratorType === "casa" ? "Casa" : "Freela"}
-                      </span>
-                      {(itemDays.startDate || itemDays.endDate) && (
-                        <span className="inline-flex items-center gap-1 text-2xs text-white/70" style={{ height: 20 }}>
-                          <Calendar className="w-3 h-3" aria-hidden="true" />
-                          {itemDays.startDate && itemDays.endDate
-                            ? `${ddmm(itemDays.startDate)} → ${ddmm(itemDays.endDate)}`
-                            : itemDays.startDate
-                              ? ddmm(itemDays.startDate)
-                              : ddmm(itemDays.endDate!)
-                          }
-                        </span>
-                      )}
-                      {itemDays.weekdays > 0 && (
-                        <span className="inline-flex items-center text-2xs px-2 rounded-md bg-card/12 text-white/85" style={{ height: 20 }}>
-                          {itemDays.weekdays}d úteis{itemDays.weekends > 0 ? ` · ${itemDays.weekends} fds` : ""}
-                        </span>
-                      )}
-                      {isReadOnly && (
-                        <span className="inline-flex items-center text-2xs px-2 rounded-md bg-card/15 text-white gap-1" style={{ height: 20 }}>
-                          <Lock className="w-2.5 h-2.5" aria-hidden="true" /> Bloqueado
-                        </span>
-                      )}
-                      {editingItem.plannedId && plannedLogs.some(l => l.entity_id === editingItem.plannedId && l.action === "update") && (
-                        <span className="inline-flex items-center text-2xs px-2 rounded-md bg-warning-strong/25 text-warning-soft border border-warning/30 gap-1 font-semibold" style={{ height: 20 }}>
-                          ⚠️ Planejado alterado pelo RH
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {planned && statusBadge && (
-                    <div className="flex items-center gap-1 px-2 rounded-lg text-2xs font-semibold border flex-shrink-0 mr-6 bg-transparent text-white/90 border-white/35" style={{ height: 22 }}>
-                      {statusBadge.icon}
-                      {statusBadge.label}
-                    </div>
-                  )}
+              {/* ── Cabeçalho: de quem, quando — e o que já se sabe da prestação ── */}
+              <div className="flex items-start gap-3.5 px-5 sm:px-6 pt-4 pb-3.5 pr-14 border-b border-border bg-card shrink-0">
+                <div className="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center shrink-0 bg-brand-soft text-primary text-sm font-semibold" aria-hidden="true">
+                  {mInit || "?"}
                 </div>
-                {/* Comentário do RH: apenas em itens efetivamente devolvidos — não em aprovados/pendentes */}
-                {editingItem.rhStatus === "devolvido" && (editingItem.rhComment || rhComment) && (
-                  <div className="mt-2.5 p-2 rounded-xl bg-card/10 border border-white/20">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="w-3.5 h-3.5 text-warning-soft mt-0.5 flex-shrink-0" aria-hidden="true" />
-                      <div>
-                        <span className="text-2xs uppercase text-warning-soft font-bold tracking-wider">Comentário do RH</span>
-                        <p className="text-2xs text-white/80 mt-0.5">{editingItem.rhComment || rhComment}</p>
-                      </div>
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <DialogTitle className="m-0 p-0 text-base font-semibold leading-6 text-foreground truncate"><span className="sr-only">Prestação de contas de </span>{mName}</DialogTitle>
+                    <span className={cn("inline-flex items-center h-5 px-1.5 rounded-md text-2xs font-medium", isCasa ? "bg-brand-soft text-primary" : "bg-muted text-slate-600")}>
+                      {isCasa ? "Casa" : "Freela"}
+                    </span>
+                    {isReadOnly && (
+                      <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-2xs font-medium bg-muted text-slate-600">
+                        <Lock className="w-3 h-3" aria-hidden="true" />Bloqueado
+                      </span>
+                    )}
+                    {planejadoAlterado && (
+                      <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-2xs font-medium bg-warning-soft text-warning border border-warning/25">
+                        <TriangleAlert className="w-3 h-3" aria-hidden="true" />Planejado alterado pelo RH
+                      </span>
+                    )}
                   </div>
-                )}
+                  <p className="m-0 mt-0.5 text-xs leading-5 text-muted-foreground">
+                    <span className="font-medium text-foreground">{modalFunctionName}</span>
+                    {periodo && (
+                      <>
+                        <span className="mx-1.5" aria-hidden="true">·</span>
+                        <span className="inline-flex items-center gap-1 tabular-nums"><Calendar className="w-3 h-3" aria-hidden="true" />{periodo}</span>
+                      </>
+                    )}
+                  </p>
+                  <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground tabular-nums">
+                    <span className="inline-flex items-center gap-1"><Briefcase className="w-3 h-3" aria-hidden="true" />{itemDays.weekdays}d úteis</span>
+                    <span className="inline-flex items-center gap-1"><Sun className="w-3 h-3 text-warning-strong" aria-hidden="true" />{itemDays.weekends} fds</span>
+                    {planned && (
+                      <span className={cn("font-medium", !hasDivergence ? "text-success" : difference > 0 ? "text-danger" : "text-success")}>
+                        {!hasDivergence ? "Dentro do planejado" : difference > 0 ? "Acima do planejado" : "Abaixo do planejado"}
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
 
-              {/* ── Read-only banner ── */}
-              {isReadOnly && (
-                <div className="flex items-center gap-2.5 px-5 py-2 bg-warning-soft border-b border-warning/25 shrink-0">
-                  <Lock className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" aria-hidden="true" />
-                  <span className="text-xs font-medium text-warning">Valores enviados para revisão — somente leitura</span>
+              {/* Comentário do RH: apenas em itens efetivamente devolvidos — não em aprovados/pendentes */}
+              {comentarioRh && (
+                <div className="flex items-start gap-2.5 px-5 sm:px-6 py-2.5 bg-warning-soft border-b border-warning/25 shrink-0" role="note">
+                  <MessageSquareWarning className="w-4 h-4 mt-0.5 shrink-0 text-warning-strong" aria-hidden="true" />
+                  <p className="m-0 text-xs leading-5 text-warning">
+                    <span className="font-semibold">Devolvida pelo RH:</span> {comentarioRh}
+                  </p>
                 </div>
               )}
 
-              {/* ── Barra de Abas ── */}
-              <div className="flex border-b border-border bg-card shrink-0">
+              {/* ── Somente leitura: diz por que nada se edita ── */}
+              {isReadOnly && (
+                <div className="flex items-center gap-2.5 px-5 sm:px-6 py-2 bg-surface-muted border-b border-border shrink-0">
+                  <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                  <p className="m-0 text-xs text-slate-600">Valores enviados para revisão — somente leitura.</p>
+                </div>
+              )}
+
+              {/* ── Abas ── */}
+              <div role="tablist" aria-label="Seções da prestação" className="flex gap-1 pl-3 sm:pl-4 pr-4 border-b border-border bg-card shrink-0">
                 {([
                   { id: "custos", label: "Custos" },
                   { id: "observacoes", label: "Observações" },
@@ -179,13 +205,15 @@ export function EditActualModal(p: EditActualModalProps) {
                 ] as const).map(({ id, label }) => (
                   <button
                     key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={modalActualTab === id}
                     onClick={() => setModalActualTab(id)}
-                    className={[
-                      "flex-1 h-10 text-sm font-medium transition-colors",
-                      modalActualTab === id
-                        ? "text-primary border-b-2 border-primary bg-brand-soft/40"
-                        : "text-muted-foreground hover:text-slate-700 hover:bg-surface-muted",
-                    ].join(" ")}
+                    className={cn(
+                      "relative -mb-px px-3 sm:px-4 py-2.5 border-b-2 text-sm font-medium transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                      modalActualTab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
+                    )}
                   >
                     {label}
                   </button>
@@ -214,7 +242,7 @@ export function EditActualModal(p: EditActualModalProps) {
 
               {/* ── Aba: Observações ── */}
               {modalActualTab === "observacoes" && (
-                <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted/40" style={{ maxHeight: "52vh" }}>
+                <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted">
                   <BudgetChat
                     entityType="actual"
                     entityId={editingItem.id}
@@ -226,64 +254,63 @@ export function EditActualModal(p: EditActualModalProps) {
 
               {/* ── Aba: Histórico ── */}
               {modalActualTab === "historico" && (
-                <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted/40" style={{ maxHeight: "52vh" }}>
+                <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted">
                   <ActivityTimeline entityType="budget_actual" entityId={editingItem.id} defaultOpen={true} />
                 </div>
               )}
 
-              {/* ── Footer ── */}
-              <div className="border-t border-border bg-card shrink-0">
-                {/* Linha Planejado / Realizado / Diferença */}
-                <div className="flex items-center divide-x divide-border" style={{ height: 52 }}>
-                  {planned ? (
-                    <>
-                      <div className="flex-1 flex flex-col items-center justify-center px-3">
-                        <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider">Planejado</span>
-                        <span className="text-base font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</span>
-                      </div>
-                      <div className="flex-1 flex flex-col items-center justify-center px-3">
-                        <span className="text-2xs uppercase font-semibold tracking-wider text-primary">Realizado</span>
-                        <span className="text-base font-bold tabular-nums text-primary">{formatCurrency(modalTotal)}</span>
-                      </div>
-                      <div className="flex-1 flex flex-col items-center justify-center px-3">
-                        <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider">Diferença</span>
-                        {Math.abs(difference) <= 1 ? (
-                          <span className="text-base font-bold text-muted-foreground">—</span>
+              {/* ── Rodapé fixo: o total que vai ser gravado, contra o planejado, e as ações ── */}
+              <div className="shrink-0 px-5 sm:px-6 pt-3 pb-3 border-t border-border bg-surface-muted">
+                <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span className="text-xs font-medium text-slate-600">{planned ? "Total realizado" : "Total da prestação"}</span>
+                      {planned && (
+                        difference === 0 ? (
+                          <span className="inline-flex items-center h-5 px-1.5 rounded-md text-2xs font-semibold bg-muted text-slate-600">igual ao planejado</span>
                         ) : (
-                          <span className={`text-base font-bold tabular-nums ${difference > 0 ? "text-danger" : "text-success"}`}>
-                            {difference > 0 ? "▲ " : "▼ "}{formatCurrency(Math.abs(difference))}
+                          <span className={cn("pla-diferenca inline-flex items-center h-5 px-1.5 rounded-md text-2xs font-semibold tabular-nums", difference > 0 ? "bg-danger-soft text-danger" : "bg-success-soft text-success")}>
+                            {difference > 0 ? "▲" : "▼"} {formatCurrency(Math.abs(difference))} vs planejado
                           </span>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center px-3">
-                      <span className="text-2xs uppercase text-muted-foreground font-semibold tracking-wider">Total da prestação</span>
-                      <span className="text-base font-bold tabular-nums text-primary">{formatCurrency(modalTotal)}</span>
+                        )
+                      )}
                     </div>
-                  )}
+                    <div className="text-[1.375rem] font-semibold leading-7 tracking-[-0.01em] tabular-nums text-primary" aria-live="polite">{formatCurrency(modalTotal)}</div>
+                    {planned && <div className="text-xs text-muted-foreground tabular-nums">Planejado {formatCurrency(plannedTotal)}</div>}
+                  </div>
+                  {/* A conta do total, como um extrato miúdo à direita (com o planejado ao lado). */}
+                  <dl className={cn("m-0 grid gap-x-3 text-2xs leading-4 tabular-nums text-muted-foreground", planned ? "grid-cols-[auto_auto] sm:grid-cols-[auto_auto_auto]" : "grid-cols-[auto_auto]")}>
+                    {planned && (
+                      <>
+                        <span className="max-sm:hidden" aria-hidden="true" />
+                        <span className="max-sm:hidden text-right text-[11px] font-semibold uppercase tracking-[0.04em]">Realizado</span>
+                        <span className="max-sm:hidden text-right text-[11px] font-semibold uppercase tracking-[0.04em]">Planejado</span>
+                      </>
+                    )}
+                    {linhaRodape("Diárias", subtotalDiariasRaw, planned ? plannedSubDiarias : null)}
+                    {linhaRodape("Alimentação", totalAlimentacao, planned ? plannedAlim : null)}
+                    {linhaRodape("Mobilidade", modalMobility, planned ? planned.mobility : null)}
+                    {editingItem.transport > 0 && linhaRodape("Translado", editingItem.transport, planned ? planned.transport : null)}
+                  </dl>
                 </div>
-                {/* Botões */}
-                <div className="px-5 pb-4 flex items-center justify-end gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-2 mt-3 pt-3 border-t border-border">
                   {isReadOnly ? (
-                    <Button variant="ghost" className="h-10 px-6 text-sm rounded-xl text-slate-600 hover:text-foreground hover:bg-muted" onClick={fecharBotao}>
+                    <Button variant="outline" className="h-9 px-4 rounded-lg text-sm font-medium" onClick={fecharBotao}>
                       Fechar
                     </Button>
                   ) : (
                     <>
-                      <button
-                        type="button"
-                        className="text-sm text-muted-foreground hover:text-slate-600 transition-colors px-2"
-                        onClick={fecharBotao}
-                      >
+                      {sujo && <span className="mr-auto text-xs text-muted-foreground">Alterações não salvas</span>}
+                      <Button variant="outline" className="h-9 px-4 rounded-lg text-sm font-medium" disabled={isSaving} onClick={() => pedirParaFechar(fecharBotao)}>
                         Cancelar
-                      </button>
+                      </Button>
                       <Button
                         onClick={onSave}
                         disabled={isSaving}
-                        className="h-10 px-5 text-sm font-semibold rounded-xl text-white shadow-1 bg-primary-hover"
+                        className="h-9 px-4 rounded-lg gap-2 text-sm font-semibold bg-primary hover:bg-primary-hover text-primary-foreground"
+                        data-testid="realizado-salvar-prestacao"
                       >
-                        <Check className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <CheckCheck className="w-4 h-4" aria-hidden="true" />}
                         {isSaving ? "Salvando…" : "Salvar prestação"}
                       </Button>
                     </>
@@ -295,6 +322,8 @@ export function EditActualModal(p: EditActualModalProps) {
         })()}
       </DialogContent>
     </Dialog>
+    {DialogoDescarte}
+    </>
   );
 }
 

@@ -20,7 +20,7 @@ import type { ControladorDoModalDeEdicao } from "@/hooks/use-budget-edit-modal";
 import { formatCurrency, formatSegmentsMemo, type BudgetEdit, type EditingBudgetInfo } from "./types";
 
 // 08/10: o campo da família — borda visível, anel de foco, número tabular; travado fica cinza.
-const inputCls = "h-9 w-[104px] px-2.5 text-sm text-right font-semibold tabular-nums rounded-lg border border-border bg-card outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-[3px] focus:ring-primary/12 focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100";
+export const inputCls = "h-9 w-[104px] px-2.5 text-sm text-right font-semibold tabular-nums rounded-lg border border-border bg-card outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-[3px] focus:ring-primary/12 focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100";
 
 export interface CustosTabProps {
   ctrl: ControladorDoModalDeEdicao;
@@ -42,15 +42,22 @@ export interface CustosTabProps {
 }
 
 /** Cabeçalho dos três blocos: ícone na cor do bloco, nome e o total à direita (08/10). */
-function CabecalhoDoBloco({ icone: Icone, cor, titulo, sub, total }: { icone: LucideIcon; cor: string; titulo: string; sub?: string; total: number }) {
+export function CabecalhoDoBloco({ icone: Icone, cor, titulo, sub, total, extra }: {
+  icone: LucideIcon; cor: string; titulo: string; sub?: React.ReactNode; total: number;
+  /** Algo antes do total (o Realizado põe o "Recalcular pela viagem"). */
+  extra?: React.ReactNode;
+}) {
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border">
-      <h3 className="m-0 flex items-center gap-2 text-2xs font-semibold uppercase tracking-[0.06em] text-slate-600">
+      <h3 className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 text-2xs font-semibold uppercase tracking-[0.06em] text-slate-600">
         <Icone className={`w-3.5 h-3.5 ${cor}`} aria-hidden="true" />
         {titulo}
         {sub && <span className="normal-case tracking-normal font-normal text-muted-foreground">{sub}</span>}
       </h3>
-      <span className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(total)}</span>
+      <div className="flex items-center gap-2 shrink-0">
+        {extra}
+        <span className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(total)}</span>
+      </div>
     </div>
   );
 }

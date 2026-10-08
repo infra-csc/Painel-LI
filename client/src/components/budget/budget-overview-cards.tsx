@@ -36,8 +36,10 @@ const STEPS = [
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
-function Metrica({ icon: Icon, label, value, sub, tooltip, cor }: {
+export function Metrica({ icon: Icon, label, value, sub, tooltip, cor, corValor = "text-foreground" }: {
   icon: LucideIcon; label: string; value: string; sub: string; tooltip: string; cor: string;
+  /** Cor do número (o Realizado pinta a diferença; o padrão é a do texto). */
+  corValor?: string;
 }) {
   return (
     <div className="pla-metrica min-w-0 px-4 py-3" title={tooltip}>
@@ -45,14 +47,14 @@ function Metrica({ icon: Icon, label, value, sub, tooltip, cor }: {
         <Icon className={cn("w-3.5 h-3.5 shrink-0", cor)} aria-hidden="true" />
         <span className="truncate">{label}</span>
       </p>
-      <p className="m-0 mt-1 text-base sm:text-lg font-semibold leading-6 tracking-[-0.01em] tabular-nums text-foreground truncate">{value}</p>
+      <p className={cn("m-0 mt-1 text-base sm:text-lg font-semibold leading-6 tracking-[-0.01em] tabular-nums truncate", corValor)}>{value}</p>
       <p className="m-0 text-2xs sm:text-xs text-muted-foreground truncate">{sub}</p>
     </div>
   );
 }
 
 /** As quatro etapas do fluxo numa linha: feitas com ✓, a atual em destaque. */
-function TrilhoDeEtapas({ atual }: { atual: number }) {
+export function TrilhoDeEtapas({ atual }: { atual: number }) {
   return (
     <ol className="m-0 p-0 list-none flex items-center gap-1.5 min-w-0" aria-label={`Etapa atual: ${STEPS[atual].label}`}>
       {STEPS.map((s, i) => {

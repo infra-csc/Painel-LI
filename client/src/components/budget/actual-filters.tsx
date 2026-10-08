@@ -1,123 +1,146 @@
 /**
- * Filtros e "Selecionar todas" do Orçamento Realizado — 25/09 (modularização).
+ * Filtros do Orçamento Realizado — 25/09 (modularização); redesenho 08/10.
+ *
+ * Antes: busca "sublinhada" de 200px e três `Select` cinza (função com TODAS
+ * as funções do cadastro, tipo, ordem), um "14 itens" solto e o "Selecionar
+ * todas" numa linha própria.
+ *
+ * Agora a MESMA anatomia do Planejado (common/barra-de-filtros): busca, a
+ * função à vista (só as que existem no evento, com quantas sobram), tipo e
+ * ordem em "Filtros"; o que está ligado vira etiqueta removível com "Limpar
+ * filtros"; a contagem diz "N de M" e quanto o recorte soma. Acima dela, a
+ * fila de situações (a preencher, salvas, em revisão, devolvidas,
+ * aprovadas) conta E recorta. O "selecionar" foi para o cabeçalho da lista.
+ *
  * Só apresentação: o estado vem de `useBudgetActualData`.
  */
-import { Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Function } from "@shared/schema";
-import type { DadosDoRealizado } from "@/hooks/use-budget-actual-data";
+import { CheckCheck, CircleDashed, Clock, PencilLine, Undo2 } from "lucide-react";
+import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros, type ListaCurta } from "@/components/common/barra-de-filtros";
+import { FiltroUnico } from "@/components/common/filter-popover";
+import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
+import type { DadosDoRealizado, SituacaoDaPrestacao } from "@/hooks/use-budget-actual-data";
+import { formatCurrency } from "./types";
 
-const ITEM_CLS = "rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover";
+const LISTA_TIPO: ListaCurta = {
+  chave: "tipo", titulo: "Tipo de colaborador", etiqueta: "Tipo", testid: "filtro-tipo",
+  opcoes: [{ id: "all", nome: "Todos" }, { id: "casa", nome: "Casa" }, { id: "freela", nome: "Freela" }],
+};
+const LISTA_ORDEM: ListaCurta = {
+  chave: "ordem", titulo: "Ordenar por", etiqueta: "Ordem", testid: "filtro-ordem",
+  opcoes: [
+    // "adjusted": diverge do planejado primeiro, depois o maior valor.
+    { id: "adjusted", nome: "Com divergência primeiro" },
+    { id: "value", nome: "Maior valor" },
+    { id: "name", nome: "Nome A–Z" },
+  ],
+};
 
 export interface ActualFiltersProps {
   dados: DadosDoRealizado;
-  functions: Function[] | undefined;
 }
 
-export function ActualFilters({ dados: d, functions }: ActualFiltersProps) {
+export function ActualFilters({ dados: d }: ActualFiltersProps) {
+  const tipoLigado = d.filterType !== "all";
+  const total = d.eventItems.length;
+  const n = d.filteredItems.length;
+  const contagem = d.algumFiltro
+    ? `${n} de ${total} ${total === 1 ? "prestação" : "prestações"}`
+    : `${n} ${n === 1 ? "prestação" : "prestações"}`;
+  // Com filtro, a contagem diz também quanto o recorte soma (o painel é do evento inteiro).
+  const soma = d.algumFiltro && n > 0 ? ` · ${formatCurrency(d.totalRealizado)}` : "";
+
   return (
-    <>
-      {/* ── Filtros ── */}
-      <div className="flex flex-wrap items-center gap-3 px-0">
-        {/* Busca */}
-        <div className="relative w-full sm:w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" aria-hidden="true" />
-          <input
-            type="text"
-            placeholder="Buscar colaborador…"
-            value={d.searchTerm}
-            onChange={e => d.setSearchTerm(e.target.value)}
-            className={cn("w-full pr-3 pl-[26px] bg-surface-muted border-0 border-b-[1.5px] rounded-t-md text-xs text-slate-700 outline-none transition-colors focus:border-b-primary", d.searchTerm ? "border-b-primary" : "border-b-border")}
-            style={{ height: 34 }}
+    <div className="space-y-2" role="search" aria-label="Filtros do realizado">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.5">
+        <BuscaDaLista
+          valor={d.searchTerm}
+          onChange={d.setSearchTerm}
+          placeholder="Buscar colaborador ou função"
+          rotulo="Buscar prestação por colaborador ou função"
+          testid="busca-realizado"
+        />
+        {/* Celular: a fileira rola de lado em vez de empilhar os controles. */}
+        <div className="pas-rolagem-x -mx-[var(--page-gutter)] flex items-center gap-1.5 px-[var(--page-gutter)] sm:contents">
+          <div className="shrink-0 max-w-[220px]">
+            <FiltroUnico
+              valor={d.filterFunction}
+              onChange={d.setFilterFunction}
+              opcoes={d.opcoesDeFuncao}
+              rotuloTodos="Todas as funções"
+              placeholderBusca="Buscar função…"
+              testid="filtro-funcao-realizado"
+            />
+          </div>
+          <MaisFiltros
+            listas={[LISTA_TIPO, LISTA_ORDEM]}
+            valorDe={(chave) => (chave === "tipo" ? d.filterType : d.sortBy)}
+            onEscolher={(chave, id) => (chave === "tipo" ? d.setFilterType(id) : d.setSortBy(id))}
+            // A ordem não é filtro: não conta no número do botão.
+            contagem={tipoLigado ? 1 : 0}
+            mostrarPadrao={tipoLigado || d.sortBy !== "adjusted"}
+            onPadrao={() => { d.setFilterType("all"); d.setSortBy("adjusted"); }}
+            testid="filtros-realizado"
           />
         </div>
-
-        {/* Função */}
-        <Select value={d.filterFunction} onValueChange={d.setFilterFunction}>
-          <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
-            <SelectValue placeholder="Função" />
-          </SelectTrigger>
-          <SelectContent className="rounded-xl shadow-3 border border-border min-w-[180px] p-1.5 backdrop-blur-md bg-card/96">
-            <SelectItem value="all" className={ITEM_CLS}>Todas as funções</SelectItem>
-            {[...(functions ?? [])].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(f => (
-              <SelectItem key={f.id} value={f.id} className={ITEM_CLS}>{f.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Tipo */}
-        <Select value={d.filterType} onValueChange={d.setFilterType}>
-          <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="rounded-xl shadow-3 border border-border min-w-[130px] p-1.5 backdrop-blur-md bg-card/96">
-            <SelectItem value="all" className={ITEM_CLS}>Todos</SelectItem>
-            <SelectItem value="casa" className={ITEM_CLS}>Casa</SelectItem>
-            <SelectItem value="freela" className={ITEM_CLS}>Freela</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Ordenação */}
-        <Select value={d.sortBy} onValueChange={d.setSortBy}>
-          <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="rounded-xl shadow-3 border border-border min-w-[160px] p-1.5 backdrop-blur-md bg-card/96">
-            <SelectItem value="adjusted" className={ITEM_CLS}>Ajustadas primeiro</SelectItem>
-            <SelectItem value="value" className={ITEM_CLS}>Maior valor</SelectItem>
-            <SelectItem value="name" className={ITEM_CLS}>Nome A-Z</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Contador */}
-        <div className="flex-1" />
-        <span className="text-2xs text-muted-foreground font-semibold bg-surface-muted rounded-lg py-1 px-2.5" aria-live="polite">
-          {d.filteredItems.length} {d.filteredItems.length === 1 ? "item" : "itens"}
+        <span className="hidden sm:inline ml-auto pl-2 text-xs text-muted-foreground tabular-nums whitespace-nowrap" aria-live="polite" data-testid="contagem-realizado">
+          {contagem}{soma}
         </span>
       </div>
 
-      {d.hasAnyEditable && d.filteredItems.length > 1 && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={d.selectAll}
-            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-slate-700 transition-colors"
-          >
-            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-              d.selectedCards.size === d.selectableCount && d.selectedCards.size > 0
-                ? "bg-primary border-primary"
-                : d.selectedCards.size > 0
-                  ? "bg-primary/40 border-primary"
-                  : "border-slate-300 "
-            }`}>
-              {d.selectedCards.size > 0 && (
-                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  {d.selectedCards.size === d.selectableCount
-                    ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    : <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
-                  }
-                </svg>
-              )}
-            </div>
-            {d.selectedCards.size > 0
-              ? `${d.selectedCards.size} selecionada${d.selectedCards.size > 1 ? "s" : ""}`
-              : "Selecionar todas"
-            }
-          </button>
-          {d.selectedCards.size > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-2xs text-muted-foreground hover:text-slate-600"
-              onClick={() => d.setSelectedCards(new Set())}
-            >
-              Limpar
-            </Button>
+      {d.algumFiltro && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {d.filterFunction !== "all" && (
+            <EtiquetaDeFiltro
+              etiqueta="Função"
+              valor={d.opcoesDeFuncao.find((o) => o.id === d.filterFunction)?.nome}
+              titulo="Função"
+              onTirar={() => d.setFilterFunction("all")}
+            />
           )}
+          {tipoLigado && (
+            <EtiquetaDeFiltro
+              etiqueta="Tipo"
+              valor={LISTA_TIPO.opcoes.find((o) => o.id === d.filterType)?.nome}
+              titulo="Tipo de colaborador"
+              onTirar={() => d.setFilterType("all")}
+            />
+          )}
+          <LimparFiltros onClick={d.limparFiltros} testid="limpar-filtros-realizado" />
+          <span className="sm:hidden ml-auto text-xs text-muted-foreground tabular-nums" aria-live="polite">{contagem}{soma}</span>
         </div>
       )}
-    </>
+    </div>
+  );
+}
+
+/**
+ * Fila de situações: cada bloco conta E recorta (reclicar desliga). Os
+ * números respeitam a busca, a função e o tipo de agora.
+ */
+export function FilaDoRealizado({ dados: d }: { dados: DadosDoRealizado }) {
+  const c = d.contagemPorSituacao;
+  const v = d.valorPorSituacao;
+  const blocos: BlocoDaFilaDeTrabalho<SituacaoDaPrestacao>[] = [
+    { key: "preencher", rotulo: "A preencher", n: c.preencher, sub: c.preencher ? "nunca salvas" : "nada pendente", icone: CircleDashed, cor: "text-muted-foreground",
+      titulo: "Prestações que ainda não foram salvas — vão com os valores do planejado se forem enviadas assim" },
+    { key: "salvas", rotulo: "Salvas", n: c.salvas, sub: c.salvas ? "prontas para enviar" : "nenhuma", icone: PencilLine, cor: "text-primary",
+      titulo: "Prestações preenchidas e salvas, ainda não enviadas para revisão" },
+    { key: "revisao", rotulo: "Em revisão", n: c.revisao, sub: c.revisao ? formatCurrency(v.revisao) : "nenhuma", icone: Clock, cor: "text-info",
+      titulo: "Enviadas — aguardando a análise do RH (travadas para edição)" },
+    { key: "devolvidas", rotulo: "Devolvidas", n: c.devolvidas,
+      sub: !c.devolvidas ? "nenhuma" : d.recusadasNaFila > 0 ? `${d.recusadasNaFila === c.devolvidas ? "" : "inclui "}${d.recusadasNaFila} ${d.recusadasNaFila === 1 ? "recusada" : "recusadas"}` : "corrigir e reenviar", icone: Undo2, cor: "text-warning",
+      titulo: "Devolvidas ou recusadas pelo RH — corrija e reenvie para revisão" },
+    { key: "aprovadas", rotulo: "Aprovadas", n: c.aprovadas, sub: c.aprovadas ? formatCurrency(v.aprovadas) : "nenhuma ainda", icone: CheckCheck, cor: "text-success",
+      titulo: "Aprovadas pelo RH" },
+  ];
+  return (
+    <FilaDeTrabalho
+      blocos={blocos}
+      ativa={d.situacao === "todas" ? null : d.situacao}
+      onEscolher={(k) => d.setSituacao(k ?? "todas")}
+      rotulo="Situação das prestações"
+      testid={(k) => `fila-${k}`}
+    />
   );
 }
 

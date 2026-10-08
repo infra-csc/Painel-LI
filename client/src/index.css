@@ -1421,3 +1421,28 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .pla-progresso, .pla-card, .pla-linha { transition: none; }
   .pla-etapa-atual, .pla-destaque, .pla-editado { animation: none; }
 }
+
+/* ══ Realizado (rea-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças do Planejado (pla-resumo, pla-card, pla-extrato,
+ * pla-destaque, pla-progresso) e da família Passagens (pas-osso, pas-entra,
+ * pas-sobe, pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que
+ * é dela: a linha do dia na grade de diárias do modal. */
+
+/* Dia: caixa "trabalhou" · data · planejado · realizado (campo de 104px). */
+.rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 6.5rem 104px; }
+@media (max-width: 380px) {
+  .rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 104px; }
+  .rea-dia > :nth-child(3) { display: none; }
+}
+/* Resumo: entre 768 e 1024px os valores não cabem em cinco colunas — fica 2 × 2
+   (as divisórias do 2 × 2 do pla-resumo, que só valem abaixo de 768px). */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .rea-resumo .pla-metrica { border-top: 1px solid var(--border); border-left: 0; }
+  .rea-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
+}
+/* Rodapé do card: no card estreito (grade de 2 dentro da divisão, tablet,
+   celular) Observações, Dividir e Remover ficam só no ícone — o rótulo vai
+   no aria-label/title. Medido pelo card (container), não pela janela. */
+@container (max-width: 480px) {
+  .rea-acao-texto { display: none; }
+}
