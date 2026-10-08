@@ -1153,3 +1153,58 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .hes-kpi, .hes-kpi .hes-kpi-n, .hes-pilula, .hes-chip, .hes-mov-corpo, .hes-linha, .hes-linha .hes-abrir { transition: none; }
   .hes-kpi:hover .hes-kpi-n, .hes-pilula:active, .hes-linha:hover .hes-abrir, .hes-exportar:active, .hes-baixar:active { transform: none; }
 }
+
+/* ══ Calendário (cal-) — redesenho 07/10 ═══════════════════════════════════
+ * A tela usa as peças da família Eventos/Passagens (pas-osso, pas-entra,
+ * pas-alvo, barra de filtros comum). Aqui só o que é dela: a altura das
+ * semanas do Mês (crescem até ocupar a tela), o corpo da Semana, as barras e
+ * chips como botões, a linha da Lista, os painéis flutuantes e a folha do
+ * celular. Tudo rápido e desligado com reduced-motion. */
+
+/* Mês: cada semana tem ao menos 3 faixas + "+N mais"; em telas altas cresce
+   até o mês inteiro caber sem rolar (19,5rem = topo, barra, filtros, cabeçalhos). */
+.cal-semana { min-height: max(7.75rem, calc((100dvh - 19.5rem) / var(--cal-semanas, 5))); }
+/* Semana: as colunas descem até perto do fim da tela. */
+.cal-semana-corpo { min-height: max(16rem, calc(100dvh - 21rem)); }
+
+/* Sábado e domingo: um tom que se vê de relance (o surface-muted a 50% sobre o
+   branco sumia — #FCFDFE). Hoje continua mais forte que o fim de semana. */
+.cal-fds { background-color: color-mix(in srgb, var(--neutral-soft) 72%, var(--card)); }
+.cal-fds-cab { background-color: var(--neutral-soft); }
+
+/* Barra (Mês) e chip (Semana, agenda, "+N mais"): sobem 1px no hover — são botões. */
+.cal-barra, .cal-chip { transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease; }
+.cal-barra:hover, .cal-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+.cal-barra:active, .cal-chip:active { transform: none; filter: brightness(.97); }
+
+/* Lista: a linha inteira é o botão; o foco do teclado contorna a linha. */
+.cal-linha { transition: background-color 120ms ease; }
+.cal-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--card)); }
+.cal-linha:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+/* Meses passados: um passo atrás, de volta ao apontar. */
+.cal-passado { opacity: .72; transition: opacity 160ms ease; }
+.cal-passado:hover, .cal-passado:focus-within { opacity: 1; }
+
+/* Visão que acabou de abrir e período que acabou de trocar. */
+@keyframes cal-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.cal-entra { animation: cal-entra 180ms ease-out both; }
+@keyframes cal-troca { from { opacity: .35; } to { opacity: 1; } }
+.cal-troca { animation: cal-troca 160ms ease-out both; }
+
+/* Painel do evento e popover do dia (desktop): surgem de perto do clique. */
+@keyframes cal-flutua { from { opacity: 0; transform: scale(.97) translateY(2px); } to { opacity: 1; transform: none; } }
+.cal-flutua { animation: cal-flutua 140ms cubic-bezier(.2, 0, 0, 1) both; }
+/* Celular: a folha sobe do rodapé sobre o véu. */
+@keyframes cal-folha { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+.cal-folha { animation: cal-folha 200ms cubic-bezier(.2, 0, 0, 1) both; }
+@keyframes cal-veu { from { opacity: 0; } to { opacity: 1; } }
+.cal-veu { animation: cal-veu 160ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-entra, .cal-troca, .cal-flutua, .cal-folha, .cal-veu { animation: none; }
+  .cal-barra, .cal-chip, .cal-linha, .cal-passado { transition: none; }
+  .cal-barra:hover, .cal-chip:hover { transform: none; }
+}

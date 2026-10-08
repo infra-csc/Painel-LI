@@ -1,149 +1,160 @@
 /**
- * Cabeçalho do Calendário (25/09 — extraído de pages/calendar.tsx): PageHeader
- * com a navegação de mês/semana em `context` e busca, filtros de status e
- * alternância de visão em `actions`.
+ * Barra de ferramentas e cabeçalho do período do Calendário (25/09 — extraído
+ * de pages/calendar.tsx).
+ *
+ * 07/10 (redesenho), a MESMA anatomia de Eventos/Passagens:
+ *  - o título e o resumo foram para a barra da tela (56px, `pages/calendar`);
+ *  - a barra de ferramentas usa as peças comuns — busca com Esc que apaga, o
+ *    status numa lista desenhada com a contagem de cada opção (eram pílulas
+ *    com "Filtros:" e zeros à vista), "Limpar filtros" e o seletor de visão;
+ *  - a navegação do período mora no topo da grade, num grupo só (‹ Hoje ›),
+ *    com o período por extenso, a contagem do período e a legenda das cores.
+ *
+ * **Nenhum controle saiu**: busca (nome ou local), status (todos, concluído,
+ * em andamento, planejado — com as mesmas contagens), limpar, Mês/Semana/
+ * Lista, setas, Hoje e o número da semana continuam aqui.
  */
-import { CalendarDays, ChevronLeft, ChevronRight, Columns3, LayoutGrid, List, Search, X, type LucideIcon } from "lucide-react";
-import { PageHeader } from "@/components/common/page-header";
-import { MONTH_NAMES, addDays, isoWeekNumber } from "./calendar-shared";
+import { CalendarDays, CalendarRange, ChevronLeft, ChevronRight, List, type LucideIcon } from "lucide-react";
+import { BuscaDaLista, LimparFiltros } from "@/components/common/barra-de-filtros";
+import { FiltroDeLista } from "@/components/common/filter-popover";
+import { cn } from "@/lib/utils";
+import { Legenda, MONTH_NAMES_LOWER, NAV_BTN, addDays, eventosNoPeriodo, isoWeekNumber, rotuloDaSemana } from "./calendar-shared";
 import type { CalendarState, CalendarView } from "./use-calendar-state";
 
-const SETA = "p-1.5 hover:bg-surface-muted rounded-lg text-muted-foreground transition-colors";
-const hojeCls = (ativo: boolean) => `ml-1 px-3 py-1 border rounded-lg text-xs font-bold transition-all ${
-  ativo ? "border-primary/25 bg-brand-soft text-primary" : "border-border text-muted-foreground hover:bg-surface-muted"
-}`;
-
-function NavegacaoDoPeriodo({ s }: { s: CalendarState }) {
-  const { view, viewYear, viewMonth, viewWeekStart, prevMonth, nextMonth, prevWeek, nextWeek, goToday, isCurrentMonth, isCurrentWeek } = s;
-  if (view === "month") {
-    return (
-      <div className="flex items-center gap-1 ml-2 border-l border-border pl-4">
-        <button onClick={prevMonth} aria-label="Mês anterior" className={SETA}>
-          <ChevronLeft className="w-4 h-4" aria-hidden="true" />
-        </button>
-        <span className="text-sm font-bold text-foreground min-w-[140px] text-center">
-          {MONTH_NAMES[viewMonth]} {viewYear}
-        </span>
-        <button onClick={nextMonth} aria-label="Próximo mês" className={SETA}>
-          <ChevronRight className="w-4 h-4" aria-hidden="true" />
-        </button>
-        <button onClick={goToday} className={hojeCls(isCurrentMonth)}>Hoje</button>
-      </div>
-    );
-  }
-  if (view === "week") {
-    const weekEnd = addDays(viewWeekStart, 6);
-    const sameMonth = viewWeekStart.getMonth() === weekEnd.getMonth();
-    const rangeLabel = sameMonth
-      ? `${viewWeekStart.getDate()} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
-      : `${viewWeekStart.getDate()} ${MONTH_NAMES[viewWeekStart.getMonth()]} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
-    return (
-      <div className="flex items-center gap-1 ml-2 border-l border-border pl-4">
-        <button onClick={prevWeek} aria-label="Semana anterior" className={SETA}>
-          <ChevronLeft className="w-4 h-4" aria-hidden="true" />
-        </button>
-        <div className="flex items-center gap-2 min-w-[200px] justify-center">
-          <span className="text-sm font-bold text-foreground">{rangeLabel}</span>
-          <span className="px-2 py-0.5 bg-brand-soft text-primary text-2xs font-bold rounded-full uppercase tracking-wider">
-            Sem. {isoWeekNumber(viewWeekStart)}
-          </span>
-        </div>
-        <button onClick={nextWeek} aria-label="Próxima semana" className={SETA}>
-          <ChevronRight className="w-4 h-4" aria-hidden="true" />
-        </button>
-        <button onClick={goToday} className={hojeCls(isCurrentWeek)}>Hoje</button>
-      </div>
-    );
-  }
-  return null;
-}
-
 const VISOES: readonly [CalendarView, string, LucideIcon][] = [
-  ["month", "Mês", LayoutGrid],
-  ["week", "Semana", Columns3],
+  ["month", "Mês", CalendarDays],
+  ["week", "Semana", CalendarRange],
   ["list", "Lista", List],
 ];
 
-export function CalendarHeader({ s }: { s: CalendarState }) {
-  const { view, setView, searchQuery, setSearchQuery, statusFilter, setStatusFilter, statusCounts, legendItems, isLoading, loadErrorMessage, visibleEvents } = s;
+/** Seletor de visão: segmentado, com o rótulo à vista (são só três); no celular, só o ícone. */
+function SeletorDeVisao({ view, setView }: Pick<CalendarState, "view" | "setView">) {
   return (
-    <PageHeader
-      icon={CalendarDays}
-      title="Calendário"
-      subtitle={
-        <span aria-live="polite">
-          {isLoading
-            ? "Carregando eventos…"
-            : loadErrorMessage
-              ? "Contagem indisponível"
-              : `${visibleEvents.length} ${visibleEvents.length === 1 ? "evento" : "eventos"} ativos`}
-        </span>
-      }
-      className="items-center bg-card px-5 py-3 rounded-xl shadow-1 border border-border shrink-0"
-      context={<NavegacaoDoPeriodo s={s} />}
-      actions={<>
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" aria-hidden="true" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Buscar evento…"
-            aria-label="Buscar evento por nome ou local"
-            className="h-8 pl-8 pr-3 text-xs rounded-xl border border-border bg-surface-muted text-slate-700 placeholder:text-muted-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/25 transition-all w-40"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} aria-label="Limpar busca" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-600">
-              <X className="w-3 h-3" aria-hidden="true" />
-            </button>
-          )}
-        </div>
+    <div role="group" aria-label="Visualização" className="inline-flex shrink-0 items-center h-[34px] p-0.5 gap-0.5 rounded-lg border border-border bg-surface-muted">
+      {VISOES.map(([k, rotulo, Icone]) => {
+        const ativo = view === k;
+        return (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setView(k)}
+            aria-pressed={ativo}
+            aria-label={rotulo}
+            title={rotulo}
+            data-testid={`cal-visao-${k}`}
+            className={cn(
+              "pas-alvo inline-flex items-center justify-center gap-1.5 h-full min-w-[34px] px-2 sm:px-2.5 rounded-md text-sm transition-[background-color,color,box-shadow] duration-150",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              ativo ? "bg-card text-foreground font-medium shadow-1" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icone className={cn("h-4 w-4 shrink-0", ativo && "text-primary")} aria-hidden="true" />
+            <span className="hidden sm:inline">{rotulo}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-        {/* Status filter pills */}
-        <div className="flex flex-wrap items-center gap-1.5 px-3 py-1.5 bg-surface-muted rounded-xl border border-border max-w-full">
-          <span className="text-2xs font-black text-muted-foreground uppercase tracking-widest mr-0.5">Filtros:</span>
-          {legendItems.map(item => {
-            const count = statusCounts[item.key] || 0;
-            const isActive = statusFilter === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setStatusFilter(isActive ? "all" : item.key)}
-                aria-pressed={isActive}
-                className={`flex items-center gap-1.5 text-2xs font-bold transition-all px-2 py-0.5 rounded-lg ${
-                  isActive ? `${item.bg} ${item.text}` : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${item.dot}`} />
-                {item.label}
-                <span className={`tabular-nums text-2xs ${isActive ? "opacity-70" : "text-muted-foreground"}`}>{count}</span>
-              </button>
-            );
-          })}
-          {statusFilter !== "all" && (
-            <button onClick={() => setStatusFilter("all")} aria-label="Limpar filtro de status" className="text-2xs text-muted-foreground hover:text-danger-strong font-bold ml-1">
-              <X className="w-3 h-3" aria-hidden="true" />
-            </button>
-          )}
+export function CalendarToolbar({ s }: { s: CalendarState }) {
+  const { view, setView, searchQuery, setSearchQuery, statusFilter, setStatusFilter, statusCounts, legendItems, visibleEvents, hasFilters, limparFiltros } = s;
+  // Nenhum evento no calendário: busca e status não têm o que filtrar — fica só a visão.
+  const semNada = visibleEvents.length === 0 && !hasFilters;
+  // Na ordem da vida do evento — a mesma da legenda (planejado → em andamento → concluído).
+  const itens = [...legendItems].reverse();
+  const opcoes = [{ id: "all", nome: "Todos os status" }, ...itens.map(i => ({ id: i.key, nome: i.label }))];
+  const contagens = new Map<string, number>([["all", visibleEvents.length], ...itens.map(i => [i.key, statusCounts[i.key] || 0] as [string, number])]);
+  return (
+    <div role="search" aria-label="Filtros do calendário" className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
+      {!semNada && <>
+      <div className="flex-[1_1_100%] min-w-0 sm:flex-[1_1_200px] sm:max-w-[320px]">
+        <BuscaDaLista
+          valor={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Buscar evento ou local"
+          rotulo="Buscar evento por nome ou local"
+          testid="cal-busca"
+        />
+      </div>
+      <div role="group" aria-label="Filtrar por status" className="flex-1 sm:flex-none min-w-[156px]">
+        <FiltroDeLista
+          valor={statusFilter}
+          onChange={setStatusFilter}
+          opcoes={opcoes}
+          contagens={contagens}
+          testid="cal-status"
+          larguraPopover={240}
+        />
+      </div>
+      {/* Celular: "Limpar filtros" desce para depois do seletor (status e visão ficam na mesma linha). */}
+      {hasFilters && (
+        <div className="pas-entra shrink-0 order-last sm:order-none">
+          <LimparFiltros onClick={limparFiltros} testid="cal-limpar-filtros" />
         </div>
-
-        {/* View toggle */}
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-xl">
-          {VISOES.map(([k, label, Icone]) => (
-            <button
-              key={k}
-              onClick={() => setView(k)}
-              aria-pressed={view === k}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                view === k ? "bg-primary text-primary-foreground shadow-1" : "text-muted-foreground hover:bg-border"
-              }`}
-            >
-              <Icone className="w-3.5 h-3.5" aria-hidden="true" /> {label}
-            </button>
-          ))}
-        </div>
+      )}
       </>}
-    />
+      <div className="ml-auto">
+        <SeletorDeVisao view={view} setView={setView} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Topo da grade (Mês/Semana): o período por extenso, ‹ Hoje › num grupo só,
+ * quantos eventos o período tem e a legenda das cores.
+ */
+export function CabecalhoDoPeriodo({ s }: { s: CalendarState }) {
+  const { view, viewYear, viewMonth, viewWeekStart, prevMonth, nextMonth, prevWeek, nextWeek, goToday, isCurrentMonth, isCurrentWeek, filteredEvents } = s;
+  const mes = view === "month";
+  const ini = mes ? new Date(viewYear, viewMonth, 1) : viewWeekStart;
+  const fim = mes ? new Date(viewYear, viewMonth + 1, 0) : addDays(viewWeekStart, 6);
+  const n = eventosNoPeriodo(filteredEvents, ini, fim).length;
+  const rotulo = mes ? `${MONTH_NAMES_LOWER[viewMonth]} de ${viewYear}` : rotuloDaSemana(viewWeekStart);
+  const ehHoje = mes ? isCurrentMonth : isCurrentWeek;
+  const unidade = mes ? "mês" : "semana";
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 sm:px-5 py-3 border-b border-border">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 min-w-0 flex-1 sm:flex-none">
+        {/* `first-letter:uppercase`, não `capitalize`: "Outubro De 2026" virava Title Case. */}
+        <h2 className="m-0 min-w-0 text-base font-semibold text-foreground tracking-tight first-letter:uppercase truncate" aria-live="polite" data-testid="cal-periodo">
+          {rotulo}
+        </h2>
+        {!mes && (
+          <span className="hidden sm:inline shrink-0 text-xs text-muted-foreground tabular-nums" title="Número da semana no ano (ISO)">
+            Semana {isoWeekNumber(viewWeekStart)}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0 rounded-lg border border-border p-0.5">
+        <button type="button" onClick={mes ? prevMonth : prevWeek} aria-label={mes ? "Mês anterior" : "Semana anterior"} title={`${mes ? "Mês anterior" : "Semana anterior"} (←)`} className={NAV_BTN}>
+          <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+        </button>
+        <button
+          type="button" onClick={goToday} disabled={ehHoje}
+          title={ehHoje ? `Você já está ${mes ? "no mês" : "na semana"} de hoje` : "Voltar para hoje (H)"}
+          className="pas-alvo h-8 px-2.5 rounded-md text-xs font-medium text-slate-700 hover:bg-muted transition-colors disabled:text-muted-foreground disabled:hover:bg-transparent disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="cal-hoje"
+        >
+          Hoje
+        </button>
+        <button type="button" onClick={mes ? nextMonth : nextWeek} aria-label={mes ? "Próximo mês" : "Próxima semana"} title={`${mes ? "Próximo mês" : "Próxima semana"} (→)`} className={NAV_BTN}>
+          <ChevronRight className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+      {/* Com zero, quem fala é o aviso logo abaixo da grade (sem repetir). Celular: a contagem desce para baixo do título. */}
+      <div className="flex items-center gap-4 basis-full sm:basis-auto sm:ml-auto">
+        {(n > 0 || !mes) && (
+          <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap" data-testid="cal-contagem-periodo">
+            {/* Celular: o número da semana vem aqui, na mesma linha da contagem. */}
+            {!mes && <span className="sm:hidden">Semana {isoWeekNumber(viewWeekStart)}{n > 0 && " · "}</span>}
+            {n > 0 && <>{n} {n === 1 ? "evento" : "eventos"} {mes ? "no" : "na"} {unidade}</>}
+          </span>
+        )}
+        {n > 0 && <span aria-hidden="true" className="hidden lg:block w-px h-4 bg-border" />}
+        <Legenda className="hidden lg:flex" />
+      </div>
+    </div>
   );
 }

@@ -1,17 +1,34 @@
 /**
  * Visão Mês do Calendário (25/09 — extraída de pages/calendar.tsx): grade de
- * semanas, faixas de barras (LaneRow), linha "+ N eventos" (OverflowRow) e o
+ * semanas, faixas de barras (LaneRow), linha "+ N mais" (OverflowRow) e o
  * popover único dos escondidos.
+ *
+ * 07/10 (redesenho):
+ *  - a grade é UMA superfície: as colunas dos dias descem até o fim da semana
+ *    (antes os filetes paravam na linha do número e as barras boiavam num
+ *    vazio sem colunas); sábado e domingo tingidos, hoje com fundo de marca e
+ *    "Hoje" escrito, dias de outro mês esmaecidos;
+ *  - barras no desenho dos chips de Eventos (fundo suave, filete na cor do
+ *    status no começo, texto alinhado à esquerda); a que vem da semana
+ *    anterior ou segue para a próxima fica sem a quina, para o olho ligar;
+ *  - três faixas por semana (eram duas) e as semanas crescem até ocupar a
+ *    tela — em 1920 o mês inteiro cabe sem rolar;
+ *  - "+ N mais" discreto, no dia, com o nome falado ("Ver mais 4 eventos em
+ *    16 de outubro"), e não uma faixa cinza que parecia outro evento;
+ *  - celular: a agenda do mês (`agenda.tsx`) no lugar de 7 colunas de 50px.
  */
 import { useMemo, useState } from "react";
 import type { Event } from "@shared/schema";
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/lib/use-media-query";
 import { computeWeekBars, type EventBar } from "./week-bars";
 import { HiddenEventsPopover } from "./hidden-events-popover";
+import { Agenda, type LinhaDaAgenda } from "./agenda";
 import {
-  CalendarEmptyState, MONTH_NAMES_LOWER, WEEKDAY_LABELS, getCfg, getEffectiveStatus, isInRange, isSameDay, parseLocalDate, type SelectEventFn,
+  MONTH_NAMES_LOWER, WEEKDAY_SHORT, getCfg, getEffectiveStatus, isInRange, isSameDay, nomeFalado, parseLocalDate, posDoAlvo, type SelectEventFn,
 } from "./calendar-shared";
 
-const MAX_VISIBLE_LANES = 2;
+const MAX_VISIBLE_LANES = 3;
 
 // Render a single lane row for the event grid
 function LaneRow({ lane, bars, onSelectEvent }: { lane: number; bars: EventBar[]; onSelectEvent: SelectEventFn }) {
@@ -30,17 +47,25 @@ function LaneRow({ lane, bars, onSelectEvent }: { lane: number; bars: EventBar[]
     items.push(
       <button
         key={bar.event.id}
-        onClick={(e) => onSelectEvent(bar.event, { x: e.clientX, y: e.clientY })}
+        type="button"
+        onClick={(e) => onSelectEvent(bar.event, posDoAlvo(e))}
         style={{ gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}` }}
         title={`${bar.event.name} · ${bar.event.location}`}
-        className={[
-          "h-[22px] text-xs font-semibold transition-opacity hover:opacity-80 flex items-center",
-          cfg.bar, cfg.barText,
-          bar.isStart ? "rounded-l-md ml-0.5 pl-2" : "rounded-l-none pl-1.5",
-          bar.isEnd   ? "rounded-r-md mr-0.5 pr-2" : "rounded-r-none pr-0",
-        ].join(" ")}
+        aria-label={nomeFalado(bar.event)}
+        aria-haspopup="dialog"
+        data-cal-evento=""
+        className={cn(
+          "cal-barra h-[22px] min-w-0 flex items-center gap-1.5 text-xs font-medium leading-none",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:z-[1]",
+          cfg.bg, cfg.text,
+          bar.isStart ? cn("rounded-l-[5px] ml-1 pl-1.5 border-l-[3px]", cfg.edge) : "rounded-l-none pl-2",
+          bar.isEnd ? "rounded-r-[5px] mr-1 pr-2" : "rounded-r-none pr-0",
+        )}
       >
-        <span className="truncate overflow-hidden block w-full">{bar.event.name}</span>
+        {bar.isStart && cfg.pulse && (
+          <span className={cn("w-1.5 h-1.5 rounded-full shrink-0 animate-pulse motion-reduce:animate-none", cfg.dot)} aria-hidden="true" />
+        )}
+        <span className="truncate">{bar.event.name}</span>
       </button>
     );
     col = bar.endCol + 1;
@@ -87,21 +112,26 @@ function OverflowRow({ bars, week, allEvents, onOpenPopover }: {
       {Array.from({ length: 7 }).map((_, col) => {
         const hiddenCount = hiddenByCol[col];
         if (!hiddenCount) {
-          return <div key={col} className="h-[22px]" />;
+          return <div key={col} className="h-5" />;
         }
+        const day = week[col];
         return (
-          <button
-            key={col}
-            onClick={(e) => {
-              e.stopPropagation();
-              const day = week[col];
-              const dayEvents = getDayEvents(day);
-              onOpenPopover({ day, dayEvents, x: e.clientX, y: e.clientY });
-            }}
-            className="h-[22px] mx-0.5 rounded-md px-2 text-2xs font-semibold text-slate-700 bg-muted hover:bg-border transition-colors text-left truncate"
-          >
-            + {hiddenCount} {hiddenCount === 1 ? "evento" : "eventos"}
-          </button>
+          <div key={col} className="px-1 min-w-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const dayEvents = getDayEvents(day);
+                onOpenPopover({ day, dayEvents, ...posDoAlvo(e) });
+              }}
+              aria-label={`Ver mais ${hiddenCount} ${hiddenCount === 1 ? "evento" : "eventos"} em ${day.getDate()} de ${MONTH_NAMES_LOWER[day.getMonth()]}`}
+              aria-haspopup="dialog"
+              data-testid="cal-mais"
+              className="pas-alvo h-5 max-w-full px-1.5 rounded text-2xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              + {hiddenCount} mais
+            </button>
+          </div>
         );
       })}
     </div>
@@ -143,10 +173,39 @@ function buildWeeks(year: number, month: number, events: Event[]): Date[][] {
   return out;
 }
 
-export function MonthView({ year, month, events, onSelectEvent }: {
+/** Agenda do mês (celular): cada evento uma vez, no seu primeiro dia dentro do mês; "Hoje" como marco. */
+function linhasDoMes(year: number, month: number, events: Event[]): LinhaDaAgenda[] {
+  const ini = new Date(year, month, 1);
+  const fim = new Date(year, month + 1, 0);
+  const porDia = new Map<number, Event[]>();
+  for (const ev of events) {
+    const s = parseLocalDate(ev.startDate);
+    const e = parseLocalDate(ev.endDate);
+    if (e < ini || s > fim) continue;
+    const primeiro = s < ini ? ini : s;
+    const k = primeiro.getDate();
+    if (!porDia.has(k)) porDia.set(k, []);
+    porDia.get(k)!.push(ev);
+  }
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  if (hoje.getFullYear() === year && hoje.getMonth() === month && !porDia.has(hoje.getDate())) porDia.set(hoje.getDate(), []);
+  return Array.from(porDia.keys()).sort((a, b) => a - b).map(k => {
+    const dia = new Date(year, month, k);
+    const eventos = (porDia.get(k) ?? []).sort((a, b) => a.startDate.localeCompare(b.startDate));
+    if (eventos.length > 0) return { dia, eventos };
+    // O marco "Hoje" sem evento começando: diz o que está acontecendo (ou que nada está).
+    const rolando = events.filter(ev => isInRange(dia, parseLocalDate(ev.startDate), parseLocalDate(ev.endDate))).length;
+    return { dia, eventos, nota: rolando === 0 ? "Hoje · nenhum evento" : `Hoje · ${rolando} ${rolando === 1 ? "evento acontecendo" : "eventos acontecendo"}` };
+  });
+}
+
+export function MonthView({ year, month, events, onSelectEvent, aviso }: {
   year: number; month: number; events: Event[];
   onSelectEvent: SelectEventFn;
+  /** Faixa do período vazio (vem da página, que sabe o porquê). */
+  aviso?: React.ReactNode;
 }) {
+  const isMobile = useIsMobile();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -159,40 +218,34 @@ export function MonthView({ year, month, events, onSelectEvent }: {
     onSelectEvent(ev, pos);
   }
 
-  function getPopoverTitle(day: Date, count: number) {
-    return `${day.getDate()} de ${MONTH_NAMES_LOWER[day.getMonth()]} · ${count} ${count === 1 ? "evento" : "eventos"}`;
-  }
-
   // Grade + barras são caras (ordenação e parse de datas por semana). Sem memo elas
   // eram recalculadas a cada render — inclusive ao abrir/fechar o popover de overflow.
   const weeks = useMemo(() => buildWeeks(year, month, events), [year, month, events]);
   const weekBars = useMemo(() => weeks.map(week => computeWeekBars(week, events)), [weeks, events]);
-  const monthHasEvents = weekBars.some(bars => bars.length > 0);
+  const linhas = useMemo(() => (isMobile ? linhasDoMes(year, month, events) : []), [isMobile, year, month, events]);
+
+  if (isMobile) {
+    return (
+      <>
+        {aviso}
+        {linhas.length > 0 && <Agenda linhas={linhas} onSelectEvent={onSelectEvent} testid="cal-agenda-mes" />}
+      </>
+    );
+  }
 
   return (
     <>
-      <div className="flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden shadow-3">
-        {/* Weekday header */}
-        <div className="grid grid-cols-7 border-b border-border bg-surface-muted/50 shrink-0">
-          {WEEKDAY_LABELS.map((d, i) => (
-            <div key={d} className={`py-4 text-center text-2xs font-black uppercase tracking-[0.2em] ${i === 0 || i === 6 ? "text-muted-foreground" : "text-muted-foreground"}`}>
-              <span className="hidden sm:inline">{d}</span>
-              <span className="sm:hidden">{d.slice(0, 3)}</span>
-            </div>
+      {aviso}
+      <div data-testid="cal-mes">
+        {/* Dias da semana */}
+        <div className="grid grid-cols-7 border-b border-border bg-surface-muted" aria-hidden="true">
+          {WEEKDAY_SHORT.map((d, i) => (
+            <div key={d} className={cn("py-2 text-center text-2xs font-semibold text-muted-foreground uppercase tracking-[0.06em]", (i === 0 || i === 6) && "cal-fds-cab")}>{d}</div>
           ))}
         </div>
 
-        {!monthHasEvents && (
-          <div className="shrink-0 border-b border-border">
-            <CalendarEmptyState label="neste mês" />
-          </div>
-        )}
-
-        {/* Week rows — minmax ensures minimum height so last row never gets clipped */}
-        <div
-          className="flex-1 min-h-0 overflow-y-auto grid"
-          style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(112px, 1fr))` }}
-        >
+        {/* Semanas: o fundo (colunas dos dias) e, por cima, o número e as faixas de barras. */}
+        <div style={{ ["--cal-semanas" as string]: weeks.length }}>
           {weeks.map((week, wi) => {
             const bars = weekBars[wi];
             const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
@@ -200,37 +253,47 @@ export function MonthView({ year, month, events, onSelectEvent }: {
             const hasOverflow = bars.some(b => b.lane >= MAX_VISIBLE_LANES);
 
             return (
-              <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-border" : ""}`}>
-                {/* ── DAY-NUMBER ZONE: exactly 28px, z-[40], never receives bars ── */}
-                <div className="relative z-[40] shrink-0 h-7 grid grid-cols-7 divide-x divide-border">
+              <div key={wi} className={cn("cal-semana relative", wi > 0 && "border-t border-border")}>
+                {/* Fundo: as colunas descem até o fim da semana. */}
+                <div className="absolute inset-0 grid grid-cols-7" aria-hidden="true">
                   {week.map((day, di) => {
-                    const isCurrentMonth = day.getMonth() === month;
                     const isToday = isSameDay(day, today);
-                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    const isWeekend = di === 0 || di === 6;
                     return (
                       <div
                         key={di}
-                        className={`h-full px-2 flex items-center transition-colors ${
-                          !isCurrentMonth ? "bg-surface-muted/30" :
-                          isWeekend ? "bg-surface-muted/40" : "bg-card"
-                        } ${isCurrentMonth ? "hover:bg-brand-soft/20" : ""}`}
-                      >
-                        <div className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition-colors ${
+                        className={cn(
+                          di < 6 && "border-r border-border",
+                          isToday ? "bg-brand-soft/60" : isWeekend ? "cal-fds" : "bg-card",
+                        )}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Números dos dias */}
+                <div className="relative grid grid-cols-7 h-8 pt-1.5">
+                  {week.map((day, di) => {
+                    const isCurrentMonth = day.getMonth() === month;
+                    const isToday = isSameDay(day, today);
+                    return (
+                      <div key={di} className="flex items-center justify-between px-2 min-w-0" aria-current={isToday ? "date" : undefined}>
+                        <span className={cn(
+                          "inline-flex items-center justify-center min-w-6 h-6 rounded-full text-xs tabular-nums",
                           isToday
-                            ? "bg-primary text-primary-foreground shadow-2 z-[50]"
-                            : isCurrentMonth
-                              ? "text-foreground"
-                              : "text-muted-foreground"
-                        }`}>
+                            ? "px-1.5 bg-primary text-primary-foreground font-semibold"
+                            : isCurrentMonth ? "text-slate-700 font-medium" : "text-muted-foreground/70",
+                        )}>
                           {day.getDate()}
-                        </div>
+                        </span>
+                        {isToday && <span className="text-2xs font-semibold text-primary uppercase tracking-[0.06em] truncate">Hoje</span>}
                       </div>
                     );
                   })}
                 </div>
 
-                {/* ── EVENT ZONE: z-[20], starts strictly below 28px header ── */}
-                <div className="relative z-[20] flex-1 min-h-0 pt-0.5 pb-1 space-y-0.5">
+                {/* Faixas de barras */}
+                <div className="relative pt-1 pb-1.5 space-y-0.5">
                   {Array.from({ length: visibleLanes }).map((_, lane) => (
                     <LaneRow key={lane} lane={lane} bars={bars} onSelectEvent={handleSelectEvent} />
                   ))}
@@ -254,7 +317,7 @@ export function MonthView({ year, month, events, onSelectEvent }: {
       {overflowPopover && (
         <HiddenEventsPopover
           dayEvents={overflowPopover.dayEvents}
-          title={getPopoverTitle(overflowPopover.day, overflowPopover.dayEvents.length)}
+          day={overflowPopover.day}
           x={overflowPopover.x}
           y={overflowPopover.y}
           onSelectEvent={(ev, pos) => { handleSelectEvent(ev, pos); setOverflowPopover(null); }}
