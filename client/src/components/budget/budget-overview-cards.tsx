@@ -96,10 +96,13 @@ export function BudgetOverviewCards({ selectedEvent, totalGeral, stats }: Budget
   const pct = Math.max(0, Math.min(100, stats.progressoEnvio));
 
   return (
-    <section aria-label="Resumo do orçamento planejado" className="pla-resumo rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-planejado">
-      <div className="grid grid-cols-2 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]">
+    <section aria-label="Resumo do orçamento planejado" className="pla-resumo pla-resumo-medido rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-planejado">
+      {/* A grade segue a largura DO PAINEL (container query no index.css,
+          pla-resumo-grade): pela janela, entre 768 e 1023px — e em 1024 com o
+          menu aberto — os valores saíam com reticências (08/10). */}
+      <div className="pla-resumo-grade">
         {/* O número da tela. */}
-        <div className="col-span-2 md:col-span-1 min-w-0 px-4 pt-3.5 pb-3 max-md:border-b border-border">
+        <div className="pla-resumo-total min-w-0 px-4 pt-3.5 pb-3">
           <p className="m-0 text-xs font-medium text-slate-600">
             Total planejado
             {selectedEvent?.startDate && (

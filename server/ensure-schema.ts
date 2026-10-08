@@ -162,6 +162,20 @@ const PASSOS: Passo[] = [
     descricao: "índice avisos_de_alteracao_vaga_idx",
     sql: `CREATE INDEX IF NOT EXISTS avisos_de_alteracao_vaga_idx ON avisos_de_alteracao (team_inclusion_id)`,
   },
+  // 08/10 — rascunho dos ajustes do Planejado no servidor (antes só no
+  // localStorage: quem trocava de computador perdia o que ajustou). Tabela
+  // nova: sem ela as rotas do rascunho respondem 500 e a tela cai para o
+  // rascunho local — por isso entra aqui, além da migração da data.
+  {
+    descricao: "tabela rascunhos_do_planejado (ajustes do Planejado por evento + usuário)",
+    sql: `CREATE TABLE IF NOT EXISTS rascunhos_do_planejado (
+      event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      user_id varchar NOT NULL,
+      overrides jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (event_id, user_id)
+    )`,
+  },
   {
     descricao: "team_inclusions.validation_note (observação de quem validou a vaga)",
     sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS validation_note text`,

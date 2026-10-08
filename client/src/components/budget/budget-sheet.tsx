@@ -32,8 +32,10 @@ import { EspacadorLinha, useLinhasVirtuaisNaJanela } from "@/components/common/v
 import { useLarguraUtil } from "@/components/common/use-largura-util";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import type { BudgetActual } from "@shared/schema";
+import type { DraftStatus } from "@/hooks/use-budget-draft";
 import { AdvancedBatchDialog } from "./advanced-batch-dialog";
 import { BatchPopover } from "./batch-popover";
+import { SeloDoRascunho } from "./selo-do-rascunho";
 import { SheetRow } from "./sheet-row";
 import { aplicarEdicaoNaPlanilha, limparOverridesDe, restaurarCampoDaPlanilha } from "./sheet-edits";
 import {
@@ -63,6 +65,9 @@ export interface BudgetSheetProps {
   /** Há busca/filtro ligado: o vazio oferece "Limpar filtros". */
   algumFiltro?: boolean;
   onLimparFiltros?: () => void;
+  /** Rascunho no servidor (08/10): alimenta o selo "Rascunho salvo HH:MM". */
+  draftStatus?: DraftStatus;
+  draftSavedAt?: string | null;
 }
 
 const COL_SPAN_TOTAL = 7;
@@ -280,6 +285,8 @@ export function BudgetSheet(p: BudgetSheetProps) {
   const totalMobCols = filteredBudgets.reduce((s, b) => s + b.mobilidade, 0);
   const totalDias = filteredBudgets.reduce((s, b) => s + b.weekdays + b.weekends, 0);
   const temSelecao = selectedIds.size > 0;
+  // Selo do rascunho: só com ajuste e depois de carregar (antes não há o que dizer).
+  const temSelo = !!p.draftStatus && p.draftStatus !== "carregando" && Object.keys(budgetOverrides).length > 0;
   // Total do RECORTE (sem os que não participaram). Com filtro, o do evento
   // aparece embaixo — antes a linha mostrava o do evento ao lado das colunas
   // do recorte, e "1 colaborador" parecia custar o evento inteiro.
@@ -303,12 +310,18 @@ export function BudgetSheet(p: BudgetSheetProps) {
       <section ref={refLargura} aria-label="Planilha de edição" className="pla-planilha rounded-xl border border-border bg-card" data-testid="budget-sheet">
         {/* ── Topo: o que a planilha tem e as ferramentas ── */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-4 py-2.5 border-b border-border">
-          <p className="m-0 min-w-0 flex-1 text-xs text-muted-foreground tabular-nums" aria-live="polite">
+          {/* Base de 15rem (tablet em diante): sem espaço, as ferramentas descem
+              — o resumo nunca vira uma coluna estreita ao lado do selo. */}
+          <p className="m-0 min-w-0 flex-1 sm:flex-[1_1_15rem] text-xs text-muted-foreground tabular-nums" aria-live="polite">
             <span className="font-medium text-foreground">{filteredBudgets.length} {filteredBudgets.length === 1 ? "colaborador" : "colaboradores"}</span>
             {" · "}{pendingSheet.length} {pendingSheet.length === 1 ? "pendente" : "pendentes"}
             {editadosVisiveis > 0 && <> · <span className="text-warning font-medium">{editadosVisiveis} com ajuste</span></>}
-            <span className="hidden xl:inline"> · os ajustes ficam no rascunho até o envio</span>
+            {/* Com o selo à vista (que diz o mesmo no tooltip), a frase só cabe na tela larga. */}
+            <span className={cn("hidden", temSelo ? "2xl:inline" : "xl:inline")}> · o rascunho fica salvo e aparece em qualquer computador</span>
           </p>
+          {temSelo && p.draftStatus && (
+            <SeloDoRascunho status={p.draftStatus} savedAt={p.draftSavedAt ?? null} temAjuste={temSelo} />
+          )}
           {filteredBudgets.length > 0 && <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"

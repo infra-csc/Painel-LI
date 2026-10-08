@@ -1,6 +1,7 @@
 /**
  * Orçamento Planejado (budget_planned): reaplicar valores padrão, eventos com
- * planejamento, CRUD do planejado e "não participou".
+ * planejamento, CRUD do planejado, "não participou" e o rascunho dos ajustes
+ * da tela (por evento + usuário, 08/10).
  * Papéis: financeiro (admin/RH) — guardas em _compartilhado.ts.
  */
 import type { Express } from "express";
@@ -16,6 +17,15 @@ import { eq, inArray, sql as drizzleSql } from "drizzle-orm";
 import { isEventBlockedForActor } from "../event-guard";
 import { calcularPlanejadoDaVaga, linhaDoPlanejado } from "@shared/budget-engine";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
+import { z } from "zod";
+
+/** Teto do rascunho do Planejado: ~200 KB cobrem milhares de vagas ajustadas. */
+const LIMITE_DO_RASCUNHO = 200 * 1024;
+/** `{ overrides }`: um objeto (campos editados) por id de vaga. */
+const corpoDoRascunho = z.object({
+  overrides: z.record(z.string().min(1).max(100), z.record(z.string(), z.unknown())),
+});
+const eventoDoRascunho = (v: unknown): string => (typeof v === "string" && v.length > 0 && v.length <= 100 ? v : "");
 
 export function registrarOrcamentoPlanejado(app: Express): void {
   // Budget Planned — Apply system defaults to all pending (not-yet-sent) records
@@ -117,6 +127,64 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       res.json(evts);
     } catch {
       res.status(500).json({ message: "Erro ao buscar eventos com planejamento" });
+    }
+  });
+
+  // ── Rascunho do Planejado (08/10) ─────────────────────────────────────────
+  // Os ajustes manuais da tela (overrides esparsos por vaga) até o envio ao
+  // Realizado, por evento + usuário — antes só no localStorage. Mesma regra de
+  // quem grava no Planejado (requireFinWrite: admin e Financeiro, 7da26a56) e
+  // SEMPRE o usuário da sessão: nenhum id de usuário é lido do corpo ou da URL.
+  // Registradas ANTES de "/api/budget-planned/:id" (senão "rascunho" vira id).
+  app.get("/api/budget-planned/rascunho", async (req, res) => {
+    const userId = await requireFinWrite(req, res);
+    if (!userId) return;
+    res.set("Cache-Control", "no-store");
+    const eventId = eventoDoRascunho(req.query.eventId);
+    if (!eventId) return res.status(400).json({ message: "Informe o evento (eventId)." });
+    try {
+      const rascunho = await storage.getRascunhoDoPlanejado(eventId, userId);
+      res.json(rascunho ? { overrides: rascunho.overrides, updatedAt: rascunho.updatedAt } : { overrides: {} });
+    } catch (error) {
+      console.error("Error fetching planned draft:", error);
+      res.status(500).json({ message: "Erro ao buscar o rascunho do planejado" });
+    }
+  });
+
+  app.put("/api/budget-planned/rascunho", async (req, res) => {
+    const userId = await requireFinWrite(req, res);
+    if (!userId) return;
+    res.set("Cache-Control", "no-store");
+    const eventId = eventoDoRascunho(req.query.eventId);
+    if (!eventId) return res.status(400).json({ message: "Informe o evento (eventId)." });
+    const corpo = corpoDoRascunho.safeParse(req.body);
+    if (!corpo.success) return res.status(400).json({ message: "Rascunho inválido: envie { overrides } com um objeto por vaga." });
+    if (Buffer.byteLength(JSON.stringify(corpo.data.overrides), "utf8") > LIMITE_DO_RASCUNHO) {
+      return res.status(413).json({ message: "Rascunho grande demais (limite de 200 KB). Envie parte dos ajustes ao Realizado e tente de novo." });
+    }
+    try {
+      const event = await storage.getEvent(eventId);
+      if (!event) return res.status(404).json({ message: "Evento não encontrado" });
+      const salvo = await storage.salvarRascunhoDoPlanejado(eventId, userId, corpo.data.overrides);
+      res.json({ overrides: salvo.overrides, updatedAt: salvo.updatedAt });
+    } catch (error) {
+      console.error("Error saving planned draft:", error);
+      res.status(500).json({ message: "Erro ao salvar o rascunho do planejado" });
+    }
+  });
+
+  app.delete("/api/budget-planned/rascunho", async (req, res) => {
+    const userId = await requireFinWrite(req, res);
+    if (!userId) return;
+    res.set("Cache-Control", "no-store");
+    const eventId = eventoDoRascunho(req.query.eventId);
+    if (!eventId) return res.status(400).json({ message: "Informe o evento (eventId)." });
+    try {
+      await storage.apagarRascunhoDoPlanejado(eventId, userId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting planned draft:", error);
+      res.status(500).json({ message: "Erro ao apagar o rascunho do planejado" });
     }
   });
 

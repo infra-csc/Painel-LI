@@ -39,6 +39,7 @@ import * as flash from "./flash";
 import * as bagagem from "./bagagem";
 import * as validacaoDeEscala from "./validacao-de-escala";
 import * as avisosDeAlteracao from "./avisos-de-alteracao";
+import * as rascunhosDoPlanejado from "./rascunhos-do-planejado";
 
 // `excludeSuggestions` (vagas) e `COLUNAS_DA_FUNCAO` (funcoes) são exports
 // auxiliares, não métodos do storage — ficam de fora do objeto.
@@ -66,6 +67,7 @@ export const storage = {
   ...bagagem,
   ...validacaoDeEscala,
   ...avisosDeAlteracao,
+  ...rascunhosDoPlanejado,
 };
 
 /** Superfície da camada de dados (o que era `IStorage`). */

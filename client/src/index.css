@@ -1014,6 +1014,61 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .inc-dia:active { transform: none; }
 }
 
+/* ══ Calendário (cal-) — redesenho 07/10 ═══════════════════════════════════
+ * A tela usa as peças da família Eventos/Passagens (pas-osso, pas-entra,
+ * pas-alvo, barra de filtros comum). Aqui só o que é dela: a altura das
+ * semanas do Mês (crescem até ocupar a tela), o corpo da Semana, as barras e
+ * chips como botões, a linha da Lista, os painéis flutuantes e a folha do
+ * celular. Tudo rápido e desligado com reduced-motion. */
+
+/* Mês: cada semana tem ao menos 3 faixas + "+N mais"; em telas altas cresce
+   até o mês inteiro caber sem rolar (19,5rem = topo, barra, filtros, cabeçalhos). */
+.cal-semana { min-height: max(7.75rem, calc((100dvh - 19.5rem) / var(--cal-semanas, 5))); }
+/* Semana: as colunas descem até perto do fim da tela. */
+.cal-semana-corpo { min-height: max(16rem, calc(100dvh - 21rem)); }
+
+/* Sábado e domingo: um tom que se vê de relance (o surface-muted a 50% sobre o
+   branco sumia — #FCFDFE). Hoje continua mais forte que o fim de semana. */
+.cal-fds { background-color: color-mix(in srgb, var(--neutral-soft) 72%, var(--card)); }
+.cal-fds-cab { background-color: var(--neutral-soft); }
+
+/* Barra (Mês) e chip (Semana, agenda, "+N mais"): sobem 1px no hover — são botões. */
+.cal-barra, .cal-chip { transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease; }
+.cal-barra:hover, .cal-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+.cal-barra:active, .cal-chip:active { transform: none; filter: brightness(.97); }
+
+/* Lista: a linha inteira é o botão; o foco do teclado contorna a linha. */
+.cal-linha { transition: background-color 120ms ease; }
+.cal-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--card)); }
+.cal-linha:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+/* Meses passados: um passo atrás, de volta ao apontar. */
+.cal-passado { opacity: .72; transition: opacity 160ms ease; }
+.cal-passado:hover, .cal-passado:focus-within { opacity: 1; }
+
+/* Visão que acabou de abrir e período que acabou de trocar. */
+@keyframes cal-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.cal-entra { animation: cal-entra 180ms ease-out both; }
+@keyframes cal-troca { from { opacity: .35; } to { opacity: 1; } }
+.cal-troca { animation: cal-troca 160ms ease-out both; }
+
+/* Painel do evento e popover do dia (desktop): surgem de perto do clique. */
+@keyframes cal-flutua { from { opacity: 0; transform: scale(.97) translateY(2px); } to { opacity: 1; transform: none; } }
+.cal-flutua { animation: cal-flutua 140ms cubic-bezier(.2, 0, 0, 1) both; }
+/* Celular: a folha sobe do rodapé sobre o véu. */
+@keyframes cal-folha { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+.cal-folha { animation: cal-folha 200ms cubic-bezier(.2, 0, 0, 1) both; }
+@keyframes cal-veu { from { opacity: 0; } to { opacity: 1; } }
+.cal-veu { animation: cal-veu 160ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-entra, .cal-troca, .cal-flutua, .cal-folha, .cal-veu { animation: none; }
+  .cal-barra, .cal-chip, .cal-linha, .cal-passado { transition: none; }
+  .cal-barra:hover, .cal-chip:hover { transform: none; }
+}
+
 /* ══ Histórico da escala (hes-) — redesenho 07/10 ═══════════════════════════
  * Irmã da Sugestão (sug-), da Validação (val-) e da Aprovação (apr-): usa as
  * peças do módulo (val-osso, val-entra, val-alvo, val-rolagem-x). Aqui só o que
@@ -1154,129 +1209,6 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .hes-kpi:hover .hes-kpi-n, .hes-pilula:active, .hes-linha:hover .hes-abrir, .hes-exportar:active, .hes-baixar:active { transform: none; }
 }
 
-/* ══ Calendário (cal-) — redesenho 07/10 ═══════════════════════════════════
- * A tela usa as peças da família Eventos/Passagens (pas-osso, pas-entra,
- * pas-alvo, barra de filtros comum). Aqui só o que é dela: a altura das
- * semanas do Mês (crescem até ocupar a tela), o corpo da Semana, as barras e
- * chips como botões, a linha da Lista, os painéis flutuantes e a folha do
- * celular. Tudo rápido e desligado com reduced-motion. */
-
-/* Mês: cada semana tem ao menos 3 faixas + "+N mais"; em telas altas cresce
-   até o mês inteiro caber sem rolar (19,5rem = topo, barra, filtros, cabeçalhos). */
-.cal-semana { min-height: max(7.75rem, calc((100dvh - 19.5rem) / var(--cal-semanas, 5))); }
-/* Semana: as colunas descem até perto do fim da tela. */
-.cal-semana-corpo { min-height: max(16rem, calc(100dvh - 21rem)); }
-
-/* Sábado e domingo: um tom que se vê de relance (o surface-muted a 50% sobre o
-   branco sumia — #FCFDFE). Hoje continua mais forte que o fim de semana. */
-.cal-fds { background-color: color-mix(in srgb, var(--neutral-soft) 72%, var(--card)); }
-.cal-fds-cab { background-color: var(--neutral-soft); }
-
-/* Barra (Mês) e chip (Semana, agenda, "+N mais"): sobem 1px no hover — são botões. */
-.cal-barra, .cal-chip { transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease; }
-.cal-barra:hover, .cal-chip:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--foreground) 22%, transparent);
-}
-.cal-barra:active, .cal-chip:active { transform: none; filter: brightness(.97); }
-
-/* Lista: a linha inteira é o botão; o foco do teclado contorna a linha. */
-.cal-linha { transition: background-color 120ms ease; }
-.cal-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--card)); }
-.cal-linha:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
-/* Meses passados: um passo atrás, de volta ao apontar. */
-.cal-passado { opacity: .72; transition: opacity 160ms ease; }
-.cal-passado:hover, .cal-passado:focus-within { opacity: 1; }
-
-/* Visão que acabou de abrir e período que acabou de trocar. */
-@keyframes cal-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-.cal-entra { animation: cal-entra 180ms ease-out both; }
-@keyframes cal-troca { from { opacity: .35; } to { opacity: 1; } }
-.cal-troca { animation: cal-troca 160ms ease-out both; }
-
-/* Painel do evento e popover do dia (desktop): surgem de perto do clique. */
-@keyframes cal-flutua { from { opacity: 0; transform: scale(.97) translateY(2px); } to { opacity: 1; transform: none; } }
-.cal-flutua { animation: cal-flutua 140ms cubic-bezier(.2, 0, 0, 1) both; }
-/* Celular: a folha sobe do rodapé sobre o véu. */
-@keyframes cal-folha { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
-.cal-folha { animation: cal-folha 200ms cubic-bezier(.2, 0, 0, 1) both; }
-@keyframes cal-veu { from { opacity: 0; } to { opacity: 1; } }
-.cal-veu { animation: cal-veu 160ms ease-out both; }
-
-@media (prefers-reduced-motion: reduce) {
-  .cal-entra, .cal-troca, .cal-flutua, .cal-folha, .cal-veu { animation: none; }
-  .cal-barra, .cal-chip, .cal-linha, .cal-passado { transition: none; }
-  .cal-barra:hover, .cal-chip:hover { transform: none; }
-}
-
-/* ══ Controle de bagagem (bag-) — redesenho 08/10 ══════════════════════════
- * A Bagagem usa as MESMAS classes de Passagens (pas-tabela, pas-cabecalho,
- * pas-linha, pas-abrir, pas-osso, pas-entra, pas-alvo, pas-rolagem-x) — é a
- * mesma família. Aqui só o que é dela: o cartão da solicitação no
- * celular/tablet e o cartão das linhas dos dois relatórios.
- *
- * Cartão da solicitação (abaixo de 960px úteis), sobre a MESMA árvore de
- * células da tabela:
- *   [bilhete: LOC · companhia · OS ............ ações]
- *   [colaborador + CPF                               ]
- *   [evento + observação       | embarque            ]
- *   [bagagens | valor          | agência             ]                         */
-.bag-cartao thead { display: none; }
-.bag-cartao table, .bag-cartao tbody { display: block; width: 100%; }
-.bag-cartao tr.pas-linha {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  padding: 8px 4px 12px;
-}
-.bag-cartao td { display: block; padding: 4px 10px; width: auto; text-align: left !important; }
-.bag-cartao td[data-col="bilhete"] { order: 1; flex: 1 1 0; min-width: 0; padding-left: 10px; }
-.bag-cartao td[data-col="acoes"] { order: 2; flex: 0 0 auto; padding-top: 2px; }
-.bag-cartao td[data-col="colab"] { order: 3; flex: 0 0 100%; padding-top: 6px; }
-.bag-cartao td[data-col="evento"] { order: 4; flex: 0 0 58%; min-width: 0; }
-.bag-cartao td[data-col="datas"] { order: 5; flex: 0 0 42%; min-width: 0; }
-.bag-cartao td[data-col="qtd"] { order: 6; flex: 0 0 22%; min-width: 0; }
-.bag-cartao td[data-col="valor"] { order: 7; flex: 0 0 36%; min-width: 0; }
-.bag-cartao td[data-col="agencia"] { order: 8; flex: 0 0 42%; min-width: 0; }
-.bag-cartao td[data-rotulo]::before,
-.bag-doc-cartao td[data-rotulo]::before {
-  content: attr(data-rotulo);
-  display: block;
-  margin-bottom: 1px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--muted-foreground);
-}
-/* No cartão a observação tem a largura toda: volta a quebrar em vez de cortar. */
-.bag-cartao .bag-nota { align-items: flex-start; }
-.bag-cartao .bag-nota .truncate { white-space: normal; overflow: visible; }
-
-/* Relatórios no estreito (< 900px úteis): cada linha vira um cartão —
- *   [nome + CPF / evento + período .......... ›]
- *   [Azul | Gol | TAM | Outros]   (por colaborador)
- *   [bagagens | histórico | valor]  /  [solicitações | bagagens | valor | médio]
- *   [participação ............................]  (por evento)             */
-.bag-doc-cartao thead { display: none; }
-.bag-doc-cartao table, .bag-doc-cartao tbody, .bag-doc-cartao tfoot { display: block; width: 100%; }
-.bag-doc-cartao tr { display: flex; flex-wrap: wrap; align-items: flex-start; padding: 8px 0 10px; }
-.bag-doc-cartao td, .bag-doc-cartao th { display: block; padding: 3px 16px; text-align: left !important; }
-.bag-doc-cartao [data-col="nome"] { order: 1; flex: 1 1 calc(100% - 56px); min-width: 0; padding-left: 16px !important; }
-.bag-doc-cartao td[data-col="abrir"] { order: 2; flex: 0 0 auto; padding: 0 8px; }
-.bag-doc-cartao td[data-col="cia"] { order: 3; flex: 0 0 25%; }
-.bag-doc-cartao td[data-col="num"] { order: 4; flex: 1 1 0; min-width: 0; }
-.bag-doc-cartao td[data-col="pct"] { order: 5; flex: 0 0 100%; }
-.bag-doc-cartao td[data-col="cia"] > span { justify-content: flex-start; }
-.bag-doc-cartao tfoot td[data-col="pct"], .bag-doc-cartao tfoot td[data-col="abrir"] { display: none; }
-.bag-doc-cartao .bag-total [data-col="nome"] { flex: 0 0 100%; }
-/* Por evento são quatro números: dois por fileira, senão o valor médio sai da tela no celular. */
-.bag-doc-evento td[data-col="num"] { flex: 0 0 50%; }
-
-/* O número da quantidade tem − / + próprios: as setas nativas do navegador ficavam duplicadas. */
-.bag-numero::-webkit-outer-spin-button, .bag-numero::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.bag-numero { -moz-appearance: textfield; appearance: textfield; }
-
 /* ══ Planejado (pla-) — redesenho 08/10 ═════════════════════════════════════
  * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
  * pas-sobe, pas-alvo, pas-cabecalho, pas-rolagem-x, FilaDeTrabalho, barra de
@@ -1284,11 +1216,37 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
  * card-extrato, a planilha (linhas, campos, totais grudados) e o modo cartão
  * da planilha na largura estreita. Tudo rápido e desligado com reduced-motion. */
 
-/* Resumo: divisórias finas entre as métricas (2 × 2 no celular, uma fileira no desktop). */
+/* Resumo: divisórias finas entre as métricas (2 × 2 no celular, uma fileira no
+   desktop) — regra de antes, mantida para quem ainda monta a grade com as
+   classes do Tailwind (o Comparativo, com rea-resumo). */
 .pla-resumo .pla-metrica { border-top: 1px solid var(--border); }
 .pla-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
 @media (min-width: 768px) {
   .pla-resumo .pla-metrica { border-top: 0; border-left: 1px solid var(--border); }
+}
+/* Grade pela largura DO PAINEL (pla-resumo-grade — Planejado e Realizado,
+   08/10). Pela janela, as cinco colunas cortavam os valores com reticências
+   entre 768 e 1023px e também em 1024 com o menu aberto (painel de ~670px).
+   Três arranjos, com as divisórias de cada um:
+     < 700px   total em cima + métricas 2 × 2
+     700–959   total em cima + as quatro métricas numa fileira
+     ≥ 960px   tudo numa fileira (total mais largo)
+   Seletores com a grade no meio: vencem a regra de antes e a do rea-resumo. */
+.pla-resumo-medido { container-type: inline-size; }
+.pla-resumo-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pla-resumo-total { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
+.pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(n) { border-top: 0; border-left: 0; }
+.pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(n+4) { border-top: 1px solid var(--border); }
+.pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
+@container (min-width: 700px) {
+  .pla-resumo-grade { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(n) { border-top: 0; border-left: 1px solid var(--border); }
+  .pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(2) { border-left: 0; }
+}
+@container (min-width: 960px) {
+  .pla-resumo-grade { grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)); }
+  .pla-resumo-total { grid-column: auto; border-bottom: 0; }
+  .pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(2) { border-left: 1px solid var(--border); }
 }
 .pla-progresso { transition: width 600ms cubic-bezier(.2, 0, 0, 1); }
 /* Etapa atual: um anel que pulsa duas vezes ao chegar, depois fica quieto. */
@@ -1417,35 +1375,82 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
 .pla-cartao > div > table > tfoot > tr > td[data-col="mob"] { grid-area: mob; }
 .pla-cartao > div > table > tfoot > tr > td[data-rotulo]::before { margin-bottom: 0; font-size: 10px; }
 
+/* Selo do rascunho (08/10): acende a cada gravação, como o da Sugestão. */
+@keyframes pla-salvo { 0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--success-strong) 22%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.pla-salvo { animation: pla-salvo 900ms ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
   .pla-progresso, .pla-card, .pla-linha { transition: none; }
-  .pla-etapa-atual, .pla-destaque, .pla-editado { animation: none; }
+  .pla-etapa-atual, .pla-destaque, .pla-editado, .pla-salvo { animation: none; }
 }
 
-/* ══ Realizado (rea-) — redesenho 08/10 ═════════════════════════════════════
- * A tela usa as peças do Planejado (pla-resumo, pla-card, pla-extrato,
- * pla-destaque, pla-progresso) e da família Passagens (pas-osso, pas-entra,
- * pas-sobe, pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que
- * é dela: a linha do dia na grade de diárias do modal. */
+/* ══ Controle de bagagem (bag-) — redesenho 08/10 ══════════════════════════
+ * A Bagagem usa as MESMAS classes de Passagens (pas-tabela, pas-cabecalho,
+ * pas-linha, pas-abrir, pas-osso, pas-entra, pas-alvo, pas-rolagem-x) — é a
+ * mesma família. Aqui só o que é dela: o cartão da solicitação no
+ * celular/tablet e o cartão das linhas dos dois relatórios.
+ *
+ * Cartão da solicitação (abaixo de 960px úteis), sobre a MESMA árvore de
+ * células da tabela:
+ *   [bilhete: LOC · companhia · OS ............ ações]
+ *   [colaborador + CPF                               ]
+ *   [evento + observação       | embarque            ]
+ *   [bagagens | valor          | agência             ]                         */
+.bag-cartao thead { display: none; }
+.bag-cartao table, .bag-cartao tbody { display: block; width: 100%; }
+.bag-cartao tr.pas-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 8px 4px 12px;
+}
+.bag-cartao td { display: block; padding: 4px 10px; width: auto; text-align: left !important; }
+.bag-cartao td[data-col="bilhete"] { order: 1; flex: 1 1 0; min-width: 0; padding-left: 10px; }
+.bag-cartao td[data-col="acoes"] { order: 2; flex: 0 0 auto; padding-top: 2px; }
+.bag-cartao td[data-col="colab"] { order: 3; flex: 0 0 100%; padding-top: 6px; }
+.bag-cartao td[data-col="evento"] { order: 4; flex: 0 0 58%; min-width: 0; }
+.bag-cartao td[data-col="datas"] { order: 5; flex: 0 0 42%; min-width: 0; }
+.bag-cartao td[data-col="qtd"] { order: 6; flex: 0 0 22%; min-width: 0; }
+.bag-cartao td[data-col="valor"] { order: 7; flex: 0 0 36%; min-width: 0; }
+.bag-cartao td[data-col="agencia"] { order: 8; flex: 0 0 42%; min-width: 0; }
+.bag-cartao td[data-rotulo]::before,
+.bag-doc-cartao td[data-rotulo]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+/* No cartão a observação tem a largura toda: volta a quebrar em vez de cortar. */
+.bag-cartao .bag-nota { align-items: flex-start; }
+.bag-cartao .bag-nota .truncate { white-space: normal; overflow: visible; }
 
-/* Dia: caixa "trabalhou" · data · planejado · realizado (campo de 104px). */
-.rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 6.5rem 104px; }
-@media (max-width: 380px) {
-  .rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 104px; }
-  .rea-dia > :nth-child(3) { display: none; }
-}
-/* Resumo: entre 768 e 1024px os valores não cabem em cinco colunas — fica 2 × 2
-   (as divisórias do 2 × 2 do pla-resumo, que só valem abaixo de 768px). */
-@media (min-width: 768px) and (max-width: 1023.98px) {
-  .rea-resumo .pla-metrica { border-top: 1px solid var(--border); border-left: 0; }
-  .rea-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
-}
-/* Rodapé do card: no card estreito (grade de 2 dentro da divisão, tablet,
-   celular) Observações, Dividir e Remover ficam só no ícone — o rótulo vai
-   no aria-label/title. Medido pelo card (container), não pela janela. */
-@container (max-width: 480px) {
-  .rea-acao-texto { display: none; }
-}
+/* Relatórios no estreito (< 900px úteis): cada linha vira um cartão —
+ *   [nome + CPF / evento + período .......... ›]
+ *   [Azul | Gol | TAM | Outros]   (por colaborador)
+ *   [bagagens | histórico | valor]  /  [solicitações | bagagens | valor | médio]
+ *   [participação ............................]  (por evento)             */
+.bag-doc-cartao thead { display: none; }
+.bag-doc-cartao table, .bag-doc-cartao tbody, .bag-doc-cartao tfoot { display: block; width: 100%; }
+.bag-doc-cartao tr { display: flex; flex-wrap: wrap; align-items: flex-start; padding: 8px 0 10px; }
+.bag-doc-cartao td, .bag-doc-cartao th { display: block; padding: 3px 16px; text-align: left !important; }
+.bag-doc-cartao [data-col="nome"] { order: 1; flex: 1 1 calc(100% - 56px); min-width: 0; padding-left: 16px !important; }
+.bag-doc-cartao td[data-col="abrir"] { order: 2; flex: 0 0 auto; padding: 0 8px; }
+.bag-doc-cartao td[data-col="cia"] { order: 3; flex: 0 0 25%; }
+.bag-doc-cartao td[data-col="num"] { order: 4; flex: 1 1 0; min-width: 0; }
+.bag-doc-cartao td[data-col="pct"] { order: 5; flex: 0 0 100%; }
+.bag-doc-cartao td[data-col="cia"] > span { justify-content: flex-start; }
+.bag-doc-cartao tfoot td[data-col="pct"], .bag-doc-cartao tfoot td[data-col="abrir"] { display: none; }
+.bag-doc-cartao .bag-total [data-col="nome"] { flex: 0 0 100%; }
+/* Por evento são quatro números: dois por fileira, senão o valor médio sai da tela no celular. */
+.bag-doc-evento td[data-col="num"] { flex: 0 0 50%; }
+
+/* O número da quantidade tem − / + próprios: as setas nativas do navegador ficavam duplicadas. */
+.bag-numero::-webkit-outer-spin-button, .bag-numero::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bag-numero { -moz-appearance: textfield; appearance: textfield; }
 
 /* ══ Notas fiscais (nf-) — redesenho 08/10 ══════════════════════════════════
  * A tela usa as peças da família Passagens/Bagagem (pas-tabela, pas-cabecalho,
@@ -1624,6 +1629,33 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
 }
 /* Na planilha da Aprovação as três decisões ficam numa linha só. */
 .pas-tabela .nf-acoes { flex-wrap: nowrap; }
+
+/* ══ Realizado (rea-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças do Planejado (pla-resumo, pla-card, pla-extrato,
+ * pla-destaque, pla-progresso) e da família Passagens (pas-osso, pas-entra,
+ * pas-sobe, pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que
+ * é dela: a linha do dia na grade de diárias do modal. */
+
+/* Dia: caixa "trabalhou" · data · planejado · realizado (campo de 104px). */
+.rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 6.5rem 104px; }
+@media (max-width: 380px) {
+  .rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 104px; }
+  .rea-dia > :nth-child(3) { display: none; }
+}
+/* Resumo: entre 768 e 1024px os valores não cabem em cinco colunas — fica 2 × 2
+   (as divisórias do 2 × 2 do pla-resumo, que só valem abaixo de 768px).
+   08/10: o Realizado passou para a grade do pla-resumo-grade (pela largura do
+   painel); esta regra fica para o Comparativo, que ainda usa rea-resumo. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .rea-resumo .pla-metrica { border-top: 1px solid var(--border); border-left: 0; }
+  .rea-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
+}
+/* Rodapé do card: no card estreito (grade de 2 dentro da divisão, tablet,
+   celular) Observações, Dividir e Remover ficam só no ícone — o rótulo vai
+   no aria-label/title. Medido pelo card (container), não pela janela. */
+@container (max-width: 480px) {
+  .rea-acao-texto { display: none; }
+}
 
 /* ══ Comparativo (cmp-) — redesenho 08/10 ═══════════════════════════════════
  * A tela usa as peças do Planejado e do Realizado (pla-resumo, rea-resumo,

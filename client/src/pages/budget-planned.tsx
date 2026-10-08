@@ -3,7 +3,7 @@
  * redesenho 08/10.
  *
  * Dados (inalterados): `useBudgetQueries` (consultas), `useBudgetDraft`
- * (rascunho por usuário/evento), `useBudgetEngine` (cálculo via
+ * (rascunho por usuário/evento — no servidor desde 08/10), `useBudgetEngine` (cálculo via
  * @shared/budget-engine), `useBudgetFilters` (busca/filtro/seleção),
  * `useBudgetEditModal` e `useBudgetPlannedActions` (mutations).
  *
@@ -17,7 +17,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
-import { AlertCircle, Calculator, ListChecks, RefreshCw, RotateCw, Send, X } from "lucide-react";
+import { AlertCircle, Calculator, CloudOff, ListChecks, RefreshCw, RotateCw, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EventSearchSelect } from "@/components/event-select";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
@@ -43,6 +43,7 @@ import { BudgetEditModal } from "@/components/budget/budget-edit-modal";
 import { ConfirmSendDialog } from "@/components/budget/confirm-send-dialog";
 import { NaoParticipouDialog, RestoreParticipacaoDialog } from "@/components/budget/nao-participou-dialog";
 import { EnviarParaRealizadoBar } from "@/components/budget/enviar-para-realizado-bar";
+import { TEXTO_RASCUNHO_LOCAL } from "@/components/budget/selo-do-rascunho";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ddmm, nomeDaVaga as nomeDaVagaDe, type CalculatedBudget } from "@/components/budget/types";
 
@@ -123,6 +124,7 @@ export default function BudgetPlannedPage() {
 
   const draft = useBudgetDraft(selectedEventId, usuarioId);
   const { budgetOverrides, setBudgetOverrides, draftRestored, setDraftRestored } = draft;
+  const nAjustes = Object.keys(budgetOverrides).length;
 
   const motor = useBudgetEngine({
     teamInclusions: q.teamInclusions, functionValues, collaborators, functionNamesById: functionNameById, systemSettings,
@@ -261,10 +263,10 @@ export default function BudgetPlannedPage() {
     conteudo = (
       <div role="status" aria-live="polite" aria-busy="true" aria-label="Carregando o planejado" className="flex flex-col gap-4">
         <span className="sr-only">Carregando o planejado…</span>
-        <div aria-hidden="true" className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="grid grid-cols-2 md:grid-cols-[1.5fr_repeat(4,1fr)]">
+        <div aria-hidden="true" className="pla-resumo pla-resumo-medido rounded-xl border border-border bg-card overflow-hidden">
+          <div className="pla-resumo-grade">
             {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className={`px-4 py-3.5 space-y-2 ${i === 0 ? "col-span-2 md:col-span-1" : ""}`}>
+              <div key={i} className={`px-4 py-3.5 space-y-2 ${i === 0 ? "pla-resumo-total" : ""}`}>
                 <div className="pas-osso h-3 w-20" /><div className={`pas-osso ${i === 0 ? "h-7 w-40" : "h-5 w-24"}`} /><div className="pas-osso h-2.5 w-16" />
               </div>
             ))}
@@ -307,13 +309,17 @@ export default function BudgetPlannedPage() {
       <>
         {calculatedBudgets.length > 0 && <BudgetOverviewCards selectedEvent={selectedEvent} totalGeral={totalGeral} stats={stats} />}
 
-        {/* ── Rascunho restaurado: ajustes locais que ainda não foram enviados ── */}
-        {draftRestored && Object.keys(budgetOverrides).length > 0 && (
+        {/* ── Rascunho restaurado: ajustes salvos que ainda não foram enviados.
+             Desde 08/10 o rascunho mora no servidor e volta em qualquer
+             computador; sem servidor, volta o que este navegador guardou. ── */}
+        {draftRestored && nAjustes > 0 && (
           <div role="status" className="pas-entra flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-warning/25 bg-warning-soft px-4 py-2.5" data-testid="planejado-rascunho">
             <span className="w-1.5 h-1.5 rounded-full bg-warning-strong shrink-0" aria-hidden="true" />
             <p className="m-0 min-w-0 flex-1 text-xs text-warning">
               <span className="font-semibold">Rascunho de edições restaurado.</span>{" "}
-              {Object.keys(budgetOverrides).length === 1 ? "1 ajuste feito antes, neste navegador, voltou" : `${Object.keys(budgetOverrides).length} ajustes feitos antes, neste navegador, voltaram`} — eles só valem quando forem enviados ao Realizado.
+              {draft.draftStatus === "local"
+                ? (nAjustes === 1 ? "1 ajuste guardado neste navegador voltou" : `${nAjustes} ajustes guardados neste navegador voltaram`)
+                : (nAjustes === 1 ? "1 ajuste do seu rascunho voltou" : `${nAjustes} ajustes do seu rascunho voltaram`)} — eles só valem quando forem enviados ao Realizado.
             </p>
             <button
               type="button"
@@ -324,6 +330,14 @@ export default function BudgetPlannedPage() {
               <X className="w-3.5 h-3.5" aria-hidden="true" />Descartar
             </button>
           </div>
+        )}
+
+        {/* Servidor fora: o rascunho continua, mas só neste navegador (aviso discreto, nas duas vistas). */}
+        {draft.draftStatus === "local" && nAjustes > 0 && (
+          <p role="status" className="pas-entra m-0 flex items-center gap-2 text-xs text-warning" data-testid="planejado-rascunho-local">
+            <CloudOff className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            {TEXTO_RASCUNHO_LOCAL}.
+          </p>
         )}
 
         {calculatedBudgets.length > 0 && <FilaDoPlanejado filtros={filtros} />}
@@ -375,6 +389,8 @@ export default function BudgetPlannedPage() {
             budgetOverrides={budgetOverrides}
             setBudgetOverrides={setBudgetOverrides}
             setDraftRestored={setDraftRestored}
+            draftStatus={draft.draftStatus}
+            draftSavedAt={draft.draftSavedAt}
             totalGeral={totalGeral}
             nomeDaVaga={nomeDaVaga}
             getFunctionName={getFunctionName}
