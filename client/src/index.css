@@ -1867,3 +1867,169 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .cmp-linha { transition: none; }
 }
+
+/* ══ Conta corrente Flash (fla-) — redesenho 08/10 ═══════════════════════════
+ * Usa as peças comuns da família (pas-osso, pas-entra, pas-alvo, pas-busca,
+ * barra de filtros comum). Aqui só o que é dela: as divisórias do painel de
+ * resumo, o par contas × extrato (lista grudada no desktop), a barrinha do
+ * alvo, o extrato como tabela de banco (mês, entrada/saída, pé com o total)
+ * e o cartão em que ele vira na largura útil estreita, o diálogo e as
+ * microinterações. Tudo rápido e desligado com reduced-motion. */
+
+.fla-ponto { display: inline-block; width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; }
+
+/* Resumo: 2 × 2 até 1023px, uma fileira a partir de 1024px. */
+.fla-resumo .fla-metrica:nth-child(even) { border-left: 1px solid var(--border); }
+.fla-resumo .fla-metrica:nth-child(n+3) { border-top: 1px solid var(--border); }
+@media (min-width: 1024px) {
+  .fla-resumo .fla-metrica:nth-child(n) { border-top: 0; }
+  .fla-resumo .fla-metrica + .fla-metrica { border-left: 1px solid var(--border); }
+}
+.fla-progresso { transition: width 600ms cubic-bezier(.2, 0, 0, 1); }
+
+/* Barrinha do saldo sobre o alvo. */
+.fla-medidor-cheio { transition: width 500ms cubic-bezier(.2, 0, 0, 1), background-color 200ms ease; }
+
+/* Admitidos sem crédito: a lista em colunas quando há largura. */
+.fla-admitidos { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.fla-admitidos > li { border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+@keyframes fla-abre { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.fla-abre { animation: fla-abre 160ms ease-out both; }
+
+/* ── Contas × extrato ─────────────────────────────────────────────────────── */
+.fla-mestre { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 1024px) {
+  .fla-mestre { grid-template-columns: 320px minmax(0, 1fr); }
+  /* A lista fica à mão enquanto o extrato rola com a página. */
+  .fla-contas-fixa {
+    position: sticky;
+    top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 1rem);
+    max-height: calc(100vh - var(--sticky-top, 3.5rem) - 3.5rem - 2rem);
+  }
+  .fla-contas-rolagem { flex: 1 1 auto; min-height: 0; }
+}
+@media (min-width: 1440px) {
+  .fla-mestre { grid-template-columns: 400px minmax(0, 1fr); }
+}
+.fla-conta-sel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--primary);
+  transform-origin: center;
+  animation: fla-filete 180ms ease-out both;
+}
+@keyframes fla-filete { from { transform: scaleY(0); } to { transform: none; } }
+
+/* ── Extrato ──────────────────────────────────────────────────────────────── */
+/* O painel mede a própria largura (cartão abaixo de 600px) e corta os cantos
+   sem virar contêiner de rolagem (o cabeçalho da tabela gruda na janela). */
+.fla-extrato { container-type: inline-size; overflow: clip; }
+.fla-saldo + .fla-saldo { border-left: 1px solid var(--border); }
+@keyframes fla-mudou { 0% { background-color: color-mix(in srgb, var(--success-soft) 95%, transparent); } 100% { background-color: transparent; } }
+.fla-valor-mudou { display: inline-block; margin-left: -4px; padding: 0 4px; border-radius: 6px; animation: fla-mudou 1.4s ease-out both; }
+
+.fla-tabela { table-layout: fixed; }
+.fla-th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  padding: 9px 12px;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.fla-td { padding: 10px 12px; vertical-align: top; border-top: 1px solid var(--border); }
+.fla-tabela th:first-child, .fla-tabela td:first-child { padding-left: 20px; }
+.fla-tabela th:last-child, .fla-tabela td:last-child { padding-right: 16px; }
+.fla-tabela col[data-col="data"] { width: 76px; }
+.fla-tabela col[data-col="entrada"], .fla-tabela col[data-col="saida"] { width: 106px; }
+.fla-tabela col[data-col="saldo"] { width: 112px; }
+.fla-tabela col[data-col="acoes"] { width: 88px; }
+.fla-tabela td[data-col="acoes"] { padding-top: 6px; }
+/* Com folga (extrato largo), as colunas de valor respiram. */
+@container (min-width: 820px) {
+  .fla-tabela col[data-col="data"] { width: 84px; }
+  .fla-tabela col[data-col="entrada"], .fla-tabela col[data-col="saida"] { width: 132px; }
+  .fla-tabela col[data-col="saldo"] { width: 136px; }
+  .fla-tabela col[data-col="acoes"] { width: 92px; }
+}
+.fla-titulo { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.fla-mes > th {
+  padding: 7px 16px 7px 20px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 55%, var(--card));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--slate-600, var(--muted-foreground));
+}
+.fla-tabela tbody > tr.fla-mes:first-child > th { border-top: 0; }
+.fla-linha > td { transition: background-color 120ms ease; }
+.fla-linha:hover > td { background-color: color-mix(in srgb, var(--surface-muted) 50%, var(--card)); }
+/* Lançamento que acabou de entrar ou mudar: acende em verde e volta. */
+@keyframes fla-acesa { 0%, 35% { background-color: color-mix(in srgb, var(--success-soft) 95%, var(--card)); } 100% { background-color: transparent; } }
+.fla-acesa > td { animation: fla-acesa 2.4s ease-out both; }
+.fla-pe > th, .fla-pe > td { background: color-mix(in srgb, var(--brand-soft) 50%, var(--card)); vertical-align: middle; }
+
+/* ── Extrato em cartão (< 600px úteis), sobre as MESMAS células ─────────────
+ *   [14/08  descrição ............... +R$ 86,50]
+ *   [ sex   categoria · evento    saldo R$ 263,50]
+ *   [                              ✎  🗑        ]                             */
+@container (max-width: 600px) {
+  .fla-tabela thead, .fla-tabela colgroup { display: none; }
+  .fla-tabela, .fla-tabela tbody, .fla-tabela tfoot { display: block; width: 100%; }
+  .fla-mes, .fla-mes > th { display: block; }
+  .fla-mes > th { padding-left: 16px; }
+  .fla-linha {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-areas: "data lanc valor" "data lanc saldo" "data acoes acoes";
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 11px 16px 11px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .fla-linha > td { display: block; width: auto !important; padding: 0 !important; border: 0; }
+  .fla-linha > td[data-col="data"] { grid-area: data; }
+  .fla-linha > td[data-col="lanc"] { grid-area: lanc; }
+  .fla-linha > td[data-col="entrada"], .fla-linha > td[data-col="saida"] { grid-area: valor; justify-self: end; }
+  .fla-linha > td[data-col="entrada"]:empty, .fla-linha > td[data-col="saida"]:empty { display: none; }
+  .fla-linha > td[data-col="saldo"] { grid-area: saldo; justify-self: end; display: flex; align-items: baseline; gap: 4px; }
+  .fla-linha > td[data-col="saldo"]::before { content: "saldo"; font-size: 11px; color: var(--muted-foreground); }
+  .fla-linha > td[data-col="saldo"] > span { font-size: 12px; }
+  .fla-linha .fla-saldo-cat { display: none; }
+  /* No cartão quem pinta é a linha inteira (as células ficavam em retalhos). */
+  .fla-linha:hover > td { background-color: transparent; }
+  .fla-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 50%, var(--card)); }
+  .fla-acesa > td { animation: none; }
+  .fla-linha.fla-acesa { animation: fla-acesa 2.4s ease-out both; }
+  .fla-linha > td[data-col="acoes"] { grid-area: acoes; justify-self: end; margin: 2px -8px -6px 0; }
+  .fla-linha .fla-titulo { -webkit-line-clamp: 2; }
+  .fla-pe { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 16px; padding: 10px 16px; background: color-mix(in srgb, var(--brand-soft) 50%, var(--card)); border-top: 1px solid var(--border); }
+  .fla-pe > th, .fla-pe > td { display: block; padding: 0 !important; border: 0; background: transparent; width: auto !important; }
+  .fla-pe > td[data-rotulo] { text-align: right; }
+  .fla-pe > td[data-rotulo]::before { content: attr(data-rotulo); display: block; font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+  .fla-pe > .fla-pe-vazio { display: none; }
+}
+@container (max-width: 420px) {
+  .fla-saldo { padding-left: 14px; padding-right: 12px; }
+}
+
+/* ── Diálogo de lançamento ────────────────────────────────────────────────── */
+.fla-rotulo { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--slate-600, var(--muted-foreground)); }
+.fla-opcional { margin-left: 4px; font-weight: 400; color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fla-progresso, .fla-medidor-cheio, .fla-linha > td, .fla-escolha { transition: none; }
+  .fla-abre, .fla-conta-sel::before, .fla-valor-mudou, .fla-acesa > td, .fla-linha.fla-acesa { animation: none; }
+}

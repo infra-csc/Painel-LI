@@ -121,7 +121,7 @@ export function useFlashData(args: { search: string; selectedCollabId: string; s
     mutationFn: (id: string) => apiRequest("DELETE", `/api/flash-movements/${id}`).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
-      toast({ title: "Lançamento excluído" });
+      toast({ variant: "success", title: "Lançamento excluído", description: "O saldo do colaborador foi recalculado." });
     },
     onError: (e: unknown) => toast({ title: "Não foi possível excluir o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
@@ -152,12 +152,14 @@ export function useFlashData(args: { search: string; selectedCollabId: string; s
   };
 
   const selectedBalance = balances.get(selectedCollabId);
+  // Saldo de qualquer pessoa (o diálogo mostra o "saldo atual" e o "depois").
+  const saldoDe = useCallback((id: string) => balances.get(id), [balances]);
 
   return {
     estado, isLoading, collaborators, events, movements,
     getCollabName, getEventName,
     accountRows, totals, extrato, extratoVisible, hasAutomatic,
-    collabsWithMovements, admittedWithoutInitialCredit, selectedBalance,
+    collabsWithMovements, admittedWithoutInitialCredit, selectedBalance, saldoDe,
     deleteMutation, exportCsv,
     invalidateMovements: () => qc.invalidateQueries({ queryKey: ["/api/flash-movements"] }),
   };
