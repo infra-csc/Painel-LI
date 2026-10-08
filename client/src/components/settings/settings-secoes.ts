@@ -2,8 +2,8 @@
 // lateral, contagem de alterações por seção, lista "o que mudou" da barra de
 // alterações e o painel de resumo). Só apresentação: nenhuma chave nova, nenhum
 // valor — as chaves são as do formSchema e os rótulos dizem o campo do jeito
-// que aparece na tela (o FIELD_LABELS do histórico tem outra redação e um
-// defeito nos rótulos dos cenotécnicos, apontado no relatório do redesenho).
+// que aparece na tela (o FIELD_LABELS do histórico tem outra redação; os
+// rótulos dele cobrem todas as chaves — conferido em settings-salvamento.test.ts).
 import { CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS, CENO_EMPREITA_TABLE_DAYS } from "@shared/cenotecnica-empreita";
 import { parseBrNumber } from "@/lib/utils";
 import { cenoEmpreitaKey, PERCENT_KEYS, type FormValues } from "./settings-schema";

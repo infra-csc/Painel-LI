@@ -64,8 +64,10 @@ describe("Valores padrão — campo numérico", () => {
 describe("Valores padrão — barra de alterações", () => {
   it("diz quantas, salva, descarta e leva ao erro", () => {
     const onSave = vi.fn(), onDiscard = vi.fn(), onIrParaErro = vi.fn();
-    renderComTudo(<SaveBar totalUnsaved={2} saving={false} onSave={onSave} onDiscard={onDiscard} erros={1} onIrParaErro={onIrParaErro} />);
-    expect(screen.getByText("2 alterações não salvas")).toBeInTheDocument();
+    // Com 1 alteração o Descartar é direto; com 2+ pede confirmação
+    // (settings-confirmacoes.test.tsx).
+    renderComTudo(<SaveBar totalUnsaved={1} saving={false} onSave={onSave} onDiscard={onDiscard} erros={1} onIrParaErro={onIrParaErro} />);
+    expect(screen.getByText("1 alteração não salva")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("cfg-salvar"));
     fireEvent.click(screen.getByTestId("cfg-descartar"));
     fireEvent.click(screen.getByTestId("cfg-ir-para-erro"));

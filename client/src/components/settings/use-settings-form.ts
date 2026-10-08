@@ -5,23 +5,36 @@
 // que este hook devolve; nenhum cartão fala com a API diretamente.
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
-import { apiRequest } from "@/lib/queryClient";
-import { parseBrNumber } from "@/lib/utils";
+import { apiRequest, fetchJson } from "@/lib/queryClient";
 import { isRhOrAdmin } from "@/lib/role-utils";
 import { useQueriesState } from "@/components/common/query-state";
 import {
-  FIELD_LABELS, FORM_DEFAULT_VALUES, LEGACY_ZONE_FIELDS, PERCENT_KEYS,
+  FORM_DEFAULT_VALUES, LEGACY_ZONE_FIELDS,
   formSchema, settingsToFormValues, type FormValues,
 } from "./settings-schema";
-import { HISTORY_KEY, LAST_SAVED_KEY, centavosToReais, formatCurrency, type HistoryEntry } from "./settings-utils";
+import { HISTORY_KEY, LAST_SAVED_KEY } from "./settings-utils";
+import { camposEditadosDepoisDoEnvio, corpoDasTarifas, historicoDasTarifas, type FuncaoNoLote } from "./settings-salvamento";
 import { useSettingsHistory } from "./use-settings-history";
 import { useFunctionValues, type SettingsTab } from "./use-function-values";
+
+/**
+ * Troca a base do formulário (o "salvo") sem perder edição: `base` vira o
+ * valor salvo de cada campo e os campos de `preservar` voltam com o valor que
+ * tinham, ainda contando como alterados se diferirem da nova base.
+ */
+export function rebasearFormulario(form: UseFormReturn<FormValues>, base: FormValues, preservar: (keyof FormValues)[]) {
+  const atuais = form.getValues();
+  form.reset(base);
+  for (const k of preservar) {
+    if (atuais[k] !== base[k]) form.setValue(k, atuais[k], { shouldDirty: true });
+  }
+}
 
 export function useSettingsForm() {
   const { user } = useAuth();
@@ -55,86 +68,83 @@ export function useSettingsForm() {
   const estado = useQueriesState([qSettings, qFunctions, qFnCollaboratorTypes, qFunctionValues, qPaymentCompanies]);
 
   const fnValues = useFunctionValues({ allFunctions, allFunctionValues, activeTab, user });
-  const { dirtyFunctionCount, saveFunctionValuesMutation, buildFunctionHistoryEntries } = fnValues;
+  const { dirtyFunctionCount, prepararEnvio, envioFalhou, buildFunctionHistoryEntries } = fnValues;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: FORM_DEFAULT_VALUES,
   });
 
+  // Carga e recargas dos settings. Campo ainda alterado (inclusive o editado
+  // enquanto o salvamento corria) sobrevive à recarga — antes o reset jogava
+  // fora o que a pessoa digitou durante o envio.
   useEffect(() => {
-    if (settings) {
-      form.reset(settingsToFormValues(settings));
-    }
+    if (!settings) return;
+    const sujos = Object.keys(form.formState.dirtyFields) as (keyof FormValues)[];
+    rebasearFormulario(form, settingsToFormValues(settings), sujos);
   }, [settings, form]);
 
   const dirtyFormFields = Object.keys(form.formState.dirtyFields).length;
   const totalUnsaved = dirtyFormFields + dirtyFunctionCount;
   const hasAnyChanges = totalUnsaved > 0;
-  const isSavingAny = saveFunctionValuesMutation.isPending;
 
+  // UM salvamento = UMA transação no servidor (tarifas + diárias por função):
+  // ou entra tudo, ou nada — antes era um PUT e N PATCH/POST em paralelo, e uma
+  // falha no meio deixava parte gravada, fora do histórico.
   const saveMutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const body: Record<string, number> = {};
-      for (const [key, val] of Object.entries(values)) {
-        body[key] = parseBrNumber(val);
-      }
-      body["default_mobility"] = (parseBrNumber(values.default_mobility_ida) || 0) + (parseBrNumber(values.default_mobility_volta) || 0);
-      return apiRequest("PUT", "/api/system-settings", body);
-    },
-    onSuccess: (_, values) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/system-settings"] });
-      const now = new Date().toISOString();
-      const userName = user?.name || "Admin";
-      const newEntries: HistoryEntry[] = [];
-      if (settings) {
-        for (const key of Object.keys(values) as (keyof FormValues)[]) {
-          const newVal = values[key];
-          if (PERCENT_KEYS.has(key)) {
-            // Percentuais inteiros — o valor salvo já é inteiro cru (sem ×100)
-            const oldRaw = String(settings[key] ?? "");
-            if (parseBrNumber(oldRaw || "NaN") !== parseBrNumber(newVal)) {
-              newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: `${oldRaw || "—"}%`, newValue: `${newVal}%` });
-            }
-            continue;
-          }
-          const oldVal = centavosToReais(settings[key] ?? settings["default_daily_value"] ?? 0);
-          if (parseBrNumber(oldVal) !== parseBrNumber(newVal)) {
-            newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: formatCurrency(oldVal), newValue: formatCurrency(newVal) });
-          }
-        }
-      }
-      const updatedHistory = [...newEntries, ...history].slice(0, 40);
-      setHistory(updatedHistory);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
-      const savedInfo = { timestamp: now, user: userName };
-      setLastSaved(savedInfo);
-      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify(savedInfo));
-    },
+    mutationFn: async (lote: { settings: Record<string, number>; funcoes: FuncaoNoLote[] }) =>
+      apiRequest("PUT", "/api/system-settings/lote", lote),
     // Sem onError aqui: o único toast de falha do fluxo é o do catch de
     // handleSaveAll (que exibe a mensagem do servidor) — antes eram dois.
   });
+
+  // GET /api/function-values sai com Cache-Control max-age=60 (catálogo): a
+  // recarga comum devolvia a cópia do NAVEGADOR, de antes do salvamento, e a
+  // tabela continuava "alterada". Depois de salvar, busca sem essa cópia.
+  const recarregarValoresPorFuncao = async () => {
+    try {
+      const frescos = await fetchJson<FunctionValue[]>(`/api/function-values?salvo=${Date.now()}`);
+      queryClient.setQueryData(["/api/function-values"], frescos);
+    } catch {
+      await queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
+    }
+  };
 
   // ÚNICO fluxo de salvamento da página (barra flutuante): valida, salva as
   // tarifas + valores por função e aplica os padrões aos planejamentos
   // pendentes, com um único toast ao final.
   const handleSaveAll = form.handleSubmit(
     async (values) => {
+      // Um carimbo só por salvamento: tarifas e funções no MESMO grupo do histórico.
+      const carimbo = { timestamp: new Date().toISOString(), user: user?.name || "Admin" };
+      // Histórico montado ANTES de gravar (os "antes" são os valores carregados).
+      const entradas = [
+        ...(settings ? historicoDasTarifas(settings, values, carimbo) : []),
+        ...buildFunctionHistoryEntries(carimbo),
+      ];
+      const funcoes = prepararEnvio();
       try {
-        await saveMutation.mutateAsync(values);
-        if (dirtyFunctionCount > 0) {
-          // Histórico local também cobre as Diárias por Função salvas neste fluxo
-          const fnEntries = buildFunctionHistoryEntries();
-          await saveFunctionValuesMutation.mutateAsync();
-          queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
-          if (fnEntries.length > 0) {
-            setHistory(prev => {
-              const updated = [...fnEntries, ...prev].slice(0, 40);
-              localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
-              return updated;
-            });
-          }
+        try {
+          await saveMutation.mutateAsync({ settings: corpoDasTarifas(values), funcoes });
+        } catch (e) {
+          envioFalhou();
+          throw e;
         }
+        // O que foi enviado vira a nova base; o editado durante o envio continua alterado.
+        rebasearFormulario(form, values, camposEditadosDepoisDoEnvio(values, form.getValues()));
+        if (entradas.length > 0) {
+          setHistory(prev => {
+            const updated = [...entradas, ...prev].slice(0, 40);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+            return updated;
+          });
+        }
+        setLastSaved(carimbo);
+        localStorage.setItem(LAST_SAVED_KEY, JSON.stringify(carimbo));
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["/api/system-settings"] }),
+          funcoes.length > 0 ? recarregarValoresPorFuncao() : null,
+        ]);
         // Apply new defaults to all pending (not-yet-sent) budget_planned records
         let updatedCount = 0;
         let applyFailed = false;
@@ -165,8 +175,10 @@ export function useSettingsForm() {
           });
         }
       } catch (e) {
+        // O lote é uma transação: se falhou, nenhum valor foi gravado e as
+        // alterações continuam na tela para tentar de novo.
         toast({
-          title: "Erro ao salvar",
+          title: "Erro ao salvar — nenhum valor foi gravado",
           description: apiErrorMessage(e, "Não foi possível salvar as alterações. Tente novamente."),
           variant: "destructive",
         });
@@ -232,8 +244,8 @@ export function useSettingsForm() {
     // Salvamento
     totalUnsaved,
     hasAnyChanges,
-    // Mesmo predicado de antes: mutation das diárias por função OU das tarifas
-    isSaving: isSavingAny || saveMutation.isPending,
+    // Uma mutação só: tarifas + diárias por função no mesmo lote
+    isSaving: saveMutation.isPending,
     handleSaveAll,
     // Histórico local
     history,

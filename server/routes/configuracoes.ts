@@ -4,6 +4,7 @@
  * Papéis: financeiro (admin/RH) para os parâmetros; admin para os prazos.
  */
 import type { Express } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
 import { normalizeRole } from "@shared/roles";
 import { CHAVE_DO_PRAZO, ETAPAS_COM_PRAZO, lerDiasDosPrazos, validarDiasDosPrazos } from "@shared/prazos-da-escala";
@@ -146,57 +147,9 @@ export function registrarConfiguracoes(app: Express): void {
     const userId = user.id;
 
     try {
-      const allowed = [
-        "default_mobility", "default_mobility_ida", "default_mobility_volta",
-        "default_weekday_lunch", "default_weekday_dinner", "default_weekend_lunch", "default_weekend_dinner",
-        "default_daily_value", "default_daily_value_weekday", "default_daily_value_weekend",
-        // Freela-specific keys
-        "default_daily_value_weekday_freela", "default_daily_value_weekend_freela",
-        "default_mobility_ida_freela", "default_mobility_volta_freela",
-        "default_weekday_lunch_freela", "default_weekday_dinner_freela",
-        "default_weekend_lunch_freela", "default_weekend_dinner_freela",
-        // Tarifas de atendimento (Key Account / Executivo de Contas)
-        "atendimento_key_account", "atendimento_executivo_contas",
-        // Fatores de deflação (percentuais inteiros)
-        "deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais",
-        // Refeições flat (alimentação por voo — Demais, Cenotécnica e Key Account / Gerente)
-        "alimentacao_almoco", "alimentacao_jantar", "alimentacao_almoco_ceno", "alimentacao_jantar_ceno",
-        "alimentacao_almoco_gestao", "alimentacao_jantar_gestao",
-        // Almoço de casa (CLT) em dia útil (demais / cenotécnica)
-        "alimentacao_almoco_casa_util", "alimentacao_almoco_casa_util_ceno",
-        // Percurseiro (motoqueiro) — pacote fechado por diária
-        "percurseiro_t1_motoqueiro", "percurseiro_t2_motoqueiro", "percurseiro_fee_pct",
-        "percurseiro_alimentacao", "percurseiro_transporte", "percurseiro_nf_pct",
-        "percurseiro_t1_nf", "percurseiro_t2_nf",
-        // Tarifas freela (regra do slide: local / em viagem / dir de prova)
-        "freela_diaria_local", "freela_diaria_viagem", "freela_diaria_dir_prova",
-        // Tarifas casa (regra do slide: dir prova / produtor / exec vendas O2)
-        "casa_diaria_dir_prova", "casa_diaria_produtor", "casa_diaria_exec_vendas",
-        // Cenotécnicos EMPREITA — 20 células da tabela (4 modalidades × 2..6 dias)
-        ...CENO_EMPREITA_SETTING_KEYS,
-      ];
-      // Fatores de deflação são PERCENTUAIS inteiros (0..100), não valores
-      // monetários — gravados sem o ×100 dos demais.
-      const PERCENT_KEYS = new Set(["deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais", "percurseiro_fee_pct", "percurseiro_nf_pct"]);
-      // Valida tudo antes de gravar qualquer chave — um valor não numérico
-      // gravava "NaN" no banco e quebrava o formulário de todos os usuários
-      const updates: Array<[string, number]> = [];
-      for (const key of allowed) {
-        if (req.body[key] === undefined) continue;
-        const parsed = parseFloat(req.body[key]);
-        if (!Number.isFinite(parsed) || parsed < 0) {
-          return res.status(400).json({ message: `Valor inválido para "${key}" — informe um número maior ou igual a zero.` });
-        }
-        if (PERCENT_KEYS.has(key)) {
-          if (parsed > 100) {
-            return res.status(400).json({ message: `Percentual inválido para "${key}" — informe de 0 a 100.` });
-          }
-          updates.push([key, Math.round(parsed)]);
-        } else {
-          updates.push([key, Math.round(parsed * 100)]);
-        }
-      }
-      for (const [key, val] of updates) {
+      const r = validarSettings(req.body ?? {});
+      if ("erro" in r) return res.status(400).json({ message: r.erro });
+      for (const [key, val] of r.updates) {
         await storage.upsertSystemSetting(key, String(val), userId);
       }
       await createAuditLog('update', 'system_settings', 'global', req.body, userId, user.name || 'Sistema', undefined, req);
@@ -206,4 +159,119 @@ export function registrarConfiguracoes(app: Express): void {
       res.status(500).json({ message: "Erro ao salvar configurações" });
     }
   });
+
+  // ── Salvamento em lote da tela Valores padrão (08/10) ──────────────────
+  // Tarifas + diárias por função numa transação: ou entra tudo, ou nada. O
+  // navegador mandava um PUT e N PATCH/POST em paralelo; uma falha no meio
+  // deixava parte gravada (inclusive as tarifas) sem a pessoa saber o quê.
+  app.put("/api/system-settings/lote", async (req, res) => {
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
+    const corpo = loteSchema.safeParse(req.body ?? {});
+    if (!corpo.success) {
+      return res.status(400).json({ message: "Dados inválidos: as diárias por função precisam de função e valores inteiros em centavos, de zero para cima." });
+    }
+    const { settings, funcoes } = corpo.data;
+    const r = validarSettings(settings);
+    if ("erro" in r) return res.status(400).json({ message: r.erro });
+    const ids = funcoes.map(f => f.functionId);
+    if (new Set(ids).size !== ids.length) {
+      return res.status(400).json({ message: "A mesma função veio mais de uma vez no salvamento." });
+    }
+    try {
+      if (ids.length > 0) {
+        const existentes = new Set((await storage.getFunctions()).map(f => f.id));
+        const faltando = ids.filter(id => !existentes.has(id));
+        if (faltando.length > 0) {
+          return res.status(400).json({ message: "Uma das funções não existe mais. Recarregue a página e tente de novo." });
+        }
+      }
+      const { antes, depois } = await storage.salvarValoresPadraoEmLote(r.updates, funcoes, user.id);
+      // Auditoria depois do COMMIT, nos mesmos moldes das rotas individuais.
+      const nome = user.name || "Sistema";
+      if (r.updates.length > 0) {
+        await createAuditLog("update", "system_settings", "global", settings, user.id, nome, undefined, req);
+      }
+      for (const row of depois) {
+        const anterior = antes.find(v => v.id === row.id);
+        await createAuditLog(anterior ? "update" : "create", "function_value", row.id, row, user.id, nome, anterior, req);
+      }
+      res.json({ settings: r.updates.length, funcoes: depois.length });
+    } catch (error) {
+      console.error("Erro ao salvar os valores padrão em lote:", error);
+      res.status(500).json({ message: "Erro ao salvar os valores padrão — nenhum valor foi gravado." });
+    }
+  });
 }
+
+/** Chaves que o PUT de settings aceita (as demais são ignoradas). */
+const CHAVES_DE_SETTINGS: readonly string[] = [
+  "default_mobility", "default_mobility_ida", "default_mobility_volta",
+  "default_weekday_lunch", "default_weekday_dinner", "default_weekend_lunch", "default_weekend_dinner",
+  "default_daily_value", "default_daily_value_weekday", "default_daily_value_weekend",
+  // Freela-specific keys
+  "default_daily_value_weekday_freela", "default_daily_value_weekend_freela",
+  "default_mobility_ida_freela", "default_mobility_volta_freela",
+  "default_weekday_lunch_freela", "default_weekday_dinner_freela",
+  "default_weekend_lunch_freela", "default_weekend_dinner_freela",
+  // Tarifas de atendimento (Key Account / Executivo de Contas)
+  "atendimento_key_account", "atendimento_executivo_contas",
+  // Fatores de deflação (percentuais inteiros)
+  "deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais",
+  // Refeições flat (alimentação por voo — Demais, Cenotécnica e Key Account / Gerente)
+  "alimentacao_almoco", "alimentacao_jantar", "alimentacao_almoco_ceno", "alimentacao_jantar_ceno",
+  "alimentacao_almoco_gestao", "alimentacao_jantar_gestao",
+  // Almoço de casa (CLT) em dia útil (demais / cenotécnica)
+  "alimentacao_almoco_casa_util", "alimentacao_almoco_casa_util_ceno",
+  // Percurseiro (motoqueiro) — pacote fechado por diária
+  "percurseiro_t1_motoqueiro", "percurseiro_t2_motoqueiro", "percurseiro_fee_pct",
+  "percurseiro_alimentacao", "percurseiro_transporte", "percurseiro_nf_pct",
+  "percurseiro_t1_nf", "percurseiro_t2_nf",
+  // Tarifas freela (regra do slide: local / em viagem / dir de prova)
+  "freela_diaria_local", "freela_diaria_viagem", "freela_diaria_dir_prova",
+  // Tarifas casa (regra do slide: dir prova / produtor / exec vendas O2)
+  "casa_diaria_dir_prova", "casa_diaria_produtor", "casa_diaria_exec_vendas",
+  // Cenotécnicos EMPREITA — 20 células da tabela (4 modalidades × 2..6 dias)
+  ...CENO_EMPREITA_SETTING_KEYS,
+];
+
+// Fatores de deflação são PERCENTUAIS inteiros (0..100), não valores
+// monetários — gravados sem o ×100 dos demais.
+const CHAVES_PERCENTUAIS = new Set(["deflacao_fator_ate_4", "deflacao_fator_5_8", "deflacao_fator_9_mais", "percurseiro_fee_pct", "percurseiro_nf_pct"]);
+
+/**
+ * Valida o corpo (reais e percentuais) e devolve o que gravar (centavos e
+ * percentuais inteiros). Valida tudo antes de gravar qualquer chave — um valor
+ * não numérico gravava "NaN" no banco e quebrava o formulário de todos.
+ */
+function validarSettings(body: Record<string, unknown>): { updates: Array<[string, number]> } | { erro: string } {
+  const updates: Array<[string, number]> = [];
+  for (const key of CHAVES_DE_SETTINGS) {
+    if (body[key] === undefined) continue;
+    const parsed = parseFloat(String(body[key]));
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { erro: `Valor inválido para "${key}" — informe um número maior ou igual a zero.` };
+    }
+    if (CHAVES_PERCENTUAIS.has(key)) {
+      if (parsed > 100) return { erro: `Percentual inválido para "${key}" — informe de 0 a 100.` };
+      updates.push([key, Math.round(parsed)]);
+    } else {
+      updates.push([key, Math.round(parsed * 100)]);
+    }
+  }
+  return { updates };
+}
+
+const centavosDaFuncao = z.number().int().min(0).max(100_000_000);
+const loteSchema = z.object({
+  /** Mesmo formato do PUT /api/system-settings (reais e percentuais). */
+  settings: z.record(z.unknown()).default({}),
+  /** Só as células alteradas de cada função, em centavos. */
+  funcoes: z.array(z.object({
+    functionId: z.string().min(1),
+    dailyValue: centavosDaFuncao.optional(),
+    dailyValueWeekend: centavosDaFuncao.optional(),
+    dailyValueFreela: centavosDaFuncao.optional(),
+    dailyValueFreelaWeekend: centavosDaFuncao.optional(),
+  }).strict()).max(1000).default([]),
+});

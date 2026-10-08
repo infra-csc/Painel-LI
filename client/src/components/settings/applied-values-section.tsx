@@ -12,6 +12,7 @@
 // função do motor de cálculo, percurseiroDiariaCents).
 import type { UseFormReturn } from "react-hook-form";
 import { percurseiroDiariaCents, PERCURSEIRO_SETTING_KEYS, type PercurseiroTipo } from "@shared/calculation-rules";
+import { MOBILIDADE_TRECHO_MADRUGADA_CENTS, MOBILIDADE_TRECHO_PADRAO_CENTS } from "@shared/atendimento";
 import { formatarMoeda } from "@/lib/format";
 import { parseBrNumber } from "@/lib/utils";
 import { GrupoDeAjustes, LinhaDeAjuste, MoneyField, PercentField } from "./settings-fields";
@@ -209,12 +210,21 @@ export function AppliedValuesSection({ form, alteradasPorSecao }: AppliedValuesS
         </LinhaDeAjuste>
       </GrupoDeAjustes>
 
-      {/* ── Mobilidade ── */}
+      {/* ── Mobilidade ──
+          08/10: o motor do Planejado NÃO lê estes campos (shared/budget-engine.ts
+          usa mobilidadeTrechoComLocalCents, com valores fixos de
+          shared/atendimento.ts). Mudar a regra é decisão do dono; até lá a tela
+          diz a verdade em vez de sugerir que o campo muda o cálculo. */}
       <GrupoDeAjustes
         id={ancoraDaSecao("mobilidade")}
         titulo="Mobilidade"
         descricao="Ajuda de custo de deslocamento, em ida e volta."
         alteradas={alteradasPorSecao.mobilidade}
+        extra={
+          <span className="inline-flex items-center h-6 px-2 rounded-full border border-border bg-surface-muted text-2xs font-medium text-muted-foreground" data-testid="cfg-mobilidade-fora-do-calculo">
+            fora do cálculo hoje
+          </span>
+        }
         data-testid="cfg-grupo-mobilidade"
       >
         <LinhaDeAjuste titulo="Casa">
@@ -227,6 +237,9 @@ export function AppliedValuesSection({ form, alteradasPorSecao }: AppliedValuesS
           <MoneyField control={c} name="default_mobility_volta_freela" label="Volta" />
           <TotalCalculado rotulo="Ida + volta" valor={formatarMoeda(Math.round(mobilidadeFreela * 100))} testId="cfg-mobilidade-total-freela" />
         </LinhaDeAjuste>
+        <p className="cfg-nota" data-testid="cfg-mobilidade-nota">
+          Não entram no cálculo hoje — a mobilidade é fixa ({formatarMoeda(MOBILIDADE_TRECHO_PADRAO_CENTS)} por trecho; {formatarMoeda(MOBILIDADE_TRECHO_MADRUGADA_CENTS)} em voo de madrugada; sem mobilidade em SP). Estes valores ficam guardados, mas o Planejado não os usa.
+        </p>
       </GrupoDeAjustes>
 
       {/* ── Cenotécnicos Empreita — valor fechado por nº de dias ── */}

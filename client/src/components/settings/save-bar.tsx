@@ -8,8 +8,10 @@
 // quando há alteração, diz quantas e o EFEITO de salvar, abre a lista "antes →
 // depois" (o que vai ser gravado), avisa campo com erro e leva até ele.
 // "Descartar" é um botão com nome (era um × solto de 12px).
+import { useState } from "react";
 import { AlertCircle, ListChecks, Loader2, Save, Undo2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { cn } from "@/lib/utils";
 
 export interface MudancaPendente {
@@ -32,8 +34,29 @@ export interface SaveBarProps {
 
 export function SaveBar({ totalUnsaved, saving, onSave, onDiscard, mudancas, erros = 0, onIrParaErro }: SaveBarProps) {
   const n = totalUnsaved;
+  // 08/10: com 2+ alterações, "Descartar" pergunta antes (um clique só
+  // jogava fora vários valores digitados). Com uma, o desfazer é barato.
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const descartar = () => {
+    if (n >= 2) setConfirmandoDescarte(true);
+    else onDiscard();
+  };
   return (
     <div className="cfg-barra sticky bottom-3 z-20 pas-sobe" role="region" aria-label="Alterações não salvas" data-testid="cfg-barra-alteracoes">
+      <ConfirmDialog
+        open={confirmandoDescarte}
+        onOpenChange={setConfirmandoDescarte}
+        tone="danger"
+        icon={Undo2}
+        title={`Descartar ${n} alterações?`}
+        description="Os valores voltam para o que está salvo. Não dá para desfazer."
+        confirmLabel="Descartar"
+        cancelLabel="Continuar editando"
+        onConfirm={() => { setConfirmandoDescarte(false); onDiscard(); }}
+        testId="cfg-confirmar-descarte"
+        confirmTestId="cfg-confirmar-descarte-sim"
+        className="max-w-[420px]"
+      />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-foreground text-background shadow-3 pl-4 pr-2 py-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
@@ -76,7 +99,7 @@ export function SaveBar({ totalUnsaved, saving, onSave, onDiscard, mudancas, err
         <div className="flex items-center gap-1.5 shrink-0 max-[420px]:w-full max-[420px]:justify-end">
           <button
             type="button"
-            onClick={onDiscard}
+            onClick={descartar}
             disabled={saving}
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium text-background/80 hover:bg-background/10 hover:text-background disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
             data-testid="cfg-descartar"

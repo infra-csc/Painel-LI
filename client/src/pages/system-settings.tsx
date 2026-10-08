@@ -24,6 +24,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { isRhOrAdmin } from "@/lib/role-utils";
 import { useSettingsForm } from "@/components/settings/use-settings-form";
+import { useAvisoAoSair } from "@/components/settings/use-aviso-ao-sair";
 import { usePaymentCompanies } from "@/components/settings/use-payment-companies";
 import { SaveBar, type MudancaPendente } from "@/components/settings/save-bar";
 import { AppliedValuesSection } from "@/components/settings/applied-values-section";
@@ -49,6 +50,8 @@ export default function SystemSettingsPage() {
   const { user, estado, form, fnValues } = s;
   const permitido = isRhOrAdmin(user);
   const carregado = permitido && !estado.isLoading && !estado.isError;
+  // Sair da tela (aba, recarga ou link do app) com alteração não salva pergunta antes.
+  const avisoAoSair = useAvisoAoSair(carregado && s.hasAnyChanges);
 
   // ── O que está alterado, por seção (só leitura do estado do formulário) ──
   const dirtyKeys = Object.keys(form.formState.dirtyFields) as (keyof FormValues)[];
@@ -115,7 +118,7 @@ export default function SystemSettingsPage() {
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-[340px] text-xs font-normal leading-relaxed">
-        As tarifas que o sistema usa para calcular o orçamento das vagas: diárias, deflação, alimentação, percurseiro, mobilidade e empreita. Mudar um valor aqui muda o Planejado de quem ainda não foi enviado ao Realizado e o dos eventos novos.
+        As tarifas que o sistema usa para calcular o orçamento das vagas: diárias, deflação, alimentação, percurseiro e empreita (a mobilidade hoje é fixa). Mudar um valor aqui muda o Planejado de quem ainda não foi enviado ao Realizado e o dos eventos novos.
       </TooltipContent>
     </Tooltip>
   );
@@ -236,6 +239,7 @@ export default function SystemSettingsPage() {
         onConfirm={id => empresas.deleteCompanyMutation.mutate(id, { onSettled: () => empresas.setCompanyToDelete(null) })}
         removendo={empresas.deleteCompanyMutation.isPending}
       />
+      {avisoAoSair.Dialogo}
     </TooltipProvider>
   );
 }
