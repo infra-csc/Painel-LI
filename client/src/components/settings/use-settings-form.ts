@@ -139,7 +139,7 @@ export function useSettingsForm() {
         let updatedCount = 0;
         let applyFailed = false;
         try {
-          const applyRes = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
+          const applyRes = await apiRequest("POST", "/api/budget-planned/apply-defaults/pendentes", {});
           const applyData = await applyRes.json();
           updatedCount = applyData.updated ?? 0;
           if (updatedCount > 0) {
@@ -199,7 +199,7 @@ export function useSettingsForm() {
   const handleApplyToPending = async () => {
     setIsApplyingPending(true);
     try {
-      const res = await apiRequest("POST", "/api/budget-planned/apply-defaults", {});
+      const res = await apiRequest("POST", "/api/budget-planned/apply-defaults/pendentes", {});
       const data = await res.json();
       const count = data.updated ?? 0;
       if (count > 0) queryClient.invalidateQueries({ queryKey: ["/api/budget-planned"] });

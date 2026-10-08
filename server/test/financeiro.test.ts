@@ -120,6 +120,32 @@ describe("POST /api/budget-planned/apply-defaults", () => {
   });
 });
 
+describe("POST /api/budget-planned/apply-defaults/pendentes (Valores padrão)", () => {
+  it("reaplica nos eventos abertos com planejamento e deixa o encerrado como está", async () => {
+    const { agent } = await agenteLogado("financial");
+    const funcao = await criarFuncao();
+    const montar = async (evento: Awaited<ReturnType<typeof criarEvento>>) => {
+      const colab = await criarColaborador();
+      const { user } = await agenteLogado("admin");
+      const vaga = await criarVaga({ eventId: evento.id, functionId: funcao.id, collaboratorId: colab.id, userId: user.id, needsTicket: true });
+      return ctx.storage.createBudgetPlanned({ eventId: evento.id, collaboratorId: vaga.collaboratorId, functionId: vaga.functionId, collaboratorType: "freela", totalValue: 0 } as any);
+    };
+    const aberto = await criarEvento({ location: "Curitiba - PR" });
+    const encerrado = await criarEvento({ startDate: "2020-01-01", endDate: "2020-01-05", location: "Curitiba - PR" });
+    const [pAberto, pEncerrado] = [await montar(aberto), await montar(encerrado)];
+
+    const res = await mutacao(agent.post("/api/budget-planned/apply-defaults/pendentes")).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBeGreaterThanOrEqual(1);
+    expect(res.body.eventos).toBeGreaterThanOrEqual(1);
+
+    const gravadoAberto = (await ctx.storage.getBudgetPlanned(aberto.id)).find((p) => p.id === pAberto.id)!;
+    const gravadoEncerrado = (await ctx.storage.getBudgetPlanned(encerrado.id)).find((p) => p.id === pEncerrado.id)!;
+    expect(gravadoAberto.totalValue).toBeGreaterThan(0);
+    expect(gravadoEncerrado.totalValue).toBe(0);
+  });
+});
+
 // ── Realizado ───────────────────────────────────────────────────────────────
 describe("POST /api/budget-actual/duplicate-from-planned/:eventId", () => {
   it("duas vezes → 1ª 201 com as prestações, 2ª 409 e nada duplicado", async () => {

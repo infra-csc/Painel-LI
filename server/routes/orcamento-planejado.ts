@@ -4,7 +4,7 @@
  * da tela (por evento + usuário, 08/10).
  * Papéis: financeiro (admin/RH) — guardas em _compartilhado.ts.
  */
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import {
@@ -12,9 +12,12 @@ import {
   events as eventsTable,
   collaborators as collaboratorsTable,
   insertBudgetPlannedSchema,
+  type Event as Evento,
+  type User,
 } from "@shared/schema";
 import { eq, inArray, sql as drizzleSql } from "drizzle-orm";
 import { isEventBlockedForActor } from "../event-guard";
+import { isEventPast } from "@shared/event-window";
 import { calcularPlanejadoDaVaga, linhaDoPlanejado } from "@shared/budget-engine";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
 import { z } from "zod";
@@ -46,6 +49,62 @@ export function registrarOrcamentoPlanejado(app: Express): void {
    * uma segunda fórmula aqui, sem atendimento/percurso/empreita/deflação.
    * Tudo numa transação, em lotes de 10 UPDATEs.
    */
+  /** Reaplica os valores de sistema aos planejados NÃO enviados de um evento. */
+  async function reaplicarPadroesNoEvento(event: Evento, user: User, req: Request): Promise<number> {
+    const eventId = event.id;
+    const [allPlanned, allActual, inclusions, allFunctionValues, rawSettings, functionsList, tickets] = await Promise.all([
+      storage.getBudgetPlanned(eventId),
+      storage.getBudgetActual(eventId),
+      storage.getTeamInclusions(false, undefined, { eventId }),
+      storage.getAllFunctionValues(),
+      storage.getSystemSettings(),
+      storage.getFunctions(),
+      storage.getTickets(eventId),
+    ]);
+    const collaboratorIds = Array.from(new Set(allPlanned.map((p) => p.collaboratorId).filter((v): v is string => !!v)));
+    const collaboratorsById = new Map(
+      (await db.select().from(collaboratorsTable).where(collaboratorIds.length > 0 ? inArray(collaboratorsTable.id, collaboratorIds) : drizzleSql`false`))
+        .map((c) => [c.id, c]),
+    );
+
+    const cfg: Record<string, number> = {};
+    for (const st of rawSettings) { const v = parseInt(st.value, 10); if (Number.isFinite(v)) cfg[st.key] = v; }
+    const functionNameById = new Map(functionsList.map((f) => [f.id, f.name]));
+    const fvByFunction = new Map(allFunctionValues.map((fv) => [fv.functionId, fv]));
+    const ticketByInclusion = new Map(tickets.map((t) => [t.teamInclusionId, t]));
+    // Já enviado ao Realizado: não mexe (mesma regra de antes)
+    const sentKeys = new Set(allActual.map((a) => `${a.eventId}|${a.collaboratorId}|${a.functionId}`));
+
+    const updates: { id: string; patch: ReturnType<typeof linhaDoPlanejado> }[] = [];
+    for (const planned of allPlanned) {
+      if (sentKeys.has(`${planned.eventId}|${planned.collaboratorId}|${planned.functionId}`)) continue;
+      const inc = inclusions.find((i) => i.collaboratorId === planned.collaboratorId && i.functionId === planned.functionId);
+      if (!inc) continue; // sem vaga não há período nem regra — fica como está
+      const collaborator = planned.collaboratorId ? collaboratorsById.get(planned.collaboratorId) : undefined;
+      const resultado = calcularPlanejadoDaVaga({
+        vaga: inc,
+        functionName: functionNameById.get(inc.functionId) ?? null,
+        collaboratorType: collaborator?.type ?? planned.collaboratorType ?? "freela",
+        functionValue: fvByFunction.get(inc.functionId) ?? null,
+        settings: cfg,
+        eventLocation: event.location ?? null,
+        ticket: ticketByInclusion.get(inc.id) ?? null,
+      });
+      updates.push({ id: planned.id, patch: linhaDoPlanejado(resultado) });
+    }
+
+    await db.transaction(async (tx) => {
+      const agora = new Date();
+      for (let i = 0; i < updates.length; i += 10) {
+        await Promise.all(updates.slice(i, i + 10).map((u) =>
+          tx.update(budgetPlannedTable).set({ ...u.patch, updatedAt: agora, updatedBy: user.id }).where(eq(budgetPlannedTable.id, u.id)),
+        ));
+      }
+    });
+    await createAuditLog("update", "budget_planned", eventId, { eventId, acao: "aplicar valores padrão", updated: updates.length }, user.id, user.name, undefined, req);
+    return updates.length;
+  }
+
   app.post("/api/budget-planned/apply-defaults", async (req, res) => {
     const user = await requireFinanceUser(req, res);
     if (!user) return;
@@ -59,60 +118,39 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       if (isEventBlockedForActor(event, user)) {
         return res.status(403).json({ message: "Evento encerrado — só o administrador reaplica os valores padrão." });
       }
-
-      const [allPlanned, allActual, inclusions, allFunctionValues, rawSettings, functionsList, tickets] = await Promise.all([
-        storage.getBudgetPlanned(eventId),
-        storage.getBudgetActual(eventId),
-        storage.getTeamInclusions(false, undefined, { eventId }),
-        storage.getAllFunctionValues(),
-        storage.getSystemSettings(),
-        storage.getFunctions(),
-        storage.getTickets(eventId),
-      ]);
-      const collaboratorIds = Array.from(new Set(allPlanned.map((p) => p.collaboratorId).filter((v): v is string => !!v)));
-      const collaboratorsById = new Map(
-        (await db.select().from(collaboratorsTable).where(collaboratorIds.length > 0 ? inArray(collaboratorsTable.id, collaboratorIds) : drizzleSql`false`))
-          .map((c) => [c.id, c]),
-      );
-
-      const cfg: Record<string, number> = {};
-      for (const st of rawSettings) { const v = parseInt(st.value, 10); if (Number.isFinite(v)) cfg[st.key] = v; }
-      const functionNameById = new Map(functionsList.map((f) => [f.id, f.name]));
-      const fvByFunction = new Map(allFunctionValues.map((fv) => [fv.functionId, fv]));
-      const ticketByInclusion = new Map(tickets.map((t) => [t.teamInclusionId, t]));
-      // Já enviado ao Realizado: não mexe (mesma regra de antes)
-      const sentKeys = new Set(allActual.map((a) => `${a.eventId}|${a.collaboratorId}|${a.functionId}`));
-
-      const updates: { id: string; patch: ReturnType<typeof linhaDoPlanejado> }[] = [];
-      for (const planned of allPlanned) {
-        if (sentKeys.has(`${planned.eventId}|${planned.collaboratorId}|${planned.functionId}`)) continue;
-        const inc = inclusions.find((i) => i.collaboratorId === planned.collaboratorId && i.functionId === planned.functionId);
-        if (!inc) continue; // sem vaga não há período nem regra — fica como está
-        const collaborator = planned.collaboratorId ? collaboratorsById.get(planned.collaboratorId) : undefined;
-        const resultado = calcularPlanejadoDaVaga({
-          vaga: inc,
-          functionName: functionNameById.get(inc.functionId) ?? null,
-          collaboratorType: collaborator?.type ?? planned.collaboratorType ?? "freela",
-          functionValue: fvByFunction.get(inc.functionId) ?? null,
-          settings: cfg,
-          eventLocation: event.location ?? null,
-          ticket: ticketByInclusion.get(inc.id) ?? null,
-        });
-        updates.push({ id: planned.id, patch: linhaDoPlanejado(resultado) });
-      }
-
-      await db.transaction(async (tx) => {
-        const agora = new Date();
-        for (let i = 0; i < updates.length; i += 10) {
-          await Promise.all(updates.slice(i, i + 10).map((u) =>
-            tx.update(budgetPlannedTable).set({ ...u.patch, updatedAt: agora, updatedBy: user.id }).where(eq(budgetPlannedTable.id, u.id)),
-          ));
-        }
-      });
-      await createAuditLog("update", "budget_planned", eventId, { eventId, acao: "aplicar valores padrão", updated: updates.length }, user.id, user.name, undefined, req);
-      res.json({ updated: updates.length });
+      res.json({ updated: await reaplicarPadroesNoEvento(event, user, req) });
     } catch (error) {
       console.error("Error applying defaults to planned:", error);
+      res.status(500).json({ message: "Erro ao atualizar planejamentos" });
+    }
+  });
+
+  /**
+   * POST /api/budget-planned/apply-defaults/pendentes — o mesmo, em todos os
+   * eventos AINDA NÃO ENCERRADOS que têm planejamento (Valores padrão, 08/10).
+   * A tela chamava a rota acima sem eventId desde 23/09 e recebia 400: salvar
+   * os valores nunca atualizava os pendentes. Evento encerrado fica de fora
+   * para todos (inclusive o admin, que reaplica nele pelo Planejado do evento).
+   * Uma transação por evento, um evento por vez.
+   */
+  app.post("/api/budget-planned/apply-defaults/pendentes", async (req, res) => {
+    const user = await requireFinanceUser(req, res);
+    if (!user) return;
+    try {
+      const rows = await db.selectDistinct({ eventId: budgetPlannedTable.eventId }).from(budgetPlannedTable);
+      const ids = rows.map((r) => r.eventId).filter((v): v is string => !!v);
+      const eventos = ids.length > 0 ? await db.select().from(eventsTable).where(inArray(eventsTable.id, ids)) : [];
+      let updated = 0;
+      let eventosAtualizados = 0;
+      for (const event of eventos) {
+        if (isEventPast(event.endDate ?? null)) continue;
+        const n = await reaplicarPadroesNoEvento(event, user, req);
+        updated += n;
+        if (n > 0) eventosAtualizados++;
+      }
+      res.json({ updated, eventos: eventosAtualizados });
+    } catch (error) {
+      console.error("Error applying defaults to pending planned:", error);
       res.status(500).json({ message: "Erro ao atualizar planejamentos" });
     }
   });
