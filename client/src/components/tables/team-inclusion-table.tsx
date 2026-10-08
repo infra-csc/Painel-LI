@@ -324,7 +324,8 @@ export default function TeamInclusionTable({ data }: { data: TeamInclusionData }
                         locked={isEventLocked(inclusion)}
                         lockReason={eventLockReason(inclusion) ?? null}
                         canEditScreen={podeEditarTela}
-                        readOnly={isReadOnly(inclusion)}
+                        // Admin e Compras editam vaga já comprada (regra do servidor, podeEditarVaga); cancelada segue só leitura.
+                        readOnly={inclusion.status === "cancelado" || isReadOnly(inclusion, user)}
                         canDelete={canDeleteInclusion(inclusion)}
                         canCancel={canCancelEscalation(inclusion)}
                         cancelByRole={podeCancelarPorPapel}
