@@ -1013,3 +1013,143 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .inc-linha, .inc-linha .inc-acao, .inc-grade-linha > td, .inc-grade-linha .inc-grade-menu, .inc-qtd, .inc-dia, .inc-lote-linha { transition: none; }
   .inc-dia:active { transform: none; }
 }
+
+/* ══ Histórico da escala (hes-) — redesenho 07/10 ═══════════════════════════
+ * Irmã da Sugestão (sug-), da Validação (val-) e da Aprovação (apr-): usa as
+ * peças do módulo (val-osso, val-entra, val-alvo, val-rolagem-x). Aqui só o que
+ * é dela: a trilha da linha do tempo, os cabeçalhos que grudam abaixo da barra
+ * da tela, a tabela que vira cartão pela LARGURA ÚTIL (container query — com o
+ * menu lateral aberto, 1366 px de tela são ~1000 px de conteúdo) e as
+ * microinterações (rápidas, discretas, desligadas com reduced-motion). */
+
+/* Indicador do resumo: o número sobe 1px no hover (é um filtro, não um rótulo). */
+.hes-kpi { transition: background-color 140ms ease; }
+.hes-kpi .hes-kpi-n { transition: transform 140ms ease, color 140ms ease; }
+.hes-kpi:hover .hes-kpi-n { transform: translateY(-1px); }
+
+/* Pílulas de filtro (categorias, legenda): afundam 2% no clique. */
+.hes-pilula { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease, transform 100ms ease; }
+.hes-pilula:active { transform: scale(.97); }
+.hes-chip { transition: background-color 120ms ease, color 120ms ease; }
+.hes-exportar:active:not([aria-disabled="true"]), .hes-baixar:active { transform: scale(.98); }
+
+/* ── Linha do tempo: hora | marcador sobre o fio | texto ── */
+.hes-mov {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.75rem 1.75rem minmax(0, 1fr);
+  column-gap: .5rem;
+}
+/* O fio passa pelo centro do marcador e liga os movimentos do mesmo dia. */
+.hes-mov::before {
+  content: "";
+  position: absolute;
+  left: calc(2.75rem + .5rem + .875rem - .5px);
+  top: 0;
+  bottom: -.25rem;
+  width: 1px;
+  background: var(--border);
+}
+.hes-mov:first-child::before { top: 1rem; }
+.hes-mov:last-child::before { bottom: auto; height: 1rem; }
+.hes-mov:only-child::before { display: none; }
+.hes-mov-corpo { transition: background-color 120ms ease; }
+.hes-mov:hover .hes-mov-corpo { background-color: color-mix(in srgb, var(--surface-muted) 70%, transparent); }
+@media (min-width: 640px) {
+  .hes-mov { grid-template-columns: 3rem 1.75rem minmax(0, 1fr); column-gap: .75rem; }
+  .hes-mov::before { left: calc(3rem + .75rem + .875rem - .5px); }
+}
+
+/* Cabeçalho do dia e da tabela: grudam abaixo da barra do app E da barra da
+   tela — só a partir de xl, onde a barra da tela tem 56px (abaixo disso ela
+   tem duas linhas e o cabeçalho ficaria por baixo dela). */
+@media (min-width: 1280px) {
+  .hes-dia { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem); z-index: 2; }
+  .hes-cabecalho { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem); z-index: 10; }
+}
+
+/* ── Tabelas (Lista e Pedidos) ── */
+.hes-caixa { container: hes-lista / inline-size; }
+.hes-tabela {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background-color: var(--card);
+  box-shadow: 0 1px 2px hsl(222 47% 11% / 0.04);
+}
+.hes-tabela > table > thead > tr > th:first-child { border-top-left-radius: 11px; }
+.hes-tabela > table > thead > tr > th:last-child { border-top-right-radius: 11px; }
+.hes-linha { background-color: var(--card); transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.hes-linha:not(.hes-linha-leitura) { cursor: pointer; }
+.hes-linha:not(.hes-linha-leitura):hover { background-color: color-mix(in srgb, var(--primary) 3.5%, var(--card)); }
+.hes-linha:last-child > td:first-child { border-bottom-left-radius: 11px; }
+.hes-linha:last-child > td:last-child { border-bottom-right-radius: 11px; }
+/* O "›" do detalhe: à vista, discreto até a linha ser apontada. */
+.hes-linha .hes-abrir { opacity: .55; transition: opacity 120ms ease, transform 120ms ease, color 120ms ease; }
+.hes-linha:hover .hes-abrir { opacity: 1; transform: translateX(2px); color: var(--primary); }
+/* A pílula de situação longa ("Validada pela área — aguardando aprovação")
+   quebra em duas linhas em vez de vazar da coluna. */
+.hes-linha td[data-col="situacao"] > div > span:first-child { border-radius: 8px; }
+
+/* "Abrir na Aprovação": "Abrir ↗" na tabela (o title e o aria-label dizem o
+   resto); no cartão, o rótulo por extenso no rodapé. */
+.hes-so-cartao { display: none; }
+
+/* Largura útil estreita: a MESMA marcação vira cartões. */
+@container hes-lista (max-width: 899.98px) {
+  .hes-tabela { border: 0; border-radius: 0; background: none; box-shadow: none; }
+  .hes-tabela > table, .hes-tabela > table > tbody { display: block; width: 100%; }
+  .hes-tabela > table > thead { display: none; }
+  .hes-tabela > table > tbody { display: grid; gap: 10px; }
+  .hes-tabela tr.hes-linha {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-content: start;
+    column-gap: 16px;
+    row-gap: 10px;
+    padding: 12px 14px 13px 17px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px hsl(222 47% 11% / 0.04);
+  }
+  .hes-tabela tr.hes-linha > td { display: block; min-width: 0; width: auto; padding: 0; border: 0; border-radius: 0; text-align: left; white-space: normal; }
+  .hes-tabela tr.hes-linha > td[data-largo] { grid-column: 1 / -1; }
+  .hes-tabela tr.hes-linha > td[data-col="rail"] { position: absolute; inset: 0 auto 0 0; width: 3px; }
+  .hes-tabela tr.hes-linha > td[data-col="rail"] > span { inset: 0; border-radius: 0; }
+  .hes-tabela tr.hes-linha > td[data-rotulo]::before {
+    content: attr(data-rotulo); display: block; margin-bottom: 3px;
+    font-size: 11px; line-height: 14px; color: var(--muted-foreground);
+  }
+  /* Lista: vaga e período · situação | último movimento · logística; o "›" no canto. */
+  .hes-tabela tr.hes-linha > td[data-col="vaga"] { order: 1; padding-right: 24px; }
+  .hes-tabela tr.hes-linha > td[data-col="vaga"] .truncate { white-space: normal; overflow: visible; }
+  .hes-tabela tr.hes-linha > td[data-col="situacao"] { order: 2; }
+  .hes-tabela tr.hes-linha > td[data-col="ultimo"] { order: 3; }
+  .hes-tabela tr.hes-linha > td[data-col="logistica"] { order: 4; }
+  .hes-tabela tr.hes-linha > td[data-col="abrir"] { position: absolute; top: 12px; right: 10px; }
+  .hes-tabela tr.hes-linha .hes-abrir { opacity: 1; }
+  /* Pedidos: o "Abrir na Aprovação" vira o rodapé do cartão, colado no fundo
+     (lado a lado, os cartões têm a altura do mais alto). */
+  .hes-tabela tr.hes-linha:has(> td[data-col="acoes"]) { padding-bottom: 58px; }
+  .hes-tabela tr.hes-linha > td[data-col="acoes"] {
+    position: absolute; inset: auto 0 0 0; display: flex; align-items: center; justify-content: flex-end;
+    min-height: 46px; padding: 6px 10px; border-top: 1px solid var(--border);
+    background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--card));
+  }
+  .hes-tabela .hes-so-cartao { display: inline; }
+  .hes-tabela .hes-so-tabela { display: none; }
+}
+@container hes-lista (min-width: 600px) and (max-width: 899.98px) {
+  .hes-tabela > table > tbody { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Toque: o que só acende no hover fica sempre à vista. */
+@media (pointer: coarse) {
+  .hes-linha .hes-abrir { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hes-kpi, .hes-kpi .hes-kpi-n, .hes-pilula, .hes-chip, .hes-mov-corpo, .hes-linha, .hes-linha .hes-abrir { transition: none; }
+  .hes-kpi:hover .hes-kpi-n, .hes-pilula:active, .hes-linha:hover .hes-abrir, .hes-exportar:active, .hes-baixar:active { transform: none; }
+}

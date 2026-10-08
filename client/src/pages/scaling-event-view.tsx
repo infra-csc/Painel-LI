@@ -4,35 +4,60 @@
  * Só orquestra: aba/evento na URL, os hooks de dados, linha do tempo e
  * exportação, e as abas em components/scaling-validation/event-view/*.
  * Tinha 1.610 linhas num componente só.
+ *
+ * 07/10 (redesenho premium — passo 4, irmão da Sugestão, Validação e
+ * Aprovação): barra de 56px grudada com os passos e o "Exportar CSV", linha do
+ * evento sem moldura, resumo numa faixa (total + funil + seis situações),
+ * abas segmentadas, trilha da linha do tempo, tabelas que viram cartões em
+ * largura estreita e os estados (carregando, erro, vazio, sem resultado) no
+ * desenho do módulo. Lógica, consultas e permissões intactas.
  */
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { AlertCircle, CalendarRange, History, Info, Timer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, CalendarDays, CloudOff, History, Inbox, Info, List, PencilLine, Timer } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SuggestionDetailDrawer } from "@/components/scaling-validation/suggestion-detail-drawer";
-import { EventCommentsButton } from "@/components/scaling-validation/event-comments-dialog";
 import { PageContainer } from "@/components/common/page-container";
-import { PageHeader } from "@/components/common/page-header";
-import { LoadingState } from "@/components/common/loading-state";
-import { EmptyState } from "@/components/common/empty-state";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { hasPermission } from "@/lib/role-utils";
-import { apiErrorMessage } from "@/lib/utils";
+import { apiErrorMessage, cn } from "@/lib/utils";
 import { scalingHref, useScalingEvent } from "@/lib/use-scaling-event";
-import { ScalingModuleNav } from "@/components/scaling-validation/scaling-module-nav";
-import { BASE_PATH, LABEL, TABS, plural, type Tab } from "@/components/scaling-validation/event-view/event-view-shared";
+import { AcaoDoEstado, BotaoTentarDeNovo } from "@/components/scaling-validation/validation-page/estados";
+import { AVISO, BASE_PATH, TABS, plural, type Tab } from "@/components/scaling-validation/event-view/event-view-shared";
 import { useEventHistory } from "@/components/scaling-validation/event-view/use-event-history";
 import { timelineArgsFrom, useEventTimeline } from "@/components/scaling-validation/event-view/use-event-timeline";
 import { useEventExport } from "@/components/scaling-validation/event-view/use-event-export";
-import { EventContextBar } from "@/components/scaling-validation/event-view/event-context-bar";
+import { EventContextBar, HistoryBar } from "@/components/scaling-validation/event-view/event-context-bar";
+import { HistorySummary } from "@/components/scaling-validation/event-view/history-summary";
+import { EsqueletoDoHistorico, EstadoDoHistorico } from "@/components/scaling-validation/event-view/estados-do-historico";
 import { EventTimeline } from "@/components/scaling-validation/event-view/event-timeline";
 import { EventInclusionsTable } from "@/components/scaling-validation/event-view/event-inclusions-table";
 import { EventScheduleTab } from "@/components/scaling-validation/event-view/event-schedule-tab";
 import { EventRequestsTab } from "@/components/scaling-validation/event-view/event-requests-tab";
 import { ExportButton, ExportDialog } from "@/components/scaling-validation/event-view/export-dialog";
+
+/** Aba segmentada — o mesmo desenho das abas da Validação e da Aprovação. */
+const ABA = "val-alvo h-8 shrink-0 gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-[color,background-color,box-shadow] duration-150 hover:text-foreground data-[state=active]:bg-card data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-1 data-[state=active]:ring-1 data-[state=active]:ring-border focus-visible:ring-offset-0";
+
+function Aba({ value, Icon, rotulo, n, disabled, title }: { value: Tab; Icon: LucideIcon; rotulo: string; n?: number; disabled?: boolean; title?: string }) {
+  return (
+    <TabsTrigger
+      value={value}
+      disabled={disabled}
+      title={title}
+      className={cn(ABA, "disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground")}
+    >
+      <Icon className="hidden h-[15px] w-[15px] sm:block" aria-hidden="true" />
+      {rotulo}
+      {n !== undefined && n > 0 && (
+        <span className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-muted px-1.5 text-2xs font-semibold tabular-nums text-slate-600">{n}</span>
+      )}
+    </TabsTrigger>
+  );
+}
 
 export default function ScalingEventViewPage() {
   usePageTitle("Histórico da escala");
@@ -86,51 +111,37 @@ export default function ScalingEventViewPage() {
         : effectiveTab === "escala" ? `${boardRows.length} de ${plural(boardRowsAll.length, "vaga", "vagas")} no quadro`
           : `${filteredRequests.length} de ${plural(requests.length, "pedido", "pedidos")}`;
 
+  /**
+   * No celular a faixa das abas rola de lado: a aba aberta (inclusive vinda do
+   * link, "?tab=pedidos") é trazida para dentro da faixa — ficava cortada na
+   * borda. Só a rolagem lateral da faixa; a página não se mexe.
+   */
+  const abasRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const faixa = abasRef.current;
+    const ativa = faixa?.querySelector<HTMLElement>("[role=tab][data-state=active]");
+    if (!faixa || !ativa || faixa.scrollWidth <= faixa.clientWidth) return;
+    const fora = ativa.offsetLeft + ativa.offsetWidth > faixa.scrollLeft + faixa.clientWidth || ativa.offsetLeft < faixa.scrollLeft;
+    if (fora) faixa.scrollLeft = Math.max(0, ativa.offsetLeft - 16);
+  }, [effectiveTab, viewQuery.isLoading]);
+
+  const carregando = viewQuery.isLoading || (loadingFunctions && !functions);
+
   // ── Render ──
   return (
-    <PageContainer fluid className="space-y-4">
-      <PageHeader
-        icon={History}
-        title="Histórico da escala"
-        subtitle="Cada envio, validação, pedido e decisão — e onde cada vaga está agora."
-        actions={
-          <>
-            {selectedEvent && <EventCommentsButton eventId={selectedEvent.id} eventName={selectedEvent.name} />}
-            <ExportButton exp={exp} effectiveTab={effectiveTab} />
-          </>
-        }
-      />
-      {/* A fila do módulo (Sugestão → Validação → Aprovação → Histórico) tem
-          faixa própria: dividindo a linha com os botões de ação ela parecia
-          mais um botão — e espremia "Exportar CSV" em telas médias. */}
-      <ScalingModuleNav current="history" eventId={eventId} className="-mt-1" />
+    <PageContainer fluid className="space-y-5 pb-16">
+      <HistoryBar eventId={eventId} acoes={<ExportButton exp={exp} effectiveTab={effectiveTab} />} />
 
-      {/* ── Barra de contexto: evento · última movimentação · funil · KPIs ── */}
+      {/* ── Evento: seletor, comentários e os fatos (datas, local, última movimentação) ── */}
       <EventContextBar ref={eventPickerRef} h={h} eventId={eventId} setEventId={setEventId} lastMovement={tl.lastMovement} />
-
-      {/* ── Onde a escala está travada (sem role=status: a contagem das abas é a única região live) ── */}
-      {showData && stalled && (effectiveTab === "timeline" || effectiveTab === "lista") && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/25 bg-warning-soft px-3.5 py-2.5">
-          <Timer className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-warning">{stalled.title}</p>
-            <p className="mt-0.5 text-xs text-warning">{stalled.text}</p>
-          </div>
-          {canOpenApproval && (
-            <Link href={scalingHref("/scaling-approval", eventId)} className="ml-auto text-xs font-medium text-primary hover:underline whitespace-nowrap">
-              Abrir na Aprovação
-            </Link>
-          )}
-        </div>
-      )}
 
       {/* Teto do modo "todos os eventos" — a consulta histórica é a que mais
           cresce, então quando ela é cortada o filtro é a saída. Tom NEUTRO de
           propósito: não é um problema da escala (esse é o âmbar do "travada"
-          acima), é só um aviso de que a página não mostra tudo. */}
+          abaixo), é só um aviso de que a página não mostra tudo. */}
       {truncated && (
-        <p role="status" className="flex items-start gap-3 rounded-xl border border-border bg-surface-muted px-3.5 py-2.5 text-xs text-slate-600">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <p role="status" className={cn(AVISO, "border-border bg-surface-muted/70 text-slate-600")} data-testid="hes-historico-parcial">
+          <Info className="mt-px h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span>
             <span className="font-semibold text-slate-700">Histórico parcial</span> — são muitos movimentos para mostrar de uma vez
             {viewQuery.data?.rowLimit ? ` (teto de ${viewQuery.data.rowLimit} vagas)` : ""}. Escolha um evento acima para ver o histórico completo dele.
@@ -140,71 +151,95 @@ export default function ScalingEventViewPage() {
 
       {/* As funções entram no gate (como na Validação): sem elas a tela abriria
           com "Sem função" em toda linha até a segunda consulta responder. */}
-      {viewQuery.isLoading || (loadingFunctions && !functions) ? (
-        <LoadingState count={5} label={viewQuery.isLoading ? (eventId ? "Carregando escala do evento…" : "Carregando histórico dos eventos…") : "Carregando funções…"} />
+      {carregando ? (
+        <EsqueletoDoHistorico label={viewQuery.isLoading ? (eventId ? "Carregando escala do evento…" : "Carregando histórico dos eventos…") : "Carregando funções…"} />
       ) : viewQuery.error ? (
-        <div role="alert" className="rounded-xl border border-danger/25 bg-card p-6 text-center">
-          <AlertCircle className="mx-auto mb-2 h-5 w-5 text-danger-strong" aria-hidden="true" />
-          <p className="text-sm font-semibold text-slate-700">Não foi possível carregar a escala</p>
-          <p className="mt-1 text-xs text-muted-foreground">{apiErrorMessage(viewQuery.error, "Verifique sua conexão e tente novamente.")}</p>
-          <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => viewQuery.refetch()}>Tentar novamente</Button>
-        </div>
+        <EstadoDoHistorico
+          tom="erro"
+          icone={<CloudOff aria-hidden="true" />}
+          titulo="Não foi possível carregar a escala"
+          texto={apiErrorMessage(viewQuery.error, "Verifique sua conexão e tente novamente.")}
+          acao={<BotaoTentarDeNovo onClick={() => viewQuery.refetch()} tentando={viewQuery.isFetching} />}
+          testId="hes-erro"
+        />
       ) : rows.length === 0 && requests.length === 0 ? (
-        <EmptyState
-          className="rounded-xl"
-          icon={CalendarRange}
-          title={eventId ? "Nenhuma vaga passou pela Validação de Escala neste evento" : "Nenhuma vaga passou pela Validação de Escala"}
-          description={eventId
+        <EstadoDoHistorico
+          icone={<Inbox aria-hidden="true" />}
+          titulo={eventId ? "Nenhuma vaga passou pela Validação de Escala neste evento" : "Nenhuma vaga passou pela Validação de Escala"}
+          texto={eventId
             ? "A logística ainda não enviou a escala sugerida deste evento."
             : "Nenhum evento do recorte (com vaga em validação, pedido em aberto ou encerrado há pouco) tem histórico de escala. Escolha um evento acima para consultar o histórico dele."}
+          acao={eventId
+            ? <AcaoDoEstado principal={false} onClick={() => setEventId("")}>Ver todos os eventos</AcaoDoEstado>
+            : <AcaoDoEstado principal={false} onClick={focusEventPicker}><CalendarDays className="h-4 w-4" aria-hidden="true" /> Escolher um evento</AcaoDoEstado>}
+          testId="hes-vazio"
         />
       ) : (
-        <Tabs value={effectiveTab} onValueChange={(v) => setTab(v as Tab)} className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList className="h-auto max-w-full flex-wrap rounded-xl bg-muted p-[3px]">
-              <TabsTrigger value="timeline" className="h-7 rounded-lg px-3.5 text-sm">Linha do tempo</TabsTrigger>
-              <TabsTrigger value="lista" className="h-7 rounded-lg px-3.5 text-sm">Lista</TabsTrigger>
-              {/* O quadro é função × dia DE UM evento: sem filtro ele somaria
-                  dias de eventos diferentes na mesma coluna. A aba fica
-                  visível e desabilitada (com o motivo no title) — sumir com
-                  ela fazia a pessoa achar que a tela não tinha quadro. */}
-              <TabsTrigger
-                value="escala"
-                disabled={!eventId}
-                title={eventId ? undefined : "Escolha um evento para ver o quadro função × dia"}
-                className="h-7 rounded-lg px-3.5 text-sm disabled:pointer-events-auto disabled:cursor-not-allowed"
-              >
-                Escala
-              </TabsTrigger>
-              <TabsTrigger value="pedidos" className="h-7 rounded-lg px-3.5 text-sm">Pedidos{requests.length ? ` (${requests.length})` : ""}</TabsTrigger>
-            </TabsList>
-            <p className={LABEL} aria-live="polite">{countText}</p>
-          </div>
+        <>
+          {rows.length > 0 && <HistorySummary h={h} eventId={eventId} />}
 
-          {/* ── ABA 1: Linha do tempo ── */}
-          <TabsContent value="timeline" className="mt-0 space-y-3">
-            <EventTimeline h={h} tl={tl} eventId={eventId} />
-          </TabsContent>
+          {/* ── Onde a escala está travada (sem role=status: a contagem das abas é a única região live) ── */}
+          {showData && stalled && (effectiveTab === "timeline" || effectiveTab === "lista") && (
+            <div className={cn(AVISO, "flex-wrap items-center gap-y-2 border-warning/30 bg-warning-soft text-warning")} data-testid="hes-travada">
+              <Timer className="h-4 w-4 shrink-0 self-start sm:self-center" aria-hidden="true" />
+              <p className="min-w-0 flex-1 basis-[240px]">
+                <span className="font-semibold">{stalled.title}.</span>{" "}
+                <span>{stalled.text}</span>
+              </p>
+              {canOpenApproval && (
+                <Link
+                  href={scalingHref("/scaling-approval", eventId)}
+                  className="val-alvo ml-auto inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-warning/30 bg-card px-3 text-xs font-medium text-foreground transition-colors hover:border-warning/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Abrir na Aprovação <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              )}
+            </div>
+          )}
 
-          {/* ── ABA 2: Lista (situação atual de cada vaga) ── */}
-          <TabsContent value="lista" className="space-y-3 mt-0">
-            <EventInclusionsTable h={h} eventId={eventId} escalaSemEvento={escalaSemEvento} onFocusEventPicker={focusEventPicker} />
-          </TabsContent>
+          <Tabs value={effectiveTab} onValueChange={(v) => setTab(v as Tab)} className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              {/* Rola de lado no celular (sem barra visível) em vez de quebrar linha. */}
+              <div ref={abasRef} className="val-rolagem-x relative -mx-[var(--page-gutter)] max-w-[calc(100%+2*var(--page-gutter))] px-[var(--page-gutter)] sm:mx-0 sm:max-w-full sm:px-0">
+                <TabsList className="h-auto w-max gap-0.5 rounded-lg border border-border bg-background p-[3px]">
+                  <Aba value="timeline" Icon={History} rotulo="Linha do tempo" />
+                  <Aba value="lista" Icon={List} rotulo="Lista" />
+                  {/* O quadro é função × dia DE UM evento: sem filtro ele somaria
+                      dias de eventos diferentes na mesma coluna. A aba fica
+                      visível e desabilitada (com o motivo no title) — sumir com
+                      ela fazia a pessoa achar que a tela não tinha quadro. */}
+                  <Aba value="escala" Icon={CalendarDays} rotulo="Escala" disabled={!eventId} title={eventId ? undefined : "Escolha um evento para ver o quadro função × dia"} />
+                  <Aba value="pedidos" Icon={PencilLine} rotulo="Pedidos" n={requests.length} />
+                </TabsList>
+              </div>
+              <p className="text-xs tabular-nums text-muted-foreground" aria-live="polite" data-testid="hes-contagem">{countText}</p>
+            </div>
 
-          {/* ── ABA 3: Escala (quadro função × dia) ── */}
-          <TabsContent value="escala" className="mt-0 space-y-2.5">
-            <EventScheduleTab h={h} />
-          </TabsContent>
+            {/* ── ABA 1: Linha do tempo ── */}
+            <TabsContent value="timeline" className="val-entra mt-0 space-y-3">
+              <EventTimeline h={h} tl={tl} eventId={eventId} onPickEvent={setEventId} />
+            </TabsContent>
 
-          {/* ── ABA 4: Pedidos ── */}
-          <TabsContent value="pedidos" className="mt-0 space-y-3">
-            <EventRequestsTab h={h} eventId={eventId} canOpenApproval={canOpenApproval} />
-          </TabsContent>
-        </Tabs>
+            {/* ── ABA 2: Lista (situação atual de cada vaga) ── */}
+            <TabsContent value="lista" className="val-entra mt-0 space-y-3">
+              <EventInclusionsTable h={h} eventId={eventId} escalaSemEvento={escalaSemEvento} onFocusEventPicker={focusEventPicker} />
+            </TabsContent>
+
+            {/* ── ABA 3: Escala (quadro função × dia) ── */}
+            <TabsContent value="escala" className="val-entra mt-0 space-y-3">
+              <EventScheduleTab h={h} />
+            </TabsContent>
+
+            {/* ── ABA 4: Pedidos ── */}
+            <TabsContent value="pedidos" className="val-entra mt-0 space-y-3">
+              <EventRequestsTab h={h} eventId={eventId} canOpenApproval={canOpenApproval} />
+            </TabsContent>
+          </Tabs>
+        </>
       )}
 
       {/* ── Exportar CSV (aba corrente) ── */}
-      <ExportDialog exp={exp} effectiveTab={effectiveTab} eventId={eventId} />
+      <ExportDialog exp={exp} effectiveTab={effectiveTab} eventId={eventId} eventName={selectedEvent?.name} />
       {/* Leitura pura: sem callbacks de ação, o rodapé de validar/ajustar não aparece. */}
       <SuggestionDetailDrawer
         open={!!detailRow}

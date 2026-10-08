@@ -1,32 +1,67 @@
 /**
  * Aba "Lista" do Histórico (25/09 — extraída da página): situação atual de cada
- * vaga — filtros, tabela (desktop) e cartões (celular).
+ * vaga — filtros e tabela.
+ *
+ * 07/10 (redesenho premium): a tabela da Validação e da Aprovação — cabeçalho
+ * em caixa de frase que gruda abaixo da barra da tela, filete da situação à
+ * esquerda, linha inteira clicável (abre o detalhe da vaga) com o "›" à
+ * direita, e o evento embaixo do nome no modo "Todos os eventos" (era uma
+ * coluna a mais que obrigava a tabela a rolar de lado). Como na Validação, o
+ * período mora na célula da vaga (nome · "#ID · observação" · período) e a
+ * logística vem ida/volta primeiro, curta abaixo de 2xl — a coluna própria de
+ * Período espremia a Situação em duas linhas. Quando a largura útil
+ * fica estreita a MESMA marcação vira cartões pelo CSS (`.hes-tabela`, por
+ * container query) — antes havia uma segunda lista só para o celular.
  */
-import { ChevronRight, Info, Search } from "lucide-react";
+import type { MouseEvent } from "react";
+import { ChevronRight, Info, SearchX } from "lucide-react";
 import { SUGESTAO_STATUS, isSuggestionInclusion } from "@shared/scaling-validation-rules";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EmptyState } from "@/components/common/empty-state";
+import { BuscaDaLista, LimparFiltros } from "@/components/common/barra-de-filtros";
+import { AcaoDoEstado } from "@/components/scaling-validation/validation-page/estados";
+import { LinhaDoEvento } from "@/components/scaling-approval/linha-do-evento";
 import { cn, formatDateRange, formatDiarias } from "@/lib/utils";
 import { workDaysOf, ymd } from "@/components/scaling-validation/types";
 import { periodLabel } from "@/components/scaling-validation/suggestions-list";
 import { LegChip, NeedChips } from "@/components/scaling-validation/logistics-chips";
 import { OriginBadge } from "./origin-badge";
-import { ALL, LABEL, ORIGIN_DOT, SCROLL_X, TH, fmtShort, isDeleted, lastMoveOf, originKey, plural, semLogistica, type EventViewRow } from "./event-view-shared";
+import { EstadoDoHistorico } from "./estados-do-historico";
+import { ALL, AVISO, ORIGIN_DOT, TH, fmtShort, isDeleted, lastMoveOf, originKey, plural, semLogistica, type EventViewRow } from "./event-view-shared";
 import type { EventHistory } from "./use-event-history";
 
 function LogisticaChips({ row }: { row: EventViewRow }) {
+  if (semLogistica(row)) return <span className="text-xs text-muted-foreground">Sem logística</span>;
+  // Ida e volta primeiro, depois o que a vaga precisa — a ordem da Validação e
+  // da Aprovação. Abaixo de 2xl as pernas saem curtas ("Ida · 20/11"): inteiras,
+  // em 1366, empilhavam passagem, ida e volta em três linhas.
+  const chips = (curtas: boolean) => (
+    <>
+      <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} compact={curtas} />
+      <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} compact={curtas} />
+      <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
+    </>
+  );
   return (
     <>
-      <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} />
-      <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
-      <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
-      {semLogistica(row) && <span className="text-2xs text-muted-foreground">Sem logística</span>}
+      <div className="flex min-w-0 flex-wrap items-center gap-1 2xl:hidden">{chips(true)}</div>
+      <div className="hidden min-w-0 flex-wrap items-center gap-1 2xl:flex">{chips(false)}</div>
     </>
   );
 }
+
+/**
+ * A linha inteira abre o detalhe, mas cliques que nasceram num controle da
+ * linha (o próprio botão do nome, links) ou que terminam uma seleção de texto
+ * são ignorados — copiar uma observação não abre o drawer por cima.
+ */
+function cliqueDaLinha(e: MouseEvent<HTMLElement>): boolean {
+  if ((e.target as HTMLElement).closest("button, a, input")) return false;
+  return (window.getSelection?.()?.toString() ?? "") === "";
+}
+
+/** Select da barra de filtros — 36px, o mesmo da Validação. */
+const SELECT = "h-9 w-full rounded-lg bg-card text-sm sm:w-auto";
 
 export interface EventInclusionsTableProps {
   h: EventHistory;
@@ -46,183 +81,148 @@ export function EventInclusionsTable({ h, eventId, escalaSemEvento, onFocusEvent
       {/* `?tab=escala` sem evento: em vez de trocar de aba em silêncio, a
           Lista diz o que aconteceu e leva o foco ao seletor de evento. */}
       {escalaSemEvento && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-brand-soft px-3.5 py-2.5">
-          <Info className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-          <p className="min-w-0 flex-1 text-xs text-slate-700">
+        <div className={cn(AVISO, "items-center border-primary/20 bg-brand-soft/70 text-slate-700")}>
+          <Info className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+          <p className="min-w-0 flex-1">
             <span className="font-semibold text-foreground">O quadro Escala precisa de um evento.</span>{" "}
             Ele cruza função × dia de UM evento; enquanto isso, a Lista mostra as vagas de todos.
           </p>
-          <Button type="button" variant="outline" size="sm" className="h-7 rounded-lg text-xs" onClick={onFocusEventPicker}>
+          <button
+            type="button" onClick={onFocusEventPicker}
+            className="val-alvo inline-flex h-8 shrink-0 items-center rounded-lg border border-primary/25 bg-card px-3 text-xs font-medium text-primary transition-colors hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             Escolher evento
-          </Button>
+          </button>
         </div>
       )}
-      <div className="flex flex-wrap items-end gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5">
-        <div className="relative min-w-[240px] flex-1 space-y-1">
-          <Label htmlFor="ev-search" className="sr-only">Buscar vaga</Label>
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input id="ev-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Função, #ID, área ou observação" className="h-8 pl-8 rounded-lg text-xs" />
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="min-w-0 sm:w-[340px]">
+          <BuscaDaLista valor={search} onChange={setSearch} placeholder="Função, #ID, área ou observação" rotulo="Buscar vaga" testid="hes-busca-lista" />
         </div>
-        <div className="min-w-[170px]">
-          <Label htmlFor="ev-function" className="sr-only">Função</Label>
-          <Select value={functionFilter} onValueChange={setFunctionFilter}>
-            <SelectTrigger id="ev-function" className="h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as funções</SelectItem>
-              {functionsInEvent.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <div className="min-w-0">
+            <Label htmlFor="ev-function" className="sr-only">Função</Label>
+            <Select value={functionFilter} onValueChange={setFunctionFilter}>
+              <SelectTrigger id="ev-function" className={cn(SELECT, "sm:min-w-[180px]", functionFilter !== ALL && "border-primary/40 text-primary")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas as funções</SelectItem>
+                {functionsInEvent.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-0">
+            <Label htmlFor="ev-origin" className="sr-only">Origem / status</Label>
+            <Select value={originFilter} onValueChange={setOriginFilter}>
+              <SelectTrigger id="ev-origin" className={cn(SELECT, "sm:min-w-[200px]", originFilter !== ALL && "border-primary/40 text-primary")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas as situações</SelectItem>
+                {originsInEvent.map((o) => <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="min-w-[190px]">
-          <Label htmlFor="ev-origin" className="sr-only">Origem / status</Label>
-          <Select value={originFilter} onValueChange={setOriginFilter}>
-            <SelectTrigger id="ev-origin" className="h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as origens</SelectItem>
-              {originsInEvent.map((o) => <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        {listHasFilters && (
-          <Button type="button" variant="ghost" size="sm" className="h-8 rounded-lg text-xs text-primary" onClick={clearListFilters}>Limpar filtros</Button>
-        )}
+        {listHasFilters && <div className="sm:ml-auto"><LimparFiltros onClick={clearListFilters} testid="hes-limpar-lista" /></div>}
       </div>
 
       {filteredRows.length === 0 ? (
-        <EmptyState
-          live={false}
-          className="rounded-xl"
-          variant="filtered"
-          title="Nada encontrado com esses filtros"
-          description="Ajuste a busca, a função ou o filtro de origem/status."
-          onClearFilters={listHasFilters ? clearListFilters : undefined}
+        <EstadoDoHistorico
+          icone={<SearchX aria-hidden="true" />}
+          titulo="Nenhuma vaga com esses filtros"
+          texto="Ajuste a busca, a função ou a situação."
+          acao={listHasFilters ? <AcaoDoEstado principal={false} onClick={clearListFilters}>Limpar filtros</AcaoDoEstado> : undefined}
+          testId="hes-lista-sem-resultado"
         />
       ) : (
-        <>
-          <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
-            <div className={SCROLL_X} tabIndex={0} role="region" aria-label="Tabela de vagas (rolagem horizontal)">
-              <table className="w-full min-w-[1040px] text-sm">
-                <caption className="sr-only">{eventId ? "Vagas do evento na Validação de Escala" : "Vagas dos eventos do recorte na Validação de Escala"}</caption>
-                <thead className="bg-surface-muted border-b border-border">
-                  <tr>
-                    <th scope="col" className="w-9 border-b border-border px-0"><span className="sr-only">Origem</span></th>
-                    <th scope="col" className={TH}>Vaga</th>
-                    {!eventId && <th scope="col" className={cn(TH, "min-w-[170px]")}>Evento</th>}
-                    <th scope="col" className={TH}>Período / diárias</th>
-                    <th scope="col" className={TH}>Logística</th>
-                    <th scope="col" className={cn(TH, "min-w-[230px]")}>Origem / status</th>
-                    <th scope="col" className={cn(TH, "min-w-[200px]")}>Último movimento</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, i) => {
-                    const days = workDaysOf(row);
-                    const dim = isDeleted(row) || (isSuggestionInclusion(row) && row.status === SUGESTAO_STATUS.NEGADA);
-                    const last = lastMoveOf(row);
-                    const fnName = functionNameById.get(row.functionId) ?? "Sem função";
-                    // Logística nos MESMOS chips da Validação (ícone + ida/volta com data):
-                    // cada chip carrega o próprio aria-label, então nada fica escondido
-                    // num tooltip que só abre no hover.
-                    return (
-                      <tr key={row.id} className={cn("border-b border-border", i % 2 === 1 ? "bg-surface-muted/40" : "bg-card")}>
-                        <td className="w-9 px-0 py-2">
-                          <span className={cn("ml-2 block h-10 w-1 rounded-full", ORIGIN_DOT[originKey(row)])} aria-hidden="true" />
-                        </td>
-                        <td className="px-3 py-2 max-w-[280px]">
-                          <div className="min-w-0">
-                            {/* #ID e nome num botão só: UMA parada de tabulação por
-                                linha (eram duas para a mesma ação), e o alvo de clique
-                                cresce sem o #ID deixar de parecer um chip. */}
-                            <button
-                              type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
-                              className="group flex max-w-full items-center gap-2 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                              <span className="inline-flex shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-2xs font-semibold text-primary tabular-nums transition-colors group-hover:bg-primary group-hover:text-white">#{row.inclusionNumber}</span>
-                              {/* Negada/excluída: riscada e mais clara — mas ainda legível (slate-500, não 400). */}
-                              <span className={cn("truncate text-sm font-semibold transition-colors group-hover:text-primary", dim ? "text-muted-foreground line-through" : "text-foreground")}>{fnName}</span>
-                            </button>
-                            <span className="mt-0.5 block truncate text-2xs text-muted-foreground" title={row.observations ?? undefined}>
+        <div className="hes-caixa">
+          <div className="hes-tabela">
+            <table className="w-full table-fixed text-sm">
+              <caption className="sr-only">{eventId ? "Vagas do evento na Validação de Escala" : "Vagas dos eventos do recorte na Validação de Escala"}</caption>
+              <thead className="hes-cabecalho border-b border-border bg-surface-muted">
+                <tr>
+                  <th scope="col" className="w-2 p-0"><span className="sr-only">Situação (faixa)</span></th>
+                  <th scope="col" className={cn(TH, "w-[28%] 2xl:w-[24%]")}>Vaga e período</th>
+                  <th scope="col" className={TH}>Logística</th>
+                  <th scope="col" className={cn(TH, "w-[27%] 2xl:w-[22%]")}>Situação</th>
+                  <th scope="col" className={cn(TH, "w-[150px]")}>Último movimento</th>
+                  <th scope="col" className="w-9 p-0"><span className="sr-only">Abrir</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((row) => {
+                  const days = workDaysOf(row);
+                  const dim = isDeleted(row) || (isSuggestionInclusion(row) && row.status === SUGESTAO_STATUS.NEGADA);
+                  const last = lastMoveOf(row);
+                  const fnName = functionNameById.get(row.functionId) ?? "Sem função";
+                  return (
+                    <tr
+                      key={row.id}
+                      onClick={(e) => { if (cliqueDaLinha(e)) setDetailId(row.id); }}
+                      data-esmaecida={dim || undefined}
+                      className="hes-linha border-b border-border align-top last:border-b-0"
+                    >
+                      <td data-col="rail" className="relative w-2 p-0">
+                        <span className={cn("absolute inset-y-2.5 left-0 w-[3px] rounded-r-full", ORIGIN_DOT[originKey(row)])} aria-hidden="true" />
+                      </td>
+                      <td data-col="vaga" data-largo className="px-3 py-3">
+                        <div className="min-w-0 space-y-0.5">
+                          {/* O nome num botão só: UMA parada de tabulação por
+                              linha (o rótulo leva o #ID). A linha inteira também
+                              abre (mouse). Mesma leitura da Validação: nome,
+                              depois "#ID · observação", depois o período. */}
+                          <button
+                            type="button" onClick={() => setDetailId(row.id)}
+                            title={`Ver o detalhe completo de ${fnName}`}
+                            aria-label={`Ver o detalhe completo da vaga #${row.inclusionNumber} — ${fnName}`}
+                            className="group block max-w-full rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {/* Negada/excluída: riscada e mais clara — mas ainda legível. */}
+                            <span className={cn("break-words text-sm font-semibold leading-5 transition-colors group-hover:text-primary", dim ? "text-muted-foreground line-through decoration-muted-foreground/60" : "text-foreground")}>{fnName}</span>
+                          </button>
+                          <span className="flex min-w-0 items-baseline gap-1.5 text-2xs leading-4">
+                            <span className="shrink-0 font-mono font-medium tabular-nums text-muted-foreground">#{row.inclusionNumber}</span>
+                            <span className="text-muted-foreground" aria-hidden="true">·</span>
+                            <span className={cn("hes-obs min-w-0 truncate", row.observations ? "text-slate-600" : "text-muted-foreground")} title={row.observations ?? undefined}>
                               {row.observations || "Sem observações"}
                             </span>
-                          </div>
-                        </td>
-                        {!eventId && (
-                          <td className="px-3 py-2 max-w-[220px]">
-                            <span className="block truncate text-sm font-semibold text-slate-700" title={eventNameOf(row)}>{eventNameOf(row)}</span>
-                            <span className="block font-mono text-2xs text-muted-foreground">
-                              {row.eventStartDate ? formatDateRange(ymd(row.eventStartDate), ymd(row.eventEndDate) || ymd(row.eventStartDate), { withYear: true }) : "Sem datas"}
-                            </span>
-                          </td>
-                        )}
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <span className={cn("font-mono text-xs tabular-nums", dim ? "text-muted-foreground" : "text-slate-700")}>{periodLabel(row)}</span>
-                          <span className="ml-1 text-2xs text-muted-foreground">· {formatDiarias(days.length || row.dailyRates || 0)}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex min-w-[220px] flex-wrap items-center gap-1">
-                            <LogisticaChips row={row} />
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <OriginBadge row={row} />
-                            {row.requests.length > 0 && <span className="text-2xs text-muted-foreground">{plural(row.requests.length, "pedido", "pedidos")}</span>}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className="block text-xs text-slate-600">{last.label}</span>
-                          <span className="block font-mono text-2xs text-muted-foreground">{fmtShort(last.at)}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          </span>
+                          <span className={cn("block pt-0.5 text-xs tabular-nums", dim ? "text-muted-foreground" : "text-slate-700")}>
+                            <span className="whitespace-nowrap">{periodLabel(row)}</span>
+                            <span className="text-muted-foreground"> · {formatDiarias(days.length || row.dailyRates || 0)}</span>
+                          </span>
+                          {/* Sem filtro de evento, a vaga diz de qual evento é. */}
+                          {!eventId && (
+                            <LinhaDoEvento
+                              nome={eventNameOf(row)}
+                              periodo={row.eventStartDate ? formatDateRange(ymd(row.eventStartDate), ymd(row.eventEndDate) || ymd(row.eventStartDate), { withYear: true }) : "Sem datas"}
+                              className="pt-1"
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td data-col="logistica" data-largo data-rotulo="Logística" className="px-3 py-3">
+                        <LogisticaChips row={row} />
+                      </td>
+                      <td data-col="situacao" data-rotulo="Situação" className="px-3 py-3">
+                        <div className="flex flex-wrap items-center gap-1.5 [&>span:first-child]:whitespace-normal">
+                          <OriginBadge row={row} />
+                          {row.requests.length > 0 && <span className="text-2xs text-muted-foreground">{plural(row.requests.length, "pedido", "pedidos")}</span>}
+                        </div>
+                      </td>
+                      <td data-col="ultimo" data-rotulo="Último movimento" className="px-3 py-3">
+                        <span className="block text-xs leading-4 text-slate-700">{last.label}</span>
+                        <span className="mt-0.5 block text-2xs tabular-nums text-muted-foreground">{fmtShort(last.at)}</span>
+                      </td>
+                      <td data-col="abrir" className="py-3 pl-0 pr-2.5 text-right">
+                        <ChevronRight className="hes-abrir ml-auto mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-
-          <ul className="md:hidden space-y-2" aria-label={eventId ? "Vagas do evento" : "Vagas dos eventos do recorte"}>
-            {filteredRows.map((row) => {
-              const days = workDaysOf(row);
-              const last = lastMoveOf(row);
-              const fnName = functionNameById.get(row.functionId) ?? "Sem função";
-              return (
-                /* O cartão inteiro abre o drawer (no desktop o #ID/nome já
-                   abriam; no celular não havia como). O botão é só o
-                   título e se "estica" pelo cartão via ::after — assim o
-                   HTML continua válido (sem <dl> dentro de <button>) e a
-                   seta à direita diz que o cartão é clicável. */
-                <li key={row.id} className="relative rounded-xl border border-border bg-card p-3 space-y-2 transition-colors focus-within:ring-2 focus-within:ring-ring hover:border-slate-300">
-                  <div className="flex items-start gap-2">
-                    <button
-                      type="button" onClick={() => setDetailId(row.id)} title={`Ver o detalhe completo de ${fnName}`}
-                      className="min-w-0 flex-1 text-left focus-visible:outline-none after:absolute after:inset-0 after:rounded-xl after:content-['']"
-                    >
-                      <span className="block truncate text-sm font-semibold text-foreground">
-                        <span className="mr-1.5 font-mono text-xs text-muted-foreground">#{row.inclusionNumber}</span>
-                        {fnName}
-                      </span>
-                    </button>
-                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  </div>
-                  {!eventId && <p className={cn(LABEL, "truncate font-semibold text-slate-600")}>{eventNameOf(row)}</p>}
-                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                    <dt className="text-muted-foreground">Período</dt><dd className="font-mono text-slate-700">{periodLabel(row)} · {formatDiarias(days.length || row.dailyRates || 0)}</dd>
-                    <dt className="text-muted-foreground">Último movimento</dt><dd className="text-slate-700">{last.label}{last.at ? ` · ${fmtShort(last.at)}` : ""}</dd>
-                  </dl>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <LogisticaChips row={row} />
-                  </div>
-                  {row.observations && <p className="text-xs text-muted-foreground italic">{row.observations}</p>}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <OriginBadge row={row} />
-                    {row.requests.length > 0 && <span className="text-xs text-muted-foreground">{plural(row.requests.length, "pedido", "pedidos")}</span>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </>
+        </div>
       )}
     </>
   );
