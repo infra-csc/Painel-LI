@@ -62,6 +62,27 @@ describe("Cadastro de usuários", () => {
     expect(chamadas).toHaveLength(0);
   });
 
+  it("nome só com espaços não passa (validação com trim), sem POST", async () => {
+    const { user, chamadas } = montar(admin);
+    await user.type(screen.getByLabelText(/Nome completo/), "   ");
+    await user.type(screen.getByLabelText(/E-mail corporativo/), "joana@empresa.com.br");
+    await user.click(screen.getByRole("radio", { name: /Logística Interna/ }));
+    await user.click(screen.getByTestId("button-submit"));
+    expect(await screen.findByText("Nome deve ter pelo menos 2 caracteres")).toBeInTheDocument();
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it("área vazia (ou só espaços) vai como null; nome vai sem os espaços das pontas", async () => {
+    const { user, chamadas } = montar(admin);
+    await user.type(screen.getByLabelText(/Nome completo/), "  Joana Lima  ");
+    await user.type(screen.getByLabelText(/E-mail corporativo/), "joana@empresa.com.br");
+    await user.click(screen.getByRole("radio", { name: /Área de Função/ }));
+    await user.type(screen.getByLabelText("Área específica"), "   ");
+    await user.click(screen.getByTestId("button-submit"));
+    await waitFor(() => expect(chamadas).toHaveLength(1));
+    expect(chamadas[0].corpo).toEqual({ name: "Joana Lima", email: "joana@empresa.com.br", role: "function_area", area: null });
+  });
+
   it("e-mail repetido (409) vai para o campo de e-mail", async () => {
     const { user } = montar(admin, () => respostaJson({ message: "E-mail já cadastrado" }, 409));
     await user.type(screen.getByLabelText(/Nome completo/), "Joana Lima");

@@ -1,14 +1,19 @@
 /**
  * Redefinir senha (08/10, redesenho). Só aparece fora de produção (em
  * produção o acesso é pelo Portal Norte). Mesma regra de antes: senha com
- * confirmação, o mesmo mínimo no client, e quem chama faz o POST. Na
+ * confirmação, o mínimo do servidor, e quem chama faz o POST. Na
  * apresentação: a régua dos modais do app (cabeçalho com ícone, corpo,
  * rodapé fixo), o que acontece dito ANTES de confirmar (troca obrigatória no
  * próximo acesso e sessões abertas encerradas) e a força da senha em quatro
  * filetes. A senha nunca sai daqui a não ser pelo `onConfirm`.
  * Props inalteradas: { isOpen, onClose, userName, isPending, onConfirm }.
+ *
+ * 08/10: mínimo de 8 caracteres, o MESMO do servidor (`SENHA_MINIMA` em
+ * shared/edicao-de-usuario) — antes o client aceitava 6 e o servidor recusava.
+ * Os campos só se limpam quando o modal fecha (sucesso ou Cancelar): antes
+ * eram apagados no envio, e um erro do servidor obrigava a digitar tudo de novo.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Check, Eye, EyeOff, Info, KeyRound, Loader2, X } from "lucide-react";
@@ -16,12 +21,13 @@ import { RequiredMark } from "@/components/forms/required-mark";
 import { cn } from "@/lib/utils";
 import { AvatarDoUsuario } from "@/components/admin-users/pecas";
 import { nomeDaPessoa } from "@/components/admin-users/acesso";
+import { SENHA_MINIMA } from "@shared/edicao-de-usuario";
 
 // ─── Força da senha ──────────────────────────────────────────────────────────
 function getStrength(pwd: string): { score: number; label: string; color: string; bar: string } {
   if (!pwd) return { score: 0, label: "", color: "", bar: "" };
   let score = 0;
-  if (pwd.length >= 6)  score++;
+  if (pwd.length >= SENHA_MINIMA) score++;
   if (pwd.length >= 10) score++;
   if (/[A-Z]/.test(pwd)) score++;
   if (/[0-9]/.test(pwd)) score++;
@@ -52,18 +58,25 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
   const [showCfm, setShowCfm]       = useState(false);
 
   const strength  = getStrength(password);
-  const pwdOk     = password.length >= 6;
+  const pwdOk     = password.length >= SENHA_MINIMA;
   const cfmOk     = confirm.length > 0 && confirm === password;
   const cfmBad    = confirm.length > 0 && confirm !== password;
   const canSubmit = pwdOk && cfmOk;
 
-  const handleClose = () => { setPassword(""); setConfirm(""); setShowPwd(false); setShowCfm(false); onClose(); };
+  const limpar = () => { setPassword(""); setConfirm(""); setShowPwd(false); setShowCfm(false); };
+  // Limpa quando o modal FECHA — no sucesso quem chama fecha; no erro ele fica
+  // aberto com o que foi digitado.
+  useEffect(() => {
+    if (isOpen) return;
+    setPassword(""); setConfirm(""); setShowPwd(false); setShowCfm(false);
+  }, [isOpen]);
+
+  const handleClose = () => { limpar(); onClose(); };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || isPending) return;
     onConfirm(password);
-    setPassword(""); setConfirm(""); setShowPwd(false); setShowCfm(false);
   };
 
   // Quatro filetes: 1 = fraca, 2-3 = média, 4 = forte (score 0–5 → 0–4).
@@ -125,7 +138,7 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
                     type={showPwd ? "text" : "password"}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={`Mínimo ${SENHA_MINIMA} caracteres`}
                     autoComplete="new-password"
                     aria-describedby="usr-forca-senha"
                     className={cn(CAMPO, "border-border hover:border-slate-300 focus:border-primary focus:ring-[3px] focus:ring-primary/12")}
@@ -153,6 +166,11 @@ export default function ResetPasswordModal({ isOpen, onClose, userName, isPendin
                     {password ? strength.label : "Força"}
                   </span>
                 </div>
+                {password && !pwdOk && (
+                  <p className="m-0 mt-1 text-2xs text-muted-foreground" data-testid="usr-senha-curta">
+                    Mínimo de {SENHA_MINIMA} caracteres — {SENHA_MINIMA - password.length === 1 ? "falta 1" : `faltam ${SENHA_MINIMA - password.length}`}.
+                  </p>
+                )}
               </div>
 
               {/* Confirmar */}

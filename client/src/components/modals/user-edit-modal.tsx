@@ -10,8 +10,16 @@
  *  - fechar com alteração continua perguntando (Esc e clique fora também);
  *  - no celular ocupa a tela inteira.
  * Props inalteradas: { isOpen, onClose, user }.
+ *
+ * 08/10 (correções de lógica): o que cada um edita vem da regra ÚNICA do
+ * servidor (`shared/edicao-de-usuario`) e o PATCH leva SÓ os campos que
+ * mudaram — antes ia tudo, e o servidor recusava a edição de RH/Compras (o
+ * e-mail ia junto) e a do admin no próprio nome (o perfil ia junto). Campo
+ * que a pessoa não pode mudar fica travado com o motivo; quem não edita
+ * ninguém (Logística Interna em terceiros) vê o modal só para leitura.
+ * Promover a Administrador pede confirmação antes de salvar.
  */
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
@@ -27,8 +35,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { User } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
-import { hasPermission } from "@/lib/role-utils";
+import { camposEditaveisDoUsuario, type CampoDoUsuario } from "@shared/edicao-de-usuario";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   Check, Loader2, Lock, ShieldAlert, ShieldCheck, Layers, Briefcase, ShoppingCart, BarChart2, X,
 } from "lucide-react";
@@ -53,8 +62,8 @@ const ROLE_CFG: Record<string, { label: string; icon: typeof ShieldCheck; iconCl
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 const userEditSchema = z.object({
-  name:  z.string().min(1, "Nome é obrigatório"),
-  email: z.string().email("E-mail inválido"),
+  name:  z.string().trim().min(1, "Nome é obrigatório"),
+  email: z.string().trim().email("E-mail inválido"),
   role:  z.enum(["admin", "production", "function_area", "purchasing", "financial"], {
     required_error: "Selecione uma função",
   }),
@@ -62,6 +71,26 @@ const userEditSchema = z.object({
 });
 
 type UserEditFormData = z.infer<typeof userEditSchema>;
+type Alteracoes = Partial<Record<CampoDoUsuario, string | null>>;
+
+/** Perfil que o formulário mostra para a conta (papel legado normalizado). */
+const perfilDoForm = (u: User | null) => (normalizeRole(u?.role) ?? "production") as UserEditFormData["role"];
+
+/**
+ * Só o que mudou E que quem edita pode mudar — o servidor recusa (403) campo
+ * que a pessoa não pode alterar, mesmo com o valor igual.
+ */
+function alteracoesDoUsuario(data: UserEditFormData, u: User, campos: readonly CampoDoUsuario[]): Alteracoes {
+  const p: Alteracoes = {};
+  const nome = data.name.trim();
+  if (campos.includes("name") && nome !== u.name) p.name = nome;
+  const email = data.email.trim().toLowerCase();
+  if (campos.includes("email") && email !== (u.email ?? "").toLowerCase()) p.email = email;
+  if (campos.includes("role") && data.role !== perfilDoForm(u)) p.role = data.role;
+  const area = data.area?.trim() || null;
+  if (campos.includes("area") && area !== (u.area?.trim() || null)) p.area = area;
+  return p;
+}
 
 interface UserEditModalProps {
   isOpen: boolean;
@@ -74,17 +103,24 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
   const isCurrentAdmin = normalizeRole(currentUser?.role) === "admin";
-  // PATCH /api/users/:id só grava role/area quando quem edita é admin
-  // (allowedFieldsForAdmin). Para os demais os campos ficam travados e não
-  // são enviados — antes o servidor descartava em silêncio.
-  const canChangeRole = hasPermission(currentUser, "canChangeUserRole");
+  // O que quem está logado pode mudar NESTA conta — a mesma regra do PATCH
+  // /api/users/:id (shared/edicao-de-usuario). Campo fora da lista fica
+  // travado e nunca vai no payload.
+  const euMesmo = !!user && !!currentUser && user.id === currentUser.id;
+  const campos = camposEditaveisDoUsuario(currentUser?.role, euMesmo);
+  const canEditName = campos.includes("name");
+  const canEditEmail = campos.includes("email");
+  const canChangeRole = campos.includes("role");
+  const canEditArea = campos.includes("area");
+  const soLeitura = campos.length === 0;
+  const [aConfirmar, setAConfirmar] = useState<Alteracoes | null>(null);
 
   const form = useForm<UserEditFormData>({
     resolver: zodResolver(userEditSchema),
     defaultValues: {
       name:  user?.name  || "",
       email: user?.email || "",
-      role:  (normalizeRole(user?.role) as UserEditFormData["role"]) || "production",
+      role:  perfilDoForm(user),
       area:  user?.area  || "",
     },
   });
@@ -94,19 +130,15 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
       form.reset({
         name:  user.name,
         email: user.email,
-        role:  (normalizeRole(user.role) ?? "production") as UserEditFormData["role"],
+        role:  perfilDoForm(user),
         area:  user.area || "",
       });
     }
   }, [user, form]);
 
   const updateUserMutation = useMutation({
-    mutationFn: async (data: UserEditFormData) => {
-      const payload: Partial<UserEditFormData> = canChangeRole
-        ? data
-        : { name: data.name, email: data.email };
-      return (await apiRequest("PATCH", `/api/users/${user?.id}`, payload)).json();
-    },
+    mutationFn: async (payload: Alteracoes) =>
+      (await apiRequest("PATCH", `/api/users/${user?.id}`, payload)).json(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({ variant: "success", title: "Usuário atualizado" });
@@ -117,7 +149,15 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
     },
   });
 
-  const onSubmit = (data: UserEditFormData) => updateUserMutation.mutate(data);
+  const onSubmit = (data: UserEditFormData) => {
+    if (!user || soLeitura) return;
+    const payload = alteracoesDoUsuario(data, user, campos);
+    // Nada mudou de verdade (ex.: só espaços): fecha sem chamar o servidor.
+    if (Object.keys(payload).length === 0) { onClose(); return; }
+    // Acesso total: confirma ANTES de salvar.
+    if (payload.role === "admin") { setAConfirmar(payload); return; }
+    updateUserMutation.mutate(payload);
+  };
   // "Descartar alterações?" (23/09): Esc e clique fora fechavam sem perguntar.
   const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(form.formState.isDirty, { salvando: updateUserMutation.isPending });
   const fechar = () => pedirParaFechar(onClose);
@@ -196,7 +236,9 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                       <FormItem className="space-y-0">
                         <label htmlFor="usr-edit-nome" className={ROTULO}>Nome<RequiredMark /></label>
                         <FormControl>
-                          <Input id="usr-edit-nome" placeholder="Nome completo" autoComplete="off" className={CAMPO} data-testid="input-edit-name" {...field} />
+                          <Input id="usr-edit-nome" placeholder="Nome completo" autoComplete="off"
+                            className={cn(CAMPO, "disabled:opacity-60 disabled:cursor-not-allowed")}
+                            data-testid="input-edit-name" {...field} disabled={!canEditName} />
                         </FormControl>
                         <FormMessage className="mt-1 text-2xs" />
                       </FormItem>
@@ -211,9 +253,12 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                         <div className="relative">
                           <FormControl>
                             <Input id="usr-edit-email" type="email" placeholder="email@exemplo.com" autoComplete="off"
-                              className={cn(CAMPO, "pr-9")} data-testid="input-edit-email" {...field} />
+                              className={cn(CAMPO, "pr-9 disabled:opacity-60 disabled:cursor-not-allowed")} data-testid="input-edit-email"
+                              aria-describedby="usr-edit-email-ajuda" {...field} disabled={!canEditEmail} />
                           </FormControl>
-                          {emailValid && emailValue && (
+                          {!canEditEmail ? (
+                            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+                          ) : emailValid && emailValue && (
                             <Check className="usr-entra absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-success-strong" strokeWidth={3} aria-hidden="true" />
                           )}
                         </div>
@@ -222,8 +267,10 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                     )}
                   />
                 </div>
-                <p className="m-0 mt-2.5 text-2xs leading-4 text-muted-foreground">
-                  O e-mail é o da conta Microsoft usada para entrar pelo Portal Norte.
+                <p id="usr-edit-email-ajuda" className="m-0 mt-2.5 text-2xs leading-4 text-muted-foreground" data-testid="usr-edit-email-ajuda">
+                  {canEditEmail
+                    ? "O e-mail é o da conta Microsoft usada para entrar pelo Portal Norte."
+                    : "O e-mail é a conta Microsoft que entra pelo Portal Norte — só administradores alteram o de outra pessoa."}
                 </p>
               </section>
 
@@ -232,10 +279,17 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                 <h3 id="usr-sec-acesso" className="m-0 mb-3 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Perfil e acesso</h3>
 
                 {!canChangeRole && (
-                  <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-warning-soft border border-warning/25">
+                  <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-warning-soft border border-warning/25" data-testid="usr-edit-aviso">
                     <Lock className="w-3.5 h-3.5 text-warning-strong mt-0.5 shrink-0" aria-hidden="true" />
                     <p className="m-0 text-xs text-warning-strong leading-relaxed">
-                      Só administradores alteram perfil e área. Você pode editar nome e e-mail.
+                      {/* Fiel ao PATCH /api/users/:id (shared/edicao-de-usuario). */}
+                      {soLeitura
+                        ? "Seu perfil só consulta os usuários. Quem edita outras pessoas: administradores, RH e Compras."
+                        : canEditArea
+                        ? "Ninguém altera o próprio perfil — peça a outro administrador. Você pode editar nome, e-mail e área."
+                        : canEditEmail
+                        ? "Só administradores alteram perfil e área. Você pode editar nome e e-mail."
+                        : "Só administradores alteram e-mail, perfil e área de outra pessoa. Você pode editar o nome."}
                     </p>
                   </div>
                 )}
@@ -282,7 +336,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                         <FormControl>
                           <Input id="usr-edit-area" placeholder="Ex.: Cenografia, Palco Principal…" autoComplete="off"
                             className={cn(CAMPO, "disabled:opacity-60 disabled:cursor-not-allowed")}
-                            data-testid="input-edit-area" disabled={!canChangeRole} {...field} />
+                            data-testid="input-edit-area" {...field} disabled={!canEditArea} />
                         </FormControl>
                         <FormMessage className="mt-1 text-2xs" />
                       </FormItem>
@@ -343,19 +397,33 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
           </p>
           <Button type="button" variant="outline" onClick={fechar} disabled={salvando}
             className="h-9 rounded-lg px-4 text-sm font-medium max-sm:flex-1" data-testid="button-cancel-edit-user">
-            Cancelar
+            {soLeitura ? "Fechar" : "Cancelar"}
           </Button>
-          <Button type="submit" form="user-edit-form" disabled={salvando} aria-busy={salvando}
+          {!soLeitura && <Button type="submit" form="user-edit-form" disabled={salvando} aria-busy={salvando}
             className={cn("h-9 rounded-lg px-4 text-sm font-semibold gap-2 max-sm:flex-1", virandoAdmin ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "hover:bg-primary-hover")}
             data-testid="button-save-edit-user">
             {salvando
               ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Salvando…</>
               : <><Check className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" /> {virandoAdmin ? "Salvar e tornar administrador" : "Salvar alterações"}</>}
-          </Button>
+          </Button>}
         </div>
       </DialogContent>
     </Dialog>
     {DialogoDescarte}
+    {/* Promover a Administrador: acesso total — confirma antes de salvar. */}
+    <ConfirmDialog
+      open={aConfirmar !== null}
+      onOpenChange={(o) => { if (!o) setAConfirmar(null); }}
+      tone="danger"
+      icon={ShieldAlert}
+      title={`Tornar ${userName || "a pessoa"} administrador?`}
+      description="Acesso total: passa a ver e alterar tudo — inclusive aprovar e desativar usuários, mudar perfis, ler o log de auditoria e usar “Ver como usuário”."
+      confirmLabel="Tornar administrador"
+      pending={salvando}
+      onConfirm={() => { if (aConfirmar) updateUserMutation.mutate(aConfirmar, { onSettled: () => setAConfirmar(null) }); }}
+      testId="usr-confirma-admin"
+      confirmTestId="button-confirm-make-admin"
+    />
     </>
   );
 }

@@ -68,23 +68,35 @@ export function acessoPorGrupo(role: string | null | undefined): GrupoDeAcesso[]
 export const TOTAL_DE_TELAS = ALL_TABS.length;
 
 // ─── Situação da conta ───────────────────────────────────────────────────────
-// O MESMO critério da faixa e do filtro (23/09): pendente; com acesso =
-// aprovado e ativo; sem acesso = rejeitado ou desativado.
+// UM critério para a pílula, a faixa e o filtro — e cada conta numa categoria
+// SÓ (08/10: uma conta pendente E desativada contava em "Aguardando" e em
+// "Sem acesso" ao mesmo tempo). Precedência, da mais forte:
+//   1. rejeitado           → Sem acesso (pílula "Rejeitado");
+//   2. desativado          → Sem acesso (pílula "Inativo") — desativada não
+//      entra de jeito nenhum, mesmo aprovada; por isso vence o "pendente";
+//   3. pendente            → Aguardando aprovação;
+//   4. aprovado (e ativo)  → Com acesso.
+// Situação desconhecida no banco cai em "Sem acesso" (não entra).
 export type Situacao = "pending" | "approved" | "inactive";
-
-export const isPendingUser = (u: User) => u.status === "pending";
-export const isApprovedUser = (u: User) => u.status === "approved" && u.isActive !== false;
-export const isInactiveUser = (u: User) => u.status === "rejected" || u.isActive === false;
 
 export type EstadoDaConta = "pendente" | "ativo" | "inativo" | "rejeitado";
 
-/** Como a pílula lê a conta (a mesma precedência da pílula antiga). */
 export function estadoDaConta(u: Pick<User, "status" | "isActive">): EstadoDaConta {
-  if (u.status === "pending") return "pendente";
-  if (u.status === "approved" && u.isActive !== false) return "ativo";
   if (u.status === "rejected") return "rejeitado";
+  if (u.isActive === false) return "inativo";
+  if (u.status === "pending") return "pendente";
+  if (u.status === "approved") return "ativo";
   return "inativo";
 }
+
+export function situacaoDaConta(u: Pick<User, "status" | "isActive">): Situacao {
+  const e = estadoDaConta(u);
+  return e === "pendente" ? "pending" : e === "ativo" ? "approved" : "inactive";
+}
+
+export const isPendingUser = (u: User) => situacaoDaConta(u) === "pending";
+export const isApprovedUser = (u: User) => situacaoDaConta(u) === "approved";
+export const isInactiveUser = (u: User) => situacaoDaConta(u) === "inactive";
 
 /** Nome de pessoa pela regra única do app. */
 export function nomeDaPessoa(nome: string | null | undefined): string {

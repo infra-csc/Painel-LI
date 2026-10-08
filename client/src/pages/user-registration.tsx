@@ -11,6 +11,8 @@
  * no rodapé, ao lado do botão, e o e-mail repetido vai para o próprio campo.
  * Conta criada vira uma faixa na página com o próximo passo.
  *
+ * 08/10: nome validado sem os espaços das pontas; área vazia vai como null.
+ *
  * Lógica intacta: mesmo schema, mesmo POST /api/users com o mesmo payload,
  * mesma invalidação de ["/api/users"], mesmo reset; os perfis oferecidos a
  * quem não é administrador são os mesmos (o servidor recusa os outros).
@@ -40,8 +42,9 @@ import {
 } from "@/components/user-registration/cadastro-estados";
 
 const schema = z.object({
-  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  email: z.string().email("Digite um e-mail válido"),
+  // trim (08/10): nome só com espaços passava na tela.
+  name: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres"),
+  email: z.string().trim().email("Digite um e-mail válido"),
   role: z.enum(["admin", "production", "function_area", "purchasing", "financial"], {
     required_error: "Selecione um perfil de acesso",
   }),
@@ -84,7 +87,8 @@ export default function UserRegistration() {
   const mutation = useMutation({
     // apiRequest já lança em resposta não-ok (com .status e .body no erro).
     mutationFn: async (data: FormData) => {
-      const r = await apiRequest("POST", "/api/users", data);
+      // Área vazia vai como null (08/10): antes ia "" e o banco gravava "".
+      const r = await apiRequest("POST", "/api/users", { ...data, area: data.area?.trim() || null });
       return r.json();
     },
     onSuccess: (salvo: { name?: string; email?: string; role?: string } | null, enviado) => {

@@ -12,6 +12,12 @@
  * (`canAccessAdminUsers`, `canCreateUsers`, `canManageUserAccounts`), o mesmo
  * "Redefinir senha" só fora de produção e a mesma confirmação só para
  * aprovar, rejeitar e desativar. Pedaços em `components/admin-users/`.
+ *
+ * 08/10 (correções de lógica): os botões seguem as regras do servidor —
+ * "Editar" pela regra única de `shared/edicao-de-usuario` (Logística Interna
+ * não edita terceiros), a própria conta não se aprova/rejeita/desativa, e a
+ * senha de OUTRO administrador não se redefine; tudo desabilitado com o motivo.
+ * Cada conta conta numa situação só (precedência em `acesso.ts`).
  */
 import { useState, useMemo, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,6 +46,9 @@ import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros, type ListaC
 import type { User } from "@shared/schema";
 import { normalizeRole } from "@shared/roles";
 import { hasPermission } from "@/lib/role-utils";
+import {
+  MSG_SENHA_DE_OUTRO_ADMIN, camposEditaveisDoUsuario, podeEditarUsuario, podeRedefinirSenhaDe,
+} from "@shared/edicao-de-usuario";
 import {
   NOME_DO_PERFIL, PERFIS, isApprovedUser, isInactiveUser, isPendingUser, nomeDaPessoa, nomeDoPerfil, telasDoPerfil,
   type Situacao,
@@ -128,6 +137,7 @@ export default function AdminUsers() {
   // com o motivo (a pessoa está a um clique da ação — não some sem explicar).
   const canManageAccounts = hasPermission(user, "canManageUserAccounts");
   const SO_ADMIN = "Só administradores podem fazer isso.";
+  const SO_QUEM_EDITA = "Só administradores, RH e Compras editam outras pessoas.";
 
   // Mensagem de erro padronizada (api-error): erro de rede/sessão nunca pode virar "lista vazia".
   const errorText = (e: unknown, fallback: string) => apiErrorMessage(e, fallback);
@@ -207,7 +217,10 @@ export default function AdminUsers() {
       open: true,
       variant: isApprove ? "confirm" : "delete",
       title: reativando ? `Reativar ${nome}?` : isApprove ? `Aprovar ${nome}?` : `Rejeitar o cadastro de ${nome}?`,
-      message: isApprove
+      message: isApprove && u.isActive === false
+        // Desativada: aprovar não basta para entrar (fica em "Sem acesso").
+        ? <>O cadastro fica aprovado como <strong className="font-semibold text-foreground">{perfil}</strong>, mas a conta continua desativada — reative o acesso para a pessoa entrar.</>
+        : isApprove
         ? <>{reativando ? "Volta a entrar" : "Passa a entrar"} no sistema como <strong className="font-semibold text-foreground">{perfil}</strong>, com acesso a {n} {n === 1 ? "tela" : "telas"}.</>
         : "A pessoa não poderá entrar no sistema e as sessões abertas são encerradas. Dá para aprovar depois, pela situação “Sem acesso”.",
       confirmLabel: reativando ? "Reativar" : isApprove ? "Aprovar" : "Rejeitar",
@@ -297,31 +310,42 @@ export default function AdminUsers() {
     const mexendoNaConta = toggleActiveMutation.isPending && toggleActiveMutation.variables === u.id;
     const decidindo = approveUserMutation.isPending && approveUserMutation.variables?.userId === u.id;
     const cenoAqui = toggleCenotecnicaMutation.isPending && toggleCenotecnicaMutation.variables === u.id;
+    // A própria conta: o servidor recusa aprovar/rejeitar/desativar a si mesmo
+    // (evita se trancar fora) — o botão fica desabilitado com o motivo.
+    const euMesmo = u.id === user?.id;
+    const podeNaConta = canManageAccounts && !euMesmo;
+    const motivoConta = (habilitado: string, proprio: string) => !canManageAccounts ? SO_ADMIN : euMesmo ? proprio : habilitado;
+    // Editar: a MESMA regra do PATCH /api/users/:id (shared/edicao-de-usuario).
+    const podeEditar = podeEditarUsuario(user?.role, euMesmo);
+    const camposEditaveis = camposEditaveisDoUsuario(user?.role, euMesmo);
+    const dicaEditar = camposEditaveis.includes("role") ? "Editar nome, e-mail e perfil"
+      : camposEditaveis.includes("email") ? "Editar nome e e-mail"
+      : "Editar o nome";
+    // Redefinir senha: nunca a de OUTRO administrador (o servidor recusa).
+    const podeSenha = canManageAccounts && podeRedefinirSenhaDe(u.role, euMesmo);
     return (
       <div className="relative z-[1] flex items-center justify-end gap-0.5">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => setEditingUser(u)}
-              aria-label={`Editar usuário ${nome}`}
-              className={cn(ICONE, "hover:text-primary hover:bg-brand-soft")}
-              data-testid={`button-edit-${u.id}`}
-            >
-              <PencilLine className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="left">Editar nome, e-mail e perfil</TooltipContent>
-        </Tooltip>
+        <MotivoDesabilitado motivo={podeEditar ? dicaEditar : SO_QUEM_EDITA} desabilitado={!podeEditar} side="left">
+          <button
+            type="button"
+            onClick={() => setEditingUser(u)}
+            disabled={!podeEditar}
+            aria-label={`Editar usuário ${nome}`}
+            className={cn(ICONE, "hover:text-primary hover:bg-brand-soft")}
+            data-testid={`button-edit-${u.id}`}
+          >
+            <PencilLine className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </MotivoDesabilitado>
 
         {/* Pendente: rejeitar e aprovar (a ação forte, com texto) */}
         {isPending && (
           <>
-            <MotivoDesabilitado motivo={canManageAccounts ? "Rejeitar o cadastro" : SO_ADMIN} desabilitado={!canManageAccounts} side="left">
+            <MotivoDesabilitado motivo={motivoConta("Rejeitar o cadastro", "Você não pode rejeitar o próprio cadastro.")} desabilitado={!podeNaConta} side="left">
               <button
                 type="button"
                 onClick={() => handleApprove(u, "rejected")}
-                disabled={approveUserMutation.isPending || !canManageAccounts}
+                disabled={approveUserMutation.isPending || !podeNaConta}
                 aria-label={`Rejeitar usuário ${nome}`}
                 className={rotulado
                   ? "usr-acao pas-alvo inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-danger hover:bg-danger-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
@@ -331,11 +355,11 @@ export default function AdminUsers() {
                 <X className="w-4 h-4" aria-hidden="true" />{rotulado && "Rejeitar"}
               </button>
             </MotivoDesabilitado>
-            <MotivoDesabilitado motivo={canManageAccounts ? "Aprovar: a pessoa passa a entrar no sistema" : SO_ADMIN} desabilitado={!canManageAccounts} side="left">
+            <MotivoDesabilitado motivo={motivoConta("Aprovar: a pessoa passa a entrar no sistema", "Você não pode aprovar o próprio cadastro.")} desabilitado={!podeNaConta} side="left">
               <button
                 type="button"
                 onClick={() => handleApprove(u, "approved")}
-                disabled={approveUserMutation.isPending || !canManageAccounts}
+                disabled={approveUserMutation.isPending || !podeNaConta}
                 aria-label={`Aprovar usuário ${nome}`}
                 className={cn(COM_TEXTO, "border-success/30 bg-success-soft text-success hover:border-success/60")}
                 data-testid={`button-approve-${u.id}`}
@@ -349,11 +373,11 @@ export default function AdminUsers() {
 
         {/* Rejeitado: reativar (volta a aprovar) */}
         {u.status === "rejected" && (
-          <MotivoDesabilitado motivo={canManageAccounts ? "Reativar: aprova o cadastro de novo" : SO_ADMIN} desabilitado={!canManageAccounts} side="left">
+          <MotivoDesabilitado motivo={motivoConta("Reativar: aprova o cadastro de novo", "Você não pode reativar o próprio cadastro.")} desabilitado={!podeNaConta} side="left">
             <button
               type="button"
               onClick={() => handleApprove(u, "approved")}
-              disabled={approveUserMutation.isPending || !canManageAccounts}
+              disabled={approveUserMutation.isPending || !podeNaConta}
               aria-label={`Reativar usuário ${nome}`}
               className={cn(COM_TEXTO, "border-border bg-card text-slate-700 hover:border-success/50 hover:text-success")}
               data-testid={`button-reactivate-${u.id}`}
@@ -373,11 +397,13 @@ export default function AdminUsers() {
                 Painel, e o botão só servia para prender a pessoa num diálogo de
                 troca de senha. */}
             {import.meta.env.DEV && (
-              <MotivoDesabilitado motivo={canManageAccounts ? "Redefinir senha" : SO_ADMIN} desabilitado={!canManageAccounts} side="left">
+              <MotivoDesabilitado
+                motivo={!canManageAccounts ? SO_ADMIN : !podeSenha ? MSG_SENHA_DE_OUTRO_ADMIN : "Redefinir senha"}
+                desabilitado={!podeSenha} side="left">
                 <button
                   type="button"
                   onClick={() => handleResetPassword(u)}
-                  disabled={resetPasswordMutation.isPending || !canManageAccounts}
+                  disabled={resetPasswordMutation.isPending || !podeSenha}
                   aria-label={`Resetar senha de ${nome}`}
                   className={cn(ICONE, "hover:text-warning-strong hover:bg-warning-soft")}
                   data-testid={`button-reset-pwd-${u.id}`}
@@ -417,11 +443,11 @@ export default function AdminUsers() {
               </Tooltip>
             )}
 
-            <MotivoDesabilitado motivo={canManageAccounts ? (ativo ? "Desativar o acesso" : "Reativar o acesso") : SO_ADMIN} desabilitado={!canManageAccounts} side="left">
+            <MotivoDesabilitado motivo={motivoConta(ativo ? "Desativar o acesso" : "Reativar o acesso", "Você não pode desativar a própria conta.")} desabilitado={!podeNaConta} side="left">
               <button
                 type="button"
                 onClick={() => handleToggleActive(u)}
-                disabled={toggleActiveMutation.isPending || !canManageAccounts}
+                disabled={toggleActiveMutation.isPending || !podeNaConta}
                 aria-label={ativo ? `Desativar usuário ${nome}` : `Reativar usuário ${nome}`}
                 className={ativo
                   ? cn(ICONE, "hover:text-danger hover:bg-danger-soft")
