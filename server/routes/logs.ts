@@ -25,7 +25,9 @@ export function registrarLogs(app: Express): void {
         filters.action = action as string;
       }
       if (days) {
-        filters.days = parseInt(days as string, 10);
+        // Inteiro de 1 a 10 anos; lixo vira "sem corte" em vez de NaN no SQL.
+        const d = parseInt(days as string, 10);
+        if (Number.isFinite(d) && d > 0) filters.days = Math.min(d, 3650);
       }
       if (search) {
         filters.search = search as string;
@@ -36,8 +38,9 @@ export function registrarLogs(app: Express): void {
 
       // Página resolvida no banco (auditoria 28/08): a rota devolvia 50 linhas
       // mas baixava o log inteiro do Neon a cada visita ao Histórico.
-      const pageNum = parseInt(page as string, 10);
-      const limitNum = parseInt(limit as string, 10);
+      // Validados (08/10): página ≥ 1 e no máximo 200 linhas por vez.
+      const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+      const limitNum = Math.min(200, Math.max(1, parseInt(limit as string, 10) || 50));
       const { logs: paginatedLogs, total } = await storage.getSystemLogs({
         ...filters,
         limit: limitNum,

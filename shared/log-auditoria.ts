@@ -42,6 +42,17 @@ export const MODULOS: Record<string, Modulo> = {
   baggage_history: { rotulo: "Controle de bagagem", substantivo: "registro de bagagem", artigo: "o" },
   baggage_request: { rotulo: "Pedidos de bagagem", substantivo: "pedido de bagagem", artigo: "o" },
   system_settings: { rotulo: "Configurações", substantivo: "configurações do sistema", artigo: "as" },
+  // 08/10: tipos gravados pelo servidor que apareciam como "Outro registro".
+  aviso_de_alteracao: { rotulo: "Avisos de alteração", substantivo: "aviso de alteração", artigo: "o" },
+  invoice: { rotulo: "Notas fiscais", substantivo: "nota fiscal", artigo: "a" },
+  function_manager: { rotulo: "Responsáveis por função", substantivo: "responsável de função", artigo: "o" },
+  function_value: { rotulo: "Valores por função", substantivo: "valor da função", artigo: "o" },
+  hotel_room_group: { rotulo: "Quartos (Espelho)", substantivo: "quarto", artigo: "o" },
+  hotel_room_group_member: { rotulo: "Hóspedes do quarto", substantivo: "hóspede do quarto", artigo: "o" },
+  logistics_extra_cost: { rotulo: "Custos extras de logística", substantivo: "custo extra de logística", artigo: "o" },
+  operational_mirror: { rotulo: "Espelho operacional", substantivo: "espelho operacional", artigo: "o" },
+  payment_company: { rotulo: "Empresas pagadoras", substantivo: "empresa pagadora", artigo: "a" },
+  uber_group: { rotulo: "Grupos de Uber", substantivo: "grupo de Uber", artigo: "o" },
 };
 
 /** Tipo que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -82,7 +93,13 @@ export const ACOES: Record<string, Acao> = {
   deactivate: { rotulo: "Desativação", verbo: "desativou", tom: "excluir" },
   emitir: { rotulo: "Passagem emitida", verbo: "marcou como emitida", tom: "aprovar" },
   reactivate: { rotulo: "Reativação", verbo: "reativou", tom: "aprovar" },
-  suggestion_rejected: { rotulo: "Sugestão negada", verbo: "negou", tom: "recusar" },
+  suggestion_rejected: { rotulo: "Sugestão recusada", verbo: "negou", tom: "recusar" },
+  // 08/10: ações gravadas pelo servidor que apareciam como "Outra ação".
+  cancel: { rotulo: "Cancelamento", verbo: "cancelou", tom: "excluir" },
+  return: { rotulo: "Devolução", verbo: "devolveu", tom: "recusar" },
+  resolver: { rotulo: "Aviso resolvido", verbo: "resolveu", tom: "aprovar" },
+  inactivate: { rotulo: "Inativação", verbo: "inativou", tom: "excluir" },
+  checkin: { rotulo: "Check-in", verbo: "fez o check-in d", tom: "aprovar" },
   suggestion_bypass_approve: { rotulo: "Aprovada sem validação da área", verbo: "aprovou direto (sem validação da área)", tom: "aprovar" },
   // Ações do histórico da vaga (team_inclusion_logs) — mesmos nomes, se aparecerem aqui.
   created: { rotulo: "Criação", verbo: "criou", tom: "criar" },
@@ -124,6 +141,9 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   eventNumber: "Nº do evento", paymentCompanyName: "Empresa pagadora", paymentCompanyCnpj: "CNPJ da pagadora",
   // vaga
   functionId: "Função", collaboratorId: "Colaborador", area: "Área", city: "Sai de",
+  // função (08/10: apareciam como "Outro campo")
+  quantity: "Quantidade", functionNumber: "Nº da função", costCenter: "Centro de custo",
+  description: "Descrição", responsibleArea: "Área responsável",
   // endereço do colaborador (22/09)
   addressStreet: "Rua", addressNumber: "Número", addressComplement: "Complemento", addressZip: "CEP",
   inclusionNumber: "Nº da vaga", scheduleStartDate: "Início da escala", scheduleEndDate: "Fim da escala",
