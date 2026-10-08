@@ -1276,3 +1276,148 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
 /* O número da quantidade tem − / + próprios: as setas nativas do navegador ficavam duplicadas. */
 .bag-numero::-webkit-outer-spin-button, .bag-numero::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .bag-numero { -moz-appearance: textfield; appearance: textfield; }
+
+/* ══ Planejado (pla-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
+ * pas-sobe, pas-alvo, pas-cabecalho, pas-rolagem-x, FilaDeTrabalho, barra de
+ * filtros comum). Aqui só o que é dela: as divisórias do painel de resumo, o
+ * card-extrato, a planilha (linhas, campos, totais grudados) e o modo cartão
+ * da planilha na largura estreita. Tudo rápido e desligado com reduced-motion. */
+
+/* Resumo: divisórias finas entre as métricas (2 × 2 no celular, uma fileira no desktop). */
+.pla-resumo .pla-metrica { border-top: 1px solid var(--border); }
+.pla-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
+@media (min-width: 768px) {
+  .pla-resumo .pla-metrica { border-top: 0; border-left: 1px solid var(--border); }
+}
+.pla-progresso { transition: width 600ms cubic-bezier(.2, 0, 0, 1); }
+/* Etapa atual: um anel que pulsa duas vezes ao chegar, depois fica quieto. */
+@keyframes pla-etapa { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 40%, transparent); } 100% { box-shadow: 0 0 0 6px transparent; } }
+.pla-etapa-atual { animation: pla-etapa 1.4s ease-out 2; }
+
+/* Card-extrato: o card mede a própria largura para reorganizar os lançamentos. */
+.pla-card { container-type: inline-size; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.pla-card:hover { box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+.pla-card-sel { box-shadow: 0 0 0 1px var(--primary); background-color: color-mix(in srgb, var(--brand-soft) 35%, var(--card)); }
+.pla-card-ausente:hover { box-shadow: none; }
+@keyframes pla-destaque { 0%, 60% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent); } 100% { box-shadow: 0 0 0 1px var(--primary); } }
+.pla-destaque { animation: pla-destaque 2.4s ease-out both; }
+
+/* Lançamento: rótulo · conta miúda · valor — com a conta descendo no card estreito. */
+.pla-lancamento {
+  display: grid;
+  grid-template-columns: 6.75rem minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+}
+.pla-lancamento + .pla-lancamento { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.pla-lancamento-valor { grid-column: 3; grid-row: 1; }
+@container (max-width: 380px) {
+  .pla-lancamento { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+  .pla-lancamento-rotulo { grid-column: 1; grid-row: 1; }
+  .pla-lancamento-valor { grid-column: 2; grid-row: 1; }
+  .pla-lancamento-conta { grid-column: 1 / -1; grid-row: 2; padding-left: 12px; }
+}
+
+/* ── Planilha ─────────────────────────────────────────────────────────────── */
+/* Seletores com ">" de propósito: a memória de cálculo é uma tabela DENTRO da célula. */
+.pla-planilha tbody > tr > td { border-bottom: 1px solid var(--border); }
+.pla-linha { transition: background-color 120ms ease; }
+.pla-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 45%, var(--card)); }
+/* Linha sob o mouse: os campos editáveis ganham borda e fundo branco — onde se digita fica óbvio. */
+.pla-linha:hover .pla-campo:not(:disabled):not(:focus) { background-color: var(--card); border-color: var(--border); }
+.pla-linha-nova > td { border-top: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); }
+.pla-linha-ajustada > td:first-child { box-shadow: inset 2px 0 0 var(--warning-strong); }
+.pla-linha-sel, .pla-linha-sel:hover { background-color: color-mix(in srgb, var(--brand-soft) 55%, var(--card)); }
+.pla-linha-sel > td:first-child { box-shadow: inset 2px 0 0 var(--primary); }
+.pla-linha-enviada { background-color: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
+.pla-linha-ausente > td { opacity: .55; }
+/* Campo salvo à mão: o ✱ entra com um "pop" curto. */
+@keyframes pla-pop { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.pla-editado { animation: pla-pop 160ms ease-out both; }
+
+/* Totais do recorte: grudados no rodapé da janela enquanto a tabela rola;
+   sobem quando a barra de seleção aparece (ela ocupa o rodapé). */
+.pla-totais > tr > td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--brand-soft) 60%, var(--card));
+  box-shadow: inset 0 1px 0 var(--border);
+}
+.pla-totais-alto > tr > td { bottom: 4.25rem; }
+.pla-totais > tr > td:first-child { border-bottom-left-radius: 11px; }
+.pla-totais > tr > td:last-child { border-bottom-right-radius: 11px; }
+
+/* ── Planilha em cartão (largura útil estreita) ──────────────────────────────
+ *   [☐ colaborador · função · situação ........ subtotal]
+ *   [   dias | diária          | mobilidade             ]
+ *   [   alimentação: útil · FDS                         ]                     */
+.pla-cartao > div > table > thead { display: none; }
+/* Só a tabela da planilha (a memória de cálculo é outra tabela, dentro da célula). */
+.pla-cartao > div > table, .pla-cartao > div > table > tbody, .pla-cartao > div > table > tfoot { display: block; width: 100%; }
+.pla-cartao > div > table > tbody > tr.pla-linha {
+  display: grid;
+  grid-template-columns: 2.25rem 4rem minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "sel colab colab subtotal" ". dias diaria mob" ". alim alim alim";
+  column-gap: 8px;
+  row-gap: 6px;
+  padding: 10px 12px 12px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.pla-cartao > div > table > tbody > tr > td { display: block; padding: 0 !important; border: 0; min-width: 0; }
+.pla-cartao td[data-col="sel"] { grid-area: sel; padding-top: 2px !important; }
+.pla-cartao td[data-col="colab"] { grid-area: colab; }
+.pla-cartao td[data-col="subtotal"] { grid-area: subtotal; justify-self: end; }
+.pla-cartao td[data-col="dias"] { grid-area: dias; text-align: left !important; }
+.pla-cartao td[data-col="diaria"] { grid-area: diaria; }
+.pla-cartao td[data-col="mob"] { grid-area: mob; }
+.pla-cartao td[data-col="alim"] { grid-area: alim; }
+.pla-cartao td[data-rotulo]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.pla-cartao .pla-dias { justify-content: flex-start; padding-left: 0; }
+.pla-cartao td[data-col="diaria"]::before, .pla-cartao td[data-col="mob"]::before { text-align: right; }
+.pla-cartao td[data-col="colab"] .truncate { white-space: normal; }
+.pla-cartao .pla-alim { flex-direction: row; gap: 8px; }
+.pla-cartao .pla-alim > div { flex: 1 1 0; min-width: 0; }
+.pla-cartao .pla-alim > div:last-child:not(:nth-child(2)) { flex: 0 0 100%; }
+.pla-cartao .pla-alim { flex-wrap: wrap; }
+.pla-cartao .pla-vaga-acao { display: none; }
+.pla-cartao .pla-campo { max-width: 8.5rem; }
+.pla-cartao .pla-linha-ajustada > td:first-child,
+.pla-cartao .pla-linha-sel > td:first-child { box-shadow: none; }
+.pla-cartao tr.pla-linha-ajustada { box-shadow: inset 2px 0 0 var(--warning-strong); }
+.pla-cartao tr.pla-linha-sel { box-shadow: inset 2px 0 0 var(--primary); }
+.pla-cartao .pla-memoria { right: 0; }
+/* Totais no cartão: o total grande à direita; as colunas numa fileira rotulada. */
+.pla-cartao > div > table > tfoot > tr {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-areas: "colab colab subtotal subtotal" "dias diaria alim mob";
+  gap: 4px 8px;
+  padding: 10px 12px;
+}
+.pla-cartao > div > table > tfoot > tr > td { display: block; padding: 0 !important; text-align: left !important; position: static; box-shadow: none; background: transparent; border-radius: 0 !important; }
+.pla-cartao > div > table > tfoot { background: color-mix(in srgb, var(--brand-soft) 60%, var(--card)); border-radius: 0 0 11px 11px; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="sel"] { display: none; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="colab"] { grid-area: colab; align-self: center; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="subtotal"] { grid-area: subtotal; text-align: right !important; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="dias"] { grid-area: dias; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="diaria"] { grid-area: diaria; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="alim"] { grid-area: alim; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="mob"] { grid-area: mob; }
+.pla-cartao > div > table > tfoot > tr > td[data-rotulo]::before { margin-bottom: 0; font-size: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pla-progresso, .pla-card, .pla-linha { transition: none; }
+  .pla-etapa-atual, .pla-destaque, .pla-editado { animation: none; }
+}

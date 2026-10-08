@@ -98,7 +98,17 @@ function fmtEventDate(start?: string, end?: string) {
  * item ativo é anunciado por `aria-activedescendant`, o foco volta ao botão
  * que abriu e as cores são tokens do tema.
  */
-export function EventSearchSelect({ value, onValueChange, events, className }: EventSelectProps) {
+export function EventSearchSelect({ value, onValueChange, events, className, variante = "campo", detalhe }: EventSelectProps & {
+  /**
+   * `campo` (padrão): a caixa de 44px de sempre. `barra` (08/10, Planejado):
+   * o nome do evento É o gatilho, sem moldura, com uma linha miúda embaixo
+   * (`detalhe`) — o mesmo desenho do seletor do Espelho, para caber nos 56px
+   * da barra de contexto. A paleta e o teclado são os mesmos.
+   */
+  variante?: "campo" | "barra";
+  /** Segunda linha do gatilho na variante `barra` (datas · vagas…). */
+  detalhe?: string;
+}) {
   const sorted = useSortedEvents(events);
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -308,6 +318,49 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
     </div>,
     document.body
   );
+
+  if (variante === "barra") {
+    return (
+      <div className={cn("relative flex min-w-0 max-w-full items-center gap-0.5", className)}>
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={handleOpen}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+          aria-label={selectedEvent ? `Evento: ${selectedEvent.name}. Trocar evento` : "Selecionar evento"}
+          title={selectedEvent ? [selectedEvent.name, detalhe].filter(Boolean).join(" — ") : undefined}
+          className={cn(
+            "group flex h-[42px] min-w-0 max-w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors hover:bg-muted",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-[320px] min-[1340px]:max-w-[380px] 2xl:max-w-[480px]",
+            isOpen && "bg-muted",
+          )}
+        >
+          <span className="min-w-0 flex-1">
+            <span className={cn("block truncate text-sm font-semibold leading-5", selectedEvent ? "text-foreground" : "text-muted-foreground")}>
+              {selectedEvent ? selectedEvent.name : "Selecionar evento"}
+            </span>
+            {detalhe && selectedEvent && (
+              <span className="block truncate text-2xs leading-4 tabular-nums text-muted-foreground">{detalhe}</span>
+            )}
+          </span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none", isOpen && "rotate-180")} aria-hidden="true" />
+        </button>
+        {selectedEvent && (
+          <button
+            type="button"
+            onClick={handleClear}
+            aria-label="Limpar evento selecionado"
+            title="Limpar evento"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        )}
+        {palette}
+      </div>
+    );
+  }
 
   return (
     // Largura (25/09): no celular ocupa a linha (`w-full`); a partir de `sm`

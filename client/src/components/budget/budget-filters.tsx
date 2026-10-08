@@ -1,89 +1,176 @@
 /**
- * Barra de filtros da Visão Geral do Planejado — 25/09 (modularização).
- * Selecionar todos, busca por nome, função, tipo (Casa/Freela), ordenação e
- * contador de resultados. Só apresentação: o estado vem de `useBudgetFilters`.
+ * Filtros do Planejado — 25/09 (modularização); redesenho 08/10.
+ *
+ * Antes: um checkbox solto, uma busca "sublinhada" de 180px e três `Select`
+ * com fundo cinza, só na Visão geral — na Planilha os mesmos filtros
+ * continuavam valendo, mas invisíveis (a lista encolhia sem dizer por quê).
+ *
+ * Agora a MESMA anatomia das listas da Logística (common/barra-de-filtros):
+ * a troca Visão geral × Planilha, a busca, a função à vista; tipo e ordem em
+ * "Filtros"; o que está ligado vira etiqueta removível com "Limpar filtros".
+ * Vale para as duas vistas. Acima dela, a fila de situações (pendentes, com
+ * ajuste, enviados, não participou) conta E recorta, como em Hospedagem.
+ *
+ * Só apresentação: o estado vem de `useBudgetFilters`.
  */
-import { Search } from "lucide-react";
+import { CircleSlash, Clock, LayoutGrid, PencilLine, Send, Table2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { FiltrosDoPlanejado } from "@/hooks/use-budget-filters";
+import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros, type ListaCurta } from "@/components/common/barra-de-filtros";
+import { FiltroUnico } from "@/components/common/filter-popover";
+import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
+import type { FiltrosDoPlanejado, SituacaoDoPlanejado } from "@/hooks/use-budget-filters";
+import { formatCurrency } from "./types";
 
-const ITEM_CLS = "rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-brand-soft data-[highlighted]:text-primary data-[highlighted]:border-l-primary focus:bg-brand-soft focus:text-primary-hover";
+export type VistaDoPlanejado = "overview" | "sheet";
+
+const LISTA_TIPO: ListaCurta = {
+  chave: "tipo", titulo: "Tipo de colaborador", etiqueta: "Tipo", testid: "filtro-tipo",
+  opcoes: [{ id: "all", nome: "Todos" }, { id: "casa", nome: "Casa" }, { id: "freela", nome: "Freela" }],
+};
+const LISTA_ORDEM: ListaCurta = {
+  chave: "ordem", titulo: "Ordenar por", etiqueta: "Ordem", testid: "filtro-ordem",
+  opcoes: [
+    { id: "name_asc", nome: "Nome A–Z" },
+    { id: "name_desc", nome: "Nome Z–A" },
+    { id: "days_desc", nome: "Mais dias" },
+    { id: "days_asc", nome: "Menos dias" },
+    { id: "function", nome: "Por função" },
+  ],
+};
 
 export interface BudgetFiltersProps {
   filtros: FiltrosDoPlanejado;
+  vista: VistaDoPlanejado;
+  onVista: (v: VistaDoPlanejado) => void;
+  /** Vagas do evento antes do filtro — o contador vira "N de M". */
+  total: number;
 }
 
-export function BudgetFilters({ filtros: f }: BudgetFiltersProps) {
+/** Visão geral × Planilha: as duas vistas da mesma lista. */
+function TrocaDeVista({ vista, onVista }: Pick<BudgetFiltersProps, "vista" | "onVista">) {
+  const opcoes = [
+    { id: "overview" as const, rotulo: "Visão geral", curto: "Cartões", Icone: LayoutGrid },
+    { id: "sheet" as const, rotulo: "Planilha de edição", curto: "Planilha", Icone: Table2 },
+  ];
   return (
-    <div className="flex flex-wrap items-center gap-3 px-0">
-      {f.selectableFiltered.length > 0 && (
-        <Checkbox
-          checked={f.selectableFiltered.every(b => f.selectedIds.has(b.inclusion.id))}
-          onCheckedChange={(checked) => checked ? f.selectAllCards() : f.clearSelection()}
-          className="shrink-0"
-          aria-label="Selecionar todos os colaboradores pendentes visíveis"
-        />
-      )}
+    <div role="tablist" aria-label="Modo de exibição" className="pla-vista inline-flex shrink-0 h-[34px] p-0.5 rounded-lg bg-muted max-sm:w-full">
+      {opcoes.map(({ id, rotulo, curto, Icone }) => {
+        const on = vista === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            aria-label={rotulo}
+            onClick={() => onVista(id)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 h-full px-3 rounded-md text-sm font-medium transition-colors max-sm:flex-1",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              on ? "bg-card text-foreground shadow-1" : "text-muted-foreground hover:text-foreground",
+            )}
+            data-testid={`vista-${id}`}
+          >
+            <Icone className={cn("w-4 h-4 shrink-0", on ? "text-primary" : "")} aria-hidden="true" />
+            <span className="hidden lg:inline">{rotulo}</span>
+            <span className="lg:hidden">{curto}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" aria-hidden="true" />
-        <input
-          type="text"
-          placeholder="Buscar por nome…"
-          aria-label="Buscar colaborador por nome"
-          value={f.searchTerm}
-          onChange={(e) => f.setSearchTerm(e.target.value)}
-          className={cn("pl-7 pr-3 bg-surface-muted border-0 border-b-[1.5px] rounded-t-md text-xs text-slate-700 outline-none transition-colors focus:border-b-primary", f.searchTerm ? "border-b-primary" : "border-b-border")} style={{
-            height: 34,
-            width: 180,
-          }}
+export function BudgetFilters({ filtros: f, vista, onVista, total }: BudgetFiltersProps) {
+  const tipoLigado = f.filterType !== "all";
+  const n = f.filteredBudgets.length;
+  const contagem = f.algumFiltro
+    ? `${n} de ${total} ${total === 1 ? "colaborador" : "colaboradores"}`
+    : `${n} ${n === 1 ? "colaborador" : "colaboradores"}`;
+
+  return (
+    <div className="space-y-2" role="search" aria-label="Filtros do planejado">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.5">
+        <TrocaDeVista vista={vista} onVista={onVista} />
+        <span aria-hidden="true" className="hidden sm:block w-px h-5 mx-1 bg-border shrink-0" />
+        <BuscaDaLista
+          valor={f.searchTerm}
+          onChange={f.setSearchTerm}
+          placeholder="Buscar colaborador"
+          rotulo="Buscar colaborador por nome"
+          testid="busca-planejado"
         />
+        {/* Celular: a fileira rola de lado em vez de empilhar os controles. */}
+        <div className="pas-rolagem-x -mx-[var(--page-gutter)] flex items-center gap-1.5 px-[var(--page-gutter)] sm:contents">
+          <div className="shrink-0 max-w-[220px]">
+            <FiltroUnico
+              valor={f.filterFunction}
+              onChange={f.setFilterFunction}
+              opcoes={f.opcoesDeFuncao}
+              rotuloTodos="Todas as funções"
+              placeholderBusca="Buscar função…"
+              testid="filtro-funcao"
+            />
+          </div>
+          <MaisFiltros
+            listas={[LISTA_TIPO, LISTA_ORDEM]}
+            valorDe={(chave) => (chave === "tipo" ? f.filterType : f.sortBy)}
+            onEscolher={(chave, id) => (chave === "tipo" ? f.setFilterType(id) : f.setSortBy(id))}
+            // A ordem não é filtro: não conta no número do botão.
+            contagem={tipoLigado ? 1 : 0}
+            mostrarPadrao={tipoLigado || f.sortBy !== "name_asc"}
+            onPadrao={() => { f.setFilterType("all"); f.setSortBy("name_asc"); }}
+            testid="filtros-planejado"
+          />
+        </div>
+        <span className="hidden sm:inline ml-auto pl-2 text-xs text-muted-foreground tabular-nums whitespace-nowrap" aria-live="polite" data-testid="contagem-planejado">
+          {contagem}
+        </span>
       </div>
 
-      <Select value={f.filterFunction} onValueChange={f.setFilterFunction}>
-        <SelectTrigger className="w-auto min-w-[140px] h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0 focus:border-b-primary">
-          <SelectValue placeholder="Função" />
-        </SelectTrigger>
-        <SelectContent className="rounded-xl shadow-3 border border-border min-w-[180px] p-1.5 backdrop-blur-md bg-card/96">
-          <SelectItem value="all" className={ITEM_CLS}>Todas as funções</SelectItem>
-          {f.uniqueFunctions.map(fn => (
-            <SelectItem key={fn} value={fn} className={ITEM_CLS}>{fn}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select value={f.filterType} onValueChange={f.setFilterType}>
-        <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
-          <SelectValue placeholder="Tipo" />
-        </SelectTrigger>
-        <SelectContent className="rounded-xl shadow-3 border border-border min-w-[140px] p-1.5 backdrop-blur-md bg-card/96">
-          <SelectItem value="all" className={ITEM_CLS}>Todos</SelectItem>
-          <SelectItem value="casa" className={ITEM_CLS}>Casa</SelectItem>
-          <SelectItem value="freela" className={ITEM_CLS}>Freela</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select value={f.sortBy} onValueChange={f.setSortBy}>
-        <SelectTrigger className="w-auto min-w-[120px] h-[34px] text-xs shrink-0 bg-surface-muted border-0 border-b border-border rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
-          <SelectValue placeholder="Ordenar" />
-        </SelectTrigger>
-        <SelectContent className="rounded-xl shadow-3 border border-border min-w-[160px] p-1.5 backdrop-blur-md bg-card/96">
-          <SelectItem value="name_asc" className={ITEM_CLS}>Nome A-Z</SelectItem>
-          <SelectItem value="name_desc" className={ITEM_CLS}>Nome Z-A</SelectItem>
-          <SelectItem value="days_desc" className={ITEM_CLS}>Mais dias</SelectItem>
-          <SelectItem value="days_asc" className={ITEM_CLS}>Menos dias</SelectItem>
-          <SelectItem value="function" className={ITEM_CLS}>Por função</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <div className="flex-1" />
-      <span className="text-2xs text-muted-foreground font-semibold bg-surface-muted rounded-lg py-1 px-2.5" aria-live="polite">
-        {f.filteredBudgets.length} resultado{f.filteredBudgets.length !== 1 ? "s" : ""}
-      </span>
+      {f.algumFiltro && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {tipoLigado && (
+            <EtiquetaDeFiltro
+              etiqueta="Tipo"
+              valor={LISTA_TIPO.opcoes.find((o) => o.id === f.filterType)?.nome}
+              titulo="Tipo de colaborador"
+              onTirar={() => f.setFilterType("all")}
+            />
+          )}
+          <LimparFiltros onClick={f.limparFiltros} testid="limpar-filtros-planejado" />
+          <span className="sm:hidden ml-auto text-xs text-muted-foreground tabular-nums" aria-live="polite">{contagem}</span>
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * Fila de situações: cada bloco conta E recorta (reclicar desliga). Os
+ * números respeitam a busca, a função e o tipo de agora.
+ */
+export function FilaDoPlanejado({ filtros: f }: { filtros: FiltrosDoPlanejado }) {
+  const c = f.contagemPorSituacao;
+  const v = f.valorPorSituacao;
+  const blocos: BlocoDaFilaDeTrabalho<Exclude<SituacaoDoPlanejado, "todas">>[] = [
+    { key: "pendentes", rotulo: "A enviar", n: c.pendentes, sub: c.pendentes ? formatCurrency(v.pendentes) : "nada pendente", icone: Clock, cor: "text-warning",
+      titulo: "Colaboradores que ainda não foram enviados ao Realizado" },
+    { key: "ajustadas", rotulo: "Com ajuste manual", n: c.ajustadas, sub: c.ajustadas === 1 ? "valor editado" : "valores editados", icone: PencilLine, cor: "text-primary",
+      titulo: "Pendentes com algum valor editado à mão (diária, alimentação ou mobilidade)" },
+    { key: "enviadas", rotulo: "Enviados", n: c.enviadas, sub: c.enviadas ? formatCurrency(v.enviadas) : "nenhum ainda", icone: Send, cor: "text-success",
+      titulo: "Já estão na prestação de contas (Realizado)" },
+    { key: "ausentes", rotulo: "Não participou", n: c.ausentes, sub: "fora dos totais", icone: CircleSlash, cor: "text-muted-foreground",
+      titulo: "Marcados como não participou: não entram no total nem no envio" },
+  ];
+  return (
+    <FilaDeTrabalho
+      blocos={blocos}
+      ativa={f.situacao === "todas" ? null : f.situacao}
+      onEscolher={(k) => f.setSituacao(k ?? "todas")}
+      rotulo="Situação dos colaboradores"
+      testid={(k) => `fila-${k}`}
+    />
   );
 }
 

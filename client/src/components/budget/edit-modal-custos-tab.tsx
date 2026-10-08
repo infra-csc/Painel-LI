@@ -4,8 +4,12 @@
  * Três blocos (Diárias, Mobilidade, Alimentação) extraídos de
  * budget-planned.tsx. Recebem os valores derivados já calculados pela casca
  * (`BudgetEditModal`) e alteram o `editingBudget` pelo controlador do hook.
+ *
+ * 08/10: blocos brancos com o cabeçalho da família (ícone na cor do bloco e
+ * o total à direita) no lugar das faixas coloridas; campos com borda e anel
+ * de foco; os tipos (atendimento, percurseiro) como segmentos. Mesmos campos.
  */
-import { Briefcase, Calendar, Car, ChevronDown, Utensils, Sun } from "lucide-react";
+import { Briefcase, Calendar, Car, ChevronDown, Utensils, Sun, Undo2, type LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/common/currency-input";
 import { parseBrNumber } from "@/lib/utils";
@@ -15,7 +19,8 @@ import { CENO_FREELA_TIPO_LABELS, type CenoEmpreitaValor } from "@shared/cenotec
 import type { ControladorDoModalDeEdicao } from "@/hooks/use-budget-edit-modal";
 import { formatCurrency, formatSegmentsMemo, type BudgetEdit, type EditingBudgetInfo } from "./types";
 
-const inputCls = "h-9 text-sm w-[88px] text-right font-semibold border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg bg-card";
+// 08/10: o campo da família — borda visível, anel de foco, número tabular; travado fica cinza.
+const inputCls = "h-9 w-[104px] px-2.5 text-sm text-right font-semibold tabular-nums rounded-lg border border-border bg-card outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-[3px] focus:ring-primary/12 focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100";
 
 export interface CustosTabProps {
   ctrl: ControladorDoModalDeEdicao;
@@ -36,29 +41,35 @@ export interface CustosTabProps {
   effectiveJantarFds: number;
 }
 
+/** Cabeçalho dos três blocos: ícone na cor do bloco, nome e o total à direita (08/10). */
+function CabecalhoDoBloco({ icone: Icone, cor, titulo, sub, total }: { icone: LucideIcon; cor: string; titulo: string; sub?: string; total: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border">
+      <h3 className="m-0 flex items-center gap-2 text-2xs font-semibold uppercase tracking-[0.06em] text-slate-600">
+        <Icone className={`w-3.5 h-3.5 ${cor}`} aria-hidden="true" />
+        {titulo}
+        {sub && <span className="normal-case tracking-normal font-normal text-muted-foreground">{sub}</span>}
+      </h3>
+      <span className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(total)}</span>
+    </div>
+  );
+}
+
 /** BLOCO: Diárias (tipo de atendimento, percurseiro, empreita, diária plana + deflação). */
 function DiariasBlock(p: CustosTabProps) {
   const { ctrl, editingBudget, info, totalDiarias, deflatedSegments, empreitaModal, empreitaEditadaModal, diasDiariaModal } = p;
   const { systemSettings, savingTipo, modalViewMode, pendingAtendimentoTipo, pendingPercurseiroTipo, setEditingBudget } = ctrl;
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-1">
-      <div className="flex items-center justify-between px-3.5 py-2 bg-brand-soft border-b border-primary/25">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-md bg-primary flex items-center justify-center">
-            <Calendar className="w-2.5 h-2.5 text-white" aria-hidden="true" />
-          </div>
-          <span className="text-2xs font-bold text-primary uppercase tracking-wider">Diárias</span>
-        </div>
-        <span className="text-sm font-bold text-primary">{formatCurrency(totalDiarias)}</span>
-      </div>
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
+      <CabecalhoDoBloco icone={Calendar} cor="text-primary" titulo="Diárias" total={totalDiarias} />
 
       {/* Atendimento: escolha da tarifa (Key Account × Exec. de Contas).
           Necessário aqui porque escalações antigas viraram Planejado
           antes do flag existir. */}
       {info.isAtend && (
-        <div className="flex items-center gap-2 flex-wrap px-3.5 py-2 bg-brand-soft/40 border-b border-primary/25">
+        <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-surface-muted/70 border-b border-border">
           <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Tipo de atendimento</span>
-          <div className="flex rounded-lg border border-primary/25 overflow-hidden">
+          <div className="flex rounded-lg border border-border bg-card p-0.5 gap-0.5">
             {ATENDIMENTO_TIPOS.map(op => {
               const ativo = info.atendimentoTipo === op.value;
               const valor = atendimentoDailyCents(op.value, systemSettings);
@@ -71,8 +82,8 @@ function DiariasBlock(p: CustosTabProps) {
                   onClick={() => {
                     if (!ativo && info.inclusionId) ctrl.chooseLocalAtendimentoTipo(op.value);
                   }}
-                  className={`px-2.5 py-1 text-2xs font-semibold transition-colors disabled:opacity-50 ${
-                    ativo ? "bg-primary text-primary-foreground" : "bg-card text-slate-600 hover:bg-brand-soft"
+                  className={`h-7 px-2.5 rounded-md text-xs font-medium tabular-nums transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    ativo ? "bg-primary text-primary-foreground" : "text-slate-700 hover:bg-muted"
                   }`}
                 >
                   {op.label}{valor != null ? ` · ${formatCurrency(valor)}` : ""}
@@ -91,9 +102,9 @@ function DiariasBlock(p: CustosTabProps) {
 
       {/* Percurso (motoqueiro): pacote fechado Tipo 1 × Tipo 2 */}
       {info.isPercurso && (
-        <div className="flex items-center gap-2 flex-wrap px-3.5 py-2 bg-brand-soft/40 border-b border-primary/25">
+        <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-surface-muted/70 border-b border-border">
           <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Tipo do percurseiro</span>
-          <div className="flex rounded-lg border border-primary/25 overflow-hidden">
+          <div className="flex rounded-lg border border-border bg-card p-0.5 gap-0.5">
             {PERCURSEIRO_TIPOS.map(op => {
               const ativo = info.percurseiroTipo === op.value;
               const valor = percurseiroDiariaCents(op.value, systemSettings)?.total;
@@ -106,8 +117,8 @@ function DiariasBlock(p: CustosTabProps) {
                   onClick={() => {
                     if (!ativo && info.inclusionId) ctrl.chooseLocalPercurseiroTipo(op.value);
                   }}
-                  className={`px-2.5 py-1 text-2xs font-semibold transition-colors disabled:opacity-50 ${
-                    ativo ? "bg-primary text-primary-foreground" : "bg-card text-slate-600 hover:bg-brand-soft"
+                  className={`h-7 px-2.5 rounded-md text-xs font-medium tabular-nums transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    ativo ? "bg-primary text-primary-foreground" : "text-slate-700 hover:bg-muted"
                   }`}
                 >
                   {op.label}{valor != null ? ` · ${formatCurrency(valor)}/diária` : ""}
@@ -131,7 +142,7 @@ function DiariasBlock(p: CustosTabProps) {
       {/* Cenotécnica EMPREITA: valor FECHADO por nº de dias.
           A modalidade é escolhida na ESCALAÇÃO — aqui é só leitura. */}
       {info.cenoEmpreitaVaga && (
-        <div className="flex items-center gap-2 flex-wrap px-3.5 py-2 bg-warning-soft/40 border-b border-warning/25">
+        <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-warning-soft/50 border-b border-warning/20">
           <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Empreita cenotécnica</span>
           {info.cenoFreelaTipo ? (
             <span
@@ -160,8 +171,8 @@ function DiariasBlock(p: CustosTabProps) {
       )}
       <div className="divide-y divide-border">
         {/* Diária PLANA — um único valor para todos os dias */}
-        <div className="flex items-center px-3.5 py-2 gap-3">
-          <div className="flex items-center gap-1.5 flex-1">
+        <div className="flex flex-wrap items-center px-4 py-2.5 gap-x-3 gap-y-2">
+          <div className="flex items-center gap-1.5 flex-1 flex-wrap max-sm:basis-full">
             <Briefcase className="w-3 h-3 text-muted-foreground shrink-0" aria-hidden="true" />
             <span className="text-xs font-medium text-slate-700">{empreitaModal ? "Diárias (empreita)" : "Diária"}</span>
             <span className="text-2xs text-muted-foreground">
@@ -195,11 +206,11 @@ function DiariasBlock(p: CustosTabProps) {
             />
             <span className="text-2xs text-muted-foreground">/dia</span>
           </div>
-          <span className="text-sm font-bold text-slate-700 w-20 text-right shrink-0">{formatCurrency(totalDiarias)}</span>
+          <span className="text-sm font-semibold tabular-nums text-foreground w-24 text-right shrink-0 ml-auto">{formatCurrency(totalDiarias)}</span>
         </div>
         {/* Memória da deflação por período */}
         {deflatedSegments.length > 1 && (
-          <div className="px-3.5 py-1.5 text-2xs bg-brand-soft/30 text-primary">
+          <div className="px-4 py-2 text-2xs tabular-nums bg-brand-soft/50 text-primary">
             Deflação por período: {formatSegmentsMemo(deflatedSegments)} = <b>{formatCurrency(totalDiarias)}</b>
           </div>
         )}
@@ -212,25 +223,16 @@ function DiariasBlock(p: CustosTabProps) {
 function MobilidadeBlock({ ctrl, editingBudget, info }: Pick<CustosTabProps, "ctrl" | "editingBudget" | "info">) {
   const { modalViewMode, setEditingBudget } = ctrl;
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-1">
-      <div className="flex items-center justify-between px-3.5 py-2 bg-brand-soft border-b border-primary/25">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-md bg-primary flex items-center justify-center">
-            <Car className="w-2.5 h-2.5 text-white" aria-hidden="true" />
-          </div>
-          <span className="text-2xs font-bold text-primary uppercase tracking-wider">Mobilidade</span>
-          <span className="text-2xs text-primary/70">ida e volta</span>
-        </div>
-        <span className="text-sm font-bold text-primary">{formatCurrency(editingBudget.mobilidadeIda + editingBudget.mobilidadeVolta)}</span>
-      </div>
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
+      <CabecalhoDoBloco icone={Car} cor="text-slate-500" titulo="Mobilidade" sub="ida e volta" total={editingBudget.mobilidadeIda + editingBudget.mobilidadeVolta} />
       {info.funcaoLocal && (
-        <div className="px-3.5 py-1.5 bg-surface-muted border-b border-border text-2xs text-muted-foreground">
+        <div className="px-4 py-2 bg-surface-muted border-b border-border text-2xs text-muted-foreground">
           {FUNCAO_LOCAL_RAZAO}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3 px-3.5 py-2.5">
+      <div className="grid grid-cols-2 gap-4 px-4 py-3">
         <div>
-          <div className="text-2xs text-muted-foreground font-medium mb-1">Ida (R$)</div>
+          <div className="text-xs font-medium text-slate-600 mb-1">Ida (R$)</div>
           <div className="flex items-center gap-1.5">
             <span className="text-2xs text-muted-foreground">R$</span>
             <CurrencyInput
@@ -243,7 +245,7 @@ function MobilidadeBlock({ ctrl, editingBudget, info }: Pick<CustosTabProps, "ct
           </div>
         </div>
         <div>
-          <div className="text-2xs text-muted-foreground font-medium mb-1">Volta (R$)</div>
+          <div className="text-xs font-medium text-slate-600 mb-1">Volta (R$)</div>
           <div className="flex items-center gap-1.5">
             <span className="text-2xs text-muted-foreground">R$</span>
             <CurrencyInput
@@ -267,7 +269,8 @@ function AlimentacaoBlock(p: CustosTabProps) {
 
   // Buffer de digitação por campo: preserva o texto enquanto o usuário
   // digita ("540,50" funciona) e normaliza no blur.
-  const mBuf = (key: string, fallback: number) => modalBufs[key] ?? String(fallback / 100);
+  // Sem buffer, o valor aparece em pt-BR ("12,50"); o parse (parseBrNumber) lê os dois jeitos.
+  const mBuf = (key: string, fallback: number) => modalBufs[key] ?? (fallback / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const mSet = (key: string, raw: string) => setModalBufs(pv => ({ ...pv, [key]: raw }));
   const mClear = (key: string) => () => setModalBufs(pv => { const n = { ...pv }; delete n[key]; return n; });
   const toCents = (raw: string) => Math.round(parseBrNumber(raw) * 100) || 0;
@@ -326,30 +329,22 @@ function AlimentacaoBlock(p: CustosTabProps) {
       aria-label={label}
       title="Restaurar padrão (regra atual)"
       onClick={onClick}
-      className="text-2xs leading-none px-1.5 py-1 -my-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors shrink-0"
-    >↩</button>
+      className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    ><Undo2 className="w-3.5 h-3.5" aria-hidden="true" /></button>
   );
   const modalEditedMark = (
     <span role="img" aria-label="Valor editado manualmente" title="Valor editado manualmente"
-      className="text-2xs font-bold text-muted-foreground shrink-0 select-none">✱</span>
+      className="text-2xs font-bold text-warning shrink-0 select-none">✱</span>
   );
 
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-1">
-      <div className="flex items-center justify-between px-3.5 py-2 bg-warning-soft border-b border-warning/25">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-md bg-warning-strong flex items-center justify-center">
-            <Utensils className="w-2.5 h-2.5 text-white" aria-hidden="true" />
-          </div>
-          <span className="text-2xs font-bold text-warning uppercase tracking-wider">Alimentação</span>
-        </div>
-        <span className="text-sm font-bold text-warning">{formatCurrency(totalAlimentacao)}</span>
-      </div>
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
+      <CabecalhoDoBloco icone={Utensils} cor="text-warning" titulo="Alimentação" total={totalAlimentacao} />
 
       {/* Horários de voo que dirigem o cálculo (passagem manda).
           Função local não tem refeição calculada — a razão aparece no resumo. */}
       {info.funcaoLocal ? null : info.voa ? (
-        <div className="flex items-center gap-2 flex-wrap px-3.5 py-1.5 bg-warning-soft/50 border-b border-warning/25 text-2xs text-muted-foreground">
+        <div className="flex items-center gap-2 flex-wrap px-4 py-2 bg-surface-muted/70 border-b border-border text-2xs text-muted-foreground">
           <span>✈ Chegada (ida): <b className="text-slate-700">{info.vooChegadaIda || "—"}</b></span>
           <span>· Partida (volta): <b className="text-slate-700">{info.vooPartidaVolta || "—"}</b></span>
           {info.fonteVoo === "passagem" ? (
@@ -359,14 +354,14 @@ function AlimentacaoBlock(p: CustosTabProps) {
           )}
         </div>
       ) : (
-        <div className="px-3.5 py-1.5 bg-surface-muted border-b border-border text-2xs text-muted-foreground">
+        <div className="px-4 py-2 bg-surface-muted/70 border-b border-border text-2xs text-muted-foreground">
           Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados.
         </div>
       )}
 
       {/* Resumo SEMPRE À VISTA e editável em R$/dia (útil e fds).
           Os 4 campos por refeição continuam no "Detalhar por refeição". */}
-      <div className="px-3.5 py-2.5 space-y-1.5">
+      <div className="px-4 py-3 space-y-2">
         {info.funcaoLocal && (
           <p className="text-2xs text-muted-foreground">{FUNCAO_LOCAL_RAZAO}</p>
         )}
@@ -378,8 +373,8 @@ function AlimentacaoBlock(p: CustosTabProps) {
           </p>
         )}
         {/* Dias úteis — R$/dia */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-2xs text-muted-foreground flex-1 min-w-0">Dias úteis ({info.weekdays})</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-slate-600 flex-1 min-w-0 max-sm:basis-full">Dias úteis <span className="text-muted-foreground tabular-nums">({info.weekdays})</span></span>
           {alimUtilEditado && modalEditedMark}
           <span className="text-2xs text-muted-foreground">R$</span>
           <Input
@@ -394,13 +389,13 @@ function AlimentacaoBlock(p: CustosTabProps) {
           {alimUtilEditado && !modalViewMode
             ? modalRestoreBtn(restoreAlimUtil, "Restaurar alimentação padrão dos dias úteis")
             : <span className="w-[22px] shrink-0" aria-hidden="true" />}
-          <span className="text-sm font-bold text-slate-700 w-20 text-right shrink-0 tabular-nums">
+          <span className="text-sm font-semibold text-foreground w-24 text-right shrink-0 tabular-nums ml-auto">
             {formatCurrency(effectiveAlmocoSemana + effectiveJantarSemana)}
           </span>
         </div>
         {/* Fim de semana — R$/dia */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-2xs text-muted-foreground flex-1 min-w-0">Fim de semana ({info.weekends})</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-slate-600 flex-1 min-w-0 max-sm:basis-full">Fim de semana <span className="text-muted-foreground tabular-nums">({info.weekends})</span></span>
           {alimFdsEditado && modalEditedMark}
           <span className="text-2xs text-muted-foreground">R$</span>
           <Input
@@ -415,7 +410,7 @@ function AlimentacaoBlock(p: CustosTabProps) {
           {alimFdsEditado && !modalViewMode
             ? modalRestoreBtn(restoreAlimFds, "Restaurar alimentação padrão dos fins de semana")
             : <span className="w-[22px] shrink-0" aria-hidden="true" />}
-          <span className="text-sm font-bold text-slate-700 w-20 text-right shrink-0 tabular-nums">
+          <span className="text-sm font-semibold text-foreground w-24 text-right shrink-0 tabular-nums ml-auto">
             {formatCurrency(effectiveAlmocoFds + effectiveJantarFds)}
           </span>
         </div>
@@ -426,7 +421,7 @@ function AlimentacaoBlock(p: CustosTabProps) {
           type="button"
           onClick={() => setAlimExpanded(v => !v)}
           aria-expanded={alimExpanded}
-          className="w-full flex items-center justify-center gap-1 px-3.5 py-1.5 text-2xs font-semibold text-muted-foreground hover:text-slate-700 hover:bg-surface-muted border-t border-border transition-colors"
+          className="w-full flex items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-slate-600 hover:text-foreground hover:bg-surface-muted border-t border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           {alimExpanded ? "Ocultar detalhe por refeição" : "Detalhar por refeição (almoço e jantar)"}
           <ChevronDown className={`w-3 h-3 transition-transform ${alimExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -435,7 +430,7 @@ function AlimentacaoBlock(p: CustosTabProps) {
 
       {alimExpanded && (<>
       {/* Sub-seção: Dias Úteis */}
-      <div className="px-3.5 pt-2 pb-1.5">
+      <div className="px-4 pt-2.5 pb-2">
         <div className="flex items-center gap-1.5 mb-1.5">
           <Briefcase className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
           <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Dias Úteis ({info.weekdays})</span>
@@ -448,10 +443,10 @@ function AlimentacaoBlock(p: CustosTabProps) {
         </div>
       </div>
 
-      <div className="mx-3.5 border-t border-dashed border-border" />
+      <div className="mx-4 border-t border-dashed border-border" />
 
       {/* Sub-seção: Fins de Semana */}
-      <div className="px-3.5 pt-2 pb-2.5 bg-warning-soft/30">
+      <div className="px-4 pt-2.5 pb-3 bg-warning-soft/30">
         <div className="flex items-center gap-1.5 mb-1.5">
           <Sun className="w-3 h-3 text-warning-strong" aria-hidden="true" />
           <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Fim de semana ({info.weekends})</span>
@@ -496,7 +491,7 @@ function RefeicaoRow({ label, ariaLabel, value, disabled, dias, onChange }: {
 export function EditModalCustosTab(p: CustosTabProps) {
   return (
     <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted">
-    <div className="px-4 py-3 space-y-2.5" style={p.ctrl.modalViewMode ? { opacity: 0.72, userSelect: "none" } : {}}>
+    <div className={`px-4 sm:px-6 py-4 space-y-3 ${p.ctrl.modalViewMode ? "select-none" : ""}`}>
       <DiariasBlock {...p} />
       <MobilidadeBlock ctrl={p.ctrl} editingBudget={p.editingBudget} info={p.info} />
       <AlimentacaoBlock {...p} />

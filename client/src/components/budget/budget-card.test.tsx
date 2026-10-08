@@ -72,9 +72,9 @@ describe("BudgetCard", () => {
     expect(onToggleCollapse).toHaveBeenCalledWith(budget.inclusion.id);
   });
 
-  it("enviado (isSent): 'Salvo', cadeado no lugar do checkbox, só visualizar — abre o modal em modo leitura", async () => {
+  it("enviado (isSent): 'Enviado', cadeado no lugar do checkbox, só visualizar — abre o modal em modo leitura", async () => {
     const { user, budget, onEdit } = montar({ isSent: true });
-    expect(screen.getByText("Salvo")).toBeInTheDocument();
+    expect(screen.getByText("Enviado")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /Editar valores/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /para o Realizado/ })).toBeNull();

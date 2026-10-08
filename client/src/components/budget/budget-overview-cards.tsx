@@ -1,108 +1,30 @@
 /**
- * Visão geral do Planejado (topo da tela) — 25/09 (modularização).
+ * Resumo do Planejado (topo da tela) — 25/09 (modularização); redesenho 08/10.
  *
- * Extraído de budget-planned.tsx em três blocos: barra "Total planejado" com
- * estatísticas, timeline de etapas e os 4 KPIs. `BudgetOverviewCards` compõe
- * os três na mesma ordem de antes.
+ * Antes eram três blocos empilhados: uma faixa azul cheia com o total, o
+ * stepper de quatro etapas num cartão próprio e quatro KPIs em cartões com
+ * filete colorido — ~520px de altura antes do primeiro colaborador, e o
+ * mesmo número (Casa, Freela) repetido em dois lugares.
+ *
+ * Agora é UM painel, lido da esquerda para a direita como um extrato:
+ * o total planejado (o número da tela), a divisão Casa × Freela e as duas
+ * médias; embaixo, numa faixa fina, o andamento do envio ao Realizado e em
+ * qual etapa do fluxo o evento está. Nenhuma informação saiu: total, data,
+ * colaboradores, casa, freela, período (agora na barra, junto do evento),
+ * etapa atual com as quatro etapas, Casa/Freela em R$, médio por pessoa e
+ * por dia — com os mesmos textos de ajuda.
  */
-import { BarChart3, Calendar, Home, UserCheck, Users } from "lucide-react";
+import { BarChart3, Check, Home, UserCheck, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event } from "@shared/schema";
 import type { EstatisticasDoPlanejado } from "@/hooks/use-budget-engine";
-import { ddmm, formatCurrency, formatEventDate } from "./types";
+import { formatCurrency, formatEventDate } from "./types";
 
 export interface BudgetOverviewCardsProps {
   selectedEvent: Event | undefined;
   totalGeral: number;
   stats: EstatisticasDoPlanejado;
-}
-
-/** Dashboard Bar Superior: hero "Total planejado" + colaboradores/casa/freela/período. */
-function BudgetDashboardBar({ selectedEvent, totalGeral, stats }: BudgetOverviewCardsProps) {
-  return (
-    <div className="bg-card/85 border border-primary/12 rounded-xl shadow-2 overflow-hidden" style={{
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-    }}>
-      {/* Faixa accent azul topo */}
-      <div className="h-[3px] bg-primary" />
-
-      {/* flex-wrap: em telas <900px o hero e os stats quebram em linhas */}
-      <div className="flex flex-wrap items-stretch">
-        {/* Total Planejado — hero section */}
-        <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden grow max-[900px]:w-full bg-primary min-w-[230px]">
-          <p className="text-2xs font-extrabold uppercase tracking-[0.14em] text-white/75 relative">Total planejado</p>
-          {selectedEvent?.startDate && (
-            <p className="flex items-center gap-1 text-2xs text-white/70 relative">
-              <Calendar className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
-              {formatEventDate(selectedEvent.startDate)}
-            </p>
-          )}
-          <div className="text-3xl font-semibold text-white leading-none tracking-tight mt-1.5 relative tracking-[-0.03em]">
-            {formatCurrency(totalGeral)}
-          </div>
-        </div>
-
-        {/* Separador vertical */}
-        <div className="max-[900px]:hidden bg-primary/10" style={{ width: 1 }} />
-
-        {/* Stats */}
-        <div className="flex-1 px-6 py-5 flex flex-wrap items-center gap-y-3 min-w-[280px]">
-          {/* Colaboradores */}
-          <div className="flex-1 min-w-[110px] flex flex-col items-center gap-1 px-4">
-            <div className="text-2xl font-black leading-none tracking-tight text-primary">{stats.total}</div>
-            <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-              <Users className="w-3 h-3" aria-hidden="true" />Colaboradores
-            </div>
-          </div>
-
-          <div className="max-[900px]:hidden bg-primary/8" style={{ width: 1, height: 36 }} />
-
-          {/* Casa */}
-          <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
-            <div className="text-2xl font-black leading-none tracking-tight text-primary">{stats.totalCasa}</div>
-            <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-              <Home className="w-3 h-3" aria-hidden="true" />Casa
-            </div>
-          </div>
-
-          <div className="max-[900px]:hidden bg-primary/8" style={{ width: 1, height: 36 }} />
-
-          {/* Freela */}
-          <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
-            <div className="text-2xl font-black leading-none tracking-tight text-warning">{stats.totalFreela}</div>
-            <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-              <UserCheck className="w-3 h-3" aria-hidden="true" />Freela
-            </div>
-          </div>
-
-          <div className="max-[900px]:hidden bg-primary/8" style={{ width: 1, height: 36 }} />
-
-          {/* Período do evento */}
-          <div className="flex-1 min-w-[90px] flex flex-col items-center gap-1 px-4">
-            {selectedEvent?.startDate && selectedEvent?.endDate ? (
-              <div className="flex flex-col items-center gap-0">
-                <div className="text-sm font-black leading-none tracking-tight tabular-nums text-info">
-                  {ddmm(selectedEvent.startDate)}
-                </div>
-                <div className="text-2xs font-bold text-muted-foreground leading-none my-0.5">→</div>
-                <div className="text-sm font-black leading-none tracking-tight tabular-nums text-info">
-                  {ddmm(selectedEvent.endDate)}
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm font-black leading-none tracking-tight text-muted-foreground">—</div>
-            )}
-            <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-              <Calendar className="w-3 h-3" aria-hidden="true" />Período
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 const STEPS = [
@@ -112,128 +34,117 @@ const STEPS = [
   { label: "Aprovação RH", desc: "Análise e aprovação" },
 ];
 
-/** Timeline de etapas. */
-function BudgetStepper({ stats }: { stats: EstatisticasDoPlanejado }) {
-  // Etapa derivada do progresso real: com tudo enviado, o RH concluiu
-  // o planejamento e a bola passa para a Prestação.
-  const currentStep = stats.total > 0 && stats.progressoEnvio >= 100 ? 2 : 1;
-  const steps = STEPS;
-  return (
-    <div className="bg-card rounded-xl px-6 py-5 border border-primary/25 shadow-2">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <span className="text-2xs font-black uppercase tracking-[0.12em] text-muted-foreground">Etapa atual</span>
-          <div className="text-sm font-bold text-primary mt-0.5">{steps[currentStep].label}</div>
-        </div>
-      </div>
-      {/* flex-wrap + min-width por etapa: abaixo de ~900px o stepper quebra em 2 linhas */}
-      <div className="flex items-center flex-wrap gap-y-4">
-        {steps.map((step, i) => {
-          const isDone = i < currentStep;
-          const isActive = i === currentStep;
-          const isLast = i === steps.length - 1;
-          return (
-            <div key={i} className="flex items-center flex-1 min-w-[150px]">
-              <div className="flex flex-col items-center gap-2">
-                {/* Bolinha */}
-                <div className="relative shrink-0">
-                  {/* Ping no step ativo */}
-                  {isActive && (
-                    <span className="stepper-ping absolute rounded-full border-2 border-primary/35" style={{
-                      inset: -4,
-                      animation: "stepperPing 1.6s ease-out infinite",
-                    }} />
-                  )}
-                  <div className={cn("rounded-full flex items-center justify-center",
-                    isDone ? "w-8 h-8 bg-success-strong shadow-1"
-                      : isActive ? "w-9 h-9 bg-primary ring-4 ring-primary/10 shadow-2"
-                      : "w-8 h-8 bg-muted")}>
-                    {isDone ? (
-                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <span className={cn("text-xs font-extrabold", (isActive ? "text-white" : "text-muted-foreground"))}>{i + 1}</span>
-                    )}
-                  </div>
-                </div>
-                {/* Labels */}
-                <div className="text-center">
-                  <div className={cn("text-2xs font-bold leading-tight", (isDone ? "text-success" : isActive ? "text-primary" : "text-muted-foreground"))}>{step.label}</div>
-                  <div className="text-2xs text-muted-foreground mt-0.5">{step.desc}</div>
-                </div>
-              </div>
-              {!isLast && (
-                <div className="mb-7 ml-1.5 mr-1.5 rounded-full" style={{
-                  flex: 1,
-                  height: 3,
-                  background: isDone
-                    ? "var(--success-strong)"
-                    : "var(--muted)",
-                }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
-function KpiCard({ icon: Icon, label, value, sub, tone, tooltip }: {
-  icon: LucideIcon; label: string; value: string; sub: string; tooltip: string;
-  tone: { border: string; iconBg: string; text: string };
+function Metrica({ icon: Icon, label, value, sub, tooltip, cor }: {
+  icon: LucideIcon; label: string; value: string; sub: string; tooltip: string; cor: string;
 }) {
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className={`rounded-xl bg-card cursor-default border-t-[3px] ${tone.border} shadow-1`}>
-            <div className="px-5 py-4 pb-4">
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tone.iconBg}`}>
-                  <Icon className={tone.text} style={{ width: 13, height: 13 }} aria-hidden="true" />
-                </div>
-                <span className="text-2xs font-semibold tracking-widest uppercase text-muted-foreground">{label}</span>
-              </div>
-              <div className={`text-lg font-medium ${tone.text} tracking-[-0.02em] tabular-nums leading-none`}>
-                {value}
-              </div>
-              <div className="flex items-center gap-1 mt-2">
-                <span className="text-2xs text-muted-foreground font-normal">{sub}</span>
-              </div>
-            </div>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="text-xs max-w-[180px] text-center">{tooltip}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
-const TONE_PRIMARY = { border: "border-t-primary", iconBg: "bg-primary/8", text: "text-primary" };
-const TONE_WARNING = { border: "border-t-warning-strong", iconBg: "bg-warning/8", text: "text-warning" };
-const TONE_INFO = { border: "border-t-info", iconBg: "bg-info/8", text: "text-info" };
-
-/** KPI Cards: Casa, Freela, Médio/Pessoa, Médio/Dia. */
-function BudgetKpiCards({ stats }: { stats: EstatisticasDoPlanejado }) {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <KpiCard icon={Home} label="Casa" value={formatCurrency(stats.valorCasa)} sub={`${stats.totalCasa} colaborador${stats.totalCasa !== 1 ? "es" : ""}`} tone={TONE_PRIMARY} tooltip="Colaboradores que trabalham no próprio estado" />
-      <KpiCard icon={UserCheck} label="Freela" value={formatCurrency(stats.valorFreela)} sub={`${stats.totalFreela} colaborador${stats.totalFreela !== 1 ? "es" : ""}`} tone={TONE_WARNING} tooltip="Colaboradores contratados por evento" />
-      <KpiCard icon={Users} label="Médio / Pessoa" value={formatCurrency(stats.media)} sub="por colaborador" tone={TONE_PRIMARY} tooltip="Média de custo por colaborador neste evento" />
-      <KpiCard icon={BarChart3} label="Médio / Dia" value={formatCurrency(stats.mediaPorDia)} sub="por dia trabalhado" tone={TONE_INFO} tooltip="Média de custo por dia trabalhado neste evento" />
+    <div className="pla-metrica min-w-0 px-4 py-3" title={tooltip}>
+      <p className="m-0 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+        <Icon className={cn("w-3.5 h-3.5 shrink-0", cor)} aria-hidden="true" />
+        <span className="truncate">{label}</span>
+      </p>
+      <p className="m-0 mt-1 text-base sm:text-lg font-semibold leading-6 tracking-[-0.01em] tabular-nums text-foreground truncate">{value}</p>
+      <p className="m-0 text-2xs sm:text-xs text-muted-foreground truncate">{sub}</p>
     </div>
   );
 }
 
-export function BudgetOverviewCards(p: BudgetOverviewCardsProps) {
+/** As quatro etapas do fluxo numa linha: feitas com ✓, a atual em destaque. */
+function TrilhoDeEtapas({ atual }: { atual: number }) {
   return (
-    <>
-      <BudgetDashboardBar {...p} />
-      <BudgetStepper stats={p.stats} />
-      <BudgetKpiCards stats={p.stats} />
-    </>
+    <ol className="m-0 p-0 list-none flex items-center gap-1.5 min-w-0" aria-label={`Etapa atual: ${STEPS[atual].label}`}>
+      {STEPS.map((s, i) => {
+        const feita = i < atual;
+        const ativa = i === atual;
+        return (
+          <li
+            key={s.label}
+            title={`${s.label} — ${s.desc}`}
+            aria-current={ativa ? "step" : undefined}
+            className={cn("flex items-center gap-1.5 min-w-0", !ativa && "max-md:hidden")}
+          >
+            {i > 0 && <span aria-hidden="true" className={cn("hidden md:block w-5 h-px shrink-0", feita || ativa ? "bg-success-strong/60" : "bg-border")} />}
+            <span
+              aria-hidden="true"
+              className={cn(
+                "inline-flex items-center justify-center w-[18px] h-[18px] rounded-full shrink-0 text-2xs font-semibold",
+                feita ? "bg-success-strong text-white" : ativa ? "pla-etapa-atual bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+              )}
+            >
+              {feita ? <Check className="w-2.5 h-2.5" strokeWidth={3.5} /> : i + 1}
+            </span>
+            <span className={cn("text-xs whitespace-nowrap", ativa ? "font-semibold text-foreground" : feita ? "text-success" : "text-muted-foreground")}>
+              {ativa && <span className="md:hidden text-muted-foreground font-normal">Etapa {i + 1} de 4 · </span>}
+              {s.label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export function BudgetOverviewCards({ selectedEvent, totalGeral, stats }: BudgetOverviewCardsProps) {
+  // Etapa derivada do progresso real: com tudo enviado, o RH concluiu
+  // o planejamento e a bola passa para a Prestação.
+  const etapaAtual = stats.total > 0 && stats.progressoEnvio >= 100 ? 2 : 1;
+  const tudoEnviado = stats.total > 0 && stats.progressoEnvio >= 100;
+  const pct = Math.max(0, Math.min(100, stats.progressoEnvio));
+
+  return (
+    <section aria-label="Resumo do orçamento planejado" className="pla-resumo rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-planejado">
+      <div className="grid grid-cols-2 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]">
+        {/* O número da tela. */}
+        <div className="col-span-2 md:col-span-1 min-w-0 px-4 pt-3.5 pb-3 max-md:border-b border-border">
+          <p className="m-0 text-xs font-medium text-slate-600">
+            Total planejado
+            {selectedEvent?.startDate && (
+              <span className="text-muted-foreground font-normal"> · {formatEventDate(selectedEvent.startDate)}</span>
+            )}
+          </p>
+          <p className="m-0 mt-0.5 text-[1.625rem] leading-8 font-semibold tracking-[-0.02em] tabular-nums text-primary" data-testid="total-planejado">
+            {formatCurrency(totalGeral)}
+          </p>
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground tabular-nums">
+            {plural(stats.total, "colaborador", "colaboradores")} · {stats.totalCasa} casa · {stats.totalFreela} freela
+          </p>
+        </div>
+        <Metrica icon={Home} label="Casa" value={formatCurrency(stats.valorCasa)} sub={plural(stats.totalCasa, "colaborador", "colaboradores")} cor="text-primary" tooltip="Colaboradores que trabalham no próprio estado" />
+        <Metrica icon={UserCheck} label="Freela" value={formatCurrency(stats.valorFreela)} sub={plural(stats.totalFreela, "colaborador", "colaboradores")} cor="text-warning" tooltip="Colaboradores contratados por evento" />
+        <Metrica icon={Users} label="Médio por pessoa" value={formatCurrency(stats.media)} sub="por colaborador" cor="text-muted-foreground" tooltip="Média de custo por colaborador neste evento" />
+        <Metrica icon={BarChart3} label="Médio por dia" value={formatCurrency(stats.mediaPorDia)} sub="por dia trabalhado" cor="text-info" tooltip="Média de custo por dia trabalhado neste evento" />
+      </div>
+
+      {/* Andamento: quanto já foi para o Realizado e em que etapa o evento está. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 border-t border-border bg-surface-muted/60">
+        <div className="flex items-center gap-2.5 min-w-0 max-sm:w-full" data-testid="progresso-envio">
+          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Envio ao Realizado</span>
+          <span
+            role="progressbar"
+            aria-label="Colaboradores enviados ao Realizado"
+            aria-valuemin={0}
+            aria-valuemax={stats.total}
+            aria-valuenow={stats.enviados}
+            className="relative w-28 sm:w-36 h-1.5 rounded-full bg-border overflow-hidden shrink-0 max-sm:flex-1"
+          >
+            <span
+              className={cn("pla-progresso absolute inset-y-0 left-0 rounded-full", tudoEnviado ? "bg-success-strong" : "bg-primary")}
+              style={{ width: `${pct}%` }}
+            />
+          </span>
+          <span className={cn("text-xs tabular-nums whitespace-nowrap", tudoEnviado ? "text-success font-semibold" : "text-muted-foreground")}>
+            {tudoEnviado
+              ? <><Check className="inline w-3.5 h-3.5 -mt-0.5 mr-0.5" aria-hidden="true" />Todos enviados</>
+              : `${stats.enviados} de ${stats.total}`}
+          </span>
+        </div>
+        <div className="md:ml-auto min-w-0">
+          <TrilhoDeEtapas atual={etapaAtual} />
+        </div>
+      </div>
+    </section>
   );
 }
 
