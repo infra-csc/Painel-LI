@@ -243,7 +243,7 @@ export default function TicketModal({
                   </span>
                 )}
                 {ticket?.emittedAt && (
-                  <span className="inline-flex items-center gap-1 h-[22px] px-2 bg-brand-soft text-primary text-2xs font-medium rounded-md" title="Passagem emitida — a área não pede mais ajuste nesta vaga">
+                  <span className="inline-flex items-center gap-1 h-[22px] px-2 bg-brand-soft text-primary text-2xs font-medium rounded-md" title="Passagem emitida — o bilhete saiu">
                     <Lock className="w-3 h-3" aria-hidden="true" />Emitida
                   </span>
                 )}

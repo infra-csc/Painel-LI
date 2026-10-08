@@ -34,7 +34,11 @@ describe("TicketRow", () => {
     expect(linha).toHaveTextContent("BSB→GRU");
     // `Intl` separa "R$" do número com U+00A0; o DOM lido pela Testing Library normaliza para espaço.
     expect(ticketSummaryLine(passagem).replace(/ /g, " ")).toBe("LOC AX782Q · R$ 1.500,00 · Aéreo");
-    expect(screen.getByTestId("ticket-summary-vaga-1")).toHaveTextContent("LOC AX782Q · R$ 1.500,00 · Aéreo");
+    // Duas linhas desde 08/10: localizador numa, valor e tipo na outra; o texto inteiro no title.
+    const resumo = screen.getByTestId("ticket-summary-vaga-1");
+    expect(resumo).toHaveTextContent("LOC AX782Q");
+    expect(resumo).toHaveTextContent("R$ 1.500,00 · Aéreo");
+    expect(resumo.getAttribute("title")).toBe(ticketSummaryLine(passagem));
     expect(within(linha).getByText("Comprada")).toBeInTheDocument();
   });
 
@@ -53,7 +57,7 @@ describe("TicketRow", () => {
     const { unmount } = montar({ ticket: passagemFake({ teamInclusionId: "vaga-1", emittedAt: new Date("2026-03-21T10:00:00Z") }) });
     const selo = screen.getByTestId("ticket-emitida-vaga-1");
     expect(selo).toHaveTextContent("Emitida");
-    expect(selo).toHaveAttribute("title", "Passagem emitida — a área não pede mais ajuste nesta vaga");
+    expect(selo).toHaveAttribute("title", "Passagem emitida — o bilhete saiu");
     unmount();
     montar({ ticket: PASSAGEM() });
     expect(screen.queryByTestId("ticket-emitida-vaga-1")).toBeNull();

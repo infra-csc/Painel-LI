@@ -431,8 +431,8 @@ export default function Tickets() {
   const toggleAllTickets = () => setSelectedTickets(allSelectableSelected ? [] : Array.from(selectableInclusionIds));
 
   // ── Passagem EMITIDA (regra do dono, 26/08) ──
-  // Carimbo de quem compra: a partir dele a área não pede mais ajuste naquela
-  // vaga. Marcar NÃO exige passagem preenchida — quem preenche completa depois.
+  // Carimbo de quem compra ("o bilhete saiu"; desde 07/10 não trava mais o
+  // pedido de ajuste). Marcar NÃO exige passagem preenchida — quem preenche completa depois.
   // Só ADMIN e COMPRAS veem a ação (o servidor recusa o resto).
   const queryClient = useQueryClient();
   const podeEmitir = isPurchasingRole;
