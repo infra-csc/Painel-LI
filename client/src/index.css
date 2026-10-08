@@ -2880,6 +2880,192 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .crh-linha, .crh-grupo-topo, .crh-grupo-seta, .crh-acao, .crh-chave, .crh-chave > span, .crh-recorte-limpar { transition: none; }
 }
 
+/* ══ Cadastro de usuários (cad-) — redesenho 08/10 ═══════════════════════════
+ * A tela usa as peças da família (barra de 56px do PageHeader, pas-osso,
+ * pas-entra, pas-alvo). Aqui só o que é dela: a página com o resumo à direita
+ * quando sobra largura, as seções em linhas ("o que é" à esquerda, campos à
+ * direita) medidas pela largura do próprio cartão, o campo com ajuda/erro no
+ * mesmo lugar (nada pula), os perfis como rádios em linhas, a lista das telas
+ * liberadas e o rodapé que gruda no celular. Rápido e sem movimento com
+ * reduced-motion. */
+
+/* ── Página: formulário + resumo ─────────────────────────────────────────── */
+.cad-pagina { max-width: 1240px; container-type: inline-size; }
+.cad-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@container (min-width: 960px) {
+  .cad-grade { grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
+  .cad-lateral { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 20px); }
+}
+
+/* ── Seções do formulário ────────────────────────────────────────────────── */
+.cad-cartao { container-type: inline-size; }
+.cad-secao { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 32px; padding: 18px 20px 20px; }
+.cad-secao + .cad-secao { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+@container (min-width: 820px) {
+  .cad-secao { grid-template-columns: 210px minmax(0, 1fr); padding: 22px 24px; }
+  .cad-secao-texto { padding-top: 1px; }
+}
+@container (max-width: 480px) {
+  .cad-secao { padding: 16px; }
+}
+.cad-secao-titulo { margin: 0; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--foreground); }
+.cad-secao-ajuda { margin: 2px 0 0; max-width: 46ch; font-size: 12px; line-height: 18px; color: var(--muted-foreground); }
+
+.cad-campos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 16px; align-items: start; }
+@container (min-width: 560px) {
+  .cad-campos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cad-area { max-width: calc(50% - 8px); }
+}
+@container (min-width: 820px) {
+  /* Ao lado do texto da seção: a área ocupa a mesma coluna do Nome. */
+  .cad-area { max-width: calc((100% - 16px) / 2); }
+}
+
+/* Campo: só borda e anel animam; ícone acende com o foco. */
+.cad-campo { transition: border-color 150ms ease, box-shadow 150ms ease; }
+.cad-campo-icone {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: var(--muted-foreground); pointer-events: none;
+  transition: color 150ms ease;
+}
+.relative:focus-within > .cad-campo-icone { color: var(--primary); }
+.cad-ajuda, .cad-erro { margin: 6px 0 0; font-size: 12px; line-height: 16px; }
+.cad-ajuda { color: var(--muted-foreground); }
+.cad-erro { color: var(--danger); font-weight: 500; animation: pas-entra 160ms ease-out both; }
+
+/* ── Perfis: rádios de verdade em linhas ─────────────────────────────────── */
+.cad-perfis { overflow: hidden; transition: border-color 150ms ease; }
+.cad-perfil {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  min-height: 56px; padding: 10px 14px; cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.cad-perfil + .cad-perfil { border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.cad-perfil:hover { background-color: color-mix(in srgb, var(--primary) 3%, var(--card)); }
+.cad-perfil-marcado, .cad-perfil-marcado:hover { background-color: var(--brand-soft); box-shadow: inset 3px 0 0 var(--primary); }
+.cad-perfil-radio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cad-perfil:has(.cad-perfil-radio:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; z-index: 1; }
+.cad-perfil-icone {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 8px;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.cad-perfil-marca {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 18px; height: 18px; border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  color: var(--primary-foreground);
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.cad-perfil:hover .cad-perfil-marca:not(.cad-perfil-marca-on) { border-color: var(--primary); }
+.cad-perfil-marca-on { background: var(--primary); border-color: var(--primary); }
+.cad-perfil:active .cad-perfil-marca { transform: scale(.9); }
+@container (max-width: 440px) {
+  .cad-perfil-telas { display: none; }
+  .cad-perfil { align-items: flex-start; }
+  .cad-perfil-marca { margin-top: 7px; }
+}
+
+/* Telas liberadas: grupo do menu numa coluna, telas na outra. */
+.cad-telas-grade { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; }
+
+/* ── Rodapé: o que falta + ações; gruda no fim da tela no celular ────────── */
+.cad-rodape {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 12px 20px; border-top: 1px solid var(--border);
+  background: var(--surface-muted); border-radius: 0 0 12px 12px;
+}
+@media (max-width: 639px) {
+  .cad-rodape {
+    position: sticky; bottom: 0; z-index: 5; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--card);
+    box-shadow: 0 -8px 16px -12px color-mix(in srgb, var(--foreground) 30%, transparent);
+  }
+}
+.cad-enviar { transition: background-color 120ms ease, transform 120ms ease; }
+.cad-enviar:active:not(:disabled) { transform: scale(.98); }
+
+/* ── Resumo à direita ────────────────────────────────────────────────────── */
+.cad-resumo-linhas { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px 12px; }
+.cad-avatar { transition: background-color 200ms ease, color 200ms ease; }
+.cad-lateral .pas-osso.rounded-full { border-radius: 999px; }
+
+/* Conta criada: a faixa recebe o foco ao aparecer. */
+.cad-concluido:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cad-erro { animation: none; }
+  .cad-campo, .cad-campo-icone, .cad-perfis, .cad-perfil, .cad-perfil-icone, .cad-perfil-marca, .cad-enviar, .cad-avatar { transition: none; }
+  .cad-perfil:active .cad-perfil-marca, .cad-enviar:active:not(:disabled) { transform: none; }
+}
+
+/* ══ Usuários (usr-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças da família Funções/Colaboradores (pas-osso, pas-entra,
+ * pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que é dela: o
+ * cabeçalho da lista grudado abaixo da barra da tela, a linha/cartão inteiro
+ * que abre a edição (o ::after do nome cobre a linha), o pendente marcado por
+ * um filete à esquerda, a conta sem acesso esmaecida, as ações discretas até
+ * o hover e as microinterações (rápidas, desligadas com reduced-motion). */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px). `clip` em vez de
+   `hidden`/`auto`: um contêiner que rola prenderia o `sticky` dentro dele. */
+.usr-moldura { overflow: clip; }
+.usr-moldura .usr-rolagem { overflow-x: clip; }
+.usr-tabela > thead > tr > th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
+.usr-linha, .usr-cartao { position: relative; }
+.usr-linha { transition: background-color 120ms ease; }
+.usr-linha:hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.usr-abrir::after { content: ""; position: absolute; inset: 0; }
+.usr-cartao .usr-abrir::after { border-radius: 0.75rem; }
+.usr-abrir { transition: color 120ms ease; }
+.usr-linha:hover .usr-abrir, .usr-cartao:hover .usr-abrir { color: var(--primary); }
+.usr-linha:has(.usr-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.usr-cartao:has(.usr-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.usr-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.usr-cartao:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+
+/* Pendente: um filete âmbar à esquerda (antes a linha inteira ficava amarela). */
+.usr-linha.usr-pendente > td:first-child { box-shadow: inset 3px 0 0 var(--warning-strong); }
+.usr-cartao.usr-pendente { border-left: 3px solid var(--warning-strong); }
+
+/* Sem acesso (inativo/rejeitado): esmaecido, mas situação e ações seguem legíveis. */
+.usr-apagada .usr-esmaece { opacity: .6; }
+
+/* Ações: à vista, discretas até a linha ser apontada; a ação forte fica inteira. */
+.usr-linha .usr-acao:not(.usr-forte):not(.usr-ligado) { opacity: .62; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.usr-linha:hover .usr-acao, .usr-acao:focus-visible { opacity: 1; }
+.usr-forte { transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease; }
+.usr-forte:active:not(:disabled) { transform: scale(.97); }
+@media (pointer: coarse) { .usr-linha .usr-acao { opacity: 1; } }
+
+/* Mapa de acesso: os filetes crescem da esquerda quando a lista aparece. */
+@keyframes usr-enche { from { transform: scaleX(0); } to { transform: none; } }
+.usr-mapa span[style] { transform-origin: left center; animation: usr-enche 320ms cubic-bezier(.2, 0, 0, 1) both; }
+
+/* Força da senha: cada filete acende com uma transição curta. */
+.usr-filete { transition: background-color 160ms ease; }
+
+/* Seção do modal: a borda acende quando o perfil vira Administrador. */
+.usr-secao { transition: border-color 160ms ease; }
+
+/* Aviso/realce que acabou de aparecer. */
+@keyframes usr-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.usr-entra { animation: usr-entra 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .usr-entra, .usr-mapa span[style] { animation: none; }
+  .usr-linha, .usr-abrir, .usr-cartao, .usr-linha .usr-acao, .usr-forte, .usr-filete, .usr-secao { transition: none; }
+  .usr-forte:active:not(:disabled) { transform: none; }
+}
+
 /* ══ Log de auditoria (aud-) — redesenho 08/10 ═══════════════════════════════
  * Usa as peças da família Passagens/Controle RH (pas-osso, pas-entra,
  * pas-alvo, pas-rolagem-x, BuscaDaLista). Aqui só o que é dela: o log numa
@@ -3116,69 +3302,113 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .aud-linha:hover .aud-c-abrir { transform: none; }
 }
 
-/* ══ Usuários (usr-) — redesenho 08/10 ═════════════════════════════════════
- * A tela usa as peças da família Funções/Colaboradores (pas-osso, pas-entra,
- * pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que é dela: o
- * cabeçalho da lista grudado abaixo da barra da tela, a linha/cartão inteiro
- * que abre a edição (o ::after do nome cobre a linha), o pendente marcado por
- * um filete à esquerda, a conta sem acesso esmaecida, as ações discretas até
- * o hover e as microinterações (rápidas, desligadas com reduced-motion). */
+/* ══ Ver como usuário (sim-) — redesenho 08/10 ═══════════════════════════════
+ * A tela usa as peças da família (barra de 56px do PageHeader, BuscaDaLista,
+ * pas-osso, pas-entra, pas-alvo, pas-rolagem-x) e a confirmação padrão. Aqui
+ * só o que é dela: a faixa "como funciona" em três passos com a réplica do
+ * botão de saída, a lista medida pela própria largura (colunas ou cartão), a
+ * linha inteira que abre a confirmação e as microinterações. */
 
-/* Cabeçalho grudado abaixo da barra da tela (56px). `clip` em vez de
-   `hidden`/`auto`: um contêiner que rola prenderia o `sticky` dentro dele. */
-.usr-moldura { overflow: clip; }
-.usr-moldura .usr-rolagem { overflow-x: clip; }
-.usr-tabela > thead > tr > th {
-  position: sticky;
-  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
-  z-index: 2;
-  background: var(--surface-muted);
-  box-shadow: inset 0 -1px 0 var(--border);
+.sim-pagina { max-width: 1240px; margin-left: 0; }
+
+/* ── Como funciona: três passos numa faixa ───────────────────────────────── */
+.sim-como { container-type: inline-size; }
+.sim-passos { display: grid; grid-template-columns: minmax(0, 1fr); }
+.sim-passo { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; }
+.sim-passo + .sim-passo { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+@container (min-width: 760px) {
+  .sim-passos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sim-passo { padding: 16px 20px; }
+  .sim-passo + .sim-passo { border-top: 0; border-left: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+}
+.sim-passo-num {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 22px; margin-top: -1px; border-radius: 999px;
+  background: var(--brand-soft); color: var(--primary);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+/* Réplica da faixa global (simulation-banner): mesmas cores, em miniatura. */
+.sim-replica {
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 28px; padding: 0 4px 0 10px; border-radius: 8px;
+  background: var(--primary-hover);
+}
+.sim-replica-botao {
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 5px;
+  background: white; color: var(--primary); font-size: 11px; font-weight: 600;
 }
 
-/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
-.usr-linha, .usr-cartao { position: relative; }
-.usr-linha { transition: background-color 120ms ease; }
-.usr-linha:hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
-.usr-abrir::after { content: ""; position: absolute; inset: 0; }
-.usr-cartao .usr-abrir::after { border-radius: 0.75rem; }
-.usr-abrir { transition: color 120ms ease; }
-.usr-linha:hover .usr-abrir, .usr-cartao:hover .usr-abrir { color: var(--primary); }
-.usr-linha:has(.usr-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
-.usr-cartao:has(.usr-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
-.usr-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
-.usr-cartao:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+/* ── Lista: colunas quando cabe, cartão quando não ───────────────────────── */
+.sim-moldura { container-type: inline-size; overflow: hidden; }
+.sim-cabecalho { display: none; }
+.sim-linha {
+  position: relative; display: grid; align-items: center; gap: 6px 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "pessoa acao" "perfil area";
+  padding: 12px 14px;
+  transition: background-color 120ms ease;
+}
+.sim-linha + .sim-linha, .sim-moldura ul > .sim-linha + .sim-linha { border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.sim-pessoa { grid-area: pessoa; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sim-perfil { grid-area: perfil; display: flex; align-items: baseline; gap: 8px; min-width: 0; padding-left: 48px; white-space: nowrap; }
+.sim-area { grid-area: area; min-width: 0; max-width: 46cqw; display: flex; justify-content: flex-end; }
+.sim-area > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container (max-width: 519px) {
+  /* Cartão estreito: o número de telas fica na confirmação. */
+  .sim-perfil-telas { display: none; }
+}
+.sim-acao { grid-area: acao; display: flex; justify-content: flex-end; }
+@container (min-width: 720px) {
+  .sim-cabecalho, .sim-linha {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .8fr) 112px;
+    grid-template-areas: "pessoa perfil area acao";
+    padding: 0 20px; gap: 16px;
+  }
+  .sim-linha { min-height: 60px; }
+  .sim-cabecalho {
+    display: grid; align-items: center; height: 38px;
+    background: var(--surface-muted); border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground);
+  }
+  .sim-perfil { padding-left: 0; flex-direction: column; gap: 1px; align-items: flex-start; }
+  .sim-area { justify-content: flex-start; }
+}
 
-/* Pendente: um filete âmbar à esquerda (antes a linha inteira ficava amarela). */
-.usr-linha.usr-pendente > td:first-child { box-shadow: inset 3px 0 0 var(--warning-strong); }
-.usr-cartao.usr-pendente { border-left: 3px solid var(--warning-strong); }
+.sim-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 999px;
+  background: var(--brand-soft); color: var(--primary);
+  font-size: 12px; font-weight: 600; letter-spacing: .02em;
+}
 
-/* Sem acesso (inativo/rejeitado): esmaecido, mas situação e ações seguem legíveis. */
-.usr-apagada .usr-esmaece { opacity: .6; }
+/* O nome é o botão; o ::after dele cobre a linha inteira. */
+.sim-abrir {
+  display: block; max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
+  font-size: 14px; font-weight: 600; line-height: 20px; color: var(--foreground); text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color 120ms ease;
+}
+.sim-abrir::after { content: ""; position: absolute; inset: 0; }
+.sim-abrir:focus-visible { outline: none; }
+.sim-linha:has(.sim-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.sim-linha:not(.sim-linha-bloqueada):hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.sim-linha:not(.sim-linha-bloqueada):hover .sim-abrir { color: var(--primary); }
+.sim-abrir:disabled { cursor: default; }
+.sim-linha-bloqueada .sim-abrir { color: var(--muted-foreground); }
 
-/* Ações: à vista, discretas até a linha ser apontada; a ação forte fica inteira. */
-.usr-linha .usr-acao:not(.usr-forte):not(.usr-ligado) { opacity: .62; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
-.usr-linha:hover .usr-acao, .usr-acao:focus-visible { opacity: 1; }
-.usr-forte { transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease; }
-.usr-forte:active:not(:disabled) { transform: scale(.97); }
-@media (pointer: coarse) { .usr-linha .usr-acao { opacity: 1; } }
+/* "Ver como" sempre à vista; ganha a cor da marca quando a linha é apontada. */
+.sim-ver { position: relative; z-index: 1; transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease; }
+.sim-linha:not(.sim-linha-bloqueada):hover .sim-ver {
+  background: var(--primary); border-color: var(--primary); color: var(--primary-foreground);
+}
+.sim-ver:active:not(:disabled) { transform: scale(.97); }
 
-/* Mapa de acesso: os filetes crescem da esquerda quando a lista aparece. */
-@keyframes usr-enche { from { transform: scaleX(0); } to { transform: none; } }
-.usr-mapa span[style] { transform-origin: left center; animation: usr-enche 320ms cubic-bezier(.2, 0, 0, 1) both; }
+.sim-segmento { transition: background-color 140ms ease, color 140ms ease; }
 
-/* Força da senha: cada filete acende com uma transição curta. */
-.usr-filete { transition: background-color 160ms ease; }
-
-/* Seção do modal: a borda acende quando o perfil vira Administrador. */
-.usr-secao { transition: border-color 160ms ease; }
-
-/* Aviso/realce que acabou de aparecer. */
-@keyframes usr-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-.usr-entra { animation: usr-entra 180ms ease-out both; }
+/* Esqueleto: o círculo do avatar (o .pas-osso arredonda só 6px). */
+.sim-pessoa > .pas-osso { border-radius: 999px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .usr-entra, .usr-mapa span[style] { animation: none; }
-  .usr-linha, .usr-abrir, .usr-cartao, .usr-linha .usr-acao, .usr-forte, .usr-filete, .usr-secao { transition: none; }
-  .usr-forte:active:not(:disabled) { transform: none; }
+  .sim-linha, .sim-abrir, .sim-ver, .sim-segmento { transition: none; }
+  .sim-ver:active:not(:disabled) { transform: none; }
 }
