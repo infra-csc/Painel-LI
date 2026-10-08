@@ -1,5 +1,7 @@
 
-import { formatarMoeda } from "@/lib/format";/**
+import { formatarMoeda } from "@/lib/format";
+import { hojeISO } from "@shared/hoje-sp";
+/**
  * Tipos, constantes e helpers puros do Controle de Bagagem.
  *
  * Tudo aqui saiu de `pages/baggage-control.tsx`, que tinha 1.563 linhas com a
@@ -86,8 +88,12 @@ export function fmtDateShort(d?: string | null) {
   return `${day}/${m}/${y.slice(2)}`;
 }
 
+/**
+ * Hoje no fuso da operação (São Paulo). Até 08/10 era a data UTC: depois das
+ * 21h de Brasília a solicitação nascia com a data do dia seguinte.
+ */
 export function todayISO() {
-  return new Date().toISOString().split("T")[0];
+  return hojeISO();
 }
 
 export function toTitleCase(str: string) {
@@ -162,12 +168,20 @@ export const emptyForm = {
   quantityText: "1",
   agencySelect: "LCA" as string,   // LCA | Flytour | Onfly | Direto no site | Outros
   agencyOther: "",
+  // Valor de referência; quem abre um formulário novo usa `formularioNovo()`,
+  // que recalcula a data (com a tela aberta depois da meia-noite, a data
+  // calculada no carregamento do módulo ficava velha).
   requestDate: todayISO(),
   boardingDate: "",
   notes: "",
 };
 
 export type FormState = typeof emptyForm;
+
+/** Formulário em branco com a data de HOJE (recalculada a cada abertura). */
+export function formularioNovo(): FormState {
+  return { ...emptyForm, requestDate: todayISO() };
+}
 
 /**
  * Ordem visual dos obrigatórios — é por ela que o foco vai para o primeiro

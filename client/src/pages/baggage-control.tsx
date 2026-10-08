@@ -25,7 +25,7 @@ import { guardarEventoEmFoco } from "@/lib/evento-em-foco";
 import { Download, Lock, Plus } from "lucide-react";
 import type { OpcaoDeFiltro } from "@/components/common/filter-popover";
 import {
-  ERROR_FIELD_IDS, ciaGroup, emptyForm, eventPeriod, fmtDate, formatCpf, formatCurrency, getCpf, toTitleCase, todayISO,
+  ERROR_FIELD_IDS, ciaGroup, emptyForm, formularioNovo, eventPeriod, fmtDate, formatCpf, formatCurrency, getCpf, toTitleCase, todayISO,
   type BaggageHistoryItem, type BaggageRequestItem, type CiaGroup, type CollaboratorItem,
   type EventItem, type EventOption, type FormErrors, type FormState, type TabId,
 } from "@/components/baggage/baggage-core";
@@ -349,7 +349,7 @@ export default function BaggageControlPage() {
   // ── Formulário ──
   const abrirNovo = () => {
     setEditing(null);
-    setForm({ ...emptyForm });
+    setForm(formularioNovo());
     setErrors({});
     setJaTentou(false);
     setFormAberto(true);

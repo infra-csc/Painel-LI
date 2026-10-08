@@ -38,7 +38,7 @@ import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { parseBrNumber, fixEncoding } from "@/lib/utils";
 import { toTitleCase } from "@/lib/format";
 import {
-  AGENCIAS_FIXAS, CIAS_FIXAS, CIA_COR, CIA_STYLE, TYPE_LABEL, ciaGroup, contarObrigatorios, emptyForm,
+  AGENCIAS_FIXAS, CIAS_FIXAS, CIA_COR, CIA_STYLE, TYPE_LABEL, ciaGroup, contarObrigatorios, emptyForm, todayISO,
   formatCurrency, fmtDate,
   type BaggageRequestItem, type CiaGroup, type CollaboratorItem, type EventOption,
   type FormErrors, type FormState,
@@ -159,7 +159,7 @@ export default function BaggageFormModal({
    */
   const sujo = !editing && (
     Object.keys(emptyForm) as (keyof FormState)[]
-  ).some(k => form[k] !== emptyForm[k]);
+  ).some(k => form[k] !== (k === "requestDate" ? todayISO() : emptyForm[k]));
 
   // Diálogo único de descarte (23/09): o mesmo texto de todos os formulários.
   const { pedirParaFechar, Dialogo: DialogoDescarte } = useConfirmarDescarte(sujo, { salvando });
