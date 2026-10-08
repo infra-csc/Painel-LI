@@ -7,7 +7,10 @@
  * pt-BR, o navegador por extenso e o CSV da página.
  */
 import { Activity, CheckCircle, Edit, Plus, Send, Trash2, XCircle, type LucideIcon } from "lucide-react";
-import { ACOES, type TomDaAcao } from "@shared/log-auditoria";
+import { ACOES, FILTRO_EXCLUSAO, type TomDaAcao } from "@shared/log-auditoria";
+import { FUSO_DA_OPERACAO, hojeISO } from "@shared/hoje-sp";
+import { toTitleCase } from "@/lib/format";
+import { fixEncoding } from "@/lib/utils";
 
 export interface SystemLog {
   id: string;
@@ -53,8 +56,9 @@ const ORDEM_DOS_TONS: TomDaAcao[] = ["criar", "alterar", "excluir", "aprovar", "
 
 /**
  * Ações que vêm do histórico da VAGA (team_inclusion_logs) — o próprio
- * shared/log-auditoria.ts as lista à parte. No filtro ficam num grupo delas:
- * "Criação" aparecia duas vezes seguidas, sem dizer qual era qual.
+ * shared/log-auditoria.ts as lista à parte (para EXIBIR, se aparecerem). Elas
+ * nunca são gravadas em system_logs: no filtro eram 12 opções que nunca
+ * achavam nada (08/10) — saíram do filtro.
  */
 const ACOES_DO_HISTORICO_DA_VAGA = new Set([
   "created", "deleted", "status_changed", "city_changed", "collaborator_changed", "daily_rates_changed",
@@ -63,7 +67,12 @@ const ACOES_DO_HISTORICO_DA_VAGA = new Set([
 
 export interface GrupoDeOpcoes { titulo: string; ponto?: string; opcoes: { id: string; nome: string }[] }
 
-/** As MESMAS ações de antes (todas as chaves de ACOES), agrupadas pelo tom. */
+/**
+ * As ações gravadas em system_logs (as chaves de ACOES menos as do histórico
+ * da vaga), agrupadas pelo tom. "Exclusão" filtra por `FILTRO_EXCLUSAO`: o
+ * servidor inclui o evento/vaga excluídos por alteração, que a tela também
+ * mostra como Exclusão (o `delete` sozinho não os achava).
+ */
 export function gruposDeAcoes(): GrupoDeOpcoes[] {
   const porNome = (a: { nome: string }, b: { nome: string }) => a.nome.localeCompare(b.nome, "pt-BR");
   const grupos: GrupoDeOpcoes[] = ORDEM_DOS_TONS.map((tom) => ({
@@ -71,17 +80,43 @@ export function gruposDeAcoes(): GrupoDeOpcoes[] {
     ponto: TOM[tom].ponto,
     opcoes: Object.entries(ACOES)
       .filter(([k, a]) => a.tom === tom && !ACOES_DO_HISTORICO_DA_VAGA.has(k))
-      .map(([k, a]) => ({ id: k, nome: a.rotulo }))
+      .map(([k, a]) => ({ id: k === "delete" ? FILTRO_EXCLUSAO : k, nome: a.rotulo }))
       .sort(porNome),
   }));
-  grupos.push({
-    titulo: "Histórico da vaga",
-    opcoes: Object.entries(ACOES)
-      .filter(([k]) => ACOES_DO_HISTORICO_DA_VAGA.has(k))
-      .map(([k, a]) => ({ id: k, nome: a.rotulo }))
-      .sort(porNome),
-  });
   return grupos.filter((g) => g.opcoes.length > 0);
+}
+
+// ─── Pessoas do filtro (08/10) ───────────────────────────────────────────────
+
+/** Opção de pessoa pelo NOME gravado (sem cadastro / sistema): vai como `userName`. */
+export const PREFIXO_PESSOA_PELO_NOME = "nome:";
+
+export interface PessoaDoLog { userId: string | null; userName: string; total?: number }
+
+/**
+ * As pessoas do filtro: os usuários cadastrados (por id, como antes) e, além
+ * deles, quem aparece no log sem cadastro — usuário removido ou ação do
+ * sistema (`userId` nulo), que antes não tinham como ser filtrados. Estes
+ * filtram pelo nome gravado.
+ */
+export function opcoesDePessoas(usuarios: { id: string; name: string }[], doLog: PessoaDoLog[] = []): { id: string; name: string }[] {
+  const ids = new Set(usuarios.map((u) => u.id));
+  const extras = new Map<string, { id: string; name: string }>();
+  for (const p of doLog) {
+    if (p.userId && ids.has(p.userId)) continue;
+    const nome = toTitleCase(fixEncoding(p.userName)) || p.userName;
+    const id = `${PREFIXO_PESSOA_PELO_NOME}${p.userName}`;
+    if (!extras.has(id)) extras.set(id, { id, name: p.userId ? `${nome} (sem cadastro)` : nome });
+  }
+  return [...usuarios, ...Array.from(extras.values())].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/** Parâmetro da pessoa escolhida: `userId` (cadastrada) ou `userName` (pelo nome). */
+export function parametroDaPessoa(valor: string): { chave: "userId" | "userName"; valor: string } | null {
+  if (!valor || valor === "all") return null;
+  return valor.startsWith(PREFIXO_PESSOA_PELO_NOME)
+    ? { chave: "userName", valor: valor.slice(PREFIXO_PESSOA_PELO_NOME.length) }
+    : { chave: "userId", valor };
 }
 
 export const PERIODOS: { id: string; nome: string; curto: string }[] = [
@@ -95,27 +130,42 @@ export const nomeDoPeriodo = (dias: string) => PERIODOS.find((p) => p.id === dia
 
 export const plural = (n: number, um: string, varios: string) => `${n.toLocaleString("pt-BR")} ${n === 1 ? um : varios}`;
 
-export const horaBr = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+// Fuso (08/10): hora, dia e agrupamento no fuso da OPERAÇÃO (São Paulo), o
+// mesmo de `formatarValor` (shared/log-auditoria.ts). Antes eram o fuso do
+// navegador — um registro das 22h aparecia num dia na lista e noutro no detalhe
+// para quem abrisse fora de Brasília.
+const SP = { timeZone: FUSO_DA_OPERACAO } as const;
+
+export const horaBr = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { ...SP, hour: "2-digit", minute: "2-digit" });
 
 /** "08/10/2026 às 15:24:07" — o detalhe mostra os segundos (é investigação). */
 export function dataHoraCompleta(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return `${d.toLocaleDateString("pt-BR")} às ${d.toLocaleTimeString("pt-BR")}`;
+  return `${d.toLocaleDateString("pt-BR", SP)} às ${d.toLocaleTimeString("pt-BR", SP)}`;
 }
 
-const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-
-/** Cabeçalho do dia: { principal: "Hoje", data: "quarta-feira, 08/10/2026" }. */
-export function rotuloDoDia(iso: string): { chave: string; principal: string; data: string } {
+/** "08/10/2026, 15:24:07" em São Paulo (detalhes técnicos e CSV). */
+export function dataHoraSp(iso: string): string {
   const d = new Date(iso);
-  const hoje = new Date();
-  const ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
-  const data = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
-  const chave = d.toDateString();
-  if (mesmoDia(d, hoje)) return { chave, principal: "Hoje", data };
-  if (mesmoDia(d, ontem)) return { chave, principal: "Ontem", data };
-  return { chave, principal: d.toLocaleDateString("pt-BR"), data: d.toLocaleDateString("pt-BR", { weekday: "long" }) };
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("pt-BR", SP);
+}
+
+/** Dia anterior de um "YYYY-MM-DD" (aritmética de calendário, sem fuso). */
+function diaAnterior(dia: string): string {
+  const [a, m, d] = dia.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
+/** Cabeçalho do dia: { principal: "Hoje", data: "quarta-feira, 08/10/2026" } — dia de São Paulo. */
+export function rotuloDoDia(iso: string, agora: Date = new Date()): { chave: string; principal: string; data: string } {
+  const d = new Date(iso);
+  const chave = hojeISO(FUSO_DA_OPERACAO, d);
+  const hoje = hojeISO(FUSO_DA_OPERACAO, agora);
+  const data = d.toLocaleDateString("pt-BR", { ...SP, weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+  if (chave === hoje) return { chave, principal: "Hoje", data };
+  if (chave === diaAnterior(hoje)) return { chave, principal: "Ontem", data };
+  return { chave, principal: d.toLocaleDateString("pt-BR", SP), data: d.toLocaleDateString("pt-BR", { ...SP, weekday: "long" }) };
 }
 
 /** "Há 5 min", "há 3 h", "há 2 dias" — ao lado da data completa do detalhe. */

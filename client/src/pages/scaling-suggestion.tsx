@@ -146,6 +146,9 @@ export default function ScalingSuggestionPage() {
             onEventChange={setEventId}
             selectedEvent={selectedEvent}
             disabled={busy}
+            // Trocar de evento é leitura: só o envio em curso trava o seletor
+            // (o modo leitura trava a edição, não a navegação entre eventos).
+            eventPickerDisabled={send.sendMutation.isPending}
             observations={draft.eventObservations}
             onObservationsChange={draft.setEventObservations}
             eventTestId="scaling-suggestion-event"

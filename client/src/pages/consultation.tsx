@@ -23,6 +23,12 @@ import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
  * página), o debounce da busca, as chaves de cache, a exportação da página e a
  * permissão (canAccessScreen6). A página anterior fica na tela enquanto a
  * próxima chega (`keepPreviousData`), com a lista esmaecida e uma barra fina.
+ *
+ * 08/10 (lógica): "Exclusão" filtra por `action=exclusao` (inclui evento/vaga
+ * excluídos por alteração, como a tela os mostra); as ações do histórico da
+ * vaga saíram do filtro (nunca são gravadas aqui); hora e dia em São Paulo; o
+ * filtro de pessoa inclui quem aparece no log sem cadastro e o sistema
+ * (`userName=`, via GET /api/system-logs/pessoas).
  */
 import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -36,8 +42,10 @@ import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { MODULOS, descreverLog, type NomesParaLog } from "@shared/log-auditoria";
+import { hojeISO } from "@shared/hoje-sp";
 import {
-  FILTROS_PADRAO, csvCell, nomeDoPeriodo, plural, type FiltrosDaAuditoria, type LogsResponse,
+  FILTROS_PADRAO, PREFIXO_PESSOA_PELO_NOME, csvCell, dataHoraSp, nomeDoPeriodo, opcoesDePessoas, parametroDaPessoa, plural,
+  type FiltrosDaAuditoria, type LogsResponse, type PessoaDoLog,
 } from "@/components/auditoria/auditoria-utils";
 import { BarraDaAuditoria } from "@/components/auditoria/barra-da-auditoria";
 import { ListaDaAuditoria, agruparPorDia } from "@/components/auditoria/lista-da-auditoria";
@@ -74,7 +82,9 @@ export default function SystemLogsPage() {
     const params = new URLSearchParams({ page: page.toString(), limit: "30" });
     if (filters.entityType !== "all") params.set("entityType", filters.entityType);
     if (filters.action !== "all") params.set("action", filters.action);
-    if (filters.userId !== "all") params.set("userId", filters.userId);
+    // Pessoa cadastrada vai por id; sem cadastro / sistema, pelo nome gravado (08/10).
+    const pessoa = parametroDaPessoa(filters.userId);
+    if (pessoa) params.set(pessoa.chave, pessoa.valor);
     if (filters.days) params.set("days", filters.days);
     if (debouncedSearch) params.set("search", debouncedSearch);
     return `/api/system-logs?${params}`;
@@ -93,6 +103,8 @@ export default function SystemLogsPage() {
   const functionsQ = useQuery<{ id: string; name: string }[]>({ queryKey: ["/api/functions"], enabled: podeVer, staleTime: 300_000 });
   const collaboratorsQ = useQuery<{ id: string; fullName: string }[]>({ queryKey: ["/api/collaborators"], enabled: podeVer });
   const usersQ = useQuery<{ id: string; name: string }[]>({ queryKey: ["/api/users"], enabled: podeVer, staleTime: 300_000 });
+  // Quem aparece no log (inclusive sem cadastro e o sistema) — para o filtro de pessoa.
+  const pessoasDoLogQ = useQuery<PessoaDoLog[]>({ queryKey: ["/api/system-logs/pessoas"], enabled: podeVer, staleTime: 300_000 });
   const events = eventsQ.data, functions = functionsQ.data, collaborators = collaboratorsQ.data, users = usersQ.data;
   const nomesComFalha = [eventsQ, functionsQ, collaboratorsQ, usersQ].filter((q) => q.isError);
   const nomesTentando = [eventsQ, functionsQ, collaboratorsQ, usersQ].some((q) => q.isFetching);
@@ -115,8 +127,8 @@ export default function SystemLogsPage() {
   const porDia = useMemo(() => agruparPorDia(descritos), [descritos]);
 
   const usuariosOrdenados = useMemo(
-    () => (users ?? []).map((u) => ({ id: u.id, name: toTitleCase(fixEncoding(u.name)) })).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
-    [users],
+    () => opcoesDePessoas((users ?? []).map((u) => ({ id: u.id, name: toTitleCase(fixEncoding(u.name)) })), pessoasDoLogQ.data),
+    [users, pessoasDoLogQ.data],
   );
 
   const clearFilters = () => {
@@ -133,7 +145,7 @@ export default function SystemLogsPage() {
   const exportar = () => {
     const header = "Nº;Data;Pessoa;Ação;Módulo;O que aconteceu;Contexto;Mudanças\r\n";
     const rows = descritos.map(({ log, d }) => [
-      log.logNumber, new Date(log.createdAt).toLocaleString("pt-BR"), fixEncoding(log.userName) || "Sistema",
+      log.logNumber, dataHoraSp(log.createdAt), fixEncoding(log.userName) || "Sistema",
       d.acao, d.modulo, `${fixEncoding(log.userName) || "Sistema"} ${d.frase}`, d.contexto.join(" · "),
       d.mudancas.map((m) => `${m.campo}: ${m.antes} → ${m.depois}`).join(" | "),
     ].map(csvCell).join(";")).join("\r\n");
@@ -141,7 +153,7 @@ export default function SystemLogsPage() {
     const blob = new Blob(["﻿" + header + rows], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `log-de-auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.href = url; a.download = `log-de-auditoria-${hojeISO()}.csv`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -160,7 +172,11 @@ export default function SystemLogsPage() {
     // A linha do registro acompanha o painel (fica à vista quando ele fecha).
     document.querySelector(`[data-testid="log-${alvo.log.logNumber}"]`)?.scrollIntoView({ block: "nearest" });
   };
-  const pessoaNaLista = aberto?.log.userId && usuariosOrdenados.some((u) => u.id === aberto.log.userId) ? aberto.log.userId : null;
+  // "Tudo de X": pela pessoa cadastrada ou, sem cadastro / sistema, pelo nome gravado.
+  const idDaPessoaAberta = aberto
+    ? (aberto.log.userId && usuariosOrdenados.some((u) => u.id === aberto.log.userId) ? aberto.log.userId : `${PREFIXO_PESSOA_PELO_NOME}${aberto.log.userName}`)
+    : null;
+  const pessoaNaLista = idDaPessoaAberta && usuariosOrdenados.some((u) => u.id === idDaPessoaAberta) ? idDaPessoaAberta : null;
   const moduloConhecido = aberto && MODULOS[aberto.log.entityType] ? aberto.log.entityType : null;
 
   // ── Página: a lista volta ao topo quando a página muda ──

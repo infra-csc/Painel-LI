@@ -30,6 +30,7 @@ import {
   type EventItem, type EventOption, type FormErrors, type FormState, type TabId,
 } from "@/components/baggage/baggage-core";
 import {
+  CSV_POR_COLABORADOR, CSV_POR_EVENTO, CSV_SOLICITACOES, cabecalhoCsv,
   FILTROS_VAZIOS, ORDEM_PADRAO, agregarPorColaborador, buildPayload, contadoresPorCia,
   contarPorOpcao, locJaRegistrado, ordenar, passaNosFiltros, resumir, validate,
   type FiltrosDaLista, type Ordem,
@@ -414,7 +415,7 @@ export default function BaggageControlPage() {
 
   // ── Exportações ──
   const exportarSolicitacoes = () => {
-    const header = "LOC;CIA;VALOR;OS;QUANTIDADE;AGENCIA;NOME;CPF;EVENTO;DATA SOLICITACAO;DATA EMBARQUE;OBSERVACOES";
+    const header = cabecalhoCsv(CSV_SOLICITACOES);
     const linhas = linhasFiltradas.map(r => {
       const c = collabById.get(r.collaboratorId);
       return [
@@ -436,7 +437,7 @@ export default function BaggageControlPage() {
   };
 
   const exportarPorColaborador = () => {
-    const header = "NOME;CPF;AZUL;GOL;TAM;OUTROS;BAGAGENS;HISTORICO;VALOR TOTAL";
+    const header = cabecalhoCsv(CSV_POR_COLABORADOR);
     const linhas = collabRows.map(r => [
       aspas(r.name),
       aspas(r.cpf ? formatCpf(r.cpf) : ""),
@@ -452,7 +453,7 @@ export default function BaggageControlPage() {
   };
 
   const exportarPorEvento = () => {
-    const header = "EVENTO;SOLICITACOES;BAGAGENS;VALOR TOTAL;VALOR MEDIO";
+    const header = cabecalhoCsv(CSV_POR_EVENTO);
     const linhas = eventRows.map(r => [
       aspas(r.name),
       aspas(String(r.records)),

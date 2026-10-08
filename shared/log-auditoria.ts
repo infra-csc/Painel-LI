@@ -360,6 +360,12 @@ export interface MudancaDeCampo { campo: string; antes: string; depois: string }
 export interface DadoDeCampo { campo: string; valor: string }
 
 export interface LogDescrito {
+  /**
+   * `update` gravado sem diff (08/10): o servidor grava `previousData` nulo
+   * e o objeto inteiro em `newData` quando nenhum campo mudou — a tela diz
+   * isso em vez de "Dados registrados".
+   */
+  semMudancaDeCampo: boolean;
   /** Rótulo curto da ação ("Exclusão"). */
   acao: string;
   tom: TomDaAcao;
@@ -387,6 +393,35 @@ function lerJson(dado: string | Record<string, unknown> | null | undefined): Rec
 }
 
 const temConteudo = (o: Record<string, unknown> | null): o is Record<string, unknown> => !!o && Object.keys(o).length > 0;
+
+// ─── Exclusão como a tela a chama (08/10) ────────────────────────────────────
+
+/**
+ * Valor do filtro de ação "Exclusão". A tela chama de Exclusão o `delete` E
+ * duas alterações gravadas como `update` (ver `updateLidoComoExclusao`); o
+ * filtro `action=delete` não as achava. O servidor traduz este valor para os
+ * três casos (server/storage/logs-do-sistema.ts — mesma regra em SQL).
+ */
+export const FILTRO_EXCLUSAO = "exclusao";
+
+/** Situação de evento excluído (com e sem acento, como as telas aceitam). */
+export const STATUS_DE_EVENTO_EXCLUIDO = ["excluído", "excluido"] as const;
+const eventoExcluido = (v: unknown) => (STATUS_DE_EVENTO_EXCLUIDO as readonly unknown[]).includes(v);
+
+/**
+ * `update` que a tela mostra como "Exclusão": um evento que passou para
+ * "excluído" ou uma vaga que ganhou `deletedAt`. Só com antes E depois (um
+ * diff de verdade): sem o antes, o `newData` é o registro inteiro e um
+ * evento JÁ excluído, apenas regravado, não foi excluído nesta ação.
+ */
+export function updateLidoComoExclusao(
+  entityType: string, antes: Record<string, unknown> | null, depois: Record<string, unknown> | null,
+): boolean {
+  if (!temConteudo(antes) || !temConteudo(depois)) return false;
+  if (entityType === "event") return eventoExcluido(depois.status) && !eventoExcluido(antes.status);
+  if (entityType === "team_inclusion") return !!depois.deletedAt && !antes.deletedAt;
+  return false;
+}
 
 /** "Inclusão #undefined", "event_comment", "N/A": nome gravado que não serve. */
 const nomeQuebrado = (nome: string | null | undefined, entityType: string) =>
@@ -421,14 +456,16 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
       .map(([k, v]) => ({ campo: rotuloDoCampo(k), valor: formatarValor(k, v, nomes) }))
     : [];
 
-  // Verbos que a ação genérica esconde.
-  if (log.action === "update" && log.entityType === "event" && antes?.status !== depois?.status) {
-    if (depois?.status === "excluído") acao = { rotulo: "Exclusão", verbo: "excluiu", tom: "excluir" };
-    else if (antes?.status === "excluído") acao = { rotulo: "Reativação", verbo: "reativou", tom: "aprovar" };
-  }
-  if (log.action === "update" && log.entityType === "team_inclusion" && depois?.deletedAt && !antes?.deletedAt) {
+  // Verbos que a ação genérica esconde. A exclusão segue `updateLidoComoExclusao`
+  // — a MESMA regra do filtro "Exclusão" no servidor.
+  if (log.action === "update" && updateLidoComoExclusao(log.entityType, antes, depois)) {
     acao = { rotulo: "Exclusão", verbo: "excluiu", tom: "excluir" };
+  } else if (log.action === "update" && log.entityType === "event" && temConteudo(antes) && temConteudo(depois)
+    && eventoExcluido(antes.status) && !eventoExcluido(depois.status) && depois.status !== undefined) {
+    acao = { rotulo: "Reativação", verbo: "reativou", tom: "aprovar" };
   }
+  // Alteração gravada sem diff: nenhum campo mudou (ou o antes não foi gravado).
+  const semMudancaDeCampo = log.action === "update" && !temConteudo(antes) && temConteudo(depois);
 
   // O nome do alvo.
   const nomeGravado = log.entityName ?? "";
@@ -497,9 +534,9 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
       + (mudancas.length > 2 ? ` · +${mudancas.length - 2} ${mudancas.length - 2 === 1 ? "campo" : "campos"}` : "")
     : dados.length > 0 && log.action === "create"
       ? `${dados.length} ${dados.length === 1 ? "campo preenchido" : "campos preenchidos"}`
-      : "";
+      : semMudancaDeCampo ? "Sem mudança de campo registrada" : "";
 
-  return { acao: acao.rotulo, tom: acao.tom, modulo: modulo.rotulo, frase, contexto, mudancas, dados, resumo };
+  return { semMudancaDeCampo, acao: acao.rotulo, tom: acao.tom, modulo: modulo.rotulo, frase, contexto, mudancas, dados, resumo };
 }
 
 /** Resumo curto que o SERVIDOR grava em details: "Alterou: Situação, Datas". */

@@ -268,3 +268,26 @@ export function locJaRegistrado(
   if (!alvo) return null;
   return requests.find(r => r.id !== editandoId && (r.loc || "").trim().toUpperCase() === alvo) ?? null;
 }
+
+// ── Cabeçalhos dos CSVs (08/10) ──────────────────────────────────────────────
+// Os mesmos rótulos da tela (colunas da lista e campos do formulário), em
+// pt-BR com acento. Antes eram os títulos antigos em caixa alta sem acento
+// ("DATA SOLICITACAO", "AGENCIA"…), que não batiam com nada que a pessoa via.
+// A ORDEM das colunas e o conteúdo das linhas não mudaram.
+
+/** Aba Solicitações: uma linha por solicitação do recorte. */
+export const CSV_SOLICITACOES = [
+  "Localizador (LOC)", "Companhia aérea", "Valor", "Ordem de serviço (OS)", "Quantidade", "Agência",
+  "Colaborador", "CPF", "Evento", "Data da solicitação", "Data do embarque", "Observações",
+] as const;
+
+/** Aba Por colaborador: as colunas do relatório (companhias na ordem da tela). */
+export const CSV_POR_COLABORADOR = [
+  "Colaborador", "CPF", "Azul", "Gol", "TAM", "Outros", "Bagagens", "Histórico", "Valor total",
+] as const;
+
+/** Aba Por evento: as colunas do relatório (a "Participação" é só visual). */
+export const CSV_POR_EVENTO = ["Evento", "Solicitações", "Bagagens", "Valor total", "Valor médio"] as const;
+
+/** Linha de cabeçalho no formato do CSV do sistema (separador ';'). */
+export const cabecalhoCsv = (colunas: readonly string[]) => colunas.join(";");

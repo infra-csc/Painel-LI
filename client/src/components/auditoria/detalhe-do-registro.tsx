@@ -20,7 +20,7 @@ import { ArrowDown, ArrowUp, Boxes, Check, ChevronDown, Copy, FileJson, Info, Us
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { MODULOS } from "@shared/log-auditoria";
-import { TOM, dataHoraCompleta, haQuantoTempo, jsonGravado, navegadorCurto, plural } from "./auditoria-utils";
+import { TOM, dataHoraCompleta, dataHoraSp, haQuantoTempo, jsonGravado, navegadorCurto, plural } from "./auditoria-utils";
 import { Valor, nomeDaPessoa, type ItemDoLog } from "./lista-da-auditoria";
 
 const SEM_NOME = "Outro campo";
@@ -132,7 +132,10 @@ export function DetalheDoRegistro({ item, aberto, onFechar, posicao, onAnterior,
     if ((e.key === "ArrowDown" || e.key === "j") && onProximo) { e.preventDefault(); onProximo(); }
   };
 
-  const tituloDosDados = log?.action === "delete" ? "Como estava antes de excluir" : "Dados registrados";
+  // Alteração gravada sem diff (nenhum campo mudou): os dados são o registro
+  // inteiro, não "o que foi registrado" — a tela diz isso (08/10).
+  const tituloDosDados = log?.action === "delete" ? "Como estava antes de excluir"
+    : d?.semMudancaDeCampo ? "Alteração sem mudança de campo registrada" : "Dados registrados";
 
   return (
     <Sheet open={aberto} onOpenChange={(o) => { if (!o) onFechar(); }}>
@@ -200,6 +203,11 @@ export function DetalheDoRegistro({ item, aberto, onFechar, posicao, onAnterior,
 
               {d.mudancas.length === 0 && d.dados.length > 0 && (
                 <Secao titulo={tituloDosDados} contagem={d.dados.length} testid="aud-dados">
+                  {d.semMudancaDeCampo && (
+                    <p className="mb-2.5 text-xs leading-relaxed text-muted-foreground" data-testid="aud-sem-mudanca">
+                      Nenhum campo mudou nesta alteração (ou o “antes” não foi gravado). Abaixo, o registro como ficou:
+                    </p>
+                  )}
                   {dados.length > 0 && <dl className="grid grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2">
                     {dados.map((x, i) => (
                       <div key={`${x.campo}-${i}`} className="min-w-0">
@@ -251,7 +259,7 @@ export function DetalheDoRegistro({ item, aberto, onFechar, posicao, onAnterior,
                 <div className="space-y-3 px-4 pb-4">
                   <dl className="grid grid-cols-1 gap-x-5 gap-y-2.5 text-xs sm:grid-cols-2">
                     <div><dt className="text-2xs font-medium text-muted-foreground">Registro nº</dt><dd className="mt-0.5 font-mono tabular-nums text-slate-700">{log.logNumber}</dd></div>
-                    <div><dt className="text-2xs font-medium text-muted-foreground">Data e hora</dt><dd className="mt-0.5 tabular-nums text-slate-700">{new Date(log.createdAt).toLocaleString("pt-BR")}</dd></div>
+                    <div><dt className="text-2xs font-medium text-muted-foreground">Data e hora</dt><dd className="mt-0.5 tabular-nums text-slate-700">{dataHoraSp(log.createdAt)}</dd></div>
                     <div><dt className="text-2xs font-medium text-muted-foreground">IP</dt><dd className="mt-0.5 font-mono text-slate-700">{log.ipAddress || "—"}</dd></div>
                     <div><dt className="text-2xs font-medium text-muted-foreground">Navegador</dt><dd className="mt-0.5 text-slate-700">{navegadorCurto(log.userAgent)}</dd></div>
                     <div className="sm:col-span-2">

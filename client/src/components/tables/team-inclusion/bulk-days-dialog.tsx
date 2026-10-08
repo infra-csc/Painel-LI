@@ -25,15 +25,13 @@ export function BulkDaysDialog({ bulk, getCollaboratorName, getFunctionName }: {
   getCollaboratorName: TeamInclusionData["getCollaboratorName"];
   getFunctionName: TeamInclusionData["getFunctionName"];
 }) {
-  const { showBatchDiarias, fechar, targets, batchDiariasSelections, toggleBatchDay, setDays, handleSaveBatchDiarias, isPending, descarteLote } = bulk;
+  const { showBatchDiarias, fechar, targets, batchDiariasSelections, changedIds, toggleBatchDay, setDays, handleSaveBatchDiarias, isPending, descarteLote } = bulk;
 
-  // A mesma comparação que o salvar usa para decidir o que vai no PATCH.
+  // O mesmo conjunto que o salvar usa para decidir o que vai no PATCH.
   const linhas = targets.map((inc) => {
     const selectedDays = batchDiariasSelections[inc.id] ?? [];
     const allDays = generateDaysInRange(normDay(inc.scheduleStartDate), normDay(inc.scheduleEndDate));
-    const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
-    const newDays = [...selectedDays].sort();
-    const changed = newDays.join(',') !== origDays.join(',') || newDays.length !== (inc.dailyRates ?? 0);
+    const changed = changedIds.has(inc.id);
     return { inc, selectedDays, allDays, changed };
   });
   const alteradas = linhas.filter(l => l.changed).length;

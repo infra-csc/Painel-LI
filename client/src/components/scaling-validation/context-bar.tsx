@@ -11,7 +11,13 @@ export interface ContextBarProps {
   eventId: string;
   onEventChange: (id: string) => void;
   selectedEvent: Event | undefined;
+  /** Trava a EDIÇÃO (o recado). Sem `eventPickerDisabled`, trava também o seletor. */
   disabled?: boolean;
+  /**
+   * Trava só o seletor de evento. Ver outro evento é leitura: no modo leitura
+   * a página passa `false` aqui (seletor livre) e `true` em `disabled`.
+   */
+  eventPickerDisabled?: boolean;
   observations: string;
   onObservationsChange: (v: string) => void;
   eventTestId?: string;
@@ -36,7 +42,7 @@ const OBS_MAX = 2000;
  * das linhas da grade — sem o memo ela era redesenhada junto, à toa.
  */
 export const ContextBar = memo(function ContextBar({
-  events, eventId, onEventChange, selectedEvent, disabled, observations, onObservationsChange,
+  events, eventId, onEventChange, selectedEvent, disabled, eventPickerDisabled, observations, onObservationsChange,
   eventTestId, eventTriggerRef,
 }: ContextBarProps) {
   const [showComments, setShowComments] = useState(false);
@@ -81,7 +87,7 @@ export const ContextBar = memo(function ContextBar({
               onValueChange={(v) => onEventChange(v === "all" ? "" : v)}
               placeholder="Selecione um evento" testId={eventTestId}
               className="h-9 font-semibold"
-              disabled={disabled}
+              disabled={eventPickerDisabled ?? disabled}
               triggerRef={eventTriggerRef}
             />
           </div>

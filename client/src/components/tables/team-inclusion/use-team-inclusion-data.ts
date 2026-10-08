@@ -3,7 +3,7 @@
  * O(1), filtros/ordenação, totais dos cartões, seleção e trava de evento encerrado.
  */
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { fixEncoding } from "@/lib/utils";
@@ -13,11 +13,26 @@ import { useSwapRequests } from "@/hooks/use-swap-requests";
 import { useEventLock } from "@/lib/event-lock";
 import type { UniversalFilterValues } from "@/components/common/universal-filters";
 import type { SortConfig, SortField } from "@/components/common/sortable-header";
+import { getDisplayStatus } from "./inclusion-shared";
 
 export type InclusionFilters = UniversalFilterValues & { status: string[] };
 
 /** As dimensões do recorte que a barra de filtros e o resumo controlam. */
 export type DimensaoDoRecorte = "eventId" | "functionId" | "collaboratorId" | "status" | "escalationStatus" | "searchId";
+
+/**
+ * Status da vaga para o RECORTE (filtro, contadores do filtro e resumo): o
+ * MESMO que a lista mostra na pílula (`getDisplayStatus`). Uma vaga
+ * "escalado" que precisa de passagem aparece na lista como "Aguardando
+ * passagem", mas o resumo e o filtro só contavam `status === "passagem"` —
+ * os números de "Passagem" no resumo e na lista divergiam (08/10).
+ */
+export const statusDoRecorte = (inclusion: TeamInclusion): string => {
+  const exibido = getDisplayStatus(inclusion);
+  if (exibido === "aguardando_passagem") return "passagem";
+  if (exibido === "aguardando_hospedagem") return "hospedagem";
+  return exibido;
+};
 
 /** "Escalação" de uma vaga, com a MESMA regra do filtro (pendente / escalada / cancelada). */
 export const casaComEscalacao = (inclusion: TeamInclusion, v: string) => {
@@ -48,7 +63,7 @@ export function passaNoRecorte(
   if (usa("eventId") && filters.eventId.length > 0 && !filters.eventId.includes(inclusion.eventId)) return false;
   if (usa("functionId") && filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
   if (usa("collaboratorId") && filters.collaboratorId.length > 0 && (!inclusion.collaboratorId || !filters.collaboratorId.includes(inclusion.collaboratorId))) return false;
-  if (usa("status") && filters.status.length > 0 && !filters.status.includes(inclusion.status)) return false;
+  if (usa("status") && filters.status.length > 0 && !filters.status.includes(statusDoRecorte(inclusion))) return false;
   if (usa("escalationStatus") && filters.escalationStatus.length > 0) {
     if (!filters.escalationStatus.some((v) => casaComEscalacao(inclusion, v))) return false;
   }
@@ -81,6 +96,24 @@ export const OPCOES_DE_ESCALACAO = [
   { id: "aguardando_producao", nome: "Aguardando gestor" },
   { id: "cancelado", nome: "Cancelados" },
 ];
+
+/**
+ * Junta as consultas por evento numa lista só, com as mesmas flags de uma
+ * consulta. Fica fora do hook (referência estável): o `combine` do
+ * `useQueries` só roda de novo quando alguma consulta muda.
+ * `data` só existe quando TODAS chegaram (nada de lista parcial no resumo).
+ */
+export function juntarListasDeVagas(rs: UseQueryResult<TeamInclusion[]>[]) {
+  const prontas = rs.length > 0 && rs.every(r => r.data !== undefined);
+  return {
+    data: prontas ? (rs.length === 1 ? rs[0].data : rs.flatMap(r => r.data ?? [])) : undefined,
+    isLoading: rs.some(r => r.isLoading),
+    isError: rs.some(r => r.isError),
+    error: rs.find(r => r.error)?.error ?? null,
+    isFetching: rs.some(r => r.isFetching),
+    refetch: () => Promise.all(rs.map(r => r.refetch())),
+  };
+}
 
 export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } = {}) {
   // Seleção múltipla (28/08): listas; vazia = todos. Também conserta o filtro
@@ -119,19 +152,27 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
     });
   };
 
-  // Com UM evento marcado no filtro, busca só as vagas dele (`?eventId=`,
-  // contrato 23/09) — a chave leva o id para o cache ser por evento e as
-  // invalidações por prefixo (`["/api/team-inclusions"]`) continuarem valendo.
-  const eventoFiltrado = filters.eventId.length === 1 ? filters.eventId[0] : null;
+  // Com evento(s) marcado(s) no filtro, busca só as vagas DELES (`?eventId=`,
+  // contrato 23/09) — uma consulta por evento, com o id na chave para o cache
+  // ser por evento e as invalidações por prefixo (`["/api/team-inclusions"]`)
+  // continuarem valendo. Até 08/10, com DOIS ou mais eventos marcados a tela
+  // baixava as vagas de TODOS os eventos e filtrava no navegador. Sem evento
+  // marcado, a lista é a de todos (papéis que o servidor deixa ler tudo).
+  const eventosFiltrados = filters.eventId;
   // "Mostrar excluídos" (07/10): o interruptor existia mas a consulta nunca
   // pedia as excluídas — o servidor aceita `includeDeleted=true`.
   const comExcluidas = !!filters.showDeleted;
-  const parametros = [eventoFiltrado ? `eventId=${eventoFiltrado}` : "", comExcluidas ? "includeDeleted=true" : ""].filter(Boolean).join("&");
-  const { data: teamInclusions, isLoading, isError, error, refetch, isFetching } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions", ...(eventoFiltrado ? [eventoFiltrado] : []), ...(comExcluidas ? ["com-excluidas"] : [])],
-    queryFn: () => apiRequest("GET", `/api/team-inclusions${parametros ? `?${parametros}` : ""}`).then(r => r.json()),
-    // Sem acesso à tela, nem pede (07/10: os dados subiram para a página, que monta antes da checagem).
-    enabled,
+  const { data: teamInclusions, isLoading, isError, error, refetch, isFetching } = useQueries({
+    queries: (eventosFiltrados.length > 0 ? eventosFiltrados : [null]).map((eventoId) => {
+      const parametros = [eventoId ? `eventId=${eventoId}` : "", comExcluidas ? "includeDeleted=true" : ""].filter(Boolean).join("&");
+      return {
+        queryKey: ["/api/team-inclusions", ...(eventoId ? [eventoId] : []), ...(comExcluidas ? ["com-excluidas"] : [])],
+        queryFn: (): Promise<TeamInclusion[]> => apiRequest("GET", `/api/team-inclusions${parametros ? `?${parametros}` : ""}`).then(r => r.json()),
+        // Sem acesso à tela, nem pede (07/10: os dados subiram para a página, que monta antes da checagem).
+        enabled,
+      };
+    }),
+    combine: juntarListasDeVagas,
   });
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
@@ -253,7 +294,7 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
     const porEvento = contar("eventId", i => i.eventId);
     const porFuncao = contar("functionId", i => i.functionId);
     const porColaborador = contar("collaboratorId", i => i.collaboratorId);
-    const porStatus = contar("status", i => i.status);
+    const porStatus = contar("status", statusDoRecorte);
     const baseEscalacao = lista.filter(i => passaNoRecorte(i, filters, ["escalationStatus"], getCollaboratorName));
     return {
       eventos: (events ?? [])
@@ -274,8 +315,8 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
     incluidos: totalsBase.length,
     pendentes: totalsBase.filter(i => !i.collaboratorId && !vagaComEmpreita(i) && i.status !== 'cancelado').length,
     escalados: totalsBase.filter(i => (i.collaboratorId || vagaComEmpreita(i)) && i.status !== 'cancelado').length,
-    aguardando_passagem: totalsBase.filter(i => i.status === 'passagem').length,
-    hospedagem: totalsBase.filter(i => i.status === 'hospedagem').length,
+    aguardando_passagem: totalsBase.filter(i => statusDoRecorte(i) === 'passagem').length,
+    hospedagem: totalsBase.filter(i => statusDoRecorte(i) === 'hospedagem').length,
     passagem_comprada: totalsBase.filter(i => i.status === 'passagem_comprada').length,
     hospedagem_comprada: totalsBase.filter(i => i.status === 'hospedagem_comprada').length,
     cancelados: totalsBase.filter(i => i.status === 'cancelado').length,

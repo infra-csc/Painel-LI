@@ -66,7 +66,20 @@ export const savedOrRangeDays = (inc: TeamInclusion): string[] => {
   return savedDays.length > 0 ? savedDays : generateDaysInRange(normDay(inc.scheduleStartDate), normDay(inc.scheduleEndDate));
 };
 
-export const canCancelEscalation = (inclusion: TeamInclusion) => {
+/**
+ * Diárias em lote: a vaga só está "alterada" quando os dias marcados diferem
+ * dos que o diálogo ABRIU com (`savedOrRangeDays`). Comparar com `workDays`
+ * salvo marcava como alterada — e regravava — a vaga sem dias salvos (o
+ * diálogo abre com o intervalo inteiro) ou com `dailyRates` legado diferente
+ * da contagem de dias, sem que ninguém tivesse mexido nela.
+ */
+export const diasDoLoteMudaram = (inicial: readonly string[], atual: readonly string[]): boolean => {
+  const a = [...inicial].map(normDay).filter(Boolean).sort();
+  const b = [...atual].map(normDay).filter(Boolean).sort();
+  return a.join(',') !== b.join(',');
+};
+
+export const canCancelEscalation =(inclusion: TeamInclusion) => {
   // Pode cancelar em qualquer status, exceto quando já está cancelado
   return inclusion.status !== 'cancelado';
 };

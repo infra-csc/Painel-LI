@@ -161,7 +161,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
                 <FormItem>
                   <FormControl>
                     <Textarea
-                      placeholder="Adicionar comentário…"
+                      placeholder="Escreva um comentário…"
                       className="border border-border rounded-xl bg-card focus:ring-2 focus:ring-primary/25 focus:border-primary text-sm p-3 w-full resize-none min-h-[80px] transition-all"
                       {...field}
                       data-testid="textarea-comment"
