@@ -1,38 +1,71 @@
-// Extraído de invoices.tsx em 25/09 (modularização): cartão de uma nota
-// fiscal na aba Lançamento (visão do colaborador). Estado do formulário e a
-// mutation de envio vivem em `useSubmitInvoice`; aqui só a apresentação.
-// `React.memo` porque é item de lista — os resolvedores vêm memoizados do
-// hook de dados.
+// Extraído de invoices.tsx em 25/09 (modularização): a nota fiscal de um item
+// do Realizado na aba Lançamento. Estado do formulário e a mutation de envio
+// vivem em `useSubmitInvoice`; aqui só a apresentação. `React.memo` porque é
+// item de lista — os resolvedores vêm memoizados do hook de dados.
+//
+// 08/10 (redesenho): era um cartão alto (nome e valor em cima, formulário com
+// rótulos embaixo, ~150px) — cabiam três por tela e os valores não ficavam um
+// embaixo do outro. Agora é uma LINHA de planilha: colaborador · valor ·
+// situação · OC · nota · ação · histórico, nas mesmas colunas do cabeçalho da
+// lista (`.nf-grade` no index.css). O formulário mora nas próprias células (OC
+// e anexo onde a OC e a nota aparecem depois de enviadas), o motivo da
+// devolução/recusa e o histórico abrem numa faixa logo abaixo. Em largura útil
+// estreita a MESMA árvore vira cartão por CSS (`.nf-cartoes`): nenhum dado é
+// renderizado de outro jeito, então nada se perde entre os dois modos.
+//
+// Nenhum campo saiu: nome, função, sinal de devolução, valor, situação, OC
+// (campo ou texto), anexo (anexar, substituir, remover, ver atual, ver nota),
+// enviar/reenviar, histórico, motivo da devolução, recusa definitiva e as
+// datas de check-in e de pagamento.
 import { memo, useState } from "react";
 import {
-  FileText, Upload, CheckCircle2, RotateCcw, Clock,
-  ChevronDown, ChevronUp, Paperclip,
-  FileCheck, Send, Eye, X, Ban,
+  FileText, Upload, RotateCcw, Clock, ChevronDown,
+  Paperclip, FileCheck, Send, Eye, X, Ban, Loader2,
 } from "lucide-react";
 import type { BudgetActual, Event, Invoice } from "@shared/schema";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toTitleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
 import { campoComErro } from "@/lib/campo-com-erro";
-import { fmtDate, formatCurrency } from "./invoice-format";
-import { getEffectiveStatus, getStatusCfg } from "./invoice-status";
-import { buildHistory, HistoryPanel } from "./invoice-history";
+import { fmtDate, formatCurrency, haDias } from "./invoice-format";
+import { getEffectiveStatus, getStatusCfg, PILULA } from "./invoice-status";
+import { buildHistory, daysSince, HistoryPanel } from "./invoice-history";
 import { useSubmitInvoice } from "./use-invoice-actions";
+import { useAcabouDeMudar } from "./use-acabou-de-mudar";
 import type { AbaBaseProps } from "./types";
 
-// ── Invoice Card (collaborator view) ─────────────────────────────────────────
+// ── Invoice Card (linha da aba Lançamento) ───────────────────────────────────
 export interface InvoiceCardProps extends Pick<AbaBaseProps, "getName" | "getFuncName" | "selectedEventId" | "qc" | "toast"> {
   actual: BudgetActual;
   invoice: Invoice | undefined;
   selectedEvent: Event | undefined;
+  /** Linha pedida pela URL (`?actual=`): acende por alguns segundos. */
+  destacado?: boolean;
 }
 
-export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: InvoiceCardProps) {
+/** Campo de texto da linha: 32px, a mesma borda/foco da busca das telas irmãs. */
+const CAMPO =
+  "pas-alvo w-full h-8 px-2.5 rounded-lg border border-border bg-card text-sm text-foreground font-mono tracking-tight outline-none transition-[border-color,box-shadow] duration-150 placeholder:font-sans placeholder:text-muted-foreground hover:border-slate-300 focus:border-primary focus:ring-[3px] focus:ring-primary/12 aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger/15";
+
+/** Link "Ver nota" das linhas já enviadas. */
+function VerNota({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="pas-alvo inline-flex items-center gap-1.5 h-7 px-2 -ml-2 rounded-md text-xs font-medium text-primary hover:bg-brand-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
+    </a>
+  );
+}
+
+export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, destacado }: InvoiceCardProps) {
   const effStatus = getEffectiveStatus(invoice);
   const cfg = getStatusCfg(effStatus);
+  const acesa = useAcabouDeMudar(effStatus);
 
   const [expanded, setExpanded] = useState(effStatus === "devolvida");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -53,107 +86,147 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
     oc, setOc, erros, setErros, file, setFile, uploading, clearedAttachment, fileRef, removeAttachment, submitMutation,
   } = useSubmitInvoice({ actual, invoice, selectedEventId, qc, toast, paymentText });
 
+  const temAnexoAtual = !!invoice?.attachmentUrl && !clearedAttachment;
+  const enviando = submitMutation.isPending || uploading;
+  /** OC e anexo preenchidos: o botão da linha ganha peso (antes disso, contorno). */
+  const pronto = !!oc.trim() && (!!file || temAnexoAtual);
+
   return (
     <div
+      role="listitem"
+      data-actual-id={actual.id}
       className={cn(
-        "bg-card rounded-xl border border-border border-l-[3px] overflow-hidden shadow-1 transition-shadow hover:shadow-2",
+        "nf-linha border-b border-border last:border-b-0 border-l-[3px]",
         historyOpen ? "border-l-primary" : cfg.borderCls,
+        destacado && "nf-alvo",
+        acesa && "nf-acesa",
       )}
+      data-testid={`nf-linha-${actual.id}`}
     >
-      {/* Cabeçalho (25/09): no celular nome e valor ficam em DUAS linhas —
-          numa só, "R$ 1.016,00" cobria o selo de status e o nome da função. */}
-      <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-4 transition-colors ${historyOpen ? "bg-brand-soft/30" : ""}`}>
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${cfg.avatarCls}`}>
+      <div className="nf-grade">
+        {/* Colaborador + função (+ sinal de devolução anterior) */}
+        <div data-col="colab" className="nf-cel flex items-center gap-2.5 min-w-0">
+          <span aria-hidden="true" className={`w-8 h-8 rounded-full inline-flex items-center justify-center text-xs font-semibold shrink-0 ${cfg.avatarCls}`}>
             {initial}
-          </div>
+          </span>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-foreground truncate">{displayName}</div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="text-2xs text-muted-foreground truncate">{funcName}</div>
-              {hasReturn && <span title="Houve devolução" className="text-2xs text-warning-strong font-bold leading-none">↩</span>}
-            </div>
+            <p className="m-0 text-sm font-medium leading-5 text-foreground" title={displayName}>{displayName}</p>
+            <p className="m-0 flex items-center gap-1 text-2xs leading-4 text-muted-foreground min-w-0">
+              <span className="truncate">{funcName}</span>
+              {hasReturn && (
+                <span title="Houve devolução" className="inline-flex items-center text-warning-strong shrink-0">
+                  <RotateCcw className="w-3 h-3" aria-hidden="true" />
+                  <span className="sr-only">Houve devolução</span>
+                </span>
+              )}
+            </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 pl-[52px] sm:pl-0 sm:shrink-0">
-          <span className="text-lg font-bold text-primary tabular-nums font-mono">
-            {formatCurrency(actual.totalValue)}
-          </span>
-          <span className={`text-2xs font-semibold px-2.5 py-1 rounded-full ${cfg.pill}`}>
-            {cfg.label}
-          </span>
-          {invoice && history.length > 0 && (
-            <button
-              onClick={() => setHistoryOpen(o => !o)}
-              title={historyOpen ? "Fechar histórico" : `${history.length} evento(s)`}
-              aria-expanded={historyOpen}
-              aria-label={historyOpen ? "Fechar histórico" : `Abrir histórico (${history.length} eventos)`}
-              className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
-                historyOpen ? "text-primary bg-brand-soft" : "text-muted-foreground hover:text-primary hover:bg-brand-soft"
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-              {!historyOpen && <span className="text-2xs font-semibold leading-none tabular-nums">{history.length}</span>}
-            </button>
-          )}
+
+        {/* Valor do Realizado */}
+        <div data-col="valor" className="nf-cel text-right">
+          <span className="sr-only">Valor: </span>
+          <span className="text-sm font-semibold tabular-nums text-foreground whitespace-nowrap">{formatCurrency(actual.totalValue)}</span>
+        </div>
+
+        {/* Situação + o que ela quer dizer agora */}
+        <div data-col="sit" className="nf-cel min-w-0">
+          <span className={`${PILULA} ${cfg.pill}`}>{cfg.label}</span>
+          {effStatus === "pendente" && <p className="nf-sub">falta enviar a nota</p>}
+          {effStatus === "enviada" && invoice && <p className="nf-sub tabular-nums">enviada {haDias(daysSince(invoice))}</p>}
           {effStatus === "devolvida" && (
             <button
+              type="button"
               onClick={() => setExpanded(e => !e)}
               aria-expanded={expanded}
               aria-label={expanded ? "Recolher motivo da devolução" : "Ver motivo da devolução"}
-              className="text-muted-foreground hover:text-slate-600 transition-colors"
+              className="pas-alvo mt-0.5 flex w-fit items-center gap-0.5 h-5 -ml-1 px-1 rounded text-2xs font-medium text-warning hover:bg-warning-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {expanded ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
+              {expanded ? "ocultar motivo" : "ver motivo"}
+              <ChevronDown className={`w-3 h-3 transition-transform duration-150 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
             </button>
           )}
+          {effStatus === "recusada" && <p className="nf-sub text-danger">decisão definitiva</p>}
+          {effStatus === "checkin-pendente" && <p className="nf-sub">aprovada, falta o check-in</p>}
+          {effStatus === "checkin-realizado" && (
+            <>
+              {invoice?.paymentDate && (
+                <p className="nf-sub font-medium text-success tabular-nums">Pgto: {fmtDate(invoice.paymentDate)}</p>
+              )}
+              {invoice?.checkinAt && <p className="nf-sub tabular-nums">check-in em {fmtDate(invoice.checkinAt)}</p>}
+            </>
+          )}
         </div>
-      </div>
 
-      {/* Body */}
-      <div className="px-4 sm:px-5 pb-4">
-        {/* Editable (pendente / devolvida) */}
-        {canEdit && (
-          <div className="flex flex-wrap items-end gap-3 mb-3">
-            <div className="flex-1 min-w-[180px]">
-              <label htmlFor={`nf-oc-${actual.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+        {/* OC: campo enquanto dá para enviar; depois, o número enviado */}
+        <div data-col="oc" className="nf-cel min-w-0" data-rotulo={canEdit ? undefined : "Número OC"}>
+          {canEdit ? (
+            <>
+              <label htmlFor={`nf-oc-${actual.id}`} className="nf-rotulo">
                 Número OC<RequiredMark />
               </label>
-              <Input
+              <input
                 id={`nf-oc-${actual.id}`}
                 value={oc}
                 aria-required="true"
                 {...campoComErro(`nf-oc-${actual.id}`, erros.oc)}
                 onChange={e => { setOc(e.target.value); if (erros.oc) setErros(p => ({ ...p, oc: undefined })); }}
+                onKeyDown={e => { if (e.key === "Enter" && !enviando) { e.preventDefault(); submitMutation.mutate(); } }}
                 placeholder="OC-0000"
-                className="h-9 text-sm rounded-xl border-border focus:border-primary"
+                autoComplete="off"
+                className={CAMPO}
               />
               <MensagemDeErro id={`nf-oc-${actual.id}`} erro={erros.oc} />
-              <p className="text-2xs text-muted-foreground mt-0.5">OCs repetidas no evento devem usar o mesmo anexo.</p>
-            </div>
-            <div className="flex-1 min-w-[180px]">
-              <label htmlFor={`nf-file-${actual.id}`} className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+            </>
+          ) : invoice?.oc ? (
+            <span className="font-mono text-xs font-semibold text-slate-700 truncate block" title={`OC ${invoice.oc}`}>
+              <span className="sr-only">OC </span>{invoice.oc}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* Nota: anexar/substituir enquanto dá para enviar; depois, "Ver nota" */}
+        <div data-col="nota" className="nf-cel min-w-0" data-rotulo={canEdit ? undefined : "Nota fiscal"}>
+          {canEdit ? (
+            <>
+              <label htmlFor={`nf-file-${actual.id}`} className="nf-rotulo">
                 Nota fiscal<RequiredMark />
               </label>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 min-w-0">
                 <button
                   type="button"
                   id={`nf-file-btn-${actual.id}`}
                   {...campoComErro(`nf-file-btn-${actual.id}`, erros.anexo)}
                   onClick={() => fileRef.current?.click()}
-                  className="flex-1 h-9 flex items-center gap-1.5 px-3 border border-dashed border-slate-300 rounded-xl text-xs text-muted-foreground hover:border-success-strong hover:bg-success-soft/40 transition-all min-w-0"
+                  title={file ? file.name : temAnexoAtual ? (invoice?.attachmentName || "Substituir nota") : "PDF, JPG ou PNG"}
+                  className={cn(
+                    "pas-alvo flex-1 min-w-0 h-8 inline-flex items-center gap-1.5 px-2.5 rounded-lg border text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary",
+                    file
+                      ? "border-success/40 bg-success-soft/60 text-success"
+                      : erros.anexo
+                      ? "border-dashed border-danger text-danger hover:bg-danger-soft/50"
+                      : "border-dashed border-slate-300 text-slate-600 hover:border-primary/50 hover:bg-brand-soft/50 hover:text-primary",
+                  )}
                 >
                   {file ? (
-                    <><FileCheck className="w-3.5 h-3.5 text-success shrink-0" aria-hidden="true" /><span className="truncate text-success font-medium">{file.name}</span></>
-                  ) : invoice?.attachmentUrl && !clearedAttachment ? (
+                    <><FileCheck className="nf-pop w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span className="truncate font-medium">{file.name}</span></>
+                  ) : temAnexoAtual ? (
                     <><Paperclip className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span className="truncate">Substituir nota</span></>
                   ) : (
-                    <><Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span>Anexar nota</span></>
+                    <><Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /><span className="truncate">Anexar nota</span></>
                   )}
                 </button>
-                {(file || (invoice?.attachmentUrl && !clearedAttachment)) && (
-                  <button type="button" onClick={removeAttachment} aria-label="Remover anexo"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-danger-strong hover:bg-danger-soft transition-colors shrink-0">
-                    <X className="w-3 h-3" aria-hidden="true" />
+                {(file || temAnexoAtual) && (
+                  <button
+                    type="button"
+                    onClick={removeAttachment}
+                    aria-label="Remover anexo"
+                    title="Remover anexo"
+                    className="pas-alvo w-7 h-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -162,123 +235,90 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
               <MensagemDeErro id={`nf-file-btn-${actual.id}`} erro={erros.anexo} />
               {invoice?.attachmentUrl && !file && !clearedAttachment && (
                 <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                  className="mt-0.5 inline-flex items-center gap-0.5 text-2xs text-primary hover:underline">
-                  <Eye className="w-2.5 h-2.5" aria-hidden="true" /> Ver atual
+                  className="mt-0.5 inline-flex items-center gap-1 text-2xs font-medium text-primary hover:underline">
+                  <Eye className="w-3 h-3" aria-hidden="true" /> Ver atual
                 </a>
               )}
-            </div>
-            <Button
-              size="sm"
-              className="rounded-xl text-white px-5 h-9 text-sm shadow-1 shrink-0 bg-success w-full sm:w-auto"
+            </>
+          ) : invoice?.attachmentUrl ? (
+            <VerNota url={invoice.attachmentUrl} />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* No cartão, a regra da OC fica embaixo dos dois campos (na planilha, no cabeçalho). */}
+        {canEdit && <p data-col="dica" className="m-0 text-2xs text-muted-foreground">OCs repetidas no evento devem usar o mesmo anexo.</p>}
+
+        {/* Ação da linha: enviar (ou reenviar) */}
+        <div data-col="acao" className="nf-cel">
+          {canEdit && (
+            <button
+              type="button"
               onClick={() => submitMutation.mutate()}
-              disabled={submitMutation.isPending || uploading}
+              disabled={enviando}
+              aria-busy={enviando || undefined}
+              className={cn(
+                "pas-alvo w-full h-8 inline-flex items-center justify-center gap-1.5 px-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-wait",
+                pronto || enviando
+                  ? "bg-primary text-primary-foreground hover:bg-primary-hover"
+                  : "border border-primary/30 bg-card text-primary hover:bg-brand-soft",
+              )}
             >
-              <Send className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-              {submitMutation.isPending || uploading ? "Enviando…" : effStatus === "devolvida" ? "Reenviar" : "Enviar nota"}
-            </Button>
-          </div>
-        )}
+              {enviando
+                ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                : <Send className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
+              {enviando ? "Enviando…" : effStatus === "devolvida" ? "Reenviar" : "Enviar nota"}
+            </button>
+          )}
+        </div>
 
-        {/* Read-only (enviada) */}
-        {!canEdit && effStatus === "enviada" && invoice?.oc && (
-          <div className="flex items-center gap-4 mb-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</span>
-              <span className="text-sm font-mono font-semibold text-slate-700">{invoice.oc}</span>
-            </div>
-            {invoice?.attachmentUrl && (
-              <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
-                <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* Check-in pendente — aguardando RH fazer o check-in */}
-        {(effStatus === "checkin-pendente" || effStatus === "checkin-realizado") && (
-          <div className="flex items-center gap-4 mb-2">
-            {invoice?.oc && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</span>
-                <span className="text-sm font-mono font-semibold text-slate-700">{invoice.oc}</span>
-              </div>
-            )}
-            {invoice?.attachmentUrl && (
-              <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
-                <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* Check-in realizado */}
-        {effStatus === "checkin-realizado" && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-success-soft text-success border border-success/25">
-            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-            Check-in realizado
-            {invoice?.checkinAt && <span className="font-normal opacity-75">· {fmtDate(invoice.checkinAt)}</span>}
-            {invoice?.paymentDate && (
-              <span className="font-normal opacity-75 ml-1">
-                · Pgto: {fmtDate(invoice.paymentDate)}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Aguardando Check-in — apenas badge estático no Lançamento */}
-        {effStatus === "checkin-pendente" && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-brand-soft text-primary border border-primary/25">
-            <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-            Aprovada · aguardando check-in financeiro
-          </div>
-        )}
-
-        {/* Devolvida — motivo */}
-        {expanded && effStatus === "devolvida" && (
-          <div className="mt-3 bg-warning-soft border border-warning/25 rounded-xl px-4 py-3 flex items-start gap-2">
-            <RotateCcw className="w-3.5 h-3.5 text-warning-strong mt-0.5 shrink-0" aria-hidden="true" />
-            <div>
-              <p className="text-2xs font-semibold text-warning mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
-              <p className="text-xs text-warning">{invoice?.returnComment || "Sem comentário."}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Recusada — estado terminal, sem reenvio */}
-        {effStatus === "recusada" && (
-          <>
-            {(invoice?.oc || invoice?.attachmentUrl) && (
-              <div className="flex items-center gap-4 mb-2">
-                {invoice?.oc && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</span>
-                    <span className="text-sm font-mono font-semibold text-slate-700">{invoice.oc}</span>
-                  </div>
-                )}
-                {invoice?.attachmentUrl && (
-                  <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-brand-soft hover:bg-brand-soft px-2.5 py-1.5 rounded-xl transition-colors">
-                    <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
-                  </a>
-                )}
-              </div>
-            )}
-            <div className="bg-danger-soft border border-danger/25 rounded-xl px-4 py-3 flex items-start gap-2">
-              <Ban className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" aria-hidden="true" />
-              <div>
-                <p className="text-2xs font-semibold text-danger mb-0.5 uppercase tracking-wide">NF recusada — decisão definitiva, sem reenvio</p>
-                <p className="text-xs text-danger">{invoice?.returnComment || "Sem motivo informado."}</p>
-              </div>
-            </div>
-          </>
-        )}
+        {/* Histórico (só quem já tem nota) */}
+        <div data-col="hist" className="nf-cel flex justify-end">
+          {invoice && history.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(o => !o)}
+              title={historyOpen ? "Fechar histórico" : `Histórico: ${history.length} ${history.length === 1 ? "evento" : "eventos"}`}
+              aria-expanded={historyOpen}
+              aria-label={historyOpen ? "Fechar histórico" : `Abrir histórico (${history.length} ${history.length === 1 ? "evento" : "eventos"})`}
+              className={cn(
+                "pas-alvo h-8 min-w-8 px-1.5 inline-flex items-center justify-center gap-1 rounded-lg text-2xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                historyOpen ? "bg-brand-soft text-primary" : "text-muted-foreground hover:bg-brand-soft hover:text-primary",
+              )}
+            >
+              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+              {history.length}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* History panel */}
+      {/* Devolvida — o motivo, aberto de saída (dá para recolher) */}
+      {expanded && effStatus === "devolvida" && (
+        <div className="nf-faixa nf-abre flex items-start gap-2 bg-warning-soft/70 border-t border-warning/20">
+          <RotateCcw className="w-3.5 h-3.5 text-warning-strong mt-0.5 shrink-0" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="m-0 text-2xs font-semibold uppercase tracking-[0.06em] text-warning">Devolvida para ajuste</p>
+            <p className="m-0 mt-0.5 text-xs leading-relaxed text-warning">{invoice?.returnComment || "Sem comentário."}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Recusada — estado terminal, sem reenvio */}
+      {effStatus === "recusada" && (
+        <div className="nf-faixa flex items-start gap-2 bg-danger-soft/70 border-t border-danger/20">
+          <Ban className="w-3.5 h-3.5 text-danger mt-0.5 shrink-0" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="m-0 text-2xs font-semibold uppercase tracking-[0.06em] text-danger">NF recusada — decisão definitiva, sem reenvio</p>
+            <p className="m-0 mt-0.5 text-xs leading-relaxed text-danger">{invoice?.returnComment || "Sem motivo informado."}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Histórico */}
       {historyOpen && history.length > 0 && (
-        <div className="bg-surface-muted border-t border-t-primary/25 px-4 pt-3 pb-3.5 sm:pl-12 sm:pr-5">
+        <div className="nf-faixa nf-abre bg-surface-muted border-t border-border">
           <HistoryPanel events={history} />
         </div>
       )}

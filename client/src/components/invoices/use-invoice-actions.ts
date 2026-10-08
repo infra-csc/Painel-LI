@@ -3,6 +3,8 @@
 // pelo colaborador e as quatro ações do RH (aprovar, devolver, recusar,
 // check-in). Toasts e invalidações são os mesmos da página original; os
 // componentes ficaram só com a apresentação.
+// 08/10 (redesenho): os toasts de sucesso ganharam a variante "success" (a
+// faixa verde das telas irmãs). Títulos, textos e chamadas iguais.
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { QueryClient } from "@tanstack/react-query";
@@ -33,7 +35,7 @@ export function useSetEventCompanyMutation({ selectedEventId, qc, toast }: Infra
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/events"] });
-      toast({ title: "Empresa pagadora configurada com sucesso" });
+      toast({ variant: "success", title: "Empresa pagadora configurada com sucesso" });
     },
     onError: (err: unknown) => toast({ title: "Não foi possível salvar a empresa pagadora", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
@@ -111,7 +113,7 @@ export function useSubmitInvoice({ actual, invoice, selectedEventId, qc, toast, 
       // Decisão 19/08 (substitui a regra de 17/08): a NF não credita mais o
       // Flash — alimentação e mobilidade entram na aprovação do comparativo.
       // A nota só documenta o pagamento, então nada de aviso de Flash aqui.
-      toast({ title: "Nota enviada!", description: "Aguardando análise do RH." });
+      toast({ variant: "success", title: "Nota enviada!", description: "Aguardando análise do RH." });
     },
     onError: (e: unknown) => {
       setUploading(false);
@@ -144,7 +146,7 @@ export function useAprovacaoMutations({ selectedEventId, qc, toast, comment, che
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
       closeAction();
-      toast({ title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
+      toast({ variant: "success", title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
     },
     onError: (err: unknown) => toast({ title: "Não foi possível aprovar a nota", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
@@ -188,7 +190,7 @@ export function useAprovacaoMutations({ selectedEventId, qc, toast, comment, che
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
       closeAction();
-      toast({ title: "Check-in realizado!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
+      toast({ variant: "success", title: "Check-in realizado!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
     },
     onError: (err: unknown) => toast({ title: "Não foi possível fazer o check-in", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });

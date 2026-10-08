@@ -76,7 +76,8 @@ test("Notas fiscais: devolver sem motivo fica bloqueado; com motivo a nota vira 
   await page.goto("/invoices");
   await expect(page.getByRole("heading", { level: 1, name: /Notas fiscais/ })).toBeVisible();
   await escolherEvento(page);
-  await page.getByRole("button", { name: /^Aprovação RH/ }).click();
+  // 08/10: as abas da tela viraram abas de verdade (role="tab").
+  await page.getByRole("tab", { name: /^Aprovação RH/ }).click();
 
   const tabela = page.getByRole("table", { name: /Notas fiscais: colaborador/ });
   const aguardando = tabela.getByRole("row").filter({ hasText: "Aguardando RH" }).filter({ has: page.getByRole("button", { name: "Devolver" }) });

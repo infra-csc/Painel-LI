@@ -2,36 +2,55 @@
 // tela de Notas Fiscais — tabela das notas enviadas com ações do RH. Estado
 // da ação aberta/motivo/data fica aqui; mutations em `useAprovacaoMutations`;
 // linha, painel inline e rodapé são componentes próprios.
-import { Fragment, useCallback, useEffect, useState } from "react";
-import { FileText } from "lucide-react";
+//
+// 08/10 (redesenho): a tabela da família de Passagens/Bagagem — cabeçalho
+// grudado abaixo da barra, larguras-guia, valores alinhados, cartão abaixo de
+// 960px úteis. Em ordem de nome (o banco devolvia em qualquer ordem), busca
+// por colaborador, função ou OC, e o pé com quantas estão na tela e os totais
+// do evento (que antes se sobrepunham dentro de uma célula).
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { FileText, SearchX, ArrowRight } from "lucide-react";
 import type { Invoice } from "@shared/schema";
+import { toTitleCase } from "@/lib/format";
+import { useLarguraUtil } from "@/components/common/use-largura-util";
 import { FilterPills } from "./filter-pills";
 import { getEffectiveStatus, getStatusCfg } from "./invoice-status";
 import { buildHistory, daysSince, HistoryPanel } from "./invoice-history";
+import { formatCurrency, paraBusca } from "./invoice-format";
 import { AprovacaoRow } from "./aprovacao-row";
 import { AprovacaoActionPanel } from "./aprovacao-action-panel";
 import { AprovacaoTotalsFooter } from "./aprovacao-totals-footer";
+import { EstadoDaLista, BOTAO_SAIDA } from "./estado-da-lista";
 import { useAprovacaoMutations } from "./use-invoice-actions";
 import type { AbaBaseProps, ActiveAprovAction, AprovAction } from "./types";
 import type { BudgetActual } from "@shared/schema";
 
 // ── Aprovação Tab ─────────────────────────────────────────────────────────────
 const APROV_FILTERS = [
-  { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
-  { id: "enviada",           label: "Aguardando",         activeBg: "bg-warning-strong text-white" },
-  { id: "checkin-pendente",  label: "Aguard. check-in",   activeBg: "bg-primary text-primary-foreground" },
-  { id: "checkin-realizado", label: "Check-in realizado", activeBg: "bg-success text-white" },
-  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-warning-strong text-white" },
-  { id: "recusada",          label: "NF recusada",        activeBg: "bg-danger text-white" },
+  { id: "all",               label: "Todos" },
+  { id: "enviada",           label: "Aguardando",         dot: getStatusCfg("enviada").dot },
+  { id: "checkin-pendente",  label: "Aguard. check-in",   dot: getStatusCfg("checkin-pendente").dot },
+  { id: "checkin-realizado", label: "Check-in realizado", dot: getStatusCfg("checkin-realizado").dot },
+  { id: "devolvida",         label: "Devolvida",          dot: getStatusCfg("devolvida").dot },
+  { id: "recusada",          label: "NF recusada",        dot: getStatusCfg("recusada").dot },
 ];
+
+/** Abaixo disto a tabela não cabe sem espremer coluna e vira cartão — o mesmo limiar das irmãs. */
+const LARGURA_MINIMA_DA_TABELA = 960;
+const COLUNAS = 6;
+
+// 11px/600 com tracking curto — o mesmo cabeçalho de Passagens.
+const TH = "px-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground text-left";
 
 export interface AprovacaoTabProps extends AbaBaseProps {
   invoices: Invoice[];
   budgetActuals: BudgetActual[];
+  /** Saída do vazio: ir para a aba Lançamento. */
+  onIrParaLancamento?: () => void;
 }
 
 // Filtro de status controlado pela página (vive na URL desde 23/09).
-export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: AprovacaoTabProps) {
+export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId, busca = "", onBusca, onIrParaLancamento }: AprovacaoTabProps) {
   const [active, setActive]             = useState<ActiveAprovAction>(null);
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
   const [comment, setComment]           = useState("");
@@ -39,6 +58,9 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
   const [checkinDate, setCheckinDate]   = useState("");
   const setFilterStatus = onFilterStatus;
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
+  const { ref, largura } = useLarguraUtil<HTMLDivElement>();
+  const modoCartao = largura !== null && largura < LARGURA_MINIMA_DA_TABELA;
+  const largo = largura !== null && largura >= 1400;
 
   // Param `actual` → destaca a linha e limpa após a animação (padrão da LancamentoTab)
   useEffect(() => {
@@ -86,151 +108,194 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
   const { approveMutation, returnMutation, rejectMutation, checkinMutation } =
     useAprovacaoMutations({ selectedEventId, qc, toast, comment, checkinDate, closeAction });
 
-  if (invoices.length === 0) {
+  // Ordem de nome (pt-BR): estável — decidir uma nota não embaralha a tabela.
+  const ordenadas = useMemo(() => [...invoices].sort((a, b) =>
+    toTitleCase(getName(a.collaboratorId)).localeCompare(toTitleCase(getName(b.collaboratorId)), "pt-BR")),
+  [invoices, getName]);
+
+  // Um invólucro só, montado sempre: a medida da largura nasce com a aba.
+  return <div ref={ref}>{conteudo()}</div>;
+
+  function conteudo() {
+    if (invoices.length === 0) {
+      return (
+        <EstadoDaLista
+          icone={FileText}
+          titulo="Nenhuma nota enviada ainda"
+          texto="As notas lançadas para este evento aparecem aqui para a análise do RH: aprovar, devolver para ajuste ou recusar, e depois o check-in financeiro."
+          acao={onIrParaLancamento && (
+            <button type="button" onClick={onIrParaLancamento} className={BOTAO_SAIDA}>
+              Ir para Lançamento <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
+          testid="nf-aprovacao-vazio"
+        />
+      );
+    }
+
+    const getActual = (id: string | null) => budgetActuals.find(a => a.id === id);
+
+    // Busca (nome, função, OC) — as contagens das pílulas contam sobre ela.
+    const q = paraBusca(busca);
+    const buscadas = q
+      ? ordenadas.filter(i =>
+          paraBusca(getName(i.collaboratorId)).includes(q)
+          || paraBusca(getFuncName(i.functionId)).includes(q)
+          || paraBusca(i.oc).includes(q))
+      : ordenadas;
+
+    const aprovCountFor = (id: string) => {
+      if (id === "all") return buscadas.length;
+      return buscadas.filter(i => getEffectiveStatus(i) === id).length;
+    };
+    const alertFor = (id: string): number => {
+      if (id !== "enviada") return 0;
+      return buscadas.filter(i => i.status === "enviada" && daysSince(i) > 3).length;
+    };
+
+    const filteredInvoices = filterStatus === "all"
+      ? buscadas
+      : buscadas.filter(i => getEffectiveStatus(i) === filterStatus);
+
+    // Totals footer
+    const approvedTotal = invoices.reduce((sum: number, inv) => {
+      if (inv.status !== "aprovada") return sum;
+      const actual = getActual(inv.budgetActualId);
+      return sum + (actual?.totalValue || 0);
+    }, 0);
+    const waitingTotal = invoices.reduce((sum: number, inv) => {
+      if (inv.status !== "enviada") return sum;
+      const actual = getActual(inv.budgetActualId);
+      return sum + (actual?.totalValue || 0);
+    }, 0);
+    const grandTotal = approvedTotal + waitingTotal;
+
+    const temRecorte = filterStatus !== "all" || !!q;
+    const resumo = `${temRecorte ? `Mostrando ${filteredInvoices.length} de ${invoices.length}` : invoices.length} ${invoices.length === 1 ? "nota" : "notas"}`;
+
     return (
-      <div className="bg-card rounded-xl border border-border p-16 text-center">
-        <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground">Nenhuma nota enviada ainda para este evento.</p>
+      <div className="flex flex-col gap-3">
+        <FilterPills filters={APROV_FILTERS} active={filterStatus} countFor={aprovCountFor} onChange={setFilterStatus} alertFor={alertFor} />
+
+        {/* `overflow-clip` (e não `hidden`): `hidden` prendia o cabeçalho grudado. */}
+        <div className="bg-card rounded-xl border border-border overflow-clip">
+          {filteredInvoices.length === 0 ? (
+            <EstadoDaLista
+              moldura={false}
+              icone={SearchX}
+              titulo="Nenhuma nota neste recorte"
+              texto={q ? <>Nada bate com “{busca.trim()}”{filterStatus !== "all" ? " nesta situação" : ""}. Ajuste a busca ou limpe os filtros.</> : "Nenhuma nota está nesta situação agora."}
+              acao={
+                <button type="button" onClick={() => { setFilterStatus("all"); onBusca?.(""); }} className={BOTAO_SAIDA} data-testid="nf-limpar-filtros">
+                  Limpar filtros
+                </button>
+              }
+              testid="nf-sem-resultado"
+            />
+          ) : (
+            <div className={modoCartao ? "nf-tab-cartao" : "pas-tabela"}>
+              <table className={`w-full text-left border-collapse ${modoCartao ? "" : "table-fixed"}`}>
+                <caption className="sr-only">Notas fiscais: colaborador, evento, valor, competência e situação da nota</caption>
+                {!modoCartao && (
+                  <colgroup>
+                    <col />
+                    <col style={{ width: largo ? 160 : 120 }} />
+                    <col style={{ width: largo ? 220 : 148 }} />
+                    <col style={{ width: largo ? 160 : 104 }} />
+                    <col style={{ width: largo ? 80 : 60 }} />
+                    <col style={{ width: largo ? 340 : 316 }} />
+                  </colgroup>
+                )}
+                <thead className="pas-cabecalho">
+                  <tr>
+                    <th scope="col" className={`${TH} pl-[19px]`}>Colaborador</th>
+                    <th scope="col" className={`${TH} !text-right`}>Valor</th>
+                    <th scope="col" className={TH}>OC</th>
+                    <th scope="col" className={TH}>Nota</th>
+                    <th scope="col" className={`${TH} px-1 text-center`}><span className="sr-only">Histórico</span></th>
+                    <th scope="col" className={`${TH} pr-4 !text-right`}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map(inv => {
+                    const actual   = getActual(inv.budgetActualId);
+                    const name     = getName(inv.collaboratorId);
+                    const effSt        = getEffectiveStatus(inv);
+                    const cfg          = getStatusCfg(effSt);
+                    const isActive     = active?.invId === inv.id;
+                    const isHistOpen   = historyOpenId === inv.id;
+                    const history      = buildHistory(inv, name);
+                    // Realizado devolvido/rejeitado pausa a aprovação da NF até o reenvio
+                    const actualBlocked = !!actual && (actual.rhStatus === "devolvido" || actual.rhStatus === "rejeitado");
+                    const isTarget = !!highlightedId && inv.budgetActualId === highlightedId;
+
+                    return (
+                      <Fragment key={inv.id}>
+                        <AprovacaoRow
+                          inv={inv}
+                          actual={actual}
+                          name={name}
+                          funcName={getFuncName(inv.functionId)}
+                          effSt={effSt}
+                          cfg={cfg}
+                          activeType={isActive && active ? active.type : null}
+                          isHistOpen={isHistOpen}
+                          historyCount={history.length}
+                          isTarget={isTarget}
+                          actualBlocked={actualBlocked}
+                          onOpenAction={openAction}
+                          onToggleHistory={toggleHistory}
+                        />
+
+                        {/* Inline action panel */}
+                        {isActive && active && (
+                          <AprovacaoActionPanel
+                            key={`${inv.id}-panel`}
+                            inv={inv}
+                            cfg={cfg}
+                            type={active.type}
+                            comment={comment}
+                            setComment={setComment}
+                            tocouMotivo={tocouMotivo}
+                            setTocouMotivo={setTocouMotivo}
+                            checkinDate={checkinDate}
+                            setCheckinDate={setCheckinDate}
+                            closeAction={closeAction}
+                            approveMutation={approveMutation}
+                            returnMutation={returnMutation}
+                            rejectMutation={rejectMutation}
+                            checkinMutation={checkinMutation}
+                            nome={toTitleCase(name)}
+                            valor={actual ? formatCurrency(actual.totalValue) : undefined}
+                            colunas={COLUNAS}
+                          />
+                        )}
+
+                        {/* History panel */}
+                        {isHistOpen && (
+                          <tr key={`${inv.id}-history`} className={`nf-painel-linha border-l-[3px] border-l-primary border-b border-border`}>
+                            <td colSpan={COLUNAS} className="p-0">
+                              <div className="nf-faixa nf-abre bg-surface-muted border-t border-border">
+                                <HistoryPanel events={history} />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <AprovacaoTotalsFooter
+            approvedTotal={approvedTotal}
+            waitingTotal={waitingTotal}
+            grandTotal={grandTotal}
+            resumo={filteredInvoices.length > 0 ? resumo : undefined}
+          />
+        </div>
       </div>
     );
   }
-
-  const getActual = (id: string | null) => budgetActuals.find(a => a.id === id);
-
-  const aprovCountFor = (id: string) => {
-    if (id === "all") return invoices.length;
-    return invoices.filter(i => getEffectiveStatus(i) === id).length;
-  };
-  const alertFor = (id: string): number => {
-    if (id !== "enviada") return 0;
-    return invoices.filter(i => i.status === "enviada" && daysSince(i) > 3).length;
-  };
-
-  const filteredInvoices = filterStatus === "all"
-    ? invoices
-    : invoices.filter(i => getEffectiveStatus(i) === filterStatus);
-
-  // Totals footer
-  const approvedTotal = invoices.reduce((sum: number, inv) => {
-    if (inv.status !== "aprovada") return sum;
-    const actual = getActual(inv.budgetActualId);
-    return sum + (actual?.totalValue || 0);
-  }, 0);
-  const waitingTotal = invoices.reduce((sum: number, inv) => {
-    if (inv.status !== "enviada") return sum;
-    const actual = getActual(inv.budgetActualId);
-    return sum + (actual?.totalValue || 0);
-  }, 0);
-  const grandTotal = approvedTotal + waitingTotal;
-
-  return (
-    <div className="space-y-3">
-      <FilterPills filters={APROV_FILTERS} active={filterStatus} countFor={aprovCountFor} onChange={setFilterStatus} alertFor={alertFor} />
-
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full" style={{ tableLayout: "fixed", minWidth: "760px" }}>
-          <caption className="sr-only">Notas fiscais: colaborador, evento, valor, competência e situação da nota</caption>
-          <colgroup>
-            <col style={{ width: "210px" }} />
-            <col style={{ width: "120px" }} />
-            <col style={{ width: "95px" }} />
-            <col style={{ width: "95px" }} />
-            <col style={{ width: "100px" }} />
-            <col style={{ width: "52px" }} />
-            <col />
-          </colgroup>
-          <thead>
-            <tr className="border-b border-border bg-surface-muted/60">
-              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Colaborador</th>
-              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Função</th>
-              <th scope="col" className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Valor</th>
-              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">OC</th>
-              <th scope="col" className="text-left px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Nota</th>
-              <th scope="col" className="px-2 py-3" />
-              <th scope="col" className="text-right px-4 py-3 text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredInvoices.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  Nenhum item com este status.
-                </td>
-              </tr>
-            ) : null}
-            {filteredInvoices.map(inv => {
-              const actual   = getActual(inv.budgetActualId);
-              const name     = getName(inv.collaboratorId);
-              const effSt        = getEffectiveStatus(inv);
-              const cfg          = getStatusCfg(effSt);
-              const isActive     = active?.invId === inv.id;
-              const isHistOpen   = historyOpenId === inv.id;
-              const history      = buildHistory(inv, name);
-              // Realizado devolvido/rejeitado pausa a aprovação da NF até o reenvio
-              const actualBlocked = !!actual && (actual.rhStatus === "devolvido" || actual.rhStatus === "rejeitado");
-              const isTarget = !!highlightedId && inv.budgetActualId === highlightedId;
-
-              return (
-                <Fragment key={inv.id}>
-                  <AprovacaoRow
-                    inv={inv}
-                    actual={actual}
-                    name={name}
-                    funcName={getFuncName(inv.functionId)}
-                    effSt={effSt}
-                    cfg={cfg}
-                    activeType={isActive && active ? active.type : null}
-                    isHistOpen={isHistOpen}
-                    historyCount={history.length}
-                    isTarget={isTarget}
-                    actualBlocked={actualBlocked}
-                    onOpenAction={openAction}
-                    onToggleHistory={toggleHistory}
-                  />
-
-                  {/* Inline action panel */}
-                  {isActive && active && (
-                    <AprovacaoActionPanel
-                      key={`${inv.id}-panel`}
-                      inv={inv}
-                      cfg={cfg}
-                      type={active.type}
-                      comment={comment}
-                      setComment={setComment}
-                      tocouMotivo={tocouMotivo}
-                      setTocouMotivo={setTocouMotivo}
-                      checkinDate={checkinDate}
-                      setCheckinDate={setCheckinDate}
-                      closeAction={closeAction}
-                      approveMutation={approveMutation}
-                      returnMutation={returnMutation}
-                      rejectMutation={rejectMutation}
-                      checkinMutation={checkinMutation}
-                    />
-                  )}
-
-                  {/* History panel */}
-                  {isHistOpen && (
-                    <tr key={`${inv.id}-history`} className="border-b border-primary/25">
-                      <td
-                        colSpan={7}
-                        className="bg-surface-muted border-t border-t-primary/25" style={{
-                          padding: "12px 16px 12px 48px",
-                        }}
-                      >
-                        <HistoryPanel events={history} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-          <AprovacaoTotalsFooter approvedTotal={approvedTotal} waitingTotal={waitingTotal} grandTotal={grandTotal} />
-        </table>
-        </div>
-      </div>
-    </div>
-  );
 }
