@@ -5,10 +5,11 @@
  * decididos pelo RH, com filhos de divisão agrupados no pai), filtros/chips de
  * status, ordenação, totais, seleção por id e expansão por id.
  */
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { BudgetActual, BudgetComparison, BudgetPlanned, TeamInclusion } from "@shared/schema";
 import { agruparPor, chaveComposta } from "@/lib/indices";
 import type { ComparisonRow, StatusFilterKey } from "@/components/budget/comparison-utils";
+import { isCasaType } from "@/components/budget/types";
 
 export interface EntradaDosDadosDoComparativo {
   budgetPlanned: BudgetPlanned[] | undefined;
@@ -16,10 +17,19 @@ export interface EntradaDosDadosDoComparativo {
   comparison: BudgetComparison | null | undefined;
   allTeamInclusions: TeamInclusion[];
   getCollaboratorName: (id?: string | null) => string;
+  /** Busca também pelo nome da função (redesenho 08/10, como no Realizado). */
+  getFunctionName?: (id?: string | null) => string;
+}
+
+/** Situação de uma linha do comparativo (a base são as enviadas ou já decididas). */
+export function situacaoDaLinha(r: ComparisonRow): StatusFilterKey {
+  const st = r.actual.rhStatus || "pendente";
+  if (st === "aprovado" || st === "rejeitado" || st === "devolvido") return st;
+  return "para_analise";
 }
 
 export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
-  const { budgetPlanned, budgetActual, comparison, allTeamInclusions, getCollaboratorName } = e;
+  const { budgetPlanned, budgetActual, comparison, allTeamInclusions, getCollaboratorName, getFunctionName } = e;
 
   // Expansão por id do BudgetActual (não por índice): mudar a ordenação com cards
   // abertos expandia outros cards — mesma correção já aplicada na seleção abaixo
@@ -99,23 +109,64 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
     setSelectedItems(new Set());
   }, [buscaAplicada, filterFunction, filterType, statusFilter]);
 
-  const filteredData = useMemo(() => {
-    let data = [...comparisonData];
-    if (buscaAplicada) {
-      const term = buscaAplicada.toLowerCase();
-      data = data.filter(r => getCollaboratorName(r.collaboratorId).toLowerCase().includes(term));
-    }
-    if (filterFunction !== "all") data = data.filter(r => r.functionId === filterFunction);
-    if (filterType !== "all") data = data.filter(r => r.collaboratorType === filterType);
-    if (statusFilter) {
-      data = data.filter(r => {
-        const st = r.actual.rhStatus || "pendente";
-        if (statusFilter === "para_analise") return r.actual.sentForReview && st === "pendente";
-        return st === statusFilter;
-      });
-    }
-    return data;
-  }, [comparisonData, buscaAplicada, filterFunction, filterType, statusFilter, getCollaboratorName]);
+  // Cada dimensão do filtro como predicado (redesenho 08/10) — para a fila de
+  // situações e o filtro de função contarem "quantas sobram" sem a própria
+  // dimensão. As regras são as de antes; a busca passou a achar a função também.
+  const passaBusca = useCallback((r: ComparisonRow) => {
+    if (!buscaAplicada) return true;
+    const term = buscaAplicada.toLowerCase();
+    return getCollaboratorName(r.collaboratorId).toLowerCase().includes(term)
+      || (!!getFunctionName && getFunctionName(r.functionId).toLowerCase().includes(term));
+  }, [buscaAplicada, getCollaboratorName, getFunctionName]);
+  const passaFuncao = useCallback((r: ComparisonRow) => filterFunction === "all" || r.functionId === filterFunction, [filterFunction]);
+  // "local" é da casa (isCasaType, como no Planejado): antes o filtro "Casa" o deixava de fora.
+  const passaTipo = useCallback((r: ComparisonRow) => filterType === "all" || (filterType === "casa" ? isCasaType(r.collaboratorType) : r.collaboratorType === filterType), [filterType]);
+  const passaStatus = useCallback((r: ComparisonRow) => {
+    if (!statusFilter) return true;
+    const st = r.actual.rhStatus || "pendente";
+    if (statusFilter === "para_analise") return !!r.actual.sentForReview && st === "pendente";
+    return st === statusFilter;
+  }, [statusFilter]);
+
+  const filteredData = useMemo(
+    () => comparisonData.filter(r => passaBusca(r) && passaFuncao(r) && passaTipo(r) && passaStatus(r)),
+    [comparisonData, passaBusca, passaFuncao, passaTipo, passaStatus],
+  );
+
+  // Fila de situações: quantas e quanto em cada uma, respeitando a busca, a
+  // função e o tipo de agora (a situação escolhida não esconde as outras).
+  const { contagemPorStatus, valorPorStatus } = useMemo(() => {
+    const c: Record<StatusFilterKey, number> = { para_analise: 0, aprovado: 0, devolvido: 0, rejeitado: 0 };
+    const v: Record<StatusFilterKey, number> = { para_analise: 0, aprovado: 0, devolvido: 0, rejeitado: 0 };
+    comparisonData.forEach(r => {
+      if (!passaBusca(r) || !passaFuncao(r) || !passaTipo(r)) return;
+      // Mesma regra do filtro: "para análise" é a pendente ENVIADA.
+      const s = situacaoDaLinha(r);
+      if (s === "para_analise" && !r.actual.sentForReview) return;
+      c[s]++; v[s] += r.groupActualTotal;
+    });
+    return { contagemPorStatus: c, valorPorStatus: v };
+  }, [comparisonData, passaBusca, passaFuncao, passaTipo]);
+
+  // Funções que existem no comparativo, com quantas sobram ao escolher cada uma.
+  const opcoesDeFuncao = useMemo(() => {
+    const n = new Map<string, number>();
+    comparisonData.forEach(r => {
+      if (!r.functionId) return;
+      if (!n.has(r.functionId)) n.set(r.functionId, 0);
+      if (passaBusca(r) && passaTipo(r) && passaStatus(r)) n.set(r.functionId, (n.get(r.functionId) ?? 0) + 1);
+    });
+    return Array.from(n.entries())
+      .map(([id, qtd]) => ({ id, nome: getFunctionName ? getFunctionName(id) : id, n: qtd }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+  }, [comparisonData, passaBusca, passaTipo, passaStatus, getFunctionName]);
+
+  // Prestações que o responsável ainda não enviou: ficam fora da base do
+  // comparativo (a mesma conta do antigo chip "não enviados").
+  const naoEnviadas = useMemo(
+    () => (budgetActual || []).filter(a => !a.splitParentId && !a.sentForReview && (a.rhStatus || "pendente") === "pendente").length,
+    [budgetActual],
+  );
 
   const sortedData = useMemo(() => {
     const sorted = [...filteredData];
@@ -136,8 +187,20 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
     const totalPlanned = comparisonData.reduce(
       (s, r) => s + (r.planned && !r.planned.didNotAttend ? r.planned.totalValue : 0), 0);
     const totalActual = comparisonData.reduce((s, r) => s + r.groupActualTotal, 0);
-    return { totalPlanned, totalActual, difference: totalActual - totalPlanned };
+    // Casa × Freela (redesenho 08/10): o mesmo realizado de grupo, separado pelo tipo.
+    const casa = comparisonData.filter(r => isCasaType(r.collaboratorType));
+    const freela = comparisonData.filter(r => r.collaboratorType === "freela");
+    return {
+      totalPlanned, totalActual, difference: totalActual - totalPlanned,
+      totalCasa: casa.reduce((s, r) => s + r.groupActualTotal, 0),
+      totalFreela: freela.reduce((s, r) => s + r.groupActualTotal, 0),
+      nCasa: casa.length,
+      nFreela: freela.length,
+    };
   }, [comparisonData]);
+
+  // Quanto o recorte de agora soma (contagem da lista, quando há filtro).
+  const totalDoRecorte = useMemo(() => sortedData.reduce((s, r) => s + r.groupActualTotal, 0), [sortedData]);
 
   const toggleExpand = (id: string) => {
     setExpandedCards(prev => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s; });
@@ -186,6 +249,7 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
     statusFilter, setStatusFilter, selectedItems, setSelectedItems, limparFiltros, temFiltro,
     inclusaoPorChave, comparisonData, filteredData, sortedData, usedFunctionIds, totals, selectedTotals,
     rhComment, allItemsApproved, realizadoChangedAfterApproval,
+    contagemPorStatus, valorPorStatus, opcoesDeFuncao, naoEnviadas, totalDoRecorte,
   };
 }
 

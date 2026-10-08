@@ -1,14 +1,23 @@
 /**
- * Modal "Detalhes da prestação do colaborador na vaga dividida" — 25/09
- * (modularização). Extraído de budget-comparison.tsx: cabeçalho com período da
- * vaga original × dias atribuídos, seções (Diárias/Alimentação/Mobilidade) e
- * total, mais a cobertura em % no rodapé.
+ * Modal "Detalhes da prestação na vaga dividida" — 25/09 (modularização);
+ * redesenho 08/10.
+ *
+ * Antes: cabeçalho cheio na cor da marca com avatar colorido, os dois
+ * períodos em caixas translúcidas, três seções com cabeçalho tingido e "└"
+ * desenhado, o total numa caixa de borda dupla e um "Fechar" azul-escuro.
+ *
+ * Agora é o extrato do Comparativo dentro de um modal: quem é (nome, Titular
+ * ou Divisão, função), os dois períodos lado a lado (vaga original × dias
+ * atribuídos), as linhas Planejado (proporcional) · Realizado · Diferença por
+ * categoria, o total e quanto da vaga esta pessoa cobriu. Os mesmos números
+ * de antes (diárias, refeições, ida/volta, translado, total, cobertura).
  */
-import { Calendar, Car, GitFork, Utensils, X } from "lucide-react";
+import { Calendar, GitFork } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { SectionBlock, SubRow } from "./comparison-blocks";
-import { avatarColor, dailySubtotalOf, fmt, fmtDate, fmtDateShort, initials, isWknd, type SplitDetailState } from "./comparison-utils";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import { Chip } from "./budget-card";
+import { CabecalhoDoExtrato, LinhaDoExtrato } from "./comparison-blocks";
+import { dailySubtotalOf, fmt, fmtDate, fmtDateShort, isWknd, type SplitDetailState } from "./comparison-utils";
 
 export interface SplitDetailDialogProps {
   splitDetail: SplitDetailState | null;
@@ -17,13 +26,31 @@ export interface SplitDetailDialogProps {
   getFunctionName: (id?: string | null) => string;
 }
 
+const diasPorExtenso = (dias: string[]) => {
+  const uteis = dias.filter(d => !isWknd(d)).length;
+  const fds = dias.filter(d => isWknd(d)).length;
+  const partes = [uteis > 0 ? `${uteis} ${uteis === 1 ? "útil" : "úteis"}` : "", fds > 0 ? `${fds} fds` : ""].filter(Boolean);
+  return `${dias.length} ${dias.length === 1 ? "dia" : "dias"}${partes.length ? ` · ${partes.join(" + ")}` : ""}`;
+};
+
+function Periodo({ icone: Icone, rotulo, datas, detalhe }: { icone: typeof Calendar; rotulo: string; datas: string; detalhe: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-surface-muted/60 px-2.5 sm:px-3 py-2.5">
+      <p className="m-0 flex items-center gap-1.5 text-2xs font-medium text-muted-foreground">
+        <Icone className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />{rotulo}
+      </p>
+      <p className="m-0 mt-0.5 text-sm font-medium tabular-nums text-foreground">{datas}</p>
+      <p className="m-0 text-xs tabular-nums text-muted-foreground">{detalhe}</p>
+    </div>
+  );
+}
+
 export function SplitDetailDialog({ splitDetail, onClose, getCollaboratorName, getFunctionName }: SplitDetailDialogProps) {
+  const sd = splitDetail;
   return (
     <Dialog open={!!splitDetail} onOpenChange={onClose}>
-      <DialogContent aria-describedby={undefined} className="max-w-xl rounded-xl p-0 overflow-hidden gap-0">
-        <DialogTitle className="sr-only">Detalhes da prestação do colaborador na vaga dividida</DialogTitle>
-        {splitDetail && (() => {
-          const sd = splitDetail;
+      <DialogContent className="max-w-[560px] p-0 gap-0 flex flex-col overflow-hidden" data-testid="dialogo-divisao">
+        {sd && (() => {
           const sdName = getCollaboratorName(sd.actual.collaboratorId);
           const sdFn = getFunctionName(sd.actual.functionId);
           const myDays = (sd.actual.workedDays as string[] | null) || [];
@@ -42,142 +69,63 @@ export function SplitDetailDialog({ splitDetail, onClose, getCollaboratorName, g
           const mobAct = fa.mobility + fa.transport;
           const totalPlan = pp?.totalValue || 0;
           const totalAct = fa.totalValue;
-          const totalDiff = totalAct - totalPlan;
-
-          let subRowIdx = 0;
+          const cobertura = totalGroupDays > 0 ? Math.round(myDayCount / totalGroupDays * 100) : 0;
+          const mostraCobertura = (!sd.isParent && totalGroupDays > 0) || (sd.isParent && totalGroupDays > 0 && myDayCount < totalGroupDays);
 
           return (
             <>
-              {/* ── Modal header — dark purple gradient ── */}
-              <div className="bg-primary px-6 py-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3.5">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black shadow-2 ring-2 ring-white/20 ${avatarColor(sdName)}`}>
-                      {initials(sdName)}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <span className="text-base font-black text-white">{sdName}</span>
-                        <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${sd.isParent
-                          ? "bg-primary/30 text-primary-foreground/80 ring-1 ring-primary/40"
-                          : "bg-primary/30 text-primary-foreground/80 ring-1 ring-primary/40"}`}>
-                          {sd.isParent ? "Titular" : "Divisão"}
-                        </span>
-                      </div>
-                      <p className="text-2xs text-primary-foreground/80">{sdFn}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Fechar detalhes"
-                    onClick={onClose}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-card/10 hover:bg-card/20 text-white/70 hover:text-white transition-colors"
-                  >
-                    <X className="w-4 h-4" aria-hidden="true" />
-                  </button>
+              {/* ── Quem é ── */}
+              <div className="px-4 sm:px-6 pt-5 pb-4 border-b border-border">
+                <div className="flex items-center gap-2 flex-wrap pr-6">
+                  <DialogTitle className="text-base font-semibold leading-6">{sdName}</DialogTitle>
+                  <Chip tom="marca">{sd.isParent ? "Titular" : <><GitFork className="w-3 h-3" aria-hidden="true" />Divisão</>}</Chip>
                 </div>
-
-                {/* Period info — two blocks side by side */}
-                {allDays.length > 0 && (() => {
-                  const origWkdays = allDays.filter(d => !isWknd(d)).length;
-                  const origWknds  = allDays.filter(d =>  isWknd(d)).length;
-                  const myWkdays   = myDays.filter(d => !isWknd(d)).length;
-                  const myWknds    = myDays.filter(d =>  isWknd(d)).length;
-                  const wkdayStr = (n: number) => n > 0 ? `${n} útil${n !== 1 ? "is" : ""}` : "";
-                  const wkndStr  = (n: number) => n > 0 ? `${n} f${n !== 1 ? "ds" : "ds"}` : "";
-                  const joinParts = (...parts: string[]) => parts.filter(Boolean).join(" + ");
-                  return (
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <div className="bg-card/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" aria-hidden="true" />
-                        <div>
-                          <p className="text-2xs uppercase font-bold tracking-wider text-primary-foreground/80 mb-0.5">Vaga original</p>
-                          <p className="text-2xs text-white font-medium leading-snug">
-                            {fmtDateShort(allDays[0])} a {fmtDateShort(allDays[allDays.length - 1])}
-                          </p>
-                          <p className="text-2xs text-primary-foreground/80">
-                            {totalGroupDays} dia{totalGroupDays !== 1 ? "s" : ""}
-                            {" · "}{joinParts(wkdayStr(origWkdays), wkndStr(origWknds))}
-                          </p>
-                        </div>
-                      </div>
-                      {myDays.length > 0 && (
-                        <div className="bg-card/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                          <GitFork className="w-3.5 h-3.5 text-primary-foreground/80 mt-0.5 flex-shrink-0" aria-hidden="true" />
-                          <div>
-                            <p className="text-2xs uppercase font-bold tracking-wider text-primary-foreground/80 mb-0.5">Dias atribuídos</p>
-                            <p className="text-2xs text-white font-medium leading-snug">
-                              {myDays.length === 1
-                                ? fmtDate(myDays[0])
-                                : `${fmtDateShort(myDays[0])} a ${fmtDateShort(myDays[myDays.length - 1])}`}
-                            </p>
-                            <p className="text-2xs text-primary-foreground/80">
-                              {myDayCount} dia{myDayCount !== 1 ? "s" : ""}
-                              {" · "}{joinParts(wkdayStr(myWkdays), wkndStr(myWknds))}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                <DialogDescription className="mt-0.5 text-sm text-muted-foreground">
+                  {sdFn} · prestação na vaga dividida
+                </DialogDescription>
+                {allDays.length > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Periodo
+                      icone={Calendar}
+                      rotulo="Vaga original"
+                      datas={`${fmtDateShort(allDays[0])} a ${fmtDateShort(allDays[allDays.length - 1])}`}
+                      detalhe={diasPorExtenso(allDays)}
+                    />
+                    {myDays.length > 0 && (
+                      <Periodo
+                        icone={GitFork}
+                        rotulo="Dias atribuídos"
+                        datas={myDays.length === 1 ? fmtDate(myDays[0]) : `${fmtDateShort(myDays[0])} a ${fmtDateShort(myDays[myDays.length - 1])}`}
+                        detalhe={diasPorExtenso(myDays)}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* ── Table body ── */}
-              <div className="px-5 py-4 space-y-3 bg-card max-h-[50vh] overflow-y-auto">
-                <div className="grid grid-cols-4 gap-4 px-4 pb-2 border-b-2 border-border">
-                  <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider">Item</span>
-                  <span className="text-2xs uppercase text-primary font-bold tracking-wider text-right">Planejado</span>
-                  <span className="text-2xs uppercase text-primary font-bold tracking-wider text-right">Realizado</span>
-                  <span className="text-2xs uppercase text-muted-foreground font-bold tracking-wider text-right">Diferença</span>
-                </div>
-
-                {/* Diárias */}
-                <SectionBlock
-                  title="Diárias"
-                  icon={Calendar}
-                  headerBg="bg-brand-soft/80"
-                  iconColor="text-primary"
-                  titleColor="text-primary"
-                  subtotalPlan={dailyPlan}
-                  subtotalAct={dailyAct}
-                >
+              {/* ── Extrato ── */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-3 cmp-extrato cmp-extrato-solto">
+                <CabecalhoDoExtrato />
+                <div role="group" aria-label="Diárias" className="cmp-bloco">
+                  <LinhaDoExtrato nivel="grupo" cor="bg-primary" rotulo="Diárias" planned={dailyPlan} actual={dailyAct} />
                   {(pp || fa.dailyQuantity > 0) && (
-                    <SubRow
-                      rowIndex={subRowIdx++}
-                      label={`${pp?.dailyQuantity || 0} diária(s) × ${fmt(pp?.dailyValue || 0)}/dia → ${fa.dailyQuantity} × ${fmt(fa.dailyValue)}`}
+                    <LinhaDoExtrato
+                      rotulo={`${pp?.dailyQuantity || 0} × ${fmt(pp?.dailyValue || 0)} → ${fa.dailyQuantity} × ${fmt(fa.dailyValue)}`}
+                      longo
                       planned={dailyPlan}
                       actual={dailyAct}
                     />
                   )}
-                </SectionBlock>
-
-                {/* Alimentação */}
-                <SectionBlock
-                  title="Alimentação"
-                  icon={Utensils}
-                  headerBg="bg-warning-soft/80"
-                  iconColor="text-warning"
-                  titleColor="text-warning"
-                  subtotalPlan={mealPlan}
-                  subtotalAct={mealAct}
-                >
-                  {(pp?.weekdayLunch || fa.weekdayLunch) ? <SubRow rowIndex={subRowIdx++} label="Almoço (dias úteis)" planned={pp?.weekdayLunch || 0} actual={fa.weekdayLunch} /> : null}
-                  {(pp?.weekdayDinner || fa.weekdayDinner) ? <SubRow rowIndex={subRowIdx++} label="Jantar (dias úteis)" planned={pp?.weekdayDinner || 0} actual={fa.weekdayDinner} /> : null}
-                  {(pp?.weekendLunch || fa.weekendLunch) ? <SubRow rowIndex={subRowIdx++} label="Almoço (fins de sem.)" planned={pp?.weekendLunch || 0} actual={fa.weekendLunch} /> : null}
-                  {(pp?.weekendDinner || fa.weekendDinner) ? <SubRow rowIndex={subRowIdx++} label="Jantar (fins de sem.)" planned={pp?.weekendDinner || 0} actual={fa.weekendDinner} /> : null}
-                </SectionBlock>
-
-                {/* Mobilidade */}
-                <SectionBlock
-                  title="Mobilidade"
-                  icon={Car}
-                  headerBg="bg-brand-soft/80"
-                  iconColor="text-primary"
-                  titleColor="text-primary"
-                  subtotalPlan={mobPlan}
-                  subtotalAct={mobAct}
-                >
+                </div>
+                <div role="group" aria-label="Alimentação" className="cmp-bloco">
+                  <LinhaDoExtrato nivel="grupo" cor="bg-warning-strong" rotulo="Alimentação" planned={mealPlan} actual={mealAct} />
+                  {(pp?.weekdayLunch || fa.weekdayLunch) ? <LinhaDoExtrato rotulo="Almoço (dias úteis)" planned={pp?.weekdayLunch || 0} actual={fa.weekdayLunch} /> : null}
+                  {(pp?.weekdayDinner || fa.weekdayDinner) ? <LinhaDoExtrato rotulo="Jantar (dias úteis)" planned={pp?.weekdayDinner || 0} actual={fa.weekdayDinner} /> : null}
+                  {(pp?.weekendLunch || fa.weekendLunch) ? <LinhaDoExtrato rotulo="Almoço (fim de semana)" planned={pp?.weekendLunch || 0} actual={fa.weekendLunch} /> : null}
+                  {(pp?.weekendDinner || fa.weekendDinner) ? <LinhaDoExtrato rotulo="Jantar (fim de semana)" planned={pp?.weekendDinner || 0} actual={fa.weekendDinner} /> : null}
+                </div>
+                <div role="group" aria-label="Mobilidade" className="cmp-bloco">
+                  <LinhaDoExtrato nivel="grupo" cor="bg-slate-400" rotulo="Mobilidade" planned={mobPlan} actual={mobAct} />
                   {(pp?.mobility || fa.mobility) ? (() => {
                     const pIda   = pp?.mobilityIda   ?? Math.ceil((pp?.mobility  || 0) / 2);
                     const pVolta = pp?.mobilityVolta ?? Math.floor((pp?.mobility || 0) / 2);
@@ -185,62 +133,42 @@ export function SplitDetailDialog({ splitDetail, onClose, getCollaboratorName, g
                     const aVolta = fa.mobilityVolta  ?? Math.floor(fa.mobility / 2);
                     return (
                       <>
-                        <SubRow rowIndex={subRowIdx++} label="Ida" planned={pIda} actual={aIda} />
-                        <SubRow rowIndex={subRowIdx++} label="Volta" planned={pVolta} actual={aVolta} />
+                        <LinhaDoExtrato rotulo="Ida" planned={pIda} actual={aIda} />
+                        <LinhaDoExtrato rotulo="Volta" planned={pVolta} actual={aVolta} />
                       </>
                     );
                   })() : null}
-                  {(pp?.transport || fa.transport) ? <SubRow rowIndex={subRowIdx++} label="Translado" planned={pp?.transport || 0} actual={fa.transport} /> : null}
-                </SectionBlock>
-
-                {/* Total row */}
-                <div className={`grid grid-cols-4 gap-4 px-4 py-3.5 rounded-xl border-2 font-semibold ${
-                  totalDiff > 0 ? "bg-danger-soft border-danger/25"
-                  : totalDiff < 0 ? "bg-success-soft border-success/25"
-                  : "bg-surface-muted border-border"
-                }`}>
-                  <span className="text-xs font-black uppercase tracking-wide text-slate-700">TOTAL</span>
-                  <span className="text-right tabular-nums text-primary text-sm font-black">{fmt(totalPlan)}</span>
-                  <span className="text-right tabular-nums text-primary text-sm font-black">{fmt(totalAct)}</span>
-                  <div className="text-right">
-                    {totalDiff === 0
-                      ? <span className="text-muted-foreground tabular-nums text-sm font-black">—</span>
-                      : <span className={`tabular-nums text-sm font-black ${totalDiff > 0 ? "text-danger" : "text-success"}`}>
-                          {totalDiff > 0 ? "+" : "−"}{fmt(Math.abs(totalDiff))}
-                        </span>
-                    }
-                  </div>
+                  {(pp?.transport || fa.transport) ? <LinhaDoExtrato rotulo="Translado" planned={pp?.transport || 0} actual={fa.transport} /> : null}
                 </div>
+                <LinhaDoExtrato nivel="total" rotulo="Total" planned={totalPlan} actual={totalAct} />
               </div>
 
-              {/* ── Footer ── */}
-              <div className="px-5 pb-5 pt-3 bg-card space-y-3 border-t border-border">
-                {((!sd.isParent && totalGroupDays > 0) || (sd.isParent && totalGroupDays > 0 && myDayCount < totalGroupDays)) && (
-                  <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border ${sd.isParent
-                    ? "bg-brand-soft border-primary/25" : "bg-brand-soft border-primary/25"}`}>
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${sd.isParent ? "bg-brand-soft" : "bg-brand-soft"}`}>
-                      <GitFork className={`w-3 h-3 ${sd.isParent ? "text-primary" : "text-primary"}`} aria-hidden="true" />
-                    </div>
-                    <span className={`text-2xs font-medium ${sd.isParent ? "text-primary" : "text-primary"}`}>
-                      {sd.isParent ? "Titular cobriu" : "Este colaborador cobriu"} <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
-                      {totalGroupDays > 0 && <span className={`ml-1.5 font-bold text-2xs px-1.5 py-0.5 rounded-full ${sd.isParent ? "bg-brand-soft text-primary" : "bg-brand-soft text-primary"}`}>
-                        {Math.round(myDayCount / totalGroupDays * 100)}%
-                      </span>}
+              {/* ── Cobertura e fechar ── */}
+              <DialogFooter className="px-4 sm:px-6 py-3.5 border-t border-border bg-surface-muted/40 flex-row items-center gap-3 sm:justify-between">
+                {mostraCobertura ? (
+                  <div className="min-w-0 flex-1 flex items-center gap-2.5" data-testid="divisao-cobertura">
+                    <span
+                      role="progressbar"
+                      aria-label="Dias da vaga original cobertos"
+                      aria-valuemin={0}
+                      aria-valuemax={totalGroupDays}
+                      aria-valuenow={myDayCount}
+                      className="relative w-16 h-1.5 rounded-full bg-border overflow-hidden shrink-0"
+                    >
+                      <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${cobertura}%` }} />
+                    </span>
+                    <span className="text-xs text-slate-600">
+                      {sd.isParent ? "Titular cobriu" : "Cobriu"} <strong className="tabular-nums text-foreground">{myDayCount}</strong> de <strong className="tabular-nums text-foreground">{totalGroupDays}</strong> dias da vaga
+                      <span className="tabular-nums text-muted-foreground"> ({cobertura}%)</span>
                     </span>
                   </div>
-                )}
-                <div className="flex justify-end">
-                  <Button
-                    onClick={onClose}
-                    className="h-9 px-6 text-sm rounded-xl text-white bg-primary-hover"
-                  >
-                    Fechar
-                  </Button>
-                </div>
-              </div>
+                ) : <span />}
+                <Button variant="outline" onClick={onClose} className="rounded-lg shrink-0">Fechar</Button>
+              </DialogFooter>
             </>
           );
         })()}
+        {!sd && <DialogTitle className="sr-only">Detalhes da prestação na vaga dividida</DialogTitle>}
       </DialogContent>
     </Dialog>
   );

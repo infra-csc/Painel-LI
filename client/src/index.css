@@ -1624,3 +1624,214 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
 }
 /* Na planilha da Aprovação as três decisões ficam numa linha só. */
 .pas-tabela .nf-acoes { flex-wrap: nowrap; }
+
+/* ══ Comparativo (cmp-) — redesenho 08/10 ═══════════════════════════════════
+ * A tela usa as peças do Planejado e do Realizado (pla-resumo, rea-resumo,
+ * pla-metrica, pla-chip, pla-progresso, pla-etapa-atual, pla-destaque) e da
+ * família Passagens (pas-osso, pas-entra, pas-sobe, pas-alvo, pas-rolagem-x,
+ * FilaDeTrabalho, barra de filtros comum). Aqui só o que é dela: a tabela de
+ * prestações (colunas, cabeçalho grudado, linha, filete da decisão), o
+ * extrato aberto alinhado às MESMAS colunas e o modo cartão da largura útil
+ * estreita (container query: o menu lateral muda o espaço sem mudar a janela). */
+
+.cmp-lista { container: cmp-lista / inline-size; }
+.cmp-tabela {
+  /* A sobra de largura se divide entre TODAS as colunas (o nome leva mais): numa
+     tela de 1920 o nome não fica a 800px dos valores. */
+  --cmp-colunas: 1.75rem minmax(0, 2.6fr) minmax(7.25rem, .8fr) minmax(7.5rem, 1fr) minmax(7.75rem, 1fr) minmax(8.25rem, 1fr) 7.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.cmp-cabecalho, .cmp-topo {
+  display: grid;
+  grid-template-columns: var(--cmp-colunas);
+  column-gap: 12px;
+  padding: 0 12px 0 16px;
+}
+.cmp-num { text-align: right; justify-self: stretch; }
+
+/* Cabeçalho das colunas: gruda abaixo da barra de contexto de 56px. */
+.cmp-cabecalho {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 3;
+  align-items: center;
+  height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--surface-muted) 70%, var(--card));
+  border-bottom: 1px solid var(--border);
+  border-radius: 11px 11px 0 0;
+}
+
+/* Linha da prestação. */
+.cmp-item-lista + .cmp-item-lista .cmp-linha { border-top: 1px solid var(--border); }
+.cmp-item-lista:last-child .cmp-linha { border-radius: 0 0 11px 11px; }
+.cmp-linha { position: relative; transition: background-color 120ms ease; }
+.cmp-topo { align-items: center; padding-top: 12px; padding-bottom: 12px; cursor: pointer; }
+.cmp-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 45%, var(--card)); }
+.cmp-linha-aberta, .cmp-linha-aberta:hover { background-color: color-mix(in srgb, var(--surface-muted) 35%, var(--card)); }
+/* Filete da decisão do RH à esquerda (a cor fica no selo; o fundo, neutro). */
+.cmp-linha::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+.cmp-linha-aprovado::before { background: var(--success-strong); }
+.cmp-linha-devolvido::before { background: var(--warning-strong); }
+.cmp-linha-rejeitado::before { background: var(--danger-strong); }
+.cmp-linha-sel, .cmp-linha-sel:hover { background-color: color-mix(in srgb, var(--brand-soft) 55%, var(--card)); }
+.cmp-linha-sel::before { background: var(--primary); }
+.cmp-linha-ausente .cmp-c-colab, .cmp-linha-ausente .cmp-c-sit { opacity: .7; }
+.cmp-item-lista:last-child .cmp-linha::before { border-bottom-left-radius: 11px; }
+.cmp-c-sel { display: flex; align-items: center; justify-content: center; align-self: start; padding-top: 2px; }
+.cmp-c-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.cmp-acao-texto { display: none; }
+.cmp-cabecalho .cmp-c-sel { align-self: center; padding-top: 0; }
+.cmp-cabecalho .cmp-c-acoes { margin-right: -4px; }
+/* Régua (selecionar · expandir todas): só no modo cartão — na tabela, mora no cabeçalho. */
+.cmp-regua { display: none; }
+
+/* ── Extrato aberto: as parcelas nas colunas da linha ─────────────────────── */
+.cmp-corpo { padding: 0 12px 16px 16px; cursor: default; }
+.cmp-extrato { border-top: 1px dashed var(--border); padding-top: 4px; }
+.cmp-item {
+  display: grid;
+  grid-template-columns: var(--cmp-colunas);
+  column-gap: 12px;
+  align-items: center;
+  min-height: 30px;
+  font-size: 12px;
+}
+.cmp-item-rotulo { grid-column: 2 / 4; color: var(--muted-foreground); padding-left: 14px; }
+.cmp-item-valor { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cmp-item-plan { grid-column: 4; color: var(--muted-foreground); }
+.cmp-item-real { grid-column: 5; color: var(--foreground); }
+.cmp-item-dif { grid-column: 6; }
+.cmp-item-acao { grid-column: 7; display: flex; justify-content: flex-end; }
+.cmp-item-zerada .cmp-item-plan, .cmp-item-zerada .cmp-item-real { color: color-mix(in srgb, var(--muted-foreground) 70%, transparent); }
+.cmp-item-grupo { min-height: 34px; font-size: 13px; }
+.cmp-item-grupo .cmp-item-rotulo { padding-left: 0; color: var(--foreground); font-weight: 600; }
+.cmp-item-grupo .cmp-item-real { font-weight: 600; }
+.cmp-item-grupo .cmp-item-plan { color: var(--slate-600, var(--muted-foreground)); }
+.cmp-bloco + .cmp-bloco, .cmp-bloco + .cmp-item-total { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.cmp-bloco { padding: 2px 0 4px; }
+.cmp-item-total {
+  min-height: 40px;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  border-top: 1px solid var(--border) !important;
+}
+.cmp-item-total .cmp-item-rotulo { padding-left: 0; color: var(--foreground); }
+.cmp-item-total .cmp-item-real { color: var(--primary); font-size: 14px; }
+.cmp-item-cabecalho { display: none; }
+.cmp-so-cartao { display: none; }
+
+.cmp-notas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-top: 12px; }
+.cmp-conversa { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.cmp-conversa > * { margin-top: 0 !important; }
+
+/* Extrato fora da lista (modal de divisão): grade própria de quatro colunas. */
+.cmp-extrato-solto { border-top: 0; }
+.cmp-extrato-solto .cmp-item { grid-template-columns: minmax(0, 1fr) 6.5rem 6.5rem 6.75rem; }
+.cmp-extrato-solto .cmp-item-rotulo { grid-column: 1; }
+.cmp-extrato-solto .cmp-item-rotulo > span { white-space: normal; }
+.cmp-extrato-solto .cmp-item-plan { grid-column: 2; }
+.cmp-extrato-solto .cmp-item-real { grid-column: 3; }
+.cmp-extrato-solto .cmp-item-dif { grid-column: 4; }
+.cmp-extrato-solto .cmp-item-cabecalho {
+  display: grid;
+  min-height: 28px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+.cmp-extrato-solto .cmp-item-cabecalho .cmp-item-rotulo { padding-left: 0; }
+
+/* Diferença na barra escura de seleção: tons claros que leem no fundo escuro. */
+.cmp-dif-acima { color: color-mix(in srgb, var(--danger) 45%, var(--background)); }
+.cmp-dif-abaixo { color: color-mix(in srgb, var(--success) 45%, var(--background)); }
+
+/* ── Modo cartão (largura útil < 880px: tablet, celular, menu aberto) ──────
+ *   [☐ colaborador · função · selos ............ situação]
+ *   [   planejado     realizado     diferença           ]
+ *   [   ajustar · detalhar                              ]                    */
+@container cmp-lista (max-width: 879.98px) {
+  .cmp-cabecalho { display: none; }
+  .cmp-regua { display: flex; flex-wrap: wrap; }
+  /* A situação vai para o canto (fora da grade): numa coluna própria ela espremia os três valores. */
+  .cmp-topo {
+    position: relative;
+    grid-template-columns: 1.75rem repeat(3, minmax(0, 1fr));
+    grid-template-areas: "sel colab colab colab" ". plan real dif" ". acoes acoes acoes";
+    column-gap: 8px;
+    row-gap: 10px;
+    align-items: start;
+    padding: 12px 12px 6px 12px;
+  }
+  .cmp-c-sel { grid-area: sel; }
+  .cmp-c-colab { grid-area: colab; }
+  .cmp-c-colab > h3 { padding-right: 96px; }
+  .cmp-c-sit { position: absolute; top: 12px; right: 12px; }
+  .cmp-c-real > span:not(.sr-only) { font-size: 14px; }
+  .cmp-extrato { border-top: 0; }
+  .cmp-total-pct { display: none; }
+  .cmp-item-longo { row-gap: 2px; padding: 6px 0; }
+  .cmp-item-longo .cmp-item-rotulo { grid-column: 1 / -1; grid-row: 1; }
+  .cmp-item-longo .cmp-item-valor { grid-row: 2; }
+  .cmp-item-longo .cmp-item-acao { grid-row: 3; }
+  .cmp-chip-texto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .cmp-c-plan { grid-area: plan; }
+  .cmp-c-real { grid-area: real; }
+  .cmp-c-dif { grid-area: dif; }
+  .cmp-c-acoes { grid-area: acoes; justify-content: flex-start; margin-left: -8px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); padding-top: 4px; }
+  .cmp-c-acoes > :last-child { margin-left: auto; }
+  .cmp-num { text-align: left; }
+  .cmp-num > span:not(.sr-only) { align-items: flex-start !important; }
+  .cmp-num[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 1px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .cmp-acao-texto { display: inline; }
+  .cmp-tabela { border: 0; background: transparent; display: flex; flex-direction: column; gap: 8px; }
+  .cmp-item-lista .cmp-linha, .cmp-item-lista + .cmp-item-lista .cmp-linha { border: 1px solid var(--border); border-radius: 12px; background-color: var(--card); overflow: hidden; }
+  .cmp-linha-sel, .cmp-linha-sel:hover { border-color: var(--primary) !important; background-color: color-mix(in srgb, var(--brand-soft) 35%, var(--card)) !important; }
+  .cmp-corpo { padding: 0 12px 12px; }
+  .cmp-so-cartao { display: block; }
+  .cmp-item { grid-template-columns: minmax(0, 1fr) 4.9rem 4.9rem 5.1rem; column-gap: 8px; font-size: 12px; }
+  .cmp-item-rotulo { grid-column: 1; padding-left: 6px; }
+  .cmp-item-rotulo > span { white-space: normal; overflow: visible; text-overflow: clip; }
+  .cmp-item-plan { grid-column: 2; }
+  .cmp-item-real { grid-column: 3; }
+  .cmp-item-dif { grid-column: 4; }
+  .cmp-item-acao { grid-column: 1 / -1; justify-content: flex-start; margin: -4px 0 2px 2px; }
+  .cmp-item-cabecalho { display: grid; min-height: 26px; font-size: 11px; font-weight: 500; color: var(--muted-foreground); border-bottom: 1px solid var(--border); }
+  .cmp-item-cabecalho .cmp-item-rotulo { padding-left: 0; }
+  .cmp-item-grupo { font-size: 12px; }
+  .cmp-item-total { font-size: 12px; }
+  .cmp-item-total .cmp-item-real { font-size: 13px; }
+  .cmp-notas { grid-template-columns: minmax(0, 1fr); }
+}
+/* Celular estreito: os três valores do extrato cabem em 360px sem quebrar. */
+@container cmp-lista (max-width: 400px) {
+  .cmp-item { grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem 4.8rem; column-gap: 6px; font-size: 11.5px; }
+}
+@media (max-width: 420px) {
+  .cmp-extrato-solto .cmp-item { grid-template-columns: minmax(0, 1fr) 4.4rem 4.4rem 4.6rem; column-gap: 6px; font-size: 11.5px; }
+  .cmp-extrato-solto .cmp-item-grupo { font-size: 12px; }
+}
+.cmp-extrato-solto .cmp-item-rotulo > span { overflow: visible; text-overflow: clip; }
+/* Rótulo longo no estreito: o rótulo ocupa a linha e os valores descem, nas mesmas colunas. */
+@media (max-width: 420px) {
+  .cmp-extrato-solto .cmp-item-longo { row-gap: 2px; padding: 4px 0; }
+  .cmp-extrato-solto .cmp-item-longo .cmp-item-rotulo { grid-column: 1 / -1; grid-row: 1; }
+  .cmp-extrato-solto .cmp-item-longo .cmp-item-valor { grid-row: 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmp-linha { transition: none; }
+}
