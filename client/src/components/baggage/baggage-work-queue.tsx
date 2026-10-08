@@ -4,76 +4,53 @@
  * A tela já agregava bagagens por CIA, mas o número só aparecia dentro da aba
  * de relatório — quem estava na lista não via, e não tinha como recortar por
  * companhia. Aqui cada bloco conta E filtra, e reclicar o ativo desliga.
+ *
+ * 08/10 (redesenho): a MESMA fila de Passagens e Hospedagem
+ * (`common/fila-de-trabalho`) — filete da ativa que cresce do centro, fundo de
+ * marca na escolhida, 2 × 2 no celular. O avião vem na cor da companhia (a
+ * mesma da borda da linha e da etiqueta no bilhete), e o número grande é o de
+ * bagagens, com o valor ao lado. Antes o número aparecia duas vezes ("18 · 18
+ * bagagens").
  */
-import { useLarguraUtil } from "@/components/common/use-largura-util";
-import { CIA_COR, CIA_ORDEM, formatCurrency, type CiaGroup } from "./baggage-core";
+import { PlaneTakeoff } from "lucide-react";
+import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
+import { CIA_ORDEM, formatCurrency, type CiaGroup } from "./baggage-core";
 import type { ResumoDaCia } from "./baggage-logic";
 
-/**
- * Abaixo disto as quatro colunas não cabem e a fila vira 2×2.
- *
- * Nunca 3+1: o bloco que sobra ocupa a faixa inteira sozinho e passa a ler como
- * banner, que não é o que ele é.
- */
-const LARGURA_PARA_QUATRO = 760;
+/** A cor de texto de cada companhia — a mesma família de `CIA_STYLE`. */
+export const CIA_TEXTO: Record<CiaGroup, string> = {
+  Azul: "text-info", Gol: "text-warning-strong", TAM: "text-danger", Outros: "text-muted-foreground",
+};
 
 export default function BaggageWorkQueue({ contagens, ativa, onEscolher }: {
   contagens: Record<CiaGroup, ResumoDaCia>;
   ativa: CiaGroup | null;
   onEscolher: (c: CiaGroup | null) => void;
 }) {
-  const { ref, largura } = useLarguraUtil<HTMLElement>();
-  // Antes da primeira medição assume o desktop: piscar 2×2 e saltar para 4 é
-  // pior que assumir o caso comum e corrigir uma vez.
-  const emQuatro = largura === null || largura >= LARGURA_PARA_QUATRO;
+  const blocos: BlocoDaFilaDeTrabalho<CiaGroup>[] = CIA_ORDEM.map((cia) => {
+    const r = contagens[cia];
+    const bagagens = r.bags === 1 ? "bagagem" : "bagagens";
+    return {
+      key: cia,
+      rotulo: cia,
+      n: r.bags,
+      sub: r.bags === 0 ? bagagens : `${bagagens} · ${formatCurrency(r.cents)}`,
+      titulo: r.records === 0
+        ? `Nenhuma bagagem ${cia === "Outros" ? "em outras companhias" : `na ${cia}`} neste recorte`
+        : `${r.bags} ${bagagens} em ${r.records} ${r.records === 1 ? "solicitação" : "solicitações"} · ${formatCurrency(r.cents)}${
+          ativa === cia ? " — clique de novo para ver todas" : ""}`,
+      icone: PlaneTakeoff,
+      cor: CIA_TEXTO[cia],
+    };
+  });
 
   return (
-    <section
-      ref={ref}
-      aria-label="Bagagens por companhia aérea"
-      className={`grid rounded-xl border border-border bg-card overflow-hidden ${emQuatro ? "grid-cols-4" : "grid-cols-2"}`}
-    >
-      {CIA_ORDEM.map((cia, i) => {
-        const r = contagens[cia];
-        const on = ativa === cia;
-        // Em 2×2 a borda esquerda cai nos ímpares e a de cima na segunda linha,
-        // senão sobra um traço solto na borda do card.
-        const divisorias = emQuatro
-          ? "border-l border-border first:border-l-0"
-          : `${i % 2 === 1 ? "border-l border-border" : ""} ${i >= 2 ? "border-t border-border" : ""}`;
-
-        const sub = r.bags === 0
-          ? "nenhuma bagagem"
-          : `${r.bags} ${r.bags === 1 ? "bagagem" : "bagagens"} · ${formatCurrency(r.cents)}`;
-
-        return (
-          <button
-            key={cia}
-            type="button"
-            aria-pressed={on}
-            // Reclicar o bloco ativo desliga o filtro: uma fila que só liga vira
-            // uma armadilha de mão única.
-            onClick={() => onEscolher(on ? null : cia)}
-            className={`min-w-0 text-left px-4 py-[13px] border-b-2 transition-colors ${divisorias} ${
-              on ? "bg-background border-b-primary" : "border-b-transparent hover:bg-background"
-            }`}
-            data-testid={`fila-cia-${cia.toLowerCase()}`}
-          >
-            <span className="flex items-center gap-[7px]">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CIA_COR[cia] }} aria-hidden="true" />
-              <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground truncate" title={cia}>
-                {cia}
-              </span>
-            </span>
-            <span className="flex items-baseline gap-[7px] mt-1.5">
-              <span className={`text-xl font-semibold tabular-nums tracking-[-0.02em] ${r.bags === 0 ? "text-muted-foreground" : "text-foreground"}`}>
-                {r.bags}
-              </span>
-              <span className="text-xs text-muted-foreground truncate" title={sub}>{sub}</span>
-            </span>
-          </button>
-        );
-      })}
-    </section>
+    <FilaDeTrabalho
+      blocos={blocos}
+      ativa={ativa}
+      onEscolher={onEscolher}
+      rotulo="Bagagens por companhia aérea"
+      testid={(cia) => `fila-cia-${cia.toLowerCase()}`}
+    />
   );
 }

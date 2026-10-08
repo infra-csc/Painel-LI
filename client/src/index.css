@@ -1208,3 +1208,71 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .cal-barra, .cal-chip, .cal-linha, .cal-passado { transition: none; }
   .cal-barra:hover, .cal-chip:hover { transform: none; }
 }
+
+/* ══ Controle de bagagem (bag-) — redesenho 08/10 ══════════════════════════
+ * A Bagagem usa as MESMAS classes de Passagens (pas-tabela, pas-cabecalho,
+ * pas-linha, pas-abrir, pas-osso, pas-entra, pas-alvo, pas-rolagem-x) — é a
+ * mesma família. Aqui só o que é dela: o cartão da solicitação no
+ * celular/tablet e o cartão das linhas dos dois relatórios.
+ *
+ * Cartão da solicitação (abaixo de 960px úteis), sobre a MESMA árvore de
+ * células da tabela:
+ *   [bilhete: LOC · companhia · OS ............ ações]
+ *   [colaborador + CPF                               ]
+ *   [evento + observação       | embarque            ]
+ *   [bagagens | valor          | agência             ]                         */
+.bag-cartao thead { display: none; }
+.bag-cartao table, .bag-cartao tbody { display: block; width: 100%; }
+.bag-cartao tr.pas-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 8px 4px 12px;
+}
+.bag-cartao td { display: block; padding: 4px 10px; width: auto; text-align: left !important; }
+.bag-cartao td[data-col="bilhete"] { order: 1; flex: 1 1 0; min-width: 0; padding-left: 10px; }
+.bag-cartao td[data-col="acoes"] { order: 2; flex: 0 0 auto; padding-top: 2px; }
+.bag-cartao td[data-col="colab"] { order: 3; flex: 0 0 100%; padding-top: 6px; }
+.bag-cartao td[data-col="evento"] { order: 4; flex: 0 0 58%; min-width: 0; }
+.bag-cartao td[data-col="datas"] { order: 5; flex: 0 0 42%; min-width: 0; }
+.bag-cartao td[data-col="qtd"] { order: 6; flex: 0 0 22%; min-width: 0; }
+.bag-cartao td[data-col="valor"] { order: 7; flex: 0 0 36%; min-width: 0; }
+.bag-cartao td[data-col="agencia"] { order: 8; flex: 0 0 42%; min-width: 0; }
+.bag-cartao td[data-rotulo]::before,
+.bag-doc-cartao td[data-rotulo]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+/* No cartão a observação tem a largura toda: volta a quebrar em vez de cortar. */
+.bag-cartao .bag-nota { align-items: flex-start; }
+.bag-cartao .bag-nota .truncate { white-space: normal; overflow: visible; }
+
+/* Relatórios no estreito (< 900px úteis): cada linha vira um cartão —
+ *   [nome + CPF / evento + período .......... ›]
+ *   [Azul | Gol | TAM | Outros]   (por colaborador)
+ *   [bagagens | histórico | valor]  /  [solicitações | bagagens | valor | médio]
+ *   [participação ............................]  (por evento)             */
+.bag-doc-cartao thead { display: none; }
+.bag-doc-cartao table, .bag-doc-cartao tbody, .bag-doc-cartao tfoot { display: block; width: 100%; }
+.bag-doc-cartao tr { display: flex; flex-wrap: wrap; align-items: flex-start; padding: 8px 0 10px; }
+.bag-doc-cartao td, .bag-doc-cartao th { display: block; padding: 3px 16px; text-align: left !important; }
+.bag-doc-cartao [data-col="nome"] { order: 1; flex: 1 1 calc(100% - 56px); min-width: 0; padding-left: 16px !important; }
+.bag-doc-cartao td[data-col="abrir"] { order: 2; flex: 0 0 auto; padding: 0 8px; }
+.bag-doc-cartao td[data-col="cia"] { order: 3; flex: 0 0 25%; }
+.bag-doc-cartao td[data-col="num"] { order: 4; flex: 1 1 0; min-width: 0; }
+.bag-doc-cartao td[data-col="pct"] { order: 5; flex: 0 0 100%; }
+.bag-doc-cartao td[data-col="cia"] > span { justify-content: flex-start; }
+.bag-doc-cartao tfoot td[data-col="pct"], .bag-doc-cartao tfoot td[data-col="abrir"] { display: none; }
+.bag-doc-cartao .bag-total [data-col="nome"] { flex: 0 0 100%; }
+/* Por evento são quatro números: dois por fileira, senão o valor médio sai da tela no celular. */
+.bag-doc-evento td[data-col="num"] { flex: 0 0 50%; }
+
+/* O número da quantidade tem − / + próprios: as setas nativas do navegador ficavam duplicadas. */
+.bag-numero::-webkit-outer-spin-button, .bag-numero::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bag-numero { -moz-appearance: textfield; appearance: textfield; }

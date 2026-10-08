@@ -8,21 +8,28 @@
  * Comportamento copiado, não reescrito: setas, Enter, Esc,
  * `aria-activedescendant` e o `onBlur` com atraso de 150ms (que existe para o
  * clique numa opção acontecer antes de a lista fechar).
+ *
+ * 08/10 (redesenho): só a forma — 40px e texto de 14px como os outros campos
+ * do formulário (eram 36px e 12px, os únicos menores do modal), opções com
+ * cantos e respiro em vez de filetes entre elas, o "trocar" com alvo maior e
+ * os nomes pela regra única de `@/lib/format` ("Maria da Silva").
  */
 import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { fixEncoding } from "@/lib/utils";
+import { toTitleCase } from "@/lib/format";
 import {
-  eventPeriod, formatCpf, getCpf, toTitleCase,
+  eventPeriod, formatCpf, getCpf,
   type CollaboratorItem, type EventOption,
 } from "./baggage-core";
 
-const CAMPO = "h-9 text-xs rounded-lg border-border";
-const LISTA = "absolute z-20 left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-2 overflow-y-auto";
-const OPCAO = "w-full text-left px-3 py-2 text-xs transition-colors border-b border-border last:border-0";
+/** Campo de busca: a altura e o texto dos outros campos do formulário (40px · 14px). */
+const CAMPO = "text-sm";
+const LISTA = "pas-entra absolute z-20 left-0 right-0 mt-1 p-1 bg-card border border-border rounded-xl shadow-2 overflow-y-auto";
+const OPCAO = "w-full text-left px-2.5 py-2 rounded-md text-sm transition-colors";
 /** Escolhido: caixa azul com o valor e um X para trocar. */
-const ESCOLHIDO = "flex items-center gap-2 h-9 px-3 rounded-lg border border-primary/25 bg-brand-soft/50";
+const ESCOLHIDO = "pas-entra flex items-center gap-2 h-10 pl-3 pr-1.5 rounded-md border border-primary/25 bg-brand-soft/50";
 
 /** Teclado compartilhado pelos dois: setas percorrem, Enter escolhe, Esc fecha. */
 function usarTeclado<T>(
@@ -98,7 +105,7 @@ export function EventCombobox({
   if (selected) {
     return (
       <div className={`${ESCOLHIDO} ${className}`}>
-        <p className="flex-1 min-w-0 text-xs font-semibold text-slate-700 truncate" title={selected.name}>
+        <p className="flex-1 min-w-0 text-sm font-medium text-foreground truncate" title={selected.name}>
           {selected.name}
           {eventPeriod(selected) && (
             <span className="ml-2 font-mono font-normal text-2xs text-muted-foreground whitespace-nowrap">{eventPeriod(selected)}</span>
@@ -108,9 +115,9 @@ export function EventCombobox({
           type="button"
           onClick={() => { onChange(""); setQuery(""); }}
           aria-label={`Remover evento ${selected.name}`}
-          className="w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-card transition-colors shrink-0"
+          className="pas-alvo w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <X className="w-3 h-3" aria-hidden="true" />
+          <X className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       </div>
     );
@@ -138,7 +145,7 @@ export function EventCombobox({
       {open && (
         <div id={listboxId} role="listbox" aria-label="Eventos" className={`${LISTA} max-h-[260px] min-w-[240px]`}>
           {matches.length === 0 ? (
-            <p className="text-2xs text-muted-foreground text-center py-3 px-3">Nenhum evento encontrado.</p>
+            <p className="m-0 text-xs text-muted-foreground text-center py-3 px-3">Nenhum evento encontrado.</p>
           ) : matches.map((ev, i) => (
             <button
               key={ev.id}
@@ -152,7 +159,7 @@ export function EventCombobox({
               onClick={() => select(ev.id)}
               className={`${OPCAO} ${i === activeIndex ? "bg-brand-soft" : ""}`}
             >
-              <span className="block font-semibold text-slate-700 truncate">{ev.name}</span>
+              <span className="block font-medium text-foreground truncate">{ev.name}</span>
               <span className="block text-2xs text-muted-foreground mt-0.5 truncate">
                 {eventPeriod(ev)}
                 {ev.location && (eventPeriod(ev) ? ` · ${ev.location}` : ev.location)}
@@ -211,17 +218,17 @@ export function CollaboratorCombobox({
     const cpf = getCpf(selected);
     return (
       <div className={ESCOLHIDO}>
-        <p className="flex-1 min-w-0 text-xs font-semibold text-slate-700 truncate">
+        <p className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">
           {toTitleCase(fixEncoding(selected.fullName))}
-          {cpf && <span className="ml-2 font-mono font-normal text-muted-foreground">{formatCpf(cpf)}</span>}
+          {cpf && <span className="ml-2 font-mono font-normal text-xs text-muted-foreground">{formatCpf(cpf)}</span>}
         </p>
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label="Remover colaborador selecionado"
-          className="w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-slate-700 hover:bg-card transition-colors shrink-0"
+          className="pas-alvo w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <X className="w-3 h-3" aria-hidden="true" />
+          <X className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       </div>
     );
@@ -249,7 +256,7 @@ export function CollaboratorCombobox({
       {open && query.trim() && (
         <div id={listboxId} role="listbox" aria-label="Colaboradores" className={`${LISTA} max-h-[240px]`}>
           {matches.length === 0 ? (
-            <p className="text-2xs text-muted-foreground text-center py-3 px-3">Nenhum colaborador encontrado.</p>
+            <p className="m-0 text-xs text-muted-foreground text-center py-3 px-3">Nenhum colaborador encontrado.</p>
           ) : matches.map((c, i) => {
             const cpf = getCpf(c);
             return (
@@ -265,7 +272,7 @@ export function CollaboratorCombobox({
                 onClick={() => select(c.id)}
                 className={`${OPCAO} ${i === activeIndex ? "bg-brand-soft" : ""}`}
               >
-                <span className="font-semibold text-slate-700">{toTitleCase(fixEncoding(c.fullName))}</span>
+                <span className="font-medium text-foreground">{toTitleCase(fixEncoding(c.fullName))}</span>
                 {cpf && <span className="ml-2 font-mono text-2xs text-muted-foreground">{formatCpf(cpf)}</span>}
               </button>
             );

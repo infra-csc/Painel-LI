@@ -1,4 +1,15 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+/**
+ * Controle de Bagagem — solicitações de bagagem despachada por colaborador e
+ * evento, e os dois relatórios (por colaborador, por evento). Admin e Compras.
+ *
+ * 08/10 (redesenho, irmã de Passagens e Hospedagem): a mesma casca — barra de
+ * 56px grudada em todos os estados (carregando, erro, sem acesso), conteúdo
+ * até 1560px —, as visões em abas de verdade abaixo da barra, a fila por
+ * companhia, a barra de filtros comum, a lista em tabela que vira cartão e o
+ * registro em modal com seções. A regra (filtro, ordem, agregados, validação,
+ * payload) continua em `baggage-logic`/`baggage-core`, intocada.
+ */
+import { useEffect, useMemo, useState, useCallback, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -6,18 +17,15 @@ import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
 import { normalizeRole } from "@shared/roles";
 import { fixEncoding } from "@/lib/utils";
+import { toTitleCase as nomeDePessoa } from "@/lib/format";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { PageHeader } from "@/components/common/page-header";
 import { campo, useUrlState } from "@/lib/use-url-state";
 import { guardarEventoEmFoco } from "@/lib/evento-em-foco";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { CalendarDays, ClipboardList, Download, Lock, Plus, Users } from "lucide-react";
+import { Download, Lock, Plus } from "lucide-react";
 import type { OpcaoDeFiltro } from "@/components/common/filter-popover";
 import {
-  ERROR_FIELD_IDS, ciaGroup, emptyForm, fmtDate, formatCpf, formatCurrency, getCpf, toTitleCase, todayISO,
+  ERROR_FIELD_IDS, ciaGroup, emptyForm, eventPeriod, fmtDate, formatCpf, formatCurrency, getCpf, toTitleCase, todayISO,
   type BaggageHistoryItem, type BaggageRequestItem, type CiaGroup, type CollaboratorItem,
   type EventItem, type EventOption, type FormErrors, type FormState, type TabId,
 } from "@/components/baggage/baggage-core";
@@ -34,13 +42,9 @@ import {
   BaggageByCollaborator, BaggageByEvent,
   type LinhaDeColaborador, type LinhaDeEvento,
 } from "@/components/baggage/baggage-reports";
+import BaggageTabs, { ABAS } from "@/components/baggage/baggage-tabs";
+import BaggageDeleteDialog from "@/components/baggage/baggage-delete-dialog";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
-
-const ABAS: { id: TabId; label: string; icon: typeof ClipboardList }[] = [
-  { id: "solicitacoes", label: "Solicitações", icon: ClipboardList },
-  { id: "colaboradores", label: "Por colaborador", icon: Users },
-  { id: "eventos", label: "Resumo por evento", icon: CalendarDays },
-];
 
 /** CSV do sistema: BOM UTF-8, separador ';' e TODOS os campos entre aspas. */
 function baixarCsv(nome: string, header: string, linhas: string[]) {
@@ -151,7 +155,8 @@ export default function BaggageControlPage() {
 
   const colaboradoresAtivos = useMemo(() => collaborators.filter(c => c.active !== false), [collaborators]);
 
-  const getCollabName = (id: string) => toTitleCase(fixEncoding(collabById.get(id)?.fullName || "")) || "—";
+  // Nome para a tela pela regra única de @/lib/format ("Maria da Silva"); o CSV segue como sempre foi.
+  const getCollabName = (id: string) => nomeDePessoa(fixEncoding(collabById.get(id)?.fullName || "")) || "—";
   const getEventName = useCallback((id: string) => fixEncoding(eventById.get(id)?.name || "") || "—", [eventById]);
 
   const bagsByCollaborator = useMemo(
@@ -184,7 +189,7 @@ export default function BaggageControlPage() {
   const opcoesDeColaborador = useMemo<OpcaoDeFiltro[]>(() => {
     const n = contarPorOpcao(requests, filtros, "collaboratorId", ctx);
     return colaboradoresAtivos.map(c => ({
-      id: c.id, nome: toTitleCase(fixEncoding(c.fullName)) || "—", n: n.get(c.id) ?? 0,
+      id: c.id, nome: nomeDePessoa(fixEncoding(c.fullName)) || "—", n: n.get(c.id) ?? 0,
     }));
   }, [colaboradoresAtivos, requests, filtros, ctx]);
 
@@ -241,10 +246,14 @@ export default function BaggageControlPage() {
       map.set(r.eventId, agg);
     }
     return Array.from(map.entries())
-      .map(([eventId, agg]) => ({ eventId, name: getEventName(eventId), ...agg }))
+      .map(([eventId, agg]) => {
+        // Período e local só para contexto embaixo do nome (não entram no CSV).
+        const ev = eventOptions.find(e => e.id === eventId);
+        return { eventId, name: getEventName(eventId), ...agg, periodo: ev ? eventPeriod(ev) : undefined, local: ev?.location || undefined };
+      })
       .filter(r => !q || r.name.toLowerCase().includes(q))
       .sort((a, b) => b.cents - a.cents);
-  }, [requests, getEventName, eventTabSearch]);
+  }, [requests, getEventName, eventTabSearch, eventOptions]);
 
   const eventTotals = useMemo(() => {
     let bags = 0, cents = 0;
@@ -281,9 +290,14 @@ export default function BaggageControlPage() {
         : await apiRequest("POST", "/api/baggage-requests", payload);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, payload) => {
       qc.invalidateQueries({ queryKey: ["/api/baggage-requests"] });
-      toast({ title: editing ? "Solicitação atualizada" : "Solicitação registrada" });
+      // O que foi gravado, numa linha: o mesmo toast de sucesso das irmãs.
+      toast({
+        variant: "success",
+        title: editing ? "Solicitação atualizada" : "Solicitação registrada",
+        description: `LOC ${payload.loc} · ${getCollabName(payload.collaboratorId)} · ${formatCurrency(payload.valueCents)}`,
+      });
       fecharForm();
     },
     onError: (e: unknown) => toast({
@@ -295,9 +309,10 @@ export default function BaggageControlPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/baggage-requests/${id}`).then(r => r.json()),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ["/api/baggage-requests"] });
-      toast({ title: "Solicitação excluída" });
+      const r = requests.find(x => x.id === id);
+      toast({ variant: "success", title: "Solicitação excluída", description: r ? `LOC ${r.loc} · ${getCollabName(r.collaboratorId)}` : undefined });
     },
     onError: (e: unknown) => toast({
       title: "Não foi possível excluir a solicitação",
@@ -448,19 +463,32 @@ export default function BaggageControlPage() {
     baixarCsv(`bagagem-por-evento-${todayISO()}.csv`, header, linhas);
   };
 
+  // ── Casca: a barra da tela aparece em todos os estados ──
+  // (carregando, erro, sem acesso): a pessoa sempre sabe onde está, e nada
+  // "pula" quando os dados chegam. A mesma casca de Passagens e Hospedagem.
+  const casca = (subtitulo: ReactNode, acoes: ReactNode, conteudo: ReactNode) => (
+    <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
+      <PageHeader variant="bar" title="Controle de bagagem" subtitle={subtitulo} className="mx-0 mt-0" actions={acoes} />
+      {/* `div`, não `main`: o `<main>` é um só e mora no layout. */}
+      <div className="px-[var(--page-gutter)] pt-4 pb-6">
+        <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">{conteudo}</div>
+      </div>
+    </div>
+  );
+
   // ── Bloqueio local (além do ProtectedRoute) ──
   if (!allowed) {
-    return (
-      <div className="min-h-screen bg-surface-muted p-6 flex items-center justify-center">
-        <div className="bg-card rounded-xl border border-border p-10 max-w-md text-center">
-          <Lock className="w-10 h-10 text-muted-foreground/60 mx-auto mb-3" aria-hidden="true" />
-          <h2 className="text-base font-bold text-foreground">Sem acesso</h2>
-          <p className="text-sm text-neutral mt-2">
-            O Controle de Bagagem é restrito aos papéis Administrador e Compras/Viagens.
-            Se você precisa deste acesso, fale com o administrador do sistema.
-          </p>
-        </div>
-      </div>
+    return casca(null, null,
+      <div className="pas-entra flex flex-col items-center text-center rounded-xl border border-border bg-card px-6 py-14" data-testid="bagagem-sem-acesso">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-muted text-muted-foreground mb-3" aria-hidden="true">
+          <Lock className="w-5 h-5" />
+        </span>
+        <h2 className="m-0 text-base font-semibold text-foreground">Acesso restrito</h2>
+        <p className="m-0 mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
+          O Controle de Bagagem é restrito aos papéis Administrador e Compras/Viagens.
+          Se você precisa deste acesso, fale com o administrador do sistema.
+        </p>
+      </div>,
     );
   }
 
@@ -468,16 +496,24 @@ export default function BaggageControlPage() {
     !!filtros.eventId || filtros.collaboratorIds.length > 0 || filtros.search.trim() !== "" || filtros.cia !== null;
 
   /** Resumo vivo do recorte, na barra de contexto. */
-  const resumoDoTopo = tab === "solicitacoes"
-    ? `${resumo.records} ${resumo.records === 1 ? "solicitação" : "solicitações"} · ${resumo.bags} ${resumo.bags === 1 ? "bagagem" : "bagagens"} · ${formatCurrency(resumo.cents)}`
-    : tab === "colaboradores"
-      ? `${collabRows.length} ${collabRows.length === 1 ? "colaborador" : "colaboradores"} com bagagem`
-      : `${eventRows.length} ${eventRows.length === 1 ? "evento" : "eventos"} · ${eventTotals.bags} ${eventTotals.bags === 1 ? "bagagem" : "bagagens"} · ${formatCurrency(eventTotals.cents)}`;
+  const resumoDoTopo = isLoading
+    ? "Carregando…"
+    : isError
+      ? "não foi possível carregar"
+      : tab === "solicitacoes"
+        ? `${resumo.records} ${resumo.records === 1 ? "solicitação" : "solicitações"} · ${resumo.bags} ${resumo.bags === 1 ? "bagagem" : "bagagens"} · ${formatCurrency(resumo.cents)}`
+        : tab === "colaboradores"
+          ? `${collabRows.length} ${collabRows.length === 1 ? "colaborador" : "colaboradores"} com bagagem`
+          : `${eventRows.length} ${eventRows.length === 1 ? "evento" : "eventos"} · ${eventTotals.bags} ${eventTotals.bags === 1 ? "bagagem" : "bagagens"} · ${formatCurrency(eventTotals.cents)}`;
 
   const csvDaVisao = tab === "solicitacoes" ? exportarSolicitacoes
     : tab === "colaboradores" ? exportarPorColaborador : exportarPorEvento;
   const csvVazio = tab === "solicitacoes" ? linhasFiltradas.length === 0
     : tab === "colaboradores" ? collabRows.length === 0 : eventRows.length === 0;
+  /** O que o CSV leva, por extenso — o botão é um só para as três visões. */
+  const oQueExporta = tab === "solicitacoes"
+    ? (temFiltroAtivo ? "Exportar as solicitações deste recorte em CSV" : "Exportar as solicitações em CSV")
+    : tab === "colaboradores" ? "Exportar os totais por colaborador em CSV" : "Exportar os totais por evento em CSV";
 
   /** Ir para a lista já recortada por quem foi clicado no relatório. */
   const verSolicitacoesDe = (patch: Partial<FiltrosDaLista>) => {
@@ -485,214 +521,170 @@ export default function BaggageControlPage() {
     setTab("solicitacoes");
   };
 
-  return (
-    <div>
-      {/*
-        Barra de contexto (PageHeader `bar`, 23/09): onde estou, o que estou vendo
-        e as ações — o mesmo cabeçalho de Passagens e do Espelho. Substitui o
-        cabeçalho de página, o card de total no canto e o card solto de abas.
-      */}
-      <PageHeader
-        variant="bar"
-        title="Controle de bagagem"
-        subtitle={<span data-testid="resumo-do-recorte">{resumoDoTopo}</span>}
-        tabs={
-          <div
-            role="tablist"
-            aria-label="Seções do Controle de Bagagem"
-            className="inline-flex items-center gap-0.5 h-[34px] p-0.5 rounded-lg border border-border bg-card shrink-0"
-          >
-            {ABAS.map(t => {
-              const Icone = t.icon;
-              const on = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  id={`tab-${t.id}`}
-                  role="tab"
-                  aria-selected={on}
-                  aria-controls={`panel-${t.id}`}
-                  tabIndex={on ? 0 : -1}
-                  onClick={() => setTab(t.id)}
-                  onKeyDown={e => {
-                    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-                    e.preventDefault();
-                    const idx = ABAS.findIndex(x => x.id === tab);
-                    const next = e.key === "ArrowRight"
-                      ? (idx + 1) % ABAS.length
-                      : (idx - 1 + ABAS.length) % ABAS.length;
-                    setTab(ABAS[next].id);
-                    document.getElementById(`tab-${ABAS[next].id}`)?.focus();
-                  }}
-                  className={`inline-flex items-center gap-1.5 h-[30px] px-2.5 rounded-md text-xs font-medium transition-colors ${
-                    on ? "bg-brand-soft text-primary" : "text-neutral hover:bg-surface-muted"
-                  }`}
-                  data-testid={`tab-${t.id}`}
-                >
-                  <Icone className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        }
-        actions={<>
-          <MotivoDesabilitado motivo="Exportar a visão atual em CSV" desabilitado={csvVazio}>
-            <button
-            type="button"
-            onClick={csvDaVisao}
-            disabled={csvVazio}
-           
-            aria-label="Exportar a visão atual em CSV"
-            className="h-[34px] px-3 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card text-sm font-medium text-slate-700 hover:bg-surface-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            data-testid="button-csv"
-          >
-            <Download className="w-4 h-4" aria-hidden="true" /> CSV
-          </button>
-          </MotivoDesabilitado>
+  /** Totais de cada visão, sem recorte — o número ao lado do nome da aba. */
+  const contagensDasAbas = isLoading || isError ? null : {
+    solicitacoes: requests.length,
+    colaboradores: bagsByCollaborator.size,
+    eventos: new Set(requests.map(r => r.eventId)).size,
+  };
 
-          <button
-            type="button"
-            onClick={abrirNovo}
-            className="h-[34px] px-3.5 shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold transition-colors"
-            data-testid="button-new-baggage"
-          >
-            <Plus className="w-4 h-4" aria-hidden="true" /> Nova solicitação
-          </button>
-        </>}
+  const acoes = <>
+    <MotivoDesabilitado motivo={csvVazio ? "Nada para exportar nesta visão" : oQueExporta} desabilitado={csvVazio}>
+      <button
+        type="button"
+        onClick={csvDaVisao}
+        disabled={csvVazio}
+        aria-label={oQueExporta}
+        title={csvVazio ? undefined : oQueExporta}
+        className="pas-alvo h-[34px] px-3 shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card text-sm font-medium text-slate-700 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed"
+        data-testid="button-csv"
+      >
+        <Download className="w-4 h-4" aria-hidden="true" />Exportar CSV
+      </button>
+    </MotivoDesabilitado>
+
+    <button
+      type="button"
+      onClick={abrirNovo}
+      className="pas-alvo h-[34px] px-3.5 shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      data-testid="button-new-baggage"
+    >
+      <Plus className="w-4 h-4" aria-hidden="true" />Nova solicitação
+    </button>
+  </>;
+
+  return (
+    <>
+      {casca(
+        <span data-testid="resumo-do-recorte">{resumoDoTopo}</span>,
+        acoes,
+        <>
+          <BaggageTabs ativa={tab} onTrocar={setTab} contagens={contagensDasAbas} />
+
+          {tab === "solicitacoes" && (
+            <div id="panel-solicitacoes" role="tabpanel" aria-labelledby="tab-solicitacoes" className="pas-entra flex flex-col gap-4">
+              {/* Carregando ou com erro, a fila não mostra "0 bagagens" que não são verdade. */}
+              {isLoading ? (
+                <div aria-hidden="true" className="grid grid-cols-2 sm:grid-cols-4 rounded-xl border border-border bg-card overflow-hidden">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className={`px-3.5 pt-3 pb-3.5 space-y-2 ${i % 2 === 1 ? "border-l border-border" : ""} ${i >= 2 ? "border-t sm:border-t-0 sm:border-l border-border" : ""}`}>
+                      <div className="pas-osso h-3 w-16" />
+                      <div className="pas-osso h-5 w-32" />
+                    </div>
+                  ))}
+                </div>
+              ) : !isError && requests.length > 0 && (
+                <BaggageWorkQueue
+                  contagens={contagensPorCia}
+                  ativa={filtros.cia}
+                  onEscolher={(cia) => setFiltros(f => ({ ...f, cia }))}
+                />
+              )}
+
+              {!isError && (isLoading || requests.length > 0) && (
+                <BaggageFilterBar
+                  filtros={filtros}
+                  onChange={(patch) => setFiltros(f => ({ ...f, ...patch }))}
+                  onClear={() => setFiltros(FILTROS_VAZIOS)}
+                  opcoesDeEvento={opcoesDeEvento}
+                  opcoesDeColaborador={opcoesDeColaborador}
+                  ordem={ordem}
+                  onOrdem={setOrdem}
+                  resumo={resumo}
+                  total={requests.length}
+                />
+              )}
+
+              <BaggageList
+                linhas={linhasFiltradas}
+                collabById={collabById}
+                getCollabName={getCollabName}
+                getEventName={getEventName}
+                carregando={isLoading}
+                erro={isError}
+                onRecarregar={() => refetch()}
+                temFiltroAtivo={temFiltroAtivo}
+                totalSemFiltro={requests.length}
+                onLimparFiltros={() => setFiltros(FILTROS_VAZIOS)}
+                onEditar={startEdit}
+                onExcluir={setDeleteTarget}
+                podeEditar={allowed}
+                resumo={resumo}
+                ordem={ordem}
+                onOrdem={setOrdem}
+                onNova={abrirNovo}
+              />
+            </div>
+          )}
+
+          {tab === "colaboradores" && (
+            <div id="panel-colaboradores" role="tabpanel" aria-labelledby="tab-colaboradores" className="pas-entra">
+              <BaggageByCollaborator
+                linhas={collabRows}
+                busca={collabTabSearch}
+                onBusca={setCollabTabSearch}
+                candidatos={collabAddCandidates}
+                onAdicionarAoHistorico={(id) => historyMutation.mutate({ collaboratorId: id, cia: "Outros", quantity: 1 })}
+                onAjustarHistorico={adjustHistory}
+                ajustando={historyMutation.isPending}
+                carregando={isLoading}
+                erroDeHistorico={historyError}
+                onRecarregarHistorico={() => refetchHistory()}
+                temHistorico={baggageHistory.length > 0}
+                semRegistros={requests.length === 0}
+                onVerSolicitacoes={(collaboratorId) => verSolicitacoesDe({ collaboratorIds: [collaboratorId] })}
+                onCsv={exportarPorColaborador}
+              />
+            </div>
+          )}
+
+          {tab === "eventos" && (
+            <div id="panel-eventos" role="tabpanel" aria-labelledby="tab-eventos" className="pas-entra">
+              <BaggageByEvent
+                linhas={eventRows}
+                busca={eventTabSearch}
+                onBusca={setEventTabSearch}
+                totais={eventTotals}
+                carregando={isLoading}
+                semRegistros={requests.length === 0}
+                onVerSolicitacoes={(eventId) => verSolicitacoesDe({ eventId })}
+                onCsv={exportarPorEvento}
+              />
+            </div>
+          )}
+        </>,
+      )}
+
+      <BaggageFormModal
+        open={formAberto}
+        onOpenChange={(v) => { if (!v) fecharForm(); }}
+        form={form}
+        setForm={setForm}
+        errors={errors}
+        editing={editing}
+        eventOptions={eventOptions}
+        colaboradoresAtivos={colaboradoresAtivos}
+        colaboradorSelecionado={colaboradorSelecionado}
+        agregadoDoColaborador={agregadoDoColaborador}
+        locDuplicado={duplicado}
+        getCollabName={getCollabName}
+        salvando={saveMutation.isPending}
+        onSubmit={submit}
       />
 
-      <div className="max-w-6xl mx-auto space-y-4 pt-5">
-        {tab === "solicitacoes" && (
-          <div id="panel-solicitacoes" role="tabpanel" aria-labelledby="tab-solicitacoes" className="space-y-4">
-            <BaggageWorkQueue
-              contagens={contagensPorCia}
-              ativa={filtros.cia}
-              onEscolher={(cia) => setFiltros(f => ({ ...f, cia }))}
-            />
-
-            <BaggageFilterBar
-              filtros={filtros}
-              onChange={(patch) => setFiltros(f => ({ ...f, ...patch }))}
-              onClear={() => setFiltros(FILTROS_VAZIOS)}
-              opcoesDeEvento={opcoesDeEvento}
-              opcoesDeColaborador={opcoesDeColaborador}
-              ordem={ordem}
-              onOrdem={setOrdem}
-              resumo={resumo}
-              total={requests.length}
-            />
-
-            <BaggageList
-              linhas={linhasFiltradas}
-              collabById={collabById}
-              getCollabName={getCollabName}
-              getEventName={getEventName}
-              carregando={isLoading}
-              erro={isError}
-              onRecarregar={() => refetch()}
-              temFiltroAtivo={temFiltroAtivo}
-              totalSemFiltro={requests.length}
-              onLimparFiltros={() => setFiltros(FILTROS_VAZIOS)}
-              onEditar={startEdit}
-              onExcluir={setDeleteTarget}
-              podeEditar={allowed}
-              resumo={resumo}
-              ordem={ordem}
-            />
-          </div>
-        )}
-
-        {tab === "colaboradores" && (
-          <div id="panel-colaboradores" role="tabpanel" aria-labelledby="tab-colaboradores">
-            <BaggageByCollaborator
-              linhas={collabRows}
-              busca={collabTabSearch}
-              onBusca={setCollabTabSearch}
-              candidatos={collabAddCandidates}
-              onAdicionarAoHistorico={(id) => historyMutation.mutate({ collaboratorId: id, cia: "Outros", quantity: 1 })}
-              onAjustarHistorico={adjustHistory}
-              ajustando={historyMutation.isPending}
-              carregando={isLoading}
-              erroDeHistorico={historyError}
-              onRecarregarHistorico={() => refetchHistory()}
-              temHistorico={baggageHistory.length > 0}
-              semRegistros={requests.length === 0}
-              onVerSolicitacoes={(collaboratorId) => verSolicitacoesDe({ collaboratorIds: [collaboratorId] })}
-              onCsv={exportarPorColaborador}
-            />
-          </div>
-        )}
-
-        {tab === "eventos" && (
-          <div id="panel-eventos" role="tabpanel" aria-labelledby="tab-eventos">
-            <BaggageByEvent
-              linhas={eventRows}
-              busca={eventTabSearch}
-              onBusca={setEventTabSearch}
-              totais={eventTotals}
-              carregando={isLoading}
-              semRegistros={requests.length === 0}
-              onVerSolicitacoes={(eventId) => verSolicitacoesDe({ eventId })}
-              onCsv={exportarPorEvento}
-            />
-          </div>
-        )}
-
-        <BaggageFormModal
-          open={formAberto}
-          onOpenChange={(v) => { if (!v) fecharForm(); }}
-          form={form}
-          setForm={setForm}
-          errors={errors}
-          editing={editing}
-          eventOptions={eventOptions}
-          colaboradoresAtivos={colaboradoresAtivos}
-          colaboradorSelecionado={colaboradorSelecionado}
-          agregadoDoColaborador={agregadoDoColaborador}
-          locDuplicado={duplicado}
-          getCollabName={getCollabName}
-          salvando={saveMutation.isPending}
-          onSubmit={submit}
-        />
-
-        {/* Confirmação de exclusão (soft delete no servidor) */}
-        <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
-          <AlertDialogContent className="rounded-xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir solicitação de bagagem?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {deleteTarget && (
-                  <>
-                    LOC <span className="font-mono font-semibold">{deleteTarget.loc}</span> ({deleteTarget.cia}) —{" "}
-                    {getCollabName(deleteTarget.collaboratorId)}, {formatCurrency(deleteTarget.valueCents || 0)},
-                    embarque em {fmtDate(deleteTarget.boardingDate)}.
-                    {" "}A exclusão fica registrada na auditoria.
-                  </>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                className="rounded-lg bg-danger hover:bg-danger/90"
-                onClick={() => {
-                  if (deleteTarget) {
-                    // Excluir o registro aberto no formulário fecharia o modal
-                    // sobre um id que não existe mais.
-                    if (editing?.id === deleteTarget.id) fecharForm();
-                    deleteMutation.mutate(deleteTarget.id);
-                  }
-                  setDeleteTarget(null);
-                }}
-                data-testid="button-confirm-delete"
-              >
-                Excluir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </div>
+      {/* Confirmação de exclusão (soft delete no servidor) */}
+      <BaggageDeleteDialog
+        alvo={deleteTarget}
+        onFechar={() => setDeleteTarget(null)}
+        getCollabName={getCollabName}
+        getEventName={getEventName}
+        onConfirmar={(alvo) => {
+          // Excluir o registro aberto no formulário fecharia o modal
+          // sobre um id que não existe mais.
+          if (editing?.id === alvo.id) fecharForm();
+          deleteMutation.mutate(alvo.id);
+        }}
+      />
+    </>
   );
 }
