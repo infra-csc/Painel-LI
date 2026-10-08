@@ -5,12 +5,10 @@
  * Rodar: `npm run test:rotas`.
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import { agenteLogado, criarApp, criarEvento, mutacao, type Contexto } from "./harness";
-
-let ctx: Contexto;
+import { agenteLogado, criarApp, criarEvento, mutacao } from "./harness";
 
 beforeAll(async () => {
-  ctx = await criarApp();
+  await criarApp();
 });
 
 type Linha = { entityId: string; action: string; entityType: string };
