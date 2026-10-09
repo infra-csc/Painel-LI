@@ -57,6 +57,8 @@ interface TicketsTableProps {
   vazioDoRecorte?: { titulo: string; texto: string } | null;
   nomeDoEvento?: (eventId: string) => string | null | undefined;
   onTrechoDireto?: (inclusion: TeamInclusion, anteriorId: string) => void;
+  /** "Buscar preços do trecho direto" (09/10). */
+  onBuscarTrechoDireto?: (inclusion: TeamInclusion, anteriorId: string) => void;
   /** Vagas que precisam de passagem sem recorte nenhum — o "de M" do rodapé. */
   total?: number;
 }
@@ -67,7 +69,7 @@ const TH = "px-2.5 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] tex
 
 export default function TicketsTable({
   data, filters, sortConfig, onSort, selectedTickets, allSelectableSelected, onToggleAll, onToggleSelect, onOpen, canEdit, onToggleEmitida, emitindo,
-  vagasComAlteracao, temFiltro, onLimparFiltros, total, sinais, linhas, vazioDoRecorte, nomeDoEvento, onTrechoDireto,
+  vagasComAlteracao, temFiltro, onLimparFiltros, total, sinais, linhas, vazioDoRecorte, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto,
 }: TicketsTableProps) {
   const rows = linhas ?? data.filteredTicketInclusions;
   // Medido sobre a largura ÚTIL, não pela janela: o menu lateral compacto
@@ -234,6 +236,7 @@ export default function TicketsTable({
               sinal={sinais?.[inclusion.id]}
               nomeDoEvento={nomeDoEvento}
               onTrechoDireto={onTrechoDireto}
+              onBuscarTrechoDireto={onBuscarTrechoDireto}
             />
           ))}
           <EspacadorLinha altura={virtuais.espacoDepois} colunas={9} />

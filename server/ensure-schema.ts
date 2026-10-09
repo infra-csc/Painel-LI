@@ -223,6 +223,128 @@ const PASSOS: Passo[] = [
       expira_em timestamptz NOT NULL
     )`,
   },
+  // 09/10 — busca de passagens na internet. `events` é lido com SELECT * em
+  // toda a aplicação: sem a coluna, a lista de eventos inteira cai — por isso
+  // entra aqui. As duas tabelas são novas e aditivas (cache e consumo).
+  {
+    descricao: "events.aeroporto_iata (aeroporto do evento confirmado na busca de passagens)",
+    sql: `ALTER TABLE events ADD COLUMN IF NOT EXISTS aeroporto_iata text`,
+  },
+  {
+    descricao: "tabela busca_passagens_cache (consultas de preço compartilhadas por algumas horas)",
+    sql: `CREATE TABLE IF NOT EXISTS busca_passagens_cache (
+      chave text PRIMARY KEY,
+      fornecedor text NOT NULL,
+      resposta jsonb NOT NULL,
+      consultado_em timestamptz NOT NULL DEFAULT now(),
+      consultado_por varchar
+    )`,
+  },
+  {
+    descricao: "tabela busca_passagens_consumo (contador e teto mensal de consultas)",
+    sql: `CREATE TABLE IF NOT EXISTS busca_passagens_consumo (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      consultado_em timestamptz NOT NULL DEFAULT now(),
+      tipo text NOT NULL,
+      chave text NOT NULL,
+      fornecedor text NOT NULL,
+      usuario_id varchar,
+      do_cache boolean NOT NULL DEFAULT false
+    )`,
+  },
+  {
+    descricao: "índice do consumo da busca de passagens por data (contador do mês)",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_consumo_mes_idx ON busca_passagens_consumo (consultado_em)`,
+  },
+  {
+    descricao: "tabela busca_passagens_consultas (histórico das consultas — base das análises)",
+    sql: `CREATE TABLE IF NOT EXISTS busca_passagens_consultas (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      consultado_em timestamptz NOT NULL DEFAULT now(),
+      usuario_id varchar,
+      fornecedor text NOT NULL,
+      chave text NOT NULL,
+      perna text NOT NULL,
+      origem text NOT NULL,
+      destino text NOT NULL,
+      data_ida date NOT NULL,
+      data_volta date,
+      max_paradas integer NOT NULL,
+      filtros jsonb,
+      deslocamento jsonb,
+      vaga_ids text[],
+      evento_ids text[],
+      antecedencia_dias integer,
+      qtd_opcoes integer NOT NULL DEFAULT 0,
+      menor_preco_centavos integer,
+      menor_por_cia jsonb,
+      observado_em timestamptz
+    )`,
+  },
+  {
+    descricao: "índice do histórico da busca por data da consulta",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_consultas_em_idx ON busca_passagens_consultas (consultado_em)`,
+  },
+  {
+    descricao: "índice do histórico da busca por rota e data do voo",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_consultas_rota_idx ON busca_passagens_consultas (origem, destino, data_ida)`,
+  },
+  {
+    descricao: "índice do histórico da busca por chave",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_consultas_chave_idx ON busca_passagens_consultas (chave)`,
+  },
+  {
+    descricao: "tabela busca_passagens_opcoes (10 opções mais baratas de cada consulta)",
+    sql: `CREATE TABLE IF NOT EXISTS busca_passagens_opcoes (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      consulta_id varchar NOT NULL REFERENCES busca_passagens_consultas(id) ON DELETE CASCADE,
+      posicao integer NOT NULL,
+      itinerario_id text NOT NULL,
+      companhia text NOT NULL,
+      voos text NOT NULL,
+      ida_partida text,
+      ida_chegada text,
+      volta_partida text,
+      volta_chegada text,
+      paradas integer NOT NULL,
+      duracao_min integer,
+      preco_centavos integer NOT NULL
+    )`,
+  },
+  {
+    descricao: "índice das opções por consulta",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_opcoes_consulta_idx ON busca_passagens_opcoes (consulta_id)`,
+  },
+  {
+    descricao: "índice das opções por companhia",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_opcoes_cia_idx ON busca_passagens_opcoes (companhia)`,
+  },
+  {
+    descricao: "tabela busca_passagens_usos (\"Usar este voo\" que virou passagem — pago × encontrado)",
+    sql: `CREATE TABLE IF NOT EXISTS busca_passagens_usos (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      usado_em timestamptz NOT NULL DEFAULT now(),
+      usuario_id varchar,
+      team_inclusion_id varchar NOT NULL,
+      ticket_id varchar,
+      consulta_id varchar,
+      chave text NOT NULL,
+      perna text NOT NULL,
+      itinerario_id text NOT NULL,
+      companhia text,
+      voos text,
+      preco_encontrado_centavos integer NOT NULL,
+      preco_visto_em timestamptz
+    )`,
+  },
+  {
+    descricao: "índice dos usos da busca por vaga",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_usos_vaga_idx ON busca_passagens_usos (team_inclusion_id)`,
+  },
+  {
+    descricao: "índice dos usos da busca por passagem",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_usos_ticket_idx ON busca_passagens_usos (ticket_id)`,
+  },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

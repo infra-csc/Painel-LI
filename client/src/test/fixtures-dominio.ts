@@ -169,6 +169,7 @@ export function eventoFake(parcial: Partial<Event> = {}): Event {
     status: "planejado",
     paymentCompanyName: null,
     paymentCompanyCnpj: null,
+    aeroportoIata: null,
     createdAt: CRIADO_EM,
     ...parcial,
   };

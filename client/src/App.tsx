@@ -23,6 +23,7 @@ const Functions              = lazy(() => import("@/pages/functions"));
 const TeamInclusion          = lazy(() => import("@/pages/team-inclusion"));
 const Scaling                = lazy(() => import("@/pages/scaling"));
 const Tickets                = lazy(() => import("@/pages/tickets"));
+const BuscaDePassagens       = lazy(() => import("@/pages/busca-de-passagens"));
 const Accommodations         = lazy(() => import("@/pages/accommodations"));
 const OperationalMirror      = lazy(() => import("@/pages/operational-mirror"));
 const Consultation           = lazy(() => import("@/pages/consultation"));
@@ -80,6 +81,7 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/team-inclusion",    permission: "canAccessScreen1"       },
   { path: "/scaling",           permission: "canAccessScreen2"       },
   { path: "/tickets",           permission: "canAccessScreen3"       },
+  { path: "/busca-de-passagens", permission: "canAccessBuscaDePassagens" },
   { path: "/accommodations",    permission: "canAccessScreen3"       },
   { path: "/baggage-control",   permission: "canAccessBaggage"       },
   { path: "/budget-planned",    permission: "canAccessFinanceiro"    },
@@ -175,6 +177,11 @@ function Router() {
             <Route path="/tickets">
               <ProtectedRoute permission="canAccessScreen3">
                 <Tickets />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/busca-de-passagens">
+              <ProtectedRoute permission="canAccessBuscaDePassagens">
+                <BuscaDePassagens />
               </ProtectedRoute>
             </Route>
             <Route path="/accommodations">

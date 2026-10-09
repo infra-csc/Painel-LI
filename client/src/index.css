@@ -3545,3 +3545,83 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
 @media (prefers-reduced-motion: reduce) {
   .esp-quarto, .esp-ocupante { transition: none; }
 }
+
+/* ══ Passagens · Busca de passagens (pas- busca) — tela nova 09/10 ═════════════
+ * Família Passagens (pas-osso, pas-entra, pas-sobe, pas-alvo). Aqui só o que é
+ * da busca: a linha da escalação que vira cartão no estreito, a chegada dos
+ * resultados em cascata, o medidor de consumo e a opção de voo. */
+
+/* Lista de escalações: grade de colunas no largo; no estreito a mesma linha
+   vira cartão (as células se reorganizam por área, nada é duplicado). */
+.pas-bp-linha {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-areas:
+    "sel quem"
+    ".   via"
+    ".   data"
+    ".   situ";
+  column-gap: 10px;
+  row-gap: 8px;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.pas-bp-linha > [data-area="sel"] { grid-area: sel; }
+.pas-bp-linha > [data-area="quem"] { grid-area: quem; min-width: 0; }
+.pas-bp-linha > [data-area="via"] { grid-area: via; min-width: 0; }
+.pas-bp-linha > [data-area="data"] { grid-area: data; min-width: 0; }
+.pas-bp-linha > [data-area="situ"] { grid-area: situ; min-width: 0; justify-self: start; }
+/* Tablet: o cartão ganha duas colunas (viagem | datas) e a situação sobe. */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .pas-bp-linha {
+    grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-areas:
+      "sel quem situ"
+      ".   via  data";
+  }
+  .pas-bp-linha > [data-area="situ"] { justify-self: end; }
+}
+@media (min-width: 1024px) {
+  .pas-bp-linha, .pas-bp-cabeca {
+    grid-template-columns: 40px minmax(150px, 0.9fr) minmax(220px, 1.4fr) minmax(200px, 1fr) minmax(200px, 1fr);
+    grid-template-areas: "sel quem via data situ";
+    column-gap: 16px;
+  }
+  .pas-bp-linha > [data-area="situ"] { justify-self: stretch; }
+}
+.pas-bp-cabeca { display: none; }
+@media (min-width: 1024px) {
+  .pas-bp-cabeca {
+    display: grid;
+    position: sticky;
+    top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+    z-index: 2;
+    background: var(--surface-muted);
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+}
+.pas-bp-linha[aria-selected="true"] { background: color-mix(in srgb, var(--brand-soft) 75%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
+
+/* Resultado chegando: cada rota/opção entra em cascata curta (índice em --i). */
+@keyframes pas-bp-chega { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.pas-bp-chega { animation: pas-bp-chega 220ms cubic-bezier(.2, 0, 0, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+
+/* Opção de voo: o preço é o que se lê primeiro; ações discretas até o foco. */
+.pas-bp-opcao { transition: background-color 120ms ease, border-color 120ms ease; }
+.pas-bp-opcao:hover { background: color-mix(in srgb, var(--brand-soft) 45%, var(--card)); }
+.pas-bp-opcao .pas-bp-acao-sec { opacity: .75; transition: opacity 120ms ease; }
+.pas-bp-opcao:hover .pas-bp-acao-sec, .pas-bp-opcao .pas-bp-acao-sec:focus-visible { opacity: 1; }
+
+/* Medidor de consumo (barra fina): a cor muda no alerta (80%) e no teto. */
+.pas-bp-medidor { height: 4px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+.pas-bp-medidor > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width 400ms cubic-bezier(.2, 0, 0, 1); }
+.pas-bp-medidor[data-situacao="alerta"] > span { background: var(--warning-strong); }
+.pas-bp-medidor[data-situacao="atingido"] > span { background: var(--danger-strong); }
+
+/* Prévia de consumo que acabou de mudar: um piscar curto do número. */
+@keyframes pas-bp-pulso { 0% { background: color-mix(in srgb, var(--background) 22%, transparent); } 100% { background: transparent; } }
+.pas-bp-pulso { animation: pas-bp-pulso 600ms ease-out; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pas-bp-chega, .pas-bp-pulso { animation: none; }
+  .pas-bp-linha, .pas-bp-opcao, .pas-bp-opcao .pas-bp-acao-sec, .pas-bp-medidor > span { transition: none; }
+}

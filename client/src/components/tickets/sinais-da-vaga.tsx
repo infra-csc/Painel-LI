@@ -69,11 +69,13 @@ export function TrechoDiretoDaVaga({ sinal, inclusionId }: { sinal?: SinalDeViag
  * (Night Run Aracaju termina 25/10)" + "Registrar trecho direto". Na vaga
  * anterior, o inverso, só informativo: "Segue para João Pessoa em 26/10".
  */
-export function SugestaoDeTrechoDireto({ sinal, inclusionId, podeRegistrar, onRegistrar }: {
+export function SugestaoDeTrechoDireto({ sinal, inclusionId, podeRegistrar, onRegistrar, onBuscarPrecos }: {
   sinal?: SinalDeViagem;
   inclusionId: string;
   podeRegistrar: boolean;
   onRegistrar?: (anteriorId: string) => void;
+  /** "Buscar preços do trecho direto" (09/10): só a ida, da cidade do evento anterior. */
+  onBuscarPrecos?: (anteriorId: string) => void;
 }) {
   const de = sinal?.podeIrDiretoDe;
   const segue = !sinal?.segueDiretoPara?.confirmado ? sinal?.seguePara : null;
@@ -97,6 +99,16 @@ export function SugestaoDeTrechoDireto({ sinal, inclusionId, podeRegistrar, onRe
               data-testid={`registrar-trecho-direto-${inclusionId}`}
             >
               Registrar trecho direto
+            </button>
+          )}
+          {onBuscarPrecos && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onBuscarPrecos(de.inclusionId); }}
+              className="pas-alvo mt-1 flex w-full items-center justify-center gap-1 h-7 px-1.5 rounded-md text-2xs font-medium whitespace-nowrap text-primary hover:bg-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid={`buscar-precos-trecho-direto-${inclusionId}`}
+            >
+              Buscar preços do trecho direto
             </button>
           )}
         </div>

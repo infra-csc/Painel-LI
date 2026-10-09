@@ -55,6 +55,8 @@ export interface TicketFormValues {
    * o formulário a traz (o lote não mexe no encadeamento).
    */
   idaVemDeInclusionId?: string;
+  /** Companhia (09/10): vem do "Usar este voo" da busca de preços ou do voucher. */
+  ticketCompany?: string;
   fileUrl?: string | null;
   [key: string]: unknown;
 }
@@ -201,6 +203,9 @@ export function buildTicketPayload(
     attachmentIds: Array.isArray(form?.attachmentIds) && form.attachmentIds.length > 0 ? form.attachmentIds : null,
     cardLastFourDigits: isVan ? null : orNull(form?.cardLastFourDigits),
     ticketObservations: orNull(form?.ticketObservations),
+    // Companhia (09/10): só quando o formulário a traz — "Usar este voo" da
+    // busca de preços e a leitura do voucher. Sem o campo, nada muda no banco.
+    ...(typeof form?.ticketCompany === "string" ? { ticketCompany: isVan ? null : orNull(form.ticketCompany) } : {}),
     // Trecho direto: só com a perna de ida; só quando o formulário a traz.
     ...(form?.idaVemDeInclusionId !== undefined
       ? { idaVemDeInclusionId: isVan || trecho === "so_volta" ? null : orNull(form.idaVemDeInclusionId) }

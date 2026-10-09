@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useCallback, useDeferredValue, useRef, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { AlertCircle, Stamp, FileUp, Layers, Lock, RotateCw, X } from "lucide-react";
+import { AlertCircle, Stamp, FileUp, Layers, Lock, RotateCw, X, PlaneTakeoff } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { PageHeader } from "@/components/common/page-header";
@@ -147,6 +147,13 @@ export default function Tickets() {
   } = data;
   // Espelha POST/PATCH /api/tickets (admin, production, purchasing) — mesma flag do modal.
   const canEdit = hasPermission(user, "canRegisterTickets");
+  // Busca de preços na internet (09/10): tela própria; daqui só os atalhos.
+  const podeBuscarPrecos = hasPermission(user, "canAccessBuscaDePassagens");
+  const irParaBusca = useCallback((vagas: string[], idaDe?: string) => {
+    const qs = new URLSearchParams({ vagas: vagas.join(",") });
+    if (idaDe) qs.set("idaDe", idaDe);
+    setLocation(`/busca-de-passagens?${qs.toString()}`);
+  }, [setLocation]);
 
   // Sinais de viagem (09/10): cruza outra viagem, data impossível, trecho
   // direto. Calculados no servidor sobre TODAS as vagas do colaborador.
@@ -831,6 +838,7 @@ export default function Tickets() {
               : { titulo: "Nenhuma data impossível", texto: "Nenhuma passagem deste recorte tem volta antes da ida ou ano fora do esperado." }) : null}
             nomeDoEvento={nomeDoEvento}
             onTrechoDireto={canEdit ? abrirTrechoDireto : undefined}
+            onBuscarTrechoDireto={podeBuscarPrecos ? (inc, anteriorId) => irParaBusca([inc.id], anteriorId) : undefined}
           />
         </div>
 
@@ -862,6 +870,17 @@ export default function Tickets() {
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {podeBuscarPrecos && (
+                  <button
+                    type="button"
+                    onClick={() => irParaBusca(effectiveSelectedTickets)}
+                    title="Abre a Busca de passagens com estas escalações selecionadas — antes de gastar, ela mostra quantas consultas usa"
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
+                    data-testid="buscar-precos-selecao"
+                  >
+                    <PlaneTakeoff className="w-4 h-4" aria-hidden="true" />Buscar preços
+                  </button>
+                )}
                 {canEdit && !batchExpanded && (
                   <button
                     type="button"
@@ -912,6 +931,12 @@ export default function Tickets() {
         isSubmitting={isSubmitting}
         sinal={selectedInclusion ? sinais.porVaga[selectedInclusion.id] : undefined}
         bloqueioDeViagem={bloqueioDeViagem}
+        onBuscarPrecos={podeBuscarPrecos && selectedInclusion ? () => {
+          // Nada digitado se perde sem perguntar: com o formulário sujo, o
+          // "Descartar alterações?" de sempre decide antes de sair.
+          if (isModalDirty()) { setDiscardTarget("close"); return; }
+          irParaBusca([selectedInclusion.id]);
+        } : undefined}
       />
 
       <DiscardChangesDialog

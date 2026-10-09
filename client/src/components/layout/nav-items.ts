@@ -20,7 +20,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
-  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox,
+  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -61,6 +61,7 @@ export const ALL_TABS: NavTab[] = [
   { id: "team-inclusion",     path: "/team-inclusion",     label: "Inclusão de equipe",   icon: UserRoundPlus,     permission: "canAccessScreen1" },
   { id: "scaling",            path: "/scaling",            label: "Escalação",            icon: ClipboardList,     permission: "canAccessScreen2" },
   { id: "tickets",            path: "/tickets",            label: "Passagens",            icon: Ticket,            permission: "canAccessScreen3" },
+  { id: "busca-de-passagens", path: "/busca-de-passagens", label: "Busca de passagens",   icon: PlaneTakeoff,      permission: "canAccessBuscaDePassagens" },
   { id: "accommodations",     path: "/accommodations",     label: "Hospedagem",           icon: BedDouble,         permission: "canAccessScreen3" },
   { id: "operational-mirror", path: "/operational-mirror", label: "Espelho operacional",  icon: Table2,            permission: "canAccessScreen3" },
   { id: "baggage-control",    path: "/baggage-control",    label: "Controle de bagagem",  icon: Luggage,           permission: "canAccessBaggage" },
@@ -96,7 +97,7 @@ export const MENU_GROUPS: NavGroup[] = [
     title: "Operacional",
     tone: "info",
     // Módulo de Escala na ordem do fluxo: Sugestão → Validação → Aprovação → Histórico
-    ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "accommodations", "operational-mirror", "baggage-control"],
+    ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "busca-de-passagens", "accommodations", "operational-mirror", "baggage-control"],
     // O fluxo da Escala é um módulo à parte do operacional antigo (Inclusão,
     // Escalação, Passagens…): o sub-rótulo e o separador fino dizem isso.
     subgroup: {

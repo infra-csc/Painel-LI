@@ -47,6 +47,8 @@ export interface TicketRowProps {
   nomeDoEvento?: (eventId: string) => string | null | undefined;
   /** Abre o modal já encadeado à vaga anterior ("Registrar trecho direto"). */
   onTrechoDireto?: (inclusion: TeamInclusion, anteriorId: string) => void;
+  /** "Buscar preços do trecho direto" (09/10): leva à Busca de passagens. */
+  onBuscarTrechoDireto?: (inclusion: TeamInclusion, anteriorId: string) => void;
   /** Índice da linha na lista virtual (o virtualizador mede a altura por ele). */
   "data-index"?: number;
 }
@@ -106,7 +108,7 @@ function Perna({ ida, data, partida, chegada, origem, destino, rodo }: {
 // e a rolagem "pula".
 const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function TicketRow({
   inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation, onToggleEmitida, emitindo,
-  hasPendingSwap, hasApprovedSwap, alteracaoPendente, selected, canEdit, locked, onToggleSelect, onOpen, sinal, nomeDoEvento, onTrechoDireto, "data-index": dataIndex,
+  hasPendingSwap, hasApprovedSwap, alteracaoPendente, selected, canEdit, locked, onToggleSelect, onOpen, sinal, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto, "data-index": dataIndex,
 }, ref) {
   const cancelado = inclusion.status === "cancelado";
   const cellCls = `px-2.5 py-2.5 align-top cursor-pointer ${cancelado ? "opacity-60" : ""}`;
@@ -268,6 +270,7 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
               <SugestaoDeTrechoDireto
                 sinal={sinal} inclusionId={inclusion.id} podeRegistrar={canEdit && !locked}
                 onRegistrar={onTrechoDireto ? (anteriorId) => onTrechoDireto(inclusion, anteriorId) : undefined}
+                onBuscarPrecos={onBuscarTrechoDireto && !locked ? (anteriorId) => onBuscarTrechoDireto(inclusion, anteriorId) : undefined}
               />
             )}
           </>
