@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import type { MirrorRow, MirrorCollaborator } from "@shared/operational-mirror-types";
+import { inferirGenero } from "@shared/gender-inference";
 import type { ContextoDaLinha } from "@shared/mirror-cell-state";
 import type { BlocoDeCusto } from "@shared/mirror-pendencia";
 import { formatarMoeda } from "@/lib/format";
@@ -163,15 +164,28 @@ export const FAIXA = [
 // Aceita a linha de membro (com collaboratorId) ou um id solto; nome/gênero podem
 // vir denormalizados no próprio membro em respostas mais antigas.
 export type GroupMemberLike = string | { collaboratorId?: string | null; id?: string; fullName?: string | null; name?: string | null; gender?: string | null };
-export interface MemberInfo { id: string | undefined; name: string; gender: string | null; noGender: boolean }
+export interface MemberInfo {
+  id: string | undefined; name: string;
+  /** Cadastrado; sem cadastro, o palpite pelo primeiro nome (o mesmo que a sugestão de quartos usa). */
+  gender: string | null;
+  /** Gênero veio do palpite pelo nome, não do cadastro. */
+  genderInferred: boolean;
+  /** Nem cadastro nem palpite seguro (nome ambíguo/desconhecido) — aí sim vale conferir. */
+  noGender: boolean;
+}
 
 export function memberInfo(m: GroupMemberLike, collabById: Map<string, MirrorCollaborator>): MemberInfo {
   const obj = typeof m === "string" ? null : m;
   const id = typeof m === "string" ? m : (obj?.collaboratorId || obj?.id || undefined);
   const c = id ? collabById.get(id) : undefined;
   const name = obj?.fullName || obj?.name || c?.fullName || (id ? `#${String(id).slice(0, 8)}` : "?");
-  const gender = obj?.gender ?? c?.gender ?? null;
-  return { id, name, gender, noGender: !gender || gender === "unknown" };
+  const cadastrado = obj?.gender ?? c?.gender ?? null;
+  const temCadastro = !!cadastrado && cadastrado !== "unknown";
+  // 09/10: "sem gênero" aparecia em todos — ninguém tem gênero cadastrado, mas o
+  // servidor já pareia pelo palpite do primeiro nome. A tela usa o mesmo palpite.
+  const palpite = temCadastro ? null : inferirGenero(name).genero;
+  const gender = temCadastro ? cadastrado : palpite;
+  return { id, name, gender, genderInferred: !temCadastro && !!palpite, noGender: !gender };
 }
 
 export interface GroupViewProps<G> {

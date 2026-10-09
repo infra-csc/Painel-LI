@@ -224,7 +224,7 @@ function EspelhoOperacional() {
                       {view === "grade" && !estreito && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={m.saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} confirmados={confirmados} pendenciaDe={pendenciaDe} irParaVisao={setView} totalDoEvento={rows.length} />}
                       {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} totalDoEvento={rows.length} />}
                       {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} verNaGrade={(dep) => { filtros.setDeptFilter(dep); setView("grade"); }} />}
-                      {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows}
+                      {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} evento={data.event}
                         onMover={(c, de, para) => m.mover.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })}
                         onSeparar={pedirSeparacao} canEdit={canEditMirror}
                         onPatch={(id, campos) => {

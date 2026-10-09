@@ -114,6 +114,8 @@ export const ACOES: Record<string, Acao> = {
   work_days_changed: { rotulo: "Dias de trabalho alterados", verbo: "mudou os dias de trabalho d", tom: "alterar" },
   observations_changed: { rotulo: "Observações alteradas", verbo: "mudou as observações d", tom: "alterar" },
   note: { rotulo: "Anotação", verbo: "anotou n", tom: "neutro" },
+  // 09/10: rooming list em PDF para o hotel (Espelho → Quartos).
+  export: { rotulo: "Exportação", verbo: "exportou", tom: "neutro" },
 };
 
 /** Ação que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */

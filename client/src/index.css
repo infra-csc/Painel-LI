@@ -692,8 +692,6 @@
   .evt-linha, .evt-abrir, .evt-cartao, .evt-chip, .evt-linha .evt-acao { transition: none; }
   .evt-chip:hover { transform: none; }
 }
-/* Cartão de quarto/carro (tablet/celular): o mesmo filete do grupo. */
-.esp-grupo-cartao { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }
 
 /* ══ Colaboradores (col-) — redesenho 07/10 ════════════════════════════════
  * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
@@ -3436,4 +3434,114 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
 @media (prefers-reduced-motion: reduce) {
   .esp-uber [role="tabpanel"] { animation: none; }
   .esp-uber-carro input[type="time"]::-webkit-calendar-picker-indicator { transition: none; }
+}
+
+/* ══ Espelho · Quartos (esp- quartos) — blocos por quarto 09/10 ══════════════
+ * Dono: "a divisão não está muito clara, só com esse negócio de cor na ponta".
+ * Cada quarto é um BLOCO (borda, cantos, 12px entre blocos, cabeçalho com
+ * fundo próprio). A grade das linhas é por CONTAINER QUERY sobre a lista — o
+ * mesmo markup vira três colunas (≥620px), quatro (≥960px) ou empilha no
+ * celular — e a régua de colunas acima dos blocos usa a mesma grade, para as
+ * datas ficarem alinhadas de um quarto para o outro. */
+.esp-quartos-lista { container-type: inline-size; display: flex; flex-direction: column; gap: 12px; }
+
+.esp-quarto {
+  border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+  box-shadow: var(--elevation-1); overflow: hidden;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.esp-quarto:hover { border-color: color-mix(in srgb, var(--primary) 18%, var(--border)); }
+.esp-quarto:focus-within { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+
+/* Cabeçalho do bloco: uma faixa — Quarto N · tipo · hotel · ações. */
+.esp-quarto-cab {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 8px 12px 8px 16px; min-height: 48px;
+  background: color-mix(in srgb, var(--muted) 70%, var(--card));
+  border-bottom: 1px solid var(--border);
+}
+/* Celular: "Quarto N" e o tipo numa linha; hotel e ações na de baixo. */
+.esp-quarto-id { flex-basis: 100%; }
+.esp-quarto-hotel { flex: 1 1 0; }
+.esp-quarto-acoes { margin-left: auto; }
+
+/* Confirmado: tom de concluído discreto (borda e faixa), sem gritar. */
+.esp-quarto[data-confirmado] { border-color: color-mix(in srgb, var(--success-strong) 35%, var(--border)); }
+.esp-quarto[data-confirmado] .esp-quarto-cab {
+  background: color-mix(in srgb, var(--success-soft) 80%, var(--card));
+  border-bottom-color: color-mix(in srgb, var(--success-strong) 22%, var(--border));
+}
+
+/* Tipo: um selo; com ocupação que muda de noite para noite, um selo por trecho. */
+.esp-trechos { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.esp-trecho {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--card);
+  font-size: 11px; line-height: 16px; white-space: nowrap;
+}
+.esp-trecho-ponto { width: 7px; height: 7px; border-radius: 999px; flex-shrink: 0; }
+
+/* Avisos do quarto: uma vez, logo abaixo do cabeçalho. */
+.esp-quarto-avisos {
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+/* Ocupantes. Celular: quem (nome, departamento, aviso) em cima; Entra | Sai
+   lado a lado embaixo. Nenhuma célula atravessa linhas da grade — assim a
+   altura das datas não empurra o departamento para baixo. */
+.esp-ocupante {
+  display: grid; column-gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "quem quem" "ent sai";
+  padding: 10px 16px; transition: background-color 120ms ease;
+}
+.esp-ocupante + .esp-ocupante { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+.esp-ocupante:hover { background: color-mix(in srgb, var(--primary) 3%, transparent); }
+.esp-oc-quem { grid-area: quem; }
+.esp-oc-aviso { margin-top: 4px; }
+.esp-oc-ent { grid-area: ent; margin-top: 8px; min-width: 0; }
+.esp-oc-sai { grid-area: sai; margin-top: 8px; min-width: 0; }
+.esp-oc-rotulo { display: block; margin-bottom: 1px; }
+
+/* Régua de colunas: só aparece quando há colunas (tablet em diante). */
+.esp-quartos-colunas { display: none; }
+.esp-quartos-colunas > span {
+  font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted-foreground);
+}
+.esp-col-nome { grid-area: quem; } .esp-col-dep { grid-area: dep; display: none; }
+.esp-col-ent { grid-area: ent; } .esp-col-sai { grid-area: sai; }
+
+/* Tablet: quem | Entrada | Saída. */
+@container (min-width: 620px) {
+  .esp-quarto-id { flex-basis: auto; }
+  .esp-quarto-hotel { flex: 0 1 260px; min-width: 0; }
+  .esp-ocupante, .esp-quartos-colunas {
+    grid-template-columns: minmax(0, 1fr) 12.5rem 12.5rem;
+    grid-template-areas: "quem ent sai";
+  }
+  .esp-quartos-colunas { display: grid; column-gap: 16px; padding: 0 17px; margin-bottom: -4px; }
+  .esp-oc-ent, .esp-oc-sai { margin-top: 0; }
+  .esp-oc-rotulo { display: none; }
+}
+/* Mesa: Ocupante | Departamento | Entrada | Saída; o aviso da pessoa desce
+   sob nome e departamento (a "quem" se desfaz em células da grade). */
+@container (min-width: 960px) {
+  .esp-ocupante, .esp-quartos-colunas {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.8fr) 14.5rem 14.5rem;
+    grid-template-areas: "nome dep ent sai" "aviso aviso . .";
+  }
+  .esp-quartos-colunas { grid-template-areas: "nome dep ent sai"; }
+  .esp-oc-quem { display: contents; }
+  .esp-oc-nome { grid-area: nome; }
+  .esp-oc-dep { grid-area: dep; padding-top: 6px; }
+  .esp-oc-aviso { grid-area: aviso; }
+  .esp-col-nome { grid-area: nome; }
+  .esp-col-dep { display: block; }
+  .esp-so-medio { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esp-quarto, .esp-ocupante { transition: none; }
 }
