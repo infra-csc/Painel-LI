@@ -3,40 +3,54 @@
  * `DeleteActualDialog` (confirmar remoção) e `SplitDialog` (divisão de vaga,
  * envoltório do `SplitVagaModal` que calcula os dias já tomados pelos filhos).
  */
+import { Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
 import type { BudgetActual, Collaborator, Event, TeamInclusion } from "@shared/schema";
 
 export interface DeleteActualDialogProps {
   confirmDeleteId: string | null;
+  /** Quem e o quê — o diálogo diz o que vai sumir (08/10). */
+  nome?: string;
+  detalhe?: string;
   onClose: () => void;
   isPending: boolean;
   onConfirm: (id: string) => void;
 }
 
-export function DeleteActualDialog({ confirmDeleteId, onClose, isPending, onConfirm }: DeleteActualDialogProps) {
+/** Confirmar remoção (08/10: diz de quem é, o valor, e mostra "Removendo…"). */
+export function DeleteActualDialog({ confirmDeleteId, nome, detalhe, onClose, isPending, onConfirm }: DeleteActualDialogProps) {
   return (
-    <Dialog open={!!confirmDeleteId} onOpenChange={onClose}>
-      <DialogContent aria-describedby={undefined} className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Confirmar remoção</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-slate-600">
-          Tem certeza que deseja remover esta prestação? Esta ação não pode ser desfeita.
-        </p>
-        <div className="flex justify-end gap-3 mt-4">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+    <AlertDialog open={!!confirmDeleteId} onOpenChange={(v) => { if (!v && !isPending) onClose(); }}>
+      <AlertDialogContent className="max-w-[420px] rounded-xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remover a prestação{nome ? ` de ${nome}` : ""}?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-slate-600">
+              {detalhe && <p className="m-0 tabular-nums">{detalhe}</p>}
+              <p className="m-0">A prestação sai do Realizado deste evento. Esta ação não pode ser desfeita.</p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="rounded-lg" disabled={isPending}>Cancelar</AlertDialogCancel>
           <Button
             variant="destructive"
+            className="rounded-lg gap-1.5 bg-danger hover:bg-danger/90 text-white"
             onClick={() => confirmDeleteId && onConfirm(confirmDeleteId)}
             disabled={isPending}
+            data-testid="realizado-confirmar-remocao"
           >
-            Remover
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Trash2 className="w-4 h-4" aria-hidden="true" />}
+            {isPending ? "Removendo…" : "Remover"}
           </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

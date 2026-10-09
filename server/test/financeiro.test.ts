@@ -120,6 +120,32 @@ describe("POST /api/budget-planned/apply-defaults", () => {
   });
 });
 
+describe("POST /api/budget-planned/apply-defaults/pendentes (Valores padrão)", () => {
+  it("reaplica nos eventos abertos com planejamento e deixa o encerrado como está", async () => {
+    const { agent } = await agenteLogado("financial");
+    const funcao = await criarFuncao();
+    const montar = async (evento: Awaited<ReturnType<typeof criarEvento>>) => {
+      const colab = await criarColaborador();
+      const { user } = await agenteLogado("admin");
+      const vaga = await criarVaga({ eventId: evento.id, functionId: funcao.id, collaboratorId: colab.id, userId: user.id, needsTicket: true });
+      return ctx.storage.createBudgetPlanned({ eventId: evento.id, collaboratorId: vaga.collaboratorId, functionId: vaga.functionId, collaboratorType: "freela", totalValue: 0 } as any);
+    };
+    const aberto = await criarEvento({ location: "Curitiba - PR" });
+    const encerrado = await criarEvento({ startDate: "2020-01-01", endDate: "2020-01-05", location: "Curitiba - PR" });
+    const [pAberto, pEncerrado] = [await montar(aberto), await montar(encerrado)];
+
+    const res = await mutacao(agent.post("/api/budget-planned/apply-defaults/pendentes")).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBeGreaterThanOrEqual(1);
+    expect(res.body.eventos).toBeGreaterThanOrEqual(1);
+
+    const gravadoAberto = (await ctx.storage.getBudgetPlanned(aberto.id)).find((p) => p.id === pAberto.id)!;
+    const gravadoEncerrado = (await ctx.storage.getBudgetPlanned(encerrado.id)).find((p) => p.id === pEncerrado.id)!;
+    expect(gravadoAberto.totalValue).toBeGreaterThan(0);
+    expect(gravadoEncerrado.totalValue).toBe(0);
+  });
+});
+
 // ── Realizado ───────────────────────────────────────────────────────────────
 describe("POST /api/budget-actual/duplicate-from-planned/:eventId", () => {
   it("duas vezes → 1ª 201 com as prestações, 2ª 409 e nada duplicado", async () => {
@@ -308,3 +334,54 @@ describe("Comparativo: /api/budget-comparison/:id/{approve,reject}", () => {
 
 // Usado só para o tipo — evita "declared but never read" se o harness mudar.
 void criarUsuario;
+
+describe("POST /api/budget-comparison/calculate/:eventId — 'não participou' (08/10)", () => {
+  it("marcado só no Realizado: fica fora do realizado E do planejado (mesma regra da tela)", async () => {
+    const { agent, user } = await agenteLogado("admin");
+    const evento = await criarEvento();
+    const funcao = await criarFuncao();
+    const presente = await criarColaborador();
+    const ausente = await criarColaborador();
+    const [pPresente, pAusente] = await ctx.db.insert(ctx.schema.budgetPlanned).values([
+      { eventId: evento.id, collaboratorId: presente.id, functionId: funcao.id, collaboratorType: "freela", dailyQuantity: 2, dailyValue: 10_000, totalValue: 20_000, createdBy: user.id },
+      { eventId: evento.id, collaboratorId: ausente.id, functionId: funcao.id, collaboratorType: "freela", dailyQuantity: 3, dailyValue: 10_000, totalValue: 30_000, createdBy: user.id },
+    ]).returning();
+    await ctx.db.insert(ctx.schema.budgetActual).values([
+      { plannedId: pPresente.id, eventId: evento.id, collaboratorId: presente.id, functionId: funcao.id, collaboratorType: "freela",
+        dailyQuantity: 2, dailyValue: 10_000, totalValue: 25_000, sentForReview: true, rhStatus: "pendente", createdBy: user.id },
+      { plannedId: pAusente.id, eventId: evento.id, collaboratorId: ausente.id, functionId: funcao.id, collaboratorType: "freela",
+        dailyQuantity: 0, dailyValue: 10_000, totalValue: 0, sentForReview: true, rhStatus: "pendente", createdBy: user.id, didNotAttend: true },
+    ]);
+    const res = await mutacao(agent.post(`/api/budget-comparison/calculate/${evento.id}`)).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.totalActual).toBe(25_000);
+    expect(res.body.totalPlanned).toBe(20_000);
+    expect(res.body.variance).toBe(5_000);
+  });
+});
+
+describe("POST /api/budget-comparison/calculate/:eventId — quem entra nos totais (08/10)", () => {
+  it("aprovadas e enviadas pendentes entram; devolvida, recusada e não enviada ficam fora (o critério da tela, da NF e do Flash)", async () => {
+    const { agent, user } = await agenteLogado("admin");
+    const evento = await criarEvento();
+    const funcao = await criarFuncao();
+    const base = { eventId: evento.id, functionId: funcao.id, createdBy: user.id, dailyQuantity: 1 };
+    const somar = [
+      { sentForReview: true, rhStatus: "aprovado", dailyValue: 10_000 },
+      { sentForReview: true, rhStatus: "pendente", dailyValue: 20_000 },
+    ];
+    const fora = [
+      { sentForReview: false, rhStatus: "devolvido", dailyValue: 100_000 },
+      { sentForReview: false, rhStatus: "rejeitado", dailyValue: 200_000 },
+      { sentForReview: false, rhStatus: "pendente", dailyValue: 400_000 },
+    ];
+    for (const o of [...somar, ...fora]) {
+      const colab = await criarColaborador();
+      await criarPrestacao({ ...base, ...o, collaboratorId: colab.id });
+    }
+    const res = await mutacao(agent.post(`/api/budget-comparison/calculate/${evento.id}`)).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.totalActual).toBe(30_000);
+    expect(res.body.totalPlanned).toBe(0);
+  });
+});

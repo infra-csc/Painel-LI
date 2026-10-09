@@ -40,8 +40,9 @@ export function useCollaboratorActions({ user, toast, podeVerDadosPessoais }: { 
       else if (rg) { payload.officialDocument = rg; payload.documentType = "rg"; }
       return (await apiRequest("PATCH", `/api/collaborators/${id}`, payload)).json();
     },
-    onSuccess: () => {
-      toast({ title: "Status atualizado com sucesso!" });
+    onSuccess: (_r, vars) => {
+      // Toast que diz O QUE aconteceu (era "Status atualizado com sucesso!" para as duas decisões).
+      toast({ variant: "success", title: vars.status === "aprovado" ? "Cadastro aprovado" : vars.status === "rejeitado" ? "Cadastro rejeitado" : "Status atualizado" });
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
       setShowDetailsModal(false); setShowApprovalModal(false);
       setApprovalNotes(""); setEditCpf(""); setEditRg("");
@@ -53,7 +54,7 @@ export function useCollaboratorActions({ user, toast, podeVerDadosPessoais }: { 
     mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
       (await apiRequest("POST", `/api/collaborators/${id}/inactivate`, { reason })).json(),
     onSuccess: () => {
-      toast({ title: "Colaborador inativado com sucesso!" });
+      toast({ variant: "success", title: "Cadastro inativado", description: "Não aparece mais nas escalações; o histórico continua." });
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
       setShowDeleteModal(false);
       setSelectedCollaborator(null);
@@ -66,7 +67,7 @@ export function useCollaboratorActions({ user, toast, podeVerDadosPessoais }: { 
     mutationFn: async (id: string) =>
       (await apiRequest("POST", `/api/collaborators/${id}/reactivate`)).json(),
     onSuccess: () => {
-      toast({ title: "Colaborador reativado com sucesso!" });
+      toast({ variant: "success", title: "Cadastro reativado", description: "Volta a aparecer nas escalações." });
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
     },
     onError: (err: unknown) => toast({ title: parseErr(err, "Erro ao reativar colaborador"), variant: "destructive" }),

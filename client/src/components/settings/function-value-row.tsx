@@ -1,15 +1,22 @@
-// Extraído de system-settings.tsx em 25/09 (modularização): uma linha da
-// tabela "Diária por função (legado)" — nome + badge "Base" e as duas células
-// editáveis (Dia Útil / Fim de semana). `renderCell` continua como closure da
-// linha porque depende de `fn` e do editor. React.memo: o editor e o ref mudam
-// a cada render do pai, então o memo só evita re-render quando NADA mudou;
-// mantido pelo padrão de linhas de lista do projeto.
+// Extraído de system-settings.tsx em 25/09 (modularização); redesenho 08/10.
+//
+// Uma linha da tabela "Diária por função (legado)" — nome + selo "Base" e as
+// duas células editáveis (Dia útil / Fim de semana). `renderCell` continua
+// como closure da linha porque depende de `fn` e do editor. React.memo: o
+// editor e o ref mudam a cada render do pai, então o memo só evita re-render
+// quando NADA mudou; mantido pelo padrão de linhas de lista do projeto.
+//
+// 08/10 — o valor parece clicável sem depender do hover (lápis discreto
+// sempre visível), a célula alterada mostra "antes R$ X", a linha alterada
+// ganha o filete âmbar da família e o nome deixou de mudar de cor por aba.
+// Na largura estreita a linha vira cartão (CSS cfg-funcoes).
 import { memo } from "react";
 import type { Function as FunctionType, FunctionValue } from "@shared/schema";
-import { Pencil, X } from "lucide-react";
+import { Check, Pencil, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { parseBrNumber } from "@/lib/utils";
-import { centavosToReais, freelaOuCasa, normalizeDecimal, toTitleCase } from "./settings-utils";
+import { formatarMoedaReais, toTitleCase } from "@/lib/format";
+import { cn, parseBrNumber } from "@/lib/utils";
+import { centavosToReais, freelaOuCasa, normalizeDecimal } from "./settings-utils";
 import type { EditingField, FunctionValuesEditor, SettingsTab } from "./use-function-values";
 
 export interface FunctionValueRowProps {
@@ -27,6 +34,7 @@ export const FunctionValueRow = memo(function FunctionValueRow({ fn, fv, activeT
   } = editor;
 
   const isCoord = fn.responsibleArea === '__system__';
+  const nome = toTitleCase(fn.name);
   const wdVal = getCurrentValue(fn.id, 'wd');
   const weVal = getCurrentValue(fn.id, 'we');
   const savedWdCent = !fv ? 0 : activeTab === 'casa' ? (fv.dailyValue ?? 0) : freelaOuCasa(fv.dailyValueFreela, fv.dailyValue);
@@ -41,116 +49,110 @@ export const FunctionValueRow = memo(function FunctionValueRow({ fn, fv, activeT
   const hasWd = !!fv && savedWdCent > 0;
   const hasWe = !!fv && savedWeCent > 0;
 
-  const renderCell = (field: EditingField, isEditing: boolean, currentVal: string, hasCustom: boolean, fallbackVal?: string) => {
+  const renderCell = (field: EditingField, isEditing: boolean, currentVal: string, hasCustom: boolean, cellDirty: boolean, savedVal: string, fallbackVal?: string) => {
     const isZero = parseBrNumber(currentVal) === 0;
     const hasFallback = isZero && fallbackVal && parseBrNumber(fallbackVal) > 0;
-    const valueColor = hasCustom
-      ? (field === 'we' ? 'text-warning-strong' : activeTab === 'casa' ? 'text-primary' : 'text-primary')
-      : 'text-muted-foreground';
+    const rotuloCampo = field === 'wd' ? 'dia útil' : 'fim de semana';
+    if (isEditing) {
+      return (
+        <div className="cfg-celula-edicao pas-entra">
+          <div className="cfg-campo cfg-campo-compacto">
+            <span className="cfg-campo-unidade" aria-hidden="true">R$</span>
+            <input
+              ref={editInputRef}
+              type="text"
+              inputMode="decimal"
+              aria-label={`Novo valor de ${rotuloCampo} de ${nome}`}
+              value={editingFunctionValue}
+              onChange={e => setEditingFunctionValue(normalizeDecimal(e.target.value))}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmEditFunction(fn.id); }
+                if (e.key === 'Escape') cancelEditFunction();
+              }}
+              onBlur={() => confirmEditFunction(fn.id)}
+              className="cfg-campo-input"
+            />
+          </div>
+          {/* onMouseDown evita o blur antes do clique (o blur já confirma). */}
+          <button type="button" aria-label="Confirmar" onMouseDown={e => e.preventDefault()} onClick={() => confirmEditFunction(fn.id)} className="cfg-icone-botao text-primary">
+            <Check className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <button type="button" aria-label="Cancelar edição" onMouseDown={e => e.preventDefault()} onClick={cancelEditFunction} className="cfg-icone-botao text-muted-foreground">
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      );
+    }
     return (
       <div
-        role={isEditing ? undefined : "button"}
-        tabIndex={isEditing ? -1 : 0}
-        aria-label={`Editar ${field === 'wd' ? 'dia útil' : 'fim de semana'} de ${toTitleCase(fn.name)}`}
-        className="group/cell flex items-center justify-end gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        onClick={e => { e.stopPropagation(); if (!isEditing) startEditFunction(fn, field); }}
+        role="button"
+        tabIndex={0}
+        aria-label={`Editar ${rotuloCampo} de ${nome}`}
+        className={cn("cfg-celula group/cell", cellDirty && "cfg-celula-alterada")}
+        onClick={e => { e.stopPropagation(); startEditFunction(fn, field); }}
         onKeyDown={e => {
-          if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+          if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             startEditFunction(fn, field);
           }
         }}
       >
-        {isEditing ? (
-          <div className="flex items-center gap-1">
-            <div className="flex items-center gap-0.5 rounded border border-slate-300 bg-card px-1.5 py-0.5 shadow-1">
-              <span className="select-none text-2xs font-medium text-muted-foreground">R$</span>
-              <input
-                ref={editInputRef}
-                type="text"
-                inputMode="decimal"
-                aria-label="Novo valor da diária"
-                value={editingFunctionValue}
-                onChange={e => setEditingFunctionValue(normalizeDecimal(e.target.value))}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { e.preventDefault(); confirmEditFunction(fn.id); }
-                  if (e.key === 'Escape') cancelEditFunction();
-                }}
-                onBlur={() => confirmEditFunction(fn.id)}
-                className="w-16 border-none bg-transparent text-right font-mono text-sm font-semibold tabular-nums text-slate-700 outline-none focus:outline-none"
-              />
-            </div>
-            <button type="button" aria-label="Cancelar edição" onClick={cancelEditFunction} className="flex items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-slate-600 group-hover/cell:opacity-100">
-              <X className="w-3 h-3" aria-hidden="true" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex cursor-pointer items-center gap-1.5">
-            {isZero ? (
-              hasFallback ? (
-                <Tooltip delayDuration={200}>
-                  <TooltipTrigger asChild>
-                    <span className="text-sm font-medium tabular-nums text-warning-strong">
-                      R$ {parseBrNumber(fallbackVal!).toFixed(2).replace('.', ',')}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    Usa o valor do Dia Útil (sem FDS específico)
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <span className="text-sm italic text-muted-foreground">—</span>
-              )
+        <span className="flex flex-col items-end min-w-0">
+          {isZero ? (
+            hasFallback ? (
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span className="text-sm tabular-nums text-muted-foreground underline decoration-dotted underline-offset-4">
+                    {formatarMoedaReais(parseBrNumber(fallbackVal!))}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Sem valor de fim de semana: usa o do dia útil
+                </TooltipContent>
+              </Tooltip>
             ) : (
-              <span className={`text-sm font-semibold tabular-nums ${valueColor}`}>
-                {`R$ ${parseBrNumber(currentVal).toFixed(2).replace('.', ',')}`}
-              </span>
-            )}
-            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-within/cell:opacity-100" aria-hidden="true" />
-          </div>
-        )}
+              <span className="text-sm text-muted-foreground">—</span>
+            )
+          ) : (
+            <span className={cn("text-sm tabular-nums", cellDirty ? "font-semibold text-warning" : hasCustom ? "font-medium text-foreground" : "text-muted-foreground")}>
+              {formatarMoedaReais(parseBrNumber(currentVal))}
+            </span>
+          )}
+          {cellDirty && (
+            <span className="text-2xs leading-4 text-muted-foreground tabular-nums whitespace-nowrap">
+              antes {parseBrNumber(savedVal) === 0 ? "—" : formatarMoedaReais(parseBrNumber(savedVal))}
+            </span>
+          )}
+        </span>
+        <Pencil className="cfg-lapis h-3 w-3 shrink-0" aria-hidden="true" />
       </div>
     );
   };
 
-  // 28/09: a linha virou `<tr>` (a tabela é o DataTable); as três células
-  // guardam o mesmo conteúdo e o mesmo espaçamento da grade anterior.
-  const td = "px-5 py-1.5 align-middle";
+  // 28/09: a linha virou `<tr>` (a tabela é o DataTable).
   return (
-    <tr
-      className={`group h-11 transition-colors border-t border-border first:border-t-0
-        ${isCoord ? 'bg-brand-soft/40' : 'bg-card hover:bg-surface-muted/70'}
-        ${isDirty ? 'ring-1 ring-inset ring-warning/25' : ''}
-      `}
-    >
-      {/* Nome + badges */}
-      <td className={td}><div className="flex min-w-0 items-center gap-2">
-        {isCoord ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="shrink-0 cursor-help rounded-full bg-brand-soft px-1.5 py-0.5 text-2xs font-semibold text-primary">Base</span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[220px] text-center text-xs leading-snug">
-              Função base: valor usado como referência quando a função do colaborador não possui valor personalizado cadastrado
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
-        <span
-          className={`truncate text-sm font-medium ${
-            isCoord ? 'text-primary'
-            : isDirty ? 'font-semibold text-warning'
-            : activeTab === 'freela' ? 'text-warning'
-            : 'text-slate-700'
-          }`}
-        >
-          {toTitleCase(fn.name)}
-        </span>
-      </div></td>
+    <tr className={cn("cfg-funcao-linha", isCoord && "cfg-funcao-base", isDirty && "cfg-funcao-alterada")} data-testid={`cfg-funcao-${fn.id}`}>
+      {/* Nome + selo */}
+      <td className="cfg-funcao-nome">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={cn("truncate text-sm", isCoord ? "font-semibold text-foreground" : "font-medium text-foreground")}>{nome}</span>
+          {isCoord ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0} className="shrink-0 cursor-help rounded-full bg-brand-soft px-2 py-0.5 text-2xs font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Base</span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[240px] text-center text-xs leading-snug">
+                Função base: valor de referência quando a função do colaborador não tem valor próprio cadastrado
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
+      </td>
 
-      {/* Dia Útil */}
-      <td className={td}>{renderCell('wd', isEditingWd, wdVal, hasWd)}</td>
+      {/* Dia útil */}
+      <td className="cfg-funcao-valor" data-rotulo="Dia útil">{renderCell('wd', isEditingWd, wdVal, hasWd, isDirtyWd, savedWd)}</td>
       {/* Fim de semana — passa wdVal como fallback quando FDS não está configurado */}
-      <td className={td}>{renderCell('we', isEditingWe, weVal, hasWe, wdVal)}</td>
+      <td className="cfg-funcao-valor" data-rotulo="Fim de semana">{renderCell('we', isEditingWe, weVal, hasWe, isDirtyWe, savedWe, wdVal)}</td>
     </tr>
   );
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  CSV_POR_COLABORADOR, CSV_POR_EVENTO, CSV_SOLICITACOES, cabecalhoCsv,
   ORDEM_PADRAO, agregarPorColaborador, buildPayload, contadoresPorCia, contarPorOpcao,
   locJaRegistrado, ordenar, passaNosFiltros, resumir, validate, type FiltrosDaLista,
 } from "./baggage-logic";
@@ -298,5 +299,23 @@ describe("progresso dos obrigatórios", () => {
   it("espaço em branco não conta como preenchido", () => {
     expect(contarObrigatorios({ ...emptyForm, loc: "   ", os: "  " }))
       .toEqual({ preenchidos: 0, total: 6 });
+  });
+});
+
+describe("cabeçalhos dos CSVs — os rótulos da tela, em pt-BR", () => {
+  it("Solicitações: mesma ordem de colunas, rótulos do formulário/lista", () => {
+    expect(cabecalhoCsv(CSV_SOLICITACOES)).toBe(
+      "Localizador (LOC);Companhia aérea;Valor;Ordem de serviço (OS);Quantidade;Agência;Colaborador;CPF;Evento;Data da solicitação;Data do embarque;Observações",
+    );
+  });
+  it("Por colaborador e Por evento: os títulos das colunas dos relatórios", () => {
+    expect(cabecalhoCsv(CSV_POR_COLABORADOR)).toBe("Colaborador;CPF;Azul;Gol;TAM;Outros;Bagagens;Histórico;Valor total");
+    expect(cabecalhoCsv(CSV_POR_EVENTO)).toBe("Evento;Solicitações;Bagagens;Valor total;Valor médio");
+  });
+  it("nenhum título antigo (caixa alta sem acento) sobrou", () => {
+    for (const c of [...CSV_SOLICITACOES, ...CSV_POR_COLABORADOR, ...CSV_POR_EVENTO]) {
+      if (c === "CPF" || c === "TAM") continue; // siglas
+      expect(c).not.toBe(c.toUpperCase());
+    }
   });
 });

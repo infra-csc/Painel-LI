@@ -210,7 +210,7 @@ export function useGridSubmit({ form, functionRows, dates, functions, userId, to
       queryClient.invalidateQueries({ queryKey: ["/api/events-with-inclusions"] });
 
       toast({
-        title: `${result.created} escalação(ões) criada(s)`,
+        title: result.created === 1 ? "1 vaga criada" : `${result.created} vagas criadas`,
         variant: "success",
       });
       // Duas viagens no mesmo dia para alguém já escolhido na grade: aviso,

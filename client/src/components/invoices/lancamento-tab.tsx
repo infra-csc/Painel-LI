@@ -1,26 +1,41 @@
 // Extraído de invoices.tsx em 25/09 (modularização): aba "Lançamento" da tela
-// de Notas Fiscais — lista os itens NF-elegíveis do Realizado com o card de
-// envio (ou a linha "Não emite NF"). Filtro de status vem da URL via página.
-import { useEffect, useState } from "react";
-import { AlertCircle } from "lucide-react";
+// de Notas Fiscais — lista os itens NF-elegíveis do Realizado com o envio da
+// nota (ou a linha "Não emite NF"). Filtro de status vem da URL via página.
+//
+// 08/10 (redesenho): de uma pilha de cartões de 150px (três por tela) para
+// uma lista em planilha — cabeçalho grudado, colunas alinhadas, OC e anexo nas
+// próprias células, ~10 linhas por tela em 1366. Em ordem de nome (o banco
+// devolvia em qualquer ordem e a linha "pulava" depois de cada envio); quem
+// não emite NF vai para um grupo próprio no fim, em vez de abrir a lista.
+// Busca por colaborador, função ou OC; rodapé com quantos e quanto somam.
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
+import { FileClock, SearchX, ArrowRight, Info } from "lucide-react";
 import type { BudgetActual, Event, Invoice } from "@shared/schema";
+import { toTitleCase, formatarMoeda } from "@/lib/format";
+import { useLarguraUtil } from "@/components/common/use-largura-util";
 import { FilterPills } from "./filter-pills";
 import { InvoiceCard } from "./invoice-card";
 import { SemNfItem } from "./sem-nf-item";
-import { getEffectiveStatus } from "./invoice-status";
+import { getEffectiveStatus, getStatusCfg } from "./invoice-status";
+import { paraBusca } from "./invoice-format";
+import { EstadoDaLista, BOTAO_SAIDA } from "./estado-da-lista";
 import type { AbaBaseProps } from "./types";
 
 // ── Lançamento Tab ────────────────────────────────────────────────────────────
 const LANC_FILTERS = [
-  { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
-  { id: "pendente",          label: "Pendente",           activeBg: "bg-slate-500 text-white" },
-  { id: "enviada",           label: "Aguardando RH",      activeBg: "bg-warning-strong text-white" },
-  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-warning-strong text-white" },
-  { id: "recusada",          label: "NF recusada",        activeBg: "bg-danger text-white" },
-  { id: "checkin-pendente",  label: "Aguard. check-in",   activeBg: "bg-primary text-primary-foreground" },
-  { id: "checkin-realizado", label: "Check-in realizado", activeBg: "bg-success text-white" },
-  { id: "sem-nf",            label: "Não emite NF",       activeBg: "bg-slate-500 text-white" },
+  { id: "all",               label: "Todos" },
+  { id: "pendente",          label: "Pendente",           dot: getStatusCfg("pendente").dot },
+  { id: "enviada",           label: "Aguardando RH",      dot: getStatusCfg("enviada").dot },
+  { id: "devolvida",         label: "Devolvida",          dot: getStatusCfg("devolvida").dot },
+  { id: "recusada",          label: "NF recusada",        dot: getStatusCfg("recusada").dot },
+  { id: "checkin-pendente",  label: "Aguard. check-in",   dot: getStatusCfg("checkin-pendente").dot },
+  { id: "checkin-realizado", label: "Check-in realizado", dot: getStatusCfg("checkin-realizado").dot },
+  { id: "sem-nf",            label: "Não emite NF",       dot: "bg-slate-300" },
 ];
+
+/** Abaixo disto as sete colunas não cabem sem espremer — a linha vira cartão. */
+const LARGURA_MINIMA_DA_PLANILHA = 1000;
 
 export interface LancamentoTabProps extends AbaBaseProps {
   approvedActuals: BudgetActual[];
@@ -29,10 +44,31 @@ export interface LancamentoTabProps extends AbaBaseProps {
   selectedEvent: Event | undefined;
 }
 
+/** Cabeçalho da planilha (as mesmas colunas de `.nf-grade`). */
+function CabecalhoDaLista() {
+  return (
+    <div className="nf-cabecalho" aria-hidden="true">
+      <div className="nf-grade">
+        <div className="nf-th">Colaborador</div>
+        <div className="nf-th text-right">Valor</div>
+        <div className="nf-th">Situação</div>
+        <div className="nf-th inline-flex items-center gap-1" title="OCs repetidas no evento devem usar o mesmo anexo.">
+          Número OC <Info className="w-3 h-3 opacity-70" />
+        </div>
+        <div className="nf-th">Nota fiscal</div>
+        <div className="nf-th" />
+        <div className="nf-th" />
+      </div>
+    </div>
+  );
+}
+
 // Filtro de status controlado pela página (vive na URL desde 23/09).
-export function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId }: LancamentoTabProps) {
+export function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, filterStatus, onFilterStatus, highlightActualId, busca = "", onBusca }: LancamentoTabProps) {
   const setFilterStatus = onFilterStatus;
   const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
+  const { ref, largura } = useLarguraUtil<HTMLDivElement>();
+  const modoCartao = largura !== null && largura < LARGURA_MINIMA_DA_PLANILHA;
 
   // When highlightActualId arrives, update and clear after animation
   useEffect(() => {
@@ -65,50 +101,85 @@ export function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName
     return getEffectiveStatus(getInvoice(actual.id));
   }
 
+  // Ordem de nome (pt-BR): estável — enviar uma nota não move a linha.
+  const ordenados = useMemo(() => [...approvedActuals].sort((a, b) =>
+    toTitleCase(getName(a.collaboratorId)).localeCompare(toTitleCase(getName(b.collaboratorId)), "pt-BR")),
+  [approvedActuals, getName]);
+
+  // Busca (nome, função, OC) — as contagens das pílulas contam sobre ela.
+  const q = paraBusca(busca);
+  const buscados = q
+    ? ordenados.filter(a =>
+        paraBusca(getName(a.collaboratorId)).includes(q)
+        || paraBusca(getFuncName(a.functionId)).includes(q)
+        || paraBusca(getInvoice(a.id)?.oc).includes(q))
+    : ordenados;
+
   const countFor = (id: string) =>
     id === "all"
-      ? approvedActuals.length
-      : approvedActuals.filter(a => getEffStatus(a) === id).length;
+      ? buscados.length
+      : buscados.filter(a => getEffStatus(a) === id).length;
 
   const filtered = filterStatus === "all"
-    ? approvedActuals
-    : approvedActuals.filter(a => getEffStatus(a) === filterStatus);
+    ? buscados
+    : buscados.filter(a => getEffStatus(a) === filterStatus);
 
+  // Um invólucro só, montado sempre: a medida da largura nasce com a aba e
+  // continua valendo quando a lista troca de vazia para cheia.
+  return <div ref={ref}>{conteudo()}</div>;
+
+  function conteudo() {
   if (approvedActuals.length === 0) {
     return (
-      <div className="bg-card rounded-xl border border-border p-16 text-center">
-        <AlertCircle className="w-10 h-10 text-slate-200 mx-auto mb-3" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground">Nenhum colaborador com Realizado enviado para este evento.</p>
-        <p className="text-xs text-muted-foreground mt-1">O lançamento de notas é liberado assim que o Realizado é enviado. Itens devolvidos ou rejeitados ficam pausados até a regularização.</p>
-      </div>
+      <EstadoDaLista
+        icone={FileClock}
+        titulo="Nada para lançar neste evento ainda"
+        texto="O lançamento de notas é liberado assim que o Realizado do colaborador é enviado. Itens devolvidos ou rejeitados ficam pausados até a regularização."
+        acao={
+          <Link href="/budget-actual" className={BOTAO_SAIDA}>
+            Abrir o Realizado <ArrowRight className="w-4 h-4" aria-hidden="true" />
+          </Link>
+        }
+        testid="nf-lancamento-vazio"
+      />
     );
   }
 
+  const emitem = filtered.filter(a => emitsNfFor(a));
+  const naoEmitem = filtered.filter(a => !emitsNfFor(a));
+  const soma = filtered.reduce((s, a) => s + (a.totalValue || 0), 0);
+  const temRecorte = filterStatus !== "all" || !!q;
+
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <FilterPills filters={LANC_FILTERS} active={filterStatus} countFor={countFor} onChange={setFilterStatus} />
 
-      {filtered.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-12 text-center">
-          <p className="text-sm text-muted-foreground">Nenhum item com este status.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3">
-          {filtered.map(actual => {
-            const isTarget = actual.id === highlightedId;
-            if (!emitsNfFor(actual)) {
-              // Definido na escalação: não emite NF — mostra o item sem cobrar nota
-              return (
-                <SemNfItem key={actual.id} actual={actual} getName={getName} getFuncName={getFuncName} />
-              );
-            }
-            return (
-              <div
-                key={actual.id}
-                data-actual-id={actual.id}
-                className={`rounded-xl transition-all duration-700 ${isTarget ? "ring-2 ring-ring ring-offset-2 shadow-2 " : ""}`}
+      <div className="rounded-xl border border-border bg-card overflow-clip">
+        {filtered.length === 0 ? (
+          <EstadoDaLista
+            moldura={false}
+            icone={SearchX}
+            titulo="Nenhum item neste recorte"
+            texto={q ? <>Nada bate com “{busca.trim()}”{filterStatus !== "all" ? " nesta situação" : ""}. Ajuste a busca ou limpe os filtros.</> : "Nenhum item está nesta situação agora."}
+            acao={
+              <button
+                type="button"
+                onClick={() => { setFilterStatus("all"); onBusca?.(""); }}
+                className={BOTAO_SAIDA}
+                data-testid="nf-limpar-filtros"
               >
+                Limpar filtros
+              </button>
+            }
+            testid="nf-sem-resultado"
+          />
+        ) : (
+          <div className={modoCartao ? "nf-cartoes" : "nf-planilha"}>
+            {!modoCartao && <CabecalhoDaLista />}
+            <div role="list" aria-label="Notas fiscais por colaborador">
+              {emitem.map(actual => (
                 <InvoiceCard
+                  key={actual.id}
                   actual={actual}
                   invoice={getInvoice(actual.id)}
                   getName={getName}
@@ -117,12 +188,44 @@ export function LancamentoTab({ approvedActuals, emitsNfFor, getInvoice, getName
                   selectedEventId={selectedEventId}
                   qc={qc}
                   toast={toast}
+                  destacado={actual.id === highlightedId}
                 />
-              </div>
-            );
-          })}
-        </div>
-      )}
+              ))}
+            </div>
+            {naoEmitem.length > 0 && (
+              <>
+                {/* Quem não emite NF (definido na escalação): um grupo próprio, no fim. */}
+                {emitem.length > 0 && (
+                  <div className="nf-grupo" id="nf-grupo-sem-nf">
+                    Não emitem nota fiscal
+                    <span className="font-normal normal-case tracking-normal text-muted-foreground"> · {naoEmitem.length} · definido na escalação</span>
+                  </div>
+                )}
+                <div role="list" aria-label="Itens que não emitem nota fiscal">
+                  {naoEmitem.map(actual => (
+                    <SemNfItem key={actual.id} actual={actual} getName={getName} getFuncName={getFuncName} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Rodapé: o que está na tela e quanto soma. */}
+        {filtered.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-h-10 px-4 py-2 bg-surface-muted border-t border-border">
+            <p className="m-0 text-xs text-slate-600 tabular-nums" data-testid="nf-rodape-lancamento" aria-live="polite">
+              {temRecorte ? `Mostrando ${filtered.length} de ${approvedActuals.length}` : `${approvedActuals.length}`}{" "}
+              {approvedActuals.length === 1 ? "item" : "itens"} do Realizado
+              {naoEmitem.length > 0 && emitem.length > 0 ? ` · ${naoEmitem.length} sem nota` : ""}
+            </p>
+            <p className="m-0 sm:ml-auto text-xs text-slate-600 tabular-nums">
+              {temRecorte ? "Soma do recorte" : "Soma"}: <span className="font-semibold text-foreground">{formatarMoeda(soma)}</span>
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
+  }
 }

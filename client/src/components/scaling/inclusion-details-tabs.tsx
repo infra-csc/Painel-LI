@@ -428,7 +428,10 @@ export function ComentariosTab({
               <div className="space-y-2">
                 <Textarea
                   rows={2}
-                  placeholder={canComment ? "Escreva um comentário…" : "Só quem responde pela função comenta aqui."}
+                  // O mesmo texto dos outros campos de comentário. O "Só quem responde pela
+                  // função comenta aqui" era da regra antiga: desde 07/10 todos que
+                  // têm acesso comentam (ver inclusion-details-dialog).
+                  placeholder={canComment ? "Escreva um comentário…" : "Comentários indisponíveis para o seu acesso."}
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   // Ctrl/⌘ + Enter envia (07/10) — o Enter sozinho continua quebrando linha.

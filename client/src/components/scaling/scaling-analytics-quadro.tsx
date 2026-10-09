@@ -9,7 +9,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -49,7 +49,7 @@ const TOM: Record<Tom, { celula: string; data: string }> = {
 
 function textoDaSituacao(tom: Tom, prazo: Date | null, hoje: Date): string {
   if (!prazo) return "sem data do evento";
-  const base = `até ${dm(prazo)}`;
+  const base = `prazo ${dm(prazo)}`;
   const atraso = diasDeAtraso(prazo, hoje) ?? 0;
   if (tom === "atrasado") return `${base} · ${atraso} ${atraso === 1 ? "dia" : "dias"} atrasado`;
   if (tom === "vence_logo") return atraso === 0 ? `${base} · vence hoje` : `${base} · vence em ${-atraso} ${-atraso === 1 ? "dia" : "dias"}`;
@@ -57,18 +57,61 @@ function textoDaSituacao(tom: Tom, prazo: Date | null, hoje: Date): string {
   return base;
 }
 
-function Celula({ valor, sub, prazo, tom, hoje, testId }: {
-  valor: string; sub?: string; prazo: Date | null; tom: Tom; hoje: Date; testId: string;
+/**
+ * Uma célula diz O QUE FALTA naquela etapa (09/10 — o time não entendia o
+ * quadro): "2 sem nome", "1 a validar", com o prazo embaixo. Etapa sem
+ * pendência mostra só ✓ (o prazo fica no title).
+ */
+function Celula({ falta, antes = 0, rotulo, prazo, tom, hoje, testId, vazio }: {
+  /** Quantas pendências nesta etapa. */
+  falta: number;
+  /**
+   * Vagas ainda em etapas ANTERIORES: com elas, um 0 aqui não é "concluída" —
+   * nenhuma chegou ainda ("—"). ✓ só quando não há nada aqui nem antes.
+   */
+  antes?: number;
+  /** O que falta ("sem nome", "a validar"). */
+  rotulo: string;
+  prazo: Date | null; tom: Tom; hoje: Date; testId: string;
+  /** A etapa não se aplica ao evento (ex.: ninguém precisa de passagem). */
+  vazio?: string;
 }) {
+  if (vazio) {
+    return (
+      <td className="border-l border-border px-3 py-2 text-center align-middle text-2xs text-muted-foreground" data-testid={testId}>
+        {vazio}
+      </td>
+    );
+  }
+  if (falta <= 0 && antes > 0) {
+    const texto = textoDaSituacao(tom, prazo, hoje);
+    return (
+      <td className={`border-l border-border px-3 py-2 text-center align-top ${TOM[tom].celula}`} title={`Nenhuma vaga chegou a esta etapa ainda (${antes} em etapas anteriores) · ${texto}`} data-testid={testId}>
+        <div className="text-base font-semibold leading-tight text-muted-foreground">—</div>
+        <div className="text-2xs text-muted-foreground">nenhuma chegou ainda</div>
+        <div className={`mt-0.5 whitespace-nowrap text-2xs ${TOM[tom].data}`}>{texto}</div>
+      </td>
+    );
+  }
+  if (falta <= 0) {
+    return (
+      <td className="border-l border-border px-3 py-2 text-center align-middle" title={`Concluída${prazo ? ` — prazo era ${dm(prazo)}` : ""}`} data-testid={testId}>
+        <Check className="mx-auto h-4 w-4 text-success" aria-hidden="true" />
+        <span className="sr-only">Concluída</span>
+      </td>
+    );
+  }
   const texto = textoDaSituacao(tom, prazo, hoje);
   return (
-    <td className={`border-l border-border px-3 py-2 text-center align-top ${TOM[tom].celula}`} title={texto} data-testid={testId}>
-      <div className="text-base font-semibold leading-tight tabular-nums text-foreground">{valor}</div>
-      {sub && <div className="text-2xs text-muted-foreground">{sub}</div>}
+    <td className={`border-l border-border px-3 py-2 text-center align-top ${TOM[tom].celula}`} title={`${falta} ${rotulo} · ${texto}`} data-testid={testId}>
+      <div className="text-base font-semibold leading-tight tabular-nums text-foreground">{falta}</div>
+      <div className="text-2xs font-medium text-slate-700">{rotulo}</div>
       <div className={`mt-0.5 whitespace-nowrap text-2xs ${TOM[tom].data}`}>{texto}</div>
     </td>
   );
 }
+
+const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
 
 export function QuadroDePrazos({ eventos, hoje, dias, podeEditar, onVerVagasDoEvento }: {
   eventos: EventoAnalisado[];
@@ -102,6 +145,9 @@ export function QuadroDePrazos({ eventos, hoje, dias, podeEditar, onVerVagasDoEv
             {eventos.map((e) => {
               const prazo = (etapa: EtapaComPrazo) => prazoDaEtapa(e.dataEvento ?? e.ini, etapa, dias);
               const tom = (etapa: EtapaComPrazo, pendentes: number): Tom => situacaoDoPrazo(prazo(etapa), hoje, pendentes);
+              // O que ainda está ANTES de cada etapa — conta para o prazo dela também.
+              const antesDaAprovacao = e.etapas.validacao;
+              const antesDaEscalacao = e.etapas.validacao + e.etapas.aprovacao;
               const semNome = e.naEscalacao.semNome;
               const passagens = e.logistica.passagens;
               return (
@@ -120,33 +166,40 @@ export function QuadroDePrazos({ eventos, hoje, dias, podeEditar, onVerVagasDoEv
                   <td className="whitespace-nowrap px-3 py-2 text-center align-top text-sm font-semibold tabular-nums text-foreground">
                     {dmIso(e.dataEvento)}
                   </td>
-                  {/* Registros: o total — o prazo é informativo (não dá para saber o que ainda falta registrar). */}
-                  <Celula testId={`quadro-registro-${e.eventId}`} valor={String(e.total)} sub="vagas" prazo={prazo("registro")} tom="neutro" hoje={hoje} />
-                  <Celula testId={`quadro-validacao-${e.eventId}`} valor={String(e.etapas.validacao)} sub="em validação" prazo={prazo("validacao")} tom={tom("validacao", e.etapas.validacao)} hoje={hoje} />
-                  <Celula testId={`quadro-aprovacao-${e.eventId}`} valor={String(e.etapas.aprovacao)} sub="em aprovação" prazo={prazo("aprovacao")} tom={tom("aprovacao", e.etapas.aprovacao)} hoje={hoje} />
+                  {/* Registros: o total cadastrado — não há meta de vagas, então não existe "falta"; o prazo é informativo. */}
+                  <td className="border-l border-border px-3 py-2 text-center align-top" data-testid={`quadro-registro-${e.eventId}`}>
+                    <div className="text-base font-semibold leading-tight tabular-nums text-foreground">{e.total}</div>
+                    <div className="text-2xs text-muted-foreground">{plural(e.total, "vaga", "vagas")}</div>
+                    <div className="mt-0.5 whitespace-nowrap text-2xs text-muted-foreground">{textoDaSituacao("neutro", prazo("registro"), hoje)}</div>
+                  </td>
+                  <Celula testId={`quadro-validacao-${e.eventId}`} falta={e.etapas.validacao} rotulo="a validar" prazo={prazo("validacao")} tom={tom("validacao", e.etapas.validacao)} hoje={hoje} />
+                  <Celula testId={`quadro-aprovacao-${e.eventId}`} falta={e.etapas.aprovacao} antes={antesDaAprovacao} rotulo="a aprovar" prazo={prazo("aprovacao")} tom={tom("aprovacao", e.etapas.aprovacao + antesDaAprovacao)} hoje={hoje} />
+                  {/* Escalação: o que falta é pôr nome — ou, já com nome, confirmar. */}
                   <Celula
                     testId={`quadro-escalacao-${e.eventId}`}
-                    valor={String(e.etapas.escalacao)}
-                    sub={semNome ? `${semNome} sem nome` : "em escalação"}
+                    falta={semNome || e.etapas.escalacao}
+                    antes={antesDaEscalacao}
+                    rotulo={semNome ? "sem nome" : "a confirmar"}
                     prazo={prazo("escalacao")}
-                    tom={tom("escalacao", e.etapas.escalacao)}
+                    tom={tom("escalacao", e.etapas.escalacao + antesDaEscalacao)}
                     hoje={hoje}
                   />
                   <Celula
                     testId={`quadro-escalado-${e.eventId}`}
-                    valor={String(e.etapas.completa)}
-                    sub={`de ${e.total}`}
+                    falta={e.total - e.etapas.completa}
+                    rotulo={`de ${e.total} a escalar`}
                     prazo={prazo("escalado")}
                     tom={tom("escalado", e.total - e.etapas.completa)}
                     hoje={hoje}
                   />
                   <Celula
                     testId={`quadro-passagem-${e.eventId}`}
-                    valor={passagens.precisam ? String(passagens.emitidas) : "—"}
-                    sub={passagens.precisam ? `de ${passagens.precisam}` : "ninguém precisa"}
+                    falta={passagens.precisam - passagens.emitidas}
+                    rotulo={`de ${passagens.precisam} a emitir`}
                     prazo={prazo("passagem")}
                     tom={passagens.precisam ? tom("passagem", passagens.precisam - passagens.emitidas) : "neutro"}
                     hoje={hoje}
+                    vazio={passagens.precisam ? undefined : "ninguém precisa"}
                   />
                 </tr>
               );
@@ -158,8 +211,8 @@ export function QuadroDePrazos({ eventos, hoje, dias, podeEditar, onVerVagasDoEv
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-4 py-2.5 text-2xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-danger/25 bg-danger-soft" />prazo passou e ainda há pendência</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-warning/25 bg-warning-soft" />vence em até 3 dias</span>
-        <span className="inline-flex items-center gap-1.5"><span className="text-success">ok</span> etapa concluída</span>
-        <span>Prazos contados da data do evento.</span>
+        <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success" aria-hidden="true" /> etapa concluída</span>
+        <span>Cada célula mostra o que falta e até quando; prazos contados da data do evento.</span>
         {podeEditar && (
           <Button type="button" variant="outline" size="sm" className="ml-auto h-7 gap-1.5 text-xs" onClick={() => setEditando(true)} data-testid="button-editar-prazos">
             <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Editar prazos

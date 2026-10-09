@@ -1,37 +1,16 @@
 import { forwardRef, useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { cnpjValido, mascararCnpj } from "@shared/cnpj";
 
-// ── Algoritmo oficial de validação de CNPJ ───────────────────────────────────
+// ── Validação e máscara: a regra mora em @shared/cnpj (08/10) para o servidor
+// validar igual. Os nomes de sempre continuam exportados daqui.
 export function validateCnpj(value: string): boolean {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length !== 14) return false;
-  if (/^(\d)\1+$/.test(digits)) return false; // todos iguais (ex: 00000000000000)
-
-  function calcDigit(d: string, weights: number[]) {
-    let sum = 0;
-    for (let i = 0; i < weights.length; i++) sum += parseInt(d[i]) * weights[i];
-    const rem = sum % 11;
-    return rem < 2 ? 0 : 11 - rem;
-  }
-
-  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-
-  const d1 = calcDigit(digits, w1);
-  const d2 = calcDigit(digits, w2);
-
-  return parseInt(digits[12]) === d1 && parseInt(digits[13]) === d2;
+  return cnpjValido(value);
 }
 
-// ── Aplica máscara XX.XXX.XXX/XXXX-XX ────────────────────────────────────────
 export function maskCnpj(raw: string): string {
-  const d = raw.replace(/\D/g, "").slice(0, 14);
-  if (d.length <= 2) return d;
-  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
-  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
-  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+  return mascararCnpj(raw);
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────

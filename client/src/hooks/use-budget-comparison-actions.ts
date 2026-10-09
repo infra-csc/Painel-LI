@@ -13,7 +13,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
 import { parseBrNumber } from "@/lib/utils";
 import type { BudgetActual, BudgetComparison } from "@shared/schema";
-import { fmt, type ActionType, type ComparisonRow, type FlashCreditResumo, type SplitDetailState } from "@/components/budget/comparison-utils";
+import { centavosParaCampo, fmt, type ActionType, type ComparisonRow, type FlashCreditResumo, type SplitDetailState } from "@/components/budget/comparison-utils";
 import { CHAVE_CONTROLE_RH } from "@/components/rh/prestacao-utils";
 
 export interface EntradaDasAcoesDoComparativo {
@@ -251,14 +251,15 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
 
   const openEditModal = (actual: BudgetActual) => {
     setEditingActual(actual);
+    // Valores em pt-BR ("100,00"; antes "100.00") — o salvar lê os dois formatos.
     setEditForm({
       dailyQuantity: String(actual.dailyQuantity),
-      dailyValue: (actual.dailyValue / 100).toFixed(2),
-      weekdayLunch: (actual.weekdayLunch / 100).toFixed(2),
-      weekdayDinner: (actual.weekdayDinner / 100).toFixed(2),
-      weekendLunch: (actual.weekendLunch / 100).toFixed(2),
-      weekendDinner: (actual.weekendDinner / 100).toFixed(2),
-      mobility: (actual.mobility / 100).toFixed(2),
+      dailyValue: centavosParaCampo(actual.dailyValue),
+      weekdayLunch: centavosParaCampo(actual.weekdayLunch),
+      weekdayDinner: centavosParaCampo(actual.weekdayDinner),
+      weekendLunch: centavosParaCampo(actual.weekendLunch),
+      weekendDinner: centavosParaCampo(actual.weekendDinner),
+      mobility: centavosParaCampo(actual.mobility),
       rhAdjustNote: actual.rhAdjustNote || "",
     });
   };

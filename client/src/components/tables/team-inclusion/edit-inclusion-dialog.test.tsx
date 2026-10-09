@@ -59,7 +59,10 @@ describe("EditInclusionDialog", () => {
     const fetchMock = mockarFetch((url) => respostaJson({ ok: true }, 200, url));
     const { user, vaga } = await abrir();
     await user.selectOptions(screen.getByLabelText(/^Função/), "funcao-2");
-    await user.selectOptions(screen.getByLabelText(/Precisa de passagem/), "false");
+    // 07/10: "Precisa de passagem" virou interruptor (era select Sim/Não) — desliga se estiver ligado.
+    const passagem = screen.getByRole("switch", { name: /Precisa de passagem/ });
+    if (passagem.getAttribute("aria-checked") === "true") await user.click(passagem);
+    expect(passagem).toHaveAttribute("aria-checked", "false");
     await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
     await esperarToast("Inclusão atualizada");
 
@@ -84,7 +87,7 @@ describe("EditInclusionDialog", () => {
 
   it("com alteração, Esc pede confirmação; 'Continuar editando' mantém e 'Descartar' fecha", async () => {
     const { user } = await abrir();
-    await user.selectOptions(screen.getByLabelText(/Precisa de hospedagem/), "true");
+    await user.click(screen.getByRole("switch", { name: /Precisa de hospedagem/ }));
     await user.keyboard("{Escape}");
     const alerta = await screen.findByRole("alertdialog", { name: TEXTOS_DO_DESCARTE.titulo });
     expect(alerta).toHaveTextContent(TEXTOS_DO_DESCARTE.descricao);
@@ -107,14 +110,14 @@ describe("EditInclusionDialog", () => {
 
   it("clicar num dia desmarca (aria-pressed) e a contagem acompanha", async () => {
     const { user } = await abrir();
-    expect(screen.getByText("3 dias")).toBeInTheDocument();
+    expect(screen.getByText("3 diárias")).toBeInTheDocument();
     const dias = screen.getAllByRole("button", { pressed: true });
     expect(dias).toHaveLength(3);
     await user.click(dias[1]);
     expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(2);
-    expect(screen.getByText("2 dias")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "nenhum" }));
-    expect(screen.getByText("0 dias")).toBeInTheDocument();
+    expect(screen.getByText("2 diárias")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Nenhum" }));
+    expect(screen.getByText("0 diárias")).toBeInTheDocument();
   });
 
   it("data de fim anterior à de início mostra a mensagem inline", async () => {

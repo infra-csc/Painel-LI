@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, serial, index, uniqueIndex, jsonb, numeric, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, serial, index, uniqueIndex, jsonb, numeric, primaryKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 // ÍNDICES DECLARADOS NO SCHEMA (23/09): os índices/uniques criados por
 // scripts/migrations/*.ts (13/08, 17/08, 19/08, 28/08 e 23/09) agora também
@@ -1183,6 +1183,23 @@ export const avisosDeAlteracao = pgTable("avisos_de_alteracao", {
 
 export type AvisoDeAlteracao = typeof avisosDeAlteracao.$inferSelect;
 export type InsertAvisoDeAlteracao = typeof avisosDeAlteracao.$inferInsert;
+
+// ===== RASCUNHO DO PLANEJADO (08/10) =====
+// Ajustes manuais da tela Planejado (overrides ESPARSOS por vaga, o mesmo
+// formato que o cliente guardava no localStorage) até o envio ao Realizado.
+// Um rascunho por evento + usuário: quem troca de computador encontra o que
+// ajustou. Não é registro de negócio — nada aqui entra em total nenhum antes
+// do envio. Criada também pelo server/ensure-schema.ts (tabela nova e aditiva).
+export const rascunhosDoPlanejado = pgTable("rascunhos_do_planejado", {
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull(),
+  overrides: jsonb("overrides").$type<Record<string, Record<string, unknown>>>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.eventId, t.userId] }),
+]);
+
+export type RascunhoDoPlanejado = typeof rascunhosDoPlanejado.$inferSelect;
 
 // ===== CONTROLE DE BAGAGEM =====
 // Solicitações de bagagem por colaborador/evento (porte do app standalone).

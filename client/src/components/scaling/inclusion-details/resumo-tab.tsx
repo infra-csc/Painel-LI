@@ -49,7 +49,7 @@ export function ResumoTab({ inclusion, props, st }: { inclusion: TeamInclusion; 
   return (
     <TabsContent value="resumo" className="esc-entra m-0 p-3 sm:p-5">
       <div className="space-y-4">
-        <ProductionApprovalCard inclusion={inclusion} canApprove={canApproveProduction} mutations={mutations} blockReason={actionLockReason} />
+        <ProductionApprovalCard inclusion={inclusion} canApprove={canApproveProduction} mutations={mutations} blockReason={actionLockReason} trocaPendente={props.details.pendingSwap} />
 
         {/* Cada coluna empilha os cartões pela altura do próprio conteúdo (dono,
             07/10): nada estica para alinhar com a vizinha. */}

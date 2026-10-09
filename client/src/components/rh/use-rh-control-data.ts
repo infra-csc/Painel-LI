@@ -12,7 +12,6 @@
 //
 // Evento e status vão na URL do servidor; busca por texto, função, colaborador,
 // NF e check-in continuam no client (rápidos sobre a lista já enxuta).
-import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/queryClient";
 import { useQueriesState, type QueriesState } from "@/components/common/query-state";
@@ -22,9 +21,6 @@ import type { PrestacaoItem, PrestacaoStatus } from "./prestacao-types";
 import { CHAVE_CONTROLE_RH, statusParaServidor, urlDoControleRh } from "./prestacao-utils";
 
 export type InvoiceCounts = ControleRh["contadores"]["nf"];
-
-/** Opção do select de evento (vem de /api/events-with-inclusions). */
-export interface EventoDoSelect { id: string; name: string }
 
 export interface RhControlData {
   estado: QueriesState;
@@ -42,8 +38,8 @@ export interface RhControlData {
   progressPct: number;
   /** Funções presentes nas linhas (select de filtro), ordenadas por nome pelo servidor. */
   funcoes: { id: string; name: string }[];
-  /** Eventos com escalação — as opções do select de evento. */
-  eventosDoSelect: EventoDoSelect[];
+  /** Eventos com escalação (inteiros) — o seletor da barra de contexto mostra datas e local. */
+  eventos: Event[];
 }
 
 const CONTADORES_VAZIOS: ControleRh["contadores"] = {
@@ -58,6 +54,7 @@ const CONTADORES_VAZIOS: ControleRh["contadores"] = {
 
 const SEM_ITENS: PrestacaoItem[] = [];
 const SEM_FUNCOES: ControleRh["funcoes"] = [];
+const SEM_EVENTOS: Event[] = [];
 
 /**
  * @param eventoSelecionado id do evento filtrado, ou `null` em "Todos os eventos".
@@ -90,11 +87,6 @@ export function useRhControlData(eventoSelecionado: string | null, filterStatus:
   const contadores = dados?.contadores ?? CONTADORES_VAZIOS;
   const funcoes = dados?.funcoes ?? SEM_FUNCOES;
 
-  const eventosDoSelect = useMemo<EventoDoSelect[]>(
-    () => (qEventsWithInclusions.data ?? []).map(e => ({ id: e.id, name: e.name })),
-    [qEventsWithInclusions.data],
-  );
-
   // "Concluído" = NF aprovada + check-in físico realizado (checkinAt)
   const concludedCount = contadores.nf.checkinDone;
 
@@ -111,6 +103,7 @@ export function useRhControlData(eventoSelecionado: string | null, filterStatus:
     invoiceCounts: contadores.nf,
     rhActionCount: contadores.rhAction,
     concludedCount, totalForProgress, progressPct,
-    funcoes, eventosDoSelect,
+    funcoes,
+    eventos: qEventsWithInclusions.data ?? SEM_EVENTOS,
   };
 }

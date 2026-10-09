@@ -42,8 +42,10 @@ export const SECTION_TITLE = "text-2xs font-bold uppercase tracking-wide text-mu
 export const HINT = "text-xs text-muted-foreground";
 export const PILL = "inline-flex items-center rounded-full border border-border bg-card px-2 py-0.5 text-2xs font-medium text-slate-600 tabular-nums";
 export const PILL_BRAND = "inline-flex items-center rounded-full bg-brand-soft px-2 py-0.5 text-2xs font-semibold text-primary tabular-nums";
-export const BANNER_LINK = "inline-flex items-center gap-1 text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
-export const BANNER_DANGER_LINK = "inline-flex items-center gap-1 text-danger hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-strong disabled:opacity-60";
+export const BANNER_LINK = "sug-alvo inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-primary transition-colors hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+export const BANNER_DANGER_LINK = "sug-alvo inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-danger transition-colors hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-strong disabled:opacity-60";
+/** Botão em contorno das faixas (Tentar novamente, Nova sugestão). */
+export const BANNER_BUTTON = "sug-alvo inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-slate-700 shadow-1 transition-colors hover:border-primary/30 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
 export const EMPTY_PERIOD: Period = { start: "", end: "" };
 /** Espera antes de reanalisar a colagem (o resumo ao vivo não roda a cada tecla). */
 export const PASTE_PREVIEW_DEBOUNCE_MS = 200;

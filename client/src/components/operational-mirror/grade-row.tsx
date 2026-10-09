@@ -39,19 +39,19 @@ export const GradeRow = memo(function GradeRow({ r, hiddenBlocks, compact, saveC
   const g = r.collaborator.gender && r.collaborator.gender !== "unknown" ? genderLabel[r.collaborator.gender] : null;
   const uf = r.collaborator.state || null;
   return (
-    <tr className="border-b hover:bg-primary/[0.04] group" data-testid={`row-${r.teamInclusionId}`}>
-      <td className={`sticky left-0 z-20 bg-card group-hover:bg-muted px-2 py-1 font-medium border-r border-border/40 min-w-[210px]`}>
-        <div className="flex items-center gap-1.5 min-w-0">
+    <tr className="esp-linha group" data-testid={`row-${r.teamInclusionId}`}>
+      <td className={`sticky left-0 z-20 min-w-[210px] bg-card px-2.5 ${compact ? "py-0.5" : "py-1"} font-medium`}>
+        <div className="flex min-w-0 items-center gap-1.5">
           {/* Dois ou mais blocos abertos: o alerta fica junto do
               nome, onde o olho passa primeiro. */}
           {abertos.length >= 2 && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={`${abertos.length} blocos abertos`} />}
-          <Tooltip><TooltipTrigger asChild><div className="truncate max-w-[176px] leading-tight">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><div className="max-w-[176px] truncate leading-tight text-foreground">{r.collaborator.fullName}</div></TooltipTrigger><TooltipContent>{r.collaborator.fullName}</TooltipContent></Tooltip>
         </div>
         {/* A segunda linha só existe quando há o que dizer: antes
             todas as linhas exibiam "? · —" e isso virava ruído. */}
-        {(g || uf) && <div className="text-2xs text-muted-foreground/70 leading-tight">{[g, uf].filter(Boolean).join(" · ")}</div>}
+        {(g || uf) && !compact && <div className="text-2xs font-normal leading-tight text-muted-foreground">{[g, uf].filter(Boolean).join(" · ")}</div>}
       </td>
-      <td className={`sticky left-[210px] z-20 bg-card group-hover:bg-muted px-2 py-1 border-r border-border/40 min-w-[120px] capitalize`}>{r.function.area || r.function.name || "—"}</td>
+      <td className={`esp-congelada sticky left-[210px] z-20 min-w-[120px] border-r border-border bg-card px-2 ${compact ? "py-0.5" : "py-1"} capitalize text-slate-600`}>{r.function.area || r.function.name || "—"}</td>
       <EditableCell rowId={r.teamInclusionId} field="schedule.startDate" value={r.schedule.startDate} estado={est("schedule.startDate", r.schedule.startDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} etapa={BARRA.schedule} />
       <EditableCell rowId={r.teamInclusionId} field="schedule.departureDate" value={r.schedule.flightDepartureDate} estado={est("schedule.departureDate", r.schedule.flightDepartureDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
       <EditableCell rowId={r.teamInclusionId} field="schedule.endDate" value={r.schedule.endDate} estado={est("schedule.endDate", r.schedule.endDate)} type="date" onSave={saveCell} compact={compact} editMode={editMode} />
@@ -98,7 +98,7 @@ export const GradeRow = memo(function GradeRow({ r, hiddenBlocks, compact, saveC
         <EditableCell rowId={r.teamInclusionId} field="carRental.checkIn" value={r.carRental.checkIn} estado={est("carRental.checkIn", r.carRental.checkIn)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
       </>}
       {show("pendencias") && <>
-        <td className="px-2 py-1 border-r border-border/30 text-center whitespace-nowrap">
+        <td className={`whitespace-nowrap border-r border-border/40 border-l-2 ${BARRA.pend} px-2 py-1 text-center`}>
           <SituacaoPill abertos={abertos.length} pendencies={r.pendencies} testId={`pend-${r.teamInclusionId}`} />
         </td>
         <EditableCell rowId={r.teamInclusionId} field="observations" value={r.observations} estado={est("observations", r.observations)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />

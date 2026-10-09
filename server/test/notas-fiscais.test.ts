@@ -192,3 +192,58 @@ describe("POST /api/invoices/:id/checkin", () => {
     expect(noBanco?.paymentDate).toBe("2099-10-20");
   });
 });
+
+describe("GET /api/invoices (ordem — 08/10)", () => {
+  it("devolve a mais recente primeiro e desempata pelo id, sempre na mesma ordem", async () => {
+    const { agent } = await agenteLogado("financial");
+    const evento = await criarEvento();
+    const funcao = await criarFuncao();
+    const colab = await criarColaborador();
+    const quando = (iso: string) => new Date(iso);
+    const base = { eventId: evento.id, collaboratorId: colab.id, functionId: funcao.id, status: "enviada" } as const;
+    await ctx.db.insert(ctx.schema.invoices).values([
+      { ...base, id: "nf-ordem-a", oc: "A", createdAt: quando("2026-09-01T10:00:00Z") },
+      { ...base, id: "nf-ordem-c", oc: "C", createdAt: quando("2026-09-03T10:00:00Z") },
+      { ...base, id: "nf-ordem-b1", oc: "B1", createdAt: quando("2026-09-02T10:00:00Z") },
+      { ...base, id: "nf-ordem-b2", oc: "B2", createdAt: quando("2026-09-02T10:00:00Z") },
+    ]);
+    const res = await agent.get(`/api/invoices?eventId=${evento.id}`);
+    expect(res.status).toBe(200);
+    expect((res.body as { id: string }[]).map(n => n.id)).toEqual(["nf-ordem-c", "nf-ordem-b2", "nf-ordem-b1", "nf-ordem-a"]);
+  });
+});
+
+describe("PATCH /api/events/:id/payment-company (CNPJ — 08/10)", () => {
+  it("CNPJ com dígito verificador errado → 400 com a mensagem do campo e nada gravado", async () => {
+    const { agent } = await agenteLogado("financial");
+    const evento = await criarEvento();
+    const res = await mutacao(agent.patch(`/api/events/${evento.id}/payment-company`))
+      .send({ paymentCompanyName: "Produtora XYZ", paymentCompanyCnpj: "11.222.333/0001-82" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("CNPJ inválido — confira os dígitos verificadores.");
+    expect((await ctx.storage.getEvent(evento.id))?.paymentCompanyCnpj).toBeNull();
+  });
+
+  it("CNPJ incompleto → 400; CNPJ válido → 200 e gravado", async () => {
+    const { agent } = await agenteLogado("financial");
+    const evento = await criarEvento();
+    const incompleto = await mutacao(agent.patch(`/api/events/${evento.id}/payment-company`))
+      .send({ paymentCompanyName: "Produtora XYZ", paymentCompanyCnpj: "11.222.333" });
+    expect(incompleto.status).toBe(400);
+    expect(incompleto.body.message).toContain("incompleto");
+    const ok = await mutacao(agent.patch(`/api/events/${evento.id}/payment-company`))
+      .send({ paymentCompanyName: "Produtora XYZ", paymentCompanyCnpj: "11.222.333/0001-81" });
+    expect(ok.status).toBe(200);
+    expect(ok.body.paymentCompanyCnpj).toBe("11.222.333/0001-81");
+  });
+
+  it("PUT /api/events/:id: CNPJ vazio continua aceito (campo opcional); inválido novo → 400", async () => {
+    const { agent } = await agenteLogado("admin");
+    const evento = await criarEvento();
+    const vazio = await mutacao(agent.put(`/api/events/${evento.id}`)).send({ paymentCompanyCnpj: "" });
+    expect(vazio.status).toBe(200);
+    const invalido = await mutacao(agent.put(`/api/events/${evento.id}`)).send({ paymentCompanyCnpj: "00.000.000/0001-00" });
+    expect(invalido.status).toBe(400);
+    expect(invalido.body.message).toContain("CNPJ inválido");
+  });
+});

@@ -1,12 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
-import type { LucideIcon } from "lucide-react";
+/**
+ * Barra de filtros da Inclusão de equipe (a única tela que a usa).
+ *
+ * 07/10 (redesenho): era um cartão de 150px de altura com seis rótulos em
+ * caixa-alta, um seletor por coluna e uma segunda fileira só para "Mostrar
+ * excluídos" e "Limpar". Agora é a MESMA anatomia da barra de Passagens e
+ * Hospedagem (peças de `common/barra-de-filtros` e `common/filter-popover`):
+ * à vista o que se escolhe todo dia — busca, evento, funções, colaborador —
+ * e em "Filtros" as listas de status e de escalação e o "Mostrar excluídos".
+ * Cada opção diz quantas vagas sobram ao escolhê-la; filtro ligado em
+ * "Filtros" vira etiqueta removível embaixo, nunca fica escondido.
+ *
+ * **Nenhum filtro saiu**: busca, evento, funções, colaborador, status,
+ * escalação (todos de seleção múltipla, como desde 28/08), mostrar excluídos
+ * e limpar continuam aqui, com os mesmos valores e os mesmos `data-testid`.
+ */
 import { useState, useEffect, useRef } from "react";
+import { Check, Search, SlidersHorizontal, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { Search, CalendarDays, Layers, UserRound, Tag, ArrowUpDown, RotateCcw, Plane, BedDouble } from "lucide-react";
-import FunctionMultiSelect from "@/components/ui/function-multi-select";
-import MultiSelectFilter from "@/components/ui/multi-select-filter";
-import { fixEncoding } from "@/lib/utils";
-import type { Event, Function, Collaborator } from "@shared/schema";
+import { FiltroMultiplo, type OpcaoDeFiltro } from "@/components/common/filter-popover";
+import { EtiquetaDeFiltro, LimparFiltros } from "@/components/common/barra-de-filtros";
 
 // Seleção múltipla (pedido do dono, 28/08): cada campo é uma LISTA de
 // valores marcados; lista vazia significa "todos".
@@ -22,25 +35,63 @@ export interface UniversalFilterValues {
   accommodationStatus?: string[];
 }
 
+export interface OpcoesDaBarra {
+  eventos: OpcaoDeFiltro[];
+  funcoes: OpcaoDeFiltro[];
+  colaboradores: OpcaoDeFiltro[];
+  status: OpcaoDeFiltro[];
+  escalacao: OpcaoDeFiltro[];
+}
+
 interface UniversalFiltersProps {
   filters: UniversalFilterValues;
   onFiltersChange: (filters: UniversalFilterValues) => void;
-  hideStatusFilter?: boolean;
-  children?: React.ReactNode;
-  rightActions?: React.ReactNode;
-  showTicketFilter?: boolean;
-  showAccommodationFilter?: boolean;
+  /** Opções já com a contagem cruzada — quem sabe contar é a regra da lista. */
+  opcoes: OpcoesDaBarra;
 }
 
-const FilterLabel = ({ icon: Icon, text }: { icon: LucideIcon; text: string }) => (
-  <label className="flex items-center gap-1.5 mb-1.5">
-    <Icon className="w-3 h-3 text-muted-foreground" />
-    <span className="text-2xs font-bold tracking-widest text-muted-foreground uppercase">{text}</span>
-  </label>
-);
+const plural = (um: string, varios: string) => (n: number) => `${n} ${n === 1 ? um : varios}`;
 
-export default function UniversalFilters({ filters, onFiltersChange, hideStatusFilter = false, children, rightActions, showTicketFilter = false, showAccommodationFilter = false }: UniversalFiltersProps) {
+/** Lista de marcar (várias) dentro de "Filtros" — o mesmo desenho das listas curtas. */
+function ListaDeMarcar({ titulo, opcoes, marcados, onChange, testid }: {
+  titulo: string;
+  opcoes: OpcaoDeFiltro[];
+  marcados: string[];
+  onChange: (v: string[]) => void;
+  testid: string;
+}) {
+  return (
+    <div role="group" aria-label={titulo} data-testid={testid}>
+      <p className="m-0 mb-1 px-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{titulo}</p>
+      <div className="flex flex-col gap-px">
+        {opcoes.map((o) => {
+          const on = marcados.includes(o.id);
+          return (
+            <button
+              key={o.id}
+              type="button"
+              role="checkbox"
+              aria-checked={on}
+              onClick={() => onChange(on ? marcados.filter((v) => v !== o.id) : [...marcados, o.id])}
+              className={`flex items-center gap-2 w-full min-h-[32px] px-2 py-1 rounded-md text-left text-sm transition-colors hover:bg-muted ${on ? "text-primary font-medium" : "text-slate-700"}`}
+              data-testid={`${testid}-opcao-${o.id}`}
+            >
+              <span aria-hidden="true" className={`inline-flex items-center justify-center w-4 h-4 shrink-0 rounded border ${on ? "border-primary bg-primary text-primary-foreground" : "border-slate-300 bg-card text-transparent"}`}>
+                <Check className="w-3 h-3" strokeWidth={3} />
+              </span>
+              <span className="flex-1 min-w-0 leading-snug">{o.nome}</span>
+              <span className={`shrink-0 text-2xs tabular-nums ${o.n === 0 ? "text-muted-foreground/60" : "text-muted-foreground"}`}>{o.n}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function UniversalFilters({ filters, onFiltersChange, opcoes }: UniversalFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.searchId ?? "");
+  const [maisAberto, setMaisAberto] = useState(false);
 
   useEffect(() => {
     setSearchInput(filters.searchId ?? "");
@@ -68,212 +119,172 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const { data: events } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
-  });
-
-  const { data: functions } = useQuery<Function[]>({
-    queryKey: ["/api/functions"],
-  });
-
-  const { data: collaborators } = useQuery<Collaborator[]>({
-    queryKey: ["/api/collaborators"],
-  });
-
-  const statusOptions = [
-    { value: "planejado", label: "Aguardando escalação" },
-    { value: "escalacao", label: "Em escalação" },
-    { value: "passagem", label: "Aguardando passagem" },
-    { value: "hospedagem", label: "Aguardando hospedagem" },
-    { value: "passagem_comprada", label: "Passagem comprada" },
-    { value: "hospedagem_comprada", label: "Hospedagem comprada" },
-    { value: "hospedagem_passagem_comprada", label: "Hospedagem e passagem compradas" }
-  ];
+  const status = filters.status ?? [];
+  const escalacao = filters.escalationStatus ?? [];
+  const funcoes = Array.isArray(filters.functionId) ? filters.functionId : [];
+  const ligadosEmFiltros = status.length + escalacao.length + (filters.showDeleted ? 1 : 0);
+  const algumFiltro = !!(filters.searchId || filters.eventId.length || funcoes.length || filters.collaboratorId.length || ligadosEmFiltros);
 
   const clearFilters = () => {
-    const baseFilters: UniversalFilterValues = {
+    setSearchInput("");
+    onFiltersChange({
       eventId: [],
       functionId: [],
       collaboratorId: [],
       escalationStatus: [],
       searchId: "",
-      showDeleted: false
-    };
-    if (!hideStatusFilter) baseFilters.status = [];
-    if (showTicketFilter) baseFilters.ticketStatus = [];
-    if (showAccommodationFilter) baseFilters.accommodationStatus = [];
-    onFiltersChange(baseFilters);
+      showDeleted: false,
+      status: [],
+    });
   };
 
+  const nomeDe = (lista: OpcaoDeFiltro[], id: string) => lista.find((o) => o.id === id)?.nome ?? id;
+
   return (
-    <div className="bg-card rounded-xl border border-border shadow-1 px-4 sm:px-5 py-4 mb-6">
-      {/* Grid de filtros — colunas que QUEBRAM (25/09): o `gridTemplateColumns`
-          inline com 6 a 8 colunas fixas fazia a Inclusão de equipe medir
-          1.050px em qualquer largura; agora cada filtro tem ao menos 150px e
-          o resto se ajusta à largura útil. */}
-      <div className="grid gap-3 items-end grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
-        {/* Busca */}
-        <div>
-          <FilterLabel icon={Search} text="Buscar" />
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5 pointer-events-none" aria-hidden="true" />
-            <input
-              type="text"
-              placeholder="ID ou nome…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full h-9 pl-8 pr-3 border border-border rounded-lg bg-card text-sm text-slate-700 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all"
-              data-testid="input-search-id"
+    <div className="space-y-2" role="search" aria-label="Filtros das vagas">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.5">
+        {/* Busca: o mesmo campo de Passagens/Hospedagem (ícone, limpar, Esc apaga). */}
+        <div className="relative sm:flex-[1_1_170px] sm:min-w-[150px] sm:max-w-[300px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+          <input
+            type="text"
+            inputMode="search"
+            placeholder="ID ou nome…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape" && searchInput) { e.preventDefault(); setSearchInput(""); } }}
+            className={`w-full h-[34px] pl-[33px] ${searchInput ? "pr-8" : "pr-3"} rounded-lg border border-border bg-card text-sm text-foreground outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground hover:border-slate-300 focus:border-primary focus:ring-[3px] focus:ring-primary/12`}
+            data-testid="input-search-id"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput("")}
+              aria-label="Limpar a busca"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+
+        {/* Celular: a fileira rola de lado em vez de empilhar quatro controles. */}
+        <div className="pas-rolagem-x -mx-[var(--page-gutter)] flex items-center gap-1.5 px-[var(--page-gutter)] sm:contents">
+          <div className="shrink-0 w-[188px] sm:w-auto sm:max-w-[230px]">
+            <FiltroMultiplo
+              valores={filters.eventId ?? []}
+              onChange={(v) => onFiltersChange({ ...filters, eventId: v })}
+              opcoes={opcoes.eventos}
+              rotuloTodos="Todos os eventos"
+              placeholderBusca="Buscar evento…"
+              testid="filter-event"
+              larguraPopover={360}
+              rotuloVarios={plural("evento", "eventos")}
             />
           </div>
-        </div>
-
-        {/* Evento */}
-        <div>
-          <FilterLabel icon={CalendarDays} text="Evento" />
-          <MultiSelectFilter
-            options={(events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído') || [])
-              .slice()
-              .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }))
-              .map(e => ({ value: e.id, label: e.name }))}
-            selected={filters.eventId ?? []}
-            onChange={(value) => onFiltersChange({ ...filters, eventId: value })}
-            placeholder="Todos os eventos"
-            searchable
-            searchPlaceholder="Buscar evento…"
-            testId="filter-event"
-          />
-        </div>
-
-        {/* Funções */}
-        <div>
-          <FilterLabel icon={Layers} text="Funções" />
-          <FunctionMultiSelect
-            functions={functions}
-            selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
-            onSelectedChange={(selectedIds) => onFiltersChange({ ...filters, functionId: selectedIds })}
-            placeholder="Selecionar funções"
-            testId="filter-function"
-          />
-        </div>
-
-        {/* Colaborador */}
-        <div>
-          <FilterLabel icon={UserRound} text="Colaborador" />
-          <MultiSelectFilter
-            options={(collaborators || [])
-              .slice()
-              .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "", "pt-BR", { sensitivity: "base" }))
-              .map(c => ({ value: c.id, label: fixEncoding(c.fullName) || "Sem nome" }))}
-            selected={filters.collaboratorId ?? []}
-            onChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
-            placeholder="Todos os colaboradores"
-            searchable
-            searchPlaceholder="Buscar colaborador…"
-            testId="filter-collaborator"
-          />
-        </div>
-
-        {/* Status (opcional) */}
-        {!hideStatusFilter && (
-          <div>
-            <FilterLabel icon={Tag} text="Status" />
-            <MultiSelectFilter
-              options={statusOptions}
-              selected={filters.status ?? []}
-              onChange={(value) => onFiltersChange({ ...filters, status: value })}
-              placeholder="Todos os status"
-              testId="filter-status"
+          <div className="shrink-0 w-[168px] sm:w-auto sm:max-w-[200px]">
+            <FiltroMultiplo
+              valores={funcoes}
+              onChange={(v) => onFiltersChange({ ...filters, functionId: v })}
+              opcoes={opcoes.funcoes}
+              rotuloTodos="Todas as funções"
+              placeholderBusca="Buscar função…"
+              testid="filter-function"
             />
           </div>
-        )}
+          <div className="shrink-0 w-[200px] sm:w-auto sm:max-w-[230px]">
+            <FiltroMultiplo
+              valores={filters.collaboratorId ?? []}
+              onChange={(v) => onFiltersChange({ ...filters, collaboratorId: v })}
+              opcoes={opcoes.colaboradores}
+              rotuloTodos="Todos os colaboradores"
+              placeholderBusca="Buscar colaborador…"
+              testid="filter-collaborator"
+              larguraPopover={340}
+              rotuloVarios={plural("colaborador", "colaboradores")}
+            />
+          </div>
 
-        {/* Escalação */}
-        <div>
-          <FilterLabel icon={ArrowUpDown} text="Escalação" />
-          <MultiSelectFilter
-            options={[
-              { value: "pending", label: "Pendentes de escalação" },
-              { value: "escalated", label: "Já escalados" },
-              { value: "aguardando_producao", label: "Aguardando gestor" },
-              { value: "cancelado", label: "Cancelados" },
-            ]}
-            selected={filters.escalationStatus ?? []}
-            onChange={(value) => onFiltersChange({ ...filters, escalationStatus: value })}
-            placeholder="Todos"
-            testId="filter-escalation"
-          />
+          {/* "Filtros": status, escalação e excluídos — o número de ligados no botão. */}
+          <Popover open={maisAberto} onOpenChange={setMaisAberto}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={`pas-alvo inline-flex shrink-0 items-center gap-1.5 h-[34px] px-3 rounded-lg border bg-card text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary data-[state=open]:border-primary/60 ${
+                  ligadosEmFiltros > 0 ? "border-primary/40 text-primary" : "border-border text-slate-700 hover:bg-muted"
+                }`}
+                data-testid="filtros-mais"
+              >
+                <SlidersHorizontal className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                Filtros
+                {ligadosEmFiltros > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-2xs font-semibold tabular-nums text-primary-foreground">
+                    {ligadosEmFiltros}
+                  </span>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" collisionPadding={12} className="w-[min(560px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border">
+                <span className="text-sm font-semibold text-foreground">Filtros</span>
+                {ligadosEmFiltros > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onFiltersChange({ ...filters, status: [], escalationStatus: [], showDeleted: false })}
+                    className="ml-auto h-[26px] px-2.5 rounded-md text-xs font-medium text-primary hover:bg-brand-soft"
+                  >
+                    Voltar ao padrão
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-3 p-3">
+                <ListaDeMarcar
+                  titulo="Status"
+                  opcoes={opcoes.status}
+                  marcados={status}
+                  onChange={(v) => onFiltersChange({ ...filters, status: v })}
+                  testid="filter-status"
+                />
+                <ListaDeMarcar
+                  titulo="Escalação"
+                  opcoes={opcoes.escalacao}
+                  marcados={escalacao}
+                  onChange={(v) => onFiltersChange({ ...filters, escalationStatus: v })}
+                  testid="filter-escalation"
+                />
+              </div>
+              <label className="flex items-center justify-between gap-3 px-3.5 py-2.5 border-t border-border bg-surface-muted cursor-pointer select-none">
+                <span className="text-sm text-slate-700">Mostrar excluídos</span>
+                <Switch
+                  id="show-deleted"
+                  checked={filters.showDeleted || false}
+                  onCheckedChange={(checked) => onFiltersChange({ ...filters, showDeleted: checked })}
+                  data-testid="checkbox-show-deleted"
+                />
+              </label>
+            </PopoverContent>
+          </Popover>
         </div>
-
-        {/* Passagem */}
-        {showTicketFilter && (
-          <div>
-            <FilterLabel icon={Plane} text="Passagem" />
-            <MultiSelectFilter
-              options={[
-                { value: "needs", label: "Precisa de passagem" },
-                { value: "no-need", label: "Sem passagem" },
-                { value: "purchased", label: "Comprada" },
-                { value: "not-purchased", label: "Não comprada" },
-              ]}
-              selected={filters.ticketStatus ?? []}
-              onChange={(value) => onFiltersChange({ ...filters, ticketStatus: value })}
-              placeholder="Todas"
-              testId="filter-ticket-status"
-            />
-          </div>
-        )}
-
-        {/* Hospedagem */}
-        {showAccommodationFilter && (
-          <div>
-            <FilterLabel icon={BedDouble} text="Hospedagem" />
-            <MultiSelectFilter
-              options={[
-                { value: "needs", label: "Precisa de hotel" },
-                { value: "no-need", label: "Sem hotel" },
-                { value: "reserved", label: "Reservada" },
-                { value: "not-reserved", label: "Não reservada" },
-              ]}
-              selected={filters.accommodationStatus ?? []}
-              onChange={(value) => onFiltersChange({ ...filters, accommodationStatus: value })}
-              placeholder="Todas"
-              testId="filter-accommodation-status"
-            />
-          </div>
-        )}
       </div>
 
-      {/* Linha 2: children (esquerda) + Toggle + Limpar (direita) */}
-      <div className="flex flex-wrap items-center justify-between mt-3.5 pt-3.5 border-t border-border gap-x-4 gap-y-2">
-        <div className="flex items-center gap-3 flex-1 flex-wrap">
-          {children}
+      {/* O que está ligado em "Filtros" vira etiqueta removível; "Limpar" desliga tudo. */}
+      {algumFiltro && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {status.map((s) => (
+            <EtiquetaDeFiltro key={`s-${s}`} etiqueta="Status" valor={nomeDe(opcoes.status, s)} titulo={`status ${nomeDe(opcoes.status, s)}`}
+              onTirar={() => onFiltersChange({ ...filters, status: status.filter((v) => v !== s) })} />
+          ))}
+          {escalacao.map((s) => (
+            <EtiquetaDeFiltro key={`e-${s}`} etiqueta="Escalação" valor={nomeDe(opcoes.escalacao, s)} titulo={`escalação ${nomeDe(opcoes.escalacao, s)}`}
+              onTirar={() => onFiltersChange({ ...filters, escalationStatus: escalacao.filter((v) => v !== s) })} />
+          ))}
+          {filters.showDeleted && (
+            <EtiquetaDeFiltro etiqueta="Exibir" valor="excluídos" titulo="mostrar excluídos"
+              onTirar={() => onFiltersChange({ ...filters, showDeleted: false })} />
+          )}
+          <LimparFiltros onClick={clearFilters} />
         </div>
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {rightActions}
-
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <Switch
-              id="show-deleted"
-              checked={filters.showDeleted || false}
-              onCheckedChange={(checked) => onFiltersChange({ ...filters, showDeleted: checked })}
-              data-testid="checkbox-show-deleted"
-            />
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar excluídos</span>
-          </label>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-danger-strong text-sm font-medium transition-colors"
-            data-testid="button-clear-filters"
-          >
-            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-            Limpar filtros
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

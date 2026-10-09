@@ -3,7 +3,7 @@
  * Decidir antes de aplicar: campo · resumo em chips · nomes a mapear ·
  * mapeamentos salvos · como vai entrar · formatos aceitos.
  */
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardPaste } from "lucide-react";
 import type { Function as FunctionType } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -33,13 +33,15 @@ export function PasteDialog({ paste, dates, sortedFunctions, presentFunctionIds 
   return (
     <Dialog open={showPaste} onOpenChange={(o) => { if (!o) closePaste(); }}>
       <DialogContent className="max-w-[680px] max-h-[90vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] w-[calc(100%-2rem)] rounded-xl sm:w-full">
-        <DialogHeader className="px-4 sm:px-5 pt-5 pb-3 pr-12">
-          <DialogTitle>Colar da planilha</DialogTitle>
+        <DialogHeader className="space-y-1.5 border-b border-border px-4 pb-3.5 pr-12 pt-5 text-left sm:px-5">
+          <DialogTitle className="flex items-center gap-2">
+            <ClipboardPaste className="h-4 w-4 text-primary" aria-hidden="true" /> Colar da planilha
+          </DialogTitle>
           <DialogDescription>Copie as linhas no Excel e cole aqui — o formato é reconhecido sozinho e nada entra na grade antes do "Aplicar".</DialogDescription>
         </DialogHeader>
 
         {/* Corpo rolável: 1. campo · 2. resumo em chips · 3. nomes a mapear · 4. como vai entrar · 5. formato */}
-        <div className="overflow-y-auto px-4 sm:px-5 pb-4 space-y-3">
+        <div className="space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
           <Label htmlFor="sug-paste" className="sr-only">Conteúdo colado</Label>
           {/* Mudou o conteúdo colado → os nomes não reconhecidos são perguntados de novo. */}
           <Textarea
@@ -185,12 +187,12 @@ export function PasteDialog({ paste, dates, sortedFunctions, presentFunctionIds 
                 {pasteParsed.rows.map((r) => {
                   const days = dates.filter((d) => (r.quantities[d] || 0) > 0);
                   return (
-                    <li key={r.rowId} className="flex items-baseline gap-2 px-3 py-1.5 text-xs">
-                      <span className="w-[150px] shrink-0 truncate font-semibold text-foreground" title={r.functionName}>
+                    <li key={r.rowId} className="px-3 py-1.5 text-xs sm:flex sm:items-baseline sm:gap-2">
+                      <span className="block truncate font-semibold text-foreground sm:w-[150px] sm:shrink-0" title={r.functionName}>
                         {r.functionName}
                         {presentFunctionIds.has(r.functionId) && <span className="ml-1 font-normal text-warning">(substitui)</span>}
                       </span>
-                      <span className="min-w-0 truncate font-mono tabular-nums text-slate-600">
+                      <span className="block min-w-0 truncate font-mono tabular-nums text-slate-600">
                         {days.length > 0 ? days.map((d) => `${formatDayMonthBr(d)}×${r.quantities[d]}`).join(" · ") : "sem quantidades"}
                       </span>
                     </li>

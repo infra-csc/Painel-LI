@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Secao } from "./inclusion-details/details-shared";
 import type { ScalingMutations } from "./use-scaling-mutations";
+import { avisoDeTrocaPendente, type NormalizedSwap } from "@/lib/swap-types";
 
 export interface ProductionApprovalCardProps {
   inclusion: TeamInclusion;
@@ -19,9 +20,11 @@ export interface ProductionApprovalCardProps {
   mutations: Pick<ScalingMutations, "approveProduction" | "rejectProduction">;
   /** Evento encerrado: motivo do bloqueio (esconde Aprovar/Reprovar). */
   blockReason?: string | null;
+  /** Pedido de troca pendente na vaga (09/10): reprovar cancela o pedido no servidor. */
+  trocaPendente?: Pick<NormalizedSwap, "requestedByName"> | null;
 }
 
-export function ProductionApprovalCard({ inclusion, canApprove, mutations, blockReason }: ProductionApprovalCardProps) {
+export function ProductionApprovalCard({ inclusion, canApprove, mutations, blockReason, trocaPendente }: ProductionApprovalCardProps) {
   const [showApprove, setShowApprove] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const { approveProduction, rejectProduction } = mutations;
@@ -102,7 +105,7 @@ export function ProductionApprovalCard({ inclusion, canApprove, mutations, block
         icon={XCircle}
         tone="danger"
         title="Reprovar escalação de cenotécnica?"
-        description={<>O colaborador será <span className="font-semibold text-slate-700">removido da vaga</span> e a escalação voltará para o estágio de escalação, aguardando um novo colaborador ser escolhido.</>}
+        description={<>O colaborador será <span className="font-semibold text-slate-700">removido da vaga</span> e a escalação voltará para o estágio de escalação, aguardando um novo colaborador ser escolhido.{trocaPendente && <span className="mt-2 block font-medium text-warning" data-testid="aviso-troca-pendente">{avisoDeTrocaPendente(trocaPendente)}</span>}</>}
         confirmLabel="Sim, reprovar"
         pending={rejectProduction.isPending}
         onConfirm={() => rejectProduction.mutate(inclusion.id, { onSuccess: () => setShowReject(false) })}

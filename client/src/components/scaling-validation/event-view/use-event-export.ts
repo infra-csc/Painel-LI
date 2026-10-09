@@ -27,6 +27,13 @@ export function useEventExport(h: EventHistory, tl: EventTimelineData, eventId: 
         : effectiveTab === "escala" ? !!eventId && boardRows.length > 0
           : filteredRequests.length > 0
   );
+  /** Quantas linhas o arquivo vai ter (o diálogo diz antes do download; a Escala ganha a linha "Total por dia"). */
+  const exportRows = (
+    effectiveTab === "timeline" ? filteredTimeline.length
+      : effectiveTab === "lista" ? filteredRows.length
+        : effectiveTab === "escala" ? (boardLines.length ? boardLines.length + 1 : 0)
+          : filteredRequests.length
+  );
   const exportFilename = `historico-escala-${slugify(selectedEvent?.name ?? (eventId ? "evento" : "todos-os-eventos"))}-${effectiveTab}-${todayIso()}.csv`;
   const exportCsv = () => {
     setExportOpen(false);
@@ -103,7 +110,7 @@ export function useEventExport(h: EventHistory, tl: EventTimelineData, eventId: 
     downloadCsv(filename, header, lines);
   };
 
-  return { exportOpen, setExportOpen, exportEnabled, exportFilename, exportCsv };
+  return { exportOpen, setExportOpen, exportEnabled, exportRows, exportFilename, exportCsv };
 }
 
 export type EventExport = ReturnType<typeof useEventExport>;

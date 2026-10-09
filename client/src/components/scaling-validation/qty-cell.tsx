@@ -117,13 +117,18 @@ export const QtyCell = memo(function QtyCell({ value, rowId, date, rowIdx, colId
         onChange={onInput}
         onKeyDown={onKeyDown}
         onFocus={(e) => e.currentTarget.select()}
+        // 07/10: célula sem moldura até ser apontada (a grade era um mar de
+        // caixinhas iguais); preenchida, ganha o azul da marca em três tons
+        // pelo tamanho do número (`data-nivel`, ver `.sug-qtd` no index.css) —
+        // o dia mais cheio salta aos olhos sem ler número por número.
+        data-nivel={value <= 0 ? undefined : value >= 9 ? 3 : value >= 4 ? 2 : 1}
         className={cn(
-          "h-8 w-12 rounded-lg text-center text-xs font-semibold tabular-nums transition-colors outline-none",
-          "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground disabled:opacity-60",
+          "sug-qtd h-8 w-12 rounded-md border text-center text-xs font-semibold tabular-nums outline-none",
+          "placeholder:text-slate-300 focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60",
           value > 0
-            ? "bg-brand-soft text-primary border border-primary/30"
-            : "bg-card text-muted-foreground border border-border",
-          clamped && "ring-2 ring-warning-strong focus:ring-warning-strong border-warning-strong",
+            ? "border-primary/20 text-primary"
+            : "sug-qtd-vazia bg-transparent text-muted-foreground hover:border-border hover:bg-card",
+          clamped && "border-warning-strong ring-2 ring-warning-strong focus:ring-warning-strong",
         )}
       />
       {clamped && <span className="sr-only" role="status">Máximo de {QTY_MAX} por dia</span>}

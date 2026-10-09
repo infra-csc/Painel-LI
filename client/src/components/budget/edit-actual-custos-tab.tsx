@@ -1,20 +1,27 @@
 /**
- * Aba "Custos" do modal do Realizado — 25/09 (modularização).
+ * Aba "Custos" do modal do Realizado — 25/09 (modularização); redesenho 08/10.
  *
- * Quatro blocos extraídos de budget-actual.tsx: Diárias (grade de dias +
- * dia extra), Mobilidade/Translado (somente leitura), Viagem (horários que
- * dirigem a alimentação — não persistidos) e Alimentação (recalculada pela
- * viagem, editável). O estado vem de `useBudgetActualEditor`.
+ * Quatro blocos: Diárias (grade de dias + dia extra), Mobilidade/Translado
+ * (somente leitura), Viagem (horários que dirigem a alimentação — não
+ * persistidos) e Alimentação (recalculada pela viagem, editável). O estado
+ * vem de `useBudgetActualEditor`.
+ *
+ * 08/10: blocos brancos com o cabeçalho da família (o mesmo do modal do
+ * Planejado: ícone na cor do bloco e o total à direita) no lugar das faixas
+ * coloridas; campos com borda e anel de foco; o dia vira uma linha com caixa
+ * de "trabalhou", data, planejado e realizado alinhados em colunas; a
+ * diferença das diárias por extenso. Mesmos campos, mesmas regras.
  */
-import { AlertTriangle, ArrowLeft, ArrowRight, Car, Calendar, Check, Lock, Moon, Plane, Plus, RefreshCw, Sun, Utensils } from "lucide-react";
-import { formatarMoeda } from "@/lib/format";
+import { AlertTriangle, ArrowLeft, ArrowRight, Calendar, Car, Lock, Moon, Plane, Plus, RefreshCw, Sun, Utensils } from "lucide-react";
 import { CurrencyInput } from "@/components/common/currency-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FUNCAO_LOCAL_RAZAO } from "@shared/calculation-rules";
 import type { BudgetActual, BudgetPlanned } from "@shared/schema";
 import type { EditorDoRealizado } from "@/hooks/use-budget-actual-editor";
+import { cn } from "@/lib/utils";
 import { isWeekendDate, TRAVEL_SOURCE_LABEL, type AlimField, type EditFormBase, type TravelSource } from "./actual-utils";
-
-const formatCurrency = formatarMoeda;
+import { CabecalhoDoBloco, inputCls } from "./edit-modal-custos-tab";
+import { formatCurrency } from "./types";
 
 export interface CustosTabRealizadoProps {
   editor: EditorDoRealizado;
@@ -35,7 +42,10 @@ export interface CustosTabRealizadoProps {
 
 const ddmm = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
-/** ── Diárias — editável (grade por dia + dia extra + barra de divergência) ── */
+/** Bloco branco da família. */
+const BLOCO = "bg-card rounded-xl border border-border overflow-hidden";
+
+/** ── Diárias — editável (grade por dia + dia extra + diferença) ── */
 function DiariasBlock(p: CustosTabRealizadoProps) {
   const { editor, isReadOnly, planned, plannedValorUtil, plannedValorFds, plannedSubDiarias, subtotalDiariasRaw } = p;
   const { editDayEntries, setEditDayEntries, showAddDay, setShowAddDay, setExtraDayEdge } = editor;
@@ -45,99 +55,70 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
   const ultimoDiaAtivo = sortedActiveDays[sortedActiveDays.length - 1]?.date ?? null;
   const diffDiarias = subtotalDiariasRaw - plannedSubDiarias;
   const pctDiarias = plannedSubDiarias > 0 ? ((subtotalDiariasRaw - plannedSubDiarias) / plannedSubDiarias * 100) : 0;
+  const sub = editDayEntries.length > 0
+    ? `${activeDayEntries.length} de ${editDayEntries.length} ${editDayEntries.length === 1 ? "dia trabalhado" : "dias trabalhados"}`
+    : undefined;
   return (
-    <div className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-primary bg-brand-soft">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-primary/25 bg-primary-hover/5">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-md bg-primary-hover flex items-center justify-center">
-            <Calendar className="w-3 h-3 text-white" aria-hidden="true" />
-          </div>
-          <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
-          <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary">
-            {activeDayEntries.length} {activeDayEntries.length === 1 ? "dia ativo" : "dias ativos"}
-          </span>
-        </div>
-        <span className="text-sm font-bold font-mono text-primary tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
-      </div>
-      {/* Col headers */}
-      <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 bg-surface-muted px-4 py-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
-        <span className="w-5" />
-        <span>Data</span>
-        <span className="text-right">Planejado</span>
+    <div className={BLOCO}>
+      <CabecalhoDoBloco icone={Calendar} cor="text-primary" titulo="Diárias" sub={sub} total={subtotalDiariasRaw} />
+      {/* Colunas: trabalhou · dia · planejado · realizado */}
+      <div className="rea-dia grid items-center gap-x-3 px-4 py-1.5 bg-surface-muted/70 border-b border-border text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+        <span><span className="sr-only">Trabalhou</span></span>
+        <span>Dia</span>
+        <span className="text-right">{planned ? "Planejado" : ""}</span>
         <span className="text-right pr-1">Realizado</span>
       </div>
-      {/* Day rows */}
-      <div className="max-h-48 overflow-y-auto divide-y divide-border">
+      <div className="divide-y divide-border">
         {editDayEntries.length === 0 && (
-          <div className="px-4 py-6 text-center text-2xs text-muted-foreground">
-            Nenhuma data no período da escalação
-          </div>
+          <p className="m-0 px-4 py-6 text-center text-xs text-muted-foreground">Nenhuma data no período da escalação.</p>
         )}
         {editDayEntries.map((entry, idx) => {
           const date = new Date(entry.date + "T00:00:00");
-          const dayLabel = date.toLocaleDateString("pt-BR", { weekday: "short" });
-          const dateLabel = date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+          const dayLabel = date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+          const dateLabel = ddmm(entry.date);
           const plannedVal = entry.isWeekend ? plannedValorFds : plannedValorUtil;
           const isChanged = planned && plannedVal > 0 && entry.active && entry.valueCents !== plannedVal;
           return (
-            <div
-              key={entry.date}
-              className={`grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 px-4 py-2 transition-colors
-                ${!entry.active ? "opacity-40 bg-surface-muted/60" : "hover:bg-brand-soft/20"}`}
-            >
-              {/* Toggle */}
-              <button
-                type="button"
+            <div key={entry.date} className={cn("rea-dia grid items-center gap-x-3 px-4 py-1.5 transition-colors", !entry.active && "bg-surface-muted/60")}>
+              <Checkbox
+                checked={entry.active}
                 disabled={isReadOnly}
-                onClick={() => setEditDayEntries(prev => prev.map((x, i) => i === idx ? { ...x, active: !x.active } : x))}
-                className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors
-                  ${entry.active ? "bg-primary-hover text-white" : "bg-border text-muted-foreground"}
-                  ${isReadOnly ? "cursor-not-allowed" : "cursor-pointer hover:opacity-80"}`}
-              >
-                {entry.active && <Check className="w-2.5 h-2.5" aria-hidden="true" />}
-              </button>
-              {/* Date + label */}
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-xs font-semibold text-slate-700 tabular-nums">{dateLabel}</span>
-                <span className="text-2xs text-muted-foreground capitalize">{dayLabel}</span>
-                {entry.isWeekend && (
-                  <span className="text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 px-1.5 rounded-full shrink-0">FDS</span>
-                )}
+                onCheckedChange={() => setEditDayEntries(prev => prev.map((x, i) => i === idx ? { ...x, active: !x.active } : x))}
+                aria-label={`Dia ${dateLabel} trabalhado`}
+                className="pas-alvo"
+              />
+              <div className={cn("flex items-center gap-1.5 min-w-0", !entry.active && "opacity-55")}>
+                <span className={cn("text-sm font-medium tabular-nums text-foreground", !entry.active && "line-through decoration-muted-foreground/60")}>{dateLabel}</span>
+                <span className="text-xs text-muted-foreground capitalize">{dayLabel}</span>
+                {entry.isWeekend && <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-warning-soft text-warning text-2xs font-medium">fds</span>}
+                {!entry.active && <span className="text-2xs text-muted-foreground">não trabalhou</span>}
               </div>
-              {/* Planned reference */}
-              <div className="text-right">
-                {planned && plannedVal > 0
-                  ? <span className="text-2xs text-muted-foreground font-mono tabular-nums">{formatCurrency(plannedVal)}</span>
-                  : <span className="text-2xs text-slate-200">—</span>}
-              </div>
-              {/* Actual value input */}
+              <span className="text-right text-xs tabular-nums text-muted-foreground">
+                {planned && plannedVal > 0 ? formatCurrency(plannedVal) : <span aria-hidden="true">—</span>}
+              </span>
               <CurrencyInput
-                key={entry.date}
+                semEstilo
                 value={entry.valueCents}
                 onChange={v => setEditDayEntries(prev => prev.map((x, i) => i === idx ? { ...x, valueCents: v } : x))}
                 disabled={!entry.active || isReadOnly}
-                className={`text-right w-24 font-mono tabular-nums border rounded-md font-semibold
-                  focus:border-primary focus:ring-2 focus:ring-ring/15 focus:bg-card
-                  ${!entry.active || isReadOnly
-                    ? "bg-surface-muted border-border opacity-40 cursor-not-allowed"
-                    : isChanged
-                      ? "bg-warning-soft border-warning/25"
-                      : "bg-card border-border cursor-text"} text-sm`}
-                style={{ height: 38 }}
+                aria-label={`Diária realizada em ${dateLabel}`}
+                className={cn(inputCls, isChanged && "border-warning/60 bg-warning-soft/40")}
               />
             </div>
           );
         })}
       </div>
-      {/* Add extra day */}
+      {/* Dia extra */}
       {!isReadOnly && (
-        <div className="px-4 py-2 border-t border-border bg-card">
+        <div className="px-4 py-2 border-t border-border">
           {showAddDay ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs font-medium text-slate-600" htmlFor="rea-dia-extra">Dia extra</label>
               <input
+                id="rea-dia-extra"
                 type="date"
                 autoFocus
-                className="h-7 text-xs border border-primary rounded-lg px-2 text-slate-700 bg-brand-soft focus:outline-none focus:ring-2 focus:ring-ring/20"
+                className="h-9 text-sm tabular-nums rounded-lg border border-primary/60 px-2.5 text-foreground bg-card outline-none focus:ring-[3px] focus:ring-primary/12"
                 onChange={e => {
                   const newDate = e.target.value;
                   if (!newDate) return;
@@ -160,7 +141,7 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
                   setShowAddDay(false);
                 }}
                 onBlur={() => setShowAddDay(false)}
-                onKeyDown={e => { if (e.key === "Escape") setShowAddDay(false); }}
+                onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setShowAddDay(false); } }}
               />
               <span className="text-2xs text-muted-foreground">Esc para cancelar</span>
             </div>
@@ -168,20 +149,21 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
             <button
               type="button"
               onClick={() => setShowAddDay(true)}
-              className="flex items-center gap-1.5 text-2xs font-semibold text-primary hover:text-primary-hover transition-colors py-0.5"
+              className="pas-alvo inline-flex items-center gap-1.5 h-8 px-2 -ml-2 rounded-lg text-xs font-medium text-primary hover:bg-brand-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Plus className="w-3 h-3" aria-hidden="true" />
-              Adicionar Dia Extra
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              Adicionar dia extra
             </button>
           )}
         </div>
       )}
-      {/* Divergence bar */}
+      {/* Diferença das diárias para o planejado */}
       {planned && Math.abs(diffDiarias) > 1 && (
-        <div className={`px-4 py-1.5 text-center border-t border-border ${diffDiarias < 0 ? "bg-success-soft" : "bg-danger-soft"}`}>
-          <span className={`text-2xs font-semibold tabular-nums ${diffDiarias < 0 ? "text-success" : "text-danger-strong"}`}>
+        <div className={cn("flex items-center justify-between gap-3 px-4 py-2 border-t border-border text-xs", diffDiarias < 0 ? "bg-success-soft/60" : "bg-danger-soft/60")}>
+          <span className="text-slate-600">{diffDiarias > 0 ? "Acima do planejado" : "Abaixo do planejado"} nas diárias</span>
+          <span className={cn("font-semibold tabular-nums", diffDiarias < 0 ? "text-success" : "text-danger")}>
             {diffDiarias > 0 ? "+" : "−"}{formatCurrency(Math.abs(diffDiarias))}
-            {plannedSubDiarias > 0 && <span className="ml-1 opacity-70">({diffDiarias > 0 ? "+" : ""}{pctDiarias.toFixed(0)}%)</span>}
+            {plannedSubDiarias > 0 && <span className="ml-1 font-normal opacity-80">({diffDiarias > 0 ? "+" : ""}{pctDiarias.toFixed(0)}%)</span>}
           </span>
         </div>
       )}
@@ -189,64 +171,35 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
   );
 }
 
+/** Rótulo "definido pelo RH" dos blocos que não se editam aqui. */
+const DefinidoPeloRh = (
+  <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" />definido pelo RH</span>
+);
+
 /** ── Mobilidade e Translado — somente leitura (definidos pelo RH) ── */
 function MobilidadeBlock({ editingItem, editFormData, modalMobility }: Pick<CustosTabRealizadoProps, "editingItem" | "editFormData" | "modalMobility">) {
   return (
     <>
-      <div
-        className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-border bg-surface-muted"
-        title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
-      >
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
-              <Car className="w-3 h-3 text-white" aria-hidden="true" />
-            </div>
-            <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Mobilidade</span>
-            <span className="text-2xs font-medium text-muted-foreground flex items-center gap-0.5">
-              <Lock className="w-2.5 h-2.5" aria-hidden="true" />
-              Definido pelo RH
-            </span>
+      <div className={BLOCO} title="Este valor é definido pelo RH e não pode ser alterado nesta etapa">
+        <CabecalhoDoBloco icone={Car} cor="text-slate-500" titulo="Mobilidade" sub={DefinidoPeloRh} total={modalMobility} />
+        <dl className="m-0 grid grid-cols-2 divide-x divide-border">
+          <div className="px-4 py-2.5">
+            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><ArrowRight className="w-3 h-3" aria-hidden="true" />Ida</dt>
+            <dd className="m-0 mt-0.5 text-sm font-medium tabular-nums text-slate-700">{formatCurrency(editFormData.mobilityIda)}</dd>
           </div>
-          <span className="text-sm font-bold text-muted-foreground tabular-nums font-mono">{formatCurrency(modalMobility)}</span>
-        </div>
-        <div className="divide-y divide-border">
-          <div className="flex items-center justify-between px-4 py-2.5">
-            <div className="flex items-center gap-2">
-              <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-              <span className="text-xs text-muted-foreground">Ida</span>
-            </div>
-            <span className="text-sm font-mono tabular-nums text-muted-foreground">{formatCurrency(editFormData.mobilityIda)}</span>
+          <div className="px-4 py-2.5">
+            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><ArrowLeft className="w-3 h-3" aria-hidden="true" />Volta</dt>
+            <dd className="m-0 mt-0.5 text-sm font-medium tabular-nums text-slate-700">{formatCurrency(editFormData.mobilityVolta)}</dd>
           </div>
-          <div className="flex items-center justify-between px-4 py-2.5 bg-surface-muted">
-            <div className="flex items-center gap-2">
-              <ArrowLeft className="w-3 h-3 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-              <span className="text-xs text-muted-foreground">Volta</span>
-            </div>
-            <span className="text-sm font-mono tabular-nums text-muted-foreground">{formatCurrency(editFormData.mobilityVolta)}</span>
-          </div>
-        </div>
+        </dl>
       </div>
 
       {/* ── Translado — somente leitura (entra no total gravado; sem esta
            linha o total do rodapé não fechava aos olhos do responsável) ── */}
       {editingItem.transport > 0 && (
-        <div
-          className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-border bg-surface-muted"
-          title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
-        >
-          <div className="flex items-center justify-between px-4 py-2.5 bg-muted">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
-                <Car className="w-3 h-3 text-white" aria-hidden="true" />
-              </div>
-              <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Translado</span>
-              <span className="text-2xs font-medium text-muted-foreground flex items-center gap-0.5">
-                <Lock className="w-2.5 h-2.5" aria-hidden="true" />
-                Definido pelo RH
-              </span>
-            </div>
-            <span className="text-sm font-bold text-muted-foreground tabular-nums font-mono">{formatCurrency(editingItem.transport)}</span>
+        <div className={BLOCO} title="Este valor é definido pelo RH e não pode ser alterado nesta etapa">
+          <div className="[&>div]:border-b-0">
+            <CabecalhoDoBloco icone={Car} cor="text-slate-500" titulo="Translado" sub={DefinidoPeloRh} total={editingItem.transport} />
           </div>
         </div>
       )}
@@ -256,11 +209,11 @@ function MobilidadeBlock({ editingItem, editFormData, modalMobility }: Pick<Cust
 
 const sourcePill = (src: TravelSource) => (
   <span
-    className={`text-2xs px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${
+    className={cn("inline-flex items-center h-5 px-1.5 rounded-md text-2xs font-medium whitespace-nowrap",
       src === "passagem" ? "bg-success-soft text-success"
       : src === "sugerido" ? "bg-warning-soft text-warning"
       : src === "manual" ? "bg-brand-soft text-primary"
-      : "bg-muted text-muted-foreground"}`}
+      : "bg-muted text-muted-foreground")}
   >
     {TRAVEL_SOURCE_LABEL[src]}
   </span>
@@ -276,111 +229,68 @@ function ViagemBlock({ editor, isReadOnly, modalVoa }: Pick<CustosTabRealizadoPr
   const sortedActiveDays = editDayEntries.filter(d => d.active).sort((a, b) => a.date.localeCompare(b.date));
   const primeiroDiaAtivo = sortedActiveDays[0]?.date ?? null;
   const ultimoDiaAtivo = sortedActiveDays[sortedActiveDays.length - 1]?.date ?? null;
-  const horaCls = (edge: "primeiro" | "ultimo") => `h-8 w-[104px] text-xs font-mono tabular-nums rounded-md border px-2 text-slate-700 transition-colors
-    focus:outline-none focus:border-info-strong focus:ring-2 focus:ring-info-strong/15
-    ${isReadOnly ? "bg-surface-muted border-border opacity-50 cursor-not-allowed"
-      : extraDayEdge === edge ? "bg-warning-soft border-warning-strong ring-2 ring-warning/40"
-      : "bg-card border-border"}`;
+  const horaCls = (edge: "primeiro" | "ultimo") => cn(
+    "h-9 w-[112px] px-2.5 text-sm tabular-nums rounded-lg border bg-card text-foreground outline-none transition-[border-color,box-shadow]",
+    "focus:border-primary focus:ring-[3px] focus:ring-primary/12 disabled:bg-muted disabled:text-muted-foreground",
+    extraDayEdge === edge && !isReadOnly ? "border-warning-strong ring-[3px] ring-warning/30" : "border-border",
+  );
+  const linha = (
+    icone: React.ReactNode, rotulo: string, dia: string | null, src: TravelSource, edge: "primeiro" | "ultimo",
+    ref: React.RefObject<HTMLInputElement>, valor: string, aria: string, onChange: (v: string) => void, aviso: string,
+  ) => (
+    <div className="px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        {icone}
+        <span className="text-xs font-medium text-slate-700">
+          {rotulo}
+          {dia && <span className="font-normal text-muted-foreground tabular-nums"> · {ddmm(dia)}</span>}
+        </span>
+        <span className="ml-auto flex items-center gap-2">
+          {sourcePill(src)}
+          <input ref={ref} type="time" step={60} aria-label={aria} disabled={isReadOnly} value={valor} onChange={e => onChange(e.target.value)} className={horaCls(edge)} />
+        </span>
+      </div>
+      {extraDayEdge === edge && (
+        <p className="pas-entra m-0 mt-1.5 text-xs font-medium text-warning">{aviso}</p>
+      )}
+    </div>
+  );
   return (
-    <div className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-info-strong bg-brand-soft">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-info/25 bg-info-strong/6">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-md bg-info-strong flex items-center justify-center">
-            <Plane className="w-3 h-3 text-white" aria-hidden="true" />
-          </div>
-          <span className="text-2xs font-semibold text-info uppercase tracking-wide">Viagem</span>
-        </div>
-        <span className="text-2xs text-muted-foreground text-right">Define as refeições do 1º e do último dia</span>
+    <div className={BLOCO}>
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border">
+        <h3 className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs font-semibold uppercase tracking-[0.06em] text-slate-600">
+          <Plane className="w-3.5 h-3.5 text-info" aria-hidden="true" />
+          Viagem
+          <span className="normal-case tracking-normal font-normal text-muted-foreground">define as refeições do 1º e do último dia</span>
+        </h3>
       </div>
 
       {modalVoa ? (
         <div className="divide-y divide-border">
           {/* Chegada (ida) — vale no PRIMEIRO dia ativo */}
-          <div className="px-4 py-2.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <ArrowRight className="w-3 h-3 text-info-strong flex-shrink-0" aria-hidden="true" />
-              <span className="text-xs text-slate-600">
-                Chegada (ida)
-                {primeiroDiaAtivo && <span className="text-muted-foreground"> · {ddmm(primeiroDiaAtivo)}</span>}
-              </span>
-              <div className="flex-1" />
-              {sourcePill(travelSource.chegada)}
-              <input
-                ref={chegadaInputRef}
-                type="time"
-                step={60}
-                aria-label="Horário de chegada da ida"
-                disabled={isReadOnly}
-                value={editTravel.chegadaIda}
-                onChange={e => {
-                  const v = e.target.value;
-                  setTravelManual(prev => ({ ...prev, chegadaIda: v }));
-                  setExtraDayEdge(prev => prev === "primeiro" ? null : prev);
-                }}
-                className={horaCls("primeiro")}
-              />
-            </div>
-            {extraDayEdge === "primeiro" && (
-              <p className="mt-1.5 text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 rounded-lg px-2 py-1">
-                Este passou a ser o primeiro dia — confirme o horário de chegada.
-              </p>
-            )}
-          </div>
-
+          {linha(<ArrowRight className="w-3.5 h-3.5 text-info shrink-0" aria-hidden="true" />, "Chegada (ida)", primeiroDiaAtivo, travelSource.chegada, "primeiro",
+            chegadaInputRef, editTravel.chegadaIda, "Horário de chegada da ida",
+            v => { setTravelManual(prev => ({ ...prev, chegadaIda: v })); setExtraDayEdge(prev => prev === "primeiro" ? null : prev); },
+            "Este passou a ser o primeiro dia — confirme o horário de chegada.")}
           {/* Partida (volta) — vale no ÚLTIMO dia ativo */}
-          <div className="px-4 py-2.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <ArrowLeft className="w-3 h-3 text-info-strong flex-shrink-0" aria-hidden="true" />
-              <span className="text-xs text-slate-600">
-                Partida (volta)
-                {ultimoDiaAtivo && <span className="text-muted-foreground"> · {ddmm(ultimoDiaAtivo)}</span>}
-              </span>
-              <div className="flex-1" />
-              {sourcePill(travelSource.partida)}
-              <input
-                ref={partidaInputRef}
-                type="time"
-                step={60}
-                aria-label="Horário de partida da volta"
-                disabled={isReadOnly}
-                value={editTravel.partidaVolta}
-                onChange={e => {
-                  const v = e.target.value;
-                  setTravelManual(prev => ({ ...prev, partidaVolta: v }));
-                  setExtraDayEdge(prev => prev === "ultimo" ? null : prev);
-                }}
-                className={horaCls("ultimo")}
-              />
-            </div>
-            {extraDayEdge === "ultimo" && (
-              <p className="mt-1.5 text-2xs font-semibold text-warning bg-warning-soft border border-warning/25 rounded-lg px-2 py-1">
-                Este passou a ser o último dia — confirme o horário de partida.
-              </p>
-            )}
-          </div>
-
-          <div className="px-4 py-1.5 bg-surface-muted/60">
-            <p className="text-2xs text-muted-foreground leading-snug">
-              Chegada até 11h paga almoço e até 19h paga jantar no primeiro dia; na volta,
-              partida a partir das 13h paga almoço e a partir das 21h paga jantar.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="px-4 py-2.5">
-          <p className="text-2xs text-muted-foreground">
-            Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados,
-            sem depender de horário de viagem.
+          {linha(<ArrowLeft className="w-3.5 h-3.5 text-info shrink-0" aria-hidden="true" />, "Partida (volta)", ultimoDiaAtivo, travelSource.partida, "ultimo",
+            partidaInputRef, editTravel.partidaVolta, "Horário de partida da volta",
+            v => { setTravelManual(prev => ({ ...prev, partidaVolta: v })); setExtraDayEdge(prev => prev === "ultimo" ? null : prev); },
+            "Este passou a ser o último dia — confirme o horário de partida.")}
+          <p className="m-0 px-4 py-2 bg-surface-muted/70 text-2xs leading-4 text-muted-foreground">
+            Chegada até 11h paga almoço e até 19h paga jantar no primeiro dia; na volta,
+            partida a partir das 13h paga almoço e a partir das 21h paga jantar.
           </p>
         </div>
+      ) : (
+        <p className="m-0 px-4 py-2.5 text-xs text-muted-foreground">
+          Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados,
+          sem depender de horário de viagem.
+        </p>
       )}
     </div>
   );
 }
-
-const ALIM_INPUT_CLS = (isReadOnly: boolean) => `text-right w-28 font-mono tabular-nums border rounded-md font-semibold
-  focus:border-warning-strong focus:ring-2 focus:ring-warning-strong/15 focus:bg-card
-  ${isReadOnly ? "bg-surface-muted border-border opacity-50 cursor-not-allowed" : "bg-card border-border cursor-text"} text-sm`;
 
 /** ── Alimentação — calculada pela viagem, editável ── */
 function AlimentacaoBlock(p: CustosTabRealizadoProps) {
@@ -395,99 +305,85 @@ function AlimentacaoBlock(p: CustosTabRealizadoProps) {
   const alimEstimada = modalVoa && !semAlimentacao && (!editTravel.chegadaIda || !editTravel.partidaVolta);
 
   const linha = (icon: React.ReactNode, label: string, sub: string, key: AlimField) => (
-    <div className="flex items-center justify-between gap-2 px-4 py-2">
-      <div className="flex items-center gap-1.5 min-w-0">
+    <div className="flex items-center justify-between gap-3 px-4 py-2">
+      <span className="flex items-center gap-1.5 min-w-0 text-xs text-slate-700">
         {icon}
-        <span className="text-xs text-slate-600">{label} <span className="text-muted-foreground">({sub})</span></span>
-      </div>
+        {label} <span className="text-muted-foreground tabular-nums">{sub}</span>
+      </span>
       <CurrencyInput
+        semEstilo
         value={editFormData[key]}
         onChange={v => setAlimField(key, v)}
         disabled={isReadOnly}
-        className={ALIM_INPUT_CLS(isReadOnly)}
-        style={{ height: 34 }}
+        aria-label={`${label} — ${sub} (R$)`}
+        className={inputCls}
       />
     </div>
   );
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden border-l-[3px] border-l-warning-strong bg-warning-soft">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-warning/25 bg-warning-strong/6">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-5 h-5 rounded-md bg-warning-strong flex items-center justify-center">
-            <Utensils className="w-3 h-3 text-white" aria-hidden="true" />
-          </div>
-          <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
-          {alimManual && (
-            <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-brand-soft text-primary whitespace-nowrap">
-              ajustado manualmente
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {!isReadOnly && !semAlimentacao && (
-            <button
-              type="button"
-              onClick={recalcAlimentacao}
-              className="flex items-center gap-1 text-2xs font-semibold text-warning hover:text-warning bg-card border border-warning/25 rounded-lg px-2 py-1 transition-colors hover:bg-warning-soft"
-              title="Recalcula almoço e jantar pelos dias ativos e pelos horários de chegada/partida"
-            >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" />
-              Recalcular pela viagem
-            </button>
-          )}
-          <span className="text-sm font-bold text-warning tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
-        </div>
-      </div>
+    <div className={BLOCO}>
+      <CabecalhoDoBloco
+        icone={Utensils}
+        cor="text-warning"
+        titulo="Alimentação"
+        sub={alimManual ? <span className="inline-flex items-center h-5 px-1.5 rounded-md bg-brand-soft text-primary text-2xs font-medium">ajustada à mão</span> : undefined}
+        total={totalAlimentacao}
+        extra={!isReadOnly && !semAlimentacao ? (
+          <button
+            type="button"
+            onClick={recalcAlimentacao}
+            className="pas-alvo inline-flex items-center gap-1 h-7 px-2 rounded-md text-xs font-medium text-slate-700 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            title="Recalcula almoço e jantar pelos dias trabalhados e pelos horários de chegada/partida"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+            <span className="max-sm:hidden">Recalcular pela viagem</span><span className="sm:hidden">Recalcular</span>
+          </button>
+        ) : undefined}
+      />
 
       {/* Avisos */}
       {alimStale && !isReadOnly && (
-        <div className="px-4 py-2 bg-warning-soft border-b border-warning/25 flex items-center gap-2 flex-wrap">
-          <AlertTriangle className="w-3.5 h-3.5 text-warning-strong flex-shrink-0" aria-hidden="true" />
-          <span className="text-2xs text-warning flex-1 min-w-0">
+        <div className="pas-entra flex flex-wrap items-center gap-2 px-4 py-2 bg-warning-soft border-b border-warning/25">
+          <AlertTriangle className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />
+          <span className="text-xs text-warning flex-1 min-w-0">
             Os dias ou horários mudaram depois do seu ajuste — os valores não foram recalculados.
           </span>
           <button
             type="button"
             onClick={recalcAlimentacao}
-            className="text-2xs font-semibold text-warning underline underline-offset-2 hover:text-warning"
+            className="text-xs font-semibold text-warning underline underline-offset-2 hover:no-underline"
           >
             Recalcular pela viagem
           </button>
         </div>
       )}
       {semAlimentacao && (
-        <div className="px-4 py-2 bg-surface-muted border-b border-border">
-          <p className="text-2xs text-muted-foreground">
-            {modalFuncaoLocal ? FUNCAO_LOCAL_RAZAO : "Percurso — alimentação já incluída no pacote fechado."}
-          </p>
-        </div>
+        <p className="m-0 px-4 py-2 bg-surface-muted/70 border-b border-border text-xs text-muted-foreground">
+          {modalFuncaoLocal ? FUNCAO_LOCAL_RAZAO : "Percurso — alimentação já incluída no pacote fechado."}
+        </p>
       )}
       {!semAlimentacao && alimEstimada && !alimManual && (
-        <div className="px-4 py-2 bg-warning-soft/60 border-b border-warning/25">
-          <p className="text-2xs text-warning">
-            Sem horário de {!editTravel.chegadaIda && !editTravel.partidaVolta ? "chegada e partida" : !editTravel.chegadaIda ? "chegada" : "partida"} —
-            o dia foi assumido cheio. Informe o horário acima para o cálculo exato.
-          </p>
-        </div>
+        <p className="m-0 px-4 py-2 bg-warning-soft/60 border-b border-warning/25 text-xs text-warning">
+          Sem horário de {!editTravel.chegadaIda && !editTravel.partidaVolta ? "chegada e partida" : !editTravel.chegadaIda ? "chegada" : "partida"} —
+          o dia foi assumido cheio. Informe o horário acima para o cálculo exato.
+        </p>
       )}
 
       <div className="divide-y divide-border">
         {!showAlimUtil && !showAlimFds && (
-          <div className="px-4 py-4 text-center text-2xs text-muted-foreground">
-            Nenhuma refeição prevista para os dias ativos.
-          </div>
+          <p className="m-0 px-4 py-4 text-center text-xs text-muted-foreground">Nenhuma refeição prevista para os dias trabalhados.</p>
         )}
         {showAlimUtil && (
           <>
-            {linha(<Sun className="w-3 h-3 text-warning-strong flex-shrink-0" aria-hidden="true" />, "Almoço", `dias úteis · ${activeWeekdays}`, "weekdayLunch")}
-            {linha(<Moon className="w-3 h-3 text-primary/70 flex-shrink-0" aria-hidden="true" />, "Jantar", `dias úteis · ${activeWeekdays}`, "weekdayDinner")}
+            {linha(<Sun className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />, "Almoço", `dias úteis · ${activeWeekdays}`, "weekdayLunch")}
+            {linha(<Moon className="w-3.5 h-3.5 text-primary/70 shrink-0" aria-hidden="true" />, "Jantar", `dias úteis · ${activeWeekdays}`, "weekdayDinner")}
           </>
         )}
         {showAlimFds && (
           <>
-            {linha(<Sun className="w-3 h-3 text-warning-soft flex-shrink-0" aria-hidden="true" />, "Almoço", `fins de semana · ${activeWeekends}`, "weekendLunch")}
-            {linha(<Moon className="w-3 h-3 text-primary/70 flex-shrink-0" aria-hidden="true" />, "Jantar", `fins de semana · ${activeWeekends}`, "weekendDinner")}
+            {linha(<Sun className="w-3.5 h-3.5 text-warning shrink-0" aria-hidden="true" />, "Almoço", `fins de semana · ${activeWeekends}`, "weekendLunch")}
+            {linha(<Moon className="w-3.5 h-3.5 text-primary/70 shrink-0" aria-hidden="true" />, "Jantar", `fins de semana · ${activeWeekends}`, "weekendDinner")}
           </>
         )}
       </div>
@@ -497,11 +393,13 @@ function AlimentacaoBlock(p: CustosTabRealizadoProps) {
 
 export function EditActualCustosTab(p: CustosTabRealizadoProps) {
   return (
-    <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-4 bg-surface-muted" style={{ maxHeight: "52vh" }}>
-      <DiariasBlock {...p} />
-      <MobilidadeBlock editingItem={p.editingItem} editFormData={p.editFormData} modalMobility={p.modalMobility} />
-      {!p.semAlimentacao && <ViagemBlock editor={p.editor} isReadOnly={p.isReadOnly} modalVoa={p.modalVoa} />}
-      <AlimentacaoBlock {...p} />
+    <div className="flex-1 overflow-y-auto min-h-0 bg-surface-muted">
+      <div className={cn("px-4 sm:px-6 py-4 space-y-3", p.isReadOnly && "select-none")}>
+        <DiariasBlock {...p} />
+        <MobilidadeBlock editingItem={p.editingItem} editFormData={p.editFormData} modalMobility={p.modalMobility} />
+        {!p.semAlimentacao && <ViagemBlock editor={p.editor} isReadOnly={p.isReadOnly} modalVoa={p.modalVoa} />}
+        <AlimentacaoBlock {...p} />
+      </div>
     </div>
   );
 }

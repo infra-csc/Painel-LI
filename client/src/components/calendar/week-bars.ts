@@ -45,8 +45,11 @@ export function computeWeekBars(week: Date[], events: Event[]): EventBar[] {
     const s = parseLocalDate(ev.startDate);
     const e = parseLocalDate(ev.endDate);
 
-    const startCol = s < weekStart ? 0 : s.getDay();
-    const endCol = e > weekEnd ? 6 : e.getDay();
+    // Coluna = dias desde o 1º dia da linha (08/10: a grade passou a começar na
+    // segunda; getDay() supunha domingo na coluna 0).
+    const coluna = (d: Date) => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - weekStart.getTime()) / 86_400_000);
+    const startCol = s < weekStart ? 0 : coluna(s);
+    const endCol = e > weekEnd ? 6 : coluna(e);
     const isStart = s >= weekStart;
     const isEnd = e <= weekEnd;
 

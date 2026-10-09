@@ -134,19 +134,20 @@ describe("InvoiceCard", () => {
     const { unmount } = montarCard({ invoice: notaFiscalFake({ status: "aprovada" }) });
     expect(getEffectiveStatus(notaFiscalFake({ status: "aprovada" }))).toBe("checkin-pendente");
     expect(screen.getByText("Aguard. check-in")).toBeInTheDocument();
-    expect(screen.getByText("Aprovada · aguardando check-in financeiro")).toBeInTheDocument();
+    // 08/10 (redesenho): a linha diz o que falta embaixo da pílula.
+    expect(screen.getByText("aprovada, falta o check-in")).toBeInTheDocument();
     unmount();
     montarCard({ invoice: notaFiscalFake({ status: "aprovada", checkinAt: new Date("2026-03-10T12:00:00Z"), paymentDate: "2026-03-15" }) });
-    // "Check-in realizado" aparece na pílula do cabeçalho e no bloco do corpo; o bloco traz as datas.
-    const bloco = screen.getAllByText(/Check-in realizado/).find((el) => el.textContent?.includes("Pgto"));
-    expect(bloco).toHaveTextContent("10/03/2026");
-    expect(bloco).toHaveTextContent("Pgto: 15/03/2026");
+    // A pílula "Check-in realizado" e, embaixo dela, a data de pagamento e a do check-in.
+    expect(screen.getByText("Check-in realizado")).toBeInTheDocument();
+    expect(screen.getByText("Pgto: 15/03/2026")).toBeInTheDocument();
+    expect(screen.getByText("check-in em 10/03/2026")).toBeInTheDocument();
   });
 });
 
 // ── Painel do RH (aba Aprovação): devolver exige motivo ──────────────────────
 
-function PainelDevolver({ inv, fechar }: { inv: Invoice; fechar: () => void }) {
+function PainelDevolver({ inv, fechar, tipo = "return" }: { inv: Invoice; fechar: () => void; tipo?: "return" | "reject" }) {
   const [comment, setComment] = useState("");
   const [tocouMotivo, setTocouMotivo] = useState(false);
   const [checkinDate, setCheckinDate] = useState("");
@@ -156,7 +157,7 @@ function PainelDevolver({ inv, fechar }: { inv: Invoice; fechar: () => void }) {
   return (
     <table><tbody>
       <AprovacaoActionPanel
-        inv={inv} cfg={getStatusCfg("enviada")} type="return"
+        inv={inv} cfg={getStatusCfg("enviada")} type={tipo}
         comment={comment} setComment={setComment} tocouMotivo={tocouMotivo} setTocouMotivo={setTocouMotivo}
         checkinDate={checkinDate} setCheckinDate={setCheckinDate} closeAction={fechar}
         approveMutation={m.approveMutation} returnMutation={m.returnMutation} rejectMutation={m.rejectMutation} checkinMutation={m.checkinMutation}
@@ -209,24 +210,55 @@ describe("AprovacaoActionPanel — devolver", () => {
   });
 });
 
+describe("AprovacaoActionPanel — recusar (08/10: mesma validação do motivo)", () => {
+  const motivo = () => screen.getByLabelText(/Motivo da recusa/) as HTMLTextAreaElement;
+  it("sem motivo: aria-invalid ao sair do campo; Esc cancela; com motivo, Ctrl+Enter recusa", async () => {
+    const fetchMock = mockarFetch((url) => respostaJson({}, 200, url));
+    const fechar = vi.fn();
+    const { user } = renderComTudo(<PainelDevolver inv={notaFiscalFake({ id: "nf-9", status: "enviada" })} fechar={fechar} tipo="reject" />);
+    expect(motivo()).toHaveFocus();
+    expect(motivo()).toBeRequired();
+    await user.tab();
+    expect(motivo()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent("Informe o motivo da recusa.");
+    await user.type(motivo(), "CNPJ errado");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() => expect(fechar).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/invoices/nf-9/reject");
+  });
+
+  it("Esc dentro do painel fecha sem chamar a API", async () => {
+    const fetchMock = mockarFetch((url) => respostaJson({}, 200, url));
+    const fechar = vi.fn();
+    const { user } = renderComTudo(<PainelDevolver inv={notaFiscalFake({ status: "enviada" })} fechar={fechar} tipo="reject" />);
+    await user.keyboard("{Escape}");
+    expect(fechar).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 // ── Stepper do topo ──────────────────────────────────────────────────────────
 
 describe("InvoiceStepper", () => {
+  // 08/10 (redesenho): cada etapa é um bloco do resumo — número grande, o que
+  // ele quer dizer ("a enviar", "em análise", "a fazer" ou "em dia") e quanto soma.
   it("etapa com pendências fica atual (com contagem); etapa sem pendências aparece concluída", () => {
-    renderComTudo(<InvoiceStepper counts={{ lancamento: 2, aprovacao: 0, checkin: 1 }} />);
+    renderComTudo(<InvoiceStepper counts={{ lancamento: 2, aprovacao: 0, checkin: 1 }} valores={{ lancamento: 203200, aprovacao: 0, checkin: 101600 }} />);
     const lista = screen.getByRole("list", { name: "Etapas das notas fiscais" });
     const [lancamento, aprovacao, checkin] = within(lista).getAllByRole("listitem");
     expect(lancamento).toHaveTextContent("Lançamento");
-    expect(within(lancamento).getByText("2 aguardando")).toHaveAttribute("title", "2 itens aguardando nesta etapa");
+    expect(lancamento).toHaveTextContent("2a enviar");
+    expect(lancamento).toHaveAttribute("title", "2 itens sem nota enviada ou com nota devolvida");
+    expect(within(lancamento).getByText("R$ 2.032,00")).toBeInTheDocument();
     expect(within(lancamento).getByText("Lançamento")).toHaveClass("text-primary");
     expect(within(aprovacao).getByText("Aprovação RH")).toHaveClass("text-success");
-    expect(within(aprovacao).queryByText(/aguardando/)).toBeNull();
-    expect(within(checkin).getByText("1 aguardando")).toHaveAttribute("title", "1 item aguardando nesta etapa");
+    expect(within(aprovacao).getByText("em dia")).toBeInTheDocument();
+    expect(checkin).toHaveAttribute("title", "1 item com nota aprovada, aguardando o check-in financeiro");
   });
 
   it("tudo zerado: as três etapas concluídas", () => {
     renderComTudo(<InvoiceStepper counts={{ lancamento: 0, aprovacao: 0, checkin: 0 }} />);
-    expect(screen.queryByText(/aguardando/)).toBeNull();
+    expect(screen.getAllByText("em dia")).toHaveLength(3);
     ["Lançamento", "Aprovação RH", "Check-in"].forEach((etapa) => expect(screen.getByText(etapa)).toHaveClass("text-success"));
   });
 });

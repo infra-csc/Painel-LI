@@ -69,12 +69,14 @@ export const QtyCell = memo(function QtyCell({ value, rowIdx, colIdx, functionNa
       onChange={onInput}
       onKeyDown={onKeyDown}
       onFocus={e => e.currentTarget.select()}
+      // 07/10: célula vazia sem caixa (a grade inteira de caixinhas era ruído);
+      // a borda aparece no hover/foco. Preenchida = fundo da marca.
       className={cn(
-        "h-7 w-12 rounded-lg text-center text-xs font-semibold tabular-nums transition-colors outline-none",
-        "focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground",
+        "inc-qtd h-7 w-11 rounded-md border text-center text-xs font-semibold tabular-nums outline-none",
+        "focus:border-primary focus:ring-2 focus:ring-primary/25 focus:bg-card placeholder:text-muted-foreground/60",
         value > 0
-          ? "bg-brand-soft text-primary border border-primary/30"
-          : cn("bg-card text-muted-foreground border border-border", isWeekend && "bg-warning-soft/40"),
+          ? "bg-brand-soft text-primary border-primary/30"
+          : cn("bg-transparent text-muted-foreground border-transparent hover:border-border hover:bg-card", isWeekend && "hover:bg-warning-soft/60"),
       )}
     />
   );

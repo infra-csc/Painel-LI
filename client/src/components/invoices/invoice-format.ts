@@ -20,6 +20,28 @@ export function fmtDate(raw?: string | Date | null) {
   return `${day}/${m}/${y}`;
 }
 
+/**
+ * "09/10 – 11/10/2026" (ou só o dia, quando começa e termina no mesmo) — a
+ * segunda linha do seletor de evento da barra, igual à do Planejado (08/10).
+ */
+export function periodoDoEvento(e: { startDate?: string | null; endDate?: string | null } | undefined): string {
+  if (!e?.startDate) return "";
+  const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  if (!e.endDate || e.endDate === e.startDate) return `${ddmm(e.startDate)}/${e.startDate.slice(0, 4)}`;
+  return `${ddmm(e.startDate)} – ${ddmm(e.endDate)}/${e.endDate.slice(0, 4)}`;
+}
+
+/** Texto para a busca: minúsculo e sem acento ("João" acha "joao"). */
+export function paraBusca(s: string | null | undefined): string {
+  return (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+/** "há 3 dias", "hoje", "há 1 dia" — prazo da nota na fila do RH. */
+export function haDias(d: number): string {
+  if (d <= 0) return "hoje";
+  return `há ${d} ${d === 1 ? "dia" : "dias"}`;
+}
+
 export function fmtDateTime(raw?: string | Date | null) {
   const s = iso(raw);
   if (!s) return null;

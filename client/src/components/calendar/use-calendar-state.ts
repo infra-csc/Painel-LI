@@ -2,6 +2,11 @@
  * Estado do Calendário (25/09 — extraído de pages/calendar.tsx): visão,
  * mês/semana, status e busca na URL; navegação; consulta de eventos; recorte e
  * contadores por status; evento aberto no painel.
+ *
+ * 07/10 (redesenho): só navegação e apresentação a mais — "Tentar novamente"
+ * (refetch), "Limpar filtros", ir direto ao período de um evento (a saída do
+ * período vazio) e o próximo/último evento em relação a uma data. A consulta,
+ * o recorte por status e a regra de status não mudaram.
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -51,7 +56,7 @@ export function useCalendarState() {
     setSelectedEvent(e);
   }
 
-  const { data: events = [], isLoading, isError, error } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const { data: events = [], isLoading, isError, error, refetch, isFetching } = useQuery<Event[]>({ queryKey: ["/api/events"] });
 
   // Sem isso, uma sessão expirada ou queda de rede viravam "0 eventos" —
   // um calendário vazio indistinguível de uma agenda realmente vazia.
@@ -91,6 +96,15 @@ export function useCalendarState() {
     // Vazio = hoje: a URL fica limpa quando se está no mês/semana corrente.
     setUrlState({ mes: "", semana: "" });
   }
+  /** Leva Mês e Semana ao período que contém `d` (saída do período vazio). Vazio = o corrente. */
+  function irParaDia(d: Date) {
+    const mesCorrente = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+    const semana = getWeekStart(d);
+    setUrlState({
+      mes: mesCorrente ? "" : mesNaUrl(d.getFullYear(), d.getMonth()),
+      semana: semana.getTime() === getWeekStart(today).getTime() ? "" : diaNaUrl(semana),
+    });
+  }
   function prevWeek() { setUrlState({ semana: diaNaUrl(addDays(viewWeekStart, -7)) }); }
   function nextWeek() { setUrlState({ semana: diaNaUrl(addDays(viewWeekStart, 7)) }); }
 
@@ -105,6 +119,27 @@ export function useCalendarState() {
     return map;
   }, [visibleEvents]);
 
+  const hasFilters = statusFilter !== "all" || searchQuery.trim() !== "";
+  function limparFiltros() { setUrlState({ status: "all", q: "" }); }
+
+  // Eventos do recorte em ordem de início — para "Próximo evento: …" no período vazio.
+  const ordenados = useMemo(
+    () => [...filteredEvents].sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [filteredEvents],
+  );
+  /** O primeiro evento que começa depois de `d` (ou `null`). */
+  function proximoDepois(d: Date): Event | null {
+    const ref = diaNaUrl(d);
+    return ordenados.find(ev => ev.startDate > ref) ?? null;
+  }
+  /** O evento que terminou mais perto antes de `d` (ou `null`). */
+  function ultimoAntes(d: Date): Event | null {
+    const ref = diaNaUrl(d);
+    let achado: Event | null = null;
+    for (const ev of ordenados) if (ev.endDate < ref && (!achado || ev.endDate > achado.endDate)) achado = ev;
+    return achado;
+  }
+
   const legendItems = (["concluído", "em andamento", "planejado"] as const).map(key => ({
     key, label: STATUS[key].label, ...STATUS[key].tw,
   }));
@@ -112,8 +147,9 @@ export function useCalendarState() {
   return {
     view, setView, viewYear, viewMonth, viewWeekStart, selectedEvent, setSelectedEvent, clickPos,
     statusFilter, setStatusFilter, searchQuery, setSearchQuery, handleSelectEvent,
-    isLoading, loadErrorMessage, visibleEvents, filteredEvents,
+    isLoading, loadErrorMessage, visibleEvents, filteredEvents, refetch, isFetching,
     prevMonth, nextMonth, goToday, prevWeek, nextWeek, isCurrentMonth, isCurrentWeek, statusCounts, legendItems,
+    hasFilters, limparFiltros, irParaDia, proximoDepois, ultimoAntes,
   };
 }
 

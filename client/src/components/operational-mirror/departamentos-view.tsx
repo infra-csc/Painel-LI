@@ -1,16 +1,20 @@
 /**
- * Visão Departamentos do espelho operacional (25/09 — extraída da página).
+ * Visão Departamentos do espelho operacional (25/09 — extraída da página; redesenho 07/10).
+ *
+ * 07/10: eram cartões soltos com três botões de texto por pessoa ("Passagem",
+ * "Hotel", "Extras") — 72 botões numa tela de 24 pessoas. Agora é uma lista
+ * agrupada num cartão só: o cabeçalho do departamento resume (pessoas, blocos
+ * prontos, custo), e em cada pessoa os próprios valores abrem o bloco
+ * correspondente — o número é o botão.
  */
 import { useMemo } from "react";
-import { ChevronDown, ChevronRight, Building2, Plane, BedDouble, Luggage, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { ChevronRight, Plane, BedDouble, Luggage } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { hotelTotalCents, isHotelTotalDerived, type MirrorRow, type MirrorTotals, type MirrorSubtotal } from "@shared/operational-mirror-types";
 import { BLOCOS_DE_CUSTO, blocoEmUso, blocoPendencia, textoDaSituacao } from "@shared/mirror-pendencia";
 import { cn } from "@/lib/utils";
 import { brl, fmtDate, type OpenDrawer, type PendenciaDe } from "./mirror-shared";
+import type { DrawerKind } from "./drawers";
 
 export interface DepartamentosViewProps {
   pendenciaDe: PendenciaDe;
@@ -37,9 +41,18 @@ export function DepartamentosView({ rows, totals, collapsed, setCollapsed, openD
     (totals?.byDepartment || []).forEach((d) => { if (!m.has(d.name)) m.set(d.name, d); });
     return m;
   }, [totals]);
-  if (groups.length === 0) return <div className="rounded-lg border border-dashed bg-muted/20 py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
+  if (groups.length === 0) return <div className="rounded-xl border border-dashed bg-card py-14 text-center text-sm text-muted-foreground">{emptyMessage}</div>;
+  const todosAbertos = groups.every(([n]) => !collapsed.has(n));
   return (
-    <div className="space-y-3">
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-1">
+      <div className="flex items-center gap-3 border-b border-border bg-surface-muted px-4 py-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <span>Departamento</span>
+        <button type="button"
+          onClick={() => setCollapsed(todosAbertos ? new Set(groups.map(([n]) => n)) : new Set())}
+          className="ml-auto h-6 rounded-md px-2 text-xs font-medium normal-case tracking-normal text-primary transition-colors hover:bg-brand-soft">
+          {todosAbertos ? "Recolher todos" : "Abrir todos"}
+        </button>
+      </div>
       {groups.map(([name, members]) => {
         const dt = deptTotals.get(name);
         const isOpen = !collapsed.has(name);
@@ -60,73 +73,96 @@ export function DepartamentosView({ rows, totals, collapsed, setCollapsed, openD
         }
         const pct = blocosEmUso ? Math.round((blocosProntos / blocosEmUso) * 100) : 100;
         return (
-          <Card key={name} data-testid={`dept-${name}`}>
-            <Collapsible open={isOpen} onOpenChange={(o) => setCollapsed((s) => { const n = new Set(s); if (o) n.delete(name); else n.add(name); return n; })}>
-              <div className="flex items-center gap-3 px-4 py-3">
-                <CollapsibleTrigger className="flex items-center gap-2 min-w-0 text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />}
-                  <Building2 className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
-                  <span className="text-sm font-bold capitalize truncate">{name}</span>
-                </CollapsibleTrigger>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {members.length} {members.length === 1 ? "pessoa" : "pessoas"} · {aCompletar ? `${aCompletar} a completar` : "nenhuma pendência"}
+          <Collapsible key={name} open={isOpen} onOpenChange={(o) => setCollapsed((s) => { const n = new Set(s); if (o) n.delete(name); else n.add(name); return n; })}
+            className="border-b border-border last:border-b-0" data-testid={`dept-${name}`}>
+            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5", isOpen && "bg-surface-muted/50")}>
+              <CollapsibleTrigger className="esp-alvo -ml-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none", isOpen && "rotate-90")} aria-hidden="true" />
+                <span className="truncate text-sm font-semibold capitalize text-foreground">{name}</span>
+              </CollapsibleTrigger>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                {members.length} {members.length === 1 ? "pessoa" : "pessoas"} · {aCompletar ? <span className="font-medium text-warning">{aCompletar} a completar</span> : <span className="text-success">nenhuma pendência</span>}
+              </span>
+              <div className="hidden min-w-[170px] items-center gap-2 md:flex" title={`${blocosProntos} de ${blocosEmUso} blocos em uso prontos`}>
+                <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                  <span className={cn("block h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none", (blocosProntos < blocosEmUso ? "bg-warning-strong" : "bg-success-strong"))} style={{ width: `${pct}%` }} />
                 </span>
-                <div className="hidden md:flex items-center gap-2 min-w-[180px]" title={`${blocosProntos} de ${blocosEmUso} blocos em uso prontos`}>
-                  <span className="h-[5px] flex-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-                    <span className={cn("block h-full rounded-full transition-[width] duration-300", (blocosProntos < blocosEmUso ? "bg-warning-strong" : "bg-success-strong"))} style={{ width: `${pct}%` }} />
-                  </span>
-                  <span className="text-2xs tabular-nums text-muted-foreground whitespace-nowrap">{blocosProntos} de {blocosEmUso} blocos</span>
-                </div>
-                <div className="ml-auto flex items-center gap-3">
-                  {dt && <span className="hidden lg:inline text-xs text-muted-foreground">Passagem {brl(dt.tickets)} · Hotel {brl(dt.hotel)} · Extras {brl(extrasTotal)}</span>}
-                  <span className="font-mono text-base font-bold tabular-nums">{brl(subtotal)}</span>
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => verNaGrade(name)} data-testid={`dept-ver-${name}`}>
-                    Ver na grade
-                  </Button>
-                </div>
+                <span className="whitespace-nowrap text-2xs tabular-nums text-muted-foreground">{blocosProntos} de {blocosEmUso} blocos</span>
               </div>
-              <CollapsibleContent>
-                <Separator />
-                <div className="divide-y">
-                  {members.map((r) => (
-                    <div key={r.teamInclusionId} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2.5 text-sm hover:bg-muted/20">
-                      <div className="font-medium min-w-[180px] flex items-center gap-2">
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-2xs font-bold">{r.collaborator.fullName.slice(0, 2).toUpperCase()}</span>
-                        {r.collaborator.fullName}
-                      </div>
-                      <span className="text-xs text-muted-foreground">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</span>
-                      <span className="flex items-center gap-1 text-xs"><Plane className="h-3 w-3 text-primary" aria-hidden="true" /> {brl(r.ticket?.value)}</span>
-                      <span className={`flex items-center gap-1 text-xs ${isHotelTotalDerived(r) ? "italic" : ""}`} title={isHotelTotalDerived(r) ? "Valor derivado: diária × diárias" : undefined}>
-                        <BedDouble className="h-3 w-3 text-success-strong" aria-hidden="true" /> {brl(hotelTotalCents(r))}
+              <div className="ml-auto flex items-center gap-3">
+                {dt && <span className="hidden text-xs tabular-nums text-muted-foreground 2xl:inline">Passagem {brl(dt.tickets)} · Hotel {brl(dt.hotel)} · Extras {brl(extrasTotal)}</span>}
+                <span className="text-sm font-semibold tabular-nums text-foreground">{brl(subtotal)}</span>
+                <button type="button" onClick={() => verNaGrade(name)} data-testid={`dept-ver-${name}`}
+                  className="esp-alvo inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-slate-700 transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  Ver na grade
+                </button>
+              </div>
+            </div>
+            <CollapsibleContent>
+              <ul className="divide-y divide-border/70 border-t border-border/70">
+                {members.map((r) => {
+                  const n = pendenciaDe(r).abertos.length;
+                  const derivado = isHotelTotalDerived(r);
+                  return (
+                    <li key={r.teamInclusionId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-2 pl-11 pr-4 text-sm transition-colors hover:bg-surface-muted/60 lg:grid-cols-[minmax(180px,1.4fr)_170px_repeat(3,minmax(96px,0.6fr))_120px]">
+                      <span className="flex min-w-0 items-center gap-2 font-medium text-foreground">
+                        <span className="truncate">{r.collaborator.fullName}</span>
                       </span>
-                      <span className="flex items-center gap-1 text-xs"><Luggage className="h-3 w-3 text-warning-strong" aria-hidden="true" /> {brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}</span>
-                      {(() => { const n = pendenciaDe(r).abertos.length; return n > 0
-                        ? <span className="ml-auto inline-flex h-[22px] items-center rounded-md px-[7px] text-2xs font-medium bg-warning-soft text-warning">{textoDaSituacao(n)}</span>
-                        : null; })()}
-                      {canEdit && <>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("ticket", r)}><Pencil className="h-3 w-3 mr-1" aria-hidden="true" /> Passagem</Button>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("accommodation", r)}><Pencil className="h-3 w-3 mr-1" aria-hidden="true" /> Hotel</Button>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openDrawer("extras", r)}><Pencil className="h-3 w-3 mr-1" aria-hidden="true" /> Extras</Button>
-                      </>}
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
+                      <span className="whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground lg:text-left">{fmtDate(r.schedule.startDate)} → {fmtDate(r.schedule.endDate)}</span>
+                      <span className="col-span-2 flex flex-wrap items-center gap-x-1 lg:contents">
+                        <Valor icone={<Plane className="h-3 w-3 text-primary" aria-hidden="true" />} rotulo="Passagem" valor={brl(r.ticket?.value)}
+                          onClick={canEdit ? () => openDrawer("ticket" as DrawerKind, r) : undefined} pessoa={r.collaborator.fullName} />
+                        <Valor icone={<BedDouble className="h-3 w-3 text-success-strong" aria-hidden="true" />} rotulo="Hotel" valor={brl(hotelTotalCents(r))}
+                          italico={derivado} dica={derivado ? "Valor derivado: diária × diárias" : undefined}
+                          onClick={canEdit ? () => openDrawer("accommodation", r) : undefined} pessoa={r.collaborator.fullName} />
+                        <Valor icone={<Luggage className="h-3 w-3 text-warning-strong" aria-hidden="true" />} rotulo="Extras" valor={brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}
+                          onClick={canEdit ? () => openDrawer("extras", r) : undefined} pessoa={r.collaborator.fullName} />
+                        <span className="ml-auto lg:ml-0 lg:text-right">
+                          {n > 0
+                            ? <span className="inline-flex h-[22px] items-center rounded-md bg-warning-soft px-[7px] text-2xs font-medium text-warning">{textoDaSituacao(n)}</span>
+                            : <span className="inline-flex h-[22px] items-center rounded-md bg-success-soft px-[7px] text-2xs font-medium text-success">{textoDaSituacao(0)}</span>}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
         );
       })}
       {/* Rodapé da visão: o mesmo par que fecha Grade e Pessoas — o que está
           na tela e quanto custa. Sem ele, Departamentos era a única visão em
           que o total do recorte não aparecia. */}
-      <div className="flex items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 border-t border-border bg-surface-muted px-4 py-2.5 text-xs text-muted-foreground">
         <span className="tabular-nums">
           {groups.length} {groups.length === 1 ? "departamento" : "departamentos"} · {rows.length} {rows.length === 1 ? "pessoa" : "pessoas"}
         </span>
-        <span className="ml-auto font-mono tabular-nums text-foreground">
+        <span className="ml-auto font-semibold tabular-nums text-foreground">
           {brl(groups.reduce((acc, [nome]) => acc + (deptTotals.get(nome)?.total ?? 0), 0))}
         </span>
       </div>
     </div>
+  );
+}
+
+/** Um valor da pessoa que, para quem edita, abre o bloco no drawer. */
+function Valor({ icone, rotulo, valor, onClick, italico, dica, pessoa }: {
+  icone: React.ReactNode; rotulo: string; valor: string; onClick?: () => void; italico?: boolean; dica?: string; pessoa: string;
+}) {
+  const corpo = (
+    <>
+      {icone}
+      <span className="sr-only">{rotulo}: </span>
+      <span className={cn("tabular-nums", italico && "italic")}>{valor}</span>
+    </>
+  );
+  if (!onClick) return <span className="inline-flex items-center gap-1.5 px-1.5 text-xs text-foreground" title={dica ?? rotulo}>{corpo}</span>;
+  return (
+    <button type="button" onClick={onClick} title={dica ? `${dica} — editar` : `Editar ${rotulo.toLowerCase()}`}
+      aria-label={`Editar ${rotulo.toLowerCase()} de ${pessoa}: ${valor}`}
+      className="inline-flex h-7 items-center gap-1.5 justify-self-start rounded-md px-1.5 text-xs text-foreground transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {corpo}
+    </button>
   );
 }

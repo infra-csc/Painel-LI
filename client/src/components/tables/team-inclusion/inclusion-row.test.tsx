@@ -56,7 +56,8 @@ describe("InclusionRow", () => {
   it("'Precisa de' passagem/hospedagem tem título legível nos dois estados", () => {
     montar({ needsTicket: true, needsAccommodation: false });
     expect(screen.getByTitle("Precisa de passagem")).toBeInTheDocument();
-    expect(screen.getByTitle("Não precisa de hospedagem")).toBeInTheDocument();
+    // 07/10: só o que é preciso vira etiqueta; o "não precisa" fica no title do grupo.
+    expect(screen.getByTitle(/não precisa de hospedagem/)).toBeInTheDocument();
   });
 
   it("status editável: comentários, editar, excluir e cancelar chamam os callbacks com o id", async () => {
@@ -118,7 +119,7 @@ describe("InclusionRow", () => {
 
   it("cancelada fica esmaecida; troca aprovada ganha a etiqueta", () => {
     const { linha } = montar({ isCanceled: true, swapApproved: true, displayStatus: "cancelado" });
-    expect(linha).toHaveClass("opacity-40");
+    expect(linha).toHaveClass("inc-cancelada");
     expect(screen.getByText("Troca aprovada")).toBeInTheDocument();
     expect(screen.getByTestId("status-cancelado")).toHaveTextContent("Cancelada");
   });

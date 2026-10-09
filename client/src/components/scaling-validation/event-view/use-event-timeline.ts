@@ -13,6 +13,8 @@ import { formatDateBr } from "@/lib/dates";
 import { formatDateRange } from "@/lib/utils";
 import { scalingHref } from "@/lib/use-scaling-event";
 import { workDaysOf } from "@/components/scaling-validation/types";
+import { toneDoStatus } from "@/components/common/status-badge";
+import { REQUEST_TYPE_TONE } from "@/components/scaling-approval/request-badges";
 import {
   TIMELINE_EVENTS_STEP, TL_ORDER, batchByMinute, idChips, isDeleted, namesOf, plural, toDate,
   type EventViewRow, type TlCat, type TlDay, type TlDraft, type TlEntry,
@@ -95,7 +97,7 @@ export function useEventTimeline({ eventId, canOpenApproval, rows, requests, row
       if (created) {
         out.push({
           id: `req-${r.id}`, cat: "pedido", at: created, eventId: r.eventId,
-          title: `Pedido de ${tipo.toLowerCase()} aberto`, tag: tipo,
+          title: `Pedido de ${tipo.toLowerCase()} aberto`, tag: tipo, tagTone: REQUEST_TYPE_TONE[r.requestType as ChangeRequestType],
           text: where, author: r.requestedByName ? `${r.requestedByName} (solicitante)` : undefined,
           quote: r.reason ?? undefined, href, linkLabel: "Abrir na Aprovação",
         });
@@ -105,7 +107,7 @@ export function useEventTimeline({ eventId, canOpenApproval, rows, requests, row
         const st = CHANGE_REQUEST_STATUS_LABELS[r.status as ChangeRequestStatus] ?? r.status;
         out.push({
           id: `dec-${r.id}`, cat: "decisao", at: reviewed, eventId: r.eventId,
-          title: `Pedido de ${tipo.toLowerCase()} — ${st.toLowerCase()}`, tag: st,
+          title: `Pedido de ${tipo.toLowerCase()} — ${st.toLowerCase()}`, tag: st, tagTone: toneDoStatus(r.status),
           text: where, author: r.reviewedByName ? `${r.reviewedByName} (aprovador)` : undefined,
           quote: r.reviewComment ?? undefined, href, linkLabel: "Abrir na Aprovação",
         });

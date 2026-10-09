@@ -12,6 +12,10 @@ import { normalizeRole } from "@shared/roles";
 import { destruirSessoesDoUsuario, invalidarCacheDeUsuario, semSegredos } from "../auth-guards";
 import { randomBytes } from "crypto";
 import { createAuditLog, requireRoles, TODOS_OS_PAPEIS, primeiraMensagemDoZod } from "./_compartilhado";
+import {
+  SENHA_MINIMA, MSG_SENHA_DE_OUTRO_ADMIN, camposEditaveisDoUsuario, podeRedefinirSenhaDe, recusaDaEdicaoDeUsuario,
+  type CampoDoUsuario,
+} from "@shared/edicao-de-usuario";
 import bcrypt from "bcryptjs";
 
 export function registrarUsuarios(app: Express): void {
@@ -22,21 +26,24 @@ export function registrarUsuarios(app: Express): void {
   // resetToken ou status por mass assignment); toda resposta sai por
   // semSegredos; toda alteração invalida o cache do gate global.
   const emailSchema = z.string().trim().email("E-mail inválido").transform((e) => e.toLowerCase());
+  // Área vazia ("" ou só espaços) vira null (08/10): antes o banco guardava "".
+  const areaSchema = z.string().trim().nullable().transform((a) => a || null).optional();
+  const senhaSchema = z.string().min(SENHA_MINIMA, `Senha deve ter pelo menos ${SENHA_MINIMA} caracteres`);
   const criarUsuarioSchema = z.object({
     email: emailSchema,
     name: z.string().trim().min(1, "Nome é obrigatório"),
-    password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres").optional(),
+    password: senhaSchema.optional(),
     role: z.enum(TODOS_OS_PAPEIS),
-    area: z.string().trim().nullable().optional(),
+    area: areaSchema,
   }).strict();
   const editarUsuarioSchema = z.object({
     name: z.string().trim().min(1, "Nome é obrigatório").optional(),
     email: emailSchema.optional(),
     role: z.enum(TODOS_OS_PAPEIS).optional(),
     status: z.enum(["pending", "approved", "rejected"]).optional(),
-    area: z.string().trim().nullable().optional(),
+    area: areaSchema,
     currentPassword: z.string().optional(),
-    newPassword: z.string().min(8, "Senha deve ter pelo menos 8 caracteres").optional(),
+    newPassword: senhaSchema.optional(),
     confirmPassword: z.string().optional(),
   }).strict();
 
@@ -106,28 +113,18 @@ export function registrarUsuarios(app: Express): void {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
-    const role = normalizeRole(currentUser.role);
-    const isAdmin = role === 'admin';
-    const canManageUsers = isAdmin || role === 'financial' || role === 'purchasing';
+    // Quem edita o quê: regra única em shared/edicao-de-usuario.ts (08/10 — a
+    // tela de Usuários usa a mesma para travar campos e botões). Mesmas
+    // mensagens e a mesma ordem de antes:
+    //   - Logística Interna/Área de Função não editam terceiros;
+    //   - ninguém muda o próprio perfil/status;
+    //   - perfil, status e área só por administrador (antes o servidor
+    //     descartava em silêncio; agora 403 com mensagem clara);
+    //   - e-mail é a chave do SSO: o de terceiros, só admin.
     const isSelfUpdate = currentUser.id === id;
-
-    if (!canManageUsers && !isSelfUpdate) {
-      return res.status(403).json({ message: "Sem permissão para editar este usuário" });
-    }
-    if (isSelfUpdate && (updateData.role !== undefined || updateData.status !== undefined)) {
-      return res.status(403).json({ message: "Você não pode alterar o próprio perfil ou status." });
-    }
-    // Perfil (role), status e área só por administrador. Antes um RH/Compras
-    // enviava role/area e o servidor descartava em silêncio (o usuário achava
-    // que tinha salvo). Agora responde 403 com mensagem clara.
-    if (!isAdmin && (updateData.role !== undefined || updateData.status !== undefined || updateData.area !== undefined)) {
-      return res.status(403).json({ message: "Só administradores alteram perfil, status e área do usuário." });
-    }
-    // E-mail é a chave do SSO: trocar o de terceiros redireciona a conta para
-    // outra pessoa — só admin.
-    if (!isSelfUpdate && !isAdmin && updateData.email !== undefined) {
-      return res.status(403).json({ message: "Só administradores alteram o e-mail de outro usuário." });
-    }
+    const enviados = (["name", "email", "role", "status", "area"] as const).filter((c) => updateData[c] !== undefined);
+    const recusa = recusaDaEdicaoDeUsuario(currentUser.role, isSelfUpdate, enviados);
+    if (recusa) return res.status(403).json({ message: recusa });
     // Senha: só a própria, com a atual
     if (updateData.newPassword !== undefined && !isSelfUpdate) {
       return res.status(403).json({ message: "A senha só pode ser alterada pelo próprio usuário. Use o reset de senha." });
@@ -145,9 +142,7 @@ export function registrarUsuarios(app: Express): void {
       hashedNewPassword = await bcrypt.hash(updateData.newPassword, 10);
     }
 
-    const allowedFields: readonly ("name" | "email" | "role" | "status" | "area")[] = isAdmin
-      ? ['name', 'email', 'role', 'status', 'area']
-      : isSelfUpdate ? ['name', 'email'] : ['name'];
+    const allowedFields: readonly CampoDoUsuario[] = camposEditaveisDoUsuario(currentUser.role, isSelfUpdate);
 
     const filteredData: Partial<typeof targetUser> = {};
     for (const field of allowedFields) {
@@ -266,13 +261,13 @@ export function registrarUsuarios(app: Express): void {
     const userId = req.params.id;
     const user = await storage.getUser(userId);
     if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
-    if (normalizeRole(user.role) === "admin" && user.id !== admin.id) {
-      return res.status(403).json({ message: "A senha de outro administrador não pode ser redefinida por aqui." });
+    if (!podeRedefinirSenhaDe(user.role, user.id === admin.id)) {
+      return res.status(403).json({ message: MSG_SENHA_DE_OUTRO_ADMIN });
     }
 
     const { newPassword } = req.body ?? {};
-    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 8) {
-      return res.status(400).json({ message: "Nova senha deve ter pelo menos 8 caracteres" });
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < SENHA_MINIMA) {
+      return res.status(400).json({ message: `Nova senha deve ter pelo menos ${SENHA_MINIMA} caracteres` });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);

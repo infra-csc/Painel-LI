@@ -36,7 +36,8 @@ test("Planejado com evento em foco → Realizado mantém o mesmo evento (e a URL
   expect(new URL(page.url()).searchParams.get("event")).toBe(idNaUrl);
   // O evento de SP tem Realizado fechado: a tela lista as prestações dele.
   await expect(page.locator("main")).toContainText(/Total realizado/);
-  await expect(page.locator("main")).toContainText(/\d+\s*Prestações/);
+  // 08/10: o resumo do Realizado escreve "22 prestações" (minúscula).
+  await expect(page.locator("main")).toContainText(/\d+\s*prestações/i);
 });
 
 test("Controle RH lista as prestações e filtra pelo card 'Aguardando RH'", async ({ page }) => {
@@ -76,7 +77,8 @@ test("Notas fiscais: devolver sem motivo fica bloqueado; com motivo a nota vira 
   await page.goto("/invoices");
   await expect(page.getByRole("heading", { level: 1, name: /Notas fiscais/ })).toBeVisible();
   await escolherEvento(page);
-  await page.getByRole("button", { name: /^Aprovação RH/ }).click();
+  // 08/10: as abas da tela viraram abas de verdade (role="tab").
+  await page.getByRole("tab", { name: /^Aprovação RH/ }).click();
 
   const tabela = page.getByRole("table", { name: /Notas fiscais: colaborador/ });
   const aguardando = tabela.getByRole("row").filter({ hasText: "Aguardando RH" }).filter({ has: page.getByRole("button", { name: "Devolver" }) });

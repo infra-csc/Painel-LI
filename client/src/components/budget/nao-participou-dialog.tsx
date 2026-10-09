@@ -3,9 +3,15 @@
  * `NaoParticipouDialog` (confirmar ausência com motivo opcional) e
  * `RestoreParticipacaoDialog` (reincluir nos cálculos). Extraídos de
  * budget-planned.tsx; o estado e as mutations vêm de `useBudgetPlannedActions`.
+ *
+ * 08/10 (redesenho): a moldura dos diálogos da família — ícone, pergunta e
+ * para quem no alto, o efeito por extenso, o campo com rótulo de verdade e o
+ * rodapé com Voltar × ação. Antes eram cartões centralizados com animação
+ * própria de "salto" e botões em cinza cheio, diferentes do resto do app.
  */
-import { Calendar, Undo2, UserX } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useId } from "react";
+import { Calendar, Loader2, Undo2, UserX } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ddmmLocal, type NotAttendedModalState, type RestoreModalState } from "./types";
 
@@ -18,67 +24,60 @@ export interface NaoParticipouDialogProps {
   onConfirm: (modal: NotAttendedModalState, reason: string) => void;
 }
 
+const MOLDURA = "max-w-[420px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden";
+const VOLTAR = "inline-flex items-center justify-center h-9 px-4 rounded-lg border border-border bg-card text-sm font-medium text-slate-700 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 export function NaoParticipouDialog({ modal, reason, setReason, onClose, isPending, onConfirm }: NaoParticipouDialogProps) {
+  const motivoId = useId();
   return (
     <Dialog open={!!modal} onOpenChange={onClose}>
-      <DialogContent aria-describedby={undefined} className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6">
-        <DialogHeader className="sr-only">
-          <DialogTitle>Confirmar ausência</DialogTitle>
-        </DialogHeader>
-
+      <DialogContent className={MOLDURA}>
+        {!modal && <DialogTitle className="sr-only">Confirmar ausência</DialogTitle>}
         {modal && (
-          <div className="bg-card flex flex-col items-center px-6 pt-7 pb-6 gap-4"
-            style={{ animation: "modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both" }}>
-
-            {/* Ícone centralizado — círculo rose claro */}
-            <div className="w-11 h-11 rounded-full flex items-center justify-center bg-danger-soft border border-danger/25">
-              <UserX className="w-4.5 h-4.5 text-danger-strong" style={{ width: 18, height: 18 }} aria-hidden="true" />
+          <>
+            <div className="flex items-start gap-3 px-5 pt-5 pb-1 pr-12">
+              <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-danger-soft text-danger shrink-0" aria-hidden="true">
+                <UserX className="w-[18px] h-[18px]" />
+              </span>
+              <div className="min-w-0 pt-0.5">
+                <DialogTitle className="m-0 text-base font-semibold leading-6 text-foreground">Confirmar ausência?</DialogTitle>
+                <p className="m-0 mt-0.5 text-xs leading-5 text-muted-foreground truncate">{modal.name} · {modal.functionName}</p>
+              </div>
             </div>
 
-            {/* Título + subtítulo */}
-            <div className="text-center space-y-1">
-              <h2 className="text-base font-medium text-foreground leading-snug">Confirmar ausência?</h2>
-              <p className="text-xs font-normal text-muted-foreground">{modal.name} · {modal.functionName}</p>
+            <div className="px-5 pt-3 pb-4 space-y-3.5">
+              <DialogDescription className="m-0 text-sm leading-relaxed text-slate-600">
+                Você está marcando que este colaborador não participou deste evento. Os cálculos de diárias e custos associados serão removidos dos totais.
+              </DialogDescription>
+              <div>
+                <label htmlFor={motivoId} className="block mb-1.5 text-xs font-medium text-slate-700">
+                  Motivo <span className="font-normal text-muted-foreground">(opcional)</span>
+                </label>
+                <Textarea
+                  id={motivoId}
+                  className="w-full rounded-lg text-sm resize-none border-border focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 focus-visible:border-primary placeholder:text-muted-foreground"
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder='Ex.: "Desistência", "Problema de saúde", "Substituído"…'
+                  rows={2}
+                  autoFocus
+                />
+              </div>
             </div>
 
-            {/* Texto explicativo */}
-            <p className="text-center text-sm font-normal text-muted-foreground leading-relaxed">
-              Você está marcando que este colaborador não participou deste evento. Os cálculos de diárias e custos associados serão removidos dos totais.
-            </p>
-
-            {/* Campo motivo */}
-            <div className="w-full">
-              <label className="text-2xs font-medium uppercase tracking-widest text-muted-foreground block mb-1.5">
-                Motivo <span className="normal-case tracking-normal font-normal text-muted-foreground">(opcional)</span>
-              </label>
-              <Textarea
-                className="w-full rounded-xl text-sm resize-none border-border focus:border-danger/25 focus:ring-2 focus:ring-danger/25 placeholder:text-muted-foreground"
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                placeholder='Ex: "Desistência", "Problema de saúde", "Substituído"...'
-                rows={2}
-                autoFocus
-              />
-            </div>
-
-            {/* Botões */}
-            <div className="flex gap-2 w-full pt-1">
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-surface-muted">
+              <button type="button" className={VOLTAR} onClick={onClose}>Voltar</button>
               <button
-                className="flex-1 h-10 rounded-xl text-sm font-medium text-slate-600 bg-muted transition-colors hover:bg-border"
-                onClick={onClose}
-              >
-                Voltar
-              </button>
-              <button
-                className="flex-1 h-10 rounded-xl text-sm font-medium text-white flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 bg-danger-strong hover:bg-danger/90"
+                type="button"
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold text-white bg-danger-strong hover:bg-danger transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => onConfirm(modal, reason)}
                 disabled={isPending}
               >
-                <UserX className="w-3.5 h-3.5" aria-hidden="true" />
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <UserX className="w-4 h-4" aria-hidden="true" />}
                 {isPending ? "Confirmando…" : "Confirmar"}
               </button>
             </div>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
@@ -96,56 +95,48 @@ export interface RestoreParticipacaoDialogProps {
 export function RestoreParticipacaoDialog({ modal, onClose, isPending, onConfirm }: RestoreParticipacaoDialogProps) {
   return (
     <Dialog open={!!modal} onOpenChange={onClose}>
-      <DialogContent aria-describedby={undefined} className="max-w-sm p-0 gap-0 rounded-xl overflow-hidden shadow-3 border border-black/6">
-        <DialogHeader className="sr-only">
-          <DialogTitle>Restaurar planejamento</DialogTitle>
-        </DialogHeader>
+      <DialogContent className={MOLDURA}>
+        {!modal && <DialogTitle className="sr-only">Restaurar planejamento</DialogTitle>}
         {modal && (
-          <div className="bg-card flex flex-col items-center px-6 pt-7 pb-6 gap-4"
-            style={{ animation: "modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both" }}>
-
-            {/* Ícone — círculo azul claro */}
-            <div className="w-11 h-11 rounded-full flex items-center justify-center bg-brand-soft border border-primary/25">
-              <Undo2 className="text-primary" style={{ width: 18, height: 18 }} aria-hidden="true" />
+          <>
+            <div className="flex items-start gap-3 px-5 pt-5 pb-1 pr-12">
+              <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-brand-soft text-primary shrink-0" aria-hidden="true">
+                <Undo2 className="w-[18px] h-[18px]" />
+              </span>
+              <div className="min-w-0 pt-0.5">
+                <DialogTitle className="m-0 text-base font-semibold leading-6 text-foreground">Restaurar planejamento?</DialogTitle>
+                <p className="m-0 mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs leading-5 text-muted-foreground">
+                  <span className="truncate">{modal.name} · {modal.functionName}</span>
+                  {modal.startDate && modal.endDate && (
+                    <span className="inline-flex items-center gap-1 tabular-nums">
+                      <Calendar className="w-3 h-3" aria-hidden="true" />
+                      {ddmmLocal(modal.startDate)}{" – "}{ddmmLocal(modal.endDate)}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
 
-            {/* Título + subtítulo */}
-            <div className="text-center space-y-1">
-              <h2 className="text-base font-medium text-foreground leading-snug">Restaurar planejamento?</h2>
-              <p className="text-xs font-normal text-muted-foreground">{modal.name} · {modal.functionName}</p>
-              {modal.startDate && modal.endDate && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md mt-1 bg-brand-soft text-2xs font-medium text-primary border border-primary/25">
-                  <Calendar style={{ width: 10, height: 10 }} aria-hidden="true" />
-                  {ddmmLocal(modal.startDate)}
-                  {" – "}
-                  {ddmmLocal(modal.endDate)}
-                </span>
-              )}
+            <div className="px-5 pt-3 pb-4">
+              <DialogDescription className="m-0 text-sm leading-relaxed text-slate-600">
+                Deseja incluir novamente este colaborador nos cálculos? Todos os valores de diárias, alimentação e mobilidade serão reativados.
+              </DialogDescription>
             </div>
 
-            {/* Texto explicativo */}
-            <p className="text-center text-sm font-normal text-muted-foreground leading-relaxed">
-              Deseja incluir novamente este colaborador nos cálculos? Todos os valores de diárias, alimentação e mobilidade serão reativados.
-            </p>
-
-            {/* Botões */}
-            <div className="flex gap-2 w-full pt-1">
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-surface-muted">
+              <button type="button" className={VOLTAR} onClick={onClose}>Voltar</button>
               <button
-                className="flex-1 h-10 rounded-xl text-sm font-medium text-slate-600 bg-muted transition-colors hover:bg-border"
-                onClick={onClose}
-              >
-                Voltar
-              </button>
-              <button
-                className="flex-1 h-10 rounded-xl text-sm font-medium text-primary-foreground flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 bg-primary hover:bg-primary-hover"
+                type="button"
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold text-primary-foreground bg-primary hover:bg-primary-hover transition-colors disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => { onConfirm(modal.id); onClose(); }}
                 disabled={isPending}
+                autoFocus
               >
-                <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Undo2 className="w-4 h-4" aria-hidden="true" />}
                 {isPending ? "Restaurando…" : "Restaurar"}
               </button>
             </div>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>

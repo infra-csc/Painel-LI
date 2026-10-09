@@ -15,6 +15,10 @@ export function initials(name: string) {
 // Formatador único de moeda (lib/format) — antes cada tela tinha o seu Intl.
 export const fmt = formatarMoeda;
 
+/** Centavos → texto de campo em pt-BR ("1.500,00"), o que `parseBrNumber` lê de volta. */
+export const centavosParaCampo = (centavos: number | null | undefined) =>
+  ((centavos || 0) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 // Campos ajustados pelo RH: aceita string (API de hoje) ou objeto (jsonb) —
 // devolve o objeto ou {} se ausente/inválido (ver lib/json-seguro).
 export function lerAdjustedFields(raw: string | RhAdjustedFields | null | undefined): RhAdjustedFields {
@@ -43,7 +47,12 @@ export interface ComparisonRow {
   variance: number;
   isSplit: boolean;
   splitChildren: BudgetActual[];
+  /** Realizado do grupo (pai + filhos), sem quem não participou. */
   groupActualTotal: number;
+  /** Titular não participou — marcado no Planejado OU no Realizado (@shared/comparativo). */
+  naoParticipou: boolean;
+  /** Planejado que entra nos totais (0 para quem não participou). */
+  plannedNosTotais: number;
 }
 
 export type StatusFilterKey = "para_analise" | "aprovado" | "rejeitado" | "devolvido";

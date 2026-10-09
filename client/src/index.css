@@ -277,6 +277,13 @@
   background-position: -1px -1px;
 }
 
+/* Toasts com modal aberto (07/10): no desktop eles ficam no canto de baixo e
+   cobriam o botão principal do rodapé do modal (ex.: Salvar colaborador).
+   Com um diálogo aberto, a pilha sobe acima da faixa do rodapé. */
+@media (min-width: 640px) {
+  body:has([role="dialog"][data-state="open"]) .casca-toasts { padding-bottom: 104px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .casca-progresso::after { animation-duration: 2.4s; }
   .casca-surgir, .casca-pulso { animation: none; }
@@ -554,4 +561,2854 @@
 @media (prefers-reduced-motion: reduce) {
   .apr-linha, .apr-linha .apr-abrir, .apr-kpi, .apr-kpi .apr-kpi-n { transition: none; }
   .apr-kpi:hover .apr-kpi-n { transform: none; }
+}
+
+/* ══ Espelho operacional (esp-) — redesenho 07/10 ══════════════════════════
+ * Uma planilha operacional: o que o Tailwind não diz bem é a geometria da
+ * grade (altura que acompanha a tela, linhas com borda em `border-separate`
+ * para o cabeçalho grudado manter as dele, sombra da coluna congelada) e os
+ * estados da célula (salvando/salvo/erro, foco de planilha). Esqueleto,
+ * entrada e "sobe" usam as classes `pas-` da família Passagens/Hospedagem. */
+
+/* Barra de trabalho: grudada abaixo da barra da tela (56px) a partir de md. */
+@media (min-width: 768px) {
+  .esp-ferramentas { top: calc(var(--sticky-top, 3.5rem) + 3.5rem); }
+}
+
+/* A grade ocupa o que sobra da tela abaixo das duas barras grudadas (barra da
+   tela 56 + barra de trabalho 52 + faixa "Ir para" e status ~72 + margem de
+   baixo da página 56): rolada até o fim, o cartão inteiro cabe entre a barra
+   de trabalho e o pé da tela — uma rolagem vertical só, a da grade. */
+.esp-grade-rolagem { max-height: calc(100dvh - var(--sticky-top, 3.5rem) - 3.5rem - 3.25rem - 4.5rem - 3.5rem); }
+
+/* Linhas: borda por célula (com border-separate a borda do <tr> não existe). */
+.esp-grade > tbody > tr > td { border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+.esp-grade > tbody > tr:last-child > td { border-bottom-color: transparent; }
+/* Hover da linha: um véu por cima do fundo (sombra interna), não um fundo
+   novo — assim o âmbar de "falta preencher" continua à vista e as colunas
+   congeladas continuam opacas por cima da grade que passa por baixo. */
+.esp-linha > td { transition: box-shadow 100ms ease; }
+.esp-linha:hover > td:not(.esp-erro) { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent); }
+.esp-linha:hover > td.esp-congelada { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+
+/* Coluna congelada: uma sombra curta diz que há grade passando por baixo. */
+.esp-congelada { box-shadow: 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+
+/* Foco de planilha: o contorno da célula selecionada, por dentro. */
+.esp-celula:focus { outline: none; }
+.esp-celula:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--primary), inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 6%, transparent); position: relative; z-index: 1; }
+
+/* Campo aberto na célula: borda de marca e uma sombra, acima das vizinhas. */
+.esp-campo { box-shadow: inset 0 0 0 2px var(--primary), 0 4px 12px -4px color-mix(in srgb, var(--primary) 35%, transparent); border-radius: 2px; }
+
+/* Salvo: o verde aparece e se desfaz (antes sumia de uma vez em 1,2 s). */
+@keyframes esp-salvo { 0% { background-color: color-mix(in srgb, var(--success-strong) 22%, var(--card)); } 100% { background-color: transparent; } }
+.esp-salvo { animation: esp-salvo 1.2s ease-out both; }
+
+/* Erro: fica até a próxima edição — vermelho por dentro e fundo de alerta. */
+.esp-erro { background-color: var(--danger-soft); box-shadow: inset 0 0 0 1.5px var(--danger-strong); }
+
+/* Segmento do placar: o número sobe 1px no hover (é um filtro, não um rótulo). */
+.esp-segmento .esp-segmento-n { transition: transform 140ms ease, color 140ms ease; }
+.esp-segmento:not(:disabled):hover .esp-segmento-n { transform: translateY(-1px); }
+
+/* Faixa que rola de lado sem barra visível (visões no celular). */
+.esp-rolagem-x { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.esp-rolagem-x::-webkit-scrollbar { display: none; }
+/* Abaixo de 1340px as visões podem não caber: a borda direita esmaece e diz "tem mais". */
+@media (max-width: 1339.98px) {
+  .esp-rolagem-x { -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent); mask-image: linear-gradient(to right, black calc(100% - 28px), transparent); }
+}
+
+/* Grupos (quartos, carros): o filete do grupo e a separação entre eles. */
+.esp-grupo > td:first-child { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }
+
+/* Toque: alvo mínimo de 44px nos controles pequenos; e o que só aparece no
+   hover (Mover, Tirar da roteirização) fica sempre à vista — no toque não há hover. */
+@media (pointer: coarse) {
+  .esp-alvo { min-height: 44px; min-width: 44px; }
+  .esp-revela { opacity: 1 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esp-salvo { animation: none; background-color: color-mix(in srgb, var(--success-strong) 12%, var(--card)); }
+  .esp-linha > td, .esp-segmento .esp-segmento-n { transition: none; }
+  .esp-segmento:not(:disabled):hover .esp-segmento-n { transform: none; }
+}
+
+/* ══ Eventos (evt-) — redesenho 07/10 ══════════════════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
+ * pas-rolagem-x, pas-alvo). Aqui só o que é dela: a linha/cartão inteiro que
+ * abre o evento (o ::after do nome cobre a linha), as ações discretas até o
+ * hover, o cabeçalho da tabela grudado e a entrada das visões de calendário. */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px) — só onde a tabela cabe sem
+   rolar de lado: um contêiner que rola prenderia o `sticky` dentro dele. */
+@media (min-width: 1280px) {
+  .evt-moldura { overflow: clip; }
+  .evt-moldura .evt-rolagem { overflow-x: clip; }
+  .evt-tabela > thead > tr > th {
+    position: sticky;
+    top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+    z-index: 2;
+    background: var(--surface-muted);
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+}
+.evt-moldura { border-radius: 0.75rem; }
+.evt-tabela > thead > tr > th:first-child { border-top-left-radius: 0.75rem; }
+.evt-tabela > thead > tr > th:last-child { border-top-right-radius: 0.75rem; }
+
+/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
+.evt-linha, .evt-cartao { position: relative; }
+.evt-linha { transition: background-color 120ms ease; }
+.evt-abrir::after { content: ""; position: absolute; inset: 0; }
+.evt-cartao .evt-abrir::after { border-radius: 0.75rem; }
+.evt-linha:hover .evt-abrir, .evt-cartao:hover .evt-abrir { color: var(--primary); }
+.evt-abrir { transition: color 120ms ease; }
+/* Foco do teclado: o contorno vai na linha/cartão inteiro, não só no nome. */
+.evt-linha:has(.evt-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.evt-cartao:has(.evt-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.evt-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+
+/* Ações: à vista, discretas até a linha ser apontada (antes sumiam por completo). */
+.evt-linha .evt-acao { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.evt-linha:hover .evt-acao, .evt-acao:focus-visible { opacity: 1; }
+@media (pointer: coarse) { .evt-linha .evt-acao { opacity: 1; } }
+
+/* Excluído: esmaecido, mas o "Restaurar" continua inteiro e legível. */
+.evt-excluido > td:not(:last-child) { opacity: .6; }
+
+/* Chip do calendário: sobe 1px no hover (é um botão, não um rótulo). */
+.evt-chip { transition: transform 120ms ease, box-shadow 120ms ease; }
+.evt-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--foreground) 22%, transparent); }
+
+/* Visão de calendário que acabou de abrir. */
+@keyframes evt-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.evt-entra { animation: evt-entra 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .evt-entra { animation: none; }
+  .evt-linha, .evt-abrir, .evt-cartao, .evt-chip, .evt-linha .evt-acao { transition: none; }
+  .evt-chip:hover { transform: none; }
+}
+/* Cartão de quarto/carro (tablet/celular): o mesmo filete do grupo. */
+.esp-grupo-cartao { box-shadow: inset 3px 0 0 var(--esp-cor, var(--border)); }
+
+/* ══ Colaboradores (col-) — redesenho 07/10 ════════════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
+ * pas-rolagem-x, pas-alvo, FilaDeTrabalho, BuscaDaLista). Aqui só o que é
+ * dela: a linha/cartão inteiro que abre a ficha (o ::after do nome cobre a
+ * linha), as ações discretas até o hover, o inativo esmaecido, o cabeçalho
+ * da tabela grudado e as microinterações. */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px) — só onde a tabela cabe
+   sem rolar de lado: um contêiner que rola prenderia o `sticky` dentro dele. */
+@media (min-width: 1024px) {
+  .col-moldura { overflow: clip; }
+  .col-moldura .col-rolagem { overflow-x: clip; }
+  .col-tabela > thead > tr > th {
+    position: sticky;
+    top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+    z-index: 2;
+    background: var(--surface-muted);
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+}
+
+/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
+.col-linha, .col-cartao { position: relative; }
+.col-linha { transition: background-color 120ms ease; }
+.col-linha:hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.col-abrir::after { content: ""; position: absolute; inset: 0; }
+.col-cartao .col-abrir::after { border-radius: 0.75rem; }
+.col-abrir { transition: color 120ms ease; }
+.col-linha:hover .col-abrir, .col-cartao:hover .col-abrir { color: var(--primary); }
+/* Foco do teclado: o contorno vai na linha/cartão inteiro, não só no nome. */
+.col-linha:has(.col-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.col-cartao:has(.col-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.col-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.col-cartao:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+
+/* Ações: à vista, discretas até a linha ser apontada ("Aprovar" fica inteiro). */
+.col-linha .col-acao:not(.col-aprovar) { opacity: .65; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.col-linha:hover .col-acao, .col-acao:focus-visible { opacity: 1; }
+.col-aprovar { transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease; }
+.col-aprovar:active:not(:disabled) { transform: scale(.97); }
+@media (pointer: coarse) { .col-linha .col-acao { opacity: 1; } }
+
+/* Inativo: esmaecido, mas a situação e as ações (Reativar) continuam legíveis. */
+.col-linha.col-inativa > td.col-esmaece { opacity: .62; }
+.col-cartao.col-inativa > :not(:last-child) { opacity: .7; }
+
+/* Tipo de vínculo (segmentado): a marca desliza de opção em opção. */
+.col-segmento { transition: background-color 140ms ease, color 140ms ease; }
+
+/* Ficha que acabou de abrir / trocar de pessoa; aviso de campo que apareceu. */
+@keyframes col-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.col-entra { animation: col-entra 180ms ease-out both; }
+
+/* Grupo do formulário de cadastro: a borda acende quando ele tem pendência. */
+.col-secao { transition: border-color 160ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .col-entra { animation: none; }
+  .col-linha, .col-abrir, .col-cartao, .col-linha .col-acao, .col-aprovar, .col-segmento, .col-secao { transition: none; }
+  .col-aprovar:active:not(:disabled) { transform: none; }
+}
+
+/* ══ Funções (fun-) — redesenho 07/10 ══════════════════════════════════════
+ * A tela usa as peças da família Passagens/Eventos (pas-osso, pas-entra,
+ * pas-alvo, pas-rolagem-x). Aqui só o que é dela: o cabeçalho da lista grudado
+ * abaixo da barra da tela, a linha inteira que abre a função (o ::after do
+ * nome cobre a linha) e as ações discretas até o hover. */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px). `clip` em vez de
+   `hidden`/`auto`: um contêiner que rola prenderia o `sticky` dentro dele. */
+.fun-moldura { overflow: clip; }
+.fun-moldura .fun-rolagem { overflow-x: clip; }
+.fun-tabela > thead > tr > th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linha: o nome é o botão; o ::after dele cobre a linha inteira. Controles da
+   célula (pessoas, +, ações) ficam por cima com `relative z-[1]`. */
+.fun-linha, .fun-linha-escala { position: relative; transition: background-color 120ms ease; }
+.fun-abrir::after { content: ""; position: absolute; inset: 0; }
+.fun-cartao .fun-abrir::after { border-radius: 0.75rem; }
+.fun-abrir { transition: color 120ms ease; }
+.fun-linha:hover .fun-abrir, .fun-cartao:hover .fun-abrir { color: var(--primary); }
+.fun-linha:has(.fun-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.fun-cartao:has(.fun-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.fun-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.fun-cartao:has(.fun-abrir):hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+
+/* Ações: à vista, discretas até a linha ser apontada (antes sumiam por completo). */
+.fun-linha .fun-acao { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.fun-linha:hover .fun-acao, .fun-acao:focus-visible { opacity: 1; }
+@media (pointer: coarse) { .fun-linha .fun-acao { opacity: 1; } }
+
+/* Remover do popover de responsáveis: discreto até a pessoa ser apontada. */
+li .fun-remover { opacity: .55; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
+@media (pointer: coarse) { li .fun-remover { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fun-linha, .fun-linha-escala, .fun-abrir, .fun-cartao, .fun-linha .fun-acao, li .fun-remover { transition: none; }
+}
+
+/* ══ Sugestão de escala (sug-) — redesenho 07/10 ══════════════════════════
+ * Irmã da Validação (val-) e da Aprovação (apr-): esqueleto com `val-osso`.
+ * Aqui só o que o Tailwind não diz bem: a altura da grade (acompanha a tela
+ * entre a barra do topo e a barra de envio), a célula de quantidade em três
+ * tons, o filete dos dias do evento, o hover da linha por cima do fundo, a
+ * coluna congelada e as microinterações (rápidas, discretas, desligadas com
+ * reduced-motion). */
+
+/* A grade ocupa a tela entre a barra da tela (56px) e a barra de envio (~84px):
+   rolada até ela, o cabeçalho dos dias e o rodapé "Pessoas por dia" ficam à
+   vista juntos. Antes eram 560px fixos — num notebook a grade começava abaixo
+   da dobra e terminava escondida atrás da barra de envio. */
+.sug-grade-rolagem {
+  max-height: max(320px, calc(100dvh - var(--sticky-top, 3.5rem) - 3.5rem - 5.75rem));
+}
+
+/* Linha: o hover é um véu por cima do fundo (sombra interna), não um fundo
+   novo — a zebra e o azul da linha aberta continuam à vista. */
+.sug-linha > td { transition: box-shadow 100ms ease; }
+.sug-linha:hover > td { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent); }
+/* Linha com erro: um filete vermelho na borda da função diz "esta trava o envio". */
+.sug-linha[data-estado="erro"] > td:first-child { box-shadow: inset 3px 0 0 var(--danger-strong); }
+.sug-linha[data-estado="aviso"] > td:first-child { box-shadow: inset 3px 0 0 var(--warning-strong); }
+.sug-linha[data-aberta] > td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+
+/* Coluna congelada (a partir de md): uma sombra curta diz que há grade passando por baixo. */
+@media (min-width: 768px) {
+  .sug-col-funcao { box-shadow: 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha:hover > td.sug-col-funcao { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--primary) 4%, transparent), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha[data-estado="erro"] > td.sug-col-funcao { box-shadow: inset 3px 0 0 var(--danger-strong), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha[data-estado="aviso"] > td.sug-col-funcao { box-shadow: inset 3px 0 0 var(--warning-strong), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+  .sug-linha[data-aberta] > td.sug-col-funcao { box-shadow: inset 3px 0 0 var(--primary), 6px 0 8px -8px color-mix(in srgb, var(--foreground) 35%, transparent); }
+}
+
+/* Dias do evento no cabeçalho: filete da marca em cima (o resto é margem de
+   montagem/desmontagem). Fim de semana: a coluna inteira levemente âmbar. */
+.sug-dia-evento { box-shadow: inset 0 3px 0 var(--primary); }
+.sug-fds { background-color: color-mix(in srgb, var(--warning-soft) 40%, transparent); }
+
+/* Célula de quantidade: vazia, só um contorno de leve; preenchida, o azul da
+   marca em três tons pelo tamanho do número (1–3 · 4–8 · 9+). */
+.sug-qtd { transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.sug-qtd-vazia { border-color: color-mix(in srgb, var(--border) 55%, transparent); }
+.sug-qtd[data-nivel="1"] { background-color: color-mix(in srgb, var(--primary) 7%, var(--card)); }
+.sug-qtd[data-nivel="2"] { background-color: color-mix(in srgb, var(--primary) 13%, var(--card)); }
+.sug-qtd[data-nivel="3"] { background-color: color-mix(in srgb, var(--primary) 21%, var(--card)); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
+.sug-qtd:focus { background-color: var(--card); }
+
+/* Logística na linha: os chips quebram em até duas linhas (antes cortavam o
+   botão "Editar viagem" para fora da tela); o que passa disso fica escondido. */
+.sug-chips { max-height: 3.25rem; overflow: hidden; }
+
+/* Ações da linha: à vista, discretas até a linha ser apontada. */
+.sug-linha .sug-revela { opacity: .6; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease, border-color 120ms ease; }
+.sug-linha:hover .sug-revela, .sug-revela:focus-visible, .sug-revela[data-state="open"] { opacity: 1; }
+
+/* Caminhos da grade vazia: o cartão sobe 1px no hover (é um botão, não um aviso). */
+.sug-caminho { transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease; }
+.sug-caminho:hover:not(:disabled) { transform: translateY(-1px); }
+.sug-caminho:active:not(:disabled) { transform: none; }
+
+/* Tecla dos atalhos. */
+.sug-tecla {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem;
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: .3rem;
+  background: var(--surface-muted); color: var(--foreground);
+  font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Rascunho que acabou de ser salvo: o selo acende e se acalma. */
+@keyframes sug-salvo { 0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--success-strong) 22%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.sug-salvo { animation: sug-salvo 900ms ease-out both; }
+
+/* Conteúdo que acabou de aparecer (faixa de estado, painel, recado) e a prévia
+   que sobe da barra de envio. */
+@keyframes sug-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.sug-entra { animation: sug-entra 160ms ease-out both; }
+@keyframes sug-sobe { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+.sug-sobe { animation: sug-sobe 180ms cubic-bezier(.2, 0, 0, 1) both; transform-origin: bottom center; }
+
+/* Enviar: afunda 2% no clique. */
+.sug-enviar { transition: background-color 120ms ease, transform 120ms ease; }
+.sug-enviar:active:not(:disabled) { transform: scale(.98); }
+
+/* Toasts com a barra de envio na tela: a pilha sobe acima dela (cobria o
+   "Enviar" por alguns segundos depois do "Rascunho restaurado"). Diálogo
+   aberto continua com a regra da casca. */
+@media (min-width: 640px) {
+  body:has(.sug-barra-envio):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 84px; }
+}
+
+/* Toque: alvo mínimo de 44px nos controles pequenos; o que só acende no
+   hover fica sempre à vista (no toque não há hover). */
+@media (pointer: coarse) {
+  .sug-alvo { min-height: 44px; min-width: 44px; }
+  .sug-linha .sug-revela { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sug-salvo, .sug-entra, .sug-sobe { animation: none; }
+  .sug-linha > td, .sug-qtd, .sug-linha .sug-revela, .sug-caminho, .sug-enviar { transition: none; }
+  .sug-caminho:hover:not(:disabled), .sug-enviar:active:not(:disabled) { transform: none; }
+}
+
+/* ══ Inclusão de equipe (inc-) — redesenho 07/10 ═══════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem/Eventos (pas-osso,
+ * pas-entra, pas-sobe, pas-alvo, pas-rolagem-x, FilaDeTrabalho). Aqui só o que
+ * é dela: a lista de vagas (cabeçalho grudado no contêiner que rola, linha,
+ * ações discretas, cancelada esmaecida e o cartão abaixo da largura da tabela)
+ * e a grade de montagem (colunas fixas opacas, rodapé "Pessoas por dia",
+ * células de quantidade) — mais as microinterações dos dias e do lote. */
+
+/* Lista: cabeçalho grudado DENTRO do contêiner que rola (base da virtualização). */
+.inc-cabecalho th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linha: só o fundo anima; marcada fica na cor da marca. */
+.inc-linha { background-color: var(--card); transition: background-color 120ms ease; }
+.inc-linha:hover { background-color: color-mix(in srgb, var(--primary) 3.5%, var(--card)); }
+.inc-linha.inc-marcada { background-color: color-mix(in srgb, var(--primary) 7%, var(--card)); }
+
+/* Ações: à vista, discretas até a linha ser apontada (o toque vê tudo inteiro). */
+.inc-linha .inc-acao { opacity: .62; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.inc-linha:hover .inc-acao, .inc-acao:focus-visible { opacity: 1; }
+@media (pointer: coarse) { .inc-linha .inc-acao { opacity: 1; } }
+
+/* Cancelada: esmaecida, mas a situação e as ações continuam legíveis. */
+.inc-linha.inc-cancelada > td.inc-esmaece, .inc-linha.inc-cancelada > td[data-col="id"] { opacity: .55; }
+
+/* Tabela estreita: "Precisa de" só com os ícones (o rótulo fica para o leitor de tela). */
+.inc-compacta .inc-precisa-rotulo {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+/* …e a vaga mostra só o evento (o local truncado em três letras não dizia nada; ele segue no title). */
+.inc-compacta .inc-local { display: none; }
+
+/* ── Cartão (tablet/celular): a MESMA linha em quatro faixas, sem re-renderizar ──
+ *   [☐ #ID  situação ............ ações]
+ *   [colaborador                       ]
+ *   [vaga (função · evento)  | período ]
+ *   [precisa de                        ]                                       */
+.inc-cartao thead { display: none; }
+.inc-cartao table, .inc-cartao tbody, .inc-cartao tr { display: block; width: 100%; }
+.inc-cartao tr.inc-linha { display: flex; flex-wrap: wrap; align-items: center; padding: 8px 4px 12px; }
+.inc-cartao td { display: block; padding: 4px 10px; width: auto; text-align: left !important; }
+.inc-cartao td[data-col="sel"] { order: 1; flex: 0 0 auto; padding-right: 2px; }
+.inc-cartao td[data-col="id"] { order: 2; flex: 0 0 auto; padding-left: 4px; padding-right: 4px; }
+.inc-cartao td[data-col="status"] { order: 3; flex: 1 1 0; min-width: 0; padding-left: 2px; }
+.inc-cartao td[data-col="status"] > div { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.inc-cartao td[data-col="acoes"] { order: 4; flex: 0 0 auto; padding-top: 0; padding-bottom: 0; }
+.inc-cartao td[data-col="colab"] { order: 5; flex: 0 0 100%; padding-top: 6px; }
+.inc-cartao td[data-col="vaga"] { order: 6; flex: 1 1 260px; min-width: 0; }
+.inc-cartao td[data-col="periodo"] { order: 7; flex: 0 0 auto; }
+.inc-cartao td[data-col="precisa"] { order: 8; flex: 0 0 auto; }
+.inc-cartao td.inc-precisa-vazio { display: none; }
+.inc-cartao td[data-col="vaga"]::before,
+.inc-cartao td[data-col="periodo"]::before,
+.inc-cartao td[data-col="precisa"]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+
+/* ── Grade de montagem ──────────────────────────────────────────────────────
+ * `border-separate`: com `collapse`, as células grudadas perdiam a borda ao
+ * rolar. Por isso a linha é desenhada nas células, não no <tr>. */
+.inc-grade thead { background: var(--card); }
+.inc-grade thead th { box-shadow: inset 0 -1px 0 var(--border); }
+.inc-grade-cab, .inc-grade-fixa-cab { background: var(--surface-muted); }
+.inc-grade tbody td { border-bottom: 1px solid var(--border); }
+.inc-grade-fixa { background: var(--card); }
+.inc-grade-fixa-fim { box-shadow: inset -1px 0 0 var(--border); }
+.inc-grade thead th.inc-grade-fixa-fim { box-shadow: inset -1px 0 0 var(--border), inset 0 -1px 0 var(--border); }
+.inc-grade-linha > td { transition: background-color 120ms ease; }
+.inc-grade-linha:hover > td.inc-grade-fixa { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.inc-grade-marcada > td.inc-grade-fixa, .inc-grade-marcada > td:not([class*="bg-warning"]) { background-color: color-mix(in srgb, var(--primary) 6%, var(--card)); }
+.inc-grade tfoot { background: var(--card); }
+.inc-grade-pe, .inc-grade-fixa-pe { background: var(--surface-muted); box-shadow: inset 0 1px 0 var(--border); }
+.inc-grade-fixa-pe.inc-grade-fixa-fim { box-shadow: inset 0 1px 0 var(--border), inset -1px 0 0 var(--border); }
+
+/* Menu ⋯ da linha: discreto até a linha ser apontada. */
+.inc-grade-linha .inc-grade-menu { opacity: .55; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.inc-grade-linha:hover .inc-grade-menu, .inc-grade-menu:focus-visible, .inc-grade-menu[data-state="open"] { opacity: 1; }
+@media (pointer: coarse) { .inc-grade-linha .inc-grade-menu { opacity: 1; } }
+
+/* Célula de quantidade: o número "assenta" ao mudar; o foco é nítido. */
+.inc-qtd { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease; }
+
+/* Dia (editar vaga / diárias em lote): afunda 1 passo no clique. */
+.inc-dia { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 100ms ease; }
+.inc-dia:active { transform: scale(.94); }
+
+/* Diárias em lote: a vaga alterada ganha o filete e o tom da marca. */
+.inc-lote-linha { transition: background-color 160ms ease, box-shadow 160ms ease; }
+.inc-lote-alterada { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); box-shadow: inset 3px 0 0 var(--primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .inc-linha, .inc-linha .inc-acao, .inc-grade-linha > td, .inc-grade-linha .inc-grade-menu, .inc-qtd, .inc-dia, .inc-lote-linha { transition: none; }
+  .inc-dia:active { transform: none; }
+}
+
+/* ══ Calendário (cal-) — redesenho 07/10 ═══════════════════════════════════
+ * A tela usa as peças da família Eventos/Passagens (pas-osso, pas-entra,
+ * pas-alvo, barra de filtros comum). Aqui só o que é dela: a altura das
+ * semanas do Mês (crescem até ocupar a tela), o corpo da Semana, as barras e
+ * chips como botões, a linha da Lista, os painéis flutuantes e a folha do
+ * celular. Tudo rápido e desligado com reduced-motion. */
+
+/* Mês: cada semana tem ao menos 3 faixas + "+N mais"; em telas altas cresce
+   até o mês inteiro caber sem rolar (19,5rem = topo, barra, filtros, cabeçalhos). */
+.cal-semana { min-height: max(7.75rem, calc((100dvh - 19.5rem) / var(--cal-semanas, 5))); }
+/* Semana: as colunas descem até perto do fim da tela. */
+.cal-semana-corpo { min-height: max(16rem, calc(100dvh - 21rem)); }
+
+/* Sábado e domingo: um tom que se vê de relance (o surface-muted a 50% sobre o
+   branco sumia — #FCFDFE). Hoje continua mais forte que o fim de semana. */
+.cal-fds { background-color: color-mix(in srgb, var(--neutral-soft) 72%, var(--card)); }
+.cal-fds-cab { background-color: var(--neutral-soft); }
+
+/* Barra (Mês) e chip (Semana, agenda, "+N mais"): sobem 1px no hover — são botões. */
+.cal-barra, .cal-chip { transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease; }
+.cal-barra:hover, .cal-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+.cal-barra:active, .cal-chip:active { transform: none; filter: brightness(.97); }
+
+/* Lista: a linha inteira é o botão; o foco do teclado contorna a linha. */
+.cal-linha { transition: background-color 120ms ease; }
+.cal-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--card)); }
+.cal-linha:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+/* Meses passados: um passo atrás, de volta ao apontar. */
+.cal-passado { opacity: .72; transition: opacity 160ms ease; }
+.cal-passado:hover, .cal-passado:focus-within { opacity: 1; }
+
+/* Visão que acabou de abrir e período que acabou de trocar. */
+@keyframes cal-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.cal-entra { animation: cal-entra 180ms ease-out both; }
+@keyframes cal-troca { from { opacity: .35; } to { opacity: 1; } }
+.cal-troca { animation: cal-troca 160ms ease-out both; }
+
+/* Painel do evento e popover do dia (desktop): surgem de perto do clique. */
+@keyframes cal-flutua { from { opacity: 0; transform: scale(.97) translateY(2px); } to { opacity: 1; transform: none; } }
+.cal-flutua { animation: cal-flutua 140ms cubic-bezier(.2, 0, 0, 1) both; }
+/* Celular: a folha sobe do rodapé sobre o véu. */
+@keyframes cal-folha { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+.cal-folha { animation: cal-folha 200ms cubic-bezier(.2, 0, 0, 1) both; }
+@keyframes cal-veu { from { opacity: 0; } to { opacity: 1; } }
+.cal-veu { animation: cal-veu 160ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-entra, .cal-troca, .cal-flutua, .cal-folha, .cal-veu { animation: none; }
+  .cal-barra, .cal-chip, .cal-linha, .cal-passado { transition: none; }
+  .cal-barra:hover, .cal-chip:hover { transform: none; }
+}
+
+/* ══ Histórico da escala (hes-) — redesenho 07/10 ═══════════════════════════
+ * Irmã da Sugestão (sug-), da Validação (val-) e da Aprovação (apr-): usa as
+ * peças do módulo (val-osso, val-entra, val-alvo, val-rolagem-x). Aqui só o que
+ * é dela: a trilha da linha do tempo, os cabeçalhos que grudam abaixo da barra
+ * da tela, a tabela que vira cartão pela LARGURA ÚTIL (container query — com o
+ * menu lateral aberto, 1366 px de tela são ~1000 px de conteúdo) e as
+ * microinterações (rápidas, discretas, desligadas com reduced-motion). */
+
+/* Indicador do resumo: o número sobe 1px no hover (é um filtro, não um rótulo). */
+.hes-kpi { transition: background-color 140ms ease; }
+.hes-kpi .hes-kpi-n { transition: transform 140ms ease, color 140ms ease; }
+.hes-kpi:hover .hes-kpi-n { transform: translateY(-1px); }
+
+/* Pílulas de filtro (categorias, legenda): afundam 2% no clique. */
+.hes-pilula { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease, transform 100ms ease; }
+.hes-pilula:active { transform: scale(.97); }
+.hes-chip { transition: background-color 120ms ease, color 120ms ease; }
+.hes-exportar:active:not([aria-disabled="true"]), .hes-baixar:active { transform: scale(.98); }
+
+/* ── Linha do tempo: hora | marcador sobre o fio | texto ── */
+.hes-mov {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.75rem 1.75rem minmax(0, 1fr);
+  column-gap: .5rem;
+}
+/* O fio passa pelo centro do marcador e liga os movimentos do mesmo dia. */
+.hes-mov::before {
+  content: "";
+  position: absolute;
+  left: calc(2.75rem + .5rem + .875rem - .5px);
+  top: 0;
+  bottom: -.25rem;
+  width: 1px;
+  background: var(--border);
+}
+.hes-mov:first-child::before { top: 1rem; }
+.hes-mov:last-child::before { bottom: auto; height: 1rem; }
+.hes-mov:only-child::before { display: none; }
+.hes-mov-corpo { transition: background-color 120ms ease; }
+.hes-mov:hover .hes-mov-corpo { background-color: color-mix(in srgb, var(--surface-muted) 70%, transparent); }
+@media (min-width: 640px) {
+  .hes-mov { grid-template-columns: 3rem 1.75rem minmax(0, 1fr); column-gap: .75rem; }
+  .hes-mov::before { left: calc(3rem + .75rem + .875rem - .5px); }
+}
+
+/* Cabeçalho do dia e da tabela: grudam abaixo da barra do app E da barra da
+   tela — só a partir de xl, onde a barra da tela tem 56px (abaixo disso ela
+   tem duas linhas e o cabeçalho ficaria por baixo dela). */
+@media (min-width: 1280px) {
+  .hes-dia { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem); z-index: 2; }
+  .hes-cabecalho { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem); z-index: 10; }
+}
+
+/* ── Tabelas (Lista e Pedidos) ── */
+.hes-caixa { container: hes-lista / inline-size; }
+.hes-tabela {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background-color: var(--card);
+  box-shadow: 0 1px 2px hsl(222 47% 11% / 0.04);
+}
+.hes-tabela > table > thead > tr > th:first-child { border-top-left-radius: 11px; }
+.hes-tabela > table > thead > tr > th:last-child { border-top-right-radius: 11px; }
+.hes-linha { background-color: var(--card); transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+.hes-linha:not(.hes-linha-leitura) { cursor: pointer; }
+.hes-linha:not(.hes-linha-leitura):hover { background-color: color-mix(in srgb, var(--primary) 3.5%, var(--card)); }
+.hes-linha:last-child > td:first-child { border-bottom-left-radius: 11px; }
+.hes-linha:last-child > td:last-child { border-bottom-right-radius: 11px; }
+/* O "›" do detalhe: à vista, discreto até a linha ser apontada. */
+.hes-linha .hes-abrir { opacity: .55; transition: opacity 120ms ease, transform 120ms ease, color 120ms ease; }
+.hes-linha:hover .hes-abrir { opacity: 1; transform: translateX(2px); color: var(--primary); }
+/* A pílula de situação longa ("Validada pela área — aguardando aprovação")
+   quebra em duas linhas em vez de vazar da coluna. */
+.hes-linha td[data-col="situacao"] > div > span:first-child { border-radius: 8px; }
+
+/* "Abrir na Aprovação": "Abrir ↗" na tabela (o title e o aria-label dizem o
+   resto); no cartão, o rótulo por extenso no rodapé. */
+.hes-so-cartao { display: none; }
+
+/* Largura útil estreita: a MESMA marcação vira cartões. */
+@container hes-lista (max-width: 899.98px) {
+  .hes-tabela { border: 0; border-radius: 0; background: none; box-shadow: none; }
+  .hes-tabela > table, .hes-tabela > table > tbody { display: block; width: 100%; }
+  .hes-tabela > table > thead { display: none; }
+  .hes-tabela > table > tbody { display: grid; gap: 10px; }
+  .hes-tabela tr.hes-linha {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-content: start;
+    column-gap: 16px;
+    row-gap: 10px;
+    padding: 12px 14px 13px 17px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px hsl(222 47% 11% / 0.04);
+  }
+  .hes-tabela tr.hes-linha > td { display: block; min-width: 0; width: auto; padding: 0; border: 0; border-radius: 0; text-align: left; white-space: normal; }
+  .hes-tabela tr.hes-linha > td[data-largo] { grid-column: 1 / -1; }
+  .hes-tabela tr.hes-linha > td[data-col="rail"] { position: absolute; inset: 0 auto 0 0; width: 3px; }
+  .hes-tabela tr.hes-linha > td[data-col="rail"] > span { inset: 0; border-radius: 0; }
+  .hes-tabela tr.hes-linha > td[data-rotulo]::before {
+    content: attr(data-rotulo); display: block; margin-bottom: 3px;
+    font-size: 11px; line-height: 14px; color: var(--muted-foreground);
+  }
+  /* Lista: vaga e período · situação | último movimento · logística; o "›" no canto. */
+  .hes-tabela tr.hes-linha > td[data-col="vaga"] { order: 1; padding-right: 24px; }
+  .hes-tabela tr.hes-linha > td[data-col="vaga"] .truncate { white-space: normal; overflow: visible; }
+  .hes-tabela tr.hes-linha > td[data-col="situacao"] { order: 2; }
+  .hes-tabela tr.hes-linha > td[data-col="ultimo"] { order: 3; }
+  .hes-tabela tr.hes-linha > td[data-col="logistica"] { order: 4; }
+  .hes-tabela tr.hes-linha > td[data-col="abrir"] { position: absolute; top: 12px; right: 10px; }
+  .hes-tabela tr.hes-linha .hes-abrir { opacity: 1; }
+  /* Pedidos: o "Abrir na Aprovação" vira o rodapé do cartão, colado no fundo
+     (lado a lado, os cartões têm a altura do mais alto). */
+  .hes-tabela tr.hes-linha:has(> td[data-col="acoes"]) { padding-bottom: 58px; }
+  .hes-tabela tr.hes-linha > td[data-col="acoes"] {
+    position: absolute; inset: auto 0 0 0; display: flex; align-items: center; justify-content: flex-end;
+    min-height: 46px; padding: 6px 10px; border-top: 1px solid var(--border);
+    background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--card));
+  }
+  .hes-tabela .hes-so-cartao { display: inline; }
+  .hes-tabela .hes-so-tabela { display: none; }
+}
+@container hes-lista (min-width: 600px) and (max-width: 899.98px) {
+  .hes-tabela > table > tbody { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Toque: o que só acende no hover fica sempre à vista. */
+@media (pointer: coarse) {
+  .hes-linha .hes-abrir { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hes-kpi, .hes-kpi .hes-kpi-n, .hes-pilula, .hes-chip, .hes-mov-corpo, .hes-linha, .hes-linha .hes-abrir { transition: none; }
+  .hes-kpi:hover .hes-kpi-n, .hes-pilula:active, .hes-linha:hover .hes-abrir, .hes-exportar:active, .hes-baixar:active { transform: none; }
+}
+
+/* ══ Planejado (pla-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças da família Passagens/Hospedagem (pas-osso, pas-entra,
+ * pas-sobe, pas-alvo, pas-cabecalho, pas-rolagem-x, FilaDeTrabalho, barra de
+ * filtros comum). Aqui só o que é dela: as divisórias do painel de resumo, o
+ * card-extrato, a planilha (linhas, campos, totais grudados) e o modo cartão
+ * da planilha na largura estreita. Tudo rápido e desligado com reduced-motion. */
+
+/* Resumo: divisórias finas entre as métricas (2 × 2 no celular, uma fileira no
+   desktop) — regra de antes, mantida para quem ainda monta a grade com as
+   classes do Tailwind (o Comparativo, com rea-resumo). */
+.pla-resumo .pla-metrica { border-top: 1px solid var(--border); }
+.pla-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
+@media (min-width: 768px) {
+  .pla-resumo .pla-metrica { border-top: 0; border-left: 1px solid var(--border); }
+}
+/* Grade pela largura DO PAINEL (pla-resumo-grade — Planejado e Realizado,
+   08/10). Pela janela, as cinco colunas cortavam os valores com reticências
+   entre 768 e 1023px e também em 1024 com o menu aberto (painel de ~670px).
+   Três arranjos, com as divisórias de cada um:
+     < 700px   total em cima + métricas 2 × 2
+     700–959   total em cima + as quatro métricas numa fileira
+     ≥ 960px   tudo numa fileira (total mais largo)
+   Seletores com a grade no meio: vencem a regra de antes e a do rea-resumo. */
+.pla-resumo-medido { container-type: inline-size; }
+.pla-resumo-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pla-resumo-total { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
+.pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(n) { border-top: 0; border-left: 0; }
+.pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(n+4) { border-top: 1px solid var(--border); }
+.pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
+@container (min-width: 700px) {
+  .pla-resumo-grade { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(n) { border-top: 0; border-left: 1px solid var(--border); }
+  .pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(2) { border-left: 0; }
+}
+@container (min-width: 960px) {
+  .pla-resumo-grade { grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)); }
+  .pla-resumo-total { grid-column: auto; border-bottom: 0; }
+  .pla-resumo .pla-resumo-grade > .pla-metrica:nth-child(2) { border-left: 1px solid var(--border); }
+}
+.pla-progresso { transition: width 600ms cubic-bezier(.2, 0, 0, 1); }
+/* Etapa atual: um anel que pulsa duas vezes ao chegar, depois fica quieto. */
+@keyframes pla-etapa { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 40%, transparent); } 100% { box-shadow: 0 0 0 6px transparent; } }
+.pla-etapa-atual { animation: pla-etapa 1.4s ease-out 2; }
+
+/* Card-extrato: o card mede a própria largura para reorganizar os lançamentos. */
+.pla-card { container-type: inline-size; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.pla-card:hover { box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+.pla-card-sel { box-shadow: 0 0 0 1px var(--primary); background-color: color-mix(in srgb, var(--brand-soft) 35%, var(--card)); }
+.pla-card-ausente:hover { box-shadow: none; }
+@keyframes pla-destaque { 0%, 60% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent); } 100% { box-shadow: 0 0 0 1px var(--primary); } }
+.pla-destaque { animation: pla-destaque 2.4s ease-out both; }
+
+/* Lançamento: rótulo · conta miúda · valor — com a conta descendo no card estreito. */
+.pla-lancamento {
+  display: grid;
+  grid-template-columns: 6.75rem minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+}
+.pla-lancamento + .pla-lancamento { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.pla-lancamento-valor { grid-column: 3; grid-row: 1; }
+@container (max-width: 380px) {
+  .pla-lancamento { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+  .pla-lancamento-rotulo { grid-column: 1; grid-row: 1; }
+  .pla-lancamento-valor { grid-column: 2; grid-row: 1; }
+  .pla-lancamento-conta { grid-column: 1 / -1; grid-row: 2; padding-left: 12px; }
+}
+
+/* ── Planilha ─────────────────────────────────────────────────────────────── */
+/* Seletores com ">" de propósito: a memória de cálculo é uma tabela DENTRO da célula. */
+.pla-planilha tbody > tr > td { border-bottom: 1px solid var(--border); }
+.pla-linha { transition: background-color 120ms ease; }
+.pla-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 45%, var(--card)); }
+/* Linha sob o mouse: os campos editáveis ganham borda e fundo branco — onde se digita fica óbvio. */
+.pla-linha:hover .pla-campo:not(:disabled):not(:focus) { background-color: var(--card); border-color: var(--border); }
+.pla-linha-nova > td { border-top: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); }
+.pla-linha-ajustada > td:first-child { box-shadow: inset 2px 0 0 var(--warning-strong); }
+.pla-linha-sel, .pla-linha-sel:hover { background-color: color-mix(in srgb, var(--brand-soft) 55%, var(--card)); }
+.pla-linha-sel > td:first-child { box-shadow: inset 2px 0 0 var(--primary); }
+.pla-linha-enviada { background-color: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
+.pla-linha-ausente > td { opacity: .55; }
+/* Campo salvo à mão: o ✱ entra com um "pop" curto. */
+@keyframes pla-pop { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.pla-editado { animation: pla-pop 160ms ease-out both; }
+
+/* Totais do recorte: grudados no rodapé da janela enquanto a tabela rola;
+   sobem quando a barra de seleção aparece (ela ocupa o rodapé). */
+.pla-totais > tr > td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--brand-soft) 60%, var(--card));
+  box-shadow: inset 0 1px 0 var(--border);
+}
+.pla-totais-alto > tr > td { bottom: 4.25rem; }
+.pla-totais > tr > td:first-child { border-bottom-left-radius: 11px; }
+.pla-totais > tr > td:last-child { border-bottom-right-radius: 11px; }
+
+/* ── Planilha em cartão (largura útil estreita) ──────────────────────────────
+ *   [☐ colaborador · função · situação ........ subtotal]
+ *   [   dias | diária          | mobilidade             ]
+ *   [   alimentação: útil · FDS                         ]                     */
+.pla-cartao > div > table > thead { display: none; }
+/* Só a tabela da planilha (a memória de cálculo é outra tabela, dentro da célula). */
+.pla-cartao > div > table, .pla-cartao > div > table > tbody, .pla-cartao > div > table > tfoot { display: block; width: 100%; }
+.pla-cartao > div > table > tbody > tr.pla-linha {
+  display: grid;
+  grid-template-columns: 2.25rem 4rem minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "sel colab colab subtotal" ". dias diaria mob" ". alim alim alim";
+  column-gap: 8px;
+  row-gap: 6px;
+  padding: 10px 12px 12px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.pla-cartao > div > table > tbody > tr > td { display: block; padding: 0 !important; border: 0; min-width: 0; }
+.pla-cartao td[data-col="sel"] { grid-area: sel; padding-top: 2px !important; }
+.pla-cartao td[data-col="colab"] { grid-area: colab; }
+.pla-cartao td[data-col="subtotal"] { grid-area: subtotal; justify-self: end; }
+.pla-cartao td[data-col="dias"] { grid-area: dias; text-align: left !important; }
+.pla-cartao td[data-col="diaria"] { grid-area: diaria; }
+.pla-cartao td[data-col="mob"] { grid-area: mob; }
+.pla-cartao td[data-col="alim"] { grid-area: alim; }
+.pla-cartao td[data-rotulo]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.pla-cartao .pla-dias { justify-content: flex-start; padding-left: 0; }
+.pla-cartao td[data-col="diaria"]::before, .pla-cartao td[data-col="mob"]::before { text-align: right; }
+.pla-cartao td[data-col="colab"] .truncate { white-space: normal; }
+.pla-cartao .pla-alim { flex-direction: row; gap: 8px; }
+.pla-cartao .pla-alim > div { flex: 1 1 0; min-width: 0; }
+.pla-cartao .pla-alim > div:last-child:not(:nth-child(2)) { flex: 0 0 100%; }
+.pla-cartao .pla-alim { flex-wrap: wrap; }
+.pla-cartao .pla-vaga-acao { display: none; }
+.pla-cartao .pla-campo { max-width: 8.5rem; }
+.pla-cartao .pla-linha-ajustada > td:first-child,
+.pla-cartao .pla-linha-sel > td:first-child { box-shadow: none; }
+.pla-cartao tr.pla-linha-ajustada { box-shadow: inset 2px 0 0 var(--warning-strong); }
+.pla-cartao tr.pla-linha-sel { box-shadow: inset 2px 0 0 var(--primary); }
+.pla-cartao .pla-memoria { right: 0; }
+/* Totais no cartão: o total grande à direita; as colunas numa fileira rotulada. */
+.pla-cartao > div > table > tfoot > tr {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-areas: "colab colab subtotal subtotal" "dias diaria alim mob";
+  gap: 4px 8px;
+  padding: 10px 12px;
+}
+.pla-cartao > div > table > tfoot > tr > td { display: block; padding: 0 !important; text-align: left !important; position: static; box-shadow: none; background: transparent; border-radius: 0 !important; }
+.pla-cartao > div > table > tfoot { background: color-mix(in srgb, var(--brand-soft) 60%, var(--card)); border-radius: 0 0 11px 11px; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="sel"] { display: none; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="colab"] { grid-area: colab; align-self: center; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="subtotal"] { grid-area: subtotal; text-align: right !important; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="dias"] { grid-area: dias; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="diaria"] { grid-area: diaria; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="alim"] { grid-area: alim; }
+.pla-cartao > div > table > tfoot > tr > td[data-col="mob"] { grid-area: mob; }
+.pla-cartao > div > table > tfoot > tr > td[data-rotulo]::before { margin-bottom: 0; font-size: 10px; }
+
+/* Selo do rascunho (08/10): acende a cada gravação, como o da Sugestão. */
+@keyframes pla-salvo { 0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--success-strong) 22%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.pla-salvo { animation: pla-salvo 900ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pla-progresso, .pla-card, .pla-linha { transition: none; }
+  .pla-etapa-atual, .pla-destaque, .pla-editado, .pla-salvo { animation: none; }
+}
+
+/* ══ Controle de bagagem (bag-) — redesenho 08/10 ══════════════════════════
+ * A Bagagem usa as MESMAS classes de Passagens (pas-tabela, pas-cabecalho,
+ * pas-linha, pas-abrir, pas-osso, pas-entra, pas-alvo, pas-rolagem-x) — é a
+ * mesma família. Aqui só o que é dela: o cartão da solicitação no
+ * celular/tablet e o cartão das linhas dos dois relatórios.
+ *
+ * Cartão da solicitação (abaixo de 960px úteis), sobre a MESMA árvore de
+ * células da tabela:
+ *   [bilhete: LOC · companhia · OS ............ ações]
+ *   [colaborador + CPF                               ]
+ *   [evento + observação       | embarque            ]
+ *   [bagagens | valor          | agência             ]                         */
+.bag-cartao thead { display: none; }
+.bag-cartao table, .bag-cartao tbody { display: block; width: 100%; }
+.bag-cartao tr.pas-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 8px 4px 12px;
+}
+.bag-cartao td { display: block; padding: 4px 10px; width: auto; text-align: left !important; }
+.bag-cartao td[data-col="bilhete"] { order: 1; flex: 1 1 0; min-width: 0; padding-left: 10px; }
+.bag-cartao td[data-col="acoes"] { order: 2; flex: 0 0 auto; padding-top: 2px; }
+.bag-cartao td[data-col="colab"] { order: 3; flex: 0 0 100%; padding-top: 6px; }
+.bag-cartao td[data-col="evento"] { order: 4; flex: 0 0 58%; min-width: 0; }
+.bag-cartao td[data-col="datas"] { order: 5; flex: 0 0 42%; min-width: 0; }
+.bag-cartao td[data-col="qtd"] { order: 6; flex: 0 0 22%; min-width: 0; }
+.bag-cartao td[data-col="valor"] { order: 7; flex: 0 0 36%; min-width: 0; }
+.bag-cartao td[data-col="agencia"] { order: 8; flex: 0 0 42%; min-width: 0; }
+.bag-cartao td[data-rotulo]::before,
+.bag-doc-cartao td[data-rotulo]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+/* No cartão a observação tem a largura toda: volta a quebrar em vez de cortar. */
+.bag-cartao .bag-nota { align-items: flex-start; }
+.bag-cartao .bag-nota .truncate { white-space: normal; overflow: visible; }
+
+/* Relatórios no estreito (< 900px úteis): cada linha vira um cartão —
+ *   [nome + CPF / evento + período .......... ›]
+ *   [Azul | Gol | TAM | Outros]   (por colaborador)
+ *   [bagagens | histórico | valor]  /  [solicitações | bagagens | valor | médio]
+ *   [participação ............................]  (por evento)             */
+.bag-doc-cartao thead { display: none; }
+.bag-doc-cartao table, .bag-doc-cartao tbody, .bag-doc-cartao tfoot { display: block; width: 100%; }
+.bag-doc-cartao tr { display: flex; flex-wrap: wrap; align-items: flex-start; padding: 8px 0 10px; }
+.bag-doc-cartao td, .bag-doc-cartao th { display: block; padding: 3px 16px; text-align: left !important; }
+.bag-doc-cartao [data-col="nome"] { order: 1; flex: 1 1 calc(100% - 56px); min-width: 0; padding-left: 16px !important; }
+.bag-doc-cartao td[data-col="abrir"] { order: 2; flex: 0 0 auto; padding: 0 8px; }
+.bag-doc-cartao td[data-col="cia"] { order: 3; flex: 0 0 25%; }
+.bag-doc-cartao td[data-col="num"] { order: 4; flex: 1 1 0; min-width: 0; }
+.bag-doc-cartao td[data-col="pct"] { order: 5; flex: 0 0 100%; }
+.bag-doc-cartao td[data-col="cia"] > span { justify-content: flex-start; }
+.bag-doc-cartao tfoot td[data-col="pct"], .bag-doc-cartao tfoot td[data-col="abrir"] { display: none; }
+.bag-doc-cartao .bag-total [data-col="nome"] { flex: 0 0 100%; }
+/* Por evento são quatro números: dois por fileira, senão o valor médio sai da tela no celular. */
+.bag-doc-evento td[data-col="num"] { flex: 0 0 50%; }
+
+/* O número da quantidade tem − / + próprios: as setas nativas do navegador ficavam duplicadas. */
+.bag-numero::-webkit-outer-spin-button, .bag-numero::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bag-numero { -moz-appearance: textfield; appearance: textfield; }
+
+/* ══ Notas fiscais (nf-) — redesenho 08/10 ══════════════════════════════════
+ * A tela usa as peças da família Passagens/Bagagem (pas-tabela, pas-cabecalho,
+ * pas-osso, pas-entra, pas-alvo, pas-rolagem-x). Aqui só o que é dela: a
+ * planilha do Lançamento (grade de colunas comum ao cabeçalho e às linhas, com
+ * o formulário dentro das células) e o cartão em que ela vira no estreito; o
+ * cartão da tabela da Aprovação RH; as faixas que abrem sob a linha (motivo,
+ * histórico, painel de decisão) e as microinterações. Desligadas com
+ * reduced-motion. */
+
+/* ── Lançamento: planilha (≥ 1000px úteis) ─────────────────────────────────── */
+.nf-grade {
+  display: grid;
+  /* A sobra da largura se divide (nome, situação, OC e nota crescem juntos): em
+     1920 o nome não fica a 700px do valor. */
+  grid-template-columns: minmax(200px, 1.4fr) 108px minmax(160px, .8fr) minmax(140px, .7fr) minmax(196px, 1fr) 132px 48px;
+  align-items: center;
+}
+.nf-cel { padding: 10px 12px; min-width: 0; }
+.nf-grade > [data-col="colab"] { padding-left: 13px; }
+.nf-grade > [data-col="hist"] { padding-left: 0; padding-right: 10px; }
+/* Cabeçalho grudado logo abaixo da barra da tela (a mesma altura do de Passagens). */
+.nf-cabecalho {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+  border-left: 3px solid transparent;
+}
+.nf-th {
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.nf-cabecalho .nf-th:first-child { padding-left: 13px; }
+/* Rótulo dos campos: na planilha quem rotula é o cabeçalho (fica só para o leitor de tela). */
+.nf-planilha .nf-rotulo {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.nf-sub { margin: 2px 0 0; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+
+/* Linhas: só o fundo anima. Quem não emite NF fica um tom abaixo. */
+.nf-linha { transition: background-color 120ms ease; }
+.nf-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
+.nf-linha-sem-nf { background-color: color-mix(in srgb, var(--surface-muted) 45%, var(--card)); }
+/* Faixas sob a linha (motivo, histórico): o texto começa onde começa o nome. */
+.nf-faixa { padding: 10px 16px 12px 55px; }
+.nf-grupo {
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--slate-600, var(--muted-foreground));
+  background: var(--surface-muted);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Lançamento: cartão (< 1000px úteis), sobre a MESMA árvore de células ──
+ *   [avatar  nome / função ............ valor]
+ *   [situação ......................... hist ]
+ *   [Número OC        | Nota fiscal          ]   (duas colunas iguais: OC e
+ *   [Enviar nota ............................]    nota alinham entre cartões) */
+.nf-cartoes .nf-grade {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "colab valor"
+    "sit   hist"
+    "oc    nota"
+    "dica  dica"
+    "acao  acao";
+  column-gap: 12px;
+  row-gap: 8px;
+  padding: 12px 14px 14px 11px;
+  align-items: start;
+}
+.nf-cartoes .nf-cel { padding: 0; }
+.nf-cartoes [data-col="colab"] { grid-area: colab; }
+.nf-cartoes [data-col="valor"] { grid-area: valor; padding-top: 6px; justify-self: end; }
+.nf-cartoes [data-col="sit"] { grid-area: sit; padding-left: 42px; }
+.nf-cartoes [data-col="hist"] { grid-area: hist; justify-self: end; }
+.nf-cartoes [data-col="oc"] { grid-area: oc; }
+.nf-cartoes [data-col="nota"] { grid-area: nota; }
+.nf-cartoes [data-col="acao"] { grid-area: acao; }
+.nf-cartoes [data-col="dica"] { grid-area: dica; margin-top: -2px; }
+.nf-planilha [data-col="dica"] { display: none; }
+.nf-cartoes [data-col="acao"]:empty, .nf-cartoes .nf-vazia { display: none; }
+.nf-cartoes .nf-rotulo,
+.nf-cartoes .nf-cel[data-rotulo]::before {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+.nf-cartoes .nf-cel[data-rotulo]::before { content: attr(data-rotulo); }
+.nf-cartoes .nf-faixa { padding-left: 14px; }
+.nf-cartoes .nf-grupo { padding-left: 14px; }
+
+/* ── Aprovação RH: células da tabela e o cartão (< 960px úteis) ─────────── */
+.nf-td { padding: 12px; vertical-align: top; }
+.nf-tr { transition: background-color 120ms ease; }
+.nf-motivo {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 300px;
+  line-height: 18px;
+}
+.nf-painel { padding: 14px 16px 16px 13px; background: var(--card); }
+.nf-tab-cartao thead { display: none; }
+.nf-tab-cartao table, .nf-tab-cartao tbody { display: block; width: 100%; }
+.nf-tab-cartao tr.nf-tr { display: flex; flex-wrap: wrap; align-items: flex-start; padding: 8px 2px 12px; }
+.nf-tab-cartao tr.nf-painel-linha { display: block; }
+.nf-tab-cartao tr.nf-painel-linha > td { display: block; }
+.nf-tab-cartao td.nf-td { display: block; padding: 4px 12px; text-align: left !important; }
+.nf-tab-cartao td[data-col="colab"] { order: 1; flex: 1 1 calc(100% - 150px); min-width: 0; padding-left: 11px; }
+.nf-tab-cartao td[data-col="valor"] { order: 2; flex: 0 0 auto; margin-left: auto; text-align: right !important; }
+.nf-tab-cartao td[data-col="oc"] { order: 3; flex: 0 0 auto; min-width: 0; padding-left: 53px; }
+.nf-tab-cartao td[data-col="nota"] { order: 4; flex: 1 1 0; min-width: 0; }
+.nf-tab-cartao td[data-col="hist"] { order: 5; flex: 0 0 auto; align-self: flex-end; }
+.nf-tab-cartao td[data-col="acoes"] { order: 6; flex: 0 0 100%; padding-left: 53px; padding-top: 8px; }
+.nf-tab-cartao td[data-col="acoes"] > div { justify-content: flex-start; }
+.nf-tab-cartao td[data-col="acoes"] .nf-motivo { text-align: left; max-width: none; }
+.nf-tab-cartao td[data-rotulo]::before {
+  content: attr(data-rotulo);
+  display: block;
+  margin-bottom: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+.nf-tab-cartao .nf-faixa, .nf-tab-cartao .nf-painel { padding-left: 14px; }
+
+/* ── Microinterações ──────────────────────────────────────────────────────── */
+/* Linha pedida pela URL (`?actual=`): contorno de marca que se apaga. */
+@keyframes nf-alvo {
+  0%, 55% { box-shadow: inset 0 0 0 2px var(--primary); background-color: var(--brand-soft); }
+  100% { box-shadow: inset 0 0 0 2px transparent; }
+}
+.nf-alvo { animation: nf-alvo 3s ease-out both; }
+/* A linha que acabou de mudar de situação acende em verde e volta. */
+@keyframes nf-acesa {
+  0% { background-color: color-mix(in srgb, var(--success-soft) 90%, transparent); }
+  100% { background-color: transparent; }
+}
+.nf-acesa { animation: nf-acesa 1.6s ease-out both; }
+/* Faixa/painel que abre sob a linha. */
+@keyframes nf-abre { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.nf-abre { animation: nf-abre 160ms ease-out both; }
+/* O ✓ do arquivo escolhido. */
+@keyframes nf-pop { 0% { transform: scale(.5); opacity: 0; } 70% { transform: scale(1.15); } 100% { transform: none; opacity: 1; } }
+.nf-pop { animation: nf-pop 220ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nf-alvo, .nf-acesa, .nf-abre, .nf-pop { animation: none; }
+  .nf-linha, .nf-tr { transition: none; }
+  /* Sem movimento, a linha pedida pela URL fica contornada (sem sumir). */
+  .nf-alvo { box-shadow: inset 0 0 0 2px var(--primary); }
+}
+/* Na planilha da Aprovação as três decisões ficam numa linha só. */
+.pas-tabela .nf-acoes { flex-wrap: nowrap; }
+
+/* ══ Realizado (rea-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças do Planejado (pla-resumo, pla-card, pla-extrato,
+ * pla-destaque, pla-progresso) e da família Passagens (pas-osso, pas-entra,
+ * pas-sobe, pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que
+ * é dela: a linha do dia na grade de diárias do modal. */
+
+/* Dia: caixa "trabalhou" · data · planejado · realizado (campo de 104px). */
+.rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 6.5rem 104px; }
+@media (max-width: 380px) {
+  .rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 104px; }
+  .rea-dia > :nth-child(3) { display: none; }
+}
+/* Resumo: entre 768 e 1024px os valores não cabem em cinco colunas — fica 2 × 2
+   (as divisórias do 2 × 2 do pla-resumo, que só valem abaixo de 768px).
+   08/10: o Realizado passou para a grade do pla-resumo-grade (pela largura do
+   painel); esta regra fica para o Comparativo, que ainda usa rea-resumo. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .rea-resumo .pla-metrica { border-top: 1px solid var(--border); border-left: 0; }
+  .rea-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
+}
+/* Rodapé do card: no card estreito (grade de 2 dentro da divisão, tablet,
+   celular) Observações, Dividir e Remover ficam só no ícone — o rótulo vai
+   no aria-label/title. Medido pelo card (container), não pela janela. */
+@container (max-width: 480px) {
+  .rea-acao-texto { display: none; }
+}
+
+/* ══ Comparativo (cmp-) — redesenho 08/10 ═══════════════════════════════════
+ * A tela usa as peças do Planejado e do Realizado (pla-resumo, rea-resumo,
+ * pla-metrica, pla-chip, pla-progresso, pla-etapa-atual, pla-destaque) e da
+ * família Passagens (pas-osso, pas-entra, pas-sobe, pas-alvo, pas-rolagem-x,
+ * FilaDeTrabalho, barra de filtros comum). Aqui só o que é dela: a tabela de
+ * prestações (colunas, cabeçalho grudado, linha, filete da decisão), o
+ * extrato aberto alinhado às MESMAS colunas e o modo cartão da largura útil
+ * estreita (container query: o menu lateral muda o espaço sem mudar a janela). */
+
+.cmp-lista { container: cmp-lista / inline-size; }
+.cmp-tabela {
+  /* A sobra de largura se divide entre TODAS as colunas (o nome leva mais): numa
+     tela de 1920 o nome não fica a 800px dos valores. */
+  --cmp-colunas: 1.75rem minmax(0, 2.6fr) minmax(7.25rem, .8fr) minmax(7.5rem, 1fr) minmax(7.75rem, 1fr) minmax(8.25rem, 1fr) 7.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.cmp-cabecalho, .cmp-topo {
+  display: grid;
+  grid-template-columns: var(--cmp-colunas);
+  column-gap: 12px;
+  padding: 0 12px 0 16px;
+}
+.cmp-num { text-align: right; justify-self: stretch; }
+
+/* Cabeçalho das colunas: gruda abaixo da barra de contexto de 56px. */
+.cmp-cabecalho {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 3;
+  align-items: center;
+  height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--surface-muted) 70%, var(--card));
+  border-bottom: 1px solid var(--border);
+  border-radius: 11px 11px 0 0;
+}
+
+/* Linha da prestação. */
+.cmp-item-lista + .cmp-item-lista .cmp-linha { border-top: 1px solid var(--border); }
+.cmp-item-lista:last-child .cmp-linha { border-radius: 0 0 11px 11px; }
+.cmp-linha { position: relative; transition: background-color 120ms ease; }
+.cmp-topo { align-items: center; padding-top: 12px; padding-bottom: 12px; cursor: pointer; }
+.cmp-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 45%, var(--card)); }
+.cmp-linha-aberta, .cmp-linha-aberta:hover { background-color: color-mix(in srgb, var(--surface-muted) 35%, var(--card)); }
+/* Filete da decisão do RH à esquerda (a cor fica no selo; o fundo, neutro). */
+.cmp-linha::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+.cmp-linha-aprovado::before { background: var(--success-strong); }
+.cmp-linha-devolvido::before { background: var(--warning-strong); }
+.cmp-linha-rejeitado::before { background: var(--danger-strong); }
+.cmp-linha-sel, .cmp-linha-sel:hover { background-color: color-mix(in srgb, var(--brand-soft) 55%, var(--card)); }
+.cmp-linha-sel::before { background: var(--primary); }
+.cmp-linha-ausente .cmp-c-colab, .cmp-linha-ausente .cmp-c-sit { opacity: .7; }
+.cmp-item-lista:last-child .cmp-linha::before { border-bottom-left-radius: 11px; }
+.cmp-c-sel { display: flex; align-items: center; justify-content: center; align-self: start; padding-top: 2px; }
+.cmp-c-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.cmp-acao-texto { display: none; }
+.cmp-cabecalho .cmp-c-sel { align-self: center; padding-top: 0; }
+.cmp-cabecalho .cmp-c-acoes { margin-right: -4px; }
+/* Régua (selecionar · expandir todas): só no modo cartão — na tabela, mora no cabeçalho. */
+.cmp-regua { display: none; }
+
+/* ── Extrato aberto: as parcelas nas colunas da linha ─────────────────────── */
+.cmp-corpo { padding: 0 12px 16px 16px; cursor: default; }
+.cmp-extrato { border-top: 1px dashed var(--border); padding-top: 4px; }
+.cmp-item {
+  display: grid;
+  grid-template-columns: var(--cmp-colunas);
+  column-gap: 12px;
+  align-items: center;
+  min-height: 30px;
+  font-size: 12px;
+}
+.cmp-item-rotulo { grid-column: 2 / 4; color: var(--muted-foreground); padding-left: 14px; }
+.cmp-item-valor { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cmp-item-plan { grid-column: 4; color: var(--muted-foreground); }
+.cmp-item-real { grid-column: 5; color: var(--foreground); }
+.cmp-item-dif { grid-column: 6; }
+.cmp-item-acao { grid-column: 7; display: flex; justify-content: flex-end; }
+.cmp-item-zerada .cmp-item-plan, .cmp-item-zerada .cmp-item-real { color: color-mix(in srgb, var(--muted-foreground) 70%, transparent); }
+.cmp-item-grupo { min-height: 34px; font-size: 13px; }
+.cmp-item-grupo .cmp-item-rotulo { padding-left: 0; color: var(--foreground); font-weight: 600; }
+.cmp-item-grupo .cmp-item-real { font-weight: 600; }
+.cmp-item-grupo .cmp-item-plan { color: var(--slate-600, var(--muted-foreground)); }
+.cmp-bloco + .cmp-bloco, .cmp-bloco + .cmp-item-total { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.cmp-bloco { padding: 2px 0 4px; }
+.cmp-item-total {
+  min-height: 40px;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  border-top: 1px solid var(--border) !important;
+}
+.cmp-item-total .cmp-item-rotulo { padding-left: 0; color: var(--foreground); }
+.cmp-item-total .cmp-item-real { color: var(--primary); font-size: 14px; }
+.cmp-item-cabecalho { display: none; }
+.cmp-so-cartao { display: none; }
+
+.cmp-notas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-top: 12px; }
+.cmp-conversa { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.cmp-conversa > * { margin-top: 0 !important; }
+
+/* Extrato fora da lista (modal de divisão): grade própria de quatro colunas. */
+.cmp-extrato-solto { border-top: 0; }
+.cmp-extrato-solto .cmp-item { grid-template-columns: minmax(0, 1fr) 6.5rem 6.5rem 6.75rem; }
+.cmp-extrato-solto .cmp-item-rotulo { grid-column: 1; }
+.cmp-extrato-solto .cmp-item-rotulo > span { white-space: normal; }
+.cmp-extrato-solto .cmp-item-plan { grid-column: 2; }
+.cmp-extrato-solto .cmp-item-real { grid-column: 3; }
+.cmp-extrato-solto .cmp-item-dif { grid-column: 4; }
+.cmp-extrato-solto .cmp-item-cabecalho {
+  display: grid;
+  min-height: 28px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+.cmp-extrato-solto .cmp-item-cabecalho .cmp-item-rotulo { padding-left: 0; }
+
+/* Diferença na barra escura de seleção: tons claros que leem no fundo escuro. */
+.cmp-dif-acima { color: color-mix(in srgb, var(--danger) 45%, var(--background)); }
+.cmp-dif-abaixo { color: color-mix(in srgb, var(--success) 45%, var(--background)); }
+
+/* ── Modo cartão (largura útil < 880px: tablet, celular, menu aberto) ──────
+ *   [☐ colaborador · função · selos ............ situação]
+ *   [   planejado     realizado     diferença           ]
+ *   [   ajustar · detalhar                              ]                    */
+@container cmp-lista (max-width: 879.98px) {
+  .cmp-cabecalho { display: none; }
+  .cmp-regua { display: flex; flex-wrap: wrap; }
+  /* A situação vai para o canto (fora da grade): numa coluna própria ela espremia os três valores. */
+  .cmp-topo {
+    position: relative;
+    grid-template-columns: 1.75rem repeat(3, minmax(0, 1fr));
+    grid-template-areas: "sel colab colab colab" ". plan real dif" ". acoes acoes acoes";
+    column-gap: 8px;
+    row-gap: 10px;
+    align-items: start;
+    padding: 12px 12px 6px 12px;
+  }
+  .cmp-c-sel { grid-area: sel; }
+  .cmp-c-colab { grid-area: colab; }
+  .cmp-c-colab > h3 { padding-right: 96px; }
+  .cmp-c-sit { position: absolute; top: 12px; right: 12px; }
+  .cmp-c-real > span:not(.sr-only) { font-size: 14px; }
+  .cmp-extrato { border-top: 0; }
+  .cmp-total-pct { display: none; }
+  .cmp-item-longo { row-gap: 2px; padding: 6px 0; }
+  .cmp-item-longo .cmp-item-rotulo { grid-column: 1 / -1; grid-row: 1; }
+  .cmp-item-longo .cmp-item-valor { grid-row: 2; }
+  .cmp-item-longo .cmp-item-acao { grid-row: 3; }
+  .cmp-chip-texto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .cmp-c-plan { grid-area: plan; }
+  .cmp-c-real { grid-area: real; }
+  .cmp-c-dif { grid-area: dif; }
+  .cmp-c-acoes { grid-area: acoes; justify-content: flex-start; margin-left: -8px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); padding-top: 4px; }
+  .cmp-c-acoes > :last-child { margin-left: auto; }
+  .cmp-num { text-align: left; }
+  .cmp-num > span:not(.sr-only) { align-items: flex-start !important; }
+  .cmp-num[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 1px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .cmp-acao-texto { display: inline; }
+  .cmp-tabela { border: 0; background: transparent; display: flex; flex-direction: column; gap: 8px; }
+  .cmp-item-lista .cmp-linha, .cmp-item-lista + .cmp-item-lista .cmp-linha { border: 1px solid var(--border); border-radius: 12px; background-color: var(--card); overflow: hidden; }
+  .cmp-linha-sel, .cmp-linha-sel:hover { border-color: var(--primary) !important; background-color: color-mix(in srgb, var(--brand-soft) 35%, var(--card)) !important; }
+  .cmp-corpo { padding: 0 12px 12px; }
+  .cmp-so-cartao { display: block; }
+  .cmp-item { grid-template-columns: minmax(0, 1fr) 4.9rem 4.9rem 5.1rem; column-gap: 8px; font-size: 12px; }
+  .cmp-item-rotulo { grid-column: 1; padding-left: 6px; }
+  .cmp-item-rotulo > span { white-space: normal; overflow: visible; text-overflow: clip; }
+  .cmp-item-plan { grid-column: 2; }
+  .cmp-item-real { grid-column: 3; }
+  .cmp-item-dif { grid-column: 4; }
+  .cmp-item-acao { grid-column: 1 / -1; justify-content: flex-start; margin: -4px 0 2px 2px; }
+  .cmp-item-cabecalho { display: grid; min-height: 26px; font-size: 11px; font-weight: 500; color: var(--muted-foreground); border-bottom: 1px solid var(--border); }
+  .cmp-item-cabecalho .cmp-item-rotulo { padding-left: 0; }
+  .cmp-item-grupo { font-size: 12px; }
+  .cmp-item-total { font-size: 12px; }
+  .cmp-item-total .cmp-item-real { font-size: 13px; }
+  .cmp-notas { grid-template-columns: minmax(0, 1fr); }
+}
+/* Celular estreito: os três valores do extrato cabem em 360px sem quebrar. */
+@container cmp-lista (max-width: 400px) {
+  .cmp-item { grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem 4.8rem; column-gap: 6px; font-size: 11.5px; }
+}
+@media (max-width: 420px) {
+  .cmp-extrato-solto .cmp-item { grid-template-columns: minmax(0, 1fr) 4.4rem 4.4rem 4.6rem; column-gap: 6px; font-size: 11.5px; }
+  .cmp-extrato-solto .cmp-item-grupo { font-size: 12px; }
+}
+.cmp-extrato-solto .cmp-item-rotulo > span { overflow: visible; text-overflow: clip; }
+/* Rótulo longo no estreito: o rótulo ocupa a linha e os valores descem, nas mesmas colunas. */
+@media (max-width: 420px) {
+  .cmp-extrato-solto .cmp-item-longo { row-gap: 2px; padding: 4px 0; }
+  .cmp-extrato-solto .cmp-item-longo .cmp-item-rotulo { grid-column: 1 / -1; grid-row: 1; }
+  .cmp-extrato-solto .cmp-item-longo .cmp-item-valor { grid-row: 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmp-linha { transition: none; }
+}
+
+/* ══ Conta corrente Flash (fla-) — redesenho 08/10 ═══════════════════════════
+ * Usa as peças comuns da família (pas-osso, pas-entra, pas-alvo, pas-busca,
+ * barra de filtros comum). Aqui só o que é dela: as divisórias do painel de
+ * resumo, o par contas × extrato (lista grudada no desktop), a barrinha do
+ * alvo, o extrato como tabela de banco (mês, entrada/saída, pé com o total)
+ * e o cartão em que ele vira na largura útil estreita, o diálogo e as
+ * microinterações. Tudo rápido e desligado com reduced-motion. */
+
+.fla-ponto { display: inline-block; width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; }
+
+/* Resumo: 2 × 2 até 1023px, uma fileira a partir de 1024px. */
+.fla-resumo .fla-metrica:nth-child(even) { border-left: 1px solid var(--border); }
+.fla-resumo .fla-metrica:nth-child(n+3) { border-top: 1px solid var(--border); }
+@media (min-width: 1024px) {
+  .fla-resumo .fla-metrica:nth-child(n) { border-top: 0; }
+  .fla-resumo .fla-metrica + .fla-metrica { border-left: 1px solid var(--border); }
+}
+.fla-progresso { transition: width 600ms cubic-bezier(.2, 0, 0, 1); }
+
+/* Barrinha do saldo sobre o alvo. */
+.fla-medidor-cheio { transition: width 500ms cubic-bezier(.2, 0, 0, 1), background-color 200ms ease; }
+
+/* Admitidos sem crédito: a lista em colunas quando há largura. */
+.fla-admitidos { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.fla-admitidos > li { border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+@keyframes fla-abre { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.fla-abre { animation: fla-abre 160ms ease-out both; }
+
+/* ── Contas × extrato ─────────────────────────────────────────────────────── */
+.fla-mestre { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 1024px) {
+  .fla-mestre { grid-template-columns: 320px minmax(0, 1fr); }
+  /* A lista fica à mão enquanto o extrato rola com a página. */
+  .fla-contas-fixa {
+    position: sticky;
+    top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 1rem);
+    max-height: calc(100vh - var(--sticky-top, 3.5rem) - 3.5rem - 2rem);
+  }
+  .fla-contas-rolagem { flex: 1 1 auto; min-height: 0; }
+}
+@media (min-width: 1440px) {
+  .fla-mestre { grid-template-columns: 400px minmax(0, 1fr); }
+}
+.fla-conta-sel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--primary);
+  transform-origin: center;
+  animation: fla-filete 180ms ease-out both;
+}
+@keyframes fla-filete { from { transform: scaleY(0); } to { transform: none; } }
+
+/* ── Extrato ──────────────────────────────────────────────────────────────── */
+/* O painel mede a própria largura (cartão abaixo de 600px) e corta os cantos
+   sem virar contêiner de rolagem (o cabeçalho da tabela gruda na janela). */
+.fla-extrato { container-type: inline-size; overflow: clip; }
+.fla-saldo + .fla-saldo { border-left: 1px solid var(--border); }
+@keyframes fla-mudou { 0% { background-color: color-mix(in srgb, var(--success-soft) 95%, transparent); } 100% { background-color: transparent; } }
+.fla-valor-mudou { display: inline-block; margin-left: -4px; padding: 0 4px; border-radius: 6px; animation: fla-mudou 1.4s ease-out both; }
+
+.fla-tabela { table-layout: fixed; }
+.fla-th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  padding: 9px 12px;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.fla-td { padding: 10px 12px; vertical-align: top; border-top: 1px solid var(--border); }
+.fla-tabela th:first-child, .fla-tabela td:first-child { padding-left: 20px; }
+.fla-tabela th:last-child, .fla-tabela td:last-child { padding-right: 16px; }
+.fla-tabela col[data-col="data"] { width: 76px; }
+.fla-tabela col[data-col="entrada"], .fla-tabela col[data-col="saida"] { width: 106px; }
+.fla-tabela col[data-col="saldo"] { width: 112px; }
+.fla-tabela col[data-col="acoes"] { width: 88px; }
+.fla-tabela td[data-col="acoes"] { padding-top: 6px; }
+/* Com folga (extrato largo), as colunas de valor respiram. */
+@container (min-width: 820px) {
+  .fla-tabela col[data-col="data"] { width: 84px; }
+  .fla-tabela col[data-col="entrada"], .fla-tabela col[data-col="saida"] { width: 132px; }
+  .fla-tabela col[data-col="saldo"] { width: 136px; }
+  .fla-tabela col[data-col="acoes"] { width: 92px; }
+}
+.fla-titulo { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.fla-mes > th {
+  padding: 7px 16px 7px 20px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 55%, var(--card));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--slate-600, var(--muted-foreground));
+}
+.fla-tabela tbody > tr.fla-mes:first-child > th { border-top: 0; }
+.fla-linha > td { transition: background-color 120ms ease; }
+.fla-linha:hover > td { background-color: color-mix(in srgb, var(--surface-muted) 50%, var(--card)); }
+/* Lançamento que acabou de entrar ou mudar: acende em verde e volta. */
+@keyframes fla-acesa { 0%, 35% { background-color: color-mix(in srgb, var(--success-soft) 95%, var(--card)); } 100% { background-color: transparent; } }
+.fla-acesa > td { animation: fla-acesa 2.4s ease-out both; }
+.fla-pe > th, .fla-pe > td { background: color-mix(in srgb, var(--brand-soft) 50%, var(--card)); vertical-align: middle; }
+
+/* ── Extrato em cartão (< 600px úteis), sobre as MESMAS células ─────────────
+ *   [14/08  descrição ............... +R$ 86,50]
+ *   [ sex   categoria · evento    saldo R$ 263,50]
+ *   [                              ✎  🗑        ]                             */
+@container (max-width: 600px) {
+  .fla-tabela thead, .fla-tabela colgroup { display: none; }
+  .fla-tabela, .fla-tabela tbody, .fla-tabela tfoot { display: block; width: 100%; }
+  .fla-mes, .fla-mes > th { display: block; }
+  .fla-mes > th { padding-left: 16px; }
+  .fla-linha {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-areas: "data lanc valor" "data lanc saldo" "data acoes acoes";
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 11px 16px 11px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .fla-linha > td { display: block; width: auto !important; padding: 0 !important; border: 0; }
+  .fla-linha > td[data-col="data"] { grid-area: data; }
+  .fla-linha > td[data-col="lanc"] { grid-area: lanc; }
+  .fla-linha > td[data-col="entrada"], .fla-linha > td[data-col="saida"] { grid-area: valor; justify-self: end; }
+  .fla-linha > td[data-col="entrada"]:empty, .fla-linha > td[data-col="saida"]:empty { display: none; }
+  .fla-linha > td[data-col="saldo"] { grid-area: saldo; justify-self: end; display: flex; align-items: baseline; gap: 4px; }
+  .fla-linha > td[data-col="saldo"]::before { content: "saldo"; font-size: 11px; color: var(--muted-foreground); }
+  .fla-linha > td[data-col="saldo"] > span { font-size: 12px; }
+  .fla-linha .fla-saldo-cat { display: none; }
+  /* No cartão quem pinta é a linha inteira (as células ficavam em retalhos). */
+  .fla-linha:hover > td { background-color: transparent; }
+  .fla-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 50%, var(--card)); }
+  .fla-acesa > td { animation: none; }
+  .fla-linha.fla-acesa { animation: fla-acesa 2.4s ease-out both; }
+  .fla-linha > td[data-col="acoes"] { grid-area: acoes; justify-self: end; margin: 2px -8px -6px 0; }
+  .fla-linha .fla-titulo { -webkit-line-clamp: 2; }
+  .fla-pe { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 16px; padding: 10px 16px; background: color-mix(in srgb, var(--brand-soft) 50%, var(--card)); border-top: 1px solid var(--border); }
+  .fla-pe > th, .fla-pe > td { display: block; padding: 0 !important; border: 0; background: transparent; width: auto !important; }
+  .fla-pe > td[data-rotulo] { text-align: right; }
+  .fla-pe > td[data-rotulo]::before { content: attr(data-rotulo); display: block; font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+  .fla-pe > .fla-pe-vazio { display: none; }
+}
+@container (max-width: 420px) {
+  .fla-saldo { padding-left: 14px; padding-right: 12px; }
+}
+
+/* ── Diálogo de lançamento ────────────────────────────────────────────────── */
+.fla-rotulo { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--slate-600, var(--muted-foreground)); }
+.fla-opcional { margin-left: 4px; font-weight: 400; color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fla-progresso, .fla-medidor-cheio, .fla-linha > td, .fla-escolha { transition: none; }
+  .fla-abre, .fla-conta-sel::before, .fla-valor-mudou, .fla-acesa > td, .fla-linha.fla-acesa { animation: none; }
+}
+
+/* ══ Regras de cálculo (rgc-) — redesenho 08/10 ═════════════════════════════
+ * A página vira documentação: índice lateral grudado (faixa de atalhos quando
+ * falta largura útil), documento único com seções separadas por filete,
+ * tabelas limpas que viram cartão em largura estreita, a ordem do cálculo, a
+ * calculadora de deflação com a régua dos dias e os exemplos. Usa as peças da
+ * família (pas-osso, pas-entra, pas-alvo, pas-rolagem-x). As trocas de layout
+ * medem a LARGURA ÚTIL (container queries), não a janela: o menu lateral
+ * aberto ou compacto muda o espaço sem mudar a janela. */
+
+.rgc-pagina { container: rgc-pagina / inline-size; }
+.rgc-casca { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.rgc-lateral { display: none; }
+
+/* Onde a leitura começa: barra do app + barra da tela + faixa de atalhos.
+   O índice usa a MESMA medida (scroll-margin-top) para acender a seção. */
+.rgc-secao { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 3rem + 12px); }
+@media (max-width: 639.98px) {
+  .rgc-secao { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3rem + 12px); }
+}
+
+/* ── Faixa de atalhos (largura útil estreita) ─────────────────────────────── */
+.rgc-faixa {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 20;
+  margin: -20px calc(-1 * var(--page-gutter, 1rem)) 16px;
+  padding: 0 var(--page-gutter, 1rem);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+@media (max-width: 639.98px) { .rgc-faixa { top: var(--sticky-top, 3.5rem); } }
+.rgc-faixa-rolagem { display: flex; gap: 6px; padding: 8px 0; }
+.rgc-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.rgc-chip:hover { color: var(--foreground); border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+.rgc-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.rgc-chip-ativo, .rgc-chip-ativo:hover { background: var(--brand-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+
+/* ── Índice lateral (largura útil ≥ 1000px) ───────────────────────────────── */
+@container rgc-pagina (min-width: 1000px) {
+  .rgc-casca { grid-template-columns: 208px minmax(0, 1fr); column-gap: 36px; }
+  .rgc-lateral { display: block; position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 1.25rem); }
+  .rgc-faixa { display: none; }
+  .rgc-secao { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 20px); }
+}
+.rgc-indice-titulo {
+  margin-bottom: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+.rgc-indice-grupo + .rgc-indice-grupo { margin-top: 16px; }
+.rgc-indice-grupo-rotulo { display: block; padding-bottom: 6px; font-size: 12px; font-weight: 600; line-height: 16px; color: var(--foreground); }
+.rgc-indice-grupo > ol { border-left: 1px solid var(--border); }
+.rgc-indice-item {
+  position: relative;
+  display: block;
+  margin-left: -1px;
+  padding: 5px 10px 5px 13px;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--muted-foreground);
+  transition: color 120ms ease, background-color 120ms ease, border-color 160ms ease;
+}
+.rgc-indice-item:hover { color: var(--foreground); background: color-mix(in srgb, var(--muted) 70%, transparent); }
+.rgc-indice-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.rgc-indice-ativo, .rgc-indice-ativo:hover { color: var(--primary); font-weight: 500; border-left-color: var(--primary); }
+.rgc-indice-rodape {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+}
+
+/* ── Documento ────────────────────────────────────────────────────────────── */
+.rgc-documento {
+  container: rgc-doc / inline-size;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.rgc-secao { padding: 28px 32px 32px; }
+.rgc-secao + .rgc-secao { border-top: 1px solid var(--border); }
+@container rgc-doc (max-width: 560px) { .rgc-secao { padding: 22px 16px 26px; } }
+.rgc-grupo { font-size: 11px; font-weight: 600; line-height: 16px; text-transform: uppercase; letter-spacing: .06em; color: var(--primary); }
+.rgc-ancora { opacity: 0; transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease; }
+.rgc-titulo:hover .rgc-ancora, .rgc-ancora:focus-visible { opacity: 1; }
+@media (hover: none) { .rgc-ancora { display: none; } }
+/* Chegada pelo índice: o título acende uma vez para o olho achar onde parou. */
+@keyframes rgc-chegou { 0%, 30% { background-color: color-mix(in srgb, var(--brand-soft) 90%, transparent); } 100% { background-color: transparent; } }
+.rgc-chegou .rgc-titulo { border-radius: 6px; animation: rgc-chegou 1.2s ease-out both; }
+
+/* ── Tabela de referência ─────────────────────────────────────────────────── */
+.rgc-quadro { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.rgc-tabela { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; line-height: 20px; }
+.rgc-th {
+  padding: 9px 16px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted-foreground);
+}
+.rgc-td { padding: 10px 16px; border-top: 1px solid var(--border); vertical-align: middle; color: var(--foreground); }
+.rgc-td-rotulo { text-align: left; font-weight: 500; }
+.rgc-tabela .rgc-th-num { text-align: right; }
+/* Muitas colunas de número (empreita): menos respiro lateral, mais coluna. */
+.rgc-densa .rgc-th, .rgc-densa .rgc-td { padding-left: 10px; padding-right: 10px; }
+.rgc-densa .rgc-th:first-child, .rgc-densa .rgc-td:first-child { padding-left: 16px; }
+.rgc-densa .rgc-th:last-child, .rgc-densa .rgc-td:last-child { padding-right: 16px; }
+.rgc-tabela tbody > tr:first-child > * { border-top: 0; }
+.rgc-linha > * { transition: background-color 120ms ease; }
+.rgc-linha:hover > * { background: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
+.rgc-grupo-linha > th {
+  padding: 7px 16px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 55%, var(--card));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: left;
+  color: var(--slate-600, var(--muted-foreground));
+}
+.rgc-total > *, .rgc-total:hover > * { background: color-mix(in srgb, var(--surface-muted) 65%, var(--card)); font-weight: 600; }
+.rgc-total-forte > *, .rgc-total-forte:hover > * { background: color-mix(in srgb, var(--brand-soft) 70%, var(--card)); }
+
+/* Cartão: abaixo de 620px úteis a linha vira bloco — rótulo em cima, valores
+   numa grade com o nome da coluna sobre cada um. Sem rolagem lateral. */
+@container rgc-doc (max-width: 620px) {
+  .rgc-com-cartao .rgc-tabela, .rgc-com-cartao .rgc-tabela tbody { display: block; width: 100%; }
+  .rgc-com-cartao thead, .rgc-com-cartao colgroup { display: none; }
+  .rgc-com-cartao tr.rgc-linha {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 10px 16px;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .rgc-com-cartao tbody > tr:first-child { border-top: 0; }
+  .rgc-com-cartao tr.rgc-linha > *, .rgc-com-cartao.rgc-densa tr.rgc-linha > * { display: block; padding: 0; border: 0; text-align: left !important; }
+  .rgc-com-cartao .rgc-td-rotulo { grid-column: 1 / -1; font-weight: 600; }
+  .rgc-com-cartao .rgc-td::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted-foreground);
+  }
+  .rgc-com-cartao .rgc-grupo-linha, .rgc-com-cartao .rgc-grupo-linha > th { display: block; }
+  .rgc-com-cartao tbody > tr.rgc-grupo-linha:first-child > th { border-top: 0; }
+  .rgc-com-cartao .rgc-alterado { align-items: flex-start; }
+}
+/* Tabela de TEXTO (matriz "quem recebe o quê"): vira cartão já abaixo de
+   860px úteis — seis colunas de frase espremidas quebravam em 4 linhas. */
+@container rgc-doc (max-width: 860px) {
+  .rgc-cartao-largo .rgc-tabela, .rgc-cartao-largo .rgc-tabela tbody { display: block; width: 100%; }
+  .rgc-cartao-largo thead, .rgc-cartao-largo colgroup { display: none; }
+  .rgc-cartao-largo tr.rgc-linha {
+    display: grid;
+    /* diária · dias · deflação (curta) · alimentação (longa) · mobilidade */
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, .6fr) minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 10px 16px;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .rgc-cartao-largo tbody > tr:first-child { border-top: 0; }
+  .rgc-cartao-largo tr.rgc-linha > * { display: block; padding: 0; border: 0; text-align: left !important; }
+  .rgc-cartao-largo .rgc-td-rotulo { grid-column: 1 / -1; font-weight: 600; }
+  .rgc-cartao-largo .rgc-td::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted-foreground);
+  }
+}
+@container rgc-doc (max-width: 620px) {
+  .rgc-cartao-largo tr.rgc-linha { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Marca da matriz "quem recebe o quê". */
+.rgc-marca { display: inline-flex; align-items: flex-start; gap: 8px; line-height: 18px; }
+.rgc-marca-icone { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 9999px; }
+
+/* ── Lista de regras: título | explicação ─────────────────────────────────── */
+.rgc-regra {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  gap: 2px 20px;
+  padding: 10px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 13px;
+  line-height: 20px;
+}
+.rgc-regra:first-child { border-top: 0; padding-top: 0; }
+.rgc-regra:last-child { padding-bottom: 0; }
+.rgc-regra-titulo { font-weight: 500; color: var(--foreground); }
+.rgc-regra-texto { display: block; color: var(--slate-600, var(--muted-foreground)); }
+.rgc-regra-texto::first-letter { text-transform: uppercase; }
+@container rgc-doc (max-width: 560px) { .rgc-regra { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── Ordem do cálculo ─────────────────────────────────────────────────────── */
+.rgc-passos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.rgc-passos > li + li { border-left: 1px solid var(--border); }
+.rgc-passo-item { display: flex; flex-direction: column; gap: 10px; height: 100%; padding: 14px 16px 16px; transition: background-color 120ms ease; }
+.rgc-passo-item:hover { background: color-mix(in srgb, var(--surface-muted) 60%, var(--card)); }
+.rgc-passo-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.rgc-passo-n {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--brand-soft);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+@container rgc-doc (max-width: 780px) {
+  .rgc-passos { grid-template-columns: minmax(0, 1fr); }
+  .rgc-passos > li + li { border-left: 0; border-top: 1px solid var(--border); }
+  .rgc-passo-item { flex-direction: row; gap: 12px; padding: 12px 14px; }
+}
+.rgc-formula { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; }
+.rgc-formula-termo { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 10px; border-radius: 6px; background: var(--surface-muted); color: var(--foreground); font-weight: 500; }
+.rgc-formula-total { background: var(--primary); color: var(--primary-foreground); }
+.rgc-formula-op { color: var(--muted-foreground); font-weight: 500; }
+
+/* ── Deflação: faixas, calculadora e régua ────────────────────────────────── */
+.rgc-documento [data-faixa="1"] { --rgc-cor: var(--primary); }
+.rgc-documento [data-faixa="2"] { --rgc-cor: color-mix(in srgb, var(--primary) 55%, var(--card)); }
+.rgc-documento [data-faixa="3"] { --rgc-cor: color-mix(in srgb, var(--primary) 28%, var(--card)); }
+.rgc-faixas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.rgc-faixa-item { position: relative; display: flex; flex-direction: column; padding: 14px 16px 12px; }
+.rgc-faixa-item + .rgc-faixa-item { border-left: 1px solid var(--border); }
+.rgc-faixa-item::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--rgc-cor); }
+@container rgc-doc (max-width: 420px) { .rgc-faixa-item { padding: 12px 10px 10px 12px; } }
+
+.rgc-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-muted) 45%, var(--card));
+}
+.rgc-calc-campos { display: grid; grid-template-columns: minmax(0, 1fr) 168px; gap: 12px; align-items: start; }
+@container rgc-doc (max-width: 520px) { .rgc-calc-campos { grid-template-columns: minmax(0, 1fr); } }
+.rgc-rotulo { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--slate-600, var(--muted-foreground)); }
+.rgc-campo {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 13px;
+  color: var(--foreground);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.rgc-campo:focus-visible, .rgc-passo:focus-within {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 18%, transparent);
+}
+.rgc-passo { display: flex; height: 36px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); overflow: hidden; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.rgc-passo-botao { flex: 0 0 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted-foreground); transition: background-color 120ms ease, color 120ms ease; }
+.rgc-passo-botao:hover:not(:disabled) { background: var(--muted); color: var(--foreground); }
+.rgc-passo-botao:active:not(:disabled) { background: color-mix(in srgb, var(--foreground) 10%, var(--muted)); }
+.rgc-passo-botao:disabled { opacity: .4; cursor: not-allowed; }
+.rgc-passo-botao:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.rgc-passo-campo {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: transparent;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.rgc-passo-campo:focus { outline: none; }
+.rgc-passo-campo::-webkit-inner-spin-button, .rgc-passo-campo::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+@media (pointer: coarse) {
+  .rgc-campo, .rgc-passo { height: 44px; }
+  .rgc-passo-botao { flex-basis: 44px; }
+}
+
+.rgc-regua { display: flex; gap: 3px; height: 8px; }
+.rgc-regua-dia { flex: 1 1 0; max-width: 28px; border-radius: 3px; background: var(--rgc-cor); animation: rgc-dia 180ms ease-out both; }
+@keyframes rgc-dia { from { opacity: 0; transform: scaleY(.3); } to { opacity: 1; transform: none; } }
+.rgc-memoria { overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.rgc-memoria table { border-collapse: collapse; font-size: 13px; line-height: 20px; }
+.rgc-memoria-linha > * { padding: 9px 14px; border-bottom: 1px solid var(--border); }
+.rgc-faixa-ponto { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--rgc-cor); }
+.rgc-memoria-total {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "titulo valor" "eco valor";
+  align-items: center;
+  gap: 2px 16px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--brand-soft) 55%, var(--card));
+}
+.rgc-memoria-titulo { grid-area: titulo; }
+.rgc-memoria-valor { grid-area: valor; }
+.rgc-memoria-eco { grid-area: eco; }
+/* Estreito: o total sobe ao lado do rótulo e a economia ganha a linha toda. */
+@container rgc-doc (max-width: 520px) {
+  .rgc-memoria-total { grid-template-areas: "titulo valor" "eco eco"; }
+}
+
+/* ── Exemplo numérico ─────────────────────────────────────────────────────── */
+.rgc-exemplo { padding: 2px 0 2px 14px; border-left: 3px solid color-mix(in srgb, var(--primary) 45%, var(--card)); }
+.rgc-exemplo-rotulo { margin-bottom: 2px; font-size: 11px; font-weight: 600; line-height: 16px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rgc-chip, .rgc-indice-item, .rgc-ancora, .rgc-linha > *, .rgc-passo-item, .rgc-campo, .rgc-passo, .rgc-passo-botao { transition: none; }
+  .rgc-regua-dia, .rgc-chegou .rgc-titulo { animation: none; }
+}
+
+/* ══ Valores padrão (cfg-) — redesenho 08/10 ═══════════════════════════════
+ * A tela usa as peças da família (pas-osso, pas-entra, pas-sobe, pas-alvo,
+ * barra de 56px do PageHeader). Aqui só o que é dela: o índice grudado, o
+ * painel do que está valendo, os grupos em linhas medidos pela própria
+ * largura, o campo numérico com os estados alterado/erro, a grade da
+ * empreita, a tabela por função que vira cartão e a barra de alterações.
+ * Tudo rápido e desligado com reduced-motion. */
+
+/* ── Página: índice à esquerda quando sobra largura ───────────────────────── */
+.cfg-pagina { container-type: inline-size; }
+.cfg-pagina-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.cfg-pagina-indice { display: none; }
+.cfg-pagina-corpo { display: flex; flex-direction: column; gap: 16px; max-width: 1280px; }
+@container (min-width: 1180px) {
+  .cfg-pagina-grade { grid-template-columns: 196px minmax(0, 1fr); }
+  .cfg-pagina-indice { display: block; position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 20px); }
+}
+.cfg-grupo { scroll-margin-top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 16px); }
+.cfg-indice-item { position: relative; }
+.cfg-indice-item[aria-current="location"]::before {
+  content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: var(--primary);
+}
+
+/* Rótulo de zona entre os grupos ("Entram no cálculo", "Cadastros e reserva"). */
+.cfg-zona {
+  margin: 8px 0 -6px; padding: 0 2px;
+  font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.cfg-zona:first-child { margin-top: 4px; }
+
+/* ── Resumo: cinco métricas pela largura DO PAINEL ────────────────────────── */
+.cfg-resumo, .cfg-resumo-grade { container-type: inline-size; }
+.cfg-resumo-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cfg-resumo-grade > .cfg-metrica { border-top: 1px solid var(--border); }
+.cfg-resumo-grade > .cfg-metrica:nth-child(-n+2) { border-top: 0; }
+.cfg-resumo-grade > .cfg-metrica:nth-child(even) { border-left: 1px solid var(--border); }
+.cfg-resumo-grade > .cfg-metrica:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@container (min-width: 760px) {
+  .cfg-resumo-grade { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cfg-resumo .cfg-resumo-grade > .cfg-metrica:nth-child(n):nth-last-child(n) { border-top: 0; border-left: 1px solid var(--border); grid-column: auto; }
+  .cfg-resumo .cfg-resumo-grade > .cfg-metrica:first-child:nth-last-child(n) { border-left: 0; }
+}
+
+/* ── Grupo e linha de ajuste ──────────────────────────────────────────────── */
+.cfg-grupo { container-type: inline-size; }
+.cfg-linha {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px 32px;
+  padding: 16px 20px;
+}
+.cfg-linha + .cfg-linha { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+@container (min-width: 760px) {
+  .cfg-linha { grid-template-columns: minmax(200px, 340px) minmax(0, 1fr); }
+  .cfg-linha-texto { padding-top: 2px; }
+}
+@container (max-width: 480px) {
+  .cfg-linha { padding: 14px 16px; }
+}
+.cfg-campos { display: grid; gap: 12px 14px; align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 560px) {
+  .cfg-campos-3, .cfg-campos-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container (min-width: 760px) {
+  .cfg-campos { max-width: 720px; }
+  .cfg-campos-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cfg-campos-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container (max-width: 340px) {
+  .cfg-campos { grid-template-columns: minmax(0, 1fr); }
+}
+.cfg-nota {
+  margin: 0; padding: 12px 20px 14px; border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  font-size: 12px; line-height: 18px; color: var(--muted-foreground);
+}
+
+/* ── Campo numérico ───────────────────────────────────────────────────────── */
+.cfg-rotulo {
+  display: block; margin: 0 0 6px;
+  font-size: 12px; font-weight: 500; line-height: 16px;
+  color: var(--slate-600, var(--muted-foreground));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cfg-campo {
+  position: relative; display: flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+.cfg-campo:hover { border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+.cfg-campo:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent); }
+.cfg-campo-unidade { flex-shrink: 0; font-size: 13px; font-weight: 500; color: var(--muted-foreground); user-select: none; }
+.cfg-campo-input {
+  flex: 1 1 auto; min-width: 0; width: 100%; height: 100%;
+  border: 0; background: transparent; outline: none; padding: 0;
+  font-size: 14px; font-weight: 500; color: var(--foreground);
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.cfg-campo-alterado { border-color: var(--warning-strong); background: color-mix(in srgb, var(--warning-soft) 35%, var(--card)); }
+.cfg-campo-alterado:hover { border-color: var(--warning-strong); }
+.cfg-campo-alterado:focus-within { border-color: var(--warning-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning-strong) 18%, transparent); }
+.cfg-campo-erro, .cfg-campo-erro:hover { border-color: var(--danger); background: var(--card); }
+.cfg-campo-erro:focus-within { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
+.cfg-apoio {
+  display: flex; align-items: center; gap: 4px;
+  margin: 4px 0 0; min-height: 16px;
+  font-size: 11px; line-height: 16px;
+}
+.cfg-apoio-alterado { color: var(--warning); animation: pas-entra 160ms ease-out both; }
+.cfg-desfazer {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 20px; height: 20px; border-radius: 5px; color: var(--warning);
+  transition: background-color 120ms ease;
+}
+.cfg-desfazer:hover { background: color-mix(in srgb, var(--warning-soft) 80%, transparent); }
+.cfg-desfazer:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+
+/* Total calculado ao vivo, na altura do campo, sem cara de campo. */
+.cfg-total-valor {
+  display: flex; align-items: center; justify-content: flex-end; height: 40px; padding: 0 12px;
+  border-radius: 8px; background: var(--surface-muted);
+  font-size: 14px; font-weight: 600; color: var(--foreground);
+}
+
+/* Exemplo da deflação: três degraus com a barra do percentual. */
+.cfg-exemplo { margin-top: 14px; max-width: 720px; }
+.cfg-degraus { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 8px 0 0; padding: 0; list-style: none; }
+.cfg-degrau { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cfg-degrau-barra { display: block; height: 4px; margin-bottom: 4px; border-radius: 9999px; background: var(--muted); overflow: hidden; }
+.cfg-degrau-barra > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width 400ms cubic-bezier(.2, 0, 0, 1); }
+
+/* Composição da diária do percurseiro. */
+.cfg-composicao { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 14px; margin-top: 14px; max-width: 720px; }
+.cfg-composicao-tipo { padding: 10px 12px; border-radius: 8px; background: var(--surface-muted); }
+
+/* ── Cenotécnicos empreita: grade modalidade × dias ───────────────────────── */
+.cfg-empreita { padding: 6px 20px 8px; }
+.cfg-empreita-cabeca { display: none; }
+.cfg-empreita-linha {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; align-items: start;
+  padding: 14px 0;
+}
+.cfg-empreita-linha + .cfg-empreita-linha { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+.cfg-empreita-nome { grid-column: 1 / -1; }
+.cfg-empreita-inc { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 8px; background: var(--surface-muted); }
+@container (min-width: 560px) {
+  .cfg-empreita-linha { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@container (min-width: 860px) {
+  .cfg-empreita-cabeca, .cfg-empreita-linha { display: grid; grid-template-columns: minmax(140px, 1.15fr) repeat(5, minmax(0, 1fr)) minmax(110px, .95fr); gap: 0 12px; align-items: center; }
+  .cfg-empreita-cabeca {
+    padding: 10px 0 8px; border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground);
+  }
+  .cfg-empreita-linha { padding: 10px 0; }
+  .cfg-empreita-linha + .cfg-empreita-linha { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .cfg-empreita-nome, .cfg-empreita-inc { grid-column: auto; }
+  .cfg-empreita-inc { display: block; padding: 0; background: none; text-align: right; }
+  .cfg-empreita-inc-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .cfg-empreita .cfg-rotulo-grade { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+  .cfg-empreita .cfg-apoio { position: absolute; }
+  .cfg-empreita .cfg-campo-bloco { position: relative; }
+  .cfg-empreita .cfg-campo-bloco[data-alterado], .cfg-empreita .cfg-campo-bloco[data-erro] { padding-bottom: 18px; margin-bottom: -18px; }
+}
+@container (max-width: 480px) {
+  .cfg-empreita { padding: 4px 16px 6px; }
+}
+
+/* ── Diária por função: a linha editável e o cartão no estreito ───────────── */
+.cfg-funcoes-caixa { container-type: inline-size; }
+.cfg-funcoes-tabela td { padding: 6px 16px; vertical-align: middle; border-top: 1px solid var(--border); }
+.cfg-funcoes-tabela tbody tr:first-child td { border-top: 0; }
+.cfg-funcao-linha { transition: background-color 120ms ease; }
+.cfg-funcao-linha:hover { background: color-mix(in srgb, var(--surface-muted) 55%, var(--card)); }
+.cfg-funcao-base { background: color-mix(in srgb, var(--brand-soft) 45%, var(--card)); }
+.cfg-funcao-alterada > td:first-child { box-shadow: inset 2px 0 0 var(--warning-strong); }
+.cfg-funcao-nome { height: 48px; }
+.cfg-celula {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  min-height: 36px; margin: 0 -8px; padding: 2px 8px; border-radius: 6px; cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.cfg-celula:hover { background: var(--muted); }
+.cfg-celula:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.cfg-lapis { color: var(--muted-foreground); opacity: .35; transition: opacity 120ms ease; }
+.cfg-celula:hover .cfg-lapis, .cfg-celula:focus-visible .cfg-lapis { opacity: 1; }
+.cfg-celula-alterada .cfg-lapis { color: var(--warning); opacity: .8; }
+.cfg-celula-edicao { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.cfg-campo-compacto { height: 34px; width: 132px; padding: 0 10px; }
+.cfg-icone-botao {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+.cfg-icone-botao:hover { background: var(--muted); }
+@container (max-width: 460px) {
+  .cfg-funcoes-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cfg-funcoes-tabela, .cfg-funcoes-tabela tbody { display: block; width: 100%; }
+  .cfg-funcoes-tabela tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; padding: 10px 14px 8px; border-top: 1px solid var(--border); }
+  .cfg-funcoes-tabela tbody tr:first-child { border-top: 0; }
+  .cfg-funcoes-tabela td { display: block; padding: 0; border: 0; }
+  .cfg-funcao-nome { grid-column: 1 / -1; height: auto; padding-bottom: 4px !important; }
+  .cfg-funcao-valor::before {
+    content: attr(data-rotulo); display: block; margin-bottom: 2px;
+    font-size: 11px; font-weight: 500; color: var(--muted-foreground);
+  }
+  .cfg-funcao-valor .cfg-celula { justify-content: space-between; margin: 0 -8px; }
+  .cfg-funcao-valor .cfg-celula > span { align-items: flex-start; }
+  .cfg-funcao-alterada > td:first-child { box-shadow: none; }
+  .cfg-funcao-alterada { box-shadow: inset 2px 0 0 var(--warning-strong); }
+  .cfg-campo-compacto { width: 100%; }
+  .cfg-celula-edicao { justify-content: flex-start; }
+}
+
+/* ── Histórico: linha do tempo com "antes → depois" em colunas ────────────── */
+.cfg-historico-item { position: relative; display: flex; gap: 12px; padding-top: 14px; }
+.cfg-historico-item + .cfg-historico-item { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.cfg-historico-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 9999px; font-size: 11px; font-weight: 600;
+}
+.cfg-historico-mudancas, .cfg-lista-mudancas {
+  display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 6px 16px; align-items: baseline;
+}
+.cfg-historico-mudancas { margin: 8px 0 0; max-width: 720px; }
+@container (max-width: 480px) {
+  .cfg-historico-mudancas { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .cfg-historico-mudancas dd { margin-bottom: 6px; }
+}
+
+/* ── Barra de alterações e toque ──────────────────────────────────────────── */
+.cfg-barra { margin-top: 4px; }
+/* Com a barra no rodapé, os avisos sobem acima dela (não cobrem o Salvar). */
+body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 120px; }
+@media (max-width: 639.98px) {
+  body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts { padding-bottom: 0; }
+}
+@media (pointer: coarse) {
+  .cfg-campo { height: 44px; }
+  .cfg-total-valor { height: 44px; }
+  .cfg-celula { min-height: 44px; }
+  .cfg-desfazer { width: 28px; height: 28px; }
+  .cfg-indice-item { height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cfg-campo, .cfg-funcao-linha, .cfg-celula, .cfg-lapis, .cfg-degrau-barra > span, .cfg-desfazer, .cfg-icone-botao { transition: none; }
+  .cfg-apoio-alterado { animation: none; }
+}
+
+/* ══ Controle RH (crh-) — redesenho 08/10 ════════════════════════════════════
+ * A tela usa as peças do Financeiro (pla-resumo, pla-resumo-grade, pla-metrica,
+ * pla-progresso, pla-etapa-atual) e da família Passagens (pas-osso, pas-entra,
+ * pas-alvo, pas-rolagem-x, FilaDeTrabalho, barra de filtros comum). Aqui só o
+ * que é dela: a tabela da fila agrupada por evento (colunas, cabeçalho
+ * grudado, faixa do grupo, linha com filete de tempo/decisão), o extrato da
+ * prestação aberta (trilho das seis etapas, blocos), o interruptor, a linha
+ * do recorte e o modo cartão da largura útil estreita (container query: o
+ * menu lateral muda o espaço sem mudar a janela). */
+
+.crh-lista { container: crh-lista / inline-size; }
+.crh-tabela {
+  /* Colaborador · Etapa · Prazo · Valor · Nota fiscal · Próxima ação · abrir */
+  --crh-colunas: minmax(0, 1.8fr) minmax(7.5rem, 1fr) minmax(8rem, 1.05fr) minmax(7.5rem, .9fr) minmax(7.5rem, .95fr) minmax(8.5rem, 1fr) 2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.crh-cabecalho, .crh-topo {
+  display: grid;
+  grid-template-columns: var(--crh-colunas);
+  column-gap: 16px;
+  padding: 0 10px 0 18px;
+}
+.crh-num { text-align: right; justify-self: stretch; }
+
+/* Cabeçalho das colunas: gruda abaixo da barra de contexto de 56px. */
+.crh-cabecalho {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 3;
+  align-items: center;
+  height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--surface-muted) 70%, var(--card));
+  border-bottom: 1px solid var(--border);
+  border-radius: 11px 11px 0 0;
+}
+
+/* ── Faixa do evento ─────────────────────────────────────────────────────── */
+.crh-grupo + .crh-grupo { border-top: 1px solid var(--border); }
+.crh-grupo-topo {
+  display: grid;
+  grid-template-columns: var(--crh-colunas);
+  column-gap: 16px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 10px 10px 18px;
+  text-align: left;
+  background: color-mix(in srgb, var(--surface-muted) 45%, var(--card));
+  transition: background-color 120ms ease;
+}
+.crh-grupo-topo:hover { background: color-mix(in srgb, var(--surface-muted) 85%, var(--card)); }
+.crh-grupo-topo:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.crh-grupo:last-child:not(.crh-grupo-aberto) .crh-grupo-topo { border-radius: 0 0 11px 11px; }
+.crh-grupo-seta { transition: transform 160ms ease; }
+.crh-grupo-aberto .crh-grupo-seta { transform: rotate(90deg); }
+.crh-grupo-nome { grid-column: 1 / 4; grid-row: 1; display: flex; flex-direction: column; padding-left: 22px; }
+.crh-grupo-topo > .crh-grupo-seta { grid-column: 1; grid-row: 1; justify-self: start; margin-left: -4px; }
+.crh-grupo-soma { grid-column: 4; grid-row: 1; text-align: right; font-size: 13px; font-weight: 600; color: var(--foreground); }
+.crh-grupo-composicao { grid-column: 5 / 8; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-width: 0; }
+.crh-grupo-aberto .crh-grupo-topo { border-bottom: 1px solid var(--border); }
+.crh-comp { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+.crh-comp > .tabular-nums { color: var(--foreground); }
+.crh-comp-ponto { width: 6px; height: 6px; border-radius: 999px; background: var(--border); flex-shrink: 0; }
+.crh-comp-rh .crh-comp-ponto { background: var(--primary); }
+.crh-comp-rh { color: var(--slate-700, var(--foreground)); }
+.crh-comp-atencao .crh-comp-ponto { background: var(--warning-strong); }
+.crh-comp-neutro .crh-comp-ponto { background: color-mix(in srgb, var(--muted-foreground) 55%, transparent); }
+.crh-comp-ok .crh-comp-ponto { background: var(--success-strong); }
+.crh-comp-erro .crh-comp-ponto { background: var(--danger-strong); }
+
+/* ── Linha da prestação ──────────────────────────────────────────────────── */
+.crh-grupo-linhas > div + div .crh-linha { border-top: 1px solid var(--border); }
+.crh-grupo:last-child .crh-grupo-linhas > div:last-child .crh-linha { border-radius: 0 0 11px 11px; }
+.crh-linha { position: relative; transition: background-color 120ms ease; }
+.crh-topo { align-items: center; padding-top: 11px; padding-bottom: 11px; cursor: pointer; }
+.crh-linha:hover { background-color: color-mix(in srgb, var(--surface-muted) 45%, var(--card)); }
+.crh-linha-aberta, .crh-linha-aberta:hover { background-color: color-mix(in srgb, var(--surface-muted) 40%, var(--card)); }
+/* Filete à esquerda: tempo parado (pendentes) ou situação da nota (aprovados). */
+.crh-linha::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+.crh-tom-atrasada::before, .crh-tom-recusada::before, .crh-tom-nf-recusada::before { background: var(--danger-strong); }
+.crh-tom-parada::before { background: var(--warning-strong); }
+.crh-tom-nf-aprovada::before { background: var(--success-strong); }
+.crh-tom-nf-analise::before { background: color-mix(in srgb, var(--primary) 45%, transparent); }
+.crh-tom-nf-pendente::before { background: color-mix(in srgb, var(--warning-strong) 30%, transparent); }
+.crh-grupo:last-child .crh-grupo-linhas > div:last-child .crh-linha::before { border-bottom-left-radius: 11px; }
+.crh-linha-sem-colab .crh-c-colab h4 { color: var(--muted-foreground); font-style: italic; font-weight: 500; }
+.crh-c-acao { display: flex; align-items: center; min-width: 0; }
+.crh-c-abrir { display: flex; justify-content: flex-end; margin-right: -4px; }
+.crh-acao { transition: background-color 120ms ease, transform 80ms ease; }
+.crh-acao:active { transform: scale(.97); }
+/* Ação da linha: tom de marca suave em repouso (uma fila com 40 "Planejar" azuis
+   gritava); acende cheia quando a linha está sob o mouse ou o botão em foco. */
+.crh-acao-forte { background: var(--brand-soft); color: var(--primary); }
+.crh-linha:hover .crh-acao-forte, .crh-acao-forte:focus-visible, .crh-acao-forte:hover { background: var(--primary); color: var(--primary-foreground); }
+.crh-linha:hover .crh-acao-forte:hover { background: var(--primary-hover); }
+
+/* ── Prestação aberta ────────────────────────────────────────────────────── */
+.crh-corpo { container-type: inline-size; padding: 0 16px 16px 18px; cursor: default; }
+.crh-trilho { border-top: 1px dashed var(--border); padding: 14px 0 12px; }
+.crh-etapas { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(6, minmax(84px, 1fr)); min-width: 540px; }
+.crh-etapa { position: relative; display: flex; justify-content: center; }
+.crh-etapa-alvo { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: default; position: relative; z-index: 1; }
+.crh-liga::before, .crh-liga-feita::before {
+  content: ""; position: absolute; top: 10px; height: 1px;
+  left: calc(-50% + 16px); right: calc(50% + 16px);
+  background: var(--border);
+}
+.crh-liga-feita::before { background: color-mix(in srgb, var(--success-strong) 60%, transparent); }
+.crh-etapa-ponto {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 999px; margin-bottom: 4px;
+  background: var(--muted); border: 1px solid var(--border); color: var(--card);
+}
+.crh-etapa-miolo { width: 8px; height: 8px; border-radius: 999px; background: currentColor; }
+.crh-etapa-feita .crh-etapa-ponto { background: var(--success-strong); border-color: var(--success-strong); color: #fff; }
+.crh-etapa-atual .crh-etapa-ponto { background: var(--card); border: 2px solid var(--primary); color: var(--primary); }
+.crh-etapa-espera .crh-etapa-ponto { background: var(--card); border: 2px solid var(--warning-strong); color: var(--warning-strong); }
+.crh-etapa-erro .crh-etapa-ponto { background: var(--danger-strong); border-color: var(--danger-strong); color: #fff; }
+.crh-etapa-nome { font-size: 12px; line-height: 16px; color: var(--muted-foreground); white-space: nowrap; }
+.crh-etapa-feita .crh-etapa-nome { color: var(--success); }
+.crh-etapa-atual .crh-etapa-nome { color: var(--foreground); font-weight: 600; }
+.crh-etapa-espera .crh-etapa-nome { color: var(--warning); font-weight: 600; }
+.crh-etapa-erro .crh-etapa-nome { color: var(--danger); font-weight: 600; }
+.crh-etapa-sub { font-size: 11px; line-height: 14px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.crh-corpo-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@container (min-width: 720px) {
+  .crh-corpo-grade { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  .crh-corpo-grade-um { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+}
+.crh-bloco { border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 11px 14px 12px; min-width: 0; }
+.crh-bloco-titulo { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); }
+.crh-bloco-comentario { background: color-mix(in srgb, var(--surface-muted) 50%, var(--card)); }
+.crh-totais { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 14px; margin-top: 8px; }
+.crh-totais > div:not(.ml-auto) { display: flex; flex-direction: column; }
+.crh-rotulo { font-size: 11px; line-height: 14px; color: var(--muted-foreground); }
+.crh-detalhe { margin-top: 10px; padding-top: 4px; border-top: 1px dashed var(--border); }
+.crh-detalhe-linha { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6.5rem, auto) minmax(6.5rem, auto); column-gap: 12px; align-items: center; min-height: 28px; font-size: 12px; }
+.crh-detalhe-linha > span:first-child { color: var(--muted-foreground); }
+.crh-detalhe-linha > span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; color: var(--slate-600, var(--foreground)); white-space: nowrap; }
+.crh-detalhe-linha > span:last-child { color: var(--foreground); }
+.crh-detalhe-cab { min-height: 24px; font-size: 11px; }
+.crh-detalhe-cab > span { color: var(--muted-foreground) !important; }
+.crh-rodape { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* ── Interruptor e recorte (barra de filtros) ───────────────────────────── */
+.crh-chave { position: relative; display: inline-block; width: 26px; height: 16px; border-radius: 999px; background: var(--border); transition: background-color 150ms ease; flex-shrink: 0; }
+.crh-chave > span { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 25%, transparent); transition: transform 150ms ease; }
+.crh-chave-on { background: var(--primary); }
+.crh-chave-on > span { transform: translateX(10px); }
+.crh-recorte {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  min-height: 26px; padding: 2px 3px 2px 8px; border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  background: var(--brand-soft); color: var(--primary); font-size: 12px; font-weight: 500;
+}
+.crh-recorte-limpar { margin-left: 2px; height: 20px; padding: 0 6px; border-radius: 4px; font-weight: 600; transition: background-color 120ms ease; }
+.crh-recorte-limpar:hover { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.crh-recorte-limpar:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+
+/* ── Modo cartão (largura útil < 880px: tablet, celular, menu aberto) ──────
+ *   faixa:  [▸ evento · datas ............ soma]
+ *           [  composição                       ]
+ *   linha:  [colaborador · função ...... etapa ⌄]
+ *           [prazo        valor        nota     ]
+ *           [próxima ação                       ]                            */
+@container crh-lista (max-width: 879.98px) {
+  .crh-cabecalho { display: none; }
+  .crh-tabela { border: 0; background: transparent; display: flex; flex-direction: column; gap: 14px; }
+  .crh-grupo + .crh-grupo { border-top: 0; }
+  .crh-grupo-topo {
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    grid-template-areas: "seta nome soma" ". comp comp";
+    row-gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+  }
+  .crh-grupo-aberto .crh-grupo-topo { border-bottom: 1px solid var(--border); border-radius: 12px; }
+  .crh-grupo:last-child:not(.crh-grupo-aberto) .crh-grupo-topo { border-radius: 12px; }
+  .crh-grupo-topo > .crh-grupo-seta { grid-area: seta; margin-left: 0; }
+  .crh-grupo-topo > .crh-grupo-nome { grid-area: nome; padding-left: 0; }
+  .crh-grupo-soma { grid-area: soma; align-self: start; }
+  .crh-grupo-composicao { grid-area: comp; }
+  .crh-grupo-nome > span { white-space: normal; overflow: visible; text-overflow: clip; }
+  .crh-grupo-linhas { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .crh-grupo-linhas > div + div .crh-linha { border-top: 1px solid var(--border); }
+  .crh-linha, .crh-grupo:last-child .crh-grupo-linhas > div:last-child .crh-linha { border: 1px solid var(--border); border-radius: 12px; background-color: var(--card); overflow: hidden; }
+  .crh-topo {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) 2rem;
+    grid-template-areas: "colab colab colab etapa abrir" "prazo valor nf acao acao";
+    column-gap: 10px;
+    row-gap: 10px;
+    align-items: start;
+    padding: 12px 8px 12px 14px;
+  }
+  .crh-c-colab { grid-area: colab; }
+  .crh-c-etapa { grid-area: etapa; justify-self: end; padding-top: 1px; }
+  .crh-c-prazo { grid-area: prazo; }
+  .crh-c-valor { grid-area: valor; text-align: left; }
+  .crh-c-valor > span { align-items: flex-start !important; }
+  .crh-c-nf { grid-area: nf; }
+  .crh-c-acao { grid-area: acao; justify-content: flex-end; align-self: center; }
+  .crh-c-acao:empty { display: none; }
+  .crh-c-abrir { grid-area: abrir; margin-top: -6px; }
+  .crh-c-prazo[data-rotulo]::before, .crh-c-valor[data-rotulo]::before, .crh-c-nf[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .crh-corpo { padding: 0 12px 12px 14px; }
+  .crh-rodape { justify-content: flex-start; }
+}
+@container crh-lista (max-width: 560px) {
+  .crh-topo { grid-template-columns: repeat(3, minmax(0, 1fr)) 2rem; grid-template-areas: "colab colab etapa abrir" "prazo valor nf nf" "acao acao acao acao"; }
+  .crh-c-acao { justify-content: flex-start; }
+}
+@container crh-lista (max-width: 420px) {
+  .crh-topo { grid-template-areas: "colab colab colab abrir" "etapa etapa etapa etapa" "prazo valor nf nf" "acao acao acao acao"; }
+  .crh-c-etapa { justify-self: start; padding-top: 0; }
+  .crh-detalhe-linha { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 10px; font-size: 11.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crh-linha, .crh-grupo-topo, .crh-grupo-seta, .crh-acao, .crh-chave, .crh-chave > span, .crh-recorte-limpar { transition: none; }
+}
+
+/* ══ Cadastro de usuários (cad-) — redesenho 08/10 ═══════════════════════════
+ * A tela usa as peças da família (barra de 56px do PageHeader, pas-osso,
+ * pas-entra, pas-alvo). Aqui só o que é dela: a página com o resumo à direita
+ * quando sobra largura, as seções em linhas ("o que é" à esquerda, campos à
+ * direita) medidas pela largura do próprio cartão, o campo com ajuda/erro no
+ * mesmo lugar (nada pula), os perfis como rádios em linhas, a lista das telas
+ * liberadas e o rodapé que gruda no celular. Rápido e sem movimento com
+ * reduced-motion. */
+
+/* ── Página: formulário + resumo ─────────────────────────────────────────── */
+.cad-pagina { max-width: 1240px; container-type: inline-size; }
+.cad-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@container (min-width: 960px) {
+  .cad-grade { grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
+  .cad-lateral { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem + 20px); }
+}
+
+/* ── Seções do formulário ────────────────────────────────────────────────── */
+.cad-cartao { container-type: inline-size; }
+.cad-secao { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 32px; padding: 18px 20px 20px; }
+.cad-secao + .cad-secao { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+@container (min-width: 820px) {
+  .cad-secao { grid-template-columns: 210px minmax(0, 1fr); padding: 22px 24px; }
+  .cad-secao-texto { padding-top: 1px; }
+}
+@container (max-width: 480px) {
+  .cad-secao { padding: 16px; }
+}
+.cad-secao-titulo { margin: 0; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--foreground); }
+.cad-secao-ajuda { margin: 2px 0 0; max-width: 46ch; font-size: 12px; line-height: 18px; color: var(--muted-foreground); }
+
+.cad-campos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 16px; align-items: start; }
+@container (min-width: 560px) {
+  .cad-campos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cad-area { max-width: calc(50% - 8px); }
+}
+@container (min-width: 820px) {
+  /* Ao lado do texto da seção: a área ocupa a mesma coluna do Nome. */
+  .cad-area { max-width: calc((100% - 16px) / 2); }
+}
+
+/* Campo: só borda e anel animam; ícone acende com o foco. */
+.cad-campo { transition: border-color 150ms ease, box-shadow 150ms ease; }
+.cad-campo-icone {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: var(--muted-foreground); pointer-events: none;
+  transition: color 150ms ease;
+}
+.relative:focus-within > .cad-campo-icone { color: var(--primary); }
+.cad-ajuda, .cad-erro { margin: 6px 0 0; font-size: 12px; line-height: 16px; }
+.cad-ajuda { color: var(--muted-foreground); }
+.cad-erro { color: var(--danger); font-weight: 500; animation: pas-entra 160ms ease-out both; }
+
+/* ── Perfis: rádios de verdade em linhas ─────────────────────────────────── */
+.cad-perfis { overflow: hidden; transition: border-color 150ms ease; }
+.cad-perfil {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  min-height: 56px; padding: 10px 14px; cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.cad-perfil + .cad-perfil { border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.cad-perfil:hover { background-color: color-mix(in srgb, var(--primary) 3%, var(--card)); }
+.cad-perfil-marcado, .cad-perfil-marcado:hover { background-color: var(--brand-soft); box-shadow: inset 3px 0 0 var(--primary); }
+.cad-perfil-radio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cad-perfil:has(.cad-perfil-radio:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; z-index: 1; }
+.cad-perfil-icone {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 8px;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.cad-perfil-marca {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 18px; height: 18px; border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  color: var(--primary-foreground);
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.cad-perfil:hover .cad-perfil-marca:not(.cad-perfil-marca-on) { border-color: var(--primary); }
+.cad-perfil-marca-on { background: var(--primary); border-color: var(--primary); }
+.cad-perfil:active .cad-perfil-marca { transform: scale(.9); }
+@container (max-width: 440px) {
+  .cad-perfil-telas { display: none; }
+  .cad-perfil { align-items: flex-start; }
+  .cad-perfil-marca { margin-top: 7px; }
+}
+
+/* Telas liberadas: grupo do menu numa coluna, telas na outra. */
+.cad-telas-grade { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; }
+
+/* ── Rodapé: o que falta + ações; gruda no fim da tela no celular ────────── */
+.cad-rodape {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 12px 20px; border-top: 1px solid var(--border);
+  background: var(--surface-muted); border-radius: 0 0 12px 12px;
+}
+@media (max-width: 639px) {
+  .cad-rodape {
+    position: sticky; bottom: 0; z-index: 5; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--card);
+    box-shadow: 0 -8px 16px -12px color-mix(in srgb, var(--foreground) 30%, transparent);
+  }
+}
+.cad-enviar { transition: background-color 120ms ease, transform 120ms ease; }
+.cad-enviar:active:not(:disabled) { transform: scale(.98); }
+
+/* ── Resumo à direita ────────────────────────────────────────────────────── */
+.cad-resumo-linhas { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px 12px; }
+.cad-avatar { transition: background-color 200ms ease, color 200ms ease; }
+.cad-lateral .pas-osso.rounded-full { border-radius: 999px; }
+
+/* Conta criada: a faixa recebe o foco ao aparecer. */
+.cad-concluido:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cad-erro { animation: none; }
+  .cad-campo, .cad-campo-icone, .cad-perfis, .cad-perfil, .cad-perfil-icone, .cad-perfil-marca, .cad-enviar, .cad-avatar { transition: none; }
+  .cad-perfil:active .cad-perfil-marca, .cad-enviar:active:not(:disabled) { transform: none; }
+}
+
+/* ══ Usuários (usr-) — redesenho 08/10 ═════════════════════════════════════
+ * A tela usa as peças da família Funções/Colaboradores (pas-osso, pas-entra,
+ * pas-alvo, FilaDeTrabalho, barra de filtros comum). Aqui só o que é dela: o
+ * cabeçalho da lista grudado abaixo da barra da tela, a linha/cartão inteiro
+ * que abre a edição (o ::after do nome cobre a linha), o pendente marcado por
+ * um filete à esquerda, a conta sem acesso esmaecida, as ações discretas até
+ * o hover e as microinterações (rápidas, desligadas com reduced-motion). */
+
+/* Cabeçalho grudado abaixo da barra da tela (56px). `clip` em vez de
+   `hidden`/`auto`: um contêiner que rola prenderia o `sticky` dentro dele. */
+.usr-moldura { overflow: clip; }
+.usr-moldura .usr-rolagem { overflow-x: clip; }
+.usr-tabela > thead > tr > th {
+  position: sticky;
+  top: calc(var(--sticky-top, 3.5rem) + 3.5rem);
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Linha e cartão: o nome é o botão; o ::after dele cobre a linha inteira. */
+.usr-linha, .usr-cartao { position: relative; }
+.usr-linha { transition: background-color 120ms ease; }
+.usr-linha:hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.usr-abrir::after { content: ""; position: absolute; inset: 0; }
+.usr-cartao .usr-abrir::after { border-radius: 0.75rem; }
+.usr-abrir { transition: color 120ms ease; }
+.usr-linha:hover .usr-abrir, .usr-cartao:hover .usr-abrir { color: var(--primary); }
+.usr-linha:has(.usr-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.usr-cartao:has(.usr-abrir:focus-visible) { box-shadow: 0 0 0 2px var(--ring); }
+.usr-cartao { transition: border-color 140ms ease, box-shadow 140ms ease; }
+.usr-cartao:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--foreground) 18%, transparent); }
+
+/* Pendente: um filete âmbar à esquerda (antes a linha inteira ficava amarela). */
+.usr-linha.usr-pendente > td:first-child { box-shadow: inset 3px 0 0 var(--warning-strong); }
+.usr-cartao.usr-pendente { border-left: 3px solid var(--warning-strong); }
+
+/* Sem acesso (inativo/rejeitado): esmaecido, mas situação e ações seguem legíveis. */
+.usr-apagada .usr-esmaece { opacity: .6; }
+
+/* Ações: à vista, discretas até a linha ser apontada; a ação forte fica inteira. */
+.usr-linha .usr-acao:not(.usr-forte):not(.usr-ligado) { opacity: .62; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.usr-linha:hover .usr-acao, .usr-acao:focus-visible { opacity: 1; }
+.usr-forte { transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease; }
+.usr-forte:active:not(:disabled) { transform: scale(.97); }
+@media (pointer: coarse) { .usr-linha .usr-acao { opacity: 1; } }
+
+/* Mapa de acesso: os filetes crescem da esquerda quando a lista aparece. */
+@keyframes usr-enche { from { transform: scaleX(0); } to { transform: none; } }
+.usr-mapa span[style] { transform-origin: left center; animation: usr-enche 320ms cubic-bezier(.2, 0, 0, 1) both; }
+
+/* Força da senha: cada filete acende com uma transição curta. */
+.usr-filete { transition: background-color 160ms ease; }
+
+/* Seção do modal: a borda acende quando o perfil vira Administrador. */
+.usr-secao { transition: border-color 160ms ease; }
+
+/* Aviso/realce que acabou de aparecer. */
+@keyframes usr-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.usr-entra { animation: usr-entra 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .usr-entra, .usr-mapa span[style] { animation: none; }
+  .usr-linha, .usr-abrir, .usr-cartao, .usr-linha .usr-acao, .usr-forte, .usr-filete, .usr-secao { transition: none; }
+  .usr-forte:active:not(:disabled) { transform: none; }
+}
+
+/* ══ Log de auditoria (aud-) — redesenho 08/10 ═══════════════════════════════
+ * Usa as peças da família Passagens/Controle RH (pas-osso, pas-entra,
+ * pas-alvo, pas-rolagem-x, BuscaDaLista). Aqui só o que é dela: o log numa
+ * moldura só (cabeçalho de colunas, dias que grudam, a trilha com o fio do dia),
+ * a linha que vira cartão pela LARGURA ÚTIL (container query), o "antes →
+ * depois" do painel e as microinterações (rápidas, discretas, desligadas com
+ * reduced-motion). */
+
+.aud-caixa { container: aud-lista / inline-size; }
+.aud-moldura {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background-color: var(--card);
+  box-shadow: 0 1px 2px hsl(222 47% 11% / 0.04);
+}
+
+/* Barra fina de "buscando a próxima página" e a lista esmaecida por baixo. */
+@keyframes aud-vai { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+.aud-progresso {
+  position: absolute; inset: 0 0 auto 0; height: 2px; z-index: 3;
+  overflow: hidden; border-radius: 12px 12px 0 0;
+}
+.aud-progresso::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 38%;
+  background: var(--primary); border-radius: 2px;
+  animation: aud-vai 1.1s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+.aud-trilha, .aud-dia { transition: opacity 160ms ease; }
+.aud-atualizando .aud-trilha, .aud-atualizando .aud-dia { opacity: .55; }
+
+/* Linha do topo (quantos, período, recorte) e cabeçalho das colunas. */
+.aud-topo {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+}
+.aud-cabecalho, .aud-linha {
+  display: grid;
+  /* Ação e módulo crescem um pouco com a tela: no 1920 não ficam a meio metro da frase. */
+  grid-template-columns: 3rem 1.75rem minmax(0, 1fr) minmax(10.5rem, .24fr) minmax(8.5rem, .2fr) 1.25rem;
+  column-gap: .75rem;
+}
+.aud-cabecalho {
+  padding: 7px 16px 7px 12px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Cabeçalho do dia: gruda abaixo da barra do app E da barra da tela (só no
+   desktop largo, onde a barra da tela tem uma linha só). */
+.aud-dia {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 0; padding: 12px 16px 6px;
+  background: var(--card);
+}
+@media (min-width: 1280px) {
+  .aud-dia { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem); z-index: 2; }
+}
+
+/* ── A trilha: hora | marcador sobre o fio | o que aconteceu | ação | módulo | › ── */
+.aud-trilha { margin: 0; padding: 0 0 6px; list-style: none; }
+.aud-item { position: relative; }
+.aud-item::before {
+  content: ""; position: absolute; z-index: 0;
+  left: calc(12px + 3rem + .75rem + .875rem - .5px);
+  top: 0; bottom: 0; width: 1px; background: var(--border);
+}
+.aud-item:first-child::before { top: 22px; }
+.aud-item:last-child::before { bottom: auto; height: 22px; }
+.aud-item:only-child::before { display: none; }
+
+.aud-linha {
+  position: relative; width: 100%;
+  align-items: start;
+  padding: 8px 16px 8px 12px;
+  text-align: left; cursor: pointer;
+  background: transparent;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.aud-linha:hover { background-color: color-mix(in srgb, var(--primary) 3.5%, var(--card)); }
+.aud-linha:focus-visible { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 55%, transparent); }
+.aud-linha[aria-current="true"] {
+  background-color: color-mix(in srgb, var(--primary) 6%, var(--card));
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.aud-c-hora { padding-top: 6px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+.aud-c-marca {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.75rem; height: 1.75rem; margin-top: 0;
+  border-radius: 9999px; box-shadow: 0 0 0 4px var(--card);
+}
+.aud-linha:hover .aud-c-marca { box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 3.5%, var(--card)); }
+.aud-linha[aria-current="true"] .aud-c-marca { box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 6%, var(--card)); }
+.aud-c-texto { min-width: 0; padding-top: 3px; }
+.aud-c-acao { padding-top: 3px; min-width: 0; }
+.aud-c-modulo { padding-top: 5px; min-width: 0; font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aud-c-abrir { padding-top: 6px; color: var(--muted-foreground); opacity: .55; transition: opacity 120ms ease, transform 120ms ease, color 120ms ease; }
+.aud-linha:hover .aud-c-abrir, .aud-linha:focus-visible .aud-c-abrir, .aud-linha[aria-current="true"] .aud-c-abrir { opacity: 1; color: var(--primary); transform: translateX(2px); }
+
+.aud-chip {
+  display: inline-flex; align-items: center; max-width: 100%;
+  height: 20px; padding: 0 8px; border-radius: 9999px;
+  font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.aud-contexto {
+  display: block; margin-top: 1px;
+  font-size: 12px; color: var(--muted-foreground);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* "Local: Ibirapuera → Pacaembu · +2 campos" — cada valor corta sozinho. */
+.aud-resumo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin-top: 3px; font-size: 12px; line-height: 18px; min-width: 0; }
+.aud-mud { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; max-width: 100%; }
+.aud-mud > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aud-mud > span:first-child { flex-shrink: 0; }
+.aud-mud-antes { max-width: 20ch; color: var(--muted-foreground); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted-foreground) 45%, transparent); }
+.aud-mud-depois { max-width: 26ch; color: var(--foreground); font-weight: 500; }
+
+/* Linha de apoio (hora · ação · módulo): só quando as colunas não cabem. */
+.aud-apoio { display: none; }
+.aud-apoio > span:not(.aud-chip) { font-size: 12px; color: var(--muted-foreground); }
+
+/* Largura média: o módulo sai da coluna e desce para a linha de apoio. */
+@container aud-lista (max-width: 900px) {
+  .aud-cabecalho, .aud-linha { grid-template-columns: 3rem 1.75rem minmax(0, 1fr) 10rem 1.25rem; }
+  .aud-cabecalho > span:nth-child(5), .aud-c-modulo { display: none; }
+  .aud-apoio { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; }
+  .aud-apoio > span:nth-child(1), .aud-apoio > span:nth-child(2) { display: none; }
+}
+/* Estreita (celular, tablet com menu): a linha vira cartão. */
+@container aud-lista (max-width: 640px) {
+  .aud-cabecalho { display: none; }
+  .aud-linha { grid-template-columns: 1.75rem minmax(0, 1fr) 1rem; column-gap: .625rem; padding: 10px 12px 10px 12px; }
+  .aud-c-hora, .aud-c-acao { display: none; }
+  .aud-item::before { left: calc(12px + .875rem - .5px); }
+  .aud-item:first-child::before { top: 24px; }
+  .aud-item:last-child::before { height: 24px; }
+  .aud-apoio { margin-top: 4px; }
+  .aud-apoio > span:nth-child(1), .aud-apoio > span:nth-child(2) { display: inline-flex; }
+  .aud-c-texto { padding-top: 2px; }
+  .aud-contexto { white-space: normal; }
+  .aud-mud-antes { max-width: 14ch; }
+  .aud-mud-depois { max-width: 18ch; }
+  .aud-dia { padding: 12px 12px 4px; flex-wrap: wrap; }
+  .aud-topo { padding: 10px 12px; }
+}
+
+/* Paginação no rodapé da moldura. */
+.aud-paginacao {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  padding: 10px 16px; border-top: 1px solid var(--border);
+  background: var(--surface-muted); border-radius: 0 0 11px 11px;
+}
+
+/* ── Painel do registro ── */
+@keyframes aud-entra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.aud-entra { animation: aud-entra 170ms ease-out both; }
+@keyframes aud-gira { to { transform: rotate(360deg); } }
+.aud-girando { animation: aud-gira .8s linear infinite; }
+
+/* Antes → depois: o campo em cima, os dois valores lado a lado. */
+.aud-diff-caixa { container: aud-diff / inline-size; }
+.aud-diff { margin: 0; }
+.aud-diff-cab, .aud-diff-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.25rem minmax(0, 1fr);
+  column-gap: 4px;
+}
+.aud-diff-cab { margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); }
+.aud-diff-linha { grid-template-areas: "campo campo campo" "antes seta depois"; row-gap: 4px; padding: 10px 0; border-top: 1px solid var(--border); }
+.aud-diff-linha:first-child { border-top: 0; padding-top: 6px; }
+.aud-diff-campo { grid-area: campo; font-size: 12px; font-weight: 600; color: var(--foreground); }
+.aud-diff-antes, .aud-diff-depois {
+  margin: 0; min-width: 0; padding: 6px 9px; border-radius: 7px;
+  font-size: 13px; line-height: 1.45; overflow-wrap: anywhere;
+}
+.aud-diff-antes { grid-area: antes; background: var(--surface-muted); border: 1px solid var(--border); color: var(--muted-foreground); }
+.aud-diff-depois { grid-area: depois; background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent); color: var(--foreground); font-weight: 500; }
+.aud-diff-seta { grid-area: seta; align-self: center; text-align: center; font-size: 13px; color: var(--muted-foreground); }
+@container aud-diff (max-width: 340px) {
+  .aud-diff-cab { display: none; }
+  .aud-diff-linha { grid-template-columns: minmax(0, 1fr); grid-template-areas: "campo" "antes" "depois"; }
+  .aud-diff-seta { display: none; }
+  .aud-diff-antes::before { content: "Antes · "; font-size: 11px; font-weight: 600; }
+  .aud-diff-depois::before { content: "Depois · "; font-size: 11px; font-weight: 600; color: var(--primary); }
+}
+
+.aud-pivo {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  height: 32px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card);
+  font-size: 13px; font-weight: 500; color: var(--foreground);
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 100ms ease;
+}
+.aud-pivo:hover { border-color: color-mix(in srgb, var(--primary) 30%, transparent); background: var(--brand-soft); color: var(--primary); }
+.aud-pivo:active { transform: scale(.98); }
+.aud-pivo:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+
+.aud-tecnico-seta { transition: transform 160ms ease; }
+.aud-tecnico[open] .aud-tecnico-seta { transform: rotate(180deg); }
+.aud-json {
+  margin: 0; max-height: 16rem; overflow: auto;
+  padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-muted);
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; color: var(--foreground);
+  white-space: pre;
+}
+
+.aud-nav {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  height: 32px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card);
+  font-size: 13px; font-weight: 500; color: var(--foreground);
+  transition: background-color 120ms ease, transform 100ms ease;
+}
+.aud-nav:hover:not(:disabled) { background: var(--muted); }
+.aud-nav:active:not(:disabled) { transform: scale(.98); }
+.aud-nav:disabled { opacity: .4; cursor: not-allowed; }
+.aud-nav:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.aud-tecla {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px;
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--card);
+  font-family: var(--font-sans); font-size: 11px; color: var(--foreground);
+}
+
+@media (pointer: coarse) {
+  .aud-nav, .aud-pivo { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aud-progresso::after, .aud-entra, .aud-girando { animation: none; }
+  .aud-linha, .aud-c-abrir, .aud-trilha, .aud-dia, .aud-pivo, .aud-nav, .aud-tecnico-seta { transition: none; }
+  .aud-linha:hover .aud-c-abrir { transform: none; }
+}
+
+/* ══ Ver como usuário (sim-) — redesenho 08/10 ═══════════════════════════════
+ * A tela usa as peças da família (barra de 56px do PageHeader, BuscaDaLista,
+ * pas-osso, pas-entra, pas-alvo, pas-rolagem-x) e a confirmação padrão. Aqui
+ * só o que é dela: a faixa "como funciona" em três passos com a réplica do
+ * botão de saída, a lista medida pela própria largura (colunas ou cartão), a
+ * linha inteira que abre a confirmação e as microinterações. */
+
+.sim-pagina { max-width: 1240px; margin-left: 0; }
+
+/* ── Como funciona: três passos numa faixa ───────────────────────────────── */
+.sim-como { container-type: inline-size; }
+.sim-passos { display: grid; grid-template-columns: minmax(0, 1fr); }
+.sim-passo { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; }
+.sim-passo + .sim-passo { border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+@container (min-width: 760px) {
+  .sim-passos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sim-passo { padding: 16px 20px; }
+  .sim-passo + .sim-passo { border-top: 0; border-left: 1px solid color-mix(in srgb, var(--border) 75%, transparent); }
+}
+.sim-passo-num {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 22px; margin-top: -1px; border-radius: 999px;
+  background: var(--brand-soft); color: var(--primary);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+/* Réplica da faixa global (simulation-banner): mesmas cores, em miniatura. */
+.sim-replica {
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 28px; padding: 0 4px 0 10px; border-radius: 8px;
+  background: var(--primary-hover);
+}
+.sim-replica-botao {
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 5px;
+  background: white; color: var(--primary); font-size: 11px; font-weight: 600;
+}
+
+/* ── Lista: colunas quando cabe, cartão quando não ───────────────────────── */
+.sim-moldura { container-type: inline-size; overflow: hidden; }
+.sim-cabecalho { display: none; }
+.sim-linha {
+  position: relative; display: grid; align-items: center; gap: 6px 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "pessoa acao" "perfil area";
+  padding: 12px 14px;
+  transition: background-color 120ms ease;
+}
+.sim-linha + .sim-linha, .sim-moldura ul > .sim-linha + .sim-linha { border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.sim-pessoa { grid-area: pessoa; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sim-perfil { grid-area: perfil; display: flex; align-items: baseline; gap: 8px; min-width: 0; padding-left: 48px; white-space: nowrap; }
+.sim-area { grid-area: area; min-width: 0; max-width: 46cqw; display: flex; justify-content: flex-end; }
+.sim-area > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container (max-width: 519px) {
+  /* Cartão estreito: o número de telas fica na confirmação. */
+  .sim-perfil-telas { display: none; }
+}
+.sim-acao { grid-area: acao; display: flex; justify-content: flex-end; }
+@container (min-width: 720px) {
+  .sim-cabecalho, .sim-linha {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .8fr) 112px;
+    grid-template-areas: "pessoa perfil area acao";
+    padding: 0 20px; gap: 16px;
+  }
+  .sim-linha { min-height: 60px; }
+  .sim-cabecalho {
+    display: grid; align-items: center; height: 38px;
+    background: var(--surface-muted); border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground);
+  }
+  .sim-perfil { padding-left: 0; flex-direction: column; gap: 1px; align-items: flex-start; }
+  .sim-area { justify-content: flex-start; }
+}
+
+.sim-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 999px;
+  background: var(--brand-soft); color: var(--primary);
+  font-size: 12px; font-weight: 600; letter-spacing: .02em;
+}
+
+/* O nome é o botão; o ::after dele cobre a linha inteira. */
+.sim-abrir {
+  display: block; max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
+  font-size: 14px; font-weight: 600; line-height: 20px; color: var(--foreground); text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color 120ms ease;
+}
+.sim-abrir::after { content: ""; position: absolute; inset: 0; }
+.sim-abrir:focus-visible { outline: none; }
+.sim-linha:has(.sim-abrir:focus-visible) { box-shadow: inset 0 0 0 2px var(--ring); }
+.sim-linha:not(.sim-linha-bloqueada):hover { background-color: color-mix(in srgb, var(--primary) 4%, var(--card)); }
+.sim-linha:not(.sim-linha-bloqueada):hover .sim-abrir { color: var(--primary); }
+.sim-abrir:disabled { cursor: default; }
+.sim-linha-bloqueada .sim-abrir { color: var(--muted-foreground); }
+
+/* "Ver como" sempre à vista; ganha a cor da marca quando a linha é apontada. */
+.sim-ver { position: relative; z-index: 1; transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease; }
+.sim-linha:not(.sim-linha-bloqueada):hover .sim-ver {
+  background: var(--primary); border-color: var(--primary); color: var(--primary-foreground);
+}
+.sim-ver:active:not(:disabled) { transform: scale(.97); }
+
+.sim-segmento { transition: background-color 140ms ease, color 140ms ease; }
+
+/* Esqueleto: o círculo do avatar (o .pas-osso arredonda só 6px). */
+.sim-pessoa > .pas-osso { border-radius: 999px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sim-linha, .sim-abrir, .sim-ver, .sim-segmento { transition: none; }
+  .sim-ver:active:not(:disabled) { transform: none; }
 }

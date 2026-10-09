@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcDeflatedDailies, DEFLATION_TIERS, PERCURSEIRO_TYPES, diasComDiaria, diasEmpreita, regraDiariaPorTipo, percurseiroDiariaCents, diasPercurseiro, isPercursoFunction, isFuncaoLocal } from "./calculation-rules";
+import { calcDeflatedDailies, diasComDiaria, diasEmpreita, regraDiariaPorTipo, percurseiroDiariaCents, diasPercurseiro, isPercursoFunction, isFuncaoLocal } from "./calculation-rules";
 import { cenoEmpreitaTotalCents } from "./cenotecnica-empreita";
 
 describe("calcDeflatedDailies (deflação por dia trabalhado)", () => {
@@ -40,25 +40,18 @@ describe("calcDeflatedDailies (deflação por dia trabalhado)", () => {
     expect(r.totalCents).toBe(333 * 4 + 300);
   });
 
-  it("os tiers cobrem todos os dias sem sobreposição", () => {
-    // dia 4 → tier 1; dia 5 → tier 2; dia 8 → tier 2; dia 9 → tier 3
-    expect(DEFLATION_TIERS[0].toDay).toBe(4);
-    expect(DEFLATION_TIERS[1].fromDay).toBe(5);
-    expect(DEFLATION_TIERS[1].toDay).toBe(8);
-    expect(DEFLATION_TIERS[2].fromDay).toBe(9);
+  it("as faixas viram nos dias certos, sem sobreposição (4|5 e 8|9)", () => {
+    // Era um teste da constante DEFLATION_TIERS (código morto, removido 08/10);
+    // agora confere as fronteiras na função que o motor usa.
+    const fatores = (dias: number) => calcDeflatedDailies(DIARIA, dias).segments.map(s => [s.days, s.factor]);
+    expect(fatores(4)).toEqual([[4, 1]]);
+    expect(fatores(5)).toEqual([[4, 1], [1, 0.9]]);
+    expect(fatores(8)).toEqual([[4, 1], [4, 0.9]]);
+    expect(fatores(9)).toEqual([[4, 1], [4, 0.9], [1, 0.8]]);
   });
 });
 
 describe("tabela do percurseiro", () => {
-  it("o total é a soma das 5 parcelas (tabela do usuário 17/08)", () => {
-    for (const t of PERCURSEIRO_TYPES) {
-      const soma = t.motoqueiroCents + t.feeIvanCents + t.alimentacaoCents + t.transporteCents + t.nfCents;
-      expect(t.totalCents).toBe(soma);
-    }
-    expect(PERCURSEIRO_TYPES[0].totalCents).toBe(112976);
-    expect(PERCURSEIRO_TYPES[1].totalCents).toBe(126667);
-  });
-
   it("percurseiroDiariaCents: Tipo 1 = 1.129,76 e Tipo 2 = 1.266,67 (defaults)", () => {
     const t1 = percurseiroDiariaCents("tipo_1", {});
     expect(t1).toMatchObject({ motoqueiro: 70000, fee: 10500, alimentacao: 10200, transporte: 5000, nf: 17276, total: 112976 });

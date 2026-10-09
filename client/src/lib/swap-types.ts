@@ -54,6 +54,15 @@ export interface NormalizedSwap {
   inclusionStatus: string | null;
   /** Vaga excluída (soft delete): a troca deixa de contar nos badges. */
   inclusionDeletedAt: string | null;
+  /**
+   * Quem está HOJE em cada vaga (09/10, joins da API). `undefined` quando a
+   * resposta não trouxe o campo (aí a tela não confere a vaga); `null` = vaga
+   * aberta. Conferidos com shared/troca-desatualizada.ts antes do "Aprovar".
+   */
+  inclusionCollaboratorId?: string | null;
+  inclusionCollaboratorName?: string | null;
+  pairedCollaboratorId?: string | null;
+  pairedCollaboratorName?: string | null;
 }
 
 type RawSwap = SwapRequest | Record<string, unknown>;
@@ -70,6 +79,9 @@ const data = (v: unknown): string | null => (v instanceof Date ? v.toISOString()
 export function normalizeSwap(raw: RawSwap): NormalizedSwap {
   const s = raw as Record<string, unknown>;
   const pega = (snake: string, camel: string): unknown => (s[snake] !== undefined && s[snake] !== null ? s[snake] : s[camel]);
+  /** Campo que pode não vir: undefined se nenhuma grafia veio, senão texto/null. */
+  const talvez = (snake: string, camel: string): string | null | undefined =>
+    snake in s || camel in s ? texto(pega(snake, camel)) : undefined;
   return {
     id: String(s.id ?? ""),
     teamInclusionId: String(pega("team_inclusion_id", "teamInclusionId") ?? ""),
@@ -97,6 +109,10 @@ export function normalizeSwap(raw: RawSwap): NormalizedSwap {
     pairedFunctionName: texto(pega("paired_function_name", "pairedFunctionName")),
     inclusionStatus: texto(pega("inclusion_status", "inclusionStatus")),
     inclusionDeletedAt: data(pega("inclusion_deleted_at", "inclusionDeletedAt")),
+    inclusionCollaboratorId: talvez("inclusion_collaborator_id", "inclusionCollaboratorId"),
+    inclusionCollaboratorName: talvez("inclusion_collaborator_name", "inclusionCollaboratorName"),
+    pairedCollaboratorId: talvez("paired_collaborator_id", "pairedCollaboratorId"),
+    pairedCollaboratorName: talvez("paired_collaborator_name", "pairedCollaboratorName"),
   };
 }
 
@@ -107,6 +123,26 @@ export function normalizeSwaps(rows: unknown): NormalizedSwap[] {
 /** As vagas de uma troca: a do pedido e, na permuta/transferência, a outra (16/09). */
 export function vagasDaTroca(s: Pick<NormalizedSwap, "teamInclusionId" | "pairedInclusionId">): string[] {
   return [s.teamInclusionId, s.pairedInclusionId].filter((id): id is string => !!id);
+}
+
+/**
+ * Pedido de troca PENDENTE de cada vaga — a do pedido E a outra vaga da
+ * permuta/transferência (09/10). Mudar o colaborador, cancelar ou excluir
+ * qualquer uma delas cancela o pedido no servidor (cancelarTrocasOrfas).
+ */
+export function trocasPendentesPorVaga(swaps: readonly NormalizedSwap[] | undefined): Map<string, NormalizedSwap> {
+  const mapa = new Map<string, NormalizedSwap>();
+  for (const s of swaps ?? []) {
+    if (s.status !== "pendente") continue;
+    for (const id of vagasDaTroca(s)) if (!mapa.has(id)) mapa.set(id, s);
+  }
+  return mapa;
+}
+
+/** A linha dos diálogos que mudam a vaga (09/10): o servidor cancela o pedido junto. */
+export function avisoDeTrocaPendente(s: Pick<NormalizedSwap, "requestedByName">): string {
+  const quem = s.requestedByName?.trim();
+  return `Esta vaga tem um pedido de troca pendente${quem ? ` (de ${quem})` : ""} — continuar cancela o pedido.`;
 }
 
 /**

@@ -12,6 +12,7 @@ import type { BudgetActual, BudgetPlanned, InsertBudgetActual, TeamInclusion, Ti
 import { isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo } from "@shared/calculation-rules";
 import { isTransporteTerrestre } from "@shared/atendimento";
 import { calcAlimentacao, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
+import { idaEVoltaDaMobilidade } from "@shared/comparativo";
 import {
   alimSignature, isWeekendDate, reconstructDailyValues, subtotalDiariasDe,
   type AlimField, type DayCounts, type DayEntry, type EditFormBase, type ModalActualTab, type TravelSource,
@@ -258,8 +259,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     let initIda = 0;
     let initVolta = 0;
     if (item.mobility > 0) {
-      initIda = typeof item.mobilityIda === "number" ? item.mobilityIda : Math.ceil(item.mobility / 2);
-      initVolta = typeof item.mobilityVolta === "number" ? item.mobilityVolta : Math.floor(item.mobility / 2);
+      // Ida/volta 0 + 0 com mobilidade > 0 é "sem divisão" (igual ao nulo):
+      // abrir com 0/0 e salvar zerava a mobilidade (@shared/comparativo).
+      ({ ida: initIda, volta: initVolta } = idaEVoltaDaMobilidade(item.mobility, item.mobilityIda, item.mobilityVolta));
     }
 
     setEditFormData({

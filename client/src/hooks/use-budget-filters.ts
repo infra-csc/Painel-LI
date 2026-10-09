@@ -7,6 +7,16 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { isCasaType, type CalculatedBudget } from "@/components/budget/types";
 
+/**
+ * Recorte por situação da vaga (redesenho 08/10) — só exibição: as mesmas
+ * regras que os cards e a planilha já usam para travar a linha.
+ *  - `ausentes`: marcada "não participou" (vale mesmo se já tinha ido);
+ *  - `enviadas`: já está no Realizado;
+ *  - `pendentes`: o resto — o que ainda precisa ser enviado;
+ *  - `ajustadas`: pendentes com valor editado à mão (subconjunto).
+ */
+export type SituacaoDoPlanejado = "todas" | "pendentes" | "ajustadas" | "enviadas" | "ausentes";
+
 export interface FiltrosDoPlanejado {
   searchTerm: string;
   setSearchTerm: (v: string) => void;
@@ -16,6 +26,17 @@ export interface FiltrosDoPlanejado {
   setFilterType: (v: string) => void;
   sortBy: string;
   setSortBy: (v: string) => void;
+  situacao: SituacaoDoPlanejado;
+  setSituacao: (v: SituacaoDoPlanejado) => void;
+  /** Quantas vagas cada situação tem com a busca, a função e o tipo de agora. */
+  contagemPorSituacao: Record<Exclude<SituacaoDoPlanejado, "todas">, number>;
+  /** Soma do total planejado (centavos) de cada situação, no mesmo recorte. */
+  valorPorSituacao: Record<Exclude<SituacaoDoPlanejado, "todas">, number>;
+  /** Funções com quantas vagas sobram ao escolher cada uma (os outros filtros mantidos). */
+  opcoesDeFuncao: { id: string; nome: string; n: number }[];
+  /** Algum filtro fora do padrão (busca, função, tipo ou situação). A ordem não conta. */
+  algumFiltro: boolean;
+  limparFiltros: () => void;
   /** Funções únicas para o filtro (nomes ordenados). */
   uniqueFunctions: string[];
   filteredBudgets: CalculatedBudget[];
@@ -46,6 +67,7 @@ export function useBudgetFilters(args: {
   // seleção mora logo depois de `filteredBudgets` (só tira o que ficou oculto).
   const buscaAplicada = useDeferredValue(searchTerm);
   const [sortBy, setSortBy] = useState<string>("name_asc");
+  const [situacao, setSituacao] = useState<SituacaoDoPlanejado>("todas");
   // Seleção ÚNICA, compartilhada entre a Visão Geral (cards) e a Planilha
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -61,32 +83,60 @@ export function useBudgetFilters(args: {
     return Array.from(funcs).sort();
   }, [calculatedBudgets, getFunctionName]);
 
+  // Situação da vaga — a mesma régua que trava a linha nos cards e na planilha.
+  const situacaoDe = useCallback((b: CalculatedBudget): "pendentes" | "enviadas" | "ausentes" => {
+    if (notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)) return "ausentes";
+    if (sentToActual.has(b.inclusion.id)) return "enviadas";
+    return "pendentes";
+  }, [sentToActual, notAttendedKeys]);
+
+  // Cada dimensão do filtro como predicado — para contar "quantas sobram se eu
+  // escolher isto" sem a própria dimensão (função e situação).
+  const passaBusca = useCallback((b: CalculatedBudget) => {
+    if (!buscaAplicada) return true;
+    return getCollaboratorName(b.inclusion.collaboratorId).toLowerCase().includes(buscaAplicada.toLowerCase());
+  }, [buscaAplicada, getCollaboratorName]);
+  const passaFuncao = useCallback((b: CalculatedBudget) =>
+    filterFunction === "all" || getFunctionName(b.inclusion.functionId) === filterFunction,
+  [filterFunction, getFunctionName]);
+  // Filtro por tipo — 'casa' inclui 'local', como no resto da tela
+  const passaTipo = useCallback((b: CalculatedBudget) =>
+    filterType === "all" ||
+    (filterType === "casa" && isCasaType(b.collaborator?.type)) ||
+    (filterType === "freela" && (b.collaborator?.type === "freela" || !b.collaborator?.type)),
+  [filterType]);
+  const passaSituacao = useCallback((b: CalculatedBudget) => {
+    if (situacao === "todas") return true;
+    const s = situacaoDe(b);
+    if (situacao === "ajustadas") return s === "pendentes" && b.hasOverride;
+    return s === situacao;
+  }, [situacao, situacaoDe]);
+
+  const { contagemPorSituacao, valorPorSituacao } = useMemo(() => {
+    const c = { pendentes: 0, ajustadas: 0, enviadas: 0, ausentes: 0 };
+    const v = { pendentes: 0, ajustadas: 0, enviadas: 0, ausentes: 0 };
+    calculatedBudgets.forEach(b => {
+      if (!passaBusca(b) || !passaFuncao(b) || !passaTipo(b)) return;
+      const s = situacaoDe(b);
+      c[s]++; v[s] += b.totalFinal;
+      if (s === "pendentes" && b.hasOverride) { c.ajustadas++; v.ajustadas += b.totalFinal; }
+    });
+    return { contagemPorSituacao: c, valorPorSituacao: v };
+  }, [calculatedBudgets, passaBusca, passaFuncao, passaTipo, situacaoDe]);
+
+  const opcoesDeFuncao = useMemo(() => {
+    const n = new Map<string, number>();
+    calculatedBudgets.forEach(b => {
+      if (!passaBusca(b) || !passaTipo(b) || !passaSituacao(b)) return;
+      const nome = getFunctionName(b.inclusion.functionId);
+      n.set(nome, (n.get(nome) ?? 0) + 1);
+    });
+    return uniqueFunctions.map(nome => ({ id: nome, nome, n: n.get(nome) ?? 0 }));
+  }, [calculatedBudgets, uniqueFunctions, passaBusca, passaTipo, passaSituacao, getFunctionName]);
+
   // Filtrar e ordenar budgets
   const filteredBudgets = useMemo(() => {
-    let result = [...calculatedBudgets];
-
-    // Filtro por busca
-    if (buscaAplicada) {
-      const term = buscaAplicada.toLowerCase();
-      result = result.filter(b =>
-        getCollaboratorName(b.inclusion.collaboratorId).toLowerCase().includes(term)
-      );
-    }
-
-    // Filtro por função
-    if (filterFunction !== "all") {
-      result = result.filter(b =>
-        getFunctionName(b.inclusion.functionId) === filterFunction
-      );
-    }
-
-    // Filtro por tipo — 'casa' inclui 'local', como no resto da tela
-    if (filterType !== "all") {
-      result = result.filter(b =>
-        (filterType === "casa" && isCasaType(b.collaborator?.type)) ||
-        (filterType === "freela" && (b.collaborator?.type === "freela" || !b.collaborator?.type))
-      );
-    }
+    const result = calculatedBudgets.filter(b => passaBusca(b) && passaFuncao(b) && passaTipo(b) && passaSituacao(b));
 
     result.sort((a, b) => {
       switch (sortBy) {
@@ -106,7 +156,12 @@ export function useBudgetFilters(args: {
     });
 
     return result;
-  }, [calculatedBudgets, buscaAplicada, filterFunction, filterType, sortBy, getCollaboratorName, getFunctionName]);
+  }, [calculatedBudgets, passaBusca, passaFuncao, passaTipo, passaSituacao, sortBy, getCollaboratorName, getFunctionName]);
+
+  const algumFiltro = !!searchTerm || filterFunction !== "all" || filterType !== "all" || situacao !== "todas";
+  const limparFiltros = useCallback(() => {
+    setSearchTerm(""); setFilterFunction("all"); setFilterType("all"); setSituacao("todas");
+  }, []);
 
   // Seleção × filtro (23/09): antes CADA tecla na busca zerava a seleção.
   // Agora só saem da seleção os itens que o filtro escondeu — item selecionado
@@ -162,6 +217,7 @@ export function useBudgetFilters(args: {
 
   return {
     searchTerm, setSearchTerm, filterFunction, setFilterFunction, filterType, setFilterType, sortBy, setSortBy,
+    situacao, setSituacao, contagemPorSituacao, valorPorSituacao, opcoesDeFuncao, algumFiltro, limparFiltros,
     uniqueFunctions, filteredBudgets, selectableFiltered,
     selectedIds, setSelectedIds, toggleCardSelection, toggleRowSelection, selectAllCards, clearSelection,
   };

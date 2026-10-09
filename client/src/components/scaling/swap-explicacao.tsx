@@ -3,8 +3,45 @@
  * Passagens e em Hospedagem (dono, 16/09). O texto vem de
  * shared/swap-explicacao.ts; aqui só a forma.
  */
-import { ArrowRight, Info, MapPin, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, Info, MapPin, XCircle } from "lucide-react";
 import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
+import { motivoTrocaDesatualizada } from "@shared/troca-desatualizada";
+import { toTitleCase } from "@/lib/format";
+
+/**
+ * A troca com os nomes dos ocupantes atuais no padrão do app (09/10) — o join
+ * da API devolve o nome como está no cadastro.
+ */
+export function comOcupantesFormatados<T extends TrocaParaExplicar>(t: T): T {
+  return {
+    ...t,
+    ...(t.inclusionCollaboratorName ? { inclusionCollaboratorName: toTitleCase(t.inclusionCollaboratorName) } : {}),
+    ...(t.pairedCollaboratorName ? { pairedCollaboratorName: toTitleCase(t.pairedCollaboratorName) } : {}),
+  };
+}
+
+/**
+ * Pedido PENDENTE que não vale mais (09/10): a mesma conferência do servidor
+ * na aprovação (shared/troca-desatualizada.ts). `null` quando ainda vale ou
+ * quando o pedido já foi decidido.
+ */
+export function motivoDaTrocaPendente(status: string | null | undefined, troca: TrocaParaExplicar): string | null {
+  return status === "pendente" ? motivoTrocaDesatualizada(troca) : null;
+}
+
+/** Aviso no topo do quadro do pedido quando as vagas mudaram depois dele (09/10). */
+export function AvisoTrocaDesatualizada({ motivo }: { motivo: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2.5 text-left" role="status" data-testid="aviso-troca-desatualizada">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger-strong" aria-hidden="true" />
+      <div className="min-w-0 space-y-0.5 text-xs leading-snug text-danger">
+        <p className="m-0 font-semibold">As vagas mudaram desde o pedido</p>
+        <p className="m-0">{motivo}</p>
+        <p className="m-0 font-medium">Recuse e peça de novo com as vagas como estão hoje.</p>
+      </div>
+    </div>
+  );
+}
 
 export function ExplicacaoDaTroca({ troca, titulo = "O que muda ao aprovar", compacta = false }: {
   troca: TrocaParaExplicar;

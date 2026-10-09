@@ -3,14 +3,19 @@
  * quarto mesmo com datas diferentes, e é isso que a regra precisa reproduzir.
  */
 import { describe, it, expect } from "vitest";
-import { sugerirQuartos, podemDividir, noitesEmComum, type RoomCandidate, type RoomPairingConfig } from "./room-pairing";
+import {
+  sugerirQuartos, podemDividir, noitesEmComum, noitesEmComumDeTodos, observacaoDeDatas, ehCenotecnica,
+  capacidadeDoQuarto, motivoDeLotacao, tipoPorOcupantes, type RoomCandidate, type RoomPairingConfig,
+} from "./room-pairing";
 
 const CFG: RoomPairingConfig = { allowTripleRoom: false, requireSameGenderForSharedRoom: true, sameFunctionPriority: true };
 const HOTEL = "PREMIUM EXECUTIVE HOTEL";
 
 const p = (o: Partial<RoomCandidate> & { collaboratorId: string }): RoomCandidate => ({
   checkIn: "2026-08-27", checkOut: "2026-08-31", hotelName: HOTEL,
-  gender: null, functionId: "cenotecnica", functionName: "cenotecnica", ...o,
+  // Função neutra por padrão: cenotécnica tem regra própria de triplo (09/10)
+  // e ganhou testes à parte.
+  gender: null, functionId: "kit", functionName: "Kit", ...o,
 });
 
 describe("noites em comum", () => {
@@ -134,5 +139,116 @@ describe("montagem dos quartos", () => {
     const todos = quartos.flatMap((q) => q.members);
     expect(new Set(todos).size).toBe(todos.length);
     expect(todos).toHaveLength(5);
+  });
+
+  it("noites em comum de um triplo são as que os TRÊS dividem", () => {
+    const tres = [
+      p({ collaboratorId: "a", checkIn: "2026-04-22", checkOut: "2026-04-26", gender: "male" }),
+      p({ collaboratorId: "b", checkIn: "2026-04-22", checkOut: "2026-04-25", gender: "male" }),
+      p({ collaboratorId: "c", checkIn: "2026-04-23", checkOut: "2026-04-26", gender: "male" }),
+    ];
+    const [q] = sugerirQuartos(tres, { ...CFG, allowTripleRoom: true });
+    expect(q.roomType).toBe("triple");
+    expect(q.sharedNights).toBe(2); // 23→25; o par a×b sozinho daria 3
+    expect(noitesEmComumDeTodos(tres)).toBe(2);
+  });
+});
+
+describe("observação de datas diferentes", () => {
+  it("datas iguais não geram observação", () => {
+    expect(observacaoDeDatas([{ checkIn: "2026-04-22", checkOut: "2026-04-26" }, { checkIn: "2026-04-22", checkOut: "2026-04-26" }])).toBeNull();
+  });
+
+  it("conta as noites que todos dividem", () => {
+    expect(observacaoDeDatas([
+      { checkIn: "2026-04-22", checkOut: "2026-04-27" },
+      { checkIn: "2026-04-23", checkOut: "2026-04-26" },
+    ])).toBe("Datas diferentes entre os ocupantes — 3 noites em comum. Confirme entrada/saída com o hotel.");
+    expect(observacaoDeDatas([
+      { checkIn: "2026-04-22", checkOut: "2026-04-24" },
+      { checkIn: "2026-04-23", checkOut: "2026-04-24" },
+    ])).toContain("1 noite em comum");
+  });
+
+  it("quarto individual não tem observação", () => {
+    expect(observacaoDeDatas([{ checkIn: "2026-04-22", checkOut: "2026-04-26" }])).toBeNull();
+  });
+});
+
+// Dono, 09/10 (Night Run 1ª Etapa Rio): "Cenotécnica pode ficar num quarto
+// triplo." Cinco cenotécnicos de 22→26/04 viravam 2 duplos + 1 single.
+describe("cenotécnica em quarto triplo", () => {
+  const ceno = (id: string, o: Partial<RoomCandidate> = {}) => p({
+    collaboratorId: id, checkIn: "2026-04-22", checkOut: "2026-04-26", gender: "male",
+    functionId: "ceno", functionName: "Cenotécnica", ...o,
+  });
+  const tipos = (qs: ReturnType<typeof sugerirQuartos>) => qs.map((q) => q.members.length).sort((x, y) => y - x);
+
+  it("reconhece a função sem acento e sem caixa; Sup Ceno não entra", () => {
+    expect(ehCenotecnica("Cenotécnica")).toBe(true);
+    expect(ehCenotecnica("CENOTECNICA - Montagem")).toBe(true);
+    expect(ehCenotecnica("Sup Ceno")).toBe(false);
+    expect(ehCenotecnica("Supervisor de Cenografia")).toBe(false);
+    expect(ehCenotecnica(null)).toBe(false);
+  });
+
+  it("caso real: 5 cenotécnicos com as mesmas datas → 1 triplo + 1 duplo, sem single", () => {
+    const qs = sugerirQuartos(["a", "b", "c", "d", "e"].map((id) => ceno(id)), CFG);
+    expect(tipos(qs)).toEqual([3, 2]);
+    expect(qs.map((q) => q.roomType).sort()).toEqual(["double", "triple"]);
+    expect(qs.find((q) => q.roomType === "triple")?.partialOverlap).toBe(false);
+  });
+
+  it("3 → um triplo", () => {
+    expect(tipos(sugerirQuartos(["a", "b", "c"].map((id) => ceno(id)), CFG))).toEqual([3]);
+  });
+
+  it("4 → dois duplos (não 3+1)", () => {
+    expect(tipos(sugerirQuartos(["a", "b", "c", "d"].map((id) => ceno(id)), CFG))).toEqual([2, 2]);
+  });
+
+  it("6 → dois triplos; 7 → 3+2+2", () => {
+    expect(tipos(sugerirQuartos(["a", "b", "c", "d", "e", "f"].map((id) => ceno(id)), CFG))).toEqual([3, 3]);
+    expect(tipos(sugerirQuartos(["a", "b", "c", "d", "e", "f", "g"].map((id) => ceno(id)), CFG))).toEqual([3, 2, 2]);
+  });
+
+  it("triplo só se os TRÊS forem de cenotécnica (chave global desligada)", () => {
+    const qs = sugerirQuartos([
+      ceno("a"), ceno("b"),
+      ceno("sup", { functionId: "sup-ceno", functionName: "Sup Ceno" }),
+    ], CFG);
+    expect(tipos(qs)).toEqual([2, 1]);
+    expect(qs.find((q) => q.members.includes("sup"))?.roomType).toBe("single");
+  });
+
+  it("as outras regras seguem valendo: gênero e noites em comum", () => {
+    const qs = sugerirQuartos([
+      ceno("a"), ceno("b"),
+      ceno("m", { gender: "female" }),
+      ceno("longe", { checkIn: "2026-05-10", checkOut: "2026-05-12" }),
+    ], CFG);
+    expect(qs.find((q) => q.members.includes("a"))?.members.sort()).toEqual(["a", "b"]);
+    expect(qs.find((q) => q.members.includes("m"))?.roomType).toBe("single");
+    expect(qs.find((q) => q.members.includes("longe"))?.roomType).toBe("single");
+  });
+
+  it("com a chave global ligada, triplo continua valendo para todos", () => {
+    const tres = ["a", "b", "c"].map((id) => p({ collaboratorId: id, gender: "male", functionName: "Produção" }));
+    expect(sugerirQuartos(tres, { ...CFG, allowTripleRoom: true })[0].roomType).toBe("triple");
+  });
+});
+
+describe("lotação no Mover", () => {
+  it("tipo pelo número de ocupantes", () => {
+    expect([1, 2, 3].map(tipoPorOcupantes)).toEqual(["single", "double", "triple"]);
+  });
+
+  it("até 2 sempre pode; 3 só cenotécnica (ou chave ligada); 4+ nunca", () => {
+    expect(motivoDeLotacao(["Kit", "Produção"], false)).toBeNull();
+    expect(motivoDeLotacao(["Cenotécnica", "Cenotécnica", "cenotecnica"], false)).toBeNull();
+    expect(motivoDeLotacao(["Cenotécnica", "Cenotécnica", "Sup Ceno"], false)).toMatch(/cenotécnica/);
+    expect(motivoDeLotacao(["Kit", "Kit", "Kit"], true)).toBeNull();
+    expect(motivoDeLotacao(["Cenotécnica", "Cenotécnica", "Cenotécnica", "Cenotécnica"], true)).toBe("Um quarto comporta no máximo 3 pessoas.");
+    expect(capacidadeDoQuarto(["Cenotécnica"], false)).toBe(3);
   });
 });

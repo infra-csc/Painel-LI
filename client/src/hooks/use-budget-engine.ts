@@ -51,9 +51,11 @@ export interface SaidaDoMotor {
   stats: EstatisticasDoPlanejado;
 }
 
+// "concluido" entrou em 08/10: é estado válido da vaga (shared/vaga-status) e
+// a vaga concluída sumia do Planejado — evento encerrado aparecia vazio.
 const STATUS_CONFIRMADOS = new Set([
   "confirmado", "escalacao", "escalado", "aprovacao", "passagem", "passagem_comprada",
-  "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada", "aprovado",
+  "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada", "aprovado", "concluido",
 ]);
 
 export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {

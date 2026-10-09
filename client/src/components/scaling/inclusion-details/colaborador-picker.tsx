@@ -16,6 +16,7 @@ import { SwapStatusCard, RequestSwapButton } from "../swap-request-panel";
 import { isEscalated, isEscalationConfirmed, isCityFromSP } from "../scaling-utils";
 import { isAtendimentoMissing, isPercurseiroMissing } from "../scaling-validation";
 import { EmpreitaCampos } from "./empreita-campos";
+import { avisoDeTrocaPendente } from "@/lib/swap-types";
 import { SHOW_PERCURSEIRO_TIPO_NA_ESCALACAO, brl, conflitosUnicos, type InclusionDetailsDialogProps } from "./details-shared";
 import type { InclusionDialogState } from "./use-inclusion-dialog-state";
 
@@ -101,6 +102,12 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
       {!modalData.empreitaModo && !modalData.collaboratorId && !isEscalated(inclusion) && (
         <p className="text-xs text-warning flex items-center gap-1.5" data-testid="hint-collaborator-required">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />Obrigatório para confirmar a escalação.
+        </p>
+      )}
+      {/* 09/10: salvar outra pessoa nesta vaga cancela o pedido de troca pendente (servidor). */}
+      {pendingSwap && (modalData.empreitaModo ? null : (modalData.collaboratorId || null)) !== (inclusion.collaboratorId ?? null) && (
+        <p className="text-xs text-warning flex items-start gap-1.5 leading-snug" role="status" data-testid="aviso-troca-pendente">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden="true" />{avisoDeTrocaPendente(pendingSwap)}
         </p>
       )}
       {/* Tipo de atendimento — obrigatório quando a função é de atendimento */}

@@ -1,7 +1,9 @@
 /**
  * Célula "Dias" (somente leitura) da linha da planilha do Planejado —
  * 25/09 (modularização). Mostra os dias com diária e explica no tooltip a
- * regra aplicada (casa/CLT, cenotécnica, percurso, empreita).
+ * regra aplicada (casa/CLT, cenotécnica, percurso, empreita). 08/10: sem a
+ * monoespaçada e o fundo cinza da coluna; `data-col` para o modo cartão. Fica
+ * fora da ordem do Tab de propósito: quem digita valores pula de campo em campo.
  */
 import { memo } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -10,14 +12,14 @@ import type { CalculatedBudget } from "./types";
 
 export const SheetRowDiasCell = memo(function SheetRowDiasCell({ budget }: { budget: CalculatedBudget }) {
   return (
-    <td className="px-3 py-3 text-center bg-surface-muted align-middle">
+    <td className="px-3 py-2.5 text-center align-middle" data-col="dias" data-rotulo="Dias">
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="text-sm font-semibold tabular-nums font-mono text-slate-600 cursor-default select-none">
+            <span className="pla-dias inline-flex items-center justify-center min-w-[2rem] h-7 px-1.5 rounded-md text-sm font-medium tabular-nums text-slate-700 cursor-default select-none">
               {budget.diasComDiaria}
               {(budget.regraDiaria === "fds" || budget.regraDiaria === "nenhuma" || budget.isPercurso) && budget.diasComDiaria !== budget.weekdays + budget.weekends && (
-                <span className="text-2xs font-sans font-normal text-muted-foreground">/{budget.weekdays + budget.weekends}</span>
+                <span className="text-2xs font-normal text-muted-foreground">/{budget.weekdays + budget.weekends}</span>
               )}
             </span>
           </TooltipTrigger>

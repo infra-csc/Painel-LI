@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error";
+import { toTitleCase } from "@/lib/format";
 import { getRoleLabel, type UserRole } from "@/lib/role-utils";
 import { Eye, Loader2, LogOut } from "lucide-react";
 
@@ -15,10 +18,36 @@ export const SIMULATION_BANNER_H = 40;
  *
  * 07/10: etiqueta "Simulação" à esquerda (o estado tem nome), texto curto no
  * celular e botão sólido — antes era um contorno branco quase invisível.
+ *
+ * 08/10: sair usa o `apiRequest` (status conferido): só recarrega no sucesso;
+ * se o servidor recusar ou a rede cair, o botão volta e um toast diz o porquê
+ * (antes o erro era engolido e o reload fingia que tinha saído). A faixa mostra
+ * o nome formatado e há quanto tempo a simulação começou.
  */
+
+/** "há 5 min", "há 1 h 20 min" — desde o início da simulação. */
+export function tempoDeSimulacao(desde: string | null | undefined, agora: number = Date.now()): string | null {
+  if (!desde) return null;
+  const inicio = new Date(desde).getTime();
+  if (Number.isNaN(inicio)) return null;
+  const min = Math.max(0, Math.floor((agora - inicio) / 60_000));
+  if (min < 1) return "há menos de 1 min";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `há ${h} h ${m} min` : `há ${h} h`;
+}
 export default function SimulationBanner() {
   const { user, simulation } = useAuth();
+  const { toast } = useToast();
   const [saindo, setSaindo] = useState(false);
+  // Relógio de minuto em minuto para o "há N min".
+  const [agora, setAgora] = useState(() => Date.now());
+  const ativa = !!simulation?.active;
+  useEffect(() => {
+    if (!ativa) return;
+    const t = window.setInterval(() => setAgora(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, [ativa]);
 
   if (!simulation?.active) return null;
 
@@ -26,14 +55,18 @@ export default function SimulationBanner() {
     if (saindo) return;
     setSaindo(true);
     try {
-      await fetch("/api/simulation/stop", { method: "POST", credentials: "include" });
-    } catch {
-      // Mesmo que o stop falhe, o reload abaixo reflete o estado real do
-      // servidor (se a simulação seguir ativa, o banner volta).
+      await apiRequest("POST", "/api/simulation/stop");
+    } catch (e) {
+      setSaindo(false);
+      toast({ variant: "destructive", title: "Não foi possível sair da simulação", description: apiErrorMessage(e, "Tente novamente.") });
+      return;
     }
     queryClient.clear();
     window.location.href = "/";
   };
+
+  const nome = toTitleCase(user?.name);
+  const desde = tempoDeSimulacao(simulation.simulatedSince, agora);
 
   const roleLabel = getRoleLabel((user?.role || "production") as UserRole);
 
@@ -52,9 +85,10 @@ export default function SimulationBanner() {
       <p className="m-0 flex-1 min-w-0 text-xs sm:text-[13px] truncate sm:text-center">
         <span className="hidden md:inline">Você está vendo o sistema como </span>
         <span className="md:hidden">Vendo como </span>
-        <b className="font-semibold">{user?.name}</b>
+        <b className="font-semibold" data-testid="sim-faixa-nome">{nome}</b>
         <span className="hidden sm:inline text-white/80"> ({roleLabel})</span>
         <span className="hidden md:inline text-white/80"> — somente leitura</span>
+        {desde && <span className="hidden lg:inline text-white/80" data-testid="sim-faixa-desde"> · começou {desde}</span>}
       </p>
       <button
         type="button"

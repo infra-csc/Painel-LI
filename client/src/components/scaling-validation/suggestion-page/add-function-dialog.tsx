@@ -1,7 +1,7 @@
 /**
  * "Adicionar função" (multi-seleção) da Sugestão de escala (25/09 — extraído da página).
  */
-import { Check } from "lucide-react";
+import { Check, ListPlus } from "lucide-react";
 import type { Function as FunctionType } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,8 +17,10 @@ export function AddFunctionDialog({ edit, sortedFunctions }: { edit: SuggestionG
           largura mínima do diálogo além da caixa e o overflow-hidden cortava
           descrição, badge e botão (04/09). */}
       <DialogContent className="max-w-lg p-0 overflow-hidden w-[calc(100%-2rem)] rounded-xl sm:w-full [&>*]:min-w-0">
-        <DialogHeader className="px-5 pt-5 pb-3">
-          <DialogTitle>Adicionar funções à grade</DialogTitle>
+        <DialogHeader className="space-y-1.5 px-5 pb-3.5 pr-12 pt-5 text-left">
+          <DialogTitle className="flex items-center gap-2">
+            <ListPlus className="h-4 w-4 text-primary" aria-hidden="true" /> Adicionar funções à grade
+          </DialogTitle>
           <DialogDescription>Marque uma ou mais funções. A mesma função pode entrar mais de uma vez (ex.: turmas com dias de viagem diferentes).</DialogDescription>
         </DialogHeader>
         <Command className="border-t border-border">
@@ -43,9 +45,9 @@ export function AddFunctionDialog({ edit, sortedFunctions }: { edit: SuggestionG
             </CommandGroup>
           </CommandList>
         </Command>
-        <DialogFooter className="flex flex-row flex-wrap items-center justify-end gap-2 px-5 py-3 border-t border-border sm:justify-between">
+        <DialogFooter className="flex flex-row flex-wrap items-center justify-end gap-2 border-t border-border bg-surface-muted/60 px-5 py-3 sm:justify-between">
           {/* Com a contagem o botão diz o que vai acontecer; com 0 não há o que adicionar. */}
-          <Button type="button" variant="ghost" size="sm" className="rounded-lg" disabled={missingFunctionsCount === 0} onClick={addAllFunctions}>
+          <Button type="button" variant="ghost" size="sm" className="rounded-lg text-primary hover:bg-brand-soft/60 hover:text-primary" disabled={missingFunctionsCount === 0} onClick={addAllFunctions}>
             Adicionar todas que faltam ({missingFunctionsCount})
           </Button>
           <div className="flex gap-2">

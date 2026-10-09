@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { TriangleAlert } from "lucide-react";
+import { BedDouble, Check, PlaneLanding, PlaneTakeoff, Ticket, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -19,8 +19,8 @@ export interface LogisticsPanelProps {
   workDays?: string[];
 }
 
-const GROUP = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
-const FIELD_LABEL = "block text-2xs font-medium text-muted-foreground mb-1";
+const GROUP = "flex items-center gap-1.5 text-xs font-semibold text-foreground";
+const FIELD_LABEL = "mb-1 block text-2xs font-medium text-muted-foreground";
 // Mesmo placeholder/title do TimeField dos pedidos (travel-fields.tsx): o
 // horário sugerido é texto livre com faixa, e as duas telas têm de dizer isso
 // com as mesmas palavras.
@@ -32,8 +32,8 @@ const inputCls = (filled: boolean) =>
     filled ? "bg-brand-soft/60 border-primary/30" : "bg-card border-border",
   );
 
-function Toggle({ label, on, disabled, onToggle, rowName }: {
-  label: string; on: boolean; disabled?: boolean; onToggle: (v: boolean) => void; rowName: string;
+function Toggle({ label, icon: Icon, on, disabled, onToggle, rowName }: {
+  label: string; icon: LucideIcon; on: boolean; disabled?: boolean; onToggle: (v: boolean) => void; rowName: string;
 }) {
   return (
     <button
@@ -43,10 +43,11 @@ function Toggle({ label, on, disabled, onToggle, rowName }: {
       disabled={disabled}
       onClick={() => onToggle(!on)}
       className={cn(
-        "h-8 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
-        on ? "bg-brand-soft border-primary/30 text-primary" : "bg-card border-border text-slate-600 hover:border-primary/30",
+        "sug-alvo inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+        on ? "border-primary/40 bg-brand-soft text-primary" : "border-border bg-card text-slate-600 hover:border-primary/30 hover:text-primary",
       )}
     >
+      {on ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
       {label}
     </button>
   );
@@ -57,6 +58,11 @@ function Toggle({ label, on, disabled, onToggle, rowName }: {
  * Ida · Volta · Precisa de · Observação. Fica FORA da tabela (num cartão logo
  * abaixo da grade) para continuar visível mesmo com a grade rolada.
  * Controlado — todo change vai para `onChangeRow` da página.
+ *
+ * 07/10 (redesenho): Ida e Volta lado a lado com o ícone da perna; "Precisa de"
+ * e a observação numa segunda linha com rótulo de campo de verdade (antes um
+ * `padding-top` de 18px fingia o rótulo e, quando a linha quebrava, sobrava um
+ * buraco); os botões de hotel/passagem mostram o ✓ quando marcados.
  */
 export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: LogisticsPanelProps) {
   const patch = (p: Partial<SuggestionGridRow>) => onChangeRow(row.rowId, p);
@@ -69,87 +75,86 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: Logisti
     [row.flightDepartureDate, row.flightReturnDate, workDays],
   );
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
+    <div className="space-y-3.5">
+      <div className="grid gap-x-8 gap-y-4 xl:grid-cols-2">
         <fieldset className="min-w-0">
-          <legend className={GROUP}>Ida</legend>
-          <div className="mt-1.5 flex flex-wrap items-end gap-2">
-            <div>
+          <legend className={GROUP}><PlaneTakeoff className="h-3.5 w-3.5 text-primary" aria-hidden="true" /> Ida</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,150px)_minmax(0,140px)_minmax(0,1fr)]">
+            <div className="min-w-0">
               <Label htmlFor={f("modal-ida")} className={FIELD_LABEL}>Modal</Label>
-              <ModeSelect id={f("modal-ida")} className="min-w-[150px]" value={row.transportModeIda} disabled={disabled} label={`Modal de ida — ${row.functionName}`} onChange={(v) => patch({ transportModeIda: v })} />
+              <ModeSelect id={f("modal-ida")} className="w-full" value={row.transportModeIda} disabled={disabled} label={`Modal de ida — ${row.functionName}`} onChange={(v) => patch({ transportModeIda: v })} />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label htmlFor={f("data-ida")} className={FIELD_LABEL}>Data</Label>
               <Input id={f("data-ida")} type="date" value={row.flightDepartureDate} disabled={disabled} aria-label={`Data de ida — ${row.functionName}`}
-                onChange={(e) => patch({ flightDepartureDate: e.target.value })} className={cn(inputCls(!!row.flightDepartureDate), "w-[140px]")} />
+                onChange={(e) => patch({ flightDepartureDate: e.target.value })} className={cn(inputCls(!!row.flightDepartureDate), "w-full tabular-nums")} />
             </div>
-            <div>
+            <div className="col-span-2 min-w-0 sm:col-span-1">
               <Label htmlFor={f("hora-ida")} className={FIELD_LABEL}>Desembarque (chegada)</Label>
               <Input id={f("hora-ida")} type="text" placeholder={TIME_PLACEHOLDER} title={disabled ? undefined : TIME_TITLE} maxLength={40}
                 value={row.flightArrivalSuggestedTime} disabled={disabled} aria-label={`Horário de desembarque — ${row.functionName}`}
-                onChange={(e) => patch({ flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-[160px] tabular-nums")} />
+                onChange={(e) => patch({ flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-full tabular-nums sm:max-w-[180px]")} />
             </div>
           </div>
         </fieldset>
 
-        <fieldset className="min-w-0">
-          <legend className={GROUP}>Volta</legend>
-          <div className="mt-1.5 flex flex-wrap items-end gap-2">
-            <div>
+        <fieldset className="min-w-0 xl:border-l xl:border-border xl:pl-8">
+          <legend className={GROUP}><PlaneLanding className="h-3.5 w-3.5 text-primary" aria-hidden="true" /> Volta</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,150px)_minmax(0,140px)_minmax(0,1fr)]">
+            <div className="min-w-0">
               <Label htmlFor={f("modal-volta")} className={FIELD_LABEL}>Modal</Label>
-              <ModeSelect id={f("modal-volta")} className="min-w-[150px]" value={row.transportModeVolta} disabled={disabled} label={`Modal de volta — ${row.functionName}`} onChange={(v) => patch({ transportModeVolta: v })} />
+              <ModeSelect id={f("modal-volta")} className="w-full" value={row.transportModeVolta} disabled={disabled} label={`Modal de volta — ${row.functionName}`} onChange={(v) => patch({ transportModeVolta: v })} />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label htmlFor={f("data-volta")} className={FIELD_LABEL}>Data</Label>
               {/* min = data da ida: o seletor já não oferece volta antes da ida (data digitada continua validada pela regra). */}
               <Input id={f("data-volta")} type="date" value={row.flightReturnDate} disabled={disabled} aria-label={`Data de volta — ${row.functionName}`}
                 min={row.flightDepartureDate || undefined}
-                onChange={(e) => patch({ flightReturnDate: e.target.value })} className={cn(inputCls(!!row.flightReturnDate), "w-[140px]")} />
+                onChange={(e) => patch({ flightReturnDate: e.target.value })} className={cn(inputCls(!!row.flightReturnDate), "w-full tabular-nums")} />
             </div>
-            <div>
+            <div className="col-span-2 min-w-0 sm:col-span-1">
               <Label htmlFor={f("hora-volta")} className={FIELD_LABEL}>Embarque (saída)</Label>
               <Input id={f("hora-volta")} type="text" placeholder={TIME_PLACEHOLDER} title={disabled ? undefined : TIME_TITLE} maxLength={40}
                 value={row.flightReturnSuggestedTime} disabled={disabled} aria-label={`Horário de embarque da volta — ${row.functionName}`}
-                onChange={(e) => patch({ flightReturnSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightReturnSuggestedTime), "w-[160px] tabular-nums")} />
+                onChange={(e) => patch({ flightReturnSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightReturnSuggestedTime), "w-full tabular-nums sm:max-w-[180px]")} />
             </div>
           </div>
         </fieldset>
+      </div>
 
-        <fieldset className="min-w-0">
-          <legend className={GROUP}>Precisa de</legend>
-          <div className="mt-1.5 flex items-center gap-2 pt-[18px]">
-            <Toggle label="Hotel" on={row.needsAccommodation} disabled={disabled} rowName={row.functionName} onToggle={(v) => patch({ needsAccommodation: v })} />
-            <Toggle label="Passagem" on={row.needsTicket} disabled={disabled} rowName={row.functionName} onToggle={(v) => patch({ needsTicket: v })} />
+      <div className="flex flex-col gap-x-8 gap-y-3 border-t border-border pt-3.5 sm:flex-row sm:items-end">
+        <fieldset className="min-w-0 shrink-0">
+          <legend className={FIELD_LABEL}>Precisa de</legend>
+          <div className="flex items-center gap-2">
+            <Toggle label="Hotel" icon={BedDouble} on={row.needsAccommodation} disabled={disabled} rowName={row.functionName} onToggle={(v) => patch({ needsAccommodation: v })} />
+            <Toggle label="Passagem" icon={Ticket} on={row.needsTicket} disabled={disabled} rowName={row.functionName} onToggle={(v) => patch({ needsTicket: v })} />
           </div>
         </fieldset>
 
-        <fieldset className="min-w-[240px] flex-1">
-          <legend className={GROUP}>Observação da linha</legend>
-          <div className="mt-1.5 pt-[18px]">
-            <Label htmlFor={f("obs")} className="sr-only">Observação — {row.functionName}</Label>
-            <Input id={f("obs")} value={row.observations} disabled={disabled} maxLength={500} placeholder="Ex.: chega junto com a carreta"
-              onChange={(e) => patch({ observations: e.target.value })} className={cn(inputCls(!!row.observations), "w-full")} />
-          </div>
-        </fieldset>
+        <div className="min-w-0 flex-1">
+          <Label htmlFor={f("obs")} className={FIELD_LABEL}>Observação da linha<span className="sr-only"> — {row.functionName}</span></Label>
+          <Input id={f("obs")} value={row.observations} disabled={disabled} maxLength={500} placeholder="Ex.: chega junto com a carreta"
+            onChange={(e) => patch({ observations: e.target.value })} className={cn(inputCls(!!row.observations), "w-full")} />
+        </div>
       </div>
 
       {/* Avisos de viagem × diárias: aviso, não erro — o envio segue. A frase
           "dá para enviar" aparece UMA vez, no rodapé, e não em cada item. */}
       {avisos.length > 0 && (
-        <div className="rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-2xs text-warning" role="status" data-testid="sug-logistics-avisos">
-          <ul className="space-y-0.5">
-            {avisos.map((a) => (
-              <li key={a} className="flex items-start gap-1.5">
-                <TriangleAlert className="mt-px h-3 w-3 shrink-0 text-warning" aria-hidden="true" />
-                <span>{a}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-1 text-warning">Só um aviso — dá para enviar assim mesmo.</p>
+        <div className="sug-entra flex items-start gap-2.5 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2.5 text-xs text-warning" role="status" data-testid="sug-logistics-avisos">
+          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+          <div className="min-w-0 space-y-0.5">
+            <ul className="space-y-0.5">
+              {avisos.map((a) => (
+                <li key={a} className="font-medium">{a}</li>
+              ))}
+            </ul>
+            <p className="text-warning/90">Só um aviso — dá para enviar assim mesmo.</p>
+          </div>
         </div>
       )}
 
-      <p className="text-2xs text-muted-foreground">
+      <p className="text-2xs leading-relaxed text-muted-foreground">
         Horário é uma faixa ou janela para Compras (ex.: "8-14h", "20h+"), não a hora exata do voo — quem compra confirma na tela de Passagens.
       </p>
     </div>

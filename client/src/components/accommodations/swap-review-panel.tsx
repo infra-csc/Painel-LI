@@ -20,7 +20,8 @@ import { fixEncoding } from "@/lib/utils";
 import type { Collaborator, TeamInclusion } from "@shared/schema";
 import type { NormalizedSwap } from "./types";
 import { formatDateTime, toTitleCase } from "./utils";
-import { ExplicacaoDaTroca } from "@/components/scaling/swap-explicacao";
+import { AvisoTrocaDesatualizada, ExplicacaoDaTroca, comOcupantesFormatados, motivoDaTrocaPendente } from "@/components/scaling/swap-explicacao";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
 import { RequiredMark } from "@/components/forms/required-mark";
 
@@ -114,13 +115,17 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
     || (swap.newCollaboratorId ? collaboratorById.get(swap.newCollaboratorId)?.city : null)
     || null;
   /** O que muda ao aprovar (16/09) — o mesmo texto da Escalação. */
-  const trocaExplicada: TrocaParaExplicar = {
+  const trocaExplicada: TrocaParaExplicar = comOcupantesFormatados({
     ...swap,
     // Transferência para vaga aberta não tem "quem sai"; para vaga com alguém (05/10), tem.
-    currentCollaboratorName: swap.swapKind === "transferencia" && !swap.currentCollaboratorId ? null : currentName,
+    // 09/10: é quem estava na vaga NO PEDIDO (o modal pode ser o da outra vaga,
+    // ou a vaga pode ter mudado) — quem está hoje vem dos ocupantes atuais.
+    currentCollaboratorName: swap.swapKind === "transferencia" && !swap.currentCollaboratorId ? null : nameOf(swap.currentCollaboratorId, swap.currentCollaboratorName),
     newCollaboratorName: requestedName,
     newCity: saiDeDoPedido,
-  };
+  });
+  /** As vagas mudaram desde o pedido (09/10): o servidor recusaria a aprovação. */
+  const motivoMudou = motivoDaTrocaPendente(swap.status, trocaExplicada);
 
   return (
     <>
@@ -140,6 +145,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
           </span>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
+          {motivoMudou && <AvisoTrocaDesatualizada motivo={motivoMudou} />}
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1.2fr)] items-stretch gap-3">
             <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 min-w-0">
               <p className="m-0 text-2xs font-medium text-muted-foreground mb-1">Colaborador atual</p>
@@ -170,10 +176,12 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
                   className={`${BOTAO} border border-danger/30 bg-card text-danger hover:bg-danger-soft`}>
                   <XCircle className="w-3.5 h-3.5" aria-hidden="true" />Rejeitar troca
                 </button>
-                <button type="button" onClick={() => setConfirmAction("approve")} disabled={busy} data-testid="button-approve-swap"
+                <MotivoDesabilitado motivo={motivoMudou} desabilitado={!!motivoMudou}>
+                <button type="button" onClick={() => setConfirmAction("approve")} disabled={busy || !!motivoMudou} data-testid="button-approve-swap"
                   className={`${BOTAO} bg-success hover:bg-success/90 text-white`}>
                   {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />}Aprovar troca
                 </button>
+                </MotivoDesabilitado>
               </div>
             )}
           </div>
@@ -181,7 +189,7 @@ export default function SwapReviewPanel({ inclusion, swaps, collaboratorById, ca
       </section>
 
       {/* Confirmação — Aprovar */}
-      {confirmAction === "approve" && (
+      {confirmAction === "approve" && !motivoMudou && (
         <Dialog open onOpenChange={closeConfirm}>
           <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader className="text-left">

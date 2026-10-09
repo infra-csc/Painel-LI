@@ -36,7 +36,9 @@ export function ScalingHeaderBar({ resumoTopo, aba, onAba, canExport, onExportar
       {/* O resumo fica à direita das abas a partir do tablet: as abas não
           andam de lugar quando o texto muda ("carregando…" → "69 vagas…"). */}
       <span
-        className={`min-w-0 truncate text-xs tabular-nums md:order-3 md:ml-auto md:text-right ${estado === "erro" ? "text-danger" : "text-muted-foreground"}`}
+        // No celular quebra a linha em vez de cortar (09/10); do tablet para cima, uma linha com o texto inteiro no title.
+        className={`min-w-0 text-xs leading-4 tabular-nums md:truncate md:order-3 md:ml-auto md:text-right ${estado === "erro" ? "text-danger" : "text-muted-foreground"}`}
+        title={resumo}
         data-testid="resumo-topo"
         aria-live="polite"
       >

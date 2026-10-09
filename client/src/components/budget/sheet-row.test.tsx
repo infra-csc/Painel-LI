@@ -24,7 +24,8 @@ const alimUtil = (nome = "Ana Souza") => screen.getByRole("textbox", { name: `Al
 const alimFds = (nome = "Ana Souza") => screen.getByRole("textbox", { name: `Alimentação de ${nome} por dia de fim de semana (R$)` }) as HTMLInputElement;
 const mobilidade = (nome = "Ana Souza") => screen.getByRole("textbox", { name: `Mobilidade de ${nome} (R$ total ida e volta)` }) as HTMLInputElement;
 const subtotal = (nome = "Ana Souza") => screen.getByRole("button", { name: `Ver memória de cálculo de ${nome}` });
-const reais = (centavos: number) => (centavos / 100).toFixed(2);
+// Os campos mostram pt-BR ("540,00") desde o redesenho de 08/10.
+const reais = (centavos: number) => Number((centavos / 100).toFixed(2)).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * Duas linhas com o rascunho de overrides REAL (sheet-edits) e o motor real:
@@ -96,7 +97,7 @@ describe("SheetRow", () => {
     expect(subtotal("Ana Souza")).toHaveTextContent(moeda(esperado.totalFinal));
     expect(subtotal("Ana Souza").textContent).not.toBe(totalAntesA);
     expect(subtotal("Bia Lima").textContent).toBe(totalAntesB);
-    expect(diaria("Ana Souza")).toHaveValue("500.00");
+    expect(diaria("Ana Souza")).toHaveValue("500,00");
     expect(diaria("Bia Lima")).toHaveValue(diaria("Bia Lima").value); // intacta
     const linhaA = screen.getAllByRole("row")[0];
     expect(within(linhaA).getByRole("img", { name: "Valor editado manualmente" })).toBeInTheDocument();
@@ -112,7 +113,7 @@ describe("SheetRow", () => {
       budget: orcamentoFake({ override: { mobilidade: 20000, mobilidadeIda: 10000, mobilidadeVolta: 10000 } }),
       ovr: { inclusionId: "x", mobilidade: 20000, mobilidadeIda: 10000, mobilidadeVolta: 10000 },
     });
-    expect(mobilidade()).toHaveValue("200.00");
+    expect(mobilidade()).toHaveValue("200,00");
     expect(screen.getByRole("img", { name: "Valor editado manualmente" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Restaurar valor padrão" }));
     expect(onRestoreField).toHaveBeenCalledWith(budget.inclusion.id, "mobilidade");
@@ -126,7 +127,8 @@ describe("SheetRow", () => {
     expect(screen.getByRole("checkbox", { name: "Selecionar Ana Souza" })).toBeDisabled();
     unmount();
     const { linha: riscada } = montar({ isNotAttended: true });
-    expect(riscada).toHaveClass("opacity-40");
+    expect(riscada).toHaveClass("pla-linha-ausente");
+    expect(riscada).toHaveTextContent("Não participou");
     expect(subtotal()).toBeDisabled();
   });
 

@@ -1,23 +1,21 @@
-// Extraído de rh-control.tsx em 25/09 (modularização): o cartão de uma
-// prestação de contas na fila do Controle RH (linha + corpo expandido).
+// Extraído de rh-control.tsx em 25/09 (modularização); redesenho 08/10: o
+// cartão virou uma LINHA da tabela da fila (crh-linha) — topo nas colunas da
+// tabela e, aberta, o extrato da prestação logo abaixo, na mesma largura.
 //
-// Card memoizado com dependências EXPLÍCITAS (23/09). Até 25/09 recebia a
-// closure `renderPrestacaoCard` (~500 linhas da página) por ref e declarava
-// como props "de comparação" tudo que o card lia do estado da página. Na
-// modularização a closure virou este componente e as props passaram a ser
-// USADAS de fato — o conjunto comparado pelo `React.memo`: item, expandido,
-// detalhes, approvingInvoiceId, nfApproving, canRh, mais os handlers, todos
-// com identidade estável na página (useCallback / setters / wouter / toast).
-// Desde o endpoint agregado (25/09) a NF, a isenção e os nomes (colaborador,
-// função, quem decidiu no RH) vêm DENTRO da linha — um item novo do servidor
-// é uma referência nova, então o memo repinta exatamente o que mudou.
+// Card memoizado com dependências EXPLÍCITAS (23/09). O conjunto comparado
+// pelo `React.memo`: item, expandido, detalhes, approvingInvoiceId,
+// nfApproving, canRh, mais os handlers, todos com identidade estável na
+// página (useCallback / setters / wouter / toast). Desde o endpoint agregado
+// (25/09) a NF, a isenção e os nomes vêm DENTRO da linha — um item novo do
+// servidor é uma referência nova, então o memo repinta exatamente o que mudou.
 // Digitar na busca ou expandir outro card não repinta este.
 // REGRA: qualquer novo estado lido dentro do card entra aqui como prop.
 import { memo } from "react";
+import { cn } from "@/lib/utils";
 import { toTitleCase } from "@/lib/format";
 import type { PrestacaoItem } from "./prestacao-types";
 import { statusConfig } from "./status-config";
-import { getDiffDays, getLeftBorderStyle, getNavigationTarget } from "./prestacao-utils";
+import { getNavigationTarget, tomDaLinha } from "./prestacao-utils";
 import { CartaoPrestacaoLinha, type ToastFn } from "./cartao-prestacao-linha";
 import { CartaoPrestacaoCorpo } from "./cartao-prestacao-corpo";
 
@@ -45,11 +43,10 @@ export const CartaoPrestacao = memo(function CartaoPrestacao({
   const isResubmitted = item.actual?.resubmitted;
   const navTarget = getNavigationTarget(item);
   const needsRhAction = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
-  const days = getDiffDays(item.lastActivityDate);
   // NF ligada ao Realizado raiz, já resolvida pelo servidor.
   const invoice = item.invoice ?? undefined;
-  const borderStyle = getLeftBorderStyle(item, invoice);
-  const colName = item.collaboratorId ? toTitleCase(item.collaboratorName ?? "-") : 'A Definir';
+  const tom = tomDaLinha(item, invoice);
+  const colName = item.collaboratorId ? toTitleCase(item.collaboratorName ?? "-") : "A Definir";
   // NF disponível a partir do envio do Realizado — não espera o comparativo.
   const nfEligible = item.status === "aprovada_faturamento" || item.status === "prestacao_recebida";
   const nfInvCard = nfEligible && item.actual ? invoice : undefined;
@@ -59,10 +56,7 @@ export const CartaoPrestacao = memo(function CartaoPrestacao({
   const itemEmitsNf = item.emiteNf;
 
   return (
-    <div
-      className={`rounded-lg bg-card border border-border overflow-hidden hover:shadow-1 transition-shadow ${borderStyle.border} ${borderStyle.bg}`}
-    >
-      {/* Card row */}
+    <div className={cn("crh-linha", `crh-tom-${tom}`, isExpanded && "crh-linha-aberta", !item.collaboratorId && "crh-linha-sem-colab")} data-prestacao-id={item.id}>
       <CartaoPrestacaoLinha
         item={item}
         config={config}
@@ -70,7 +64,6 @@ export const CartaoPrestacao = memo(function CartaoPrestacao({
         isResubmitted={isResubmitted}
         navTarget={navTarget}
         needsRhAction={needsRhAction}
-        days={days}
         colName={colName}
         nfEligible={nfEligible}
         nfInvCard={nfInvCard}
@@ -87,7 +80,6 @@ export const CartaoPrestacao = memo(function CartaoPrestacao({
         toggleExpand={toggleExpand}
       />
 
-      {/* Expanded body */}
       {isExpanded && (
         <CartaoPrestacaoCorpo
           item={item}

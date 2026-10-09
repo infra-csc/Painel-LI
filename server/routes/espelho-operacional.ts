@@ -30,7 +30,9 @@ import {
   exportOperationalMirrorExcel,
   patchOperationalMirrorCell,
   lerPlanilhaParaOEspelho,
+  motivoDeLotacaoDoQuarto,
 } from "../operational-mirror";
+import { tipoPorOcupantes } from "@shared/room-pairing";
 import { createAuditLog, upload, requireRoles, LOGISTICA_ROLES } from "./_compartilhado";
 
 export function registrarEspelhoOperacional(app: Express): void {
@@ -246,6 +248,11 @@ export function registrarEspelhoOperacional(app: Express): void {
    * `paraGrupoId` nulo significa "quarto novo, só para essa pessoa". Se o
    * quarto de origem ficar vazio, ele deixa de existir — quarto sem ninguém
    * não é reserva, é lixo na tela. O destino precisa ser do MESMO evento.
+   *
+   * Lotação (09/10): no máximo 3 por quarto, e 3 só com todos de cenotécnica
+   * (ou a chave global de triplo ligada). O tipo dos dois quartos passa a
+   * seguir quantas pessoas ficam em cada um (1 single, 2 duplo, 3 triplo) —
+   * antes o rótulo continuava o antigo.
    */
   app.post("/api/hotel-room-groups/mover", async (req, res) => {
     const ator = await requireRoles(req, res, LOGISTICA_ROLES);
@@ -267,6 +274,16 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(hotelRoomGroupMembersTable.hotelRoomGroupId, deGrupoId));
       const membro = membrosOrigem.find((m) => m.collaboratorId === collaboratorId);
       if (!membro) return res.status(404).json({ message: "Esta pessoa não está neste quarto." });
+
+      let ocupantesNoDestino = 1;
+      if (paraGrupoId) {
+        const membrosDestino = await db.select().from(hotelRoomGroupMembersTable)
+          .where(eq(hotelRoomGroupMembersTable.hotelRoomGroupId, String(paraGrupoId)));
+        const juntos = Array.from(new Set([...membrosDestino.map((m) => m.collaboratorId), String(collaboratorId)]));
+        const motivo = await motivoDeLotacaoDoQuarto(origem.eventId, juntos);
+        if (motivo) return res.status(400).json({ message: motivo });
+        ocupantesNoDestino = juntos.length;
+      }
 
       const destinoId = await db.transaction(async (tx) => {
         let destinoId: string = paraGrupoId ?? "";
@@ -292,11 +309,11 @@ export function registrarEspelhoOperacional(app: Express): void {
           await tx.delete(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.id, deGrupoId));
         } else {
           await tx.update(hotelRoomGroupsTable)
-            .set({ notes: null, confirmed: false, updatedAt: new Date() })
+            .set({ roomType: tipoPorOcupantes(membrosOrigem.length - 1), notes: null, confirmed: false, updatedAt: new Date() })
             .where(eq(hotelRoomGroupsTable.id, deGrupoId));
         }
         await tx.update(hotelRoomGroupsTable)
-          .set({ notes: null, confirmed: false, updatedAt: new Date() })
+          .set({ roomType: tipoPorOcupantes(ocupantesNoDestino), notes: null, confirmed: false, updatedAt: new Date() })
           .where(eq(hotelRoomGroupsTable.id, destinoId));
         return destinoId;
       });

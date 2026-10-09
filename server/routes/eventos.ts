@@ -17,6 +17,7 @@ import {
 import { eq, and, ne, desc, sql as drizzleSql } from "drizzle-orm";
 import { ZodError } from "zod";
 import { isFinanceRole, normalizeRole } from "@shared/roles";
+import { erroDoCnpj } from "@shared/cnpj";
 import { createAuditLog, cacheDeCatalogo, requireRoles, CADASTRO_ROLES, FINANCE_ROLES } from "./_compartilhado";
 
 export function registrarEventos(app: Express): void {
@@ -73,6 +74,9 @@ export function registrarEventos(app: Express): void {
           !paymentCompanyName.trim() || !paymentCompanyCnpj.trim()) {
         return res.status(400).json({ message: "Nome e CNPJ são obrigatórios" });
       }
+      // Dígitos verificadores (08/10) — a mesma regra do campo (@shared/cnpj).
+      const erroCnpj = erroDoCnpj(paymentCompanyCnpj);
+      if (erroCnpj) return res.status(400).json({ message: erroCnpj });
       const updated = await storage.updateEvent(req.params.id, { paymentCompanyName, paymentCompanyCnpj });
       await createAuditLog('update', 'event', updated.id, updated, actor.id, actor.name, event, req);
       res.json(updated);
@@ -106,6 +110,14 @@ export function registrarEventos(app: Express): void {
           }
           delete eventData[campo];
         }
+      }
+      // CNPJ da pagadora (opcional aqui): vazio passa; preenchido e MUDADO tem
+      // de ter os dígitos verificadores certos. O valor já gravado não é
+      // cobrado de novo (cadastro antigo não trava a edição do evento).
+      const novoCnpj = eventData.paymentCompanyCnpj;
+      if (typeof novoCnpj === "string" && novoCnpj.trim() && novoCnpj !== (oldEvent.paymentCompanyCnpj ?? null)) {
+        const erroCnpj = erroDoCnpj(novoCnpj);
+        if (erroCnpj) return res.status(400).json({ message: erroCnpj });
       }
       // Excluir evento é só do administrador (dono, 18/09 — o Girl Power
       // Brasília foi excluído e sumiu com 26 vagas). Compras continua editando

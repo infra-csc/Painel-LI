@@ -2,6 +2,7 @@
 // respostas da API, constantes-alvo do adiantamento e utilitários puros da
 // Conta corrente Flash. Sem React.
 import { formatarMoeda } from "@/lib/format";
+import { hojeISO } from "@shared/hoje-sp";
 
 // Valores-alvo do adiantamento: o colaborador deve sempre ter esses saldos
 // disponíveis no Flash Benefícios (crédito inicial na admissão; cada evento
@@ -15,9 +16,45 @@ export function fmtDate(d?: string | null) {
   const [y, m, day] = String(d).split("T")[0].split("-");
   return `${day}/${m}/${y}`;
 }
+// Hoje no fuso da operação: em UTC, depois das 21h o lançamento nascia no dia seguinte.
 export function todayISO() {
-  return new Date().toISOString().split("T")[0];
+  return hojeISO();
 }
+
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+/** "2026-08-14" → "2026-08" (chave do mês no extrato). */
+export function mesDe(d?: string | null): string {
+  return String(d || "").split("T")[0].slice(0, 7);
+}
+/** "2026-08" → "Agosto de 2026". */
+export function rotuloDoMes(chave: string): string {
+  const [y, m] = chave.split("-");
+  const nome = MESES[Number(m) - 1];
+  if (!nome || !y) return "Sem data";
+  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${y}`;
+}
+/** "2026-08-14" → { dia: "14/08", semana: "sex" } — a data do extrato, legível. */
+export function dataDoExtrato(d?: string | null): { dia: string; semana: string } {
+  const iso = String(d || "").split("T")[0];
+  const [y, m, day] = iso.split("-");
+  if (!y || !m || !day) return { dia: "—", semana: "" };
+  const dt = new Date(Number(y), Number(m) - 1, Number(day));
+  return { dia: `${day}/${m}`, semana: Number.isNaN(dt.getTime()) ? "" : DIAS[dt.getDay()] };
+}
+
+/** Quanto falta para o alvo (0 quando já está no alvo ou acima). */
+export function faltaParaOAlvo(saldo: number, alvo: number): number {
+  return Math.max(0, alvo - saldo);
+}
+/** Proporção do saldo sobre o alvo, de 0 a 1 (para a barrinha). */
+export function proporcaoDoAlvo(saldo: number, alvo: number): number {
+  if (alvo <= 0) return 1;
+  return Math.min(1, Math.max(0, saldo / alvo));
+}
+
+export const ROTULO_CATEGORIA: Record<string, string> = { alimentacao: "Alimentação", mobilidade: "Mobilidade" };
 
 export type Balance = { food: number; mobility: number; count: number };
 

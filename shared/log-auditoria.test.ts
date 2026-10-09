@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { descreverLog, formatarValor, resumoParaGravar, type NomesParaLog } from "./log-auditoria";
+import { descreverLog, formatarValor, resumoParaGravar, updateLidoComoExclusao, type NomesParaLog } from "./log-auditoria";
 
 const nomes: NomesParaLog = {
   evento: (id) => ({ ev1: "Girl Power Brasília - 2026" } as Record<string, string>)[id],
@@ -127,5 +127,36 @@ describe("log de auditoria em português (18/09)", () => {
   it("resumo que o servidor grava fala português e ignora os técnicos", () => {
     expect(resumoParaGravar("update", ["status", "createdAt", "updatedAt"])).toBe("Alterou: Situação");
     expect(resumoParaGravar("create", ["id", "name"])).toBe("Registro criado");
+  });
+});
+
+describe("exclusão gravada como alteração e alteração sem diff (08/10)", () => {
+  it("evento → excluído e vaga com deletedAt são Exclusão (com antes E depois)", () => {
+    expect(updateLidoComoExclusao("event", { status: "planejado" }, { status: "excluído" })).toBe(true);
+    expect(updateLidoComoExclusao("event", { status: "planejado" }, { status: "excluido" })).toBe(true);
+    expect(updateLidoComoExclusao("team_inclusion", { deletedAt: null }, { deletedAt: "2026-10-08T12:00:00Z" })).toBe(true);
+    expect(updateLidoComoExclusao("event", { status: "excluído" }, { status: "planejado" })).toBe(false);
+    expect(updateLidoComoExclusao("event", { name: "A" }, { name: "B" })).toBe(false);
+    expect(updateLidoComoExclusao("ticket", { status: "a" }, { status: "excluído" })).toBe(false);
+  });
+
+  it("sem o antes (registro inteiro regravado) não é exclusão: evento JÁ excluído regravado", () => {
+    expect(updateLidoComoExclusao("event", null, { status: "excluído", name: "X" })).toBe(false);
+    const d = descreverLog({ action: "update", entityType: "event", entityName: "X", previousData: null, newData: { status: "excluído", name: "X" } });
+    expect(d.acao).toBe("Alteração");
+    expect(d.semMudancaDeCampo).toBe(true);
+    expect(d.resumo).toBe("Sem mudança de campo registrada");
+  });
+
+  it("update sem campos alterados: semMudancaDeCampo, os dados do registro e nenhuma mudança", () => {
+    const d = descreverLog({ action: "update", entityType: "function", entityName: "Produção", previousData: null, newData: JSON.stringify({ name: "Produção", quantity: 3 }) });
+    expect(d.semMudancaDeCampo).toBe(true);
+    expect(d.mudancas).toEqual([]);
+    expect(d.dados.length).toBeGreaterThan(0);
+  });
+
+  it("update com diff e create não são 'sem mudança'", () => {
+    expect(descreverLog({ action: "update", entityType: "event", previousData: { name: "A" }, newData: { name: "B" } }).semMudancaDeCampo).toBe(false);
+    expect(descreverLog({ action: "create", entityType: "event", newData: { name: "A" } }).semMudancaDeCampo).toBe(false);
   });
 });

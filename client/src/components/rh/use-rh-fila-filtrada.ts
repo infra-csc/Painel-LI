@@ -62,11 +62,12 @@ export function useRhFilaFiltrada(
     for (const item of filteredItems) {
       const eid = item.event.id;
       if (!map.has(eid)) {
-        map.set(eid, { event: item.event, items: [], actionNeeded: 0 });
+        map.set(eid, { event: item.event, items: [], actionNeeded: 0, rhNeeded: 0 });
       }
       const g = map.get(eid)!;
       g.items.push(item);
       if (ACTIONABLE_STATUSES.includes(item.status)) g.actionNeeded++;
+      if (item.rhPrecisaAgir) g.rhNeeded++;
     }
     const groups = Array.from(map.values());
     groups.sort((a, b) => {

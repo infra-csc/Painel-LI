@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQueriesState } from "@/components/common/query-state";
 import type { BudgetActual, Collaborator, Event, Function as FunctionRow, Invoice, PaymentCompany, TeamInclusion } from "@shared/schema";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
+import { aguardaAnaliseDoRh } from "./invoice-status";
 
 export function useInvoicesData(selectedEventId: string) {
   const qEvents = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -80,15 +81,28 @@ export function useInvoicesData(selectedEventId: string) {
   // "Lançamento": itens NF-elegíveis que ainda dependem do colaborador — sem NF enviada
   // ("Aguardando lançamento") ou com NF devolvida. Equivale a "Aguardando lançamento"
   // + "NF devolvida" do card "Aguardando colaborador" do Controle RH.
-  const pendingCount  = approvedActuals.filter(a => {
+  const pendingActuals = approvedActuals.filter(a => {
     if (!emitsNfFor(a)) return false; // não emite NF — nada a cobrar
     const inv = getInvoice(a.id);
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
-  }).length;
-  // "Aprovação RH" (em análise): NFs enviadas de itens NF-elegíveis — mesmo critério do Controle RH.
-  const rhPendingCount = invoices.filter(i => i.status === "enviada" && eligibleActualIds.has(i.budgetActualId ?? "")).length;
+  });
+  const pendingCount = pendingActuals.length;
+  // "Aprovação RH" (em análise): NFs enviadas de itens NF-elegíveis — mesmo critério do Controle RH
+  // e da pílula "Aguardando" da aba (`aguardaAnaliseDoRh`, 08/10).
+  const rhPendingInvoices = invoices.filter(i => aguardaAnaliseDoRh(i, budgetActuals.find(a => a.id === i.budgetActualId)));
+  const rhPendingCount = rhPendingInvoices.length;
   // "Check-in": NFs aprovadas de itens NF-elegíveis ainda sem check-in financeiro.
-  const checkinPendingCount = invoices.filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId ?? "")).length;
+  const checkinPendingInvoices = invoices.filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId ?? ""));
+  const checkinPendingCount = checkinPendingInvoices.length;
+
+  // Valor de cada etapa (08/10, redesenho): a soma do Realizado dos MESMOS
+  // itens que a contagem conta — o resumo do topo mostra quantos e quanto.
+  // Só leitura; não muda nenhuma contagem.
+  const valorDoRealizado = (actualId: string | null | undefined) =>
+    approvedActuals.find(a => a.id === actualId)?.totalValue || 0;
+  const pendingValue = pendingActuals.reduce((s, a) => s + (a.totalValue || 0), 0);
+  const rhPendingValue = rhPendingInvoices.reduce((s, i) => s + valorDoRealizado(i.budgetActualId), 0);
+  const checkinPendingValue = checkinPendingInvoices.reduce((s, i) => s + valorDoRealizado(i.budgetActualId), 0);
 
   return {
     qEvents,
@@ -106,5 +120,8 @@ export function useInvoicesData(selectedEventId: string) {
     pendingCount,
     rhPendingCount,
     checkinPendingCount,
+    pendingValue,
+    rhPendingValue,
+    checkinPendingValue,
   };
 }

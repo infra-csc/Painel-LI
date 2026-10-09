@@ -252,24 +252,24 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
       </td>
 
       {/* Sugestões */}
-      <td data-col="sugestao" className={`${cellCls} overflow-hidden`} data-rotulo="Sugestão" onClick={open}>
+      <td data-col="sugestao" className={`${cellCls}`} data-rotulo="Sugestão" onClick={open}>
         {idaVazia && voltaVazia ? (
           <span className="text-2xs text-muted-foreground">—</span>
         ) : (
           <div className="flex flex-col gap-0.5" title="Horário sugerido pela escalação — ainda não confirmado">
             <span className="sr-only">Sugestão</span>
             {!idaVazia && (
-              <div className="flex items-center gap-1 text-2xs whitespace-nowrap">
+              <div className="flex flex-wrap items-center gap-x-1 text-2xs">
                 <PlaneTakeoff className="h-3 w-3 text-warning-strong shrink-0" aria-hidden="true" />
-                <span className="font-semibold text-slate-700 tabular-nums">{formatSuggestionDate(suggestion.ida)}</span>
-                {hasSuggestionValue(suggestion.chegada) && <span className="text-muted-foreground">{suggestion.chegada}</span>}
+                <span className="font-semibold text-slate-700 tabular-nums whitespace-nowrap">{formatSuggestionDate(suggestion.ida)}</span>
+                {hasSuggestionValue(suggestion.chegada) && <span className="text-muted-foreground break-words">{suggestion.chegada}</span>}
               </div>
             )}
             {!voltaVazia && (
-              <div className="flex items-center gap-1 text-2xs whitespace-nowrap">
+              <div className="flex flex-wrap items-center gap-x-1 text-2xs">
                 <PlaneLanding className="h-3 w-3 text-warning-strong shrink-0" aria-hidden="true" />
-                <span className="font-semibold text-slate-700 tabular-nums">{formatSuggestionDate(suggestion.retorno)}</span>
-                {hasSuggestionValue(suggestion.horario) && <span className="text-muted-foreground">{suggestion.horario}</span>}
+                <span className="font-semibold text-slate-700 tabular-nums whitespace-nowrap">{formatSuggestionDate(suggestion.retorno)}</span>
+                {hasSuggestionValue(suggestion.horario) && <span className="text-muted-foreground break-words">{suggestion.horario}</span>}
               </div>
             )}
           </div>
@@ -289,14 +289,30 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
               {ticket.emittedAt && (
                 <span
                   className={`${PILULA} bg-brand-soft text-primary`}
-                  title="Passagem emitida — a área não pede mais ajuste nesta vaga"
+                  title="Passagem emitida — o bilhete saiu"
                   data-testid={`ticket-emitida-${inclusion.id}`}
                 >
                   <Lock className="w-3 h-3" aria-hidden="true" />Emitida
                 </span>
               )}
             </span>
-            <span className="pas-resumo block text-2xs text-muted-foreground whitespace-nowrap max-w-full truncate" title={summary} data-testid={`ticket-summary-${inclusion.id}`}>{summary}</span>
+            {/* Resumo em duas linhas (08/10, print do dono: o valor saía cortado):
+                o localizador numa, valor e tipo na outra — cada linha inteira,
+                sem quebrar o código no meio. O texto completo fica no title. */}
+            <span className="pas-resumo flex flex-col text-2xs leading-snug text-muted-foreground max-w-full" title={summary} data-testid={`ticket-summary-${inclusion.id}`}>
+              {(() => {
+                const partes = summary.split(" · ");
+                const temLocalizador = !!ticket.purchaseOrderNumber;
+                const primeira = temLocalizador ? partes[0] : null;
+                const resto = (temLocalizador ? partes.slice(1) : partes).join(" · ");
+                return (
+                  <>
+                    {primeira && <span className="block truncate">{primeira}</span>}
+                    {resto && <span className="block whitespace-nowrap tabular-nums">{resto}</span>}
+                  </>
+                );
+              })()}
+            </span>
           </div>
         ) : (
           <span className={`${PILULA} bg-warning-soft text-warning`}>

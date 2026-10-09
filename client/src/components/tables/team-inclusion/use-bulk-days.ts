@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
-import { normDay, savedOrRangeDays } from "./inclusion-shared";
+import { diasDoLoteMudaram, savedOrRangeDays } from "./inclusion-shared";
 import type { TeamInclusionData } from "./use-team-inclusion-data";
 
 export function useBulkDays(data: Pick<TeamInclusionData, "inclusionById" | "selectedRows" | "filteredAndSortedInclusions" | "isEventLocked">) {
@@ -20,6 +20,8 @@ export function useBulkDays(data: Pick<TeamInclusionData, "inclusionById" | "sel
   // inclusionId → array de dias selecionados (YYYY-MM-DD)
   const [batchDiariasSelections, setBatchDiariasSelections] = useState<Record<string, string[]>>({});
   const [batchTargetIds, setBatchTargetIds] = useState<string[]>([]);
+  // Os dias com que cada vaga ABRIU no diálogo: a régua do "alterada".
+  const [batchInitial, setBatchInitial] = useState<Record<string, string[]>>({});
 
   const openBatchDiarias = () => {
     // Usa as linhas selecionadas com checkbox; se nenhuma, usa todas as filtradas
@@ -32,6 +34,7 @@ export function useBulkDays(data: Pick<TeamInclusionData, "inclusionById" | "sel
     const initial: Record<string, string[]> = {};
     targets.forEach(inc => { initial[inc.id] = savedOrRangeDays(inc); });
     setBatchDiariasSelections(initial);
+    setBatchInitial(initial);
     setBatchTargetIds(targets.map(i => i.id));
     setShowBatchDiarias(true);
   };
@@ -73,19 +76,21 @@ export function useBulkDays(data: Pick<TeamInclusionData, "inclusionById" | "sel
     },
   });
 
+  // Alterada = os dias marcados diferem dos que o diálogo abriu (não do
+  // `workDays` salvo): sem edição, nenhuma vaga é marcada nem regravada.
+  const changedIds = useMemo(
+    () => new Set(batchTargetIds.filter(id => diasDoLoteMudaram(batchInitial[id] ?? [], batchDiariasSelections[id] ?? []))),
+    [batchTargetIds, batchInitial, batchDiariasSelections],
+  );
+
   const handleSaveBatchDiarias = () => {
     const changes: Array<{ id: string; dailyRates: number; workDays: string[] }> = [];
-    batchTargetIds.forEach(id => {
+    changedIds.forEach(id => {
       // Resolve na lista completa: mudar o filtro com o modal aberto descartava
       // silenciosamente as linhas que saíam da visão.
-      const inc = inclusionById.get(id);
-      if (!inc) return;
+      if (!inclusionById.get(id)) return;
       const newDays = [...(batchDiariasSelections[id] ?? [])].sort();
-      const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
-      const origDr = inc.dailyRates ?? 0;
-      if (newDays.join(',') !== origDays.join(',') || newDays.length !== origDr) {
-        changes.push({ id, dailyRates: newDays.length, workDays: newDays });
-      }
+      changes.push({ id, dailyRates: newDays.length, workDays: newDays });
     });
     if (changes.length === 0) {
       toast({ title: "Sem alterações", description: "Nenhum dia foi modificado." });
@@ -94,21 +99,15 @@ export function useBulkDays(data: Pick<TeamInclusionData, "inclusionById" | "sel
     batchSaveDiariasMutation.mutate(changes);
   };
 
-  // A grade em lote está "suja" quando algum dia difere do salvo.
-  const batchDirty = useMemo(() => batchTargetIds.some(id => {
-    const inc = inclusionById.get(id);
-    if (!inc) return false;
-    const newDays = [...(batchDiariasSelections[id] ?? [])].sort();
-    const origDays = (inc.workDays || []).map(normDay).filter(Boolean).sort();
-    return newDays.join(',') !== origDays.join(',');
-  }), [batchTargetIds, batchDiariasSelections, inclusionById]);
+  // A grade em lote está "suja" quando alguma vaga foi alterada no diálogo.
+  const batchDirty = changedIds.size > 0;
 
   const descarteLote = useConfirmarDescarte(batchDirty, { salvando: batchSaveDiariasMutation.isPending });
   const targets = batchTargetIds.map(id => inclusionById.get(id)).filter(Boolean) as TeamInclusion[];
   const fechar = () => setShowBatchDiarias(false);
 
   return {
-    showBatchDiarias, fechar, openBatchDiarias, targets, batchDiariasSelections, toggleBatchDay, setDays,
+    showBatchDiarias, fechar, openBatchDiarias, targets, batchDiariasSelections, changedIds, toggleBatchDay, setDays,
     handleSaveBatchDiarias, isPending: batchSaveDiariasMutation.isPending, descarteLote,
   };
 }

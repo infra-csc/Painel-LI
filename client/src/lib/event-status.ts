@@ -9,8 +9,9 @@ import type { Tone } from "@/components/common/status-badge";
  *
  * Cores (23/09): só tokens semânticos. Antes cada status tinha hex próprio
  * (usado em `style={{}}`) e "Planejado" era violeta aqui e laranja no CSS
- * global. Agora: planejado = info (agendado), em andamento = primary (ao
- * vivo), concluído = success, excluído = neutral.
+ * global. Agora: planejado = neutro (08/10; era info, igual ao fundo de em
+ * andamento), em andamento = primary (ao vivo), concluído = success,
+ * excluído = neutral.
  */
 export type EventStatusKey = "planejado" | "em andamento" | "concluído" | "excluído";
 
@@ -37,13 +38,17 @@ export interface EventStatusStyle {
 }
 
 export const STATUS: Record<string, EventStatusStyle> = {
+  // 08/10 (decisão do dono): "planejado" era info, e info-soft é o MESMO fundo
+  // de brand-soft — Planejado e Em andamento só se distinguiam por um filete.
+  // Agora o que ainda não aconteceu é NEUTRO (chip branco, filete cinza) e o
+  // azul preenchido fica só para o que está acontecendo.
   planejado: {
     label: "Planejado",
-    tone: "info",
+    tone: "neutral",
     tw: {
-      bg: "bg-info-soft", text: "text-info", border: "border-info/20",
-      bar: "bg-info-strong", barText: "text-white", dot: "bg-info-strong", iconText: "text-info",
-      panelBg: "bg-info-soft", panelBorder: "border-info/20", edge: "border-info-strong",
+      bg: "bg-card", text: "text-slate-700", border: "border-border",
+      bar: "bg-slate-500", barText: "text-white", dot: "bg-slate-400", iconText: "text-slate-500",
+      panelBg: "bg-surface-muted", panelBorder: "border-border", edge: "border-slate-400",
     },
     pulse: false,
   },

@@ -10,7 +10,7 @@
  * e informação somem em 6s, erro espera ser lido. O botão "Desfazer" aparece
  * quando a ação tem volta.
  */
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -37,20 +37,25 @@ export function useAvisos() {
 
 const SEGUNDOS_ATE_SUMIR = 6000;
 
+/**
+ * 07/10: cartão branco com o filete e o ícone na cor do tom — o fundo todo
+ * tingido competia com a grade (que também usa verde/âmbar/vermelho por
+ * célula) e o aviso se confundia com uma célula salva.
+ */
 const TOM: Record<TomDoAviso, { Icone: typeof CheckCircle2; caixa: string; icone: string }> = {
   ok: {
     Icone: CheckCircle2,
-    caixa: "border-success/25 bg-success-soft",
+    caixa: "border-l-success-strong",
     icone: "text-success",
   },
   info: {
     Icone: Info,
-    caixa: "border-primary/25 bg-brand-soft",
+    caixa: "border-l-primary",
     icone: "text-primary",
   },
   erro: {
     Icone: AlertCircle,
-    caixa: "border-danger/25 bg-danger-soft",
+    caixa: "border-l-danger-strong",
     icone: "text-danger",
   },
 };
@@ -74,12 +79,27 @@ export function ProvedorDeAvisos({ children }: { children: ReactNode }) {
 
   const valor = useMemo(() => ({ avisar }), [avisar]);
 
+  // A pilha começa onde começa o conteúdo — não por cima do menu lateral, que
+  // muda de largura (compacto, foco, celular).
+  const [esquerda, setEsquerda] = useState<number | null>(null);
+  useEffect(() => {
+    if (avisos.length === 0) return;
+    const medir = () => {
+      const el = document.getElementById("conteudo");
+      setEsquerda(el ? Math.round(el.getBoundingClientRect().left) + 16 : null);
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [avisos.length]);
+
   return (
     <Contexto.Provider value={valor}>
       {children}
       {/* À esquerda de propósito: a direita é do drawer de edição. */}
       <div
-        className="pointer-events-none fixed bottom-5 left-4 z-[80] flex w-[380px] max-w-[92vw] flex-col gap-2 lg:left-[268px]"
+        className="pointer-events-none fixed bottom-5 left-4 z-[80] flex w-[380px] max-w-[calc(100vw-32px)] flex-col gap-2"
+        style={esquerda !== null ? { left: esquerda } : undefined}
         aria-live="polite"
         role="status"
       >
@@ -88,19 +108,19 @@ export function ProvedorDeAvisos({ children }: { children: ReactNode }) {
           return (
             <div
               key={a.id}
-              className={cn("pointer-events-auto flex items-start gap-2.5 rounded-lg border px-3 py-2.5 shadow-2", caixa)}
+              className={cn("pas-sobe pointer-events-auto flex items-start gap-2.5 rounded-lg border border-border border-l-[3px] bg-card px-3 py-2.5 shadow-3", caixa)}
               data-testid={`aviso-${a.tom}`}
             >
               <Icone className={cn("mt-0.5 h-4 w-4 shrink-0", icone)} aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold leading-tight">{a.titulo}</p>
+                <p className="text-sm font-semibold leading-tight text-foreground">{a.titulo}</p>
                 {a.texto && <p className="mt-0.5 text-xs leading-normal text-muted-foreground">{a.texto}</p>}
               </div>
               {a.desfazer && (
                 <button
                   type="button"
                   onClick={() => { a.desfazer!.acao(); fechar(a.id); }}
-                  className="h-[26px] shrink-0 rounded-md border bg-background px-2 text-2xs font-medium transition-colors hover:bg-muted"
+                  className="h-[26px] shrink-0 rounded-md border border-border bg-card px-2 text-xs font-medium text-primary transition-colors hover:border-primary/40 hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {a.desfazer.rotulo ?? "Desfazer"}
                 </button>
@@ -109,7 +129,7 @@ export function ProvedorDeAvisos({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => fechar(a.id)}
                 aria-label="Fechar aviso"
-                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>

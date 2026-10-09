@@ -1,27 +1,38 @@
 /**
- * CARD de prestação do Orçamento Realizado — 25/09 (modularização).
+ * CARD de prestação do Orçamento Realizado — 25/09 (modularização);
+ * redesenho 08/10.
  *
- * Extraído de `renderSingleCard` em budget-actual.tsx. Memoizado (item de
- * lista); cabeçalho, corpo e rodapé em componentes próprios (< 300 linhas).
+ * Antes: avatar colorido, faixa de 3px no topo, três caixas coloridas
+ * (azul, âmbar, azul) com "plan:" miúdo, o total lá embaixo e as ações como
+ * ícones sem texto — ~300px por pessoa, numa coluna só.
+ *
+ * Agora é o MESMO extrato do card do Planejado (a etapa anterior do fluxo):
+ * quem é (nome, função · período, selos) e o total realizado no alto à
+ * direita, com a diferença para o planejado logo abaixo; as linhas de
+ * lançamento (Diárias, Alimentação, Mobilidade e, quando houver, Translado)
+ * com a conta miúda no meio — e o planejado da linha quando ela diverge —, a
+ * linha de referência "Planejado" no fim; as ações num rodapé sempre à vista,
+ * com texto. Tudo que estava aqui continua: selos de situação (aprovado,
+ * devolvido, recusado, em revisão, duplicado, salvo em, não preenchido),
+ * não participou, ajuste do RH (aviso e campo a campo), divergência,
+ * titular/divisão com os dias trabalhados, planejamento alterado,
+ * observações e o bloqueio de quem já foi enviado.
+ *
  * Os derivados (planejado de referência, dias, divergência) chegam prontos
- * da lista para o card não precisar dos índices.
+ * da lista. Memoizado (item de lista).
  */
 import { memo } from "react";
-import {
-  AlertCircle, Calendar, Car, CheckCheck, CheckCircle2, ChevronDown, ChevronUp, Clock, Copy, Edit, Eye, GitFork, Lock,
-  Trash2, TrendingDown, TrendingUp, Utensils,
-} from "lucide-react";
-import { formatDiasUteis, formatFds } from "@/lib/utils";
-import { formatarMoeda } from "@/lib/format";
+import { Calendar, ChevronDown, ChevronUp, Eye, GitFork, Lock, MessageSquare, PencilLine, Trash2, TriangleAlert, UserX } from "lucide-react";
+import { cn, formatDiasUteis, formatFds } from "@/lib/utils";
 import { lerAdjustedFields } from "./comparison-utils";
-import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
-import { PlannedEditedBadge, type ActivityLog } from "@/components/activity-timeline";
+import type { ActivityLog } from "@/components/activity-timeline";
 import type { BudgetActual, BudgetNote, BudgetPlanned } from "@shared/schema";
-import { avatarColorAct, formatWorkedDays, reconstructDailyValues, subtotalDiariasDe, type DayCounts, type ModalActualTab } from "./actual-utils";
-
-const formatCurrency = formatarMoeda;
+import { Chip, Conta, Lancamento } from "./budget-card";
+import { formatCurrency, ddmm } from "./types";
+import { formatWorkedDays, isUnfilledItem, reconstructDailyValues, subtotalDiariasDe, type DayCounts, type ModalActualTab } from "./actual-utils";
 
 export interface ActualCardProps {
   cardItem: BudgetActual;
@@ -47,124 +58,57 @@ export interface ActualCardProps {
   onDelete: (id: string) => void;
 }
 
-type Derivados = { isInGroup: boolean; isItemLocked: boolean; isItemEditable: boolean; initials: string; avatarBg: string; workedDaysStr: string | null };
+const fmtDT = (d: string | Date) => {
+  const dt = new Date(d);
+  return dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+};
 
-function StatusBadge({ cardItem }: { cardItem: BudgetActual }) {
+/** Selo da situação — baseado direto em rhStatus: o rh-action zera sentForReview
+ *  ao devolver/recusar, então condicionar Devolvido/Recusado a sentForReview
+ *  tornava esses ramos inalcançáveis. */
+function SeloDaSituacao({ cardItem }: { cardItem: BudgetActual }) {
   const isDuplicated = cardItem.observations?.includes("Duplicado no Realizado");
-  const hasBeenEdited = !!(cardItem.updatedAt && cardItem.createdAt && new Date(cardItem.updatedAt).getTime() > new Date(cardItem.createdAt).getTime() + 1000);
-  const fmtDT = (d: string | Date) => {
-    const dt = new Date(d);
-    return dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  };
-  // Badge baseado diretamente em rhStatus: o rh-action zera sentForReview ao devolver/recusar,
-  // então condicionar Devolvido/Recusado a sentForReview tornava esses ramos inalcançáveis
-  return cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCheck className="w-2.5 h-2.5" aria-hidden="true" /> Aprovado</span>
-    : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-warning-soft text-warning border border-warning/25"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /> Devolvido</span>
-    : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-danger-soft text-danger border border-danger/25"><AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /> Recusado</span>
-    : cardItem.sentForReview ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Clock className="w-2.5 h-2.5" aria-hidden="true" /> Em revisão</span>
-    : isDuplicated ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-brand-soft text-primary border border-primary/25"><Copy className="w-2.5 h-2.5" aria-hidden="true" /> Duplicado</span>
-    : hasBeenEdited ? <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-success-soft text-success border border-success/25"><CheckCircle2 className="w-2.5 h-2.5" aria-hidden="true" /> Salvo {fmtDT(cardItem.updatedAt!)}</span>
-    : <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border">Não preenchido</span>;
+  if (cardItem.rhStatus === "aprovado") return <Chip tom="ok">Aprovado</Chip>;
+  if (cardItem.rhStatus === "devolvido") return <Chip tom="alerta">Devolvido</Chip>;
+  if (cardItem.rhStatus === "rejeitado") return <Chip tom="perigo">Recusado</Chip>;
+  if (cardItem.sentForReview) return <Chip tom="info" title="Enviada — aguardando a análise do RH">Em revisão</Chip>;
+  if (isDuplicated) return <Chip tom="marca">Duplicado</Chip>;
+  if (!isUnfilledItem(cardItem) && cardItem.updatedAt) return <Chip tom="neutro" title="Última gravação desta prestação">Salvo {fmtDT(cardItem.updatedAt)}</Chip>;
+  return <Chip tom="neutro" className="border-dashed border-border bg-card" title="Ainda não foi salva — vale o planejado como ponto de partida">Não preenchido</Chip>;
 }
 
-function ActualCardHeader(p: ActualCardProps & Derivados) {
-  const { cardItem, isGParent, isGChild, collabName, functionName, diverges, notAttended, isCollapsed, isSelected, eventNotes, plannedLogs, splitPending, isInGroup, isItemLocked, isItemEditable, initials, avatarBg, workedDaysStr } = p;
-  const isCasa = cardItem.collaboratorType === "casa";
+/** "Planejamento alterado": a mesma regra do selo do Comparativo, no tom do card. */
+function SeloPlanejadoAlterado({ logs, entityId }: { logs: ActivityLog[]; entityId: string }) {
+  const edicoes = logs.filter(l => l.entity_id === entityId && l.action === "update");
+  if (edicoes.length === 0) return null;
+  const ultima = [...edicoes].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+  const quando = ultima?.created_at ? new Date(ultima.created_at).toLocaleDateString("pt-BR") : "";
   return (
-    <div className={`flex items-center justify-between px-4 py-3 ${isItemLocked ? "bg-brand-soft/40" : "bg-surface-muted/60"}`}>
-      <div className="flex items-center gap-3">
-        {isItemLocked ? (
-          <TooltipProvider><Tooltip><TooltipTrigger asChild>
-            <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 cursor-default" aria-hidden="true" />
-          </TooltipTrigger><TooltipContent side="right" className="text-xs">Prestação bloqueada para edição</TooltipContent></Tooltip></TooltipProvider>
-        ) : isItemEditable ? (
-          <button
-            onClick={() => p.onToggleSelect(cardItem.id)}
-            className="flex-shrink-0"
-            role="checkbox"
-            aria-checked={isSelected}
-            aria-label={`Selecionar prestação de ${collabName}`}
-          >
-            <div className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-colors ${isSelected ? "bg-primary border-primary" : "border-slate-300 hover:border-primary"}`}>
-              {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-            </div>
-          </button>
-        ) : null}
-        <div className={`w-9 h-9 rounded-lg ${avatarBg} flex items-center justify-center flex-shrink-0`}>
-          <span className="text-white text-xs font-bold">{initials || "?"}</span>
-        </div>
-        <div>
-          <span className="font-medium text-foreground text-sm">{collabName}</span>
-          <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
-            <span className="text-2xs font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{functionName}</span>
-            <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? "bg-brand-soft text-primary" : "bg-warning-soft text-warning"}`}>{isCasa ? "Casa" : "Freela"}</span>
-            <span className="shrink-0"><StatusBadge cardItem={cardItem} /></span>
-            {notAttended && (
-              <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border shrink-0 whitespace-nowrap">
-                <AlertCircle className="w-2.5 h-2.5" aria-hidden="true" /> Não participou
-              </span>
-            )}
-            {cardItem.rhAdjusted && (
-              <span className="inline-flex items-center gap-1 text-2xs font-semibold px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap bg-warning-soft text-warning border border-warning/25">
-                ⚠ Realizado ajustado pelo RH
-              </span>
-            )}
-            {diverges && <span className="inline-flex items-center gap-1 text-2xs font-bold px-1.5 py-0.5 rounded-md bg-warning-soft text-warning shrink-0 whitespace-nowrap">Divergência</span>}
-            {isGParent && <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-brand-soft text-primary shrink-0 whitespace-nowrap">Titular</span>}
-            {isGChild && <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-brand-soft text-primary flex items-center gap-0.5 shrink-0 whitespace-nowrap"><GitFork className="w-2.5 h-2.5" aria-hidden="true" />Divisão</span>}
-            {cardItem.plannedId && <PlannedEditedBadge logs={plannedLogs} entityId={cardItem.plannedId} />}
-          </div>
-          {workedDaysStr && isInGroup && (
-            <div className="flex items-center gap-1 mt-1">
-              <Calendar className="w-3 h-3 text-primary/70 flex-shrink-0" aria-hidden="true" />
-              <span className="text-2xs text-primary leading-tight">{workedDaysStr}</span>
-            </div>
-          )}
-          <BudgetNotesSnippet notes={eventNotes} entityId={cardItem.id} />
-        </div>
-      </div>
-      <div className="flex items-center gap-0.5">
-        <button
-          className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-brand-soft transition-colors"
-          onClick={() => p.onEdit(cardItem, "observacoes")}
-          title="Ver observações"
-          aria-label={`Ver observações de ${collabName}`}
-        >
-          <BudgetNotesBadge notes={eventNotes} entityId={cardItem.id} />
-        </button>
-        {isItemEditable ? (
-          <>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => p.onEdit(cardItem)} aria-label="Editar lançamento"><Edit className="w-3.5 h-3.5" aria-hidden="true" /></Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary-hover hover:bg-brand-soft rounded-lg" onClick={() => p.onSplit(cardItem)} aria-label="Dividir lançamento" disabled={splitPending}><GitFork className="w-3.5 h-3.5" aria-hidden="true" /></Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-danger-strong hover:bg-danger-soft rounded-lg" onClick={() => p.onDelete(cardItem.id)} aria-label="Remover lançamento"><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></Button>
-          </>
-        ) : (
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 hover:bg-muted rounded-lg" onClick={() => p.onEdit(cardItem)} aria-label="Visualizar lançamento"><Eye className="w-3.5 h-3.5" aria-hidden="true" /></Button>
-        )}
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-slate-600 rounded-lg" onClick={() => p.onToggleCollapse(cardItem.id)} aria-expanded={!isCollapsed} aria-label={isCollapsed ? "Expandir lançamento" : "Recolher lançamento"}>
-          {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />}
-        </Button>
-      </div>
-    </div>
+    <Chip tom="alerta" title={ultima ? `Alterado por ${ultima.user_name || "?"}${quando ? ` em ${quando}` : ""}` : "Planejamento alterado pelo RH"}>
+      <TriangleAlert className="w-3 h-3" aria-hidden="true" />Planejamento alterado
+    </Chip>
   );
 }
 
-function ActualCardBody({ cardItem, cardDays, cardPlanned: planned, isRhOrAdmin, onEdit }: Pick<ActualCardProps, "cardItem" | "cardDays" | "cardPlanned" | "isRhOrAdmin" | "onEdit">) {
+/** "+R$ 230,00" (acima, vermelho) / "−R$ 80,00" (abaixo, verde) — ou nada. */
+function DiferencaDaLinha({ real, plano }: { real: number; plano: number }) {
+  const d = real - plano;
+  if (Math.abs(d) <= 1) return null;
+  return (
+    <span className="tabular-nums">
+      planejado {formatCurrency(plano)} ·{" "}
+      <span className={cn("font-semibold", d > 0 ? "text-danger" : "text-success")}>{d > 0 ? "+" : "−"}{formatCurrency(Math.abs(d))}</span>
+    </span>
+  );
+}
+
+function ActualCardBody({ cardItem, cardDays, cardPlanned: planned, notAttended }: Pick<ActualCardProps, "cardItem" | "cardDays" | "cardPlanned" | "notAttended">) {
   const totalAlimentacao = cardItem.weekdayLunch + cardItem.weekdayDinner + cardItem.weekendLunch + cardItem.weekendDinner;
   // Translado (transport) não é diária — subtraído para o subtotal do card não misturar as verbas
   const cardSubtotalDiarias = subtotalDiariasDe(cardItem);
   const { valorUtil: cardValorUtil, valorFds: cardValorFds } = reconstructDailyValues(cardSubtotalDiarias, cardDays.weekdays, cardDays.weekends);
   const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
   const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility - planned.transport) : 0;
-  // jsonb pode chegar como string (API de hoje) ou objeto — ver lib/json-seguro.
-  const rhFields: Record<string, { from: number; to: number; label: string }> = lerAdjustedFields(cardItem.rhAdjustedFields);
-  const diffInline = (actual: number, plan: number) => {
-    if (!planned) return null;
-    const d = actual - plan;
-    if (Math.abs(d) <= 1) return null;
-    return <span className={`text-2xs tabular-nums font-bold ml-1 ${d < 0 ? "text-success" : "text-danger-strong"}`}>{d > 0 ? "+" : "−"}{formatCurrency(Math.abs(d))}</span>;
-  };
-  const hasRhFields = Object.keys(rhFields).length > 0;
   const semana = cardItem.weekdayLunch + cardItem.weekdayDinner;
   const fds = cardItem.weekendLunch + cardItem.weekendDinner;
   const wkd = cardDays.weekdays;
@@ -174,164 +118,278 @@ function ActualCardBody({ cardItem, cardDays, cardPlanned: planned, isRhOrAdmin,
   const ida = cardItem.mobilityIda;
   const volta = cardItem.mobilityVolta;
   return (
-    <div className="px-4 py-3 border-t border-border space-y-3">
-      {/* Banner laranja para não-RH quando RH ajustou */}
-      {!isRhOrAdmin && cardItem.rhAdjusted && (
-        <div className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-xl bg-warning-soft border border-warning/25">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">⚠</span>
-            <span className="text-2xs font-medium text-warning">
-              O RH ajustou alguns valores do seu realizado. Veja o histórico para detalhes.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => onEdit(cardItem, "historico")}
-            className="shrink-0 text-2xs font-semibold px-2 py-1 rounded-lg whitespace-nowrap cursor-pointer border-0 hover:opacity-90 transition-opacity bg-warning-strong text-white"
-          >
-            Ver alterações
-          </button>
-        </div>
+    <dl className={cn("pla-extrato m-0 px-4 py-1", notAttended && "opacity-50 grayscale select-none")}>
+      <Lancamento rotulo="Diárias" cor="bg-primary" valor={cardSubtotalDiarias} riscado={notAttended}>
+        {cardDays.weekdays > 0 && <Conta rotulo={formatDiasUteis(cardDays.weekdays)} valor={formatCurrency(cardValorUtil)} />}
+        {cardDays.weekends > 0 && <Conta rotulo={formatFds(cardDays.weekends)} valor={formatCurrency(cardValorFds)} />}
+        {cardDays.weekdays === 0 && cardDays.weekends === 0 && <span>—</span>}
+        {planned && <DiferencaDaLinha real={cardSubtotalDiarias} plano={plannedDiarias} />}
+      </Lancamento>
+      <Lancamento rotulo="Alimentação" cor="bg-warning-strong" valor={totalAlimentacao} riscado={notAttended}>
+        {wkd > 0 && semana > 0 && <Conta rotulo={formatDiasUteis(wkd)} valor={formatCurrency(perWkd)} />}
+        {wke > 0 && fds > 0 && <Conta rotulo={formatFds(wke)} valor={formatCurrency(perWke)} />}
+        {semana === 0 && fds === 0 && <span>—</span>}
+        {planned && <DiferencaDaLinha real={totalAlimentacao} plano={plannedAlim} />}
+      </Lancamento>
+      <Lancamento rotulo="Mobilidade" cor="bg-slate-400" valor={cardItem.mobility} riscado={notAttended}>
+        {typeof ida === "number" && (ida > 0 || (volta ?? 0) > 0)
+          ? <Conta rotulo={<>Ida <span className="tabular-nums text-slate-600">{formatCurrency(ida)}</span> · Volta</>} valor={formatCurrency(volta ?? 0)} />
+          : cardItem.mobility === 0 ? <span>—</span> : null}
+        {planned && <DiferencaDaLinha real={cardItem.mobility} plano={planned.mobility} />}
+      </Lancamento>
+      {/* Translado entra no total gravado: sem a linha, as parcelas não fechavam com o total. */}
+      {cardItem.transport > 0 && (
+        <Lancamento rotulo="Translado" cor="bg-slate-300" valor={cardItem.transport} riscado={notAttended}>
+          <span>definido pelo RH</span>
+        </Lancamento>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        {/* Diárias */}
-        <div className="rounded-xl p-2.5 border border-primary/25 bg-brand-soft/50">
-          <div className="flex items-center gap-1 mb-2">
-            <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" aria-hidden="true" /></div>
-            <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Diárias</span>
-          </div>
-          <div className="flex items-baseline gap-0.5">
-            <span className="text-sm font-medium text-foreground tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
-            {diffInline(cardSubtotalDiarias, plannedDiarias)}
-          </div>
-          {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-2xs text-muted-foreground tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
-          <div className="mt-1.5 space-y-0.5">
-            {cardDays.weekdays > 0 && <div className="text-2xs text-primary tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
-            {cardDays.weekends > 0 && <div className="text-2xs text-primary tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
-          </div>
-        </div>
-        {/* Alimentação */}
-        <div className="rounded-xl p-2.5 border border-warning/25 bg-warning-soft/50">
-          <div className="flex items-center gap-1 mb-2">
-            <div className="w-3.5 h-3.5 rounded bg-warning-strong flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" aria-hidden="true" /></div>
-            <span className="text-2xs font-semibold text-warning uppercase tracking-wide">Alimentação</span>
-          </div>
-          <div className="flex items-baseline gap-0.5">
-            <span className="text-sm font-medium text-foreground tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-            {diffInline(totalAlimentacao, plannedAlim)}
-          </div>
-          {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-2xs text-muted-foreground tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
-          {(semana !== 0 || fds !== 0) && (
-            <div className="mt-1.5 space-y-0.5">
-              {wkd > 0 && semana > 0 && <div className="text-2xs text-warning tabular-nums">{formatDiasUteis(wkd)} × {formatCurrency(perWkd)}</div>}
-              {wke > 0 && fds > 0 && <div className="text-2xs text-warning-strong tabular-nums">{formatFds(wke)} × {formatCurrency(perWke)}</div>}
-            </div>
-          )}
-        </div>
-        {/* Mobilidade */}
-        <div className="rounded-xl p-2.5 border border-primary/25 bg-brand-soft/50">
-          <div className="flex items-center gap-1 mb-2">
-            <div className="w-3.5 h-3.5 rounded bg-primary flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" aria-hidden="true" /></div>
-            <span className="text-2xs font-semibold text-primary uppercase tracking-wide">Mobilidade</span>
-          </div>
-          <div className="flex items-baseline gap-0.5">
-            <span className="text-sm font-medium text-foreground tabular-nums">{formatCurrency(cardItem.mobility)}</span>
-            {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
-          </div>
-          {typeof ida === "number" && (ida > 0 || (volta ?? 0) > 0)
-            ? <div className="text-2xs text-primary/70 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>
-            : planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1
-              ? <div className="text-2xs text-muted-foreground tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
-              : null}
-        </div>
-      </div>
-
-      {/* Campos ajustados pelo RH — inline */}
-      {hasRhFields && (
-        <div className="rounded-xl px-3 py-2.5 space-y-1 bg-warning-soft border border-warning/25">
-          <span className="text-2xs font-bold uppercase tracking-widest text-warning">Ajustes do RH</span>
-          {Object.values(rhFields).map((f, i) => (
-            <div key={i} className="flex items-center gap-1 text-2xs text-muted-foreground">
-              <span>·</span>
-              <span>{f.label}:</span>
-              <span className="tabular-nums line-through text-muted-foreground">{formatCurrency(f.from)}</span>
-              <span>→</span>
-              <span className="tabular-nums font-semibold text-warning">{formatCurrency(f.to)}</span>
-              <span className="text-2xs text-warning">(RH)</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </dl>
   );
 }
 
+/** Botão do rodapé do card: discreto, sempre visível, com texto (o mesmo do Planejado). */
+const ACAO = "pas-alvo inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none";
+
 export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
-  const { cardItem, isGParent = false, isGChild = false, collabName, diverges, notAttended, isCollapsed, isSelected, isHighlighted, cardPlanned: planned } = p;
-  const isSelectedCls = isSelected;
+  const {
+    cardItem, isGParent = false, isGChild = false, collabName, functionName, cardDays, diverges, notAttended,
+    isCollapsed, isSelected, isHighlighted, cardPlanned: planned, eventNotes, plannedLogs, isRhOrAdmin, splitPending,
+  } = p;
   const isItemLocked = !!cardItem.sentForReview;
   const isItemEditable = !cardItem.sentForReview;
-  const initials = collabName.split(" ").filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
-  const avatarBg = avatarColorAct(collabName);
+  const isCasa = cardItem.collaboratorType === "casa";
   const workedDaysStr = formatWorkedDays(cardItem.workedDays || []);
   const isInGroup = isGParent || isGChild;
-
-  const stripeColor = isSelected ? "var(--primary)"
-    : notAttended ? "var(--muted-foreground)"
-    : cardItem.rhStatus === "aprovado" ? "var(--success)"
-    : cardItem.rhStatus === "devolvido" ? "var(--warning)"
-    : cardItem.rhStatus === "rejeitado" ? "var(--danger-strong)"
-    : cardItem.sentForReview ? "var(--primary)"
-    : diverges ? "var(--warning-strong)"
-    : "var(--primary)";
-
   const diff = planned ? cardItem.totalValue - planned.totalValue : 0;
+  const temNotas = eventNotes.some(n => n.entityId === cardItem.id);
+  const naoPreenchido = isUnfilledItem(cardItem);
+  // jsonb pode chegar como string (API de hoje) ou objeto — ver lib/json-seguro.
+  const rhFields: Record<string, { from: number; to: number; label: string }> = lerAdjustedFields(cardItem.rhAdjustedFields);
+  const temAjustesRh = Object.keys(rhFields).length > 0;
 
   return (
-    <div
+    <article
       data-card-id={cardItem.id}
-      className={[
-        "rounded-xl border overflow-hidden transition-all duration-300 bg-card flex flex-col",
-        notAttended ? "opacity-60 grayscale-[30%]" : "",
-        isInGroup ? "border-l-[3px] border-l-primary/40" : "",
-        isHighlighted ? "ring-2 ring-ring shadow-3"
-          : isSelectedCls ? "ring-2 ring-primary/40 border-primary/25 shadow-2"
-          : diverges ? "border-warning/25 shadow-1"
-          : isInGroup ? "border-primary/25 shadow-1"
-          : "border-border shadow-1",
-        !isSelectedCls ? "hover:-translate-y-1 hover:shadow-3 hover:border-primary/25" : "",
-      ].join(" ")}
+      aria-label={collabName}
+      className={cn(
+        "pla-card group flex flex-col h-full rounded-xl border bg-card",
+        notAttended ? "pla-card-ausente bg-surface-muted border-border"
+          : isSelected ? "pla-card-sel border-primary"
+          : cardItem.rhStatus === "devolvido" || cardItem.rhStatus === "rejeitado" ? "border-warning/40"
+          : "border-border",
+        isHighlighted && "pla-destaque",
+      )}
     >
-        <div className="h-[3px]" style={{ background: stripeColor }} />
-
-        {/* Card Header */}
-        <ActualCardHeader {...p} isGParent={isGParent} isGChild={isGChild} isInGroup={isInGroup} isItemLocked={isItemLocked} isItemEditable={isItemEditable} initials={initials} avatarBg={avatarBg} workedDaysStr={workedDaysStr} />
-
-        {/* Card Body */}
-        {!isCollapsed && <ActualCardBody cardItem={cardItem} cardDays={p.cardDays} cardPlanned={planned} isRhOrAdmin={p.isRhOrAdmin} onEdit={p.onEdit} />}
-      {/* Card Footer */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-surface-muted/40 mt-auto">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-widest">Total realizado</span>
-          <span className="text-lg font-medium tabular-nums text-primary tracking-[-0.02em]">{formatCurrency(cardItem.totalValue)}</span>
+      {/* ── Quem é · total ── */}
+      <header className="flex items-start gap-3 px-4 pt-3.5 pb-2.5">
+        <div className="pt-0.5 shrink-0 w-4 flex justify-center">
+          {notAttended && !isItemEditable ? (
+            <UserX className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          ) : isItemLocked ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Prestação bloqueada para edição">
+                    <Lock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs">Enviada para revisão — bloqueada para edição</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => p.onToggleSelect(cardItem.id)}
+              aria-label={`Selecionar prestação de ${collabName}`}
+              className="pas-alvo"
+            />
+          )}
         </div>
-        <div>
-          {!planned ? null
-            : Math.abs(diff) <= 1 ? (
-              <span className="text-2xs font-medium text-muted-foreground px-2.5 py-1 rounded-lg bg-muted">Dentro do previsto</span>
-            ) : diff < 0 ? (
-              <span className="inline-flex items-center gap-1 text-2xs font-semibold tabular-nums text-success px-2.5 py-1 rounded-lg bg-success-soft">
-                <TrendingDown className="w-3 h-3" aria-hidden="true" />− {formatCurrency(Math.abs(diff))}
-              </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className={cn("m-0 text-sm font-semibold leading-5 truncate", notAttended ? "text-slate-600" : "text-foreground")}>{collabName}</h3>
+            {cardItem.rhAdjusted && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0} aria-label="Realizado ajustado pelo RH" className="inline-flex shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <PencilLine className="w-3.5 h-3.5 text-warning" aria-hidden="true" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">Realizado ajustado pelo RH</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground truncate">
+            {functionName}
+            {cardDays.startDate && cardDays.endDate && (
+              <span className="tabular-nums"> · {cardDays.startDate === cardDays.endDate ? ddmm(cardDays.startDate) : `${ddmm(cardDays.startDate)}–${ddmm(cardDays.endDate)}`}</span>
+            )}
+          </p>
+          <div className="flex flex-wrap items-center gap-1 mt-2">
+            {/* Tipo não é alerta: Freela em neutro, o âmbar fica para o que pede atenção. */}
+            <Chip tom={isCasa ? "marca" : "neutro"}>{isCasa ? "Casa" : "Freela"}</Chip>
+            <SeloDaSituacao cardItem={cardItem} />
+            {notAttended && <Chip tom="alerta"><UserX className="w-3 h-3" aria-hidden="true" />Não participou</Chip>}
+            {/* No titular de uma divisão, `diverges` compara a fatia dele com o planejado
+                da escalação inteira (sempre "diverge"): vale a régua do proporcional. */}
+            {diverges && !notAttended && (!isInGroup || Math.abs(diff) > 1) && <Chip tom="alerta" title="O total realizado é diferente do planejado">Divergência</Chip>}
+            {isGParent && <Chip tom="marca" title="Titular da escalação dividida">Titular</Chip>}
+            {isGChild && <Chip tom="marca" title="Parte de uma escalação dividida"><GitFork className="w-3 h-3" aria-hidden="true" />Divisão</Chip>}
+            {cardItem.plannedId && <SeloPlanejadoAlterado logs={plannedLogs} entityId={cardItem.plannedId} />}
+          </div>
+          {workedDaysStr && isInGroup && (
+            <p className="m-0 mt-1.5 flex items-start gap-1 text-2xs leading-4 text-primary">
+              <Calendar className="w-3 h-3 mt-px shrink-0" aria-hidden="true" />
+              <span><span className="sr-only">Dias trabalhados: </span>{workedDaysStr}</span>
+            </p>
+          )}
+        </div>
+
+        <div className="shrink-0 text-right pl-1">
+          <p className="m-0 text-2xs text-muted-foreground whitespace-nowrap">{notAttended ? "Não contabilizado" : "Total realizado"}</p>
+          <p className={cn("m-0 text-lg leading-6 font-semibold tracking-[-0.01em] tabular-nums whitespace-nowrap", notAttended ? "text-muted-foreground line-through" : "text-foreground")}>
+            {formatCurrency(cardItem.totalValue)}
+          </p>
+          {planned && !notAttended && (
+            Math.abs(diff) <= 1 ? (
+              <p className="m-0 mt-0.5 text-2xs text-muted-foreground whitespace-nowrap" title={`Planejado: ${formatCurrency(planned.totalValue)}`}>no previsto</p>
             ) : (
-              <span className="inline-flex items-center gap-1 text-2xs font-semibold tabular-nums text-danger px-2.5 py-1 rounded-lg bg-danger-soft">
-                <TrendingUp className="w-3 h-3" aria-hidden="true" />+ {formatCurrency(diff)}
-              </span>
+              <p
+                className={cn("m-0 mt-0.5 text-2xs font-semibold tabular-nums whitespace-nowrap", diff > 0 ? "text-danger" : "text-success")}
+                title={`Planejado: ${formatCurrency(planned.totalValue)}`}
+              >
+                {diff > 0 ? "+" : "−"}{formatCurrency(Math.abs(diff))}
+                <span className="font-normal text-muted-foreground"> vs plan.</span>
+              </p>
             )
-          }
+          )}
         </div>
-      </div>
-    </div>
+      </header>
+
+      {!isCollapsed && (
+        <>
+          {/* Aviso para quem não é do RH quando o RH mexeu nos valores */}
+          {!isRhOrAdmin && cardItem.rhAdjusted && (
+            <div className="mx-4 mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-lg bg-warning-soft border border-warning/25">
+              <p className="m-0 flex-1 min-w-0 text-xs text-warning">O RH ajustou alguns valores do seu realizado.</p>
+              <button
+                type="button"
+                onClick={() => p.onEdit(cardItem, "historico")}
+                className="pas-alvo shrink-0 h-7 px-2 rounded-md text-xs font-semibold text-warning hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Ver alterações
+              </button>
+            </div>
+          )}
+          <ActualCardBody cardItem={cardItem} cardDays={cardDays} cardPlanned={planned} notAttended={notAttended} />
+          {/* Referência só quando difere: igual, o topo já diz "no previsto". */}
+          {planned && Math.abs(diff) > 1 && (
+            <div className="mx-4 flex items-baseline justify-between gap-3 pt-2 pb-2.5 border-t border-dashed border-border text-xs text-muted-foreground">
+              <span>Planejado{isInGroup ? " (proporcional aos dias)" : ""}</span>
+              <span className="tabular-nums">{formatCurrency(planned.totalValue)}</span>
+            </div>
+          )}
+          {/* Campos ajustados pelo RH — de → para */}
+          {temAjustesRh && (
+            <div className="mx-4 mb-2.5 px-3 py-2 rounded-lg bg-warning-soft/60 border border-warning/20">
+              <p className="m-0 text-2xs font-semibold text-warning">Ajustes do RH</p>
+              <ul className="m-0 mt-0.5 p-0 list-none">
+                {Object.values(rhFields).map((f, i) => (
+                  <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-2xs leading-5 text-slate-600">
+                    <span>{f.label}:</span>
+                    <span className="tabular-nums line-through text-muted-foreground">{formatCurrency(f.from)}</span>
+                    <span aria-hidden="true">→</span>
+                    <span className="tabular-nums font-semibold text-warning">{formatCurrency(f.to)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+
+      {temNotas && (
+        <div className="flex items-center gap-2 px-4 pb-2 min-w-0">
+          <div className="min-w-0 flex-1 [&>div]:mt-0"><BudgetNotesSnippet notes={eventNotes} entityId={cardItem.id} /></div>
+        </div>
+      )}
+
+      {/* ── Ações: sempre à vista, discretas; a forte é a do topo/da seleção ── */}
+      <footer className="mt-auto flex items-center gap-1 px-2.5 py-1.5 border-t border-border">
+        <button
+          type="button"
+          className={cn(ACAO, "text-muted-foreground hover:bg-muted hover:text-foreground")}
+          aria-label={isCollapsed ? `Expandir prestação de ${collabName}` : `Recolher prestação de ${collabName}`}
+          aria-expanded={!isCollapsed}
+          onClick={() => p.onToggleCollapse(cardItem.id)}
+        >
+          {isCollapsed ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronUp className="w-4 h-4" aria-hidden="true" />}
+          <span className="max-[380px]:hidden">{isCollapsed ? "Detalhar" : "Recolher"}</span>
+        </button>
+
+        <div className="ml-auto flex items-center gap-0.5">
+          <button
+            type="button"
+            className={cn(ACAO, "text-muted-foreground hover:bg-muted hover:text-foreground")}
+            aria-label={`Ver observações de ${collabName}`}
+            title="Observações"
+            onClick={() => p.onEdit(cardItem, "observacoes")}
+          >
+            {temNotas
+              ? <span className="inline-flex items-center pr-1"><BudgetNotesBadge notes={eventNotes} entityId={cardItem.id} /></span>
+              : <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />}
+            <span className="rea-acao-texto">Observações</span>
+          </button>
+          {isItemEditable ? (
+            <>
+              <button
+                type="button"
+                className={cn(ACAO, "text-muted-foreground hover:bg-muted hover:text-foreground")}
+                aria-label={`Dividir prestação de ${collabName}`}
+                title="Dividir a escalação com outro colaborador"
+                onClick={() => p.onSplit(cardItem)}
+                disabled={splitPending}
+              >
+                <GitFork className="w-3.5 h-3.5" aria-hidden="true" />
+                <span className="rea-acao-texto">Dividir</span>
+              </button>
+              <button
+                type="button"
+                className={cn(ACAO, "text-muted-foreground hover:bg-danger-soft hover:text-danger")}
+                aria-label={`Remover prestação de ${collabName}`}
+                title="Remover prestação"
+                onClick={() => p.onDelete(cardItem.id)}
+              >
+                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                <span className="rea-acao-texto">Remover</span>
+              </button>
+              <button
+                type="button"
+                className={cn(ACAO, naoPreenchido ? "text-primary bg-brand-soft hover:bg-primary hover:text-primary-foreground" : "text-slate-700 hover:bg-muted")}
+                aria-label={`${naoPreenchido ? "Preencher" : "Editar"} prestação de ${collabName}`}
+                onClick={() => p.onEdit(cardItem)}
+              >
+                <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
+                {naoPreenchido ? "Preencher" : "Editar"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className={cn(ACAO, "text-slate-700 hover:bg-muted")}
+              aria-label={`Ver prestação de ${collabName}`}
+              onClick={() => p.onEdit(cardItem)}
+            >
+              <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+              Ver detalhes
+            </button>
+          )}
+        </div>
+      </footer>
+    </article>
   );
 });
 

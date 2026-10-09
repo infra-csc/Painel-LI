@@ -1,169 +1,168 @@
-// Extraído de rh-control.tsx em 25/09 (modularização): busca, toggle
-// "Mostrar concluídos e recusados", botão Filtros (com contador), os 5 selects
-// e as faixas "Filtro ativo". Só apresentação — o estado vem de `useRhFiltros`
-// e os dados de `useRhControlData`.
-import { useState } from "react";
-import { CircleDot, Filter, Search, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { PrestacaoStatus } from "./prestacao-types";
+// Extraído de rh-control.tsx em 25/09 (modularização); redesenho 08/10.
+//
+// Antes: busca, um interruptor desenhado à mão, o botão "Filtros" que abria
+// uma fileira de cinco `Select` cinza (evento, função, colaborador, status,
+// nota) e, embaixo, até três faixas cinza "Filtro ativo".
+//
+// Agora a barra de filtros comum das telas do Financeiro (components/common):
+// busca por colaborador (Esc limpa), a função à vista com quantas sobram,
+// situação, nota fiscal e colaborador em "Filtros" (com o número de ligados),
+// e o interruptor de concluídos/recusados. Embaixo, numa linha só, o recorte
+// em vigor por extenso (com o seu "Limpar"), as etiquetas removíveis e
+// "Limpar filtros". O evento mora na barra de contexto, como no Planejado.
+// Só apresentação — o estado vem de `useRhFiltros`; as opções são as de antes.
+import { CircleDot, ListFilter } from "lucide-react";
+import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros, type ListaCurta } from "@/components/common/barra-de-filtros";
+import { FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
+import { cn } from "@/lib/utils";
+import { STATUS_ORDER, type PrestacaoStatus } from "./prestacao-types";
 import { statusConfig } from "./status-config";
-import type { EventoDoSelect, RhControlData } from "./use-rh-control-data";
 import type { RhFiltros } from "./use-rh-filtros";
 
-const ITEM_CLS = "hover:bg-brand-soft hover:text-primary-hover cursor-pointer focus:bg-brand-soft focus:text-primary-hover data-[state=checked]:bg-brand-soft data-[state=checked]:text-primary data-[state=checked]:font-medium";
+const LISTA_STATUS: ListaCurta = {
+  chave: "status", titulo: "Situação", etiqueta: "Situação", testid: "rh-filtro-status",
+  opcoes: [
+    { id: "all", nome: "Todas" },
+    { id: "planejamento_pendente", nome: "Aguardando planejamento" },
+    { id: "aguardando_prestacao", nome: "Aguardando realizado" },
+    { id: "prestacao_recebida", nome: "Análise pendente" },
+    { id: "devolvida_para_ajuste", nome: "Devolvida para ajuste" },
+    { id: "aprovada_faturamento", nome: "Aprovada para faturamento" },
+    { id: "recusada", nome: "Recusada" },
+  ],
+};
+const LISTA_NF: ListaCurta = {
+  chave: "nf", titulo: "Nota fiscal", etiqueta: "Nota", testid: "rh-filtro-nf",
+  opcoes: [
+    { id: "all", nome: "Todas as notas" },
+    { id: "pendente", nome: "Aguardando nota" },
+    { id: "enviada", nome: "Aguardando aprovação RH" },
+    { id: "devolvida", nome: "Devolvida" },
+    { id: "aprovada", nome: "Aprovada" },
+    { id: "recusada", nome: "NF recusada" },
+  ],
+};
+const LISTA_COLAB: ListaCurta = {
+  chave: "colab", titulo: "Colaborador", etiqueta: "Colaborador", testid: "rh-filtro-colaborador",
+  opcoes: [
+    { id: "all", nome: "Todos" },
+    { id: "definido", nome: "Com colaborador" },
+    { id: "a_definir", nome: "Colaborador a definir" },
+  ],
+};
+
+const statusReal = (s: PrestacaoStatus) => (STATUS_ORDER as string[]).includes(s);
 
 export interface RhFiltersProps {
   filtros: RhFiltros;
-  /** Eventos com escalação (/api/events-with-inclusions) — opções do select. */
-  eventos: EventoDoSelect[];
-  /** Funções presentes nas linhas (vêm no payload do servidor, já ordenadas). */
-  funcoes: RhControlData["funcoes"];
+  /** Funções presentes na fila, com quantas prestações sobram em cada uma. */
+  opcoesDeFuncao: OpcaoDeFiltro[];
   concludedCount: number;
   recusadaCount: number;
-  /** Itens visíveis após o filtro (para as faixas "Filtro ativo (N itens)"). */
+  /** Itens visíveis após o filtro (para o "Mostrando apenas … (N itens)"). */
   filteredCount: number;
 }
 
 export function RhFilters(p: RhFiltersProps) {
-  const { filtros: f, eventos, funcoes, concludedCount, recusadaCount, filteredCount } = p;
-  const [showFilters, setShowFilters] = useState(false);
+  const { filtros: f, opcoesDeFuncao, concludedCount, recusadaCount, filteredCount } = p;
   const itens = `${filteredCount} ite${filteredCount === 1 ? "m" : "ns"}`;
+  // "Limpar filtros" zera tudo, inclusive o evento da barra (como antes).
   const limparTudo = () => { f.setFilterEvent("all"); f.setFilterFunction("all"); f.setFilterCollaborator("all"); f.setFilterStatus("all"); f.setFilterInvoiceStatus("all"); f.setSearchTerm(""); f.setFilterCheckinOnly(false); };
+  const limparRecorte = () => { f.setFilterStatus("all"); f.setFilterCheckinOnly(false); };
+
+  const valorDe = (chave: string) => (chave === "status" ? (statusReal(f.filterStatus) ? f.filterStatus : "all") : chave === "nf" ? f.filterInvoiceStatus : f.filterCollaborator);
+  const contagem = [statusReal(f.filterStatus), f.filterInvoiceStatus !== "all", f.filterCollaborator !== "all"].filter(Boolean).length;
+  const ocultos = concludedCount + recusadaCount;
+
+  // Linha do recorte: algo além da busca e do evento está ligado.
+  const temLinha = f.filterStatus !== "all" || f.filterCheckinOnly || f.filterFunction !== "all" || f.filterInvoiceStatus !== "all" || f.filterCollaborator !== "all";
+  const nomeDoRecorte = f.filterStatus === "rh_action" ? "pendências do RH"
+    : f.filterStatus !== "all" ? statusConfig[f.filterStatus].label.toLowerCase()
+    : "";
 
   return (
-    <>
-      {/* ── Search + filters ── */}
-      <div className="space-y-2">
-        {/* flex-wrap: em ~375px a linha busca+toggle quebra em vez de estourar */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
-            <Input
-              placeholder="Buscar por colaborador…"
-              value={f.searchTerm}
-              onChange={e => f.setSearchTerm(e.target.value)}
-              className="h-8 pl-9 text-xs border-border"
+    <div className="space-y-2" role="search" aria-label="Filtros da fila">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-1.5">
+        <BuscaDaLista
+          valor={f.searchTerm}
+          onChange={f.setSearchTerm}
+          placeholder="Buscar colaborador"
+          rotulo="Buscar prestação pelo nome do colaborador"
+          testid="rh-busca"
+        />
+        {/* Celular: a fileira rola de lado em vez de empilhar os controles. */}
+        <div className="pas-rolagem-x -mx-[var(--page-gutter)] flex items-center gap-1.5 px-[var(--page-gutter)] sm:contents">
+          <div className="shrink-0 max-w-[220px]">
+            <FiltroUnico
+              valor={f.filterFunction}
+              onChange={f.setFilterFunction}
+              opcoes={opcoesDeFuncao}
+              rotuloTodos="Todas as funções"
+              placeholderBusca="Buscar função…"
+              testid="rh-filtro-funcao"
             />
           </div>
-
+          <MaisFiltros
+            listas={[LISTA_STATUS, LISTA_NF, LISTA_COLAB]}
+            valorDe={valorDe}
+            onEscolher={(chave, id) => {
+              if (chave === "status") f.setFilterStatus(id as PrestacaoStatus);
+              else if (chave === "nf") f.setFilterInvoiceStatus(id);
+              else f.setFilterCollaborator(id);
+            }}
+            contagem={contagem}
+            mostrarPadrao={contagem > 0}
+            onPadrao={() => { if (statusReal(f.filterStatus)) f.setFilterStatus("all"); f.setFilterInvoiceStatus("all"); f.setFilterCollaborator("all"); }}
+            testid="rh-filtros"
+          />
           <button
-            className={`h-8 px-3 text-xs rounded-md border flex items-center gap-1.5 transition-colors whitespace-nowrap ${
-              f.showConcluded ? "border-primary/40 text-primary bg-brand-soft" : "border-border text-muted-foreground hover:border-slate-300 bg-card"
-            }`}
+            type="button"
+            role="switch"
+            aria-checked={f.showConcluded}
             onClick={() => f.setShowConcluded(!f.showConcluded)}
-            aria-pressed={f.showConcluded}
             title="Concluídos e recusados ficam ocultos por padrão; ligado, eles são acrescentados à lista"
-          >
-            <div className={`w-7 h-4 rounded-full relative flex items-center transition-all ${f.showConcluded ? "bg-primary" : "bg-border"}`}>
-              <div className={`w-3 h-3 rounded-full bg-card shadow-1 transition-transform ${f.showConcluded ? "translate-x-3.5" : "translate-x-0.5"}`} />
-            </div>
-            Mostrar concluídos e recusados
-            {(concludedCount + recusadaCount) > 0 && <span className="text-2xs text-muted-foreground">({concludedCount + recusadaCount})</span>}
-          </button>
-
-          <Button variant="outline" size="sm"
-            className={`h-8 text-xs gap-1.5 ${f.hasActiveFilters ? "border-primary/40 text-primary bg-brand-soft" : ""}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="w-3.5 h-3.5" aria-hidden="true" />
-            Filtros
-            {f.hasActiveFilters && (
-              <span className="bg-primary text-primary-foreground text-2xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                {[
-                  f.filterEvent !== "all",
-                  f.filterFunction !== "all",
-                  f.filterCollaborator !== "all",
-                  f.filterStatus !== "all", // inclui os 4 card-filtros (rh_action também)
-                  f.filterInvoiceStatus !== "all",
-                  f.searchTerm !== "",
-                  f.filterCheckinOnly,
-                ].filter(Boolean).length}
-              </span>
+            className={cn(
+              "pas-alvo crh-interruptor inline-flex shrink-0 items-center gap-2 h-[34px] pl-2.5 pr-3 rounded-lg border bg-card text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:border-primary",
+              f.showConcluded ? "border-primary/40 text-primary" : "border-border text-slate-700 hover:bg-muted",
             )}
-          </Button>
-          {f.hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-slate-600"
-              onClick={limparTudo}>
-              Limpar
-            </Button>
-          )}
+            data-testid="rh-mostrar-concluidos"
+          >
+            <span aria-hidden="true" className={cn("crh-chave", f.showConcluded && "crh-chave-on")}><span /></span>
+            Concluídos e recusados
+            {ocultos > 0 && <span className="text-xs text-muted-foreground tabular-nums">{ocultos}</span>}
+          </button>
         </div>
-
-        {showFilters && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Select value={f.filterEvent} onValueChange={f.setFilterEvent}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[192px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Evento" /></SelectTrigger>
-              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[220px]">
-                <SelectItem value="all" className={ITEM_CLS}>Todos os eventos</SelectItem>
-                {eventos.map(e => <SelectItem key={e.id} value={e.id} className={ITEM_CLS}>{e.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={f.filterFunction} onValueChange={f.setFilterFunction}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[176px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Função" /></SelectTrigger>
-              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[200px]">
-                <SelectItem value="all" className={ITEM_CLS}>Todas as funções</SelectItem>
-                {funcoes.map(fn => <SelectItem key={fn.id} value={fn.id} className={ITEM_CLS}>{fn.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={f.filterCollaborator} onValueChange={f.setFilterCollaborator}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[192px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Colaborador" /></SelectTrigger>
-              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[220px]">
-                <SelectItem value="all" className={ITEM_CLS}>Todos os colaboradores</SelectItem>
-                <SelectItem value="definido" className={ITEM_CLS}>Com colaborador</SelectItem>
-                <SelectItem value="a_definir" className={ITEM_CLS}>Colaborador a definir</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={f.filterStatus} onValueChange={(v) => f.setFilterStatus(v as PrestacaoStatus)}>
-              <SelectTrigger className="h-9 text-sm w-auto min-w-[220px] border border-border rounded-lg bg-card text-slate-700 hover:border-primary/40 transition-colors focus:ring-2 focus:ring-primary/25"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[240px]">
-                <SelectItem value="all" className={ITEM_CLS}>Todos os status</SelectItem>
-                <SelectItem value="planejamento_pendente" className={ITEM_CLS}>Aguardando planejamento</SelectItem>
-                <SelectItem value="aguardando_prestacao" className={ITEM_CLS}>Aguardando realizado</SelectItem>
-                <SelectItem value="prestacao_recebida" className={ITEM_CLS}>Análise pendente</SelectItem>
-                <SelectItem value="devolvida_para_ajuste" className={ITEM_CLS}>Devolvida para ajuste</SelectItem>
-                <SelectItem value="aprovada_faturamento" className={ITEM_CLS}>Aprovada para faturamento</SelectItem>
-                <SelectItem value="recusada" className={ITEM_CLS}>Recusada</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={f.filterInvoiceStatus} onValueChange={f.setFilterInvoiceStatus}>
-              <SelectTrigger className={`h-9 text-sm w-auto min-w-[200px] border rounded-lg bg-card transition-colors focus:ring-2 focus:ring-primary/25 ${f.filterInvoiceStatus !== "all" ? "border-primary/40 text-primary" : "border-border text-slate-700 hover:border-primary/40"}`}><SelectValue placeholder="Nota fiscal" /></SelectTrigger>
-              <SelectContent className="bg-card border border-border rounded-xl shadow-2 min-w-[220px]">
-                <SelectItem value="all" className={ITEM_CLS}>Todas as notas</SelectItem>
-                <SelectItem value="pendente" className={ITEM_CLS}>Aguardando nota</SelectItem>
-                <SelectItem value="enviada" className={ITEM_CLS}>Aguardando aprovação RH</SelectItem>
-                <SelectItem value="devolvida" className={ITEM_CLS}>Devolvida</SelectItem>
-                <SelectItem value="aprovada" className={ITEM_CLS}>Aprovada</SelectItem>
-                <SelectItem value="recusada" className={ITEM_CLS}>NF recusada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       </div>
 
-      {f.isRhFilterActive && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-muted border border-border text-xs text-muted-foreground">
-          <Shield className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
-          Mostrando apenas pendências do RH ({itens})
-          <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => { f.setFilterStatus("all"); f.setFilterCheckinOnly(false); }}>Limpar</button>
+      {temLinha && (
+        <div className="flex flex-wrap items-center gap-1.5 pas-entra">
+          {nomeDoRecorte && (
+            <div className="crh-recorte">
+              <ListFilter className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              Mostrando apenas {nomeDoRecorte} ({itens})
+              <button type="button" className="crh-recorte-limpar" onClick={limparRecorte}>Limpar</button>
+            </div>
+          )}
+          {f.filterCheckinOnly && (
+            <div className="crh-recorte">
+              <CircleDot className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              Mostrando apenas check-ins pendentes ({itens})
+              <button type="button" className="crh-recorte-limpar" onClick={() => f.setFilterCheckinOnly(false)}>Limpar</button>
+            </div>
+          )}
+          {f.filterFunction !== "all" && (
+            <EtiquetaDeFiltro etiqueta="Função" valor={opcoesDeFuncao.find(o => o.id === f.filterFunction)?.nome ?? "—"} titulo="Função" onTirar={() => f.setFilterFunction("all")} />
+          )}
+          {f.filterInvoiceStatus !== "all" && (
+            <EtiquetaDeFiltro etiqueta="Nota" valor={LISTA_NF.opcoes.find(o => o.id === f.filterInvoiceStatus)?.nome} titulo="Nota fiscal" onTirar={() => f.setFilterInvoiceStatus("all")} />
+          )}
+          {f.filterCollaborator !== "all" && (
+            <EtiquetaDeFiltro etiqueta="Colaborador" valor={LISTA_COLAB.opcoes.find(o => o.id === f.filterCollaborator)?.nome} titulo="Colaborador" onTirar={() => f.setFilterCollaborator("all")} />
+          )}
+          <LimparFiltros onClick={limparTudo} testid="rh-limpar-filtros" />
         </div>
       )}
-      {f.filterCheckinOnly && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-brand-soft border border-primary/25 text-xs text-primary">
-          <CircleDot className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-          Mostrando apenas check-ins pendentes ({itens})
-          <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => f.setFilterCheckinOnly(false)}>Limpar</button>
-        </div>
-      )}
-      {(f.filterStatus !== "all" && f.filterStatus !== "rh_action") && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-muted border border-border text-xs text-muted-foreground">
-          <Shield className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
-          Filtro ativo: {statusConfig[f.filterStatus].label} ({itens})
-          <button className="ml-auto text-primary hover:text-primary-hover font-medium" onClick={() => { f.setFilterStatus("all"); f.setFilterCheckinOnly(false); }}>Limpar</button>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 

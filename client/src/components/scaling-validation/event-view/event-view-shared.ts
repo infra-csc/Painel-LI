@@ -12,7 +12,7 @@ import {
 } from "@shared/scaling-validation-rules";
 import { formatDayMonthBr } from "@/lib/dates";
 import { workDaysOf, type SuggestionRow } from "@/components/scaling-validation/types";
-import { TONE_CLASS, toneDoStatus } from "@/components/common/status-badge";
+import { TONE_CLASS, toneDoStatus, type Tone } from "@/components/common/status-badge";
 import { legValue } from "@/components/scaling-validation/logistics-chips";
 
 export const ALL = "all";
@@ -194,14 +194,22 @@ export function lastMoveOf(row: EventViewRow): { label: string; at: Date | null 
 // ── Linha do tempo ───────────────────────────────────────────────────────────
 
 export type TlCat = "envio" | "validacao" | "pedido" | "decisao" | "exclusao";
-export interface TlStyle { label: string; icon: LucideIcon; dot: string; card: string; tag: string; quote: string }
+/**
+ * Estilo de cada categoria (07/10 — redesenho): o marcador da trilha (círculo
+ * no tom suave com o ícone no tom forte) e o ponto do filtro. Até 06/10 cada
+ * movimento era um cartão tingido com borda colorida — uma parede de cor em
+ * que nada se destacava. A cor ficou no marcador e na etiqueta; o texto corre
+ * sobre o branco. Pedido aberto é âmbar (alguém ainda precisa agir) e exclusão
+ * é NEUTRA (regra de 23/09: registro encerrado, não erro).
+ */
+export interface TlStyle { label: string; icon: LucideIcon; dot: string; marker: string; tone: Tone }
 export const TL_ORDER: TlCat[] = ["envio", "validacao", "pedido", "decisao", "exclusao"];
 export const TL: Record<TlCat, TlStyle> = {
-  envio:     { label: "Envios",     icon: Send,          dot: "bg-primary",      card: "border-primary/20 bg-brand-soft/50", tag: "bg-brand-soft text-primary",     quote: "border-primary/40" },
-  validacao: { label: "Validações", icon: ClipboardCheck, dot: "bg-info-strong",     card: "border-info/25 bg-info-soft/60",        tag: "bg-info-soft text-info",         quote: "border-info/25" },
-  pedido:    { label: "Pedidos",    icon: PencilLine,    dot: "bg-primary",   card: "border-primary/25 bg-brand-soft/60",  tag: "bg-brand-soft text-primary",   quote: "border-primary/40" },
-  decisao:   { label: "Decisões",   icon: Gavel,         dot: "bg-success-strong",  card: "border-success/25 bg-success-soft/50", tag: "bg-success-soft text-success", quote: "border-success/25" },
-  exclusao:  { label: "Exclusões",  icon: Trash2,        dot: "bg-danger-strong",      card: "border-danger/25 bg-danger-soft/50",        tag: "bg-danger-soft text-danger",         quote: "border-danger/25" },
+  envio:     { label: "Envios",     icon: Send,           dot: "bg-primary",        marker: "bg-brand-soft text-primary",   tone: "primary" },
+  validacao: { label: "Validações", icon: ClipboardCheck, dot: "bg-info-strong",    marker: "bg-info-soft text-info",       tone: "info" },
+  pedido:    { label: "Pedidos",    icon: PencilLine,     dot: "bg-warning-strong", marker: "bg-warning-soft text-warning", tone: "warning" },
+  decisao:   { label: "Decisões",   icon: Gavel,          dot: "bg-success-strong", marker: "bg-success-soft text-success", tone: "success" },
+  exclusao:  { label: "Exclusões",  icon: Trash2,         dot: "bg-neutral",        marker: "bg-neutral-soft text-neutral", tone: "neutral" },
 };
 
 export interface TlEntry {
@@ -210,6 +218,8 @@ export interface TlEntry {
   at: Date;
   title: string;
   tag: string;
+  /** Tom da etiqueta pelo SIGNIFICADO (pedido: o tipo; decisão: o status). Sem ele, o da categoria. */
+  tagTone?: Tone;
   text: string;
   author?: string;
   chips?: string[];
@@ -259,11 +269,24 @@ export const idChips = (rows: EventViewRow[], max = 8) =>
 /** Quantos eventos a linha do tempo mostra por vez no modo "Todos os eventos". */
 export const TIMELINE_EVENTS_STEP = 3;
 
-/** Cabeçalho de tabela — mesmo padrão das outras telas do módulo. */
-export const TH = "px-3 py-2 text-left text-2xs font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap";
-/** Título de seção/rótulo de grupo (design system: 11px, bold, caixa alta, slate-500). */
-export const SECTION = "text-2xs font-bold uppercase tracking-wide text-muted-foreground";
+/**
+ * Cabeçalho de coluna — caixa de frase, 12px, cinza: o mesmo da Validação e
+ * da Aprovação (07/10). Era caixa alta em negrito, o desenho de antes do módulo.
+ */
+export const TH = "px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap";
 export const LABEL = "text-xs text-muted-foreground";
-export const CHIP = "inline-flex items-center h-[22px] rounded-full px-2 text-2xs font-medium";
-/** Contêiner com rolagem horizontal alcançável pelo teclado (tabIndex + região nomeada). */
-export const SCROLL_X = "overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+/** Chip de #ID da linha do tempo. */
+export const CHIP = "inline-flex items-center h-[22px] rounded-md px-1.5 font-mono text-2xs font-semibold tabular-nums";
+/** Aviso em faixa (histórico parcial, escala travada, quadro sem evento) — o mesmo da Validação. */
+export const AVISO = "val-entra flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-xs leading-relaxed";
+/** Moldura das listas (sombra de 1px, a mesma da Validação e da Aprovação). */
+export const MOLDURA = "rounded-xl border border-border bg-card shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]";
+/**
+ * Filtro liga/desliga em pílula (categorias da linha do tempo, legenda do
+ * quadro): ponto da cor, rótulo e contagem. Ligado fica no tom da marca.
+ */
+export const PILULA = "hes-pilula val-alvo inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const PILULA_ON = "border-primary/35 bg-brand-soft text-primary";
+export const PILULA_OFF = "border-border bg-card text-slate-600 hover:border-slate-300 hover:text-foreground";
+/** Botão secundário em contorno (comentários do evento, exportar): 36px. */
+export const CONTORNO = "val-alvo inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-3 text-sm font-medium text-slate-700 transition-colors hover:border-primary/30 hover:bg-brand-soft/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";

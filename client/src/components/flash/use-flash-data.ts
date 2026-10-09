@@ -100,17 +100,18 @@ export function useFlashData(args: { search: string; selectedCollabId: string; s
   }, [extrato, sourceFilter]);
   const hasAutomatic = useMemo(() => extrato.some(m => isAutomaticFlashMovement(m)), [extrato]);
 
-  // Critério único de "tem conta": QUALQUER movimento registrado (mesmo o que o
-  // servidor usa para rejeitar o crédito inicial). `balances` não serve — ele
-  // ignora categorias desconhecidas e mentiria para dados legados/manuais.
+  // Critério de "conta aberta": algum lançamento MANUAL — o mesmo que o servidor
+  // usa para rejeitar o crédito inicial (23/09). Crédito automático (comparativo
+  // aprovado) não abre a conta. `balances` não serve — ele ignora categorias
+  // desconhecidas e mentiria para dados legados/manuais.
   const collabsWithMovements = useMemo(
-    () => new Set(movements.map(m => m.collaboratorId)),
+    () => new Set(movements.filter(m => !isAutomaticFlashMovement(m)).map(m => m.collaboratorId)),
     [movements],
   );
 
-  // Admitidos sem crédito inicial: colaboradores ativos sem NENHUM lançamento
+  // Admitidos sem crédito inicial: colaboradores ativos sem lançamento manual
   // (o crédito inicial só vale para conta nova — o servidor rejeita se já houver
-  // movimentos). Fecha o fluxo "crédito na admissão".
+  // lançamento manual). Fecha o fluxo "crédito na admissão".
   const admittedWithoutInitialCredit = useMemo(() => {
     return collaborators
       .filter(c => c.active !== false && !collabsWithMovements.has(c.id))
@@ -121,7 +122,7 @@ export function useFlashData(args: { search: string; selectedCollabId: string; s
     mutationFn: (id: string) => apiRequest("DELETE", `/api/flash-movements/${id}`).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/flash-movements"] });
-      toast({ title: "Lançamento excluído" });
+      toast({ variant: "success", title: "Lançamento excluído", description: "O saldo do colaborador foi recalculado." });
     },
     onError: (e: unknown) => toast({ title: "Não foi possível excluir o lançamento", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" }),
   });
@@ -152,12 +153,14 @@ export function useFlashData(args: { search: string; selectedCollabId: string; s
   };
 
   const selectedBalance = balances.get(selectedCollabId);
+  // Saldo de qualquer pessoa (o diálogo mostra o "saldo atual" e o "depois").
+  const saldoDe = useCallback((id: string) => balances.get(id), [balances]);
 
   return {
     estado, isLoading, collaborators, events, movements,
     getCollabName, getEventName,
     accountRows, totals, extrato, extratoVisible, hasAutomatic,
-    collabsWithMovements, admittedWithoutInitialCredit, selectedBalance,
+    collabsWithMovements, admittedWithoutInitialCredit, selectedBalance, saldoDe,
     deleteMutation, exportCsv,
     invalidateMovements: () => qc.invalidateQueries({ queryKey: ["/api/flash-movements"] }),
   };

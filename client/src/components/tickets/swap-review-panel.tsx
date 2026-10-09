@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import type { TeamInclusion } from "@shared/schema";
 import type { SwapRequestRow } from "./use-tickets-data";
 import { normalizeSwap } from "@/components/scaling/scaling-utils";
-import { ExplicacaoDaTroca } from "@/components/scaling/swap-explicacao";
+import { AvisoTrocaDesatualizada, ExplicacaoDaTroca, comOcupantesFormatados, motivoDaTrocaPendente } from "@/components/scaling/swap-explicacao";
+import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
+import { toTitleCase } from "@/lib/format";
 import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
 import { RequiredMark } from "@/components/forms/required-mark";
 
@@ -45,11 +47,20 @@ export default function SwapReviewPanel({
   const hasTicketPurchased = ["passagem_comprada", "hospedagem_passagem_comprada"].includes(inclusion.status);
   const closeConfirm = () => { setConfirmAction(null); setRejectReason(""); };
   /** O que muda ao aprovar (16/09) — o mesmo texto da Escalação. */
-  const trocaExplicada: TrocaParaExplicar = {
-    ...normalizeSwap(swap as Record<string, unknown>),
-    currentCollaboratorName: currentCollabName,
+  const normalizada = normalizeSwap(swap as Record<string, unknown>);
+  const trocaExplicada: TrocaParaExplicar = comOcupantesFormatados({
+    ...normalizada,
+    // 09/10: quem estava na vaga NO PEDIDO (aberta → null). `currentCollabName`
+    // é quem está hoje na vaga deste modal — pode ser a outra vaga, ou outra pessoa.
+    currentCollaboratorName: !normalizada.currentCollaboratorId
+      ? null
+      : normalizada.currentCollaboratorId === inclusion.collaboratorId
+        ? currentCollabName
+        : toTitleCase(normalizada.currentCollaboratorName) || currentCollabName,
     newCollaboratorName: requestedCollabName,
-  };
+  });
+  /** As vagas mudaram desde o pedido (09/10): o servidor recusaria a aprovação. */
+  const motivoMudou = motivoDaTrocaPendente(normalizada.status, trocaExplicada);
 
   return (
     <>
@@ -69,6 +80,7 @@ export default function SwapReviewPanel({
           </span>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
+          {motivoMudou && <AvisoTrocaDesatualizada motivo={motivoMudou} />}
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1.2fr)] items-stretch gap-3">
             <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 min-w-0">
               <p className="m-0 text-2xs font-medium text-muted-foreground mb-1">Colaborador atual</p>
@@ -102,14 +114,16 @@ export default function SwapReviewPanel({
                 >
                   <XCircle className="w-3.5 h-3.5" aria-hidden="true" />Rejeitar troca
                 </button>
+                <MotivoDesabilitado motivo={motivoMudou} desabilitado={!!motivoMudou}>
                 <button
                   type="button"
                   onClick={() => setConfirmAction("approve")}
-                  disabled={isPending}
+                  disabled={isPending || !!motivoMudou}
                   className={`${BOTAO} bg-success hover:bg-success/90 text-white`}
                 >
                   <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />Aprovar troca
                 </button>
+                </MotivoDesabilitado>
               </div>
             )}
           </div>
@@ -117,7 +131,7 @@ export default function SwapReviewPanel({
       </section>
 
       {/* Confirmação — Aprovar */}
-      {confirmAction === "approve" && (
+      {confirmAction === "approve" && !motivoMudou && (
         <Dialog open onOpenChange={closeConfirm}>
           <DialogContent className="max-w-[520px] gap-4">
             <DialogHeader className="text-left">

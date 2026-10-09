@@ -16,6 +16,9 @@ export interface AbaBaseProps {
   filterStatus: string;
   onFilterStatus: (v: string) => void;
   highlightActualId: string;
+  /** Busca por colaborador, função ou OC (08/10, na URL como `?q=`). */
+  busca?: string;
+  onBusca?: (v: string) => void;
 }
 
 /** Ações do RH sobre uma NF (aba Aprovação). */

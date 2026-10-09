@@ -101,63 +101,71 @@ export function daysSince(inv: Invoice) {
   return Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
 }
 
+// Cor de cada tipo de evento em classe de token (08/10): o painel pintava com
+// `style={{ color }}` a partir de `HIST_CFG.color`. O dado continua igual.
+const TOM_DO_EVENTO: Record<HistEvent["type"], { dot: string; text: string }> = {
+  enviado:   { dot: "bg-primary",        text: "text-primary" },
+  reenviado: { dot: "bg-primary",        text: "text-primary" },
+  devolvido: { dot: "bg-warning-strong", text: "text-warning" },
+  recusado:  { dot: "bg-danger",         text: "text-danger" },
+  aprovado:  { dot: "bg-success-strong", text: "text-success" },
+  checkin:   { dot: "bg-success",        text: "text-success" },
+};
+
+/**
+ * Linha do tempo da nota (08/10, redesenho): uma lista de verdade, com o fio
+ * ligando os eventos, a data em números alinhados, quem fez, a OC e o anexo
+ * de cada envio e o motivo citado de cada devolução/recusa. Com um evento só,
+ * a mesma lista (antes virava uma frase em itálico, outro desenho).
+ */
 export function HistoryPanel({ events }: { events: HistEvent[] }) {
   if (events.length === 0) return null;
-  if (events.length === 1) {
-    const e = events[0];
-    return (
-      <div className="text-2xs text-muted-foreground italic">
-        Enviado em {e.at || "—"} por {e.by}
-        {e.oc && <span className="not-italic text-slate-600 ml-1">· OC: <span className="font-mono font-semibold">{e.oc}</span></span>}
-        {e.attachmentName && <span className="not-italic text-muted-foreground ml-1">· Nota: {e.attachmentName}</span>}
-      </div>
-    );
-  }
   return (
-    <div className="relative pl-4">
-      {/* vertical dotted line */}
-      <div className="absolute left-[7px] top-3 bottom-3 w-px border-l-2 border-dotted border-border" />
-      <div className="space-y-3">
-        {events.map((ev, i) => (
-          <div key={i} className="relative flex items-start gap-3">
-            {/* dot */}
-            <div className="absolute -left-4 top-[5px] w-2 h-2 rounded-full ring-2 ring-white shrink-0" style={{ background: ev.color }} />
-            <div className="min-w-0 w-full">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold" style={{ color: ev.color }}>{ev.label}</span>
-                {ev.at && <span className="text-2xs text-muted-foreground">{ev.at}</span>}
-                <span className="text-2xs text-muted-foreground italic">por {ev.by}</span>
-              </div>
-              {/* OC and attachment for sent/resent */}
-              {(ev.type === "enviado" || ev.type === "reenviado") && (ev.oc || ev.attachmentName) && (
-                <div className="mt-1 ml-0 flex items-center gap-3 flex-wrap">
-                  {ev.oc && (
-                    <span className="text-2xs text-slate-600">
-                      OC: <span className="font-mono font-semibold text-foreground">{ev.oc}</span>
-                    </span>
-                  )}
-                  {ev.attachmentName && (
-                    <span className="text-2xs text-muted-foreground flex items-center gap-1">
-                      <Paperclip className="w-2.5 h-2.5" aria-hidden="true" /> {ev.attachmentName}
-                    </span>
-                  )}
-                </div>
-              )}
-              {ev.comment && (
-                <div className="mt-1 text-2xs text-warning bg-warning-soft border-l-2 border-l-warning py-1 px-2"
-                  style={{ borderRadius: "0 4px 4px 0" }}>
-                  {ev.comment}
-                </div>
-              )}
-              {ev.paymentDate && (
-                <div className="mt-1 text-2xs text-primary italic">
-                  Pagamento previsto: {fmtDate(ev.paymentDate)}
-                </div>
-              )}
+    <ol
+      aria-label="Histórico da nota fiscal"
+      className="relative m-0 p-0 list-none space-y-2.5 before:absolute before:left-[4px] before:top-2 before:bottom-2 before:w-px before:bg-border"
+    >
+      {events.map((ev, i) => {
+        const tom = TOM_DO_EVENTO[ev.type] ?? TOM_DO_EVENTO.enviado;
+        return (
+          <li key={i} className="relative pl-5">
+            <span aria-hidden="true" className={`absolute left-0 top-[5px] w-[9px] h-[9px] rounded-full ring-[3px] ring-surface-muted ${tom.dot}`} />
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className={`text-xs font-semibold ${tom.text}`}>{ev.label}</span>
+              {ev.at && <span className="text-xs tabular-nums text-slate-600">{ev.at}</span>}
+              <span className="text-xs text-muted-foreground">por {ev.by}</span>
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
+            {/* OC e anexo de cada envio/reenvio */}
+            {(ev.type === "enviado" || ev.type === "reenviado") && (ev.oc || ev.attachmentName) && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted-foreground">
+                {ev.oc && (
+                  <span>
+                    OC <span className="font-mono font-semibold text-slate-700">{ev.oc}</span>
+                  </span>
+                )}
+                {ev.attachmentName && (
+                  <span className="inline-flex items-center gap-1 min-w-0">
+                    <Paperclip className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    <span className="truncate max-w-[280px]" title={ev.attachmentName}>{ev.attachmentName}</span>
+                  </span>
+                )}
+              </div>
+            )}
+            {ev.comment && (
+              <blockquote className={`m-0 mt-1 max-w-[640px] border-l-2 pl-2.5 py-0.5 text-xs leading-relaxed ${
+                ev.type === "recusado" ? "border-l-danger text-danger" : "border-l-warning-strong text-warning"
+              }`}>
+                {ev.comment}
+              </blockquote>
+            )}
+            {ev.paymentDate && (
+              <p className="m-0 mt-0.5 text-2xs text-slate-600">
+                Pagamento previsto: <span className="font-semibold tabular-nums">{fmtDate(ev.paymentDate)}</span>
+              </p>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }

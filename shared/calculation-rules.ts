@@ -11,12 +11,6 @@
  */
 import { isCenotecnicaFunction } from "./alimentacao";
 
-export const DEFLATION_TIERS = [
-  { fromDay: 1, toDay: 4, factor: 1.0, label: "até 4 dias" },
-  { fromDay: 5, toDay: 8, factor: 0.9, label: "do 5º ao 8º dia" },
-  { fromDay: 9, toDay: Infinity, factor: 0.8, label: "a partir do 9º dia" },
-] as const;
-
 export interface DeflationSegment {
   days: number;
   factor: number;
@@ -121,41 +115,12 @@ export const FREELA_EXTRA_DAY_ALLOWANCE = [
   { situacao: "Retornando depois das 14h do dia seguinte", cents: 7000 },
 ] as const;
 
-// ── Slide 8: cenotécnicos empreitas (valor fechado por nº de dias) ──────────
-export const EMPREITA_CLOSED_VALUES = [
-  { modalidade: "Freela Viagem", porDias: { 2: 89013, 3: 125763, 4: 162513, 5: 199263, 6: 236013 } },
-  { modalidade: "Freela SP", porDias: { 2: 70035, 3: 105053, 4: 140070, 5: 175088, 6: 210105 } },
-  { modalidade: "Freela Local (A)", porDias: { 2: 67725, 3: 99225, 4: 130725, 5: 162225, 6: 193725 } },
-  { modalidade: "Freela Local (B)", porDias: { 2: 53750, 3: 78750, 4: 103750, 5: 128750, 6: 153750 } },
-] as const;
-
-// ── Slide 10: percurseiro (motoqueiros em viagem — sempre 2 diárias, com NF) ─
-// Tabela CONFIRMADA pelo usuário em 17/08 ("Motoqueiros em viagem (2 diárias)"):
-// NF Tipo 1 = R$ 172,76 e Tipo 2 = R$ 194,67 (totais 1.129,76 / 1.266,67).
-// A versão "planilha base" antiga (172,26 / 192,96) foi descartada.
-// ATENÇÃO: os "16%" da NF NÃO são deriváveis da tabela (16% do subtotal 957,00
-// = 153,12; gross-up 957/0,84 = 1.139,29; 16% do total = 180,76 — nenhum bate
-// com 172,76). Por isso a NF é guardada como VALOR editável, não como fórmula.
-export const PERCURSEIRO_TYPES = [
-  {
-    tipo: "Tipo 1",
-    motoqueiroCents: 70000,
-    feeIvanCents: 10500,        // Fee Ivan (15%)
-    alimentacaoCents: 10200,    // 3 refeições
-    transporteCents: 5000,      // ajuda de custo transporte
-    nfCents: 17276,             // NF ("16%") — valor da tabela, não derivável
-    totalCents: 112976,
-  },
-  {
-    tipo: "Tipo 2",
-    motoqueiroCents: 80000,
-    feeIvanCents: 12000,
-    alimentacaoCents: 10200,
-    transporteCents: 5000,
-    nfCents: 19467,
-    totalCents: 126667,
-  },
-] as const;
+// Slide 8 (cenotécnicos empreita, valor fechado por nº de dias): a tabela mora
+// em shared/cenotecnica-empreita.ts (CENO_EMPREITA_DEFAULTS), a fonte que o
+// motor e o Valores Padrão usam. A cópia EMPREITA_CLOSED_VALUES que ficava
+// aqui não era lida por ninguém e foi removida em 08/10 — assim como
+// DEFLATION_TIERS (a deflação vem de DEFLATION_FACTORS_DEFAULT/settings) e
+// PERCURSEIRO_TYPES (o pacote vem de PERCURSEIRO_DEFAULTS/settings, abaixo).
 
 // ── Diária FREELA por regra (slide "Regra de cálculo para time freela") ──────
 // A tarifa freela não é por função individual: é uma regra de 3 valores —
@@ -399,8 +364,12 @@ export const FUNCAO_LOCAL_RAZAO = "Função local — sem alimentação e sem mo
 // Planejado ficam em 0 (já estão dentro do pacote). Sem deflação.
 //   • Em VIAGEM (needsTicket): SEMPRE 2 diárias, independente do período.
 //   • LOCAL (sem passagem — SP/Grande SP): 1 diária. Mesma tabela.
-// A NF ("16%") NÃO é derivável da tabela (ver comentário em PERCURSEIRO_TYPES),
-// por isso é um VALOR editável por tipo; o total é a soma das 5 parcelas.
+// Tabela CONFIRMADA pelo usuário em 17/08 ("Motoqueiros em viagem (2 diárias)"):
+// NF Tipo 1 = R$ 172,76 e Tipo 2 = R$ 194,67 (totais 1.129,76 / 1.266,67); a
+// versão "planilha base" antiga (172,26 / 192,96) foi descartada.
+// A NF ("16%") NÃO é derivável da tabela (16% do subtotal 957,00 = 153,12;
+// gross-up 957/0,84 = 1.139,29; 16% do total = 180,76 — nenhum bate com
+// 172,76), por isso é um VALOR editável por tipo; o total é a soma das 5 parcelas.
 // ─────────────────────────────────────────────────────────────────────────────
 export type PercurseiroTipo = "tipo_1" | "tipo_2";
 
