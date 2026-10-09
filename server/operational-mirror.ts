@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { horarioDoCarro, ANTECEDENCIA_MIN, ESPERA_POUSO_MIN } from "@shared/uber-routing";
+import { horarioDoCarro, origemDaIda, vooDoCarro, ANTECEDENCIA_MIN, ESPERA_POUSO_MIN, HOTEL_PADRAO } from "@shared/uber-routing";
 import { lerPlanilhaDoEspelho, type PessoaDoEvento } from "@shared/mirror-import";
 import { chaveDaColuna } from "@shared/mirror-columns";
 import { recalcularDiasDaVaga } from "@shared/dias-de-trabalho";
@@ -50,8 +50,13 @@ type Exec = Pick<Tx, "select" | "insert" | "update" | "delete" | "execute">;
 interface LogisticsConfig {
   uberTimeWindowMinutes: number;
   uberMaxPeoplePerCar: number;
-  /** Antecedência do carro na ida e espera pelo pouso na volta, em minutos. */
+  /** Antecedência do carro antes do voo mais cedo — na ida e na volta (09/10), em minutos. */
   uberAdvanceMinutes: number;
+  /**
+   * Espera depois do pouso. NÃO É USADA NA VOLTA desde 09/10 (a volta sai do
+   * hotel para o aeroporto, pela antecedência); a chave continua lida para não
+   * sumir com o que está gravado.
+   */
   uberPickupWaitMinutes: number;
   allowTripleRoom: boolean;
   hotelGroupBySameDepartmentPriority: boolean;
@@ -859,43 +864,51 @@ export interface GrupoUberSugerido {
   members: string[];
 }
 
-export type UberCand = { collabId: string; date: string; airport: string; hotel: string; minutes: number | null };
+/**
+ * Uma pessoa a levar ao aeroporto (09/10). `local` é de onde o carro sai:
+ * "Norte" (ou a cidade de saída, fora de SP) na ida; o hotel do evento na volta.
+ * `airport` é o aeroporto de EMBARQUE e `minutes`, a hora da PARTIDA do voo.
+ */
+export type UberCand = { collabId: string; date: string; airport: string; local: string; minutes: number | null };
 
 /**
  * Agrupa candidatos em carros — regra pura, separada da gravação (23/09).
- * Por data + aeroporto + hotel (não juntar quem vai/vem de locais
+ * Por data + aeroporto + ponto de saída (não juntar quem sai de lugares
  * diferentes), ordenado por horário, dentro da janela e do máximo por carro.
+ * Regra do dono (09/10): ida = Norte → aeroporto; volta = hotel → aeroporto.
  */
 export function montarGruposUber(
   cands: UberCand[],
   direction: "ida" | "volta",
-  config: Pick<LogisticsConfig, "uberTimeWindowMinutes" | "uberMaxPeoplePerCar" | "uberAdvanceMinutes" | "uberPickupWaitMinutes">,
+  config: Pick<LogisticsConfig, "uberTimeWindowMinutes" | "uberMaxPeoplePerCar" | "uberAdvanceMinutes">,
 ): GrupoUberSugerido[] {
+  // Chave em JSON: nome de hotel pode ter qualquer caractere, inclusive "|".
   const buckets = new Map<string, UberCand[]>();
   for (const c of cands) {
-    const key = `${c.date}|${c.airport}|${c.hotel}`;
+    const key = JSON.stringify([c.date, c.airport, c.local]);
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key)!.push(c);
   }
   const grupos: GrupoUberSugerido[] = [];
-  for (const [key, list] of Array.from(buckets.entries())) {
+  for (const list of Array.from(buckets.values())) {
     // ordenar por horário
     list.sort((a, b) => (a.minutes ?? 9999) - (b.minutes ?? 9999));
     let current: UberCand[] = [];
     let anchor: number | null = null;
     const flush = () => {
       if (current.length === 0) return;
-      const [date, airport, hotel] = key.split("|");
-      // Ida: base → aeroporto (embarcar). Volta: aeroporto → base (buscar).
-      const origin = direction === "ida" ? hotel : airport;
-      const destination = direction === "ida" ? airport : hotel;
+      const { date, airport, local } = current[0];
+      // Nas duas direções o carro vai PARA o aeroporto (09/10): ida sai da
+      // Norte (ou da cidade de saída), volta sai do hotel do evento.
+      const origin = local;
+      const destination = airport;
       // Ninguém sai na média: quem voa 04:55 e quem voa 05:50 saíam juntos num
-      // horário que servia mal para os dois. O carro é pensado pelo extremo que
-      // não pode falhar — ver shared/uber-routing.ts.
+      // horário que servia mal para os dois. O carro sai com a antecedência
+      // antes do voo MAIS CEDO, na ida e na volta — ver shared/uber-routing.ts.
       const timeStr = horarioDoCarro(
-        current.map((c) => ({ id: c.collabId, data: c.date, aeroporto: c.airport, minutos: c.minutes })),
+        current.map((c) => ({ id: c.collabId, data: c.date, aeroporto: c.airport, local: c.local, minutos: c.minutes })),
         direction,
-        { antecedenciaMin: config.uberAdvanceMinutes, esperaPousoMin: config.uberPickupWaitMinutes },
+        { antecedenciaMin: config.uberAdvanceMinutes },
       );
       grupos.push({
         groupName: `${direction === "ida" ? "Ida" : "Volta"} ${airport} ${date}`,
@@ -1068,16 +1081,17 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
     await tx.delete(uberGroupMembers).where(inArray(uberGroupMembers.uberGroupId, carrosSugeridos));
     await tx.delete(uberGroups).where(and(eq(uberGroups.eventId, eventId), eq(uberGroups.confirmed, false)));
 
-    // Construir candidatos de ida e volta a partir das passagens
-    // hotel = ponto comum no destino/local do evento (separa quem vai para lugares diferentes)
     /**
-     * O carro é na cidade de ORIGEM (31/08): a equipe sai da base para embarcar e
-     * é buscada quando pousa de volta. Antes o agrupamento usava o aeroporto de
-     * DESTINO na ida, como se o Uber fosse no destino da viagem.
+     * Regra do dono (09/10): "Na ida é Norte × Aeroporto, na volta Hotel × Aeroporto."
      *
-     * Ida: hora do VOO (é dela que sai a antecedência).
-     * Volta: hora do POUSO (é dela que sai a espera) — a hora da decolagem
-     * deixava quem lia fazendo a conta de cabeça.
+     * Ida: o carro sai da NORTE para o aeroporto de embarque da ida. Quem sai
+     * de outra cidade ("Sai de" da vaga fora de SP) vai num carro daquela
+     * cidade. Antes a origem da ida era o hotel do evento.
+     * Volta: o carro sai do HOTEL do evento para o aeroporto de embarque da
+     * VOLTA, com a mesma antecedência antes do voo de volta mais cedo. Antes
+     * era "Aeroporto → Norte", medida pelo pouso (buscar 15 min depois).
+     *
+     * Nas duas, `minutes` é a hora da PARTIDA do voo (shared/uber-routing.ts).
      */
     const idaCands: UberCand[] = [];
     const voltaCands: UberCand[] = [];
@@ -1089,25 +1103,25 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
       if (ti.skipUber) continue;
       const ticket = ticketByInclusion.get(ti.id);
       if (!ticket) continue;
-      const acc = accByInclusion.get(ti.id);
-      const hotel = acc?.hotelName || "Hotel/Local do evento";
-      if (ticket.actualDepartureDate && (ticket.departureAirport || ticket.departureCityOrigin)) {
+      const ida = vooDoCarro(ticket, "ida");
+      if (ida.data && ida.aeroporto) {
         idaCands.push({
           collabId: ti.collaboratorId,
-          date: ticket.actualDepartureDate,
-          airport: ticket.departureAirport || ticket.departureCityOrigin || "",
-          hotel,
-          minutes: timeToMinutes(ticket.actualDepartureTime),
+          date: ida.data,
+          airport: ida.aeroporto,
+          // "Sai de" da vaga; sem ele, a origem da passagem; sem ela, o cadastro.
+          local: origemDaIda(ti.city || ticket.departureCityOrigin || collabMap.get(ti.collaboratorId)?.city),
+          minutes: ida.minutos,
         });
       }
-      if (ticket.actualReturnDate && (ticket.returnDestinationAirport || ticket.returnCityDestination || ticket.departureAirport)) {
+      const volta = vooDoCarro(ticket, "volta");
+      if (volta.data && volta.aeroporto) {
         voltaCands.push({
           collabId: ti.collaboratorId,
-          date: ticket.actualReturnDate,
-          airport: ticket.returnDestinationAirport || ticket.returnCityDestination || ticket.departureAirport || "",
-          hotel,
-          // Pouso da volta; sem ele, a decolagem — que é o melhor palpite que sobra.
-          minutes: timeToMinutes(ticket.returnArrivalTime) ?? timeToMinutes(ticket.actualReturnTime),
+          date: volta.data,
+          airport: volta.aeroporto,
+          local: accByInclusion.get(ti.id)?.hotelName || HOTEL_PADRAO,
+          minutes: volta.minutos,
         });
       }
     }

@@ -12,10 +12,14 @@
  * relação nenhuma com o "Carro 1" da volta — lado a lado, as duas colunas
  * sugeriam uma correspondência que não existe. Cada aba ganha a largura toda.
  *
- * Cada carro é um bloco: no cabeçalho, número, data, a que horas sai (ou
- * busca), aeroporto, quantas pessoas, titular e confirmar; no corpo, uma
+ * Cada carro é um bloco: no cabeçalho, número, data, a que horas sai,
+ * aeroporto, quantas pessoas, titular e confirmar; no corpo, uma
  * pessoa por linha com departamento e o voo dela. Quem ficou fora daquela
  * direção vem num bloco próprio no fim, com o motivo.
+ *
+ * Regra do dono (09/10): "Na ida é Norte × Aeroporto, na volta Hotel ×
+ * Aeroporto." Nas duas abas o carro vai PARA o aeroporto e sai com a
+ * antecedência antes do voo mais cedo (shared/uber-routing.ts).
  */
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AlertTriangle, CheckCheck, Loader2, PlaneLanding, PlaneTakeoff, RefreshCw, UserX, X } from "lucide-react";
@@ -23,7 +27,8 @@ import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import type { MirrorRow, MirrorCollaborator, UberGroup } from "@shared/operational-mirror-types";
 import { cn } from "@/lib/utils";
 import { MoverPara } from "./mover-para";
-import { diaSemana, fmtDate, memberInfo } from "./mirror-shared";
+import { HOTEL_PADRAO, ORIGEM_NORTE, vooDoCarro } from "@shared/uber-routing";
+import { diaSemana, fmtDate, memberInfo, UBER_ROTA } from "./mirror-shared";
 
 type Direcao = "ida" | "volta";
 
@@ -166,31 +171,32 @@ function AlertaData() {
 const ordenar = (gs: UberGroup[]) =>
   [...gs].sort((a, b) => `${a.date ?? "9"}${a.time || "99"}`.localeCompare(`${b.date ?? "9"}${b.time || "99"}`));
 
-/** O aeroporto do carro: na ida é o destino; na volta, a origem. */
-const aeroportoDoCarro = (g: UberGroup, dir: Direcao) => ((dir === "ida" ? g.destination : g.origin) ?? "").toUpperCase();
-/** O outro ponto do carro, quando não é o padrão (carros separados por hotel). */
-const LOCAL_PADRAO = "Hotel/Local do evento";
+/**
+ * Carro da volta montado pela regra ANTIGA (antes de 09/10: aeroporto → Norte,
+ * buscando depois do pouso). Só sobra em carro CONFIRMADO — o recálculo não
+ * mexe nele —, e é dito como era: aeroporto na origem, "busca às".
+ */
+const ehAeroporto = (s: string | null | undefined) => /^[A-Z]{3}$/i.test(String(s ?? "").trim());
+const voltaAntiga = (g: UberGroup, dir: Direcao) => dir === "volta" && ehAeroporto(g.origin) && !ehAeroporto(g.destination);
+
+/**
+ * Regra do dono (09/10): nas duas direções o carro vai PARA o aeroporto —
+ * ida da Norte (ou da cidade de saída), volta do hotel do evento.
+ */
+const aeroportoDoCarro = (g: UberGroup, dir: Direcao) => ((voltaAntiga(g, dir) ? g.origin : g.destination) ?? "").toUpperCase();
+/** O outro ponto do carro, quando não é o padrão da aba (Norte na ida; hotel sem nome na volta). */
 const localDoCarro = (g: UberGroup, dir: Direcao) => {
-  const local = dir === "ida" ? g.origin : g.destination;
-  return local && local !== LOCAL_PADRAO ? local : null;
+  const local = voltaAntiga(g, dir) ? g.destination : g.origin;
+  return local && local !== HOTEL_PADRAO && local !== ORIGEM_NORTE ? local : null;
 };
 
-/** O voo desta pessoa nesta direção, como está na passagem. */
+/** O voo desta pessoa nesta direção, como está na passagem: data, aeroporto de embarque e partida. */
 function vooDaPessoa(r: MirrorRow | undefined, g: UberGroup, dir: Direcao) {
-  const t = r?.ticket;
-  if (dir === "ida") {
-    return {
-      data: t?.actualDepartureDate ?? g.date,
-      aero: (t?.departureAirport || t?.departureCityOrigin || aeroportoDoCarro(g, dir) || "").toUpperCase(),
-      decola: t?.actualDepartureTime ?? "",
-      pousa: "",
-    };
-  }
+  const v = vooDoCarro(r?.ticket, dir);
   return {
-    data: t?.actualReturnDate ?? g.date,
-    aero: (t?.returnDestinationAirport || t?.returnCityDestination || aeroportoDoCarro(g, dir) || "").toUpperCase(),
-    decola: t?.actualReturnTime ?? "",
-    pousa: t?.returnArrivalTime ?? "",
+    data: v.data ?? g.date,
+    aero: (v.aeroporto || aeroportoDoCarro(g, dir) || "").toUpperCase(),
+    decola: v.hora ?? "",
   };
 }
 
@@ -199,12 +205,10 @@ function motivoFora(r: MirrorRow, dir: Direcao): { texto: string; tom: "neutro" 
   if (r.skipUber) return { texto: "não vai de Uber", tom: "neutro" };
   const t = r.ticket;
   if (!t) return { texto: "sem passagem lançada", tom: "alerta" };
-  const data = dir === "ida" ? t.actualDepartureDate : t.actualReturnDate;
-  if (!data) return { texto: `sem voo de ${dir} lançado`, tom: "alerta" };
-  const aero = dir === "ida"
-    ? (t.departureAirport || t.departureCityOrigin)
-    : (t.returnDestinationAirport || t.returnCityDestination || t.departureAirport);
-  if (!aero) return { texto: "passagem sem aeroporto", tom: "alerta" };
+  // A mesma leitura da passagem que o servidor usa para montar o carro.
+  const v = vooDoCarro(t, dir);
+  if (!v.data) return { texto: `sem voo de ${dir} lançado`, tom: "alerta" };
+  if (!v.aeroporto) return { texto: "passagem sem aeroporto", tom: "alerta" };
   return { texto: "ainda sem carro — Refazer sugestões inclui", tom: "info" };
 }
 
@@ -289,7 +293,7 @@ export function Roteirizacao({
               <Icone className={cn("h-4 w-4 shrink-0", ativo ? "text-primary" : "")} aria-hidden="true" />
               <span className="truncate">
                 {dir === "ida" ? "Ida" : "Volta"}
-                <span className="hidden font-normal text-muted-foreground sm:inline"> · {dir === "ida" ? "Norte → Aeroporto" : "Aeroporto → Norte"}</span>
+                <span className="hidden font-normal text-muted-foreground sm:inline"> · {UBER_ROTA[dir]}</span>
               </span>
               <span className={cn("rounded-md px-1.5 text-2xs font-semibold tabular-nums", ativo ? "bg-brand-soft text-primary" : "bg-muted text-muted-foreground")}>
                 {r.gs.length}
@@ -311,7 +315,7 @@ export function Roteirizacao({
           <span>
             · {aba === "ida"
               ? "mesmo dia e aeroporto, voos em até 90 min → mesmo carro · sai 3h antes do voo mais cedo"
-              : "busca 15 min depois do último pouso do grupo"}
+              : "mesmo dia, hotel e aeroporto, voos em até 90 min → mesmo carro · sai 3h antes do voo de volta mais cedo"}
           </span>
         </p>
 
@@ -385,6 +389,8 @@ function CartaoDoCarro({
   const membros = (g.members || []).map((m) => memberInfo(m, collabById));
   const aero = aeroportoDoCarro(g, dir);
   const local = localDoCarro(g, dir);
+  // Só carro confirmado da regra antiga (antes de 09/10) ainda "busca".
+  const antiga = voltaAntiga(g, dir);
   const estranha = foraDoEvento(g.date);
   const titular = membros.find((m) => m.id && m.id === g.titularCollaboratorId);
   /**
@@ -459,13 +465,13 @@ function CartaoDoCarro({
             </span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">{dir === "ida" ? "sai às" : "busca às"}</span>
+            <span className="text-xs text-muted-foreground">{antiga ? "busca às" : "sai às"}</span>
             <HorarioDoCarro grupo={g} canEdit={canEdit} onPatch={onPatch}
-              rotulo={`Horário ${dir === "ida" ? "de saída" : "da busca"} do carro ${n}`} />
+              rotulo={`Horário ${antiga ? "da busca" : "de saída"} do carro ${n}`} />
           </span>
           <span className="flex items-center gap-1.5 text-xs">
             {aero && <span className="rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-2xs font-semibold tracking-wide text-foreground">{aero}</span>}
-            {local && <span className="max-w-[180px] truncate text-muted-foreground" title={local}>{dir === "ida" ? `de ${local}` : `para ${local}`}</span>}
+            {local && <span className="max-w-[180px] truncate text-muted-foreground" title={local}>{antiga ? `para ${local}` : `de ${local}`}</span>}
             <span className="tabular-nums text-muted-foreground">{pessoas(membros.length)}</span>
           </span>
         </div>
@@ -510,12 +516,12 @@ function CartaoDoCarro({
                     nunca no meio. Com o aviso já na faixa do carro, aqui só a cor. */}
                 <span className="col-span-full flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs tabular-nums text-muted-foreground lg:col-span-1">
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    {dir === "ida" ? <PlaneTakeoff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <PlaneLanding className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                    {/* Nas duas direções é o voo que a pessoa vai PEGAR (09/10). */}
+                    <PlaneTakeoff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     <span className={vooEstranho ? "font-medium text-warning" : ""}>{diaSemana(v.data)} {dataCurta(v.data, anoDoEvento)}</span>
                   </span>
                   {v.aero && <span className="whitespace-nowrap"><span className="mr-1.5" aria-hidden="true">·</span><span className="font-mono text-foreground/80">{v.aero}</span></span>}
                   {v.decola && <span className="whitespace-nowrap"><span className="mr-1.5" aria-hidden="true">·</span>voo <span className="text-foreground">{v.decola}</span></span>}
-                  {v.pousa && <span className="whitespace-nowrap"><span className="mr-1.5" aria-hidden="true">·</span>pousa <span className="font-medium text-foreground">{v.pousa}</span></span>}
                   {vooEstranho && !estranha && <AlertaData />}
                 </span>
               {canEdit && (

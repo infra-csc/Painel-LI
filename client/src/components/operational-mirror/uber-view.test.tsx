@@ -28,8 +28,9 @@ function linha(id: string, nome: string, ticket: Partial<NonNullable<MirrorRow["
 function carro(id: string, direction: "ida" | "volta", date: string, time: string, membros: string[], extra: Partial<UberGroup> = {}): UberGroup {
   return {
     id, eventId: "e1", groupName: null, direction,
-    origin: direction === "ida" ? "Hotel/Local do evento" : "GRU",
-    destination: direction === "ida" ? "GRU" : "Hotel/Local do evento",
+    // Regra do dono (09/10): ida Norte → aeroporto; volta hotel → aeroporto.
+    origin: direction === "ida" ? "Norte" : "Hotel Mar",
+    destination: direction === "ida" ? "GRU" : "REC",
     date, time, suggestedTime: time, manualTime: null, estimatedTotalCents: 0, notes: null,
     titularCollaboratorId: null, status: "sugerido", suggested: true, confirmed: false,
     members: membros.map((cid, i) => ({ id: `${id}-m${i}`, uberGroupId: id, collaboratorId: cid })),
@@ -37,9 +38,9 @@ function carro(id: string, direction: "ida" | "volta", date: string, time: strin
   } as unknown as UberGroup;
 }
 
-const voo = (dIda: string, hIda: string, dVolta: string | null, pouso: string) => ({
-  departureAirport: "GRU", returnDestinationAirport: "GRU",
-  actualDepartureDate: dIda, actualDepartureTime: hIda, actualReturnDate: dVolta, actualReturnTime: "18:00", returnArrivalTime: pouso,
+const voo = (dIda: string, hIda: string, dVolta: string | null, partidaVolta: string) => ({
+  departureAirport: "GRU", destinationAirport: "REC", returnOriginAirport: "REC", returnDestinationAirport: "GRU",
+  actualDepartureDate: dIda, actualDepartureTime: hIda, actualReturnDate: dVolta, actualReturnTime: partidaVolta, returnArrivalTime: "23:55",
 });
 
 const rows = [
@@ -90,17 +91,49 @@ describe("UberView — roteirização por carro", () => {
     expect(onConfirm).toHaveBeenCalledWith("i1");
   });
 
-  it("ida e volta em abas; a volta mostra 'busca às', o pouso e o confirmado", () => {
+  it("ida e volta em abas; a volta sai do hotel para o aeroporto de embarque da volta (09/10)", () => {
     montar();
+    expect(screen.getByTestId("uber-aba-ida")).toHaveTextContent("Norte → Aeroporto");
+    expect(screen.getByTestId("uber-aba-volta")).toHaveTextContent("Hotel → Aeroporto");
     expect(screen.queryByTestId("uber-carro-v1")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("uber-aba-volta"));
     expect(screen.getByTestId("uber-aba-volta")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText(/mesmo dia, hotel e aeroporto, voos em até 90 min → mesmo carro · sai 3h antes do voo de volta mais cedo/)).toBeInTheDocument();
     const c = screen.getByTestId("uber-carro-v1");
-    expect(within(c).getByText("busca às")).toBeInTheDocument();
+    const cab = c.querySelector("header") as HTMLElement;
+    expect(within(cab).getByText("sai às")).toBeInTheDocument();
+    expect(within(cab).queryByText("busca às")).not.toBeInTheDocument();
+    expect(within(cab).getByText("REC")).toBeInTheDocument();
+    expect(within(cab).getByText("de Hotel Mar")).toBeInTheDocument();
     expect(within(c).getByText("Confirmado")).toBeInTheDocument();
     expect(within(c).queryByTestId("confirm-uber-v1")).not.toBeInTheDocument();
-    expect(within(c).getByTestId("rot-v-a")).toHaveTextContent(/pousa 19:05/);
+    // O voo que o carro leva para pegar: partida da volta, do aeroporto de origem da volta. Pouso não importa mais.
+    expect(within(c).getByTestId("rot-v-a")).toHaveTextContent(/seg 23\/11.*REC.*voo 19:05/);
+    expect(within(c).getByTestId("rot-v-a")).not.toHaveTextContent(/pousa/);
     expect(screen.queryByTestId("uber-carro-i1")).not.toBeInTheDocument();
+  });
+
+  it("na ida, a Norte é o padrão (não repete) e outra cidade de saída aparece", () => {
+    const collabById = new Map<string, MirrorCollaborator>(rows.map((r) => [r.collaborator.id as string, r.collaborator]));
+    renderComTudo(
+      <UberView rows={rows} collabById={collabById} canEdit pendingId={null}
+        groups={[carro("i1", "ida", "2026-11-20", "03:15", ["a"]), carro("i9", "ida", "2026-11-20", "03:40", ["b"], { origin: "Recife - PE" })]}
+        onConfirm={vi.fn()} onPatch={vi.fn()} onMover={vi.fn()} />,
+    );
+    expect(screen.getByTestId("uber-carro-i1").querySelector("header")).not.toHaveTextContent(/de Norte/);
+    expect(screen.getByTestId("uber-carro-i9").querySelector("header")).toHaveTextContent(/de Recife - PE/);
+  });
+
+  it("carro da volta confirmado na regra antiga (aeroporto → Norte) continua dito como era", () => {
+    const collabById = new Map<string, MirrorCollaborator>(rows.map((r) => [r.collaborator.id as string, r.collaborator]));
+    renderComTudo(
+      <UberView rows={rows} collabById={collabById} canEdit pendingId={null}
+        groups={[carro("v7", "volta", "2026-11-23", "21:20", ["a"], { origin: "GRU", destination: "Hotel/Local do evento", confirmed: true })]}
+        onConfirm={vi.fn()} onPatch={vi.fn()} onMover={vi.fn()} />,
+    );
+    const cab = screen.getByTestId("uber-carro-v7").querySelector("header") as HTMLElement;
+    expect(within(cab).getByText("busca às")).toBeInTheDocument();
+    expect(within(cab).getByText("GRU")).toBeInTheDocument();
   });
 
   it("quem está fora da direção aparece no fim da aba, com o motivo", () => {

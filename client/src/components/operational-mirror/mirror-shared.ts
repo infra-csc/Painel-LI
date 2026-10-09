@@ -25,9 +25,16 @@ export function fmtDate(d: string | null | undefined): string {
 
 export const genderLabel: Record<string, string> = { male: "M", female: "F", unknown: "?" };
 
+/**
+ * O trajeto do carro em cada direção — regra do dono (09/10): "Na ida é
+ * Norte × Aeroporto, na volta Hotel × Aeroporto." Antes a volta era
+ * "Aeroporto → Norte" (buscava depois do pouso).
+ */
+export const UBER_ROTA = { ida: "Norte → Aeroporto", volta: "Hotel → Aeroporto" } as const;
+
 // Direção do grupo de Uber (uber_groups.direction) — antes tudo que não era "ida" virava "Volta"
 const UBER_DIRECTION_LABEL: Record<string, string> = {
-  ida: "Ida", volta: "Volta", interno: "Deslocamento interno",
+  ida: `Ida · ${UBER_ROTA.ida}`, volta: `Volta · ${UBER_ROTA.volta}`, interno: "Deslocamento interno",
   aeroporto_hotel: "Aeroporto → Hotel", hotel_evento: "Hotel → Evento",
 };
 export function uberDirectionLabel(direction: string | null | undefined): string {

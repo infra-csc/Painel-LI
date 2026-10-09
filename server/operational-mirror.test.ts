@@ -185,35 +185,63 @@ describe("normalizarHoraDaCelula — horas HH:MM das células de passagem/hosped
 describe("montarGruposUber — regra pura de agrupamento", () => {
   const config = { uberTimeWindowMinutes: 90, uberMaxPeoplePerCar: 4, uberAdvanceMinutes: 180, uberPickupWaitMinutes: 30 };
 
-  it("junta quem voa do mesmo aeroporto, no mesmo dia, dentro da janela; separa por hotel", () => {
+  it("ida sai da Norte: junta mesmo aeroporto, dia e janela; separa quem sai de outra cidade", () => {
     const grupos = montarGruposUber([
-      { collabId: "a", date: "2026-09-19", airport: "GRU", hotel: "H1", minutes: timeToMinutes("06:10") },
-      { collabId: "b", date: "2026-09-19", airport: "GRU", hotel: "H1", minutes: timeToMinutes("07:00") },
-      { collabId: "c", date: "2026-09-19", airport: "GRU", hotel: "H2", minutes: timeToMinutes("06:30") },
-      { collabId: "d", date: "2026-09-19", airport: "GRU", hotel: "H1", minutes: timeToMinutes("11:00") },
+      { collabId: "a", date: "2026-09-19", airport: "GRU", local: "Norte", minutes: timeToMinutes("06:10") },
+      { collabId: "b", date: "2026-09-19", airport: "GRU", local: "Norte", minutes: timeToMinutes("07:00") },
+      { collabId: "c", date: "2026-09-19", airport: "GRU", local: "Campinas - SP", minutes: timeToMinutes("06:30") },
+      { collabId: "d", date: "2026-09-19", airport: "GRU", local: "Norte", minutes: timeToMinutes("11:00") },
     ], "ida", config);
     expect(grupos.map((g) => g.members.sort())).toEqual([["a", "b"], ["d"], ["c"]]);
-    expect(grupos[0]).toMatchObject({ direction: "ida", origin: "H1", destination: "GRU", date: "2026-09-19", groupName: "Ida GRU 2026-09-19" });
+    expect(grupos[0]).toMatchObject({ direction: "ida", origin: "Norte", destination: "GRU", date: "2026-09-19", groupName: "Ida GRU 2026-09-19" });
     // 03:10 = 06:10 − 3h: o carro é pensado pelo voo mais cedo
     expect(grupos[0].time).toBe("03:10");
   });
 
   it("respeita o máximo por carro", () => {
     const grupos = montarGruposUber(
-      ["a", "b", "c", "d", "e"].map((id, i) => ({ collabId: id, date: "2026-09-19", airport: "GRU", hotel: "H", minutes: 600 + i })),
+      ["a", "b", "c", "d", "e"].map((id, i) => ({ collabId: id, date: "2026-09-19", airport: "GRU", local: "Norte", minutes: 600 + i })),
       "ida", { ...config, uberMaxPeoplePerCar: 2 },
     );
     expect(grupos.map((g) => g.members.length)).toEqual([2, 2, 1]);
   });
 
-  it("volta inverte origem/destino e quem não tem horário fica sozinho", () => {
+  it("volta sai do HOTEL para o aeroporto de embarque da volta; quem não tem horário fica sozinho", () => {
     const grupos = montarGruposUber([
-      { collabId: "a", date: "2026-09-21", airport: "GRU", hotel: "H", minutes: timeToMinutes("18:00") },
-      { collabId: "b", date: "2026-09-21", airport: "GRU", hotel: "H", minutes: null },
+      { collabId: "a", date: "2026-09-21", airport: "REC", local: "Hotel Mar", minutes: timeToMinutes("18:00") },
+      { collabId: "b", date: "2026-09-21", airport: "REC", local: "Hotel Mar", minutes: null },
     ], "volta", config);
     expect(grupos).toHaveLength(2);
-    expect(grupos[0]).toMatchObject({ origin: "GRU", destination: "H", members: ["a"] });
+    expect(grupos[0]).toMatchObject({ origin: "Hotel Mar", destination: "REC", members: ["a"], groupName: "Volta REC 2026-09-21" });
     expect(grupos[1].members).toEqual(["b"]);
+  });
+
+  it("volta agrupa por hotel + aeroporto + dia + horário de PARTIDA e sai 3h antes do voo mais cedo", () => {
+    const grupos = montarGruposUber([
+      { collabId: "a", date: "2026-09-21", airport: "REC", local: "Hotel Mar", minutes: timeToMinutes("19:30") },
+      { collabId: "b", date: "2026-09-21", airport: "REC", local: "Hotel Mar", minutes: timeToMinutes("18:40") },
+      { collabId: "c", date: "2026-09-21", airport: "REC", local: "Hotel Sol", minutes: timeToMinutes("18:50") },
+      { collabId: "d", date: "2026-09-21", airport: "REC", local: "Hotel Mar", minutes: timeToMinutes("21:00") },
+      { collabId: "e", date: "2026-09-22", airport: "REC", local: "Hotel Mar", minutes: timeToMinutes("18:45") },
+    ], "volta", config);
+    expect(grupos.map((g) => [g.origin, g.date, g.members])).toEqual([
+      ["Hotel Mar", "2026-09-21", ["b", "a"]],
+      ["Hotel Mar", "2026-09-21", ["d"]],
+      ["Hotel Sol", "2026-09-21", ["c"]],
+      ["Hotel Mar", "2026-09-22", ["e"]],
+    ]);
+    // 15:40 = 18:40 − 3h — a antecedência, não "15 min depois do pouso".
+    expect(grupos[0].time).toBe("15:40");
+    expect(grupos.every((g) => g.destination === "REC")).toBe(true);
+  });
+
+  it("nome de hotel com '|' não quebra o agrupamento", () => {
+    const grupos = montarGruposUber([
+      { collabId: "a", date: "2026-09-21", airport: "REC", local: "Hotel A | Praia", minutes: 1080 },
+      { collabId: "b", date: "2026-09-21", airport: "REC", local: "Hotel A | Praia", minutes: 1090 },
+    ], "volta", config);
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0]).toMatchObject({ origin: "Hotel A | Praia", destination: "REC", date: "2026-09-21" });
   });
 
   it("sem candidatos, sem grupos", () => {

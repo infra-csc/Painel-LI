@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { agruparEmCarros, horaDosMinutos, horarioDoCarro, minutosDaHora } from "./uber-routing";
+import { agruparEmCarros, horaDosMinutos, horarioDoCarro, minutosDaHora, origemDaIda, ORIGEM_NORTE, vooDoCarro } from "./uber-routing";
 
 const p = (id: string, hora: string | null, data = "2026-09-30", aeroporto = "GRU") => ({
   id, data, aeroporto, minutos: minutosDaHora(hora),
@@ -76,9 +76,11 @@ describe("horário do carro", () => {
     expect(carros[0].horario).toBe("01:55");
   });
 
-  it("na volta busca 15min depois do ÚLTIMO pouso — ninguém espera sozinho", () => {
-    const carros = agruparEmCarros([p("a", "22:10"), p("b", "22:40")], "volta");
-    expect(carros[0].horario).toBe("22:55");
+  it("na volta também sai 3h antes do voo de volta MAIS CEDO (09/10) — não busca depois do pouso", () => {
+    // Hotel → aeroporto: os voos de volta partem 18:10 e 18:40; o carro sai 15:10.
+    const carros = agruparEmCarros([p("a", "18:10"), p("b", "18:40")], "volta");
+    expect(carros).toHaveLength(1);
+    expect(carros[0].horario).toBe("15:10");
   });
 
   it("não é a média: a média não serve para nenhum dos dois", () => {
@@ -89,6 +91,52 @@ describe("horário do carro", () => {
 
   it("as constantes são ajustáveis", () => {
     expect(horarioDoCarro([p("a", "08:00")], "ida", { antecedenciaMin: 120 })).toBe("06:00");
-    expect(horarioDoCarro([p("a", "08:00")], "volta", { esperaPousoMin: 30 })).toBe("08:30");
+    expect(horarioDoCarro([p("a", "08:00")], "volta", { antecedenciaMin: 150 })).toBe("05:30");
+  });
+});
+
+describe("regra do dono (09/10): ida Norte × aeroporto, volta hotel × aeroporto", () => {
+  it("a volta junta por hotel: hotéis diferentes não dividem carro", () => {
+    const carros = agruparEmCarros([
+      { ...p("a", "18:00", "2026-11-23", "REC"), local: "Hotel Mar" },
+      { ...p("b", "18:30", "2026-11-23", "REC"), local: "Hotel Mar" },
+      { ...p("c", "18:10", "2026-11-23", "REC"), local: "Hotel Sol" },
+    ], "volta");
+    expect(carros.map((c) => [c.local, c.passageiros.map((x) => x.id)])).toEqual([
+      ["Hotel Mar", ["a", "b"]],
+      ["Hotel Sol", ["c"]],
+    ]);
+    expect(carros[0].horario).toBe("15:00");
+  });
+
+  it("a ida sai da Norte; quem sai de outra cidade vai em outro carro", () => {
+    expect(origemDaIda("São Paulo - SP")).toBe(ORIGEM_NORTE);
+    expect(origemDaIda("Guarulhos")).toBe(ORIGEM_NORTE);
+    expect(origemDaIda(null)).toBe(ORIGEM_NORTE);
+    expect(origemDaIda("  ")).toBe(ORIGEM_NORTE);
+    expect(origemDaIda("Osasco/SP")).toBe(ORIGEM_NORTE);
+    // SP é o estado; a Norte é na capital — Campinas não sai da Norte.
+    expect(origemDaIda("Campinas - SP")).toBe("Campinas - SP");
+    expect(origemDaIda("Recife - PE")).toBe("Recife - PE");
+    const carros = agruparEmCarros([
+      { ...p("a", "06:00"), local: origemDaIda("São Paulo") },
+      { ...p("b", "06:20"), local: origemDaIda("Rio de Janeiro - RJ") },
+    ], "ida");
+    expect(carros).toHaveLength(2);
+    expect(carros[0].local).toBe("Norte");
+  });
+
+  it("o voo da volta é o de EMBARQUE da volta: aeroporto de origem e hora da partida", () => {
+    const t = {
+      departureAirport: "GRU", destinationAirport: "REC",
+      returnOriginAirport: "REC", returnDestinationAirport: "GRU",
+      actualDepartureDate: "2026-11-20", actualDepartureTime: "06:10",
+      actualReturnDate: "2026-11-23", actualReturnTime: "18:40",
+    };
+    expect(vooDoCarro(t, "ida")).toEqual({ data: "2026-11-20", aeroporto: "GRU", hora: "06:10", minutos: 370 });
+    expect(vooDoCarro(t, "volta")).toEqual({ data: "2026-11-23", aeroporto: "REC", hora: "18:40", minutos: 1120 });
+    // Sem o aeroporto de origem da volta, volta-se de onde a ida chegou.
+    expect(vooDoCarro({ ...t, returnOriginAirport: null }, "volta").aeroporto).toBe("REC");
+    expect(vooDoCarro(null, "volta")).toEqual({ data: null, aeroporto: null, hora: null, minutos: null });
   });
 });
