@@ -8,6 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { TRANSPORT_MODES, TRECHOS_SUGERIDOS, type TransportMode, type TrechosSugeridos } from "@shared/scaling-validation-rules";
 import type { Event } from "@shared/schema";
 import type { TeamInclusion } from "@shared/schema";
+import { CampoSaiDe } from "@/components/scaling/campo-sai-de";
+import { SAI_DE_SP, validarSaiDeOpcional } from "@shared/swap-sai-de";
 import { DayLabel, SECTION_TITLE } from "./logistics-chips";
 import { ModeSelect } from "./mode-select";
 import { addDaysYmd } from "./scaling-grid-utils";
@@ -30,6 +32,8 @@ export interface TravelDraft {
   trechosSugeridos: TrechosSugeridos | "";
   idaVemDoEventoId: string;
   voltaSegueParaEventoId: string;
+  /** "Sai de" (09/10): cidade de onde a vaga sai — "" = a definir na Escalação. */
+  city: string;
 }
 
 export const EMPTY_TRAVEL: TravelDraft = {
@@ -45,6 +49,7 @@ export const EMPTY_TRAVEL: TravelDraft = {
   trechosSugeridos: "",
   idaVemDoEventoId: "",
   voltaSegueParaEventoId: "",
+  city: "",
 };
 
 const asMode = (v: string | null | undefined): TransportMode | "" =>
@@ -65,7 +70,16 @@ export function travelFromInclusion(i: TeamInclusion): TravelDraft {
     trechosSugeridos: (TRECHOS_SUGERIDOS as readonly string[]).includes(i.trechosSugeridos ?? "") && i.trechosSugeridos !== "ida_e_volta" ? (i.trechosSugeridos as TrechosSugeridos) : "",
     idaVemDoEventoId: i.idaVemDoEventoId ?? "",
     voltaSegueParaEventoId: i.voltaSegueParaEventoId ?? "",
+    city: (i.city ?? "").trim(),
   };
+}
+
+/**
+ * "Sai de" que o pedido manda (09/10): a cidade aparada, ou "" quando não há —
+ * inclusive quando a ida vem direto de outro evento (a origem é a cidade dele).
+ */
+export function cidadeDoRascunho(v: Pick<TravelDraft, "city" | "idaVemDoEventoId">): string {
+  return v.idaVemDoEventoId ? "" : v.city.trim();
 }
 
 interface TravelFieldsProps {
@@ -172,8 +186,11 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
   // Outros eventos para o trecho direto (09/10), do cache que as telas já carregam.
   const { data: eventos } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
   const eventosDoTrecho = useMemo(() => eventosParaTrecho(eventos, { id: eventId, startDate: eventStartDate, endDate: eventEndDate }), [eventos, eventId, eventStartDate, eventEndDate]);
-  const patchTrechos = (t: PatchDeTrechos) => onChange(t as Partial<TravelDraft>);
+  // "Vem direto de outro evento" apaga o "Sai de": a origem é a cidade daquele evento.
+  const patchTrechos = (t: PatchDeTrechos) => onChange((t.idaVemDoEventoId ? { ...t, city: "" } : t) as Partial<TravelDraft>);
   const idaNormal = modoDaIda(value) !== "sem";
+  const comSaiDe = modoDaIda(value) !== "direto";
+  const saiDeSP = value.city.trim() === SAI_DE_SP;
   const voltaNormal = modoDaVolta(value) === "normal";
   const emLinha = layout === "linha";
   const avisos = avisosDeViagem(value, workDays);
@@ -218,6 +235,23 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
           <TimeField id={`${p}-time-chegada`} label="Desembarque (chegada)" value={value.flightArrivalSuggestedTime} disabled={disabled}
             onChange={(v) => onChange({ flightArrivalSuggestedTime: v })} />
         </div>
+        )}
+        {/* "Sai de" (09/10): o mesmo campo da Escalação, opcional — depois de transporte/data/horário, para a ida continuar espelhando a volta. */}
+        {comSaiDe && (
+          <div className="max-w-[440px] pt-1">
+            <CampoSaiDe
+              id={`${p}-sai-de`}
+              opcional
+              rotulo="Sai de"
+              rotuloCidade="Cidade de onde a vaga sai"
+              ajuda="Cidade de onde a vaga sai — a Escalação pode trocar por pessoa."
+              saiDeSP={saiDeSP}
+              cidade={saiDeSP ? SAI_DE_SP : value.city}
+              desabilitado={disabled}
+              classeRotulo={FIELD_LABEL}
+              onChange={(sp, c) => onChange({ city: sp ? SAI_DE_SP : c })}
+            />
+          </div>
         )}
       </fieldset>
 
@@ -306,6 +340,9 @@ export function validateTravel(v: TravelDraft): string[] {
   // Só ida (ou só volta) vale (04/09): a pessoa pode voltar por conta própria
   // ou já estar no destino. Com passagem marcada, basta UMA das datas.
   if (v.needsTicket && !v.flightDepartureDate && !v.flightReturnDate) out.push("Com passagem marcada, informe a data da ida ou da volta.");
+  // "Sai de" (09/10): opcional, mas a cidade digitada tem de servir.
+  const erroSaiDe = validarSaiDeOpcional(cidadeDoRascunho(v));
+  if (erroSaiDe) out.push(erroSaiDe);
   return out;
 }
 

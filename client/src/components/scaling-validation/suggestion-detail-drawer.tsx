@@ -22,7 +22,7 @@ import { cn, formatDiarias } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import { CHANGE_REQUEST_TYPE_LABELS, SUGESTAO_STATUS, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import { StatusCell } from "./suggestions-list";
-import { DayLabel, LegChip, NeedChip } from "./logistics-chips";
+import { DayLabel, LegChip, NeedChip, SaiDeChip } from "./logistics-chips";
 import {
   DECISION_TONE_CLASS, canRequestChange, canValidate,
   describeLastDecision, describeVagaDecision, workDaysOf, type SuggestionRow,
@@ -90,7 +90,7 @@ export function SuggestionDetailDrawer({
   const start = days[0] ?? "";
   const end = days.length ? days[days.length - 1] : "";
   const hasLeg = !!row && hasAnyLeg(row);
-  const hasLogistics = hasLeg || !!row?.needsTicket || !!row?.needsAccommodation;
+  const hasLogistics = hasLeg || !!row?.needsTicket || !!row?.needsAccommodation || !!row?.city?.trim();
 
   // ── Navegação pela fila (‹ ›, ← →) ──
   const queue = list ?? [];
@@ -236,6 +236,7 @@ export function SuggestionDetailDrawer({
                   {hasLogistics ? (
                     <>
                       <div className="flex flex-wrap items-center gap-1.5">
+                        <SaiDeChip cidade={row.city} testId="det-sai-de" />
                         <LegChip dir="ida" mode={row.transportModeIda} date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime} />
                         <LegChip dir="volta" mode={row.transportModeVolta} date={row.flightReturnDate} time={row.flightReturnSuggestedTime} />
                         {row.needsTicket && <NeedChip kind="passagem" />}

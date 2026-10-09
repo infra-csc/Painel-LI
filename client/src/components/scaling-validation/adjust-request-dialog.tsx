@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { diffInclusion, PROPOSED_FIELD_LABELS, type ProposedChanges, type LastDecisionInfo } from "@shared/scaling-validation-rules";
-import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "./travel-fields";
+import { TravelFields, EMPTY_TRAVEL, cidadeDoRascunho, travelFromInclusion, validateTravel, type TravelDraft } from "./travel-fields";
 import { WorkDaysPicker } from "./work-days-picker";
 import { DiariasDerivadas, VagaCard } from "./vaga-card";
 import { SECTION_TITLE } from "./logistics-chips";
@@ -114,6 +114,8 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     trechosSugeridos: orNull(travel.trechosSugeridos),
     idaVemDoEventoId: orNull(travel.idaVemDoEventoId),
     voltaSegueParaEventoId: orNull(travel.voltaSegueParaEventoId),
+    // "Sai de" (09/10): entra no de/para como os outros campos de viagem.
+    city: orNull(cidadeDoRascunho(travel)),
     needsTicket: travel.needsTicket,
     needsAccommodation: travel.needsAccommodation,
     observations: observations.trim() === "" ? null : observations.trim(),

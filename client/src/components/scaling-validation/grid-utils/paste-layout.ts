@@ -127,6 +127,8 @@ export function findLogisticaHeader(grid: string[][]): LogisticaHeader | null {
         return;
       }
       if (c.startsWith("obs")) { if (h.colObs < 0) h.colObs = idx; return; }
+      // "Cidade de saída" / "Sai de" (09/10) é a CIDADE, não a data de ida.
+      if (isCidadeHeader(c)) return;
       if (c.includes("chegada") || c.includes("desembarque")) {
         if (h.colArrivalTime < 0) h.colArrivalTime = idx;
         labels++; return;
@@ -183,6 +185,8 @@ export interface PasteColumnMap {
   hotel: number;
   passagem: number;
   obs: number;
+  /** "Sai de" (09/10): só quando o cabeçalho nomeia a coluna ("Cidade", "Sai de", "Origem"). */
+  cidade: number;
   /** Colunas de dia na ordem da planilha, já com a data resolvida. */
   dias: { index: number; date: string }[];
 }
@@ -229,7 +233,16 @@ export function hasLogisticaRowShape(grid: string[][]): boolean {
   return grid.some(looksLikeLogisticaRow);
 }
 
-type HeaderLabel = "" | "funcao" | "ida" | "chegada" | "retorno" | "horaRetorno" | "hotel" | "passagem" | "obs" | "dia" | "semana";
+type HeaderLabel = "" | "funcao" | "ida" | "chegada" | "retorno" | "horaRetorno" | "hotel" | "passagem" | "obs" | "cidade" | "dia" | "semana";
+
+/**
+ * Rótulo da coluna de CIDADE de saída (09/10 — "Sai de" na Sugestão): "Cidade",
+ * "Cidade de saída", "Sai de", "Saindo de", "Origem". Já normalizado (minúsculo,
+ * sem acento). Vem antes do "saída" da data de ida.
+ */
+function isCidadeHeader(c: string): boolean {
+  return c.startsWith("cidade") || c.startsWith("sai de") || c.startsWith("saindo de") || c.startsWith("origem");
+}
 
 /** Que papel um RÓTULO de cabeçalho anuncia (a data curta volta junto, para o dia). */
 function headerLabelOf(raw: string): { label: HeaderLabel; date: string } {
@@ -239,6 +252,7 @@ function headerLabelOf(raw: string): { label: HeaderLabel; date: string } {
   if (WEEKDAY_RE.test(c)) return { label: "semana", date: "" };
   if (HEADER_FUNCTION_RE.test(c)) return { label: "funcao", date: "" };
   if (c.startsWith("obs")) return { label: "obs", date: "" };
+  if (isCidadeHeader(c)) return { label: "cidade", date: "" };
   if (c.startsWith("hotel") || c.includes("hospedagem")) return { label: "hotel", date: "" };
   if (c.includes("passagem")) return { label: "passagem", date: "" };
   if (c.includes("chegada") || c.includes("desembarque")) return { label: "chegada", date: "" };
@@ -486,6 +500,8 @@ function assignColumnRoles(
   const hotel = take(byLabel("hotel"));
   const passagem = take(byLabel("passagem"));
   const obsLabel = take(byLabel("obs"));
+  // "Sai de" (09/10): texto livre igual à observação — só com rótulo no cabeçalho.
+  const cidade = take(byLabel("cidade"));
 
   // (5) DIAS: as colunas de inteiro pequeno (as vazias no meio contam, são dias sem
   //     ninguém). Com datas no cabeçalho, cada coluna já sabe seu dia; sem elas, o
@@ -502,7 +518,7 @@ function assignColumnRoles(
     const candidates = profiles
       .filter((p) => free(p) && p.text === 0 && p.date === 0 && p.time === 0 && p.yesNo === 0)
       .map((p) => p.index)
-      .filter((i) => i > Math.max(funcao, dataIda, horaChegada, dataVolta, horaRetorno, hotel, passagem));
+      .filter((i) => i > Math.max(funcao, dataIda, horaChegada, dataVolta, horaRetorno, hotel, passagem, cidade));
     const aligned = alignDayColumns(grid, lines.dataLines, candidates, dates, dataVolta, defaultYear);
     dias = aligned.dias;
     confidence = aligned.confidence;
@@ -519,7 +535,7 @@ function assignColumnRoles(
   take(obs);
 
   return {
-    columns: { funcao, dataIda, horaChegada, dataVolta, horaRetorno, hotel, passagem, obs, dias },
+    columns: { funcao, dataIda, horaChegada, dataVolta, horaRetorno, hotel, passagem, obs, cidade, dias },
     headerLines: lines.headerLines,
     daysFromHeader,
     alignedWithoutHeader: !daysFromHeader,

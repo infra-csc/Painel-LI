@@ -28,6 +28,12 @@ export interface SuggestionGridRow {
   trechosSugeridos?: TrechosSugeridos | "";
   idaVemDoEventoId?: string;
   voltaSegueParaEventoId?: string;
+  /**
+   * "Sai de" (09/10 — dono: "colocar de onde sai o colaborador"): cidade de
+   * onde a equipe desta linha sai. Opcional ("" = a definir na Escalação, que
+   * pode trocar por pessoa); rascunhos e linhas antigas não têm.
+   */
+  city?: string;
   needsAccommodation: boolean;
   needsTicket: boolean;
   observations: string;
@@ -49,6 +55,8 @@ export interface SuggestionRecord {
   trechosSugeridos?: TrechosSugeridos | null;
   idaVemDoEventoId?: string | null;
   voltaSegueParaEventoId?: string | null;
+  /** "Sai de" (09/10): só quando a linha informa. */
+  city?: string | null;
   needsAccommodation: boolean;
   needsTicket: boolean;
   observations: string | null;
@@ -156,6 +164,8 @@ export function sanitizeDraftRow(raw: unknown): SuggestionGridRow | null {
     ...(typeof r.trechosSugeridos === "string" && (TRECHOS_SUGERIDOS as readonly string[]).includes(r.trechosSugeridos) ? { trechosSugeridos: r.trechosSugeridos as TrechosSugeridos } : {}),
     ...(draftStr(r.idaVemDoEventoId) ? { idaVemDoEventoId: draftStr(r.idaVemDoEventoId) } : {}),
     ...(draftStr(r.voltaSegueParaEventoId) ? { voltaSegueParaEventoId: draftStr(r.voltaSegueParaEventoId) } : {}),
+    // "Sai de" (09/10): só quando o rascunho traz.
+    ...(draftStr(r.city).trim() ? { city: draftStr(r.city).slice(0, 120) } : {}),
     needsAccommodation: r.needsAccommodation === true,
     needsTicket: r.needsTicket === true,
     observations: draftStr(r.observations),
@@ -204,6 +214,8 @@ export function decomposeGridRows(rows: SuggestionGridRow[], dates: string[]): S
         ...(row.trechosSugeridos ? { trechosSugeridos: row.trechosSugeridos } : {}),
         ...(row.idaVemDoEventoId ? { idaVemDoEventoId: row.idaVemDoEventoId } : {}),
         ...(row.voltaSegueParaEventoId ? { voltaSegueParaEventoId: row.voltaSegueParaEventoId } : {}),
+        // "Sai de" (09/10): quem vem direto de outro evento sai da cidade daquele evento.
+        ...(cidadeDaLinha(row) ? { city: cidadeDaLinha(row) } : {}),
         needsAccommodation: !!row.needsAccommodation,
         needsTicket: !!row.needsTicket,
         observations: row.observations.trim() || null,
@@ -211,6 +223,16 @@ export function decomposeGridRows(rows: SuggestionGridRow[], dates: string[]): S
     }
   });
   return out;
+}
+
+/**
+ * "Sai de" que a linha manda (09/10): a cidade aparada, ou "" quando não há —
+ * inclusive quando a ida "vem direto de outro evento" (o campo some no painel:
+ * a origem é a cidade daquele evento).
+ */
+export function cidadeDaLinha(row: Pick<SuggestionGridRow, "city" | "idaVemDoEventoId">): string {
+  if (row.idaVemDoEventoId) return "";
+  return (row.city ?? "").trim();
 }
 
 /** Resumo para a barra da grade. */
@@ -277,10 +299,16 @@ export function mergePastedRows(existing: SuggestionGridRow[], pasted: Suggestio
     if (!repl) { out.push(row); continue; }
     // Trecho direto / só ida (09/10): a planilha não tem essas colunas — a linha
     // colada herda a indicação da linha que ela substitui, em vez de apagá-la.
-    if (!placed.has(row.functionId)) { placed.add(row.functionId); out.push(...repl.map((p) => herdarTrechos(p, row))); }
+    if (!placed.has(row.functionId)) { placed.add(row.functionId); out.push(...repl.map((p) => herdarSaiDe(herdarTrechos(p, row), row))); }
   }
   byFunction.forEach((list, fid) => { if (!placed.has(fid)) out.push(...list); });
   return out;
+}
+
+/** "Sai de" (09/10): a linha colada sem cidade (a planilha não tinha a coluna) herda a da linha substituída. */
+function herdarSaiDe(colada: SuggestionGridRow, antiga: SuggestionGridRow): SuggestionGridRow {
+  if ((colada.city ?? "").trim() || !(antiga.city ?? "").trim() || colada.idaVemDoEventoId) return colada;
+  return { ...colada, city: antiga.city };
 }
 
 /** A linha colada sem indicação de trechos herda a da linha substituída (09/10). */

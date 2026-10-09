@@ -163,6 +163,8 @@ export function useSuggestionSend({ draft, eventId, selectedEvent, canAccess, re
           trechosSugeridos: r.trechosSugeridos ?? null,
           idaVemDoEventoId: r.idaVemDoEventoId && r.idaVemDoEventoId !== eventId ? r.idaVemDoEventoId : null,
           voltaSegueParaEventoId: r.voltaSegueParaEventoId && r.voltaSegueParaEventoId !== eventId ? r.voltaSegueParaEventoId : null,
+          // "Sai de" (09/10): a cidade da linha (a Escalação pode trocar por pessoa).
+          city: r.city ?? null,
           observations: r.observations,
         })),
       };

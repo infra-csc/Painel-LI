@@ -96,7 +96,7 @@ import {
   type ChangeRequestStatus,
   type LastDecisionInfo,
   type LastVagaDecisionInfo,
-  type VagaDecisionResult, horarioSugeridoSchema, TRECHOS_SUGERIDOS } from "@shared/scaling-validation-rules";
+  type VagaDecisionResult, horarioSugeridoSchema, saiDeOpcionalSchema, TRECHOS_SUGERIDOS } from "@shared/scaling-validation-rules";
 import { normalizarTrechosDaVaga, motivoParDesatualizado, CAMPOS_DE_TRECHOS_DA_VAGA } from "@shared/janela-de-viagem";
 import { randomUUID } from "crypto";
 import { changeRequestWindow, type ChangeWindow } from "@shared/scaling-change-window";
@@ -632,7 +632,9 @@ const suggestionRowSchema = z.object({
   flightArrivalSuggestedTime: horarioSugeridoSchema.nullish(),
   flightReturnDate: ymd.nullish(),
   flightReturnSuggestedTime: horarioSugeridoSchema.nullish(),
-  city: z.string().max(1000, "Cidade pode ter no máximo 1000 caracteres").nullish(),
+  // "Sai de" (09/10): de onde a equipe da linha sai — opcional, a mesma régua
+  // do "Sai de" da Escalação (shared/swap-sai-de). A Escalação troca por pessoa.
+  city: saiDeOpcionalSchema.nullish(),
   observations: z.string().max(1000, "Observações podem ter no máximo 1000 caracteres").nullish(),
 });
 
@@ -771,7 +773,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           needsTicket: r.needsTicket,
           needsAccommodation: r.needsAccommodation,
           ...trechos.valor,
-          city: r.city ?? null,
+          // Vazio vira null; "Vem direto de outro evento" sai da cidade daquele evento.
+          city: (trechos.valor.idaVemDoEventoId ? null : r.city) || null,
           observations: r.observations ?? null,
           rowOrder: idx,
           phase: SUGESTAO_PHASE,

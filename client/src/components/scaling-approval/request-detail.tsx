@@ -79,7 +79,7 @@ export function ProposedList({ proposed, className, semQuantidade = false }: { p
  * usa, então a lista é exatamente o que o servidor conhece da vaga.
  */
 /** Campos que só entram no resumo da vaga quando preenchidos (09/10). */
-const SO_QUANDO_TEM = new Set<ProposedField>(["idaVemDoEventoId", "voltaSegueParaEventoId", "trechosSugeridos"]);
+const SO_QUANDO_TEM = new Set<ProposedField>(["idaVemDoEventoId", "voltaSegueParaEventoId", "trechosSugeridos", "city"]);
 
 export function VagaCompleta({ inclusion, falhou, className }: { inclusion: TeamInclusion | null | undefined; falhou?: boolean; className?: string }) {
   // A vaga pode vir por uma busca separada (pedido de ajuste sobre vaga já
@@ -116,7 +116,7 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
   };
   const blocos: { titulo: string; campos: [ProposedField, string][] }[] = [
     { titulo: "Trabalho", campos: [["workDays", "Dias"], ["dailyRates", "Diárias"]] },
-    { titulo: "Ida", campos: [["flightDepartureDate", "Data"], ["flightArrivalSuggestedTime", "Chegar até"], ["flightDepartureSuggestedTime", "Saída sugerida"], ["transportModeIda", "Transporte"], ["idaVemDoEventoId", "Vem direto de"]] },
+    { titulo: "Ida", campos: [["city", "Sai de"], ["flightDepartureDate", "Data"], ["flightArrivalSuggestedTime", "Chegar até"], ["flightDepartureSuggestedTime", "Saída sugerida"], ["transportModeIda", "Transporte"], ["idaVemDoEventoId", "Vem direto de"]] },
     { titulo: "Volta", campos: [["flightReturnDate", "Data"], ["flightReturnSuggestedTime", "Sair após"], ["transportModeVolta", "Transporte"], ["voltaSegueParaEventoId", "Segue direto para"]] },
     { titulo: "Logística", campos: [["needsTicket", "Passagem"], ["needsAccommodation", "Hospedagem"], ["trechosSugeridos", "Trechos"]] },
   ];

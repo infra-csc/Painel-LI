@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils";
 import type { Event, Function as FunctionType } from "@shared/schema";
 import type { ProposedChanges } from "@shared/scaling-validation-rules";
-import { TravelFields, EMPTY_TRAVEL, validateTravel, type TravelDraft } from "./travel-fields";
+import { TravelFields, EMPTY_TRAVEL, cidadeDoRascunho, validateTravel, type TravelDraft } from "./travel-fields";
 import { WorkDaysPicker } from "./work-days-picker";
 import { DiariasDerivadas } from "./vaga-card";
 import {
@@ -100,6 +100,8 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
       ...(travel.trechosSugeridos ? { trechosSugeridos: travel.trechosSugeridos } : {}),
       ...(travel.idaVemDoEventoId ? { idaVemDoEventoId: travel.idaVemDoEventoId } : {}),
       ...(travel.voltaSegueParaEventoId ? { voltaSegueParaEventoId: travel.voltaSegueParaEventoId } : {}),
+      // "Sai de" (09/10).
+      ...(cidadeDoRascunho(travel) ? { city: cidadeDoRascunho(travel) } : {}),
       ...(observations.trim() ? { observations: observations.trim() } : {}),
     };
     mutation.mutate({

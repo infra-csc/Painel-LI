@@ -17,6 +17,7 @@
  * team_inclusions, nunca uma tabela paralela.
  */
 import { z } from "zod";
+import { validarSaiDeOpcional } from "./swap-sai-de";
 
 // ---------------------------------------------------------------------------
 // Constantes / tipos
@@ -370,6 +371,16 @@ export const horarioSugeridoSchema = z.string()
  */
 export const VAGA_STATE_CHANGED_MSG = "A vaga mudou de estado — recarregue a lista";
 
+/**
+ * "Sai de" opcional (09/10) — o MESMO schema no pedido (proposedChanges) e no
+ * envio da Sugestão (/bulk): texto aparado; vazio vale; preenchido, a régua de
+ * `validarSaiDeOpcional` (2 a 120 caracteres).
+ */
+export const saiDeOpcionalSchema = z.string().trim().superRefine((v, ctx) => {
+  const erro = validarSaiDeOpcional(v);
+  if (erro) ctx.addIssue({ code: z.ZodIssueCode.custom, message: erro });
+});
+
 export const proposedChangesSchema = z.object({
   v: z.literal(1),
   workDays: z.array(ymd).min(1, "Informe ao menos um dia de trabalho").optional(),
@@ -387,6 +398,8 @@ export const proposedChangesSchema = z.object({
   voltaSegueParaEventoId: z.string().trim().min(1).max(64).nullable().optional(),
   needsTicket: z.boolean().optional(),
   needsAccommodation: z.boolean().optional(),
+  // "Sai de" (09/10): de onde a vaga sai. Vazio vira null (a Escalação completa por pessoa).
+  city: saiDeOpcionalSchema.nullable().optional().transform((v) => (v === undefined ? undefined : v || null)),
   quantity: z.number().int("Quantidade deve ser um número inteiro").min(1, "Quantidade mínima é 1").max(50, "Quantidade máxima é 50 vagas por pedido").optional(),
   observations: z.string().max(1000, "Observações podem ter no máximo 1000 caracteres").nullable().optional(),
 }).strict();
@@ -412,6 +425,7 @@ export const PROPOSED_FIELD_LABELS: Record<Exclude<keyof ProposedChanges, "v" | 
   voltaSegueParaEventoId: "Volta · segue direto para",
   needsTicket: "Precisa de passagem",
   needsAccommodation: "Precisa de hospedagem",
+  city: "Ida · sai de",
   observations: "Observações",
 };
 export type ProposedField = keyof typeof PROPOSED_FIELD_LABELS;
@@ -497,6 +511,7 @@ export type InclusionForDiff = Partial<{
   voltaSegueParaEventoId: string | null;
   needsTicket: boolean | null;
   needsAccommodation: boolean | null;
+  city: string | null;
   observations: string | null;
 }>;
 
@@ -521,6 +536,9 @@ function normalize(field: ProposedField, v: unknown): unknown {
       return v === undefined || v === null || v === "" || v === "ida_e_volta" ? null : v;
     case "dailyRates":
       return v === null || v === undefined ? null : Number(v);
+    // "Sai de" (09/10): espaço sobrando não é mudança de cidade.
+    case "city":
+      return typeof v === "string" ? (v.trim() || null) : null;
     default:
       return v === undefined || v === "" ? null : v;
   }

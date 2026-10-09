@@ -860,3 +860,19 @@ describe("parseProposedChanges — reajuste de volta ao original (27/08)", () =>
       .toThrow(/não aceita quantidade/);
   });
 });
+
+describe("Sai de no pedido (09/10)", () => {
+  it("cidade aparada entra; vazio vira null; 1 letra é recusada em pt-BR", () => {
+    expect(parseProposedChanges({ v: 1, city: "  Recife - PE " }, "ajuste").city).toBe("Recife - PE");
+    expect(parseProposedChanges({ v: 1, city: "  ", observations: "x" }, "ajuste").city).toBeNull();
+    expect(parseProposedChanges({ v: 1, observations: "x" }, "ajuste")).not.toHaveProperty("city");
+    expect(() => parseProposedChanges({ v: 1, city: "R" }, "ajuste")).toThrow(/muito curta/);
+  });
+
+  it("de/para: mudança de cidade aparece; espaço sobrando não é mudança", () => {
+    expect(diffInclusion({ city: "São Paulo - SP" }, { v: 1, city: "Salvador - BA" }))
+      .toEqual([{ field: "city", label: "Ida · sai de", from: "São Paulo - SP", to: "Salvador - BA" }]);
+    expect(diffInclusion({ city: "Salvador - BA " }, { v: 1, city: "Salvador - BA" })).toEqual([]);
+    expect(diffInclusion({ city: null }, { v: 1, city: null })).toEqual([]);
+  });
+});

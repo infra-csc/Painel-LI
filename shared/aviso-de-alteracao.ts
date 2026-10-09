@@ -44,6 +44,8 @@ const CAMPOS_DE_PASSAGEM: ReadonlySet<ProposedField> = new Set<ProposedField>([
   "trechosSugeridos",
   "idaVemDoEventoId",
   "voltaSegueParaEventoId",
+  // "Sai de" (09/10): a cidade de saída é a ORIGEM da passagem.
+  "city",
   "needsTicket",
 ]);
 

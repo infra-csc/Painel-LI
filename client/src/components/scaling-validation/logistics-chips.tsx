@@ -1,6 +1,6 @@
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BedDouble, Bus, BusFront, Car,
-  PlaneLanding, PlaneTakeoff, Route, Ticket,
+  MapPin, PlaneLanding, PlaneTakeoff, Route, Ticket,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -196,5 +196,20 @@ export function NeedChips({ needsTicket, needsAccommodation, className }: {
       {needsTicket ? <NeedChip kind="passagem" className={className} /> : null}
       {needsAccommodation ? <NeedChip kind="hotel" className={className} /> : null}
     </>
+  );
+}
+
+/**
+ * "Sai de" (09/10): de onde a vaga/linha sai — chip neutro com o alfinete, o
+ * mesmo ícone do campo. Sem cidade, nada (ausência não vira chip).
+ */
+export function SaiDeChip({ cidade, className, testId }: { cidade?: string | null; className?: string; testId?: string }) {
+  const c = (cidade ?? "").trim();
+  if (!c) return null;
+  return (
+    <span className={cn(CHIP_NEUTRAL, "min-w-0 max-w-full font-medium text-slate-700", className)} title={`Sai de ${c}`} data-testid={testId}>
+      <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="truncate"><span className="font-normal text-muted-foreground">Sai de</span> {c}</span>
+    </span>
   );
 }

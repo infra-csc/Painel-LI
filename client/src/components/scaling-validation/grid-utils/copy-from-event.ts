@@ -26,6 +26,8 @@ export interface CopyableSuggestion {
   trechosSugeridos?: string | null;
   idaVemDoEventoId?: string | null;
   voltaSegueParaEventoId?: string | null;
+  /** "Sai de" (09/10) — acompanha a cópia. */
+  city?: string | null;
   needsAccommodation?: boolean | null;
   needsTicket?: boolean | null;
   observations?: string | null;
@@ -65,6 +67,8 @@ const copyTime = (v: string | null | undefined): string => {
 };
 const copyMode = (v: string | null | undefined): TransportMode | "" =>
   v && TRANSPORT_MODE_SET.has(v) ? (v as TransportMode) : "";
+/** "Sai de" da vaga (09/10): aparado; quem vem direto de outro evento não tem. */
+const copyCity = (s: CopyableSuggestion): string => (s.idaVemDoEventoId ? "" : (s.city ?? "").trim().slice(0, 120));
 
 /**
  * "Assinatura de logística" de UMA vaga: ida (modal/data/hora), volta
@@ -87,6 +91,8 @@ export function copyLogisticsSignature(s: CopyableSuggestion): string {
     ...(s.trechosSugeridos || s.idaVemDoEventoId || s.voltaSegueParaEventoId
       ? [`t:${s.trechosSugeridos ?? ""}:${s.idaVemDoEventoId ?? ""}:${s.voltaSegueParaEventoId ?? ""}`]
       : []),
+    // "Sai de" (09/10): idem — só quando a vaga tem (as assinaturas antigas não mudam).
+    ...(copyCity(s) ? [`c:${copyCity(s)}`] : []),
     (s.observations ?? "").trim(),
   ].join("|"); // a observação é o último campo: um "|" dentro dela não gera ambiguidade
 }
@@ -162,6 +168,7 @@ export function rowsFromSuggestions(
       if (src.trechosSugeridos && (TRECHOS_SUGERIDOS as readonly string[]).includes(src.trechosSugeridos)) row.trechosSugeridos = src.trechosSugeridos as TrechosSugeridos;
       if (src.idaVemDoEventoId) row.idaVemDoEventoId = src.idaVemDoEventoId;
       if (src.voltaSegueParaEventoId) row.voltaSegueParaEventoId = src.voltaSegueParaEventoId;
+      if (copyCity(src)) row.city = copyCity(src);
       row.needsAccommodation = src.needsAccommodation === true;
       row.needsTicket = src.needsTicket === true;
       row.observations = (src.observations ?? "").trim();

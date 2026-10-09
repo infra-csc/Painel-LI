@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 import { QtyCell } from "./qty-cell";
 import { LogisticsPanel } from "./logistics-panel";
 import type { EventoParaTrecho } from "./trechos-da-perna";
-import { CHIP_NEED, CHIP_NEUTRAL, LegChip, NeedChips, dayText } from "./logistics-chips";
+import { CHIP_NEED, CHIP_NEUTRAL, LegChip, NeedChips, SaiDeChip, dayText } from "./logistics-chips";
 import { textoDaIndicacao } from "@shared/janela-de-viagem";
 import { nomeDoEventoNoCache } from "@/lib/nome-do-evento";
-import { formatDateHeader, totalsByDay, type DateHeader, type RowValidation, type SuggestionGridRow } from "./scaling-grid-utils";
+import { cidadeDaLinha, formatDateHeader, totalsByDay, type DateHeader, type RowValidation, type SuggestionGridRow } from "./scaling-grid-utils";
 
 export interface SuggestionGridProps {
   rows: SuggestionGridRow[];
@@ -110,7 +110,9 @@ const GridRow = memo(function GridRow({
 
   const hasLogistics = hasLeg(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)
     || hasLeg(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime)
-    || row.needsAccommodation || row.needsTicket || !!row.observations;
+    || row.needsAccommodation || row.needsTicket || !!row.observations || !!cidadeDaLinha(row);
+  // "Sai de" (09/10): de onde a equipe da linha sai.
+  const saiDe = cidadeDaLinha(row);
 
   return (
     // scroll-mb-16: ao focar por teclado, a linha não fica escondida atrás do rodapé fixo.
@@ -169,6 +171,7 @@ const GridRow = memo(function GridRow({
       <td className="border-r border-border px-2 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <div className="sug-chips flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            <SaiDeChip cidade={saiDe} testId={`sug-chip-sai-de-${row.rowId}`} />
             <LegChip
               dir="ida" mode={row.transportModeIda} className="shrink-0"
               date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime}

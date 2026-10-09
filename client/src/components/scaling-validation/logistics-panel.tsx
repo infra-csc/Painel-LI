@@ -3,6 +3,8 @@ import { BedDouble, Check, PlaneLanding, PlaneTakeoff, Ticket, TriangleAlert, ty
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { CampoSaiDe } from "@/components/scaling/campo-sai-de";
+import { SAI_DE_SP, validarSaiDeOpcional } from "@shared/swap-sai-de";
 import { ModeSelect } from "./mode-select";
 import { avisosDeViagem } from "./travel-warnings";
 import type { SuggestionGridRow } from "./scaling-grid-utils";
@@ -74,8 +76,15 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays, eventos =
   const id = useId();
   const f = (name: string) => `${id}-${name}`;
   // Só ida / só volta / trecho direto (09/10): a perna que não existe esconde os campos.
-  const patchTrechos = ({ flightDepartureSuggestedTime: _semCampoNaGrade, ...resto }: PatchDeTrechos) => patch(resto);
+  // "Vem direto de outro evento" apaga o "Sai de": a origem é a cidade daquele evento.
+  const patchTrechos = ({ flightDepartureSuggestedTime: _semCampoNaGrade, ...resto }: PatchDeTrechos) =>
+    patch(resto.idaVemDoEventoId ? { ...resto, city: "" } : resto);
   const idaNormal = modoDaIda(row) !== "sem";
+  // "Sai de" (09/10): some quando a ida vem direto de outro evento.
+  const comSaiDe = modoDaIda(row) !== "direto";
+  const cidade = row.city ?? "";
+  const saiDeSP = cidade.trim() === SAI_DE_SP;
+  const cidadeOk = !!cidade.trim() && !validarSaiDeOpcional(cidade);
   const voltaNormal = modoDaVolta(row) === "normal";
   const avisos = useMemo(
     () => avisosDeViagem({ flightDepartureDate: row.flightDepartureDate, flightReturnDate: row.flightReturnDate }, workDays),
@@ -105,6 +114,25 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays, eventos =
                 onChange={(e) => patch({ flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-full tabular-nums sm:max-w-[180px]")} />
             </div>
           </div>
+          )}
+          {/* "Sai de" (09/10) DEPOIS de modal/data/horário: assim a linha de campos da ida continua alinhada com a da volta. */}
+          {comSaiDe && (
+            <div className="mt-3 max-w-[440px]">
+              <CampoSaiDe
+                key={row.rowId}
+                id="sug-sai-de"
+                opcional
+                rotulo="Sai de"
+                rotuloCidade={`Cidade de onde a equipe sai — ${row.functionName}`}
+                ajuda="Cidade de onde a equipe desta linha sai — a Escalação pode trocar por pessoa."
+                saiDeSP={saiDeSP}
+                cidade={saiDeSP ? SAI_DE_SP : cidade}
+                desabilitado={disabled}
+                classeRotulo="text-2xs text-muted-foreground"
+                classeCidade={cn("h-8 text-xs placeholder:text-muted-foreground", cidadeOk && "border-primary/30 bg-brand-soft/60")}
+                onChange={(sp, c) => patch({ city: sp ? SAI_DE_SP : c })}
+              />
+            </div>
           )}
         </fieldset>
 
