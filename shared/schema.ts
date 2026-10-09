@@ -9,7 +9,7 @@ import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, seri
 // script da data, rodado à mão pelo dono.
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { isValidHhmm, type ProposedChanges } from "./scaling-validation-rules";
+import { isValidHhmm, TRECHOS_SUGERIDOS, type ProposedChanges } from "./scaling-validation-rules";
 import type { MudancaDoAviso } from "./aviso-de-alteracao";
 
 // TIPOS DO BANCO (25/09 — auditoria de 23/09). Espelho em produção:
@@ -255,6 +255,16 @@ export const teamInclusions = pgTable("team_inclusions", {
   // Validação de Escala: modal sugerido pela logística para ida/volta
   transportModeIda: text("transport_mode_ida"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
   transportModeVolta: text("transport_mode_volta"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
+  // TRECHO DIRETO / UMA PERNA (09/10 — caso Alonso: Night Run Aracaju → Makai
+  // João Pessoa). Indicação de quem planeja (Sugestão, Inclusão, Escalação):
+  // a vaga pode ter só ida ou só volta, e a perna que falta pode ser o trecho
+  // direto de/para OUTRO evento (evento, não vaga: na Sugestão a vaga do outro
+  // evento pode nem existir ainda). null = ida e volta, como sempre foi.
+  // Compras CONFIRMA o encadeamento ao registrar a passagem
+  // (tickets.ida_vem_de_inclusion_id). Regra única: shared/janela-de-viagem.ts.
+  trechosSugeridos: text("trechos_sugeridos"), // 'ida_e_volta' | 'so_ida' | 'so_volta' | null
+  idaVemDoEventoId: varchar("ida_vem_do_evento_id"), // a ida sai direto deste evento (da cidade dele)
+  voltaSegueParaEventoId: varchar("volta_segue_para_evento_id"), // sem volta própria: segue direto para este evento
   suggestionSentAt: timestamp("suggestion_sent_at", { withTimezone: true }), // quando a sugestão foi enviada para validação da área
   validatedAt: timestamp("validated_at", { withTimezone: true }), // quando a área validou a sugestão
   validatedBy: varchar("validated_by").references(() => users.id), // quem validou (responsável da função)
@@ -348,6 +358,13 @@ export const tickets = pgTable("tickets", {
   baggageTotalCents: integer("baggage_total_cents"), // valor total bagagem em centavos
   baggageOc: text("baggage_oc"), // OC da bagagem
   baggageNotes: text("baggage_notes"), // observações da bagagem
+  // TRECHO DIRETO (09/10): a IDA desta passagem sai do evento da vaga indicada
+  // (pinga-pinga — "o Alonso vai direto de ARA p/ JP"). Só Compras grava, ao
+  // registrar a passagem. A vaga indicada fica SEM volta própria (a volta dela
+  // é esta ida) e o custo do trecho é desta vaga, a de DESTINO. Uma perna só
+  // (só ida / só volta) NÃO tem coluna: continua derivada dos campos vazios
+  // (shared/janela-de-viagem.ts · trechosDaPassagem).
+  idaVemDeInclusionId: varchar("ida_vem_de_inclusion_id"),
   // HISTÓRICO (dono, 01/10: "eu comprei mas vamos trocar o colaborador —
   // aquela passagem fica de histórico, e o custo mantém na prova"). Quando uma
   // troca é aprovada, a passagem de quem saiu NÃO é apagada nem editada: ganha
@@ -675,6 +692,9 @@ export const teamInclusionRowSchema = createInsertSchema(teamInclusions).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // Trecho direto / uma perna (09/10): domínio fechado, como o transporte.
+  trechosSugeridos: z.enum(TRECHOS_SUGERIDOS).nullish(),
 });
 
 /**
@@ -1096,6 +1116,10 @@ export const scalingChangeRequests = pgTable("scaling_change_requests", {
   reviewedByName: text("reviewed_by_name"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   resolvedInclusionId: varchar("resolved_inclusion_id").references(() => teamInclusions.id), // inclusão criada quando 'inclusao' é aprovada
+  // PEDIDO EM PAR (09/10 — "vai direto de um evento para o outro"): dois
+  // pedidos de ajuste, um em cada vaga do mesmo colaborador, com o mesmo
+  // grupo. O aprovador decide os dois juntos, numa transação só. null = avulso.
+  grupoId: varchar("grupo_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -1122,6 +1146,7 @@ export const insertScalingChangeRequestSchema = createInsertSchema(scalingChange
     reviewedByName: true,
     reviewedAt: true,
     resolvedInclusionId: true,
+    grupoId: true,         // só a rota do pedido em par (09/10) liga dois pedidos
   })
   .extend({
     requestType: z.enum(["ajuste", "inclusao", "exclusao"]),

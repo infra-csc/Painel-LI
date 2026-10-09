@@ -17,6 +17,7 @@ import { TabsContent } from "@/components/ui/tabs";
 import { isReadOnly } from "@/lib/interactions";
 import { isEscalationConfirmed } from "../scaling-utils";
 import { AdjustRequestPanel } from "../adjust-request-panel";
+import { TrechoDiretoPedido } from "../trecho-direto-pedido";
 import { ProductionApprovalCard } from "../production-approval-card";
 import { ResumoInfoCard } from "./resumo-info-card";
 import { ResumoColaboradorCard } from "./resumo-colaborador-card";
@@ -38,13 +39,17 @@ export function ResumoTab({ inclusion, props, st }: { inclusion: TeamInclusion; 
   // diárias e viagem ainda podem mudar por pedido ao aprovador enquanto a
   // passagem não for comprada. Quem decide se aparece é o servidor.
   const ajuste = (
-    <AdjustRequestPanel
-      inclusion={inclusion}
-      event={events?.find(e => e.id === inclusion.eventId)}
-      functionName={getFunctionName(inclusion.functionId)}
-      aberto={pedirAjusteAberto}
-      onAberto={setPedirAjusteAberto}
-    />
+    <>
+      <AdjustRequestPanel
+        inclusion={inclusion}
+        event={events?.find(e => e.id === inclusion.eventId)}
+        functionName={getFunctionName(inclusion.functionId)}
+        aberto={pedirAjusteAberto}
+        onAberto={setPedirAjusteAberto}
+      />
+      {/* Vai direto de/para outro evento (09/10): pedido de ajuste em par. */}
+      <TrechoDiretoPedido inclusion={inclusion} data={data} />
+    </>
   );
   return (
     <TabsContent value="resumo" className="esc-entra m-0 p-3 sm:p-5">

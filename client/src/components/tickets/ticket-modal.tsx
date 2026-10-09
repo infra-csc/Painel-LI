@@ -40,6 +40,9 @@ import type { FormFieldHelpers, TicketFormHandlers } from "./types";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { AvisoDaVaga } from "@/components/avisos-de-alteracao/aviso-da-vaga";
 import { SECAO } from "./ticket-summary-tab";
+import type { SinalDeViagem } from "./use-sinais-de-viagem";
+import { TrechoDiretoCampo, BloqueioDeViagemAviso, SegueDiretoAviso, type BloqueioDeViagem } from "./trecho-direto-campo";
+import { TrechoDiretoDaVaga } from "./sinais-da-vaga";
 
 /**
  * Moldura do modal (07/10): 1100px no computador; no celular ocupa a tela
@@ -67,11 +70,15 @@ interface TicketModalProps {
   onCancelEdit: () => void;
   onSubmit: () => void;
   isSubmitting: boolean;
+  /** Sinais de viagem desta vaga (09/10): vizinhas para o trecho direto, sugestão, encadeamento. */
+  sinal?: SinalDeViagem;
+  /** 409 do servidor: a viagem cruza outra viagem do colaborador. */
+  bloqueioDeViagem?: BloqueioDeViagem | null;
 }
 
 export default function TicketModal({
   open, inclusion, data, user, form, helpers, handlers, editingTicketId, activeTab, onTabChange,
-  showCommentsModal, onShowCommentsModal, onRequestClose, onStartEdit, onCancelEdit, onSubmit, isSubmitting,
+  showCommentsModal, onShowCommentsModal, onRequestClose, onStartEdit, onCancelEdit, onSubmit, isSubmitting, sinal, bloqueioDeViagem,
 }: TicketModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -215,6 +222,22 @@ export default function TicketModal({
     toast({ title: "Sugestão aplicada", description: labels.length ? `Preenchido: ${labels.join(", ")}. Confira antes de registrar.` : "Confira os campos antes de registrar." });
   };
 
+  /**
+   * Trecho direto (09/10): encadeia a ida desta vaga à vaga anterior do mesmo
+   * colaborador — a origem da ida passa a ser a cidade do evento de lá. Sem
+   * vaga (null) volta a sair da cidade de origem ("Sai de").
+   */
+  const escolherTrechoDireto = (anteriorId: string | null, cidade?: string) => {
+    if (!anteriorId) {
+      handlers.onPatch(sid, { idaVemDeInclusionId: "", departureCityOrigin: inclusion.city || collaborator?.city || "" });
+      return;
+    }
+    const daLista = sinal?.vizinhasAnteriores?.find((v) => v.inclusionId === anteriorId)?.cidade;
+    const doBloqueio = bloqueioDeViagem?.conflito?.inclusionId === anteriorId ? bloqueioDeViagem.conflito.cidade : undefined;
+    const origem = cidade || daLista || doBloqueio || "";
+    handlers.onPatch(sid, { idaVemDeInclusionId: anteriorId, isReturnOnly: false, ...(origem ? { departureCityOrigin: origem } : {}) });
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) onRequestClose(); }}>
@@ -303,10 +326,23 @@ export default function TicketModal({
               </TabsContent>
 
               <TabsContent value="dados" className="m-0 p-4 sm:p-6 pas-entra">
+                {/* Vaga anterior de um trecho direto: sem volta própria (09/10). */}
+                <SegueDiretoAviso sinal={sinal} sid={sid} />
                 {ticket && !isEditing ? (
-                  <TicketViewDetails ticket={ticket} inclusion={inclusion} />
+                  <>
+                    {sinal?.vemDiretoDe?.confirmado && <div className="mb-3"><TrechoDiretoDaVaga sinal={sinal} inclusionId={sid} /></div>}
+                    <TicketViewDetails ticket={ticket} inclusion={inclusion} />
+                  </>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 [&:not(:first-child)]:mt-4">
+                    {bloqueioDeViagem && (
+                      <BloqueioDeViagemAviso
+                        bloqueio={bloqueioDeViagem}
+                        sid={sid}
+                        disabled={dis}
+                        onEncadear={bloqueioDeViagem.conflito?.podeEncadear ? () => escolherTrechoDireto(bloqueioDeViagem.conflito!.inclusionId) : undefined}
+                      />
+                    )}
                     {/* Voucher/anexo em primeiro lugar (28/08): é por aqui que a
                         passagem começa — o arquivo é o comprovante e a fonte
                         dos dados ao mesmo tempo. */}
@@ -391,6 +427,18 @@ export default function TicketModal({
                           </div>
                         )}
                       </div>
+                      {/* Trecho direto (09/10): só quando o bilhete tem a ida. */}
+                      {form.transportType !== "van" && !form.isReturnOnly && (
+                        <TrechoDiretoCampo
+                          sid={sid}
+                          sinal={sinal}
+                          valor={form.idaVemDeInclusionId || ""}
+                          disabled={dis}
+                          indicacao={inclusion.idaVemDoEventoId ? `vem direto de ${data.getEventName(inclusion.idaVemDoEventoId)}` : null}
+                          vagaIndicadaId={sinal?.vizinhasAnteriores?.find((v) => v.eventId === inclusion.idaVemDoEventoId)?.inclusionId ?? null}
+                          onEscolher={(a) => escolherTrechoDireto(a?.inclusionId ?? null, a?.cidade)}
+                        />
+                      )}
                     </div>
 
                     <TicketFormFields

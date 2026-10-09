@@ -11,7 +11,19 @@ import { tickets as ticketsTable, insertTicketSchema } from "@shared/schema";
 import { and, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
 import { analisarPassagens, diaISO, somarDias, type PassagemParaAnalise } from "@shared/analise-de-passagens";
 import { hojeISO } from "@shared/hoje-sp";
+import {
+  errosDeDataDaPassagem,
+  mensagemDeViagemCruzada,
+  passagemTemIda,
+  passagemTemVolta,
+  marcoEmTexto,
+  cidadeDoEvento,
+  janelaDaVaga,
+  type PassagemDaJanela,
+} from "@shared/janela-de-viagem";
+import { ocupaAgenda } from "@shared/conflito-de-agenda";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
+import { carregarVagasDeViagem, conflitosDaVagaComPassagem, juntarPassagens, sinaisDeViagem } from "../viagens";
 import {
   montarLogDeAuditoria,
   createAuditLog,
@@ -22,6 +34,100 @@ import {
   eventIdDaQuery,
   recalcularStatusDeLogistica,
 } from "./_compartilhado";
+
+/** Campos que mudam a janela da viagem: editar só os outros não reconfere nada (09/10). */
+const CAMPOS_DA_VIAGEM = [
+  "actualDepartureDate", "actualDepartureTime", "actualArrivalTime",
+  "actualReturnDate", "actualReturnTime", "returnArrivalTime", "idaVemDeInclusionId",
+] as const;
+/** Campos de data conferidos por `errosDeDataDaPassagem`. */
+const CAMPOS_DE_DATA = [...CAMPOS_DA_VIAGEM, "purchaseDate"] as const;
+
+const mesmoValor = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
+
+interface ConferenciaDaPassagem {
+  /** Resposta de recusa (400/409) — nada é gravado. */
+  recusa?: { status: number; body: Record<string, unknown> };
+  /** A vaga de onde sai o trecho direto ainda tem volta própria registrada: Compras cancela/edita. */
+  voltaParaCancelar?: { inclusionId: string; numero: number; eventName: string; quando: string };
+}
+
+/**
+ * Regras da passagem que o servidor garante (09/10), antes de gravar:
+ *  1. datas plausíveis (volta ≥ ida; anos de 2024 a hoje+2);
+ *  2. trecho direto: a vaga indicada é do MESMO colaborador, de OUTRO evento,
+ *     ativa, e esta passagem tem a perna de ida;
+ *  3. a viagem não pode cruzar outra viagem do colaborador sem encadeamento —
+ *     bloqueio sem "registrar mesmo assim" (decisão do dono).
+ * `outrasLinhas` = as outras passagens atuais da vaga (ida e volta podem ser
+ * linhas separadas): a janela considera a viagem inteira.
+ */
+async function conferirPassagem(
+  vagaId: string,
+  colaboradorId: string | null,
+  proposta: PassagemDaJanela,
+  outrasLinhas: readonly PassagemDaJanela[],
+  /** Edição: só o que mudou é conferido (passagem antiga já errada continua editável no resto). */
+  alterados?: ReadonlySet<string>,
+): Promise<ConferenciaDaPassagem> {
+  const mudou = (c: string) => !alterados || alterados.has(c);
+  const todosOsErros = errosDeDataDaPassagem(proposta, hojeISO());
+  const idaMudou = mudou("actualDepartureDate") || mudou("actualDepartureTime");
+  const erros = Object.fromEntries(Object.entries(todosOsErros).filter(([campo]) =>
+    mudou(campo) || (campo.startsWith("actualReturn") && idaMudou)));
+  const primeiro = Object.values(erros)[0];
+  if (primeiro) return { recusa: { status: 400, body: { message: primeiro, errors: erros } } };
+  if (alterados && !CAMPOS_DA_VIAGEM.some((c) => alterados.has(c))) return {};
+
+  const anteriorId = proposta.idaVemDeInclusionId ?? null;
+  if (anteriorId) {
+    if (anteriorId === vagaId) return { recusa: { status: 400, body: { message: "O trecho direto precisa vir de OUTRA vaga do colaborador." } } };
+    if (!passagemTemIda(proposta)) {
+      return { recusa: { status: 400, body: { message: "O trecho direto é a IDA desta vaga — registre como \"Só ida\" ou \"Ida e volta\", com os dados da ida." } } };
+    }
+  }
+  if (!colaboradorId) {
+    if (anteriorId) return { recusa: { status: 400, body: { message: "A vaga ainda não tem colaborador — não há de onde vir direto." } } };
+    return {};
+  }
+  const vagas = await carregarVagasDeViagem([colaboradorId]);
+  const vaga = vagas.find((v) => v.id === vagaId);
+  let voltaParaCancelar: ConferenciaDaPassagem["voltaParaCancelar"];
+  if (anteriorId) {
+    const anterior = vagas.find((v) => v.id === anteriorId);
+    if (!anterior || !ocupaAgenda(anterior) || (vaga && anterior.eventId === vaga.eventId)) {
+      return { recusa: { status: 400, body: { message: "A vaga de onde sai o trecho direto não é deste colaborador, está em outro estado ou é do mesmo evento. Escolha outra na lista." } } };
+    }
+    if (passagemTemVolta(anterior.passagem)) {
+      voltaParaCancelar = {
+        inclusionId: anterior.id, numero: anterior.inclusionNumber, eventName: anterior.eventName,
+        quando: marcoEmTexto(janelaDaVaga({ ...anterior, flightReturnDate: null, scheduleEndDate: null }).fim),
+      };
+    }
+  }
+  // Vaga fora da lista (cancelada, ainda em validação): não ocupa agenda, nada a cruzar.
+  if (!vaga) return { voltaParaCancelar };
+  const viagem = juntarPassagens([...outrasLinhas, proposta]) ?? proposta;
+  const { bloqueia } = conflitosDaVagaComPassagem(vaga, { ...viagem, idaVemDeInclusionId: anteriorId }, vagas);
+  if (bloqueia.length > 0) {
+    const c = bloqueia[0];
+    const nome = (await storage.getCollaborator(colaboradorId))?.fullName ?? null;
+    return {
+      recusa: {
+        status: 409,
+        body: {
+          message: mensagemDeViagemCruzada(nome, c),
+          code: "viagem_cruzada",
+          conflito: {
+            inclusionId: c.outra.id, numero: c.outra.inclusionNumber, eventName: c.outra.eventName,
+            outraVemAntes: c.outraVemAntes, podeEncadear: c.outraVemAntes, cidade: cidadeDoEvento(c.outra.eventLocation),
+          },
+        },
+      },
+    };
+  }
+  return { voltaParaCancelar };
+}
 
 export function registrarPassagens(app: Express): void {
   // Tickets routes
@@ -91,6 +197,7 @@ export function registrarPassagens(app: Express): void {
             to_char(t.actual_departure_date, 'YYYY-MM-DD') AS data_ida,
             to_char(t.actual_return_date, 'YYYY-MM-DD') AS data_volta,
             t.ticket_company, t.transport_type,
+            (t.ida_vem_de_inclusion_id IS NOT NULL) AS trecho_direto,
             COALESCE(NULLIF(trim(t.departure_airport), ''), t.departure_city_origin) AS origem,
             COALESCE(NULLIF(trim(t.destination_airport), ''), t.departure_city_destination) AS destino
           FROM tickets t
@@ -114,6 +221,7 @@ export function registrarPassagens(app: Express): void {
         pessoa_id: string | null; arquivada: boolean; value: number | null; baggage_total_cents: number | null;
         data_compra: string | null; data_ida: string | null; data_volta: string | null;
         ticket_company: string | null; transport_type: string | null; origem: string | null; destino: string | null;
+        trecho_direto: boolean | string | null;
       };
       const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
       const passagens: PassagemParaAnalise[] = linhasDe<Linha>(passagensRes).map((l) => ({
@@ -133,6 +241,7 @@ export function registrarPassagens(app: Express): void {
         transporte: l.transport_type,
         origem: l.origem,
         destino: l.destino,
+        trechoDireto: l.trecho_direto === true || String(l.trecho_direto) === "t",
       }));
       const avisos = linhasDe<{ event_id: string; resolvido: boolean | string }>(avisosRes)
         .map((a) => ({ eventId: a.event_id, resolvido: a.resolvido === true || a.resolvido === "t" }));
@@ -178,6 +287,45 @@ export function registrarPassagens(app: Express): void {
     }
   });
 
+  /**
+   * GET /api/tickets/sinais-de-viagem → { porVaga, totais } (09/10).
+   *
+   * Por vaga ativa com colaborador: viagem que cruza outra (sem encadeamento),
+   * passagem com data impossível, trecho direto (confirmado ou indicado) e a
+   * sugestão "pode ir direto de <cidade>" para Compras. Calculado sobre TODAS
+   * as vagas do colaborador (a vaga de outro evento é o que importa aqui),
+   * por isso não aceita recorte de evento. Quem registra passagem (logística).
+   */
+  app.get("/api/tickets/sinais-de-viagem", async (req, res) => {
+    const ator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ator) return;
+    try {
+      const sinais = sinaisDeViagem(await carregarVagasDeViagem(), hojeISO());
+      res.set("Cache-Control", "no-store");
+      res.json(sinais);
+    } catch (error) {
+      console.error("erro nos sinais de viagem:", error);
+      res.status(500).json({ message: "Erro ao conferir as viagens" });
+    }
+  });
+
+  /**
+   * GET /api/shell/viagens-e-datas → { cruzam, datasImpossiveis } (09/10).
+   * Pendências: viagens que se cruzam (pares NÃO encadeados) e passagens com
+   * data impossível. Só admin e Compras. Nada é corrigido sozinho (dono).
+   */
+  app.get("/api/shell/viagens-e-datas", async (req, res) => {
+    const ator = await requireRoles(req, res, ["admin", "purchasing"]);
+    if (!ator) return;
+    try {
+      const { totais } = sinaisDeViagem(await carregarVagasDeViagem(), hojeISO());
+      res.set("Cache-Control", "no-store");
+      res.json({ cruzam: totais.viagensQueSeCruzam, datasImpossiveis: totais.passagensComDataImpossivel });
+    } catch {
+      res.status(500).json({ message: "Erro ao contar viagens e datas" });
+    }
+  });
+
   app.post("/api/tickets", async (req, res) => {
     const ticketCreator = await requireRoles(req, res, LOGISTICA_ROLES);
     if (!ticketCreator) return;
@@ -188,12 +336,17 @@ export function registrarPassagens(app: Express): void {
       if (!vaga || vaga.deletedAt) return res.status(404).json({ message: "Vaga não encontrada ou excluída" });
       // Evento encerrado: só o administrador
       if (!await assertInclusionEventEditable(ticketData.teamInclusionId, ticketCreator, res, vaga)) return;
+      // Datas plausíveis, trecho direto válido e viagem sem cruzar outra (09/10).
+      const outrasLinhas = await storage.getTicketsByInclusionId(ticketData.teamInclusionId);
+      const conferencia = await conferirPassagem(vaga.id, vaga.collaboratorId ?? null, ticketData, outrasLinhas);
+      if (conferencia.recusa) return res.status(conferencia.recusa.status).json(conferencia.recusa.body);
       const ticket = await storage.createTicket({ ...ticketData, updatedBy: ticketCreator.id });
       await createAuditLog('create', 'ticket', ticket.id, ticket, ticketCreator.id, ticketCreator.name || 'Sistema', undefined, req);
       // Status da vaga DERIVADO pelo servidor (23/09): o client não manda mais
       // passagem_comprada pelo PATCH.
       const inclusion = await recalcularStatusDeLogistica(ticketData.teamInclusionId, ticketCreator, req);
-      res.json(inclusion ? { ...ticket, inclusionStatus: inclusion.status } : ticket);
+      const extra = conferencia.voltaParaCancelar ? { voltaParaCancelar: conferencia.voltaParaCancelar } : {};
+      res.json(inclusion ? { ...ticket, ...extra, inclusionStatus: inclusion.status } : { ...ticket, ...extra });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Dados inválidos", error: error.message });
       responderErroComStatus(res, error, "Erro ao registrar passagem");
@@ -304,10 +457,22 @@ export function registrarPassagens(app: Express): void {
       if (prev.archivedAt) return res.status(409).json({ message: "Esta passagem é histórico de uma troca aprovada e não pode ser alterada. Registre a passagem do novo colaborador." });
       // Evento encerrado: só o administrador
       if (!await assertInclusionEventEditable(prev.teamInclusionId, ticketEditor, res)) return;
+      // Só datas/encadeamento NOVOS são conferidos (09/10): editar o LOC ou o
+      // valor de uma passagem antiga que já cruza outra não é bloqueado.
+      const alterados = new Set<string>(CAMPOS_DE_DATA.filter((c) =>
+        c in allowed && !mesmoValor((allowed as Record<string, unknown>)[c], (prev as Record<string, unknown>)[c])));
+      let extra: Record<string, unknown> = {};
+      if (alterados.size > 0) {
+        const vaga = await storage.getTeamInclusion(prev.teamInclusionId);
+        const outrasLinhas = (await storage.getTicketsByInclusionId(prev.teamInclusionId)).filter((t) => t.id !== id);
+        const conferencia = await conferirPassagem(prev.teamInclusionId, vaga?.collaboratorId ?? null, { ...prev, ...allowed }, outrasLinhas, alterados);
+        if (conferencia.recusa) return res.status(conferencia.recusa.status).json(conferencia.recusa.body);
+        if (conferencia.voltaParaCancelar && alterados.has("idaVemDeInclusionId")) extra = { voltaParaCancelar: conferencia.voltaParaCancelar };
+      }
       const ticket = await storage.updateTicket(id, updates);
       await createAuditLog('update', 'ticket', id, ticket, ticketEditor.id, ticketEditor.name || 'Sistema', prev, req);
       const inclusion = await recalcularStatusDeLogistica(prev.teamInclusionId, ticketEditor, req);
-      res.json(inclusion ? { ...ticket, inclusionStatus: inclusion.status } : ticket);
+      res.json(inclusion ? { ...ticket, ...extra, inclusionStatus: inclusion.status } : { ...ticket, ...extra });
     } catch (error) {
       responderErroComStatus(res, error, "Erro ao atualizar passagem");
     }

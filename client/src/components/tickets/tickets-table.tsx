@@ -20,6 +20,7 @@ import type { TeamInclusion } from "@shared/schema";
 import TicketRow from "./ticket-row";
 import type { TicketsData } from "./use-tickets-data";
 import type { TicketFilters } from "./types";
+import type { SinalDeViagem } from "./use-sinais-de-viagem";
 
 /**
  * Abaixo disto a tabela não cabe sem espremer coluna e vira cartão.
@@ -48,6 +49,14 @@ interface TicketsTableProps {
   /** Há filtro ligado? O vazio oferece limpar em vez de só lamentar. */
   temFiltro?: boolean;
   onLimparFiltros?: () => void;
+  /** Sinais de viagem por vaga (09/10): cruza outra viagem, data impossível, trecho direto. */
+  sinais?: Readonly<Record<string, SinalDeViagem>>;
+  /** Linhas já recortadas por "?conflito=" (Pendências); sem isso, as do filtro. */
+  linhas?: TeamInclusion[];
+  /** Título/texto do vazio quando o recorte é de conflito. */
+  vazioDoRecorte?: { titulo: string; texto: string } | null;
+  nomeDoEvento?: (eventId: string) => string | null | undefined;
+  onTrechoDireto?: (inclusion: TeamInclusion, anteriorId: string) => void;
   /** Vagas que precisam de passagem sem recorte nenhum — o "de M" do rodapé. */
   total?: number;
 }
@@ -58,9 +67,9 @@ const TH = "px-2.5 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] tex
 
 export default function TicketsTable({
   data, filters, sortConfig, onSort, selectedTickets, allSelectableSelected, onToggleAll, onToggleSelect, onOpen, canEdit, onToggleEmitida, emitindo,
-  vagasComAlteracao, temFiltro, onLimparFiltros, total,
+  vagasComAlteracao, temFiltro, onLimparFiltros, total, sinais, linhas, vazioDoRecorte, nomeDoEvento, onTrechoDireto,
 }: TicketsTableProps) {
-  const rows = data.filteredTicketInclusions;
+  const rows = linhas ?? data.filteredTicketInclusions;
   // Medido sobre a largura ÚTIL, não pela janela: o menu lateral compacto
   // muda o espaço da lista sem mudar o tamanho da tela.
   const { ref: refLargura, largura } = useLarguraUtil<HTMLDivElement>();
@@ -86,17 +95,17 @@ export default function TicketsTable({
 
   if (rows.length === 0) {
     // Sem nenhuma vaga que precise de passagem × o recorte é que esvaziou.
-    const titulo = filters.ticketStatus === "pending" ? "Nenhuma passagem pendente"
+    const titulo = vazioDoRecorte?.titulo ?? (filters.ticketStatus === "pending" ? "Nenhuma passagem pendente"
       : filters.ticketStatus === "processed" ? "Nenhuma passagem comprada"
       : filters.ticketStatus === "no_arrival" ? "Todas as compradas têm horário de chegada"
-      : "Nenhuma passagem encontrada";
-    const texto = filters.ticketStatus === "pending"
+      : "Nenhuma passagem encontrada");
+    const texto = vazioDoRecorte?.texto ?? (filters.ticketStatus === "pending"
       ? "Todas as passagens foram compradas ou não há colaboradores escalados."
       : filters.ticketStatus === "processed"
       ? "Nenhuma passagem foi comprada ainda."
       : filters.ticketStatus === "no_arrival"
       ? "Nenhuma passagem comprada está sem o horário de chegada da ida."
-      : "Não há colaboradores escalados que necessitem de passagens.";
+      : "Não há colaboradores escalados que necessitem de passagens.");
     const Icone = temFiltro ? SearchX : Plane;
     return (
       <div className="pas-entra px-8 py-12 text-center" data-testid="tickets-vazio">
@@ -222,6 +231,9 @@ export default function TicketsTable({
               onOpen={onOpen}
               onToggleEmitida={onToggleEmitida}
               emitindo={emitindo}
+              sinal={sinais?.[inclusion.id]}
+              nomeDoEvento={nomeDoEvento}
+              onTrechoDireto={onTrechoDireto}
             />
           ))}
           <EspacadorLinha altura={virtuais.espacoDepois} colunas={9} />
@@ -241,7 +253,7 @@ export default function TicketsTable({
         </span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:ml-auto text-2xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-warning-strong" />espera você (comprar, troca em análise, remarcar)
+            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-warning-strong" />espera você (comprar, troca em análise, remarcar, viagem a conferir)
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-success-strong" />comprada

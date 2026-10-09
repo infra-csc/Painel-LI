@@ -10,6 +10,7 @@
 import { parseBrNumber } from "@/lib/utils";
 import { mobilidadeTrechoCents, isEventoEmSP, parseHoraMin, MOBILIDADE_TRECHO_MADRUGADA_CENTS } from "@shared/atendimento";
 import { calcAlimentacao, type AlimentacaoDia } from "@shared/alimentacao";
+import { errosDeDataDaPassagem } from "@shared/janela-de-viagem";
 
 export type TransportType = "aereo" | "rodoviario" | "van";
 
@@ -48,6 +49,12 @@ export interface TicketFormValues {
   cardLastFourDigits?: string;
   ticketObservations?: string;
   attachmentIds?: string[];
+  /**
+   * TRECHO DIRETO (09/10): a ida sai do evento desta outra vaga do mesmo
+   * colaborador (pinga-pinga). "" = não encadeada. Só entra no payload quando
+   * o formulário a traz (o lote não mexe no encadeamento).
+   */
+  idaVemDeInclusionId?: string;
   fileUrl?: string | null;
   [key: string]: unknown;
 }
@@ -194,6 +201,10 @@ export function buildTicketPayload(
     attachmentIds: Array.isArray(form?.attachmentIds) && form.attachmentIds.length > 0 ? form.attachmentIds : null,
     cardLastFourDigits: isVan ? null : orNull(form?.cardLastFourDigits),
     ticketObservations: orNull(form?.ticketObservations),
+    // Trecho direto: só com a perna de ida; só quando o formulário a traz.
+    ...(form?.idaVemDeInclusionId !== undefined
+      ? { idaVemDeInclusionId: isVan || trecho === "so_volta" ? null : orNull(form.idaVemDeInclusionId) }
+      : {}),
   };
 }
 
@@ -271,6 +282,17 @@ export function validateTicketChronology(form: TicketFormData, ctx: ChronologyCo
       errors.actualReturnTime = `No mesmo dia, o horário da volta (${retTime}) não pode ser antes da ida (${depTime}).`;
     }
   }
+
+  // Anos plausíveis (09/10 — produção tinha passagens em 0002 e +72026): a
+  // MESMA regra do servidor (shared/janela-de-viagem), com a mensagem no campo.
+  const doServidor = errosDeDataDaPassagem({
+    actualDepartureDate: temIda ? (form?.actualDepartureDate as string | undefined) : null,
+    actualDepartureTime: temIda ? (form?.actualDepartureTime as string | undefined) : null,
+    actualReturnDate: trecho === "so_ida" ? null : (form?.actualReturnDate as string | undefined),
+    actualReturnTime: trecho === "so_ida" ? null : (form?.actualReturnTime as string | undefined),
+    purchaseDate: form?.purchaseDate as string | undefined,
+  }, today);
+  for (const [campo, msg] of Object.entries(doServidor)) if (msg && !errors[campo]) errors[campo] = msg;
 
   // Chegada antes da partida: quase sempre erro de digitação, mas voos noturnos
   // (parte 23:00, chega 01:30 do dia seguinte) existem e a chegada de madrugada
@@ -613,6 +635,7 @@ export interface StoredTicketLike {
   cardLastFourDigits?: string | null;
   ticketObservations?: string | null;
   attachmentIds?: string[] | null;
+  idaVemDeInclusionId?: string | null;
 }
 
 /**
@@ -663,5 +686,6 @@ export function ticketToFormValues(t: StoredTicketLike): TicketFormValues {
     cardLastFourDigits: s(t.cardLastFourDigits),
     ticketObservations: s(t.ticketObservations),
     attachmentIds: t.attachmentIds || [],
+    idaVemDeInclusionId: s(t.idaVemDeInclusionId),
   };
 }

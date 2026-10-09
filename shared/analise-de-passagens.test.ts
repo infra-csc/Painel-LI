@@ -235,3 +235,17 @@ describe("analisarPassagens", () => {
     ]);
   });
 });
+
+describe("trecho direto entre eventos (09/10 — caso Alonso)", () => {
+  it("o trecho AJU→JPA conta uma vez, no evento de DESTINO; a vaga de origem conta só a ida dela", () => {
+    const aju = passagem({ eventId: "ev-aju", eventName: "Night Run Aracaju", pessoaId: "alonso", valor: 120_000, origem: "GRU", destino: "AJU", dataIda: "2026-10-21", dataVolta: null });
+    const direto = passagem({ eventId: "ev-jpa", eventName: "Makai João Pessoa", pessoaId: "alonso", valor: 70_000, origem: "AJU", destino: "JPA", dataIda: "2026-10-25", trechoDireto: true });
+    const r = analisarPassagens([aju, direto], []);
+    expect(r.totais).toMatchObject({ passagens: 2, totalPassagem: 190_000, trechosDiretos: 1 });
+    const jpa = r.porEvento.find((e) => e.eventId === "ev-jpa")!;
+    const ajuEv = r.porEvento.find((e) => e.eventId === "ev-aju")!;
+    expect(jpa).toMatchObject({ passagens: 1, totalPassagem: 70_000, pessoas: 1 });
+    expect(ajuEv).toMatchObject({ passagens: 1, totalPassagem: 120_000, pessoas: 1 });
+    expect(r.porRota.map((x) => x.nome)).toContain("AJU → JPA");
+  });
+});

@@ -22,7 +22,17 @@ beforeAll(async () => {
   ctx = await criarApp();
 });
 
+/**
+ * Datas de 2091 isolam o cenário do resto do banco — mas, desde 09/10, o POST
+ * de passagem recusa ano além de hoje + 2 (shared/janela-de-viagem). Passagens com
+ * data em 209x entram direto no banco; o resto continua passando pela rota.
+ */
 async function registrar(agent: TestAgent, vagaId: string, dados: Record<string, unknown>) {
+  const temAnoDistante = Object.values(dados).some((v) => typeof v === "string" && /^209\d-/.test(v));
+  if (temAnoDistante) {
+    const [linha] = await ctx.db.insert(ctx.schema.tickets).values({ teamInclusionId: vagaId, transportType: "aereo", ...dados } as typeof ctx.schema.tickets.$inferInsert).returning();
+    return { id: linha.id };
+  }
   const res = await mutacao(agent.post("/api/tickets")).send({ teamInclusionId: vagaId, transportType: "aereo", ...dados });
   expect(res.status).toBe(200);
   return res.body as { id: string };

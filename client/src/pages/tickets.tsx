@@ -40,6 +40,9 @@ import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
 import VoucherLoteDialog from "@/components/tickets/voucher-lote-dialog";
 import TicketsTable from "@/components/tickets/tickets-table";
 import TicketModal from "@/components/tickets/ticket-modal";
+import { useSinaisDeViagem, passaNoRecorteDeConflito, recorteDaUrl, type RecorteDeConflito } from "@/components/tickets/use-sinais-de-viagem";
+import type { BloqueioDeViagem } from "@/components/tickets/trecho-direto-campo";
+import { apiErrorStatus } from "@/lib/api-error";
 import {
   DiscardChangesDialog, ChronologyWarningsDialog, BatchConfirmDialog, BatchResultDialog,
 } from "@/components/tickets/ticket-dialogs";
@@ -76,17 +79,25 @@ export default function Tickets() {
   // Lista — voltar às Análises devolve o que estava.
   const [visaoAnalise, setVisaoAnalise] = useState<VisaoDaAnalise>(() => visaoDaUrl(typeof window !== "undefined" ? window.location.search : search));
 
+  // Recorte da Pendências (09/10): ?conflito=viagem (viagens que se cruzam) ou
+  // ?conflito=data (passagem com data impossível). Fica fora de TicketFilters:
+  // depende do cálculo do servidor, não de um campo da vaga.
+  const [conflito, setConflito] = useState<RecorteDeConflito | null>(() => recorteDaUrl(typeof window !== "undefined" ? window.location.search : search));
+
   // Persiste filtros (e a aba) na URL (replace — não polui o histórico).
   useEffect(() => {
-    const qs = comAba(searchFromFilters(filters, showOnlyPendingSwaps), aba, visaoAnalise);
+    const base = comAba(searchFromFilters(filters, showOnlyPendingSwaps), aba, visaoAnalise);
+    const qs = conflito ? [base, `conflito=${conflito}`].filter(Boolean).join("&") : base;
     const current = (typeof window !== "undefined" ? window.location.search : "").replace(/^\?/, "");
     if (qs !== current) setLocation(`${location}${qs ? `?${qs}` : ""}`, { replace: true });
-  }, [filters, showOnlyPendingSwaps, aba, visaoAnalise]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters, showOnlyPendingSwaps, aba, visaoAnalise, conflito]); // eslint-disable-line react-hooks/exhaustive-deps
   // URL mudou por fora (link do menu, voltar do navegador): re-sincroniza o estado.
   useEffect(() => {
     const fromUrl = filtersFromSearch(search);
     if (JSON.stringify(fromUrl.filters) !== JSON.stringify(filters)) setFilters(fromUrl.filters);
     if (fromUrl.swaps !== showOnlyPendingSwaps) setShowOnlyPendingSwaps(fromUrl.swaps);
+    const conflitoNaUrl = recorteDaUrl(search);
+    if (conflitoNaUrl !== conflito) setConflito(conflitoNaUrl);
     const abaNaUrl = abaDaUrl(search);
     if (abaNaUrl !== abaEscolhida) setAba(abaNaUrl);
     // Só a URL das Análises carrega a visão; a da Lista não a apaga.
@@ -136,6 +147,17 @@ export default function Tickets() {
   } = data;
   // Espelha POST/PATCH /api/tickets (admin, production, purchasing) — mesma flag do modal.
   const canEdit = hasPermission(user, "canRegisterTickets");
+
+  // Sinais de viagem (09/10): cruza outra viagem, data impossível, trecho
+  // direto. Calculados no servidor sobre TODAS as vagas do colaborador.
+  const sinais = useSinaisDeViagem(canEdit);
+  const linhasDoRecorte = useMemo(
+    () => (conflito ? filteredTicketInclusions.filter((i) => passaNoRecorteDeConflito(sinais.porVaga[i.id], conflito)) : undefined),
+    [conflito, filteredTicketInclusions, sinais.porVaga],
+  );
+  const nomeDoEvento = useCallback((id: string) => eventById.get(id)?.name ?? null, [eventById]);
+  // 409 "viagem_cruzada" do último envio do modal — mostrado no formulário.
+  const [bloqueioDeViagem, setBloqueioDeViagem] = useState<BloqueioDeViagem | null>(null);
 
   /**
    * Qual bloco da fila está aceso. Deriva dos filtros que a tela já tinha —
@@ -203,12 +225,14 @@ export default function Tickets() {
    * esperam compra — a informação que fazia a pessoa somar os cartões.
    */
   const resumoTopo = (() => {
-    const n = filteredTicketInclusions.length;
+    // Recorte da Pendências (09/10): o resumo fala das linhas que estão na tela.
+    const linhas = linhasDoRecorte ?? filteredTicketInclusions;
+    const n = linhas.length;
     if (n === 0) return "nenhuma vaga neste recorte";
-    const nEventos = new Set(filteredTicketInclusions.map(i => i.eventId)).size;
+    const nEventos = new Set(linhas.map(i => i.eventId)).size;
     return [
       `${n} ${n === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
-      kpis.aguardando > 0 ? `${kpis.aguardando} aguardando compra` : null,
+      !linhasDoRecorte && kpis.aguardando > 0 ? `${kpis.aguardando} aguardando compra` : null,
     ].filter(Boolean).join(" · ");
   })();
 
@@ -219,7 +243,7 @@ export default function Tickets() {
     });
   };
 
-  const { upsertTicketForInclusion, isSubmitting, batchRunning } = useTicketUpsert({
+  const { upsertTicketForInclusion, isSubmitting, batchRunning, silenciarViagemCruzada } = useTicketUpsert({
     getTicket, accommodationByInclusion, onTicketUpdated: () => setEditingTicketId(null),
   });
 
@@ -235,6 +259,8 @@ export default function Tickets() {
       });
     },
     onPatch: (scope, patch) => {
+      // Mexeu no encadeamento ou na ida: o bloqueio de viagem do envio anterior não vale mais.
+      if ("idaVemDeInclusionId" in patch || "actualDepartureDate" in patch || "actualReturnDate" in patch) setBloqueioDeViagem(null);
       setTicketData(prev => ({ ...prev, [scope]: { ...prev[scope], ...patch } }));
       setFieldErrors(prev => {
         if (!prev[scope]) return prev;
@@ -309,6 +335,7 @@ export default function Tickets() {
   // referência estável, TODAS as linhas repintavam a cada tecla digitada.
   const openModal = useCallback((inclusion: TeamInclusion) => {
     setSelectedInclusion(inclusion);
+    setBloqueioDeViagem(null);
     setShowModal(true);
     setModalActiveTab("resumo");
     const eventLocation = eventById.get(inclusion.eventId)?.location;
@@ -329,6 +356,22 @@ export default function Tickets() {
       },
     }));
   }, [eventById, data.collaboratorById]);
+
+  /**
+   * "Registrar trecho direto" (09/10): abre o modal na aba Dados já com a ida
+   * encadeada à vaga anterior do colaborador e a origem na cidade de lá.
+   */
+  const abrirTrechoDireto = useCallback((inclusion: TeamInclusion, anteriorId: string) => {
+    openModal(inclusion);
+    const cidade = sinais.porVaga[inclusion.id]?.podeIrDiretoDe?.inclusionId === anteriorId
+      ? sinais.porVaga[inclusion.id]?.podeIrDiretoDe?.cidade
+      : sinais.porVaga[inclusion.id]?.vizinhasAnteriores?.find((v) => v.inclusionId === anteriorId)?.cidade;
+    setTicketData((prev) => ({
+      ...prev,
+      [inclusion.id]: { ...prev[inclusion.id], idaVemDeInclusionId: anteriorId, isReturnOnly: false, ...(cidade ? { departureCityOrigin: cidade } : {}) },
+    }));
+    setModalActiveTab("dados");
+  }, [openModal, sinais.porVaga]);
 
   // ── Alterações aprovadas para remarcar (07/10) ──
   // O aviso pode ser de uma prova fora do recorte de evento atual (a lista e
@@ -403,6 +446,8 @@ export default function Tickets() {
     const form = ticketData[inc.id] || {};
     const isEditing = !!editingTicketId;
     validateTicketForm(inc.id, form, { scheduleStartDate: inc.scheduleStartDate, scheduleEndDate: inc.scheduleEndDate }, async () => {
+      setBloqueioDeViagem(null);
+      silenciarViagemCruzada.current = true;
       try {
         const mode = await upsertTicketForInclusion(inc, form);
         toastSucessoDaVaga((isEditing || mode === "updated") ? "Passagem atualizada" : "Passagem registrada", {
@@ -414,7 +459,22 @@ export default function Tickets() {
         setEditSnapshot(null);
         setShowModal(false);
         aposSucesso(inc.id);
-      } catch { /* erro já exibido pelo toast da mutation */ }
+      } catch (erro) {
+        // O resto já saiu no toast da mutation. Aqui só o que pede o formulário:
+        // viagem cruzada (409) vira o aviso com a saída no topo da aba Dados;
+        // data recusada pelo servidor (400 com `errors`) vai para o campo.
+        const corpo = (erro as { body?: { code?: string; message?: string; conflito?: BloqueioDeViagem["conflito"]; errors?: Record<string, string> } } | null)?.body;
+        if (apiErrorStatus(erro) === 409 && corpo?.code === "viagem_cruzada") {
+          setBloqueioDeViagem({ message: corpo.message ?? "A viagem cruza outra viagem do colaborador.", conflito: corpo.conflito ?? null });
+          setModalActiveTab("dados");
+          setTimeout(() => document.querySelector(`[data-testid="bloqueio-viagem-${inc.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+        } else if (apiErrorStatus(erro) === 400 && corpo?.errors) {
+          setFieldErrors((prev) => ({ ...prev, [inc.id]: { ...prev[inc.id], ...corpo.errors } }));
+          revealFirstError(inc.id);
+        }
+      } finally {
+        silenciarViagemCruzada.current = false;
+      }
     });
   };
 
@@ -618,8 +678,8 @@ export default function Tickets() {
   }
 
   /** Algum recorte ligado (filtros da barra ou o de trocas da fila)? */
-  const temFiltro = showOnlyPendingSwaps || JSON.stringify(filters) !== JSON.stringify(DEFAULT_TICKET_FILTERS);
-  const limparFiltros = () => { setFilters(DEFAULT_TICKET_FILTERS); setShowOnlyPendingSwaps(false); };
+  const temFiltro = !!conflito || showOnlyPendingSwaps || JSON.stringify(filters) !== JSON.stringify(DEFAULT_TICKET_FILTERS);
+  const limparFiltros = () => { setFilters(DEFAULT_TICKET_FILTERS); setShowOnlyPendingSwaps(false); setConflito(null); };
   const nSel = effectiveSelectedTickets.length;
   /** Abre o painel de lote e leva a pessoa até ele (a seleção costuma estar lá embaixo). */
   const abrirLote = () => {
@@ -722,6 +782,29 @@ export default function Tickets() {
           recorteDeFora={showOnlyPendingSwaps}
         />
 
+        {/* Recorte vindo da Pendências (09/10): diz o que está aplicado e dá a saída. */}
+        {conflito && (
+          <div className="pas-entra flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-danger/25 bg-danger-soft/50 px-4 py-2.5" role="status" data-testid="recorte-conflito">
+            <p className="m-0 min-w-0 flex-1 text-sm text-foreground">
+              <span className="font-semibold">{conflito === "viagem" ? "Viagens que se cruzam" : "Passagens com data impossível"}</span>
+              <span className="text-slate-600">
+                {" · "}{sinais.carregando ? "conferindo…" : `${linhasDoRecorte?.length ?? 0} ${(linhasDoRecorte?.length ?? 0) === 1 ? "vaga" : "vagas"}`}
+                {conflito === "viagem"
+                  ? " — encadeie como trecho direto (quando a pessoa vai de um evento para o outro) ou corrija as datas. Nada é alterado sozinho."
+                  : " — corrija na passagem (volta antes da ida ou ano errado). Nada é alterado sozinho."}
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setConflito(null)}
+              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid="limpar-recorte-conflito"
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />Mostrar todas
+            </button>
+          </div>
+        )}
+
         {/* `overflow-clip` (07/10): `hidden` prendia o cabeçalho grudado da tabela. */}
         <div className="bg-card rounded-xl border border-border overflow-clip">
           <TicketsTable
@@ -741,6 +824,13 @@ export default function Tickets() {
             temFiltro={temFiltro}
             onLimparFiltros={limparFiltros}
             total={ticketInclusions.length}
+            sinais={sinais.porVaga}
+            linhas={linhasDoRecorte}
+            vazioDoRecorte={conflito ? (conflito === "viagem"
+              ? { titulo: "Nenhuma viagem se cruza", texto: "Nenhuma vaga deste recorte tem viagem cruzando outra do mesmo colaborador sem trecho direto." }
+              : { titulo: "Nenhuma data impossível", texto: "Nenhuma passagem deste recorte tem volta antes da ida ou ano fora do esperado." }) : null}
+            nomeDoEvento={nomeDoEvento}
+            onTrechoDireto={canEdit ? abrirTrechoDireto : undefined}
           />
         </div>
 
@@ -820,6 +910,8 @@ export default function Tickets() {
         onCancelEdit={requestCancelEdit}
         onSubmit={submitModal}
         isSubmitting={isSubmitting}
+        sinal={selectedInclusion ? sinais.porVaga[selectedInclusion.id] : undefined}
+        bloqueioDeViagem={bloqueioDeViagem}
       />
 
       <DiscardChangesDialog

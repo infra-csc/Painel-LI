@@ -53,6 +53,21 @@ export const TRANSPORT_MODE_LABELS: Record<TransportMode, string> = {
   transfer: "Transfer",
 };
 
+/**
+ * Pernas da viagem sugerida (09/10 — Compras: "hoje não existe na sugestão uma
+ * opção de passagem somente de ida"). Coluna `team_inclusions.trechos_sugeridos`;
+ * null = ida e volta (o de sempre). A perna que falta pode ser o trecho direto
+ * de/para outro evento (`idaVemDoEventoId` / `voltaSegueParaEventoId`).
+ * "Precisa de passagem" continua valendo: a passagem só de ida ainda é comprada.
+ */
+export const TRECHOS_SUGERIDOS = ["ida_e_volta", "so_ida", "so_volta"] as const;
+export type TrechosSugeridos = (typeof TRECHOS_SUGERIDOS)[number];
+export const TRECHOS_SUGERIDOS_LABELS: Record<TrechosSugeridos, string> = {
+  ida_e_volta: "Ida e volta",
+  so_ida: "Só ida",
+  so_volta: "Só volta",
+};
+
 export const CHANGE_REQUEST_TYPES = ["ajuste", "inclusao", "exclusao"] as const;
 export type ChangeRequestType = (typeof CHANGE_REQUEST_TYPES)[number];
 export const CHANGE_REQUEST_TYPE_LABELS: Record<ChangeRequestType, string> = {
@@ -366,6 +381,10 @@ export const proposedChangesSchema = z.object({
   flightReturnSuggestedTime: horarioSugeridoSchema.nullable().optional(),
   transportModeIda: transportMode.nullable().optional(),
   transportModeVolta: transportMode.nullable().optional(),
+  // Trecho direto / uma perna (09/10) — ver TRECHOS_SUGERIDOS.
+  trechosSugeridos: z.enum(TRECHOS_SUGERIDOS).nullable().optional(),
+  idaVemDoEventoId: z.string().trim().min(1).max(64).nullable().optional(),
+  voltaSegueParaEventoId: z.string().trim().min(1).max(64).nullable().optional(),
   needsTicket: z.boolean().optional(),
   needsAccommodation: z.boolean().optional(),
   quantity: z.number().int("Quantidade deve ser um número inteiro").min(1, "Quantidade mínima é 1").max(50, "Quantidade máxima é 50 vagas por pedido").optional(),
@@ -388,6 +407,9 @@ export const PROPOSED_FIELD_LABELS: Record<Exclude<keyof ProposedChanges, "v" | 
   flightReturnSuggestedTime: "Volta · sair após",
   transportModeIda: "Ida · transporte",
   transportModeVolta: "Volta · transporte",
+  trechosSugeridos: "Trechos da viagem",
+  idaVemDoEventoId: "Ida · vem direto de",
+  voltaSegueParaEventoId: "Volta · segue direto para",
   needsTicket: "Precisa de passagem",
   needsAccommodation: "Precisa de hospedagem",
   observations: "Observações",
@@ -470,6 +492,9 @@ export type InclusionForDiff = Partial<{
   flightReturnSuggestedTime: string | null;
   transportModeIda: string | null;
   transportModeVolta: string | null;
+  trechosSugeridos: string | null;
+  idaVemDoEventoId: string | null;
+  voltaSegueParaEventoId: string | null;
   needsTicket: boolean | null;
   needsAccommodation: boolean | null;
   observations: string | null;
@@ -491,6 +516,9 @@ function normalize(field: ProposedField, v: unknown): unknown {
     case "needsTicket":
     case "needsAccommodation":
       return Boolean(v);
+    // "ida e volta" é o padrão: gravado como null ou por extenso, é a mesma viagem.
+    case "trechosSugeridos":
+      return v === undefined || v === null || v === "" || v === "ida_e_volta" ? null : v;
     case "dailyRates":
       return v === null || v === undefined ? null : Number(v);
     default:

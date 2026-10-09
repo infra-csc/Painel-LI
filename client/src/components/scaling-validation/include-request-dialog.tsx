@@ -96,6 +96,10 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
       ...(travel.flightArrivalSuggestedTime ? { flightArrivalSuggestedTime: travel.flightArrivalSuggestedTime } : {}),
       ...(travel.flightReturnDate ? { flightReturnDate: travel.flightReturnDate } : {}),
       ...(travel.flightReturnSuggestedTime ? { flightReturnSuggestedTime: travel.flightReturnSuggestedTime } : {}),
+      // Só ida / só volta / trecho direto (09/10).
+      ...(travel.trechosSugeridos ? { trechosSugeridos: travel.trechosSugeridos } : {}),
+      ...(travel.idaVemDoEventoId ? { idaVemDoEventoId: travel.idaVemDoEventoId } : {}),
+      ...(travel.voltaSegueParaEventoId ? { voltaSegueParaEventoId: travel.voltaSegueParaEventoId } : {}),
       ...(observations.trim() ? { observations: observations.trim() } : {}),
     };
     mutation.mutate({
@@ -169,7 +173,7 @@ export function IncludeRequestDialog({ open, onOpenChange, event, functions, onS
             <Passo n={3} id="inc-passo-3" dica={DICA_VIAGEM}>Viagem — ida e volta (não é diária)</Passo>
             <div className={cn(error?.campo === "travel" && BLOCO_INVALIDO)} aria-describedby={error?.campo === "travel" ? "inc-erro" : undefined}>
               <TravelFields idPrefix="inc" value={travel} workDays={workDays} disabled={mutation.isPending}
-                eventStartDate={event?.startDate} eventEndDate={event?.endDate}
+                eventStartDate={event?.startDate} eventEndDate={event?.endDate} eventId={event?.id}
                 onChange={(p) => { setTravel((t) => ({ ...t, ...p })); if (error?.campo === "travel") setError(null); }} />
             </div>
           </section>

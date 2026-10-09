@@ -176,6 +176,30 @@ const PASSOS: Passo[] = [
       PRIMARY KEY (event_id, user_id)
     )`,
   },
+  // 09/10 — trecho direto entre eventos e viagem de uma perna (caso Alonso:
+  // Aracaju → João Pessoa). O `select` explícito do storage lista as colunas
+  // da vaga e o GET de passagens lê todas as de tickets: sem elas, as duas
+  // listagens caem. Nulas e aditivas — seguras em prod.
+  {
+    descricao: "team_inclusions.trechos_sugeridos (só ida / só volta sugerida)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS trechos_sugeridos text`,
+  },
+  {
+    descricao: "team_inclusions.ida_vem_do_evento_id (ida direto de outro evento)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS ida_vem_do_evento_id varchar`,
+  },
+  {
+    descricao: "team_inclusions.volta_segue_para_evento_id (sem volta: segue para outro evento)",
+    sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS volta_segue_para_evento_id varchar`,
+  },
+  {
+    descricao: "tickets.ida_vem_de_inclusion_id (trecho direto confirmado por Compras)",
+    sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ida_vem_de_inclusion_id varchar`,
+  },
+  {
+    descricao: "scaling_change_requests.grupo_id (pedido de ajuste em par)",
+    sql: `ALTER TABLE scaling_change_requests ADD COLUMN IF NOT EXISTS grupo_id varchar`,
+  },
   {
     descricao: "team_inclusions.validation_note (observação de quem validou a vaga)",
     sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS validation_note text`,

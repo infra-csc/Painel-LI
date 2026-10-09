@@ -5,6 +5,7 @@
 import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { TeamInclusion, InsertTeamInclusion } from "@shared/schema";
+import type { TrechosSugeridos } from "@shared/scaling-validation-rules";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
@@ -125,6 +126,10 @@ export function useEditInclusion(inclusionById: Map<string, TeamInclusion>) {
       flightArrivalSuggestedTime: formData.get('chegada') as string || null,
       flightReturnDate: formData.get('retorno') as string || null,
       flightReturnSuggestedTime: formData.get('horarioRetorno') as string || null,
+      // Só ida / só volta / trecho direto (09/10) — o servidor normaliza o resto.
+      trechosSugeridos: ((formData.get('trechosSugeridos') as string) || null) as TrechosSugeridos | null,
+      idaVemDoEventoId: (formData.get('idaVemDoEventoId') as string) || null,
+      voltaSegueParaEventoId: (formData.get('voltaSegueParaEventoId') as string) || null,
       collaboratorId: editingInclusion.collaboratorId,
       eventId: editingInclusion.eventId,
       area: editingInclusion.area,

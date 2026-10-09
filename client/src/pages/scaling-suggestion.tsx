@@ -40,6 +40,7 @@ import {
   AcessoNegadoSugestao, ErroAoCarregar, EsqueletoDaSugestao, LeituraSemGrade, PeriodoInvalido, ProximosPassos, SemEvento,
 } from "@/components/scaling-validation/suggestion-page/suggestion-empty-state";
 import { SendBar } from "@/components/scaling-validation/suggestion-page/send-bar";
+import { eventosParaTrecho as eventosDoTrecho } from "@/components/scaling-validation/trechos-da-perna";
 import { AddFunctionDialog } from "@/components/scaling-validation/suggestion-page/add-function-dialog";
 import { PasteDialog } from "@/components/scaling-validation/suggestion-page/paste-dialog";
 import { SuggestionConfirmDialogs } from "@/components/scaling-validation/suggestion-page/suggestion-confirm-dialogs";
@@ -102,6 +103,8 @@ export default function ScalingSuggestionPage() {
   // cabeçalho da grade e o "Período do evento" do resumo (já aplicado = discreto).
   const eventStart = selectedEvent?.startDate ? String(selectedEvent.startDate).slice(0, 10) : "";
   const eventEnd = selectedEvent?.endDate ? String(selectedEvent.endDate).slice(0, 10) : "";
+  // "Vem direto de / segue direto para" (09/10): os outros eventos, do mais próximo ao mais longe.
+  const eventosParaTrecho = useMemo(() => eventosDoTrecho(activeEvents, selectedEvent), [activeEvents, selectedEvent]);
   const isEventPeriod = !!eventStart && draft.applied.start === eventStart && draft.applied.end === eventEnd;
   const gridHasMargin = !!eventStart && dates.some((d) => d < eventStart || d > eventEnd);
 
@@ -237,6 +240,7 @@ export default function ScalingSuggestionPage() {
                       openRowId={send.openRowId} onOpenRowChange={send.setOpenRowId}
                       vagasTotal={records.length}
                       eventStart={eventStart} eventEnd={eventEnd}
+                      eventosParaTrecho={eventosParaTrecho}
                     />
                   </div>
                 )}

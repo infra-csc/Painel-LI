@@ -78,6 +78,9 @@ export function ProposedList({ proposed, className, semQuantidade = false }: { p
  * a pessoa trabalha. Reaproveita o mesmo rascunho que o formulário de reajuste
  * usa, então a lista é exatamente o que o servidor conhece da vaga.
  */
+/** Campos que só entram no resumo da vaga quando preenchidos (09/10). */
+const SO_QUANDO_TEM = new Set<ProposedField>(["idaVemDoEventoId", "voltaSegueParaEventoId", "trechosSugeridos"]);
+
 export function VagaCompleta({ inclusion, falhou, className }: { inclusion: TeamInclusion | null | undefined; falhou?: boolean; className?: string }) {
   // A vaga pode vir por uma busca separada (pedido de ajuste sobre vaga já
   // escalada); se essa busca falhar, "Carregando…" para sempre esconderia o
@@ -113,9 +116,9 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
   };
   const blocos: { titulo: string; campos: [ProposedField, string][] }[] = [
     { titulo: "Trabalho", campos: [["workDays", "Dias"], ["dailyRates", "Diárias"]] },
-    { titulo: "Ida", campos: [["flightDepartureDate", "Data"], ["flightArrivalSuggestedTime", "Chegar até"], ["flightDepartureSuggestedTime", "Saída sugerida"], ["transportModeIda", "Transporte"]] },
-    { titulo: "Volta", campos: [["flightReturnDate", "Data"], ["flightReturnSuggestedTime", "Sair após"], ["transportModeVolta", "Transporte"]] },
-    { titulo: "Logística", campos: [["needsTicket", "Passagem"], ["needsAccommodation", "Hospedagem"]] },
+    { titulo: "Ida", campos: [["flightDepartureDate", "Data"], ["flightArrivalSuggestedTime", "Chegar até"], ["flightDepartureSuggestedTime", "Saída sugerida"], ["transportModeIda", "Transporte"], ["idaVemDoEventoId", "Vem direto de"]] },
+    { titulo: "Volta", campos: [["flightReturnDate", "Data"], ["flightReturnSuggestedTime", "Sair após"], ["transportModeVolta", "Transporte"], ["voltaSegueParaEventoId", "Segue direto para"]] },
+    { titulo: "Logística", campos: [["needsTicket", "Passagem"], ["needsAccommodation", "Hospedagem"], ["trechosSugeridos", "Trechos"]] },
   ];
   const obs = String(completa.observations ?? "").trim();
   return (
@@ -125,7 +128,8 @@ export function VagaCompleta({ inclusion, falhou, className }: { inclusion: Team
           <section key={bl.titulo} className="min-w-0 bg-card px-3 py-2.5" aria-label={bl.titulo}>
             <p className="mb-1.5 text-xs font-semibold text-foreground">{bl.titulo}</p>
             <dl className="space-y-1.5">
-              {bl.campos.map(([f, rotulo]) => (
+              {/* Trecho direto / uma perna (09/10): só aparece quando a vaga tem. */}
+              {bl.campos.filter(([f]) => !SO_QUANDO_TEM.has(f) || !!completa[f]).map(([f, rotulo]) => (
                 <div key={f} className="min-w-0">
                   <dt className="text-2xs text-muted-foreground">{rotulo}</dt>
                   <dd className="break-words text-[13px] font-medium leading-snug">{valor(f)}</dd>

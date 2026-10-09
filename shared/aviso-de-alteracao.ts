@@ -16,6 +16,7 @@
  * (o aviso guarda o texto — não depende de reformatar depois).
  */
 import {
+  TRECHOS_SUGERIDOS_LABELS,
   TRANSPORT_MODE_LABELS,
   type InclusionDiffEntry,
   type ProposedField,
@@ -39,6 +40,10 @@ const CAMPOS_DE_PASSAGEM: ReadonlySet<ProposedField> = new Set<ProposedField>([
   "flightReturnSuggestedTime",
   "transportModeIda",
   "transportModeVolta",
+  // Trecho direto / uma perna (09/10): cancelar a volta, remarcar a ida saindo de outro evento.
+  "trechosSugeridos",
+  "idaVemDoEventoId",
+  "voltaSegueParaEventoId",
   "needsTicket",
 ]);
 
@@ -60,7 +65,9 @@ const ddmmaaaa = (ymd: string) => {
 };
 
 /** Valor de um campo do pedido em texto para Compras ler. Vazio vira "—". */
-export function textoDoValor(campo: string, v: unknown): string {
+export function textoDoValor(campo: string, v: unknown, nomeDoEvento?: (id: string) => string | null | undefined): string {
+  // Trechos (09/10): null é "ida e volta" — o padrão, não "vazio".
+  if (campo === "trechosSugeridos") return (TRECHOS_SUGERIDOS_LABELS as Record<string, string>)[String(v ?? "ida_e_volta")] ?? String(v);
   if (v === null || v === undefined || v === "") return "—";
   if (Array.isArray(v)) return v.length ? v.map((d) => ddmm(String(d))).join(", ") : "—";
   if (typeof v === "boolean") return v ? "Sim" : "Não";
@@ -68,6 +75,7 @@ export function textoDoValor(campo: string, v: unknown): string {
   if (campo === "transportModeIda" || campo === "transportModeVolta") {
     return (TRANSPORT_MODE_LABELS as Record<string, string>)[String(v)] ?? String(v);
   }
+  if ((campo === "idaVemDoEventoId" || campo === "voltaSegueParaEventoId") && nomeDoEvento) return nomeDoEvento(String(v)) || "outro evento";
   return String(v);
 }
 
@@ -88,6 +96,8 @@ export interface AvisoMontado {
 export function montarAvisoDeAlteracao(
   diff: readonly InclusionDiffEntry[],
   vaga: { temPassagem: boolean; temHospedagem: boolean },
+  /** Nome do evento para os campos de trecho direto (o aviso guarda o texto, não o id). */
+  nomeDoEvento?: (id: string) => string | null | undefined,
 ): AvisoMontado | null {
   if (diff.length === 0) return null;
   const afetaPassagem = vaga.temPassagem && diff.some((d) => CAMPOS_DE_PASSAGEM.has(d.field));
@@ -99,8 +109,8 @@ export function montarAvisoDeAlteracao(
     mudancas: diff.map((d) => ({
       campo: d.field,
       rotulo: d.label,
-      de: textoDoValor(d.field, d.from),
-      para: textoDoValor(d.field, d.to),
+      de: textoDoValor(d.field, d.from, nomeDoEvento),
+      para: textoDoValor(d.field, d.to, nomeDoEvento),
     })),
   };
 }

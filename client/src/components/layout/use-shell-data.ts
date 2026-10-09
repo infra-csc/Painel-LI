@@ -11,6 +11,8 @@
  *     Produção), os mesmos papéis da rota; 403 vira lista vazia, sem erro;
  *   • `/api/shell/sem-passagem-30d` → escalações sem passagem com a ida nos
  *     próximos 30 dias (07/10) — SÓ admin, contado no servidor.
+ *   • `/api/shell/viagens-e-datas` → viagens que se cruzam (sem trecho direto) e
+ *     passagens com data impossível (09/10) — só admin e Compras.
  * O que não existe de forma barata e confiável NÃO vira badge (nem zero):
  *   • "vagas aguardando aprovação" exige `eventId` no GET /api/scaling-suggestions;
  *   • pendências de Financeiro/Cadastros não têm endpoint de contagem.
@@ -31,7 +33,7 @@ import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestTy
 import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "./shell-prefs";
 import { buscarAvisos, podeVerAvisos, CHAVE_AVISOS_CASCA, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 
-import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff } from "lucide-react";
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
@@ -273,6 +275,20 @@ export function useShellData() {
   });
   const semPassagem30d = veSemPassagem ? (semPassagemData?.count ?? 0) : 0;
 
+  /**
+   * Viagens que se cruzam e passagens com data impossível (09/10) — admin e
+   * Compras. Caso real: Alonso em Aracaju até 26/10 03:50 com a ida para João
+   * Pessoa no dia 25 às 21:25. Só LISTAR (dono): nada é corrigido sozinho.
+   */
+  const { data: viagensData } = useQuery<{ cruzam: number; datasImpossiveis: number }>({
+    queryKey: ["shell", "viagens-e-datas"],
+    queryFn: ({ signal }) => fetchJson<{ cruzam: number; datasImpossiveis: number }>("/api/shell/viagens-e-datas", signal),
+    enabled: isPurchasing,
+    staleTime: 60_000,
+  });
+  const viagensQueSeCruzam = isPurchasing ? (viagensData?.cruzam ?? 0) : 0;
+  const datasImpossiveis = isPurchasing ? (viagensData?.datasImpossiveis ?? 0) : 0;
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -329,6 +345,11 @@ export function useShellData() {
     // 30 dias sem passagem (só admin): leva à fila "Comprar" dos próximos 30 dias.
     entrada(semPassagem30d, "sem-passagem-30d", `${semPassagem30d} ${semPassagem30d === 1 ? "escalação" : "escalações"} sem passagem a 30 dias`, "A ida é nos próximos 30 dias e a passagem ainda não foi registrada", "Passagens", "/tickets?status=pending&periodo=30", PlaneTakeoff, AMBAR);
 
+    // Viagens que se cruzam / data impossível (09/10): levam à lista já recortada.
+    const VERMELHO = "bg-danger-soft text-danger";
+    entrada(viagensQueSeCruzam, "viagens-cruzam", `${viagensQueSeCruzam} ${viagensQueSeCruzam === 1 ? "viagem que se cruza" : "viagens que se cruzam"}`, "Mesmo colaborador em dois lugares — encadeie como trecho direto ou corrija as datas", "Passagens", "/tickets?conflito=viagem", Route, VERMELHO);
+    entrada(datasImpossiveis, "datas-impossiveis", `${datasImpossiveis} ${datasImpossiveis === 1 ? "passagem com data impossível" : "passagens com data impossível"}`, "Volta antes da ida ou ano fora do esperado", "Passagens", "/tickets?conflito=data", CalendarX2, VERMELHO);
+
     if (isPurchasing) {
       entrada(ticketSwapCount, "swap:/tickets", `${trocas(ticketSwapCount)} em Passagens`, "Compras precisa confirmar a substituição", "Passagens", "/tickets", ArrowLeftRight, AMBAR);
       entrada(accommodationSwapCount, "swap:/accommodations", `${trocas(accommodationSwapCount)} em Hospedagem`, "Compras precisa confirmar a substituição", "Hospedagem", "/accommodations", ArrowLeftRight, AMBAR);
@@ -341,7 +362,7 @@ export function useShellData() {
     entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
@@ -349,12 +370,13 @@ export function useShellData() {
 
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
   const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount
-    + avisosPassagem + avisosSoHospedagem + semPassagem30d;
+    + avisosPassagem + avisosSoHospedagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
     // + alterações aprovadas para remarcar (07/10) + sem passagem a 30 dias (só admin).
-    tickets: ticketSwapCount + avisosPassagem + semPassagem30d,
+    // + viagens que se cruzam e datas impossíveis (09/10, admin e Compras).
+    tickets: ticketSwapCount + avisosPassagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis,
     accommodations: accommodationSwapCount + avisosHospedagem,
     // Trocas + cenotécnica aguardando o gestor (15/09).
     scaling: (isPurchasing ? scalingSwapCount : myScalingSwapsCount) + aguardandoGestorCount,

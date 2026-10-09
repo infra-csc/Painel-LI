@@ -11,6 +11,14 @@ export type ChangeRequestItem = ScalingChangeRequest & {
   proposed: ProposedChanges | null;
   diff: InclusionDiffEntry[];
   canDecide: boolean;
+  /**
+   * Pedido em PAR (09/10 — "vai direto de um evento para o outro"): o outro
+   * lado, decidido junto (aprovar/negar um decide os dois; não há reajuste).
+   */
+  par?: {
+    requestId: string; status: string; teamInclusionId: string | null; inclusionNumber: number | null;
+    eventId: string; eventName: string | null; functionName: string | null; diff: InclusionDiffEntry[];
+  } | null;
 };
 
 export type RequestType = ChangeRequestType;

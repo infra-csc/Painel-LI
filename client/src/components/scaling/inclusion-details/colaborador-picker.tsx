@@ -20,6 +20,13 @@ import { avisoDeTrocaPendente } from "@/lib/swap-types";
 import { SHOW_PERCURSEIRO_TIPO_NA_ESCALACAO, brl, conflitosUnicos, type InclusionDetailsDialogProps } from "./details-shared";
 import type { InclusionDialogState } from "./use-inclusion-dialog-state";
 
+/** "AAAA-MM-DD" → "DD/MM/AAAA" sem passar por Date: new Date("2026-10-26") é meia-noite UTC e no fuso de Brasília virava o dia anterior. */
+const dataDaVaga = (v: string | Date | null | undefined): string => {
+  if (!v) return "";
+  const [a, m, d] = (v instanceof Date ? v.toISOString() : String(v)).slice(0, 10).split("-");
+  return d && m && a ? `${d}/${m}/${a}` : "";
+};
+
 export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInclusion; props: InclusionDetailsDialogProps; st: InclusionDialogState }) {
   const { modalData, setModalData, data, details, mutations, user } = props;
   const { collaborators, getEventName, getCollaboratorName, getCollaboratorCity, isAdminOrPurchasing, getCollaboratorConflicts } = data;
@@ -258,8 +265,8 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
             <div className="min-w-0 text-xs text-danger leading-snug space-y-1">
               <p className="font-semibold">Escalação bloqueada — colaborador já escalado:</p>
               {conflicts.map(inc => {
-                const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString("pt-BR") : "";
-                const endStr = inc.scheduleEndDate ? new Date(inc.scheduleEndDate).toLocaleDateString("pt-BR") : "";
+                const startStr = dataDaVaga(inc.scheduleStartDate);
+                const endStr = dataDaVaga(inc.scheduleEndDate);
                 return (
                   <p key={inc.id}>
                     <span className="font-semibold">{getEventName(inc.eventId)}</span>
@@ -292,8 +299,8 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
             <div className="min-w-0 text-xs text-warning leading-snug space-y-1">
               <p className="font-semibold">Atenção: também viaja neste mesmo dia</p>
               {mesmoDia.map(inc => {
-                const startStr = inc.scheduleStartDate ? new Date(inc.scheduleStartDate).toLocaleDateString("pt-BR") : "";
-                const endStr = inc.scheduleEndDate ? new Date(inc.scheduleEndDate).toLocaleDateString("pt-BR") : "";
+                const startStr = dataDaVaga(inc.scheduleStartDate);
+                const endStr = dataDaVaga(inc.scheduleEndDate);
                 return (
                   <p key={inc.id}>
                     <span className="font-semibold">{getEventName(inc.eventId)}</span>
@@ -302,6 +309,28 @@ export function ColaboradorPicker({ inclusion, props, st }: { inclusion: TeamInc
                 );
               })}
               <p className="text-warning">Pode escalar normalmente. Confira se os horários das passagens das duas viagens são compatíveis.</p>
+            </div>
+          </div>
+        );
+      })()}
+      {/* Viagens próximas (09/10 — caso Alonso): a escala não se cruza, a
+          viagem sim. A Escalação NÃO bloqueia por viagem: Compras decide a
+          rota e pode comprar o trecho direto de um evento para o outro. */}
+      {modalData.collaboratorId && (() => {
+        const { viagensProximas } = getCollaboratorConflicts(modalData.collaboratorId, inclusion);
+        if (!viagensProximas?.length) return null;
+        return (
+          <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2.5" data-testid="aviso-viagens-proximas">
+            <AlertCircle className="w-4 h-4 text-warning-strong shrink-0 mt-px" aria-hidden="true" />
+            <div className="min-w-0 text-xs text-warning leading-snug space-y-1">
+              <p className="font-semibold">Viagens próximas — Compras pode comprar trecho direto</p>
+              {viagensProximas.map((inc) => (
+                <p key={inc.id}>
+                  <span className="font-semibold">#{inc.inclusionNumber} · {getEventName(inc.eventId)}</span>
+                  <span> · as datas de viagem sugeridas se cruzam com esta vaga</span>
+                </p>
+              ))}
+              <p className="text-warning">Pode escalar. Se a pessoa vai direto de um evento para o outro, indique na logística da vaga — Compras confirma ao registrar a passagem.</p>
             </div>
           </div>
         );

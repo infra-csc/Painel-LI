@@ -3,7 +3,7 @@
  * tipos, linha vazia, reencaixe de período, blindagem do rascunho, decomposição
  * "1 registro por pessoa", totais e a fusão sem duplicar de linhas coladas.
  */
-import { TRANSPORT_MODES, type TransportMode } from "@shared/scaling-validation-rules";
+import { TRANSPORT_MODES, TRECHOS_SUGERIDOS, type TransportMode, type TrechosSugeridos } from "@shared/scaling-validation-rules";
 import { YMD_RE } from "./grid-dates";
 
 export const QTY_MAX = 15;
@@ -20,6 +20,14 @@ export interface SuggestionGridRow {
   transportModeVolta: TransportMode | "";
   flightReturnDate: string;
   flightReturnSuggestedTime: string; // horário de embarque da volta (HH:MM)
+  /**
+   * Só ida / só volta / trecho direto (09/10 — Compras: "hoje não existe na
+   * sugestão uma opção de passagem somente de ida"). Opcionais: rascunhos e
+   * linhas antigas não têm. "" = ida e volta; ids vazios = sem outro evento.
+   */
+  trechosSugeridos?: TrechosSugeridos | "";
+  idaVemDoEventoId?: string;
+  voltaSegueParaEventoId?: string;
   needsAccommodation: boolean;
   needsTicket: boolean;
   observations: string;
@@ -38,6 +46,9 @@ export interface SuggestionRecord {
   transportModeVolta: TransportMode | null;
   flightReturnDate: string | null;
   flightReturnSuggestedTime: string | null;
+  trechosSugeridos?: TrechosSugeridos | null;
+  idaVemDoEventoId?: string | null;
+  voltaSegueParaEventoId?: string | null;
   needsAccommodation: boolean;
   needsTicket: boolean;
   observations: string | null;
@@ -141,6 +152,10 @@ export function sanitizeDraftRow(raw: unknown): SuggestionGridRow | null {
     transportModeVolta: draftMode(r.transportModeVolta),
     flightReturnDate: draftStr(r.flightReturnDate),
     flightReturnSuggestedTime: draftStr(r.flightReturnSuggestedTime),
+    // Trecho direto / só ida (09/10): só quando o rascunho traz (linhas antigas não têm).
+    ...(typeof r.trechosSugeridos === "string" && (TRECHOS_SUGERIDOS as readonly string[]).includes(r.trechosSugeridos) ? { trechosSugeridos: r.trechosSugeridos as TrechosSugeridos } : {}),
+    ...(draftStr(r.idaVemDoEventoId) ? { idaVemDoEventoId: draftStr(r.idaVemDoEventoId) } : {}),
+    ...(draftStr(r.voltaSegueParaEventoId) ? { voltaSegueParaEventoId: draftStr(r.voltaSegueParaEventoId) } : {}),
     needsAccommodation: r.needsAccommodation === true,
     needsTicket: r.needsTicket === true,
     observations: draftStr(r.observations),
@@ -185,6 +200,10 @@ export function decomposeGridRows(rows: SuggestionGridRow[], dates: string[]): S
         transportModeVolta: row.transportModeVolta || null,
         flightReturnDate: row.flightReturnDate || null,
         flightReturnSuggestedTime: row.flightReturnSuggestedTime || null,
+        // Trecho direto / só ida (09/10): só quando a linha indica algo.
+        ...(row.trechosSugeridos ? { trechosSugeridos: row.trechosSugeridos } : {}),
+        ...(row.idaVemDoEventoId ? { idaVemDoEventoId: row.idaVemDoEventoId } : {}),
+        ...(row.voltaSegueParaEventoId ? { voltaSegueParaEventoId: row.voltaSegueParaEventoId } : {}),
         needsAccommodation: !!row.needsAccommodation,
         needsTicket: !!row.needsTicket,
         observations: row.observations.trim() || null,
@@ -256,8 +275,22 @@ export function mergePastedRows(existing: SuggestionGridRow[], pasted: Suggestio
   for (const row of existing) {
     const repl = byFunction.get(row.functionId);
     if (!repl) { out.push(row); continue; }
-    if (!placed.has(row.functionId)) { placed.add(row.functionId); out.push(...repl); }
+    // Trecho direto / só ida (09/10): a planilha não tem essas colunas — a linha
+    // colada herda a indicação da linha que ela substitui, em vez de apagá-la.
+    if (!placed.has(row.functionId)) { placed.add(row.functionId); out.push(...repl.map((p) => herdarTrechos(p, row))); }
   }
   byFunction.forEach((list, fid) => { if (!placed.has(fid)) out.push(...list); });
   return out;
+}
+
+/** A linha colada sem indicação de trechos herda a da linha substituída (09/10). */
+function herdarTrechos(colada: SuggestionGridRow, antiga: SuggestionGridRow): SuggestionGridRow {
+  if (colada.trechosSugeridos || colada.idaVemDoEventoId || colada.voltaSegueParaEventoId) return colada;
+  if (!antiga.trechosSugeridos && !antiga.idaVemDoEventoId && !antiga.voltaSegueParaEventoId) return colada;
+  return {
+    ...colada,
+    trechosSugeridos: antiga.trechosSugeridos ?? "",
+    idaVemDoEventoId: antiga.idaVemDoEventoId ?? "",
+    voltaSegueParaEventoId: antiga.voltaSegueParaEventoId ?? "",
+  };
 }

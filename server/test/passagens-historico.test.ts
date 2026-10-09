@@ -29,7 +29,7 @@ beforeAll(async () => {
 async function comprarPassagem(agent: TestAgent, vagaId: string, valorCentavos: number, loc: string) {
   const res = await mutacao(agent.post("/api/tickets")).send({
     teamInclusionId: vagaId, transportType: "aereo", value: valorCentavos, purchaseOrderNumber: loc,
-    actualDepartureDate: "2099-10-09", actualDepartureTime: "18:55",
+    actualDepartureDate: "2027-10-09", actualDepartureTime: "18:55",
   });
   expect(res.status).toBe(200);
   return res.body as { id: string };

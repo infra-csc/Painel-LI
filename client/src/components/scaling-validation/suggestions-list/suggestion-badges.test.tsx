@@ -14,7 +14,7 @@ function pedidoFake(parcial: Partial<ScalingChangeRequest> = {}): ScalingChangeR
     id: "pedido-1", teamInclusionId: "s1", eventId: "evento-1", functionId: "funcao-1", area: null,
     requestType: "exclusao", requestedBy: "u2", requestedByName: "Carlos Lima", proposedChanges: null,
     reason: "Vaga duplicada na grade", status: "pendente", reviewComment: null, reviewedBy: null, reviewedByName: null,
-    reviewedAt: null, resolvedInclusionId: null,
+    reviewedAt: null, resolvedInclusionId: null, grupoId: null,
     createdAt: new Date("2026-03-02T15:30:00"), updatedAt: new Date("2026-03-02T15:30:00"),
     ...parcial,
   };

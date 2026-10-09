@@ -41,6 +41,10 @@ export function draftFromProposed(proposed: ProposedChanges | null, base?: TeamI
   if (p.flightReturnSuggestedTime !== undefined) travel.flightReturnSuggestedTime = p.flightReturnSuggestedTime ?? "";
   if (p.needsTicket !== undefined) travel.needsTicket = !!p.needsTicket;
   if (p.needsAccommodation !== undefined) travel.needsAccommodation = !!p.needsAccommodation;
+  // Só ida / só volta / trecho direto (09/10).
+  if (p.trechosSugeridos !== undefined) travel.trechosSugeridos = p.trechosSugeridos && p.trechosSugeridos !== "ida_e_volta" ? p.trechosSugeridos : "";
+  if (p.idaVemDoEventoId !== undefined) travel.idaVemDoEventoId = p.idaVemDoEventoId ?? "";
+  if (p.voltaSegueParaEventoId !== undefined) travel.voltaSegueParaEventoId = p.voltaSegueParaEventoId ?? "";
   const dailyRates = p.dailyRates !== undefined ? p.dailyRates : (base?.dailyRates ?? days.length);
   const observations = p.observations !== undefined ? (p.observations ?? "") : (base?.observations ?? "");
   return {
@@ -65,6 +69,9 @@ export function fullFromDraft(d: ProposedDraft): ProposedChanges {
     flightReturnSuggestedTime: orNull(d.travel.flightReturnSuggestedTime),
     transportModeIda: orNull(d.travel.transportModeIda),
     transportModeVolta: orNull(d.travel.transportModeVolta),
+    trechosSugeridos: orNull(d.travel.trechosSugeridos),
+    idaVemDoEventoId: orNull(d.travel.idaVemDoEventoId),
+    voltaSegueParaEventoId: orNull(d.travel.voltaSegueParaEventoId),
     needsTicket: d.travel.needsTicket,
     needsAccommodation: d.travel.needsAccommodation,
     observations: d.observations.trim() === "" ? null : d.observations.trim(),

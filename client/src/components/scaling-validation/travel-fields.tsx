@@ -3,13 +3,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { TRANSPORT_MODES, type TransportMode } from "@shared/scaling-validation-rules";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { TRANSPORT_MODES, TRECHOS_SUGERIDOS, type TransportMode, type TrechosSugeridos } from "@shared/scaling-validation-rules";
+import type { Event } from "@shared/schema";
 import type { TeamInclusion } from "@shared/schema";
 import { DayLabel, SECTION_TITLE } from "./logistics-chips";
 import { ModeSelect } from "./mode-select";
 import { addDaysYmd } from "./scaling-grid-utils";
 import { ymd } from "./types";
 import { avisosDeViagem } from "./travel-warnings";
+import { TrechoDaPerna, eventosParaTrecho, modoDaIda, modoDaVolta, type PatchDeTrechos } from "./trechos-da-perna";
 
 /** Campos de viagem/logística editáveis nos pedidos (ajuste e inclusão). */
 export interface TravelDraft {
@@ -22,6 +26,10 @@ export interface TravelDraft {
   flightReturnSuggestedTime: string;
   needsAccommodation: boolean;
   needsTicket: boolean;
+  /** Só ida / só volta / trecho direto (09/10). "" = ida e volta; ids vazios = sem outro evento. */
+  trechosSugeridos: TrechosSugeridos | "";
+  idaVemDoEventoId: string;
+  voltaSegueParaEventoId: string;
 }
 
 export const EMPTY_TRAVEL: TravelDraft = {
@@ -34,6 +42,9 @@ export const EMPTY_TRAVEL: TravelDraft = {
   flightReturnSuggestedTime: "",
   needsAccommodation: false,
   needsTicket: false,
+  trechosSugeridos: "",
+  idaVemDoEventoId: "",
+  voltaSegueParaEventoId: "",
 };
 
 const asMode = (v: string | null | undefined): TransportMode | "" =>
@@ -51,6 +62,9 @@ export function travelFromInclusion(i: TeamInclusion): TravelDraft {
     flightReturnSuggestedTime: i.flightReturnSuggestedTime ?? "",
     needsAccommodation: !!i.needsAccommodation,
     needsTicket: !!i.needsTicket,
+    trechosSugeridos: (TRECHOS_SUGERIDOS as readonly string[]).includes(i.trechosSugeridos ?? "") && i.trechosSugeridos !== "ida_e_volta" ? (i.trechosSugeridos as TrechosSugeridos) : "",
+    idaVemDoEventoId: i.idaVemDoEventoId ?? "",
+    voltaSegueParaEventoId: i.voltaSegueParaEventoId ?? "",
   };
 }
 
@@ -83,6 +97,8 @@ interface TravelFieldsProps {
    */
   eventStartDate?: string;
   eventEndDate?: string;
+  /** Evento da vaga (09/10): fica fora da lista "vem direto de / segue direto para". */
+  eventId?: string;
 }
 
 /** Dias de folga em volta do evento que o calendário oferece sem briga. */
@@ -152,7 +168,13 @@ function TimeField({ id, label, value, disabled, onChange }: { id: string; label
  * pedido: um cartão só, com IDA e VOLTA espelhadas (uma embaixo da outra, mesma
  * grade) e "Precisa de" em linha própria, largura total, no rodapé do cartão.
  */
-export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, layout = "empilhado", workDays, eventStartDate, eventEndDate }: TravelFieldsProps) {
+export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, layout = "empilhado", workDays, eventStartDate, eventEndDate, eventId }: TravelFieldsProps) {
+  // Outros eventos para o trecho direto (09/10), do cache que as telas já carregam.
+  const { data: eventos } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
+  const eventosDoTrecho = useMemo(() => eventosParaTrecho(eventos, { id: eventId, startDate: eventStartDate, endDate: eventEndDate }), [eventos, eventId, eventStartDate, eventEndDate]);
+  const patchTrechos = (t: PatchDeTrechos) => onChange(t as Partial<TravelDraft>);
+  const idaNormal = modoDaIda(value) !== "sem";
+  const voltaNormal = modoDaVolta(value) === "normal";
   const emLinha = layout === "linha";
   const avisos = avisosDeViagem(value, workDays);
   // Janela do calendário nativo: evento ±7 dias (só quando a tela sabe o evento).
@@ -175,6 +197,8 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
         <legend className={GROUP_TITLE}>
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /> Ida
         </legend>
+        <TrechoDaPerna perna="ida" valor={value} eventos={eventosDoTrecho} disabled={disabled} idBase={p} onPatch={patchTrechos} />
+        {idaNormal && (
         <div className={LEG_GRID}>
           <div className="space-y-1 min-w-0">
             <FieldLabel htmlFor={`${p}-mode-ida`} text="Transporte" />
@@ -194,12 +218,15 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
           <TimeField id={`${p}-time-chegada`} label="Desembarque (chegada)" value={value.flightArrivalSuggestedTime} disabled={disabled}
             onChange={(v) => onChange({ flightArrivalSuggestedTime: v })} />
         </div>
+        )}
       </fieldset>
 
       <fieldset className={cn("min-w-0 space-y-1.5", regua)}>
         <legend className={GROUP_TITLE}>
           <ArrowDownLeft className="h-3.5 w-3.5" aria-hidden="true" /> Volta
         </legend>
+        <TrechoDaPerna perna="volta" valor={value} eventos={eventosDoTrecho} disabled={disabled} idBase={p} onPatch={patchTrechos} />
+        {voltaNormal && (
         <div className={LEG_GRID}>
           <div className="space-y-1 min-w-0">
             <FieldLabel htmlFor={`${p}-mode-volta`} text="Transporte" />
@@ -216,6 +243,7 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
           <TimeField id={`${p}-time-volta`} label="Embarque (saída)" value={value.flightReturnSuggestedTime} disabled={disabled}
             onChange={(v) => onChange({ flightReturnSuggestedTime: v })} />
         </div>
+        )}
       </fieldset>
 
       {/* Faixa própria, largura total, nos dois layouts. */}

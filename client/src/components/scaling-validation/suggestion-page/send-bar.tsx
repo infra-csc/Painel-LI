@@ -15,6 +15,8 @@ import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { cn, formatDiarias } from "@/lib/utils";
 import { formatDayMonthBr } from "@/lib/dates";
 import { TRANSPORT_MODE_LABELS } from "@shared/scaling-validation-rules";
+import { textoDaIndicacao } from "@shared/janela-de-viagem";
+import { nomeDoEventoNoCache } from "@/lib/nome-do-evento";
 import { MAX_VAGAS, plural } from "./suggestion-shared";
 import type { SuggestionSend } from "./use-suggestion-send";
 
@@ -56,7 +58,8 @@ export function SendBar({ send }: SendBarProps) {
                 {group.records.map((rec, i) => {
                   const ida = rec.transportModeIda ? `Ida ${TRANSPORT_MODE_LABELS[rec.transportModeIda]}${rec.flightDepartureDate ? ` ${formatDayMonthBr(rec.flightDepartureDate)}` : ""}${rec.flightArrivalSuggestedTime ? ` ${rec.flightArrivalSuggestedTime}` : ""}` : "";
                   const volta = rec.transportModeVolta ? `Volta ${TRANSPORT_MODE_LABELS[rec.transportModeVolta]}${rec.flightReturnDate ? ` ${formatDayMonthBr(rec.flightReturnDate)}` : ""}${rec.flightReturnSuggestedTime ? ` ${rec.flightReturnSuggestedTime}` : ""}` : "";
-                  const logistica = [ida, volta].filter(Boolean).join(" · ");
+                  // Só ida / só volta / trecho direto (09/10) também na prévia.
+                  const logistica = [ida, volta, ...textoDaIndicacao(rec, nomeDoEventoNoCache)].filter(Boolean).join(" · ");
                   return (
                     <div key={`${group.key}-${i}`} className={cn("grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 py-1.5 pl-8 pr-4 text-xs sm:grid-cols-[auto_auto_minmax(0,1fr)]", i % 2 === 1 ? "bg-surface-muted/40" : "bg-card")}>
                       <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 font-semibold text-slate-700">{formatDiarias(rec.dailyRates)}</span>

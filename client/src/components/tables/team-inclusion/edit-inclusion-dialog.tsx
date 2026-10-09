@@ -10,7 +10,10 @@
  * Os campos, os nomes no FormData e o PATCH são exatamente os de antes.
  */
 import { CalendarRange, Loader2, Pencil, Plane, Tag } from "lucide-react";
-import type { Function } from "@shared/schema";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { Event, Function, TeamInclusion } from "@shared/schema";
+import { TrechoDaPerna, eventosParaTrecho, type PatchDeTrechos, type TrechosDaLinha } from "@/components/scaling-validation/trechos-da-perna";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +26,45 @@ import { CAMPO, CabecalhoDoDialogo, CorpoDoDialogo, LABEL, RodapeDoDialogo, SECA
 import type { EditInclusion } from "./use-edit-inclusion";
 
 const ROTULO_MINI = "block mb-1 text-2xs font-medium text-muted-foreground";
+
+/**
+ * Só ida / só volta / "vem direto de / segue direto para" outro evento (09/10).
+ * O formulário é não controlado: o estado mora aqui e vai no FormData pelos
+ * campos ocultos; o servidor normaliza o resto (ex.: "segue direto" apaga a
+ * volta sugerida) com a mesma regra da Sugestão.
+ */
+function TrechosDaVagaCampos({ inclusion, onMudou }: {
+  inclusion: Pick<TeamInclusion, "id" | "eventId" | "scheduleStartDate" | "scheduleEndDate" | "trechosSugeridos" | "idaVemDoEventoId" | "voltaSegueParaEventoId">;
+  onMudou: () => void;
+}) {
+  const [v, setV] = useState<TrechosDaLinha>(() => ({
+    trechosSugeridos: inclusion.trechosSugeridos === "so_ida" || inclusion.trechosSugeridos === "so_volta" ? inclusion.trechosSugeridos : "",
+    idaVemDoEventoId: inclusion.idaVemDoEventoId ?? "",
+    voltaSegueParaEventoId: inclusion.voltaSegueParaEventoId ?? "",
+  }));
+  const { data: eventos } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
+  const lista = useMemo(
+    () => eventosParaTrecho(eventos, { id: inclusion.eventId, startDate: inclusion.scheduleStartDate, endDate: inclusion.scheduleEndDate }),
+    [eventos, inclusion.eventId, inclusion.scheduleStartDate, inclusion.scheduleEndDate],
+  );
+  const aplicar = (p: PatchDeTrechos) => {
+    setV((prev) => ({
+      trechosSugeridos: p.trechosSugeridos !== undefined ? p.trechosSugeridos : prev.trechosSugeridos,
+      idaVemDoEventoId: p.idaVemDoEventoId !== undefined ? p.idaVemDoEventoId : prev.idaVemDoEventoId,
+      voltaSegueParaEventoId: p.voltaSegueParaEventoId !== undefined ? p.voltaSegueParaEventoId : prev.voltaSegueParaEventoId,
+    }));
+    onMudou();
+  };
+  return (
+    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="edit-trechos">
+      <TrechoDaPerna perna="ida" valor={v} eventos={lista} idBase={`edit-${inclusion.id}`} onPatch={aplicar} className="rounded-lg border border-border bg-card p-3" />
+      <TrechoDaPerna perna="volta" valor={v} eventos={lista} idBase={`edit-${inclusion.id}`} onPatch={aplicar} className="rounded-lg border border-border bg-card p-3" />
+      <input type="hidden" name="trechosSugeridos" value={v.trechosSugeridos ?? ""} />
+      <input type="hidden" name="idaVemDoEventoId" value={v.idaVemDoEventoId ?? ""} />
+      <input type="hidden" name="voltaSegueParaEventoId" value={v.voltaSegueParaEventoId ?? ""} />
+    </div>
+  );
+}
 
 /** Interruptor com rótulo e explicação — o valor vai no FormData como "true" (ou some, = false). */
 function Interruptor({ id, name, rotulo, ajuda, defaultChecked, onMudou }: {
@@ -209,6 +251,8 @@ export function EditInclusionDialog({ edit, functions, getEventName, getCollabor
                       </div>
                     </fieldset>
                   </div>
+                  {/* Só ida / só volta / trecho direto (09/10). */}
+                  <TrechosDaVagaCampos inclusion={editingInclusion} onMudou={() => setEditDirty(true)} />
                 </div>
               </section>
             </form>

@@ -96,7 +96,9 @@ import {
   type ChangeRequestStatus,
   type LastDecisionInfo,
   type LastVagaDecisionInfo,
-  type VagaDecisionResult, horarioSugeridoSchema } from "@shared/scaling-validation-rules";
+  type VagaDecisionResult, horarioSugeridoSchema, TRECHOS_SUGERIDOS } from "@shared/scaling-validation-rules";
+import { normalizarTrechosDaVaga, motivoParDesatualizado, CAMPOS_DE_TRECHOS_DA_VAGA } from "@shared/janela-de-viagem";
+import { randomUUID } from "crypto";
 import { changeRequestWindow, type ChangeWindow } from "@shared/scaling-change-window";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import {
@@ -168,6 +170,32 @@ function proposedToPatch(proposed: ProposedChanges): Partial<InsertTeamInclusion
   return patch as Partial<InsertTeamInclusion>;
 }
 
+
+/**
+ * Pedido que mexe em "só ida / só volta / trecho direto" (09/10): completa o
+ * pedido com o que a indicação implica (segue direto = volta vazia; só volta
+ * = ida vazia…), pela mesma regra de toda porta (normalizarTrechosDaVaga).
+ * Assim o de/para que o aprovador lê já mostra a volta sendo cancelada.
+ */
+function completarTrechosDoPedido(
+  proposed: ProposedChanges,
+  atual: Partial<Record<(typeof CAMPOS_DE_TRECHOS_DA_VAGA)[number], unknown>> | null,
+  eventId: string,
+): { proposed: ProposedChanges; erro?: string } {
+  const toca = proposed.trechosSugeridos !== undefined || proposed.idaVemDoEventoId !== undefined || proposed.voltaSegueParaEventoId !== undefined;
+  if (!toca) return { proposed };
+  const valorDe = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : v === undefined || v === "" ? null : v);
+  const base: Record<string, unknown> = {};
+  for (const c of CAMPOS_DE_TRECHOS_DA_VAGA) base[c] = (proposed as Record<string, unknown>)[c] !== undefined ? (proposed as Record<string, unknown>)[c] : valorDe(atual?.[c]);
+  const r = normalizarTrechosDaVaga(base, eventId);
+  if (r.erro) return { proposed, erro: r.erro };
+  const out: Record<string, unknown> = { ...proposed };
+  for (const c of CAMPOS_DE_TRECHOS_DA_VAGA) {
+    const novo = (r.valor as Record<string, unknown>)[c] ?? null;
+    if ((proposed as Record<string, unknown>)[c] !== undefined || novo !== (valorDe(atual?.[c]) ?? null)) out[c] = novo;
+  }
+  return { proposed: out as ProposedChanges };
+}
 
 async function getActor(req: Request, res: Response): Promise<User | null> {
   // Usuário EFETIVO (server/simulation.ts): no modo "Ver como usuário" os GETs
@@ -592,6 +620,10 @@ const suggestionRowSchema = z.object({
   needsAccommodation: z.boolean().optional().default(false),
   transportModeIda: z.enum(TRANSPORT_MODES).nullish(),
   transportModeVolta: z.enum(TRANSPORT_MODES).nullish(),
+  // Trecho direto / uma perna (09/10): só ida, só volta, de/para outro evento.
+  trechosSugeridos: z.enum(TRECHOS_SUGERIDOS).nullish(),
+  idaVemDoEventoId: z.string().trim().max(64).nullish(),
+  voltaSegueParaEventoId: z.string().trim().max(64).nullish(),
   scheduleStartDate: ymd.nullish(),
   scheduleEndDate: ymd.nullish(),
   flightDepartureDate: ymd.nullish(),
@@ -711,6 +743,20 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const func = functionsById.get(r.functionId);
         if (!func) return res.status(400).json({ message: `Linha ${idx + 1}: função não encontrada` });
         const days = sortedYmd(r.workDays);
+        // Só ida / só volta / trecho direto (09/10): a mesma normalização de toda porta.
+        const trechos = normalizarTrechosDaVaga({
+          trechosSugeridos: r.trechosSugeridos ?? null,
+          idaVemDoEventoId: r.idaVemDoEventoId ?? null,
+          voltaSegueParaEventoId: r.voltaSegueParaEventoId ?? null,
+          transportModeIda: r.transportModeIda ?? null,
+          flightDepartureDate: r.flightDepartureDate ?? null,
+          flightDepartureSuggestedTime: r.flightDepartureSuggestedTime ?? null,
+          flightArrivalSuggestedTime: r.flightArrivalSuggestedTime ?? null,
+          transportModeVolta: r.transportModeVolta ?? null,
+          flightReturnDate: r.flightReturnDate ?? null,
+          flightReturnSuggestedTime: r.flightReturnSuggestedTime ?? null,
+        }, eventId);
+        if (trechos.erro) return res.status(400).json({ message: `Linha ${idx + 1}: ${trechos.erro}` });
         const candidate = {
           eventId,
           functionId: r.functionId,
@@ -724,13 +770,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           scheduleEndDate: r.scheduleEndDate ?? (days[days.length - 1] ?? null),
           needsTicket: r.needsTicket,
           needsAccommodation: r.needsAccommodation,
-          transportModeIda: r.transportModeIda ?? null,
-          transportModeVolta: r.transportModeVolta ?? null,
-          flightDepartureDate: r.flightDepartureDate ?? null,
-          flightDepartureSuggestedTime: r.flightDepartureSuggestedTime ?? null,
-          flightArrivalSuggestedTime: r.flightArrivalSuggestedTime ?? null,
-          flightReturnDate: r.flightReturnDate ?? null,
-          flightReturnSuggestedTime: r.flightReturnSuggestedTime ?? null,
+          ...trechos.valor,
           city: r.city ?? null,
           observations: r.observations ?? null,
           rowOrder: idx,
@@ -1347,6 +1387,14 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         if (pending) return res.status(409).json({ message: "Já existe um pedido pendente para esta vaga" });
       }
 
+      // Só ida / só volta / trecho direto (09/10): o pedido leva o que a
+      // indicação implica (ex.: "segue direto" cancela a volta sugerida).
+      if (body.requestType !== "exclusao") {
+        const completo = completarTrechosDoPedido(proposed, inclusion ?? null, body.eventId);
+        if (completo.erro) return res.status(400).json({ message: completo.erro });
+        proposed = completo.proposed;
+      }
+
       // Transição da vaga ANTES de gravar o pedido: se for inválida, nada é gravado.
       // Vaga JÁ ESCALADA não transiciona: a pessoa continua escalada, com
       // passagem e hospedagem de pé, enquanto o aprovador não decide. O pedido
@@ -1397,6 +1445,172 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       sendError(res, error, "erro ao criar pedido", "Erro ao criar pedido");
     }
   });
+
+  /**
+   * Quem pode abrir pedido de ajuste sobre esta vaga JÁ ESCALADA — as mesmas
+   * regras do POST avulso acima (validador, responsáveis da função na
+   * Escalação, admin; janela do pedido; sem pedido pendente; evento aberto).
+   * Usado pelo pedido em par (09/10).
+   */
+  async function podePedirAjusteEscalado(actor: User, inclusion: TeamInclusion): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+    const admin = isAdmin(actor);
+    const role = await roleFor(inclusion.functionId, actor.id);
+    const validador = canValidateInclusion(role, admin);
+    const pede = validador || podePedirAjusteNaEscalacao(role, admin, await storage.isUserFunctionManager(inclusion.functionId, actor.id));
+    const numero = `#${inclusion.inclusionNumber}`;
+    if (!pede) return { ok: false, status: 403, message: `Você não pode pedir ajuste na vaga ${numero}: o pedido é dos responsáveis da função, do validador ou do administrador.` };
+    if (isSuggestionInclusion(inclusion)) return { ok: false, status: 400, message: `A vaga ${numero} ainda está na Validação de Escala — ajuste por lá.` };
+    const win = changeRequestWindow(inclusion, { isAdmin: admin, tickets: await storage.getTicketsByInclusionId(inclusion.id) });
+    if (!win.allowed) return { ok: false, status: 403, message: `Vaga ${numero}: ${win.message}` };
+    if (isEventBlockedForActor(await storage.getEvent(inclusion.eventId), actor)) return { ok: false, status: 403, message: `Vaga ${numero}: ${PAST_EVENT_BLOCK_MSG}` };
+    const pendente = (await storage.getScalingChangeRequestsByInclusion(inclusion.id)).find((r) => r.status === CHANGE_REQUEST_STATUS.PENDENTE);
+    if (pendente) return { ok: false, status: 409, message: `Já existe um pedido pendente para a vaga ${numero}.` };
+    return { ok: true };
+  }
+
+  /**
+   * POST /api/scaling-change-requests/par — "vai direto de um evento para o
+   * outro" (09/10, Compras: "teria que ser um PEDIDO DE AJUSTE na escala: no
+   * primeiro evento, cancelando a volta, e no segundo ajustando a ida pro local
+   * do 1º evento").
+   *
+   * DESENHO: dois pedidos de ajuste comuns (um em cada vaga) ligados por
+   * `grupoId`. Cada lado continua sendo um pedido normal — de/para, aviso para
+   * Compras, trava de pedido pendente por vaga, tela do aprovador —, e as
+   * rotas de decisão aprovam ou negam OS DOIS numa transação só.
+   *  - vaga A (1º evento): "só ida" + "segue direto para <evento B>" — a volta
+   *    sugerida é cancelada;
+   *  - vaga B (2º evento): "vem direto de <evento A>" (+ data/horário sugeridos
+   *    da ida, se vierem). A origem da ida passa a ser a cidade do evento A —
+   *    derivada do evento, sem mexer no "Sai de" da vaga (é para lá que a volta
+   *    de B leva a pessoa).
+   * body { anteriorId, seguinteId, reason, idaDaSeguinte? }
+   */
+  const parSchema = z.object({
+    anteriorId: z.string().min(1, "Informe a vaga do 1º evento"),
+    seguinteId: z.string().min(1, "Informe a vaga do 2º evento"),
+    reason: z.string().trim().min(1, "Informe o motivo do pedido").max(2000, "Justificativa pode ter no máximo 2000 caracteres"),
+    idaDaSeguinte: z.object({
+      flightDepartureDate: ymd.nullish(),
+      flightDepartureSuggestedTime: horarioSugeridoSchema.nullish(),
+      flightArrivalSuggestedTime: horarioSugeridoSchema.nullish(),
+      transportModeIda: z.enum(TRANSPORT_MODES).nullish(),
+    }).optional(),
+  });
+  app.post("/api/scaling-change-requests/par", async (req, res) => {
+    const actor = await getActor(req, res);
+    if (!actor) return;
+    try {
+      const parsed = parSchema.safeParse(req.body ?? {});
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Dados inválidos no pedido" });
+      const { anteriorId, seguinteId, reason, idaDaSeguinte } = parsed.data;
+      if (anteriorId === seguinteId) return res.status(400).json({ message: "Escolha duas vagas diferentes." });
+      const [a, b] = await Promise.all([storage.getTeamInclusion(anteriorId), storage.getTeamInclusion(seguinteId)]);
+      if (!a || a.deletedAt || !b || b.deletedAt) return res.status(404).json({ message: "Vaga não encontrada" });
+      const desatualizado = motivoParDesatualizado(a, b);
+      if (desatualizado) return res.status(400).json({ message: desatualizado.replace(/ O pedido não foi aplicado.*$/, "") });
+      for (const v of [a, b]) {
+        const pode = await podePedirAjusteEscalado(actor, v);
+        if (!pode.ok) return res.status(pode.status).json({ message: pode.message });
+      }
+      const ladoA = completarTrechosDoPedido({ v: 1, voltaSegueParaEventoId: b.eventId, trechosSugeridos: "so_ida" }, a, a.eventId);
+      const idaB: ProposedChanges = { v: 1, idaVemDoEventoId: a.eventId };
+      for (const [k, v] of Object.entries(idaDaSeguinte ?? {})) if (v !== undefined) (idaB as Record<string, unknown>)[k] = v;
+      // Vaga B marcada "sem ida": agora ela tem ida (o trecho direto).
+      if (b.trechosSugeridos === "so_volta") idaB.trechosSugeridos = null;
+      const ladoB = completarTrechosDoPedido(idaB, b, b.eventId);
+      const erro = ladoA.erro ?? ladoB.erro;
+      if (erro) return res.status(400).json({ message: erro });
+      const propostaA = rule(() => parseProposedChanges(ladoA.proposed, "ajuste"));
+      const propostaB = rule(() => parseProposedChanges(ladoB.proposed, "ajuste"));
+      const grupoId = randomUUID();
+      const comum = { requestType: "ajuste", requestedBy: actor.id, requestedByName: actor.name ?? "Usuário", reason, status: CHANGE_REQUEST_STATUS.PENDENTE, grupoId };
+      const criados = await storage.createParDeAjuste([
+        { ...comum, teamInclusionId: a.id, eventId: a.eventId, functionId: a.functionId, area: a.area ?? null, proposedChanges: propostaA },
+        { ...comum, teamInclusionId: b.id, eventId: b.eventId, functionId: b.functionId, area: b.area ?? null, proposedChanges: propostaB },
+      ]);
+      await inclusionLog(a.id, "suggestion_change_requested",
+        `Pedido de ajuste em par (vai direto para a vaga #${b.inclusionNumber}): sem volta própria. Motivo: ${reason}`, stateLabel(a), stateLabel(a), actor);
+      await inclusionLog(b.id, "suggestion_change_requested",
+        `Pedido de ajuste em par (vem direto da vaga #${a.inclusionNumber}): a ida sai do evento anterior. Motivo: ${reason}`, stateLabel(b), stateLabel(b), actor);
+      for (const c of criados) await createAuditLog("create", "scaling_change_request", c.id, c, actor.id, actor.name, undefined, req);
+      res.status(201).json({ grupoId, pedidos: criados });
+    } catch (error) {
+      sendError(res, error, "erro ao criar pedido em par", "Erro ao criar o pedido");
+    }
+  });
+
+  /**
+   * Decide o PAR inteiro (aprovar ou negar os dois de uma vez). O aprovador
+   * precisa poder decidir as duas funções; vaga que mudou no meio → 409 e nada
+   * é aplicado; ao aprovar, cada lado com passagem registrada gera aviso para
+   * Compras (volta de A a cancelar; ida de B a remarcar saindo da cidade de A).
+   */
+  async function decidirPar(req: Request, res: Response, actor: User, request: ScalingChangeRequest, kind: "aprovar" | "negar", comment: string | null) {
+    const grupo = await storage.getScalingChangeRequestsByGrupo(request.grupoId!);
+    if (grupo.length !== 2 || grupo.some((r) => r.status !== CHANGE_REQUEST_STATUS.PENDENTE)) {
+      return res.status(409).json({ message: ALREADY_DECIDED });
+    }
+    for (const r of grupo) {
+      if (!await canDecideFunction(r.functionId, actor)) return res.status(403).json({ message: NOT_APPROVER_MSG });
+    }
+    const propostas = grupo.map((r) => rule(() => parseProposedChanges(r.proposedChanges, "ajuste")));
+    const vagas = await Promise.all(grupo.map((r) => storage.getTeamInclusion(r.teamInclusionId!)));
+    const iA = propostas.findIndex((p) => !!p.voltaSegueParaEventoId);
+    const iB = iA === 0 ? 1 : 0;
+    const now = new Date();
+    const requestUpdates = {
+      status: kind === "aprovar" ? CHANGE_REQUEST_STATUS.APROVADO : CHANGE_REQUEST_STATUS.NEGADO,
+      reviewComment: comment, reviewedBy: actor.id, reviewedByName: actor.name ?? "Usuário", reviewedAt: now,
+    };
+    if (kind === "negar") {
+      const result = await storage.resolveParDeAjuste(grupo.map((r) => ({ requestId: r.id, ops: {} })), requestUpdates);
+      for (let i = 0; i < grupo.length; i++) {
+        const v = vagas[i];
+        if (v) await inclusionLog(v.id, "change_request_negar", detailsWithComment("Pedido em par negado pelo aprovador — as duas vagas continuam como estavam", comment), stateLabel(v), stateLabel(v), actor);
+        await createAuditLog("negar", "scaling_change_request", grupo[i].id, result[i].request, actor.id, actor.name, grupo[i], req);
+      }
+      if (comment) for (const r of grupo) await addRequestNote(r.id, actor, comment);
+      return res.json({ message: "Pedido negado", pedidos: result.map((r) => r.request), avisoParaCompras: null });
+    }
+    // Aprovar: as duas vagas precisam continuar valendo (mesma pessoa, ativas).
+    const motivo = iA < 0 ? "Pedido em par sem o lado \"segue direto\"." : motivoParDesatualizado(vagas[iA], vagas[iB]);
+    if (motivo) return res.status(409).json({ message: motivo });
+    for (const v of vagas) {
+      if (isSuggestionInclusion(v!)) return res.status(409).json({ message: VAGA_STATE_CHANGED_MSG });
+      if (!await assertChangeWindowOpen(v!, actor, res)) return;
+    }
+    const itens = [];
+    const avisos = [];
+    for (let i = 0; i < grupo.length; i++) {
+      const v = vagas[i]!;
+      const aviso = await avisoParaCompras(v, grupo[i], propostas[i], actor, now, comment);
+      avisos.push(aviso);
+      itens.push({
+        requestId: grupo[i].id,
+        ops: {
+          aviso,
+          inclusionUpdate: { id: v.id, patch: { ...proposedToPatch(propostas[i]), updatedBy: actor.id }, expected: { phase: v.phase, statuses: [v.status] } },
+        },
+      });
+    }
+    const result = await storage.resolveParDeAjuste(itens, requestUpdates);
+    for (let i = 0; i < grupo.length; i++) {
+      const v = vagas[i]!;
+      const updated = result[i].updatedInclusion!;
+      const mudancas = diffPhrase(v, propostas[i]);
+      const detail = `Pedido em par aprovado por ${actor.name} — ${i === iA ? "segue direto para o outro evento (sem volta própria)" : "vem direto do outro evento"}${mudancas ? ` — mudanças: ${mudancas}` : ""}${sufixoDoAviso(avisos[i])}`;
+      await inclusionLog(v.id, "change_request_approved", detailsWithComment(detail, comment), stateLabel(v), stateLabel(updated), actor);
+      await createAuditLog("change_request_approved", "team_inclusion", v.id, updated, actor.id, actor.name, v, req);
+      await createAuditLog("approve", "scaling_change_request", grupo[i].id, result[i].request, actor.id, actor.name, grupo[i], req);
+    }
+    if (comment) for (const r of grupo) await addRequestNote(r.id, actor, comment);
+    const algumAviso = avisos.find(Boolean);
+    return res.json({
+      message: "Pedido aprovado", pedidos: result.map((r) => r.request), inclusion: result.map((r) => r.updatedInclusion),
+      avisoParaCompras: algumAviso ? oQueRever(algumAviso) : null,
+    });
+  }
 
   // GET /api/scaling-change-requests?status=&eventId= — papéis de
   // `canViewRequestsByRole` veem a fila inteira; qualquer outro papel vê os
@@ -1468,6 +1682,34 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           eAprovador: defaultApprover || approverIds.has(r.functionId),
         };
       });
+      // Pedido em PAR (09/10): cada lado leva o resumo do outro — o par pode
+      // estar fora do recorte (outro evento) e o aprovador decide os dois.
+      const grupos = Array.from(new Set(requests.map((r) => r.grupoId).filter((g): g is string => !!g)));
+      if (grupos.length > 0) {
+        const doGrupo = (await Promise.all(grupos.map((g) => storage.getScalingChangeRequestsByGrupo(g)))).flat();
+        const [incsPar, eventosPar, funcoesPar] = await Promise.all([
+          storage.getTeamInclusionsByIds(doGrupo.map((r) => r.teamInclusionId).filter((id): id is string => !!id)),
+          storage.getEventsByIds(doGrupo.map((r) => r.eventId)),
+          storage.getFunctionsByIds(doGrupo.map((r) => r.functionId)),
+        ]);
+        const incPar = new Map(incsPar.map((i) => [i.id, i]));
+        const nomeEvento = new Map(eventosPar.map((e) => [e.id, e.name]));
+        const nomeFuncao = new Map(funcoesPar.map((f) => [f.id, f.name]));
+        for (const item of result as Array<(typeof result)[number] & { par?: unknown }>) {
+          if (!item.grupoId) continue;
+          const outro = doGrupo.find((r) => r.grupoId === item.grupoId && r.id !== item.id);
+          if (!outro) continue;
+          const inc = outro.teamInclusionId ? incPar.get(outro.teamInclusionId) : undefined;
+          let diffOutro: ReturnType<typeof diffInclusion> = [];
+          if (inc && outro.proposedChanges) { try { diffOutro = diffInclusion(inc, outro.proposedChanges); } catch { diffOutro = []; } }
+          item.par = {
+            requestId: outro.id, status: outro.status, teamInclusionId: outro.teamInclusionId,
+            inclusionNumber: inc?.inclusionNumber ?? null, eventId: outro.eventId,
+            eventName: nomeEvento.get(outro.eventId) ?? null, functionName: nomeFuncao.get(outro.functionId) ?? null,
+            diff: diffOutro,
+          };
+        }
+      }
       res.set("Cache-Control", "no-store");
       res.json(result);
     } catch (error) {
@@ -1536,7 +1778,13 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       storage.getTicketsByInclusionId(inclusion.id), // só as atuais (histórico de troca fica fora)
       storage.getAccommodationsByInclusionId(inclusion.id),
     ]);
-    const montado = montarAvisoDeAlteracao(diff, { temPassagem: passagens.length > 0, temHospedagem: hospedagens.length > 0 });
+    // Trecho direto (09/10): o aviso guarda o NOME do evento, não o id.
+    const idsDeEvento = diff
+      .filter((d) => d.field === "idaVemDoEventoId" || d.field === "voltaSegueParaEventoId")
+      .flatMap((d) => [d.from, d.to])
+      .filter((x): x is string => typeof x === "string" && x.length > 0);
+    const nomes = new Map(idsDeEvento.length ? (await storage.getEventsByIds(idsDeEvento)).map((e) => [e.id, e.name] as const) : []);
+    const montado = montarAvisoDeAlteracao(diff, { temPassagem: passagens.length > 0, temHospedagem: hospedagens.length > 0 }, (id) => nomes.get(id));
     if (!montado) return null;
     return {
       teamInclusionId: inclusion.id,
@@ -1651,6 +1899,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         return res.status(400).json({ message: parsedComment.error.issues[0]?.message ?? "Dados inválidos" });
       }
       const comment = parsedComment.data.comment?.trim() || null;
+      // Pedido em par (09/10): aprova os dois lados juntos.
+      if (request.grupoId) return void await decidirPar(req, res, actor, request, "aprovar", comment);
       const proposed = rule(() => parseProposedChanges(request.proposedChanges, request.requestType as ChangeRequestType));
       const now = new Date();
       let inclusionResult: TeamInclusion | TeamInclusion[] | null = null;
@@ -1751,6 +2001,11 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       const parsedBody = reviewSchema.safeParse(req.body);
       if (!parsedBody.success) return res.status(400).json({ message: "Dados inválidos", errors: parsedBody.error.flatten() });
       const { comment, then, editedChanges } = parsedBody.data;
+      // Pedido em par (09/10): ou os dois lados como pedidos, ou nenhum.
+      if (request.grupoId) {
+        if (kind === "reajustar") return res.status(400).json({ message: "Pedido em par (vai direto de um evento para o outro): aprove ou negue os dois lados juntos." });
+        return void await decidirPar(req, res, actor, request, "negar", comment);
+      }
 
       const action: SuggestionAction = `${kind}_${then === "reenviar_validacao" ? "reenviar" : "aprovar_direto"}` as SuggestionAction;
       const requestType = request.requestType as "ajuste" | "inclusao" | "exclusao";
