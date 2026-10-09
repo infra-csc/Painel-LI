@@ -11,9 +11,21 @@ import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { PAST_EVENT_BLOCK_MSG } from "@/lib/event-lock";
 import { canDeleteInclusion, type ConfirmState } from "./inclusion-shared";
 import type { TeamInclusionData } from "./use-team-inclusion-data";
+import { avisoDeTrocaPendente } from "@/lib/swap-types";
 
-export function useInclusionActions(data: Pick<TeamInclusionData, "inclusionById" | "selectedRows" | "setSelectedRows" | "isEventLocked">) {
-  const { inclusionById, selectedRows, setSelectedRows, isEventLocked } = data;
+export function useInclusionActions(data: Pick<TeamInclusionData, "inclusionById" | "selectedRows" | "setSelectedRows" | "isEventLocked"> & Partial<Pick<TeamInclusionData, "trocaPendentePorVaga">>) {
+  const { inclusionById, selectedRows, setSelectedRows, isEventLocked, trocaPendentePorVaga } = data;
+  /**
+   * 09/10: excluir/cancelar vaga com pedido de troca pendente cancela o pedido
+   * no servidor — a confirmação avisa antes.
+   */
+  const comAvisoDeTroca = (mensagem: string, ids: string[]) => {
+    const pendentes = ids.map((id) => trocaPendentePorVaga?.get(id)).filter((s): s is NonNullable<typeof s> => !!s);
+    if (pendentes.length === 0) return mensagem;
+    if (ids.length === 1) return `${mensagem} ${avisoDeTrocaPendente(pendentes[0])}`;
+    const n = new Set(pendentes.map((s) => s.id)).size;
+    return `${mensagem} ${n === 1 ? "1 pedido de troca pendente será cancelado" : `${n} pedidos de troca pendentes serão cancelados`} junto.`;
+  };
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
@@ -50,7 +62,7 @@ export function useInclusionActions(data: Pick<TeamInclusionData, "inclusionById
     openConfirm({
       variant: 'delete',
       title: 'Remover inclusão?',
-      message: 'Esta ação não pode ser desfeita.',
+      message: comAvisoDeTroca('Esta ação não pode ser desfeita.', [inclusionId]),
       confirmLabel: 'Remover',
       onConfirm: () => { closeConfirm(); deleteTeamInclusionMutation.mutate(inclusionId); },
     });
@@ -88,7 +100,7 @@ export function useInclusionActions(data: Pick<TeamInclusionData, "inclusionById
     openConfirm({
       variant: 'cancel',
       title: 'Cancelar escalação?',
-      message: 'Esta ação não pode ser desfeita.',
+      message: comAvisoDeTroca('Esta ação não pode ser desfeita.', [inclusionId]),
       confirmLabel: 'Cancelar escalação',
       onConfirm: () => { closeConfirm(); cancelEscalationMutation.mutate(inclusionId); },
     });
@@ -118,7 +130,7 @@ export function useInclusionActions(data: Pick<TeamInclusionData, "inclusionById
     openConfirm({
       variant: 'delete',
       title: 'Remover inclusões?',
-      message: confirmMessage,
+      message: comAvisoDeTroca(confirmMessage, deletableIds),
       confirmLabel: 'Remover',
       onConfirm: async () => {
         closeConfirm();
@@ -160,7 +172,7 @@ export function useInclusionActions(data: Pick<TeamInclusionData, "inclusionById
     openConfirm({
       variant: 'cancel',
       title: 'Cancelar escalações?',
-      message: `${cancelableIds.length} escalação(ões) selecionada(s) serão canceladas. Esta ação não pode ser desfeita.`,
+      message: comAvisoDeTroca(`${cancelableIds.length} escalação(ões) selecionada(s) serão canceladas. Esta ação não pode ser desfeita.`, cancelableIds),
       confirmLabel: 'Cancelar escalações',
       onConfirm: async () => {
         closeConfirm();

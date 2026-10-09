@@ -10,6 +10,7 @@ import { fixEncoding } from "@/lib/utils";
 import { normalizarBusca } from "@/components/scaling/scaling-queue";
 import { apiRequest } from "@/lib/queryClient";
 import { useSwapRequests } from "@/hooks/use-swap-requests";
+import { trocasPendentesPorVaga } from "@/lib/swap-types";
 import { useEventLock } from "@/lib/event-lock";
 import type { UniversalFilterValues } from "@/components/common/universal-filters";
 import type { SortConfig, SortField } from "@/components/common/sortable-header";
@@ -138,6 +139,8 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
     });
     return ids;
   }, [allSwapRequests]);
+  /** Pedido de troca pendente por vaga (as duas da permuta/transferência) — avisos de excluir/cancelar (09/10). */
+  const trocaPendentePorVaga = useMemo(() => trocasPendentesPorVaga(allSwapRequests), [allSwapRequests]);
 
   // Handle column sorting
   const handleSort = (field: SortField) => {
@@ -358,7 +361,7 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
 
   return {
     filters, setFilters, sortConfig, handleSort, selectedRows, setSelectedRows,
-    approvedSwapInclusionIds,
+    approvedSwapInclusionIds, trocaPendentePorVaga,
     teamInclusions, isLoading, isError, error, functions,
     inclusionById, getEventName, getEventLocation, getFunctionName, getCollaboratorName,
     eventLock, isEventLocked, eventLockReason,

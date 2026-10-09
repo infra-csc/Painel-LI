@@ -6,7 +6,7 @@
  * Papéis: quem edita a vaga abre; admin/Compras decidem; solicitante cancela.
  */
 import type { Express } from "express";
-import { storage, mapSwapRequestRow, type SwapRequestRow } from "../storage";
+import { storage, mapSwapRequestRow, cancelarTrocasOrfas, type SwapRequestRow } from "../storage";
 import { db, linhasDe } from "../db";
 import {
   swapRequests as swapRequestsTable,
@@ -22,6 +22,7 @@ import { assertEventEditable, assertInclusionEventEditable } from "../event-guar
 import { HttpError } from "../http";
 import { conflitosDoColaborador, type VagaParaConflito } from "@shared/conflito-de-agenda";
 import { validarSaiDe } from "@shared/swap-sai-de";
+import { motivoTrocaDesatualizada } from "@shared/troca-desatualizada";
 import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
 import {
   createAuditLog,
@@ -55,7 +56,13 @@ export function registrarTrocas(app: Express): void {
                me.name as event_name,
                pti.inclusion_number as paired_inclusion_number,
                pe.name as paired_event_name,
-               pf.name as paired_function_name
+               pf.name as paired_function_name,
+               -- Quem está HOJE em cada vaga (09/10): as telas conferem o
+               -- pedido com shared/troca-desatualizada.ts antes do "Aprovar".
+               ti.collaborator_id as inclusion_collaborator_id,
+               ic.full_name as inclusion_collaborator_name,
+               pti.collaborator_id as paired_collaborator_id,
+               pc.full_name as paired_collaborator_name
         FROM swap_requests sr
         LEFT JOIN collaborators cc ON sr.current_collaborator_id = cc.id
         LEFT JOIN collaborators nc ON sr.new_collaborator_id = nc.id
@@ -63,7 +70,9 @@ export function registrarTrocas(app: Express): void {
         LEFT JOIN events me ON ti.event_id = me.id
         LEFT JOIN team_inclusions pti ON sr.paired_inclusion_id = pti.id
         LEFT JOIN events pe ON pti.event_id = pe.id
-        LEFT JOIN functions pf ON pti.function_id = pf.id`;
+        LEFT JOIN functions pf ON pti.function_id = pf.id
+        LEFT JOIN collaborators ic ON ti.collaborator_id = ic.id
+        LEFT JOIN collaborators pc ON pti.collaborator_id = pc.id`;
 
   app.get("/api/swap-requests", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
@@ -318,6 +327,14 @@ export function registrarTrocas(app: Express): void {
       const vaga = vagaDoPedido!;
       const nomeDoNovo = String((await storage.getCollaborator(sr.new_collaborator_id))?.fullName ?? "novo colaborador");
       const decisao = { status: 'aprovado', reviewedBy: currentUser.id, reviewedByName: currentUser.name, reviewComment: reviewComment ?? null };
+      /** As vagas ainda estão como no pedido? A mesma regra das telas (shared/troca-desatualizada.ts). */
+      const conferencia = (daVaga: TeamInclusion, daOutra?: TeamInclusion) => ({
+        swapKind: sr.swap_kind,
+        currentCollaboratorId: sr.current_collaborator_id ?? null,
+        newCollaboratorId: sr.new_collaborator_id,
+        inclusionCollaboratorId: daVaga.collaboratorId ?? null,
+        ...(daOutra ? { pairedCollaboratorId: daOutra.collaboratorId ?? null } : {}),
+      });
       const auditarPedido = async (rowDepois: unknown) => createAuditLog("approve", "swap_request", id, rowDepois, currentUser.id, currentUser.name, sr, req);
 
       if (sr.swap_kind === 'transferencia') {
@@ -332,7 +349,7 @@ export function registrarTrocas(app: Express): void {
         if (erroOrigem) return res.status(409).json({ message: `${erroOrigem.message} Recuse o pedido.` });
         const vagaOrigem = vagaPareada!;
         const quemSai = sr.current_collaborator_id ?? null;
-        if ((vaga.collaboratorId ?? null) !== quemSai || vagaOrigem.collaboratorId !== sr.new_collaborator_id) {
+        if (motivoTrocaDesatualizada(conferencia(vaga, vagaOrigem))) {
           return res.status(409).json({ message: "As vagas mudaram desde o pedido — recuse e peça a transferência de novo." });
         }
         const nomeDeQuemSai = quemSai ? String((await storage.getCollaborator(quemSai))?.fullName ?? "colaborador anterior") : null;
@@ -364,6 +381,8 @@ export function registrarTrocas(app: Express): void {
           const saiuDaqui = nomeDeQuemSai
             ? ` no lugar de ${nomeDeQuemSai}, que saiu da escala${textoDoArquivo(nomeDeQuemSai, arqDestino)}${hospedagemNoDestino ? " — hospedagem já registrada: Compras deve revisar" : ""}`
             : "";
+          // Outro pedido pendente que dependia destas vagas não vale mais (09/10).
+          await cancelarTrocasOrfas(tx, [vaga.id, vagaOrigem.id], `outra troca aprovada por ${currentUser.name}`, currentUser);
           await tx.insert(teamInclusionLogsTable).values([
             logDaTroca(vaga.id, "swap_approved", `Transferência aprovada por ${currentUser.name}: ${nomeDoNovo} entrou nesta vaga (vinha da vaga #${vagaOrigem.inclusionNumber})${saiuDaqui}`, quemSai, sr.new_collaborator_id, currentUser),
             logDaTroca(vagaOrigem.id, "swap_approved", `Transferência aprovada por ${currentUser.name}: ${nomeDoNovo} saiu desta vaga para a vaga #${vaga.inclusionNumber} — vaga voltou a aberta${textoDoArquivo(nomeDoNovo, arqOrigem)}`, sr.new_collaborator_id, null, currentUser),
@@ -388,7 +407,7 @@ export function registrarTrocas(app: Express): void {
         if (erroOutra) return res.status(409).json({ message: `${erroOutra.message} Recuse o pedido.` });
         const outra = vagaPareada!;
         const atualId = sr.current_collaborator_id;
-        if (!atualId || vaga.collaboratorId !== atualId || outra.collaboratorId !== sr.new_collaborator_id) {
+        if (!atualId || motivoTrocaDesatualizada(conferencia(vaga, outra))) {
           return res.status(409).json({ message: "As vagas mudaram desde o pedido — recuse e peça a troca de novo." });
         }
         if (!await assertInclusionEventEditable(outra.id, currentUser, res, { eventId: outra.eventId ?? null })) return;
@@ -425,6 +444,8 @@ export function registrarTrocas(app: Express): void {
           if (arqOutra.quantidade) await ajustarStatusSemPassagem(tx, outra.id, h2.length > 0);
           const logisticaParaRevisar = temHospedagem || arqEsta.quantidade + arqOutra.quantidade > 0;
           const avisoHotel = temHospedagem ? " — hospedagem já registrada: Compras deve revisar" : "";
+          // Outro pedido pendente que dependia destas vagas não vale mais (09/10).
+          await cancelarTrocasOrfas(tx, [vaga.id, outra.id], `outra troca aprovada por ${currentUser.name}`, currentUser);
           await tx.insert(teamInclusionLogsTable).values([
             logDaTroca(vaga.id, "swap_approved", `Permuta aprovada por ${currentUser.name}: ${nomeDoAtual} → ${nomeDoNovo}${textoDoArquivo(nomeDoAtual, arqEsta)}${avisoHotel}`, sr.current_collaborator_id, sr.new_collaborator_id, currentUser),
             logDaTroca(outra.id, "swap_approved", `Permuta aprovada por ${currentUser.name}: ${nomeDoNovo} → ${nomeDoAtual}${textoDoArquivo(nomeDoNovo, arqOutra)}${avisoHotel}`, sr.new_collaborator_id, sr.current_collaborator_id, currentUser),
@@ -439,7 +460,7 @@ export function registrarTrocas(app: Express): void {
       }
 
       // Substituição simples: o colaborador atual da vaga precisa ser o do pedido.
-      if ((vaga.collaboratorId ?? null) !== (sr.current_collaborator_id ?? null)) {
+      if (motivoTrocaDesatualizada(conferencia(vaga))) {
         return res.status(409).json({ message: "O colaborador desta vaga mudou desde o pedido — recuse e peça a troca de novo." });
       }
       const conflito = await conflitoNaTroca(sr.new_collaborator_id, vaga, [vaga.id]);
@@ -467,6 +488,8 @@ export function registrarTrocas(app: Express): void {
         if (!atualizada) throw new HttpError(409, "O colaborador desta vaga mudou desde o pedido — recuse e peça a troca de novo.");
         const arquivo = await arquivarPassagens(tx, vaga.id, sr.current_collaborator_id ?? null, `Troca aprovada: ${nomeDoAtual} → ${nomeDoNovo}`);
         if (arquivo.quantidade) await ajustarStatusSemPassagem(tx, vaga.id, temHospedagem);
+        // Outro pedido pendente que dependia desta vaga não vale mais (09/10).
+        await cancelarTrocasOrfas(tx, [vaga.id], `outra troca aprovada por ${currentUser.name}`, currentUser);
         await tx.insert(teamInclusionLogsTable).values([
           logDaTroca(vaga.id, "swap_approved",
             `Troca aprovada por ${currentUser.name}: ${nomeDoNovo} assume a vaga${textoDoArquivo(nomeDoAtual, arquivo)}${temHospedagem ? " — hospedagem já registrada: Compras deve revisar" : ""}`,

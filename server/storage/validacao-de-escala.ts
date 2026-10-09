@@ -15,6 +15,7 @@ import {
 } from "@shared/schema";
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
 import { idsUnicos, SUGESTAO_PHASE_VALUE, PENDING_REQUEST_STATUS } from "./_comum";
+import { cancelarTrocasOrfas } from "./trocas";
 
 /** Linha completa de scaling_change_requests para inserção (identidade já resolvida pelo servidor). */
 export type InsertScalingChangeRequestRow = typeof scalingChangeRequests.$inferInsert;
@@ -302,6 +303,12 @@ export async function resolveScalingChangeRequest(
         .returning();
       if (!row) throw new Error(expected ? VAGA_STATE_CHANGED_MSG : "Vaga do pedido não encontrada");
       updatedInclusion = row;
+      // Ajuste/exclusão aprovado em vaga já escalada pode deixar órfão um
+      // pedido de troca pendente — cancelado na mesma transação (09/10).
+      // Só cancela o que deixou de valer (shared/troca-desatualizada.ts).
+      await cancelarTrocasOrfas(tx, [row.id], `decisão na Validação de Escala por ${requestUpdates.reviewedByName ?? "aprovador"}`, {
+        id: requestUpdates.reviewedBy ?? null, name: requestUpdates.reviewedByName ?? null,
+      });
     }
     // INSERT multi-linha (23/09); o RETURNING preserva a ordem dos VALUES,
     // então createdInclusions[0] continua sendo a primeira vaga pedida.

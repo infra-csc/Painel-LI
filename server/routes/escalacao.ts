@@ -959,6 +959,8 @@ export function registrarEscalacao(app: Express): void {
         expectedStatus: 'aguardando_producao',
         rejectDeleted: true,
         conflictMessage: "Esta escalação já foi decidida pelo gestor — recarregue a lista.",
+        // Troca pendente nesta vaga é cancelada na mesma transação (09/10).
+        motivoTrocaOrfa: `gestor reprovou — ${user.name ?? "Produção"}`,
         extraLogs: [{
           action: 'reject_production',
           details: `Escalação reprovada pelo gestor — colaborador removido, voltou para escalação`,

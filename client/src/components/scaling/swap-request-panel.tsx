@@ -10,7 +10,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { Clock, Check, X, ArrowRight, ArrowLeftRight, CheckCheck, XCircle, MapPin } from "lucide-react";
-import { ExplicacaoDaTroca } from "./swap-explicacao";
+import { AvisoTrocaDesatualizada, ExplicacaoDaTroca, comOcupantesFormatados, motivoDaTrocaPendente } from "./swap-explicacao";
 import { explicarTroca, type TrocaParaExplicar } from "@shared/swap-explicacao";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { formatShortDateTime, type NormalizedSwap } from "./scaling-utils";
@@ -80,11 +80,13 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
   /** Transferência (14/09): alguém de outra vaga entra nesta, que estava aberta. */
   const transferencia = swap.swapKind === "transferencia";
   /** O que muda ao aprovar (16/09) — mesmo texto no cartão e nas confirmações. */
-  const trocaExplicada: TrocaParaExplicar = {
+  const trocaExplicada: TrocaParaExplicar = comOcupantesFormatados({
     ...swap,
     currentCollaboratorName: swap.currentCollaboratorId ? currentCollabName : null,
     newCollaboratorName: newCollabName || swap.newCollaboratorName,
-  };
+  });
+  /** As vagas mudaram desde o pedido (09/10): o servidor recusaria a aprovação. */
+  const motivoMudou = motivoDaTrocaPendente(swap.status, trocaExplicada);
 
   return (
     <>
@@ -141,6 +143,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
           </div>
         ) : (
           <div className="space-y-2">
+            {motivoMudou && <AvisoTrocaDesatualizada motivo={motivoMudou} />}
             <p className="text-xs text-muted-foreground leading-snug">Aguardando análise do time de Compras.</p>
             {swap.requestedByName && (
               <div className="flex items-center gap-1 text-2xs text-muted-foreground">
@@ -169,15 +172,17 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
                 >
                   <XCircle className="w-3.5 h-3.5" aria-hidden="true" />Recusar troca
                 </button>
+                <MotivoDesabilitado motivo={motivoMudou} desabilitado={!!motivoMudou} className="flex flex-1">
                 <button
                   type="button"
                   onClick={() => setConfirmAction("approve")}
-                  disabled={busy}
+                  disabled={busy || !!motivoMudou}
                   className="esc-alvo flex-1 flex items-center justify-center gap-1.5 bg-success hover:bg-success/90 text-white text-xs font-semibold px-3 h-8 rounded-lg shadow-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success-strong focus-visible:ring-offset-1 disabled:opacity-50"
                   data-testid="button-approve-swap"
                 >
                   <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />Aprovar troca
                 </button>
+                </MotivoDesabilitado>
               </div>
             )}
           </div>
@@ -214,7 +219,7 @@ export function SwapStatusCard({ pendingSwap, latestSwap, currentUserId, isAdmin
 
       {/* Confirm: aprovar troca (Compras) */}
       <ConfirmDialog
-        open={confirmAction === "approve" && !!pendingSwap}
+        open={confirmAction === "approve" && !!pendingSwap && !motivoMudou}
         onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
         icon={CheckCheck}
         tone="default"

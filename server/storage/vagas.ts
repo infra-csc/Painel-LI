@@ -17,6 +17,7 @@ import {
 import { VAGA_STATE_CHANGED_MSG } from "@shared/scaling-validation-rules";
 import { idsUnicos, StorageHttpError, SUGESTAO_PHASE_VALUE } from "./_comum";
 import { colaboradorMudou, montarLogsDeAlteracaoDaVaga } from "./vagas-historico";
+import { cancelarTrocasOrfas } from "./trocas";
 
 /**
  * Filtro de phase para leituras de team_inclusions.
@@ -81,6 +82,12 @@ export interface UpdateTeamInclusionOptions {
   auditFor?: (updated: TeamInclusion) => InsertSystemLog | null;
   /** Vaga excluída (deletedAt) também é recusada — 404 em vez de gravar em cima. */
   rejectDeleted?: boolean;
+  /**
+   * Motivo curto do cancelamento automático do pedido de troca pendente que a
+   * mudança deixou órfão (09/10) — ex.: "gestor reprovou". Sem ele, o motivo
+   * sai da própria mudança (vaga excluída / cancelada / colaborador alterado).
+   */
+  motivoTrocaOrfa?: string;
 }
 
 /** Remove sugestões (phase 'sugestao') de uma lista já carregada. */
@@ -289,6 +296,18 @@ export async function updateTeamInclusion(id: string, inclusionData: Partial<Ins
     }
     const audit = opts.auditFor?.(inclusion);
     if (audit) await tx.insert(systemLogs).values(audit);
+
+    // Pedido de troca pendente que esta mudança deixou órfão (09/10): cancela
+    // na MESMA transação (PATCH, confirmar, cancelar, excluir, reprovação do
+    // gestor, recálculo de logística… — todo caminho que passa por aqui).
+    const excluiu = !!inclusionData.deletedAt && !oldInclusion.deletedAt;
+    const cancelou = inclusionData.status === "cancelado" && oldInclusion.status !== "cancelado";
+    if (excluiu || cancelou || colaboradorMudou(oldInclusion, inclusionData)) {
+      const quem = userRows[0]?.name ?? "Sistema";
+      const motivo = opts.motivoTrocaOrfa
+        ?? (excluiu ? `vaga excluída por ${quem}` : cancelou ? `vaga cancelada por ${quem}` : `colaborador alterado por ${quem}`);
+      await cancelarTrocasOrfas(tx, [id], motivo, { id: inclusionData.updatedBy, name: userRows[0]?.name });
+    }
 
     return inclusion;
   });

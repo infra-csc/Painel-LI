@@ -83,4 +83,4 @@ export type { InsertFlashMovementWithSource } from "./flash";
 export type { InsertScalingChangeRequestRow, CancelSuggestionSendParams, CancelSuggestionSendResult } from "./validacao-de-escala";
 export type { SystemLogFilters } from "./logs-do-sistema";
 export type { AvisoDeAlteracaoComVaga } from "./avisos-de-alteracao";
-export { mapSwapRequestRow, type SwapRequestRow } from "./trocas";
+export { mapSwapRequestRow, cancelarTrocasOrfas, type SwapRequestRow, type AtorDoCancelamento, type TrocaCanceladaAutomaticamente } from "./trocas";

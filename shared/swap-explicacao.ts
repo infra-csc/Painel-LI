@@ -8,8 +8,21 @@
  * transferência para uma vaga aberta.
  */
 
+import { ocupantesEsperados } from "./troca-desatualizada";
+
 export interface TrocaParaExplicar {
   swapKind?: string | null;
+  /**
+   * Ocupantes de fato (09/10, opcionais): quando a vaga mudou desde o pedido,
+   * o "Hoje" mostra quem está nela agora, não quem estava no pedido. Sem os
+   * ids do pedido ou sem o ocupante atual (`undefined`), vale o texto do pedido.
+   */
+  currentCollaboratorId?: string | null;
+  newCollaboratorId?: string | null;
+  inclusionCollaboratorId?: string | null;
+  inclusionCollaboratorName?: string | null;
+  pairedCollaboratorId?: string | null;
+  pairedCollaboratorName?: string | null;
   inclusionNumber?: number | string | null;
   eventName?: string | null;
   pairedInclusionNumber?: number | string | null;
@@ -54,13 +67,23 @@ export function explicarTroca(t: TrocaParaExplicar): ExplicacaoDaTrocaTexto {
   const numOutra = `#${t.pairedInclusionNumber ?? "?"}`;
   const esta = rotulo(t.inclusionNumber, t.eventName);
   const outra = rotulo(t.pairedInclusionNumber, t.pairedEventName, t.pairedFunctionName);
+  // "Hoje" de fato (09/10): se a vaga mudou desde o pedido, mostra quem está nela agora.
+  const esperado = ocupantesEsperados(t);
+  const deFato = (hojeId: string | null | undefined, hojeNome: string | null | undefined, esperadoId: string | null, sabeEsperado: boolean, doPedido: string) =>
+    hojeId !== undefined && sabeEsperado && (hojeId ?? null) !== esperadoId
+      ? (hojeId ? hojeNome?.trim() || "outra pessoa" : "Vaga aberta")
+      : doPedido;
+  const hojeEsta = (doPedido: string) =>
+    deFato(t.inclusionCollaboratorId, t.inclusionCollaboratorName, esperado.esta, t.currentCollaboratorId !== undefined, doPedido);
+  const hojeOutra = (doPedido: string) =>
+    deFato(t.pairedCollaboratorId, t.pairedCollaboratorName, esperado.outra ?? null, t.newCollaboratorId !== undefined, doPedido);
 
   if (t.swapKind === "permuta") {
     return {
       tipo: "Troca entre vagas",
       vagas: [
-        { chave: "esta", vaga: esta, antes: atual, depois: novo, saiDe: cidade(t.newCity) },
-        { chave: "outra", vaga: outra, antes: novo, depois: atual, saiDe: cidade(t.pairedNewCity) },
+        { chave: "esta", vaga: esta, antes: hojeEsta(atual), depois: novo, saiDe: cidade(t.newCity) },
+        { chave: "outra", vaga: outra, antes: hojeOutra(novo), depois: atual, saiDe: cidade(t.pairedNewCity) },
       ],
       observacoes: [
         "As duas vagas mudam juntas, no mesmo instante — ninguém fica em duas vagas nem sem vaga.",
@@ -78,8 +101,8 @@ export function explicarTroca(t: TrocaParaExplicar): ExplicacaoDaTrocaTexto {
     return {
       tipo: "Transferência entre vagas",
       vagas: [
-        { chave: "esta", vaga: esta, antes: quemSai ?? "Vaga aberta", depois: novo, saiDe: cidade(t.newCity) },
-        { chave: "outra", vaga: outra, antes: novo, depois: "Vaga aberta", saiDe: null },
+        { chave: "esta", vaga: esta, antes: hojeEsta(quemSai ?? "Vaga aberta"), depois: novo, saiDe: cidade(t.newCity) },
+        { chave: "outra", vaga: outra, antes: hojeOutra(novo), depois: "Vaga aberta", saiDe: null },
       ],
       observacoes: [
         `${novo} sai da vaga ${numOutra} e entra na vaga ${numEsta}, no mesmo instante.`,
@@ -97,7 +120,7 @@ export function explicarTroca(t: TrocaParaExplicar): ExplicacaoDaTrocaTexto {
 
   return {
     tipo: "Troca de colaborador",
-    vagas: [{ chave: "esta", vaga: esta, antes: atual, depois: novo, saiDe: cidade(t.newCity) }],
+    vagas: [{ chave: "esta", vaga: esta, antes: hojeEsta(atual), depois: novo, saiDe: cidade(t.newCity) }],
     observacoes: [
       `${novo} assume a vaga no lugar de ${atual}.`,
       "A vaga passa a sair da cidade indicada acima, que é a origem da passagem.",
