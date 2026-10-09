@@ -10,7 +10,7 @@ import type { BudgetActual, BudgetComparison, BudgetPlanned, TeamInclusion } fro
 import { agruparPor, chaveComposta } from "@/lib/indices";
 import type { ComparisonRow, StatusFilterKey } from "@/components/budget/comparison-utils";
 import { isCasaType } from "@/components/budget/types";
-import { totaisDoGrupoNoComparativo } from "@shared/comparativo";
+import { entraNosTotaisDoComparativo, totaisDoGrupoNoComparativo } from "@shared/comparativo";
 
 export interface EntradaDosDadosDoComparativo {
   budgetPlanned: BudgetPlanned[] | undefined;
@@ -189,11 +189,14 @@ export function useBudgetComparisonData(e: EntradaDosDadosDoComparativo) {
     // Always recompute from grouped data to avoid double-counting split children.
     // "Não participou" (Planejado OU Realizado) fica fora dos DOIS lados: o
     // realizado já sai do groupActualTotal e o planejado do ausente também.
-    const totalPlanned = comparisonData.reduce((s, r) => s + r.plannedNosTotais, 0);
-    const totalActual = comparisonData.reduce((s, r) => s + r.groupActualTotal, 0);
+    // Devolvidas e recusadas seguem na lista, mas fora dos totais — o MESMO
+    // critério do cálculo gravado no servidor, da NF e do Flash (08/10).
+    const nosTotais = comparisonData.filter(r => entraNosTotaisDoComparativo(r.actual));
+    const totalPlanned = nosTotais.reduce((s, r) => s + r.plannedNosTotais, 0);
+    const totalActual = nosTotais.reduce((s, r) => s + r.groupActualTotal, 0);
     // Casa × Freela (redesenho 08/10): o mesmo realizado de grupo, separado pelo tipo.
-    const casa = comparisonData.filter(r => isCasaType(r.collaboratorType));
-    const freela = comparisonData.filter(r => r.collaboratorType === "freela");
+    const casa = nosTotais.filter(r => isCasaType(r.collaboratorType));
+    const freela = nosTotais.filter(r => r.collaboratorType === "freela");
     return {
       totalPlanned, totalActual, difference: totalActual - totalPlanned,
       totalCasa: casa.reduce((s, r) => s + r.groupActualTotal, 0),

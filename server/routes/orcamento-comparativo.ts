@@ -9,7 +9,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { budgetComparison as budgetComparisonTable, insertBudgetComparisonSchema, type BudgetActual, type BudgetPlanned, type MudancaDoComparativo } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { totaisDoGrupoNoComparativo } from "@shared/comparativo";
+import { entraNosTotaisDoComparativo, totaisDoGrupoNoComparativo } from "@shared/comparativo";
 import { safeSyncFlashFromComparison, safeReverseFlashFromComparison, type FlashSyncActor } from "../flash-credit";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
 
@@ -82,7 +82,11 @@ export function registrarOrcamentoComparativo(app: Express): void {
           splitChildren.set(a.splitParentId, arr);
         }
       }
-      const parents = allActual.filter(a => a.sentForReview && !a.splitParentId);
+      // Titulares que entram nos totais: aprovados ou enviados e pendentes — a
+      // MESMA regra dos totais da tela, da NF e do Flash (@shared/comparativo).
+      // Devolvidos/recusados ficam fora até o reenvio (o servidor zera o
+      // sentForReview deles, então isto já era o recorte de antes).
+      const parents = allActual.filter(a => !a.splitParentId && entraNosTotaisDoComparativo(a));
       const matchPlanned = (a: BudgetActual): BudgetPlanned | undefined => a.plannedId
         ? planned.find((pl) => pl.id === a.plannedId)
         : planned.find((pl) => pl.collaboratorId === a.collaboratorId && pl.functionId === a.functionId && pl.eventId === a.eventId);

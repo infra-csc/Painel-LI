@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQueriesState } from "@/components/common/query-state";
 import type { BudgetActual, Collaborator, Event, Function as FunctionRow, Invoice, PaymentCompany, TeamInclusion } from "@shared/schema";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
+import { aguardaAnaliseDoRh } from "./invoice-status";
 
 export function useInvoicesData(selectedEventId: string) {
   const qEvents = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -86,8 +87,9 @@ export function useInvoicesData(selectedEventId: string) {
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
   });
   const pendingCount = pendingActuals.length;
-  // "Aprovação RH" (em análise): NFs enviadas de itens NF-elegíveis — mesmo critério do Controle RH.
-  const rhPendingInvoices = invoices.filter(i => i.status === "enviada" && eligibleActualIds.has(i.budgetActualId ?? ""));
+  // "Aprovação RH" (em análise): NFs enviadas de itens NF-elegíveis — mesmo critério do Controle RH
+  // e da pílula "Aguardando" da aba (`aguardaAnaliseDoRh`, 08/10).
+  const rhPendingInvoices = invoices.filter(i => aguardaAnaliseDoRh(i, budgetActuals.find(a => a.id === i.budgetActualId)));
   const rhPendingCount = rhPendingInvoices.length;
   // "Check-in": NFs aprovadas de itens NF-elegíveis ainda sem check-in financeiro.
   const checkinPendingInvoices = invoices.filter(i => i.status === "aprovada" && !i.checkinAt && eligibleActualIds.has(i.budgetActualId ?? ""));

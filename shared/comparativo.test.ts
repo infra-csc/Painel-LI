@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { etapaDoComparativo, idaEVoltaDaMobilidade, naoParticipou, totaisDoGrupoNoComparativo } from "./comparativo";
+import { entraNosTotaisDoComparativo, etapaDoComparativo, idaEVoltaDaMobilidade, idaEVoltaRateadas, naoParticipou, totaisDoGrupoNoComparativo } from "./comparativo";
 
 describe("naoParticipou", () => {
   it("vale a marca do Realizado OU a do Planejado (o critério do Realizado)", () => {
@@ -82,5 +82,45 @@ describe("etapaDoComparativo", () => {
 
   it("todas aprovadas E o comparativo aprovado → Nota fiscal", () => {
     expect(etapaDoComparativo([aprovada, aprovada], "aprovado")).toBe(4);
+  });
+});
+
+describe("idaEVoltaRateadas", () => {
+  it("mesma proporção da divisão cheia, fechando com a mobilidade rateada", () => {
+    expect(idaEVoltaRateadas(3000, 4000, 2000, 2000)).toEqual({ ida: 1500, volta: 1500 });
+    expect(idaEVoltaRateadas(1000, 4000, 3000, 1000)).toEqual({ ida: 750, volta: 250 });
+  });
+
+  it("centavo ímpar: a volta leva o resto e nada se perde", () => {
+    const r = idaEVoltaRateadas(751, 1001, 501, 500);
+    expect(r).toEqual({ ida: 376, volta: 375 });
+    expect(r.ida + r.volta).toBe(751);
+    const s = idaEVoltaRateadas(333, 1000, 333, 667);
+    expect(s.ida + s.volta).toBe(333);
+  });
+
+  it("sem divisão gravada (nulo ou 0 + 0): metade para cima na ida", () => {
+    expect(idaEVoltaRateadas(751, 1001, null, null)).toEqual({ ida: 376, volta: 375 });
+    expect(idaEVoltaRateadas(751, 1001, 0, 0)).toEqual({ ida: 376, volta: 375 });
+  });
+
+  it("só ida ou só volta é respeitado; rateado zero dá zero", () => {
+    expect(idaEVoltaRateadas(500, 1000, 1000, 0)).toEqual({ ida: 500, volta: 0 });
+    expect(idaEVoltaRateadas(500, 1000, 0, 1000)).toEqual({ ida: 0, volta: 500 });
+    expect(idaEVoltaRateadas(0, 1000, 500, 500)).toEqual({ ida: 0, volta: 0 });
+  });
+});
+
+describe("entraNosTotaisDoComparativo", () => {
+  it("aprovada, ou enviada e pendente — o recorte da NF e do Flash", () => {
+    expect(entraNosTotaisDoComparativo({ sentForReview: true, rhStatus: "aprovado" })).toBe(true);
+    expect(entraNosTotaisDoComparativo({ sentForReview: false, rhStatus: "aprovado" })).toBe(true);
+    expect(entraNosTotaisDoComparativo({ sentForReview: true, rhStatus: "pendente" })).toBe(true);
+  });
+
+  it("devolvida, recusada ou não enviada ficam fora dos totais", () => {
+    expect(entraNosTotaisDoComparativo({ sentForReview: false, rhStatus: "devolvido" })).toBe(false);
+    expect(entraNosTotaisDoComparativo({ sentForReview: false, rhStatus: "rejeitado" })).toBe(false);
+    expect(entraNosTotaisDoComparativo({ sentForReview: false, rhStatus: "pendente" })).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import { notaFiscalFake, realizadoFake } from "@/test/fixtures-dominio";
 import { moeda } from "@/test/orcamento-fixture";
 import { AprovacaoTab, type AprovacaoTabProps } from "./aprovacao-tab";
 import { somarNotas } from "./aprovacao-totals-footer";
+import { aguardaAnaliseDoRh } from "./invoice-status";
 
 const NOMES: Record<string, string> = { c1: "ANA SOUZA", c2: "BRUNO LIMA", c3: "CARLA DIAS", c4: "DIEGO REIS" };
 
@@ -68,5 +69,41 @@ describe("AprovacaoTab — totais do pé", () => {
       id => valores[id ?? ""] ?? 0,
     );
     expect(t).toEqual({ aprovadas: { n: 1, valor: 100 }, aguardando: { n: 1, valor: 50 }, total: 150 });
+  });
+});
+
+describe("AprovacaoTab — 'Aguardando' com o critério da aba e do resumo (08/10)", () => {
+  // n3 é ENVIADA, mas a prestação dela foi devolvida no Realizado: está pausada.
+  const pausada = [
+    realizadoFake({ id: "r1", collaboratorId: "c1", totalValue: 100000 }),
+    realizadoFake({ id: "r2", collaboratorId: "c2", totalValue: 50000 }),
+    realizadoFake({ id: "r3", collaboratorId: "c3", totalValue: 20000, sentForReview: false, rhStatus: "devolvido" }),
+    realizadoFake({ id: "r4", collaboratorId: "c4", totalValue: 7000 }),
+  ];
+
+  it("a pílula e o pé não contam a nota de prestação pausada", () => {
+    montar({ budgetActuals: pausada });
+    // A pílula pode trazer o alerta de idade ("N aguardando há mais de 3 dias",
+    // depende da data do fixture): confere só o rótulo e o contador.
+    const pilula = screen.getByTestId("nf-filtro-enviada");
+    expect(pilula).toHaveTextContent(/^Aguardando/);
+    expect(pilula.querySelector("span.rounded-full.tabular-nums")?.textContent).toBe("1");
+    const totais = within(screen.getByTestId("nf-totais-aprovacao"));
+    expect(totais.getByText("Aguardando").parentElement).toHaveTextContent(`Aguardando (1)${moeda(100000)}`);
+  });
+
+  it("filtrada em 'Aguardando', a lista mostra só a que espera o RH", () => {
+    montar({ budgetActuals: pausada, filterStatus: "enviada" });
+    expect(screen.getByText("Mostrando 1 de 4 notas")).toBeInTheDocument();
+  });
+
+  it("aguardaAnaliseDoRh: o mesmo critério do número da aba (enviada + prestação liberando a NF)", () => {
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: true, rhStatus: "pendente" })).toBe(true);
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: true, rhStatus: "aprovado" })).toBe(true);
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: false, rhStatus: "devolvido" })).toBe(false);
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: false, rhStatus: "rejeitado" })).toBe(false);
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: true, rhStatus: "pendente", splitParentId: "x" })).toBe(false);
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, undefined)).toBe(false);
+    expect(aguardaAnaliseDoRh({ status: "aprovada" }, { sentForReview: true, rhStatus: "pendente" })).toBe(false);
   });
 });

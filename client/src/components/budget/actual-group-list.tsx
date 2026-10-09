@@ -15,6 +15,7 @@ import { useLarguraUtil } from "@/components/common/use-largura-util";
 import type { ActivityLog } from "@/components/activity-timeline";
 import type { BudgetActual, BudgetNote } from "@shared/schema";
 import type { DadosDoRealizado } from "@/hooks/use-budget-actual-data";
+import { totaisDoGrupoNoComparativo } from "@shared/comparativo";
 import { cn } from "@/lib/utils";
 import { ActualCard } from "./actual-card";
 import { diferencaComSinal } from "./actual-overview";
@@ -140,10 +141,15 @@ export function ActualGroupList(p: ActualGroupListProps) {
           if (!isGroupParent) return renderSingleCard(item);
 
           const groupChildren = splitGroupsMap.get(item.id) || [];
-          const groupTotal = item.totalValue + groupChildren.reduce((s, c) => s + c.totalValue, 0);
-          const groupPlannedTotal = getPlannedRef(item)?.totalValue;
+          // As somas do resumo e do Comparativo (@shared/comparativo): quem não
+          // participou (Realizado OU Planejado) sai do total; com o titular
+          // ausente, o planejado sai também e não há diferença a mostrar.
+          const planoDoGrupo = getPlannedRef(item);
+          const totaisDoGrupo = totaisDoGrupoNoComparativo(item, groupChildren, planoDoGrupo);
+          const groupTotal = totaisDoGrupo.realizado;
+          const groupPlannedTotal = planoDoGrupo && !totaisDoGrupo.naoParticipou ? totaisDoGrupo.planejado : undefined;
           const origPeriod = getGroupOriginalPeriod(item, fmtDiaMes);
-          const dif = groupPlannedTotal !== undefined ? groupTotal - groupPlannedTotal : 0;
+          const dif = groupPlannedTotal !== undefined ? totaisDoGrupo.variacao : 0;
           return (
             <section
               key={item.id}
@@ -164,7 +170,7 @@ export function ActualGroupList(p: ActualGroupListProps) {
                 {groupChildren.map((child) => renderSingleCard(child, { isGChild: true }))}
               </div>
               {/* Total do grupo contra o planejado da escalação original. */}
-              <footer className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5 border-t border-primary/15 bg-card/60">
+              <footer className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5 border-t border-primary/15 bg-card/60" data-testid="realizado-total-escalacao">
                 <span className="text-xs font-medium text-slate-600">
                   Total da escalação
                   {groupPlannedTotal !== undefined && (

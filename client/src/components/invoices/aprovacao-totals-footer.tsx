@@ -23,15 +23,20 @@ export interface TotaisDasNotas {
   total: number;
 }
 
-/** Soma o Realizado das notas da lista: aprovadas, aguardando e as duas juntas. */
-export function somarNotas(
-  notas: readonly Pick<Invoice, "status" | "budgetActualId">[],
+/**
+ * Soma o Realizado das notas da lista: aprovadas, aguardando e as duas juntas.
+ * `aguarda` decide quem está aguardando o RH (a aba passa `aguardaAnaliseDoRh`,
+ * que deixa de fora a enviada de prestação devolvida/recusada — pausada).
+ */
+export function somarNotas<N extends Pick<Invoice, "status" | "budgetActualId">>(
+  notas: readonly N[],
   valorDoRealizado: (budgetActualId: string | null) => number,
+  aguarda: (nota: N) => boolean = nota => nota.status === "enviada",
 ): TotaisDasNotas {
   const aprovadas = { n: 0, valor: 0 };
   const aguardando = { n: 0, valor: 0 };
   for (const nota of notas) {
-    const alvo = nota.status === "aprovada" ? aprovadas : nota.status === "enviada" ? aguardando : null;
+    const alvo = nota.status === "aprovada" ? aprovadas : aguarda(nota) ? aguardando : null;
     if (!alvo) continue;
     alvo.n++;
     alvo.valor += valorDoRealizado(nota.budgetActualId);

@@ -15,7 +15,7 @@ import type { Invoice } from "@shared/schema";
 import { toTitleCase } from "@/lib/format";
 import { useLarguraUtil } from "@/components/common/use-largura-util";
 import { FilterPills } from "./filter-pills";
-import { getEffectiveStatus, getStatusCfg } from "./invoice-status";
+import { aguardaAnaliseDoRh, getEffectiveStatus, getStatusCfg } from "./invoice-status";
 import { buildHistory, daysSince, HistoryPanel } from "./invoice-history";
 import { formatCurrency, paraBusca } from "./invoice-format";
 import { AprovacaoRow } from "./aprovacao-row";
@@ -145,23 +145,29 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
           || paraBusca(i.oc).includes(q))
       : ordenadas;
 
+    // "Aguardando" = enviada E com a prestação liberando a NF — o critério do
+    // número da aba e do resumo do topo. Enviada de prestação devolvida ou
+    // recusada está PAUSADA: segue em "Todos" (com o aviso na linha), fora dela.
+    const aguarda = (i: Invoice) => aguardaAnaliseDoRh(i, getActual(i.budgetActualId));
+    const passaSituacao = (i: Invoice, id: string) => id === "enviada" ? aguarda(i) : getEffectiveStatus(i) === id;
+
     const aprovCountFor = (id: string) => {
       if (id === "all") return buscadas.length;
-      return buscadas.filter(i => getEffectiveStatus(i) === id).length;
+      return buscadas.filter(i => passaSituacao(i, id)).length;
     };
     const alertFor = (id: string): number => {
       if (id !== "enviada") return 0;
-      return buscadas.filter(i => i.status === "enviada" && daysSince(i) > 3).length;
+      return buscadas.filter(i => aguarda(i) && daysSince(i) > 3).length;
     };
 
     const filteredInvoices = filterStatus === "all"
       ? buscadas
-      : buscadas.filter(i => getEffectiveStatus(i) === filterStatus);
+      : buscadas.filter(i => passaSituacao(i, filterStatus));
 
     // Totais do pé: o MESMO conjunto da lista na tela (antes somavam o evento
     // inteiro ao lado de "Mostrando N de M" e os números não batiam).
     const temRecorte = filterStatus !== "all" || !!q;
-    const totais = somarNotas(filteredInvoices, id => getActual(id)?.totalValue || 0);
+    const totais = somarNotas(filteredInvoices, id => getActual(id)?.totalValue || 0, aguarda);
     const resumo = `${temRecorte ? `Mostrando ${filteredInvoices.length} de ${invoices.length}` : invoices.length} ${invoices.length === 1 ? "nota" : "notas"}`;
 
     return (

@@ -2,6 +2,7 @@
 // (aprovada vira aguardando/realizado check-in) e a tabela de estilos por
 // status. Card, linha da tabela e filtros leem daqui — uma única fonte.
 import type { Invoice } from "@shared/schema";
+import { isNfEligible, type PrestacaoLike } from "@shared/prestacao-rules";
 
 // Effective status for display (aprovada splits into checkin-pendente / checkin-realizado)
 export type EffStatus = "pendente" | "enviada" | "devolvida" | "recusada" | "aprovada" | "checkin-pendente" | "checkin-realizado";
@@ -13,6 +14,20 @@ export function getEffectiveStatus(inv: Invoice | null | undefined): EffStatus {
     return inv.checkinAt ? "checkin-realizado" : "checkin-pendente";
   }
   return inv.status as EffStatus;
+}
+
+/**
+ * A nota está AGUARDANDO a análise do RH? Enviada, de uma prestação que ainda
+ * libera a NF (`isNfEligible`, sem filho de divisão). Prestação devolvida ou
+ * recusada no Realizado PAUSA a nota até o reenvio — não espera o RH. Um
+ * critério só para a pílula "Aguardando", o número da aba, o resumo do topo
+ * e o pé da tabela (08/10: a pílula contava as pausadas e os outros não).
+ */
+export function aguardaAnaliseDoRh(
+  inv: Pick<Invoice, "status">,
+  actual: PrestacaoLike | null | undefined,
+): boolean {
+  return inv.status === "enviada" && !!actual && !actual.splitParentId && isNfEligible(actual);
 }
 
 // `borderCls` (25/09): a borda esquerda colorida do card/linha em classe de

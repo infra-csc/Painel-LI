@@ -55,3 +55,34 @@ describe("useBudgetActualData — planejado da prestação", () => {
     expect(result.current.getPlannedDaPrestacao(titular)?.mobility).toBe(3000);
   });
 });
+
+describe("useBudgetActualData — rateio de ida e volta e divergência (08/10)", () => {
+  it("ida + volta do planejado rateado fecham com a mobilidade rateada", () => {
+    const { result } = montar();
+    const doTitular = result.current.getPlannedDaPrestacao(titular);
+    expect(doTitular).toMatchObject({ mobility: 3000, mobilityIda: 1500, mobilityVolta: 1500 });
+    const daDivisao = result.current.getPlannedDaPrestacao(divisao);
+    expect(daDivisao).toMatchObject({ mobility: 1000, mobilityIda: 500, mobilityVolta: 500 });
+  });
+
+  it("o titular é comparado com o planejado PROPORCIONAL que o cartão mostra", () => {
+    const { Wrapper } = criarWrapper();
+    const bate = realizadoFake({ ...titular, totalValue: 33000 }); // 3 diárias de R$ 100 + R$ 30 de mobilidade
+    const cheio = realizadoFake({ ...titular, id: "a3", totalValue: planejado.totalValue });
+    const filhoDoCheio = realizadoFake({ ...divisao, id: "a4", splitParentId: "a3" });
+    const { result } = renderHook(() => useBudgetActualData({
+      selectedEventId: "evento-1",
+      budgetActual: [bate, divisao, cheio, filhoDoCheio],
+      budgetPlanned: [planejado],
+      teamInclusions: [],
+      selectedEvent: undefined,
+      getCollaboratorName: () => "Ana Souza",
+      getFunctionName: () => "Produção",
+    }), { wrapper: Wrapper });
+    expect(result.current.getPlannedDaPrestacao(bate)?.totalValue).toBe(33000);
+    // Antes: comparado com o cheio (R$ 440) → sempre "divergente".
+    expect(result.current.hasItemDivergence(bate)).toBe(false);
+    // Igual ao CHEIO mas acima do proporcional → diverge.
+    expect(result.current.hasItemDivergence(cheio)).toBe(true);
+  });
+});

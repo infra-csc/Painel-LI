@@ -6,6 +6,7 @@
  */
 import type { BudgetActual, BudgetPlanned } from "@shared/schema";
 import { diasComDiaria } from "@shared/calculation-rules";
+import { idaEVoltaRateadas } from "@shared/comparativo";
 
 // ── Viagem no Realizado ──────────────────────────────────────────────────────
 // De onde veio cada horário exibido no bloco "Viagem" do modal.
@@ -130,6 +131,8 @@ export function ratearPlanejadoPorDias(
       weekendLunch: 0,
       weekendDinner: 0,
       mobility: 0,
+      mobilityIda: 0,
+      mobilityVolta: 0,
       transport: 0,
       totalValue: 0,
     };
@@ -155,6 +158,8 @@ export function ratearPlanejadoPorDias(
   const propWkndDinner  = Math.round(rawPlan.weekendDinner  * wkndRatio);
   const propMobility    = Math.round(rawPlan.mobility       * dayRatio);
   const propTransport   = Math.round(rawPlan.transport      * dayRatio);
+  // Ida e volta na MESMA proporção, fechando com a mobilidade rateada
+  const propIdaVolta    = idaEVoltaRateadas(propMobility, rawPlan.mobility, rawPlan.mobilityIda, rawPlan.mobilityVolta);
 
   return {
     ...rawPlan,
@@ -164,6 +169,8 @@ export function ratearPlanejadoPorDias(
     weekendLunch:  propWkndLunch,
     weekendDinner: propWkndDinner,
     mobility:      propMobility,
+    mobilityIda:   propIdaVolta.ida,
+    mobilityVolta: propIdaVolta.volta,
     transport:     propTransport,
     totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
   };

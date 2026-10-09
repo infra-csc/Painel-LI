@@ -23,7 +23,7 @@ import { Metrica } from "./budget-overview-cards";
 import { diferencaComSinal } from "./actual-overview";
 import { formatCurrency, formatEventDate } from "./types";
 import type { ComparisonRow } from "./comparison-utils";
-import { etapaDoComparativo as etapaDoComparativoRegra } from "@shared/comparativo";
+import { entraNosTotaisDoComparativo, etapaDoComparativo as etapaDoComparativoRegra } from "@shared/comparativo";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
@@ -112,6 +112,8 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
   const n = comparisonData.length;
   const nAprovadas = comparisonData.filter(r => r.actual.rhStatus === "aprovado").length;
   const nAusentes = comparisonData.filter(r => r.naoParticipou).length;
+  // Devolvidas e recusadas: na lista, fora dos totais até o reenvio.
+  const nForaDosTotais = comparisonData.filter(r => !entraNosTotaisDoComparativo(r.actual)).length;
   const tudoAprovado = n > 0 && nAprovadas === n;
   const pctAprovado = n > 0 ? Math.round((nAprovadas / n) * 100) : 0;
 
@@ -128,11 +130,16 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
           <p className="m-0 mt-0.5 text-[1.625rem] leading-8 font-semibold tracking-[-0.02em] tabular-nums text-primary" data-testid="total-comparativo">
             {formatCurrency(totalActual)}
           </p>
-          <p className="m-0 mt-0.5 text-xs text-muted-foreground tabular-nums truncate" title="Só entram as prestações enviadas para revisão pelo responsável de função (e as já decididas pelo RH)">
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground tabular-nums truncate" title="Só entram as prestações enviadas para revisão pelo responsável de função e as aprovadas pelo RH; devolvidas e recusadas ficam fora dos totais até o reenvio">
             {plural(n, "prestação enviada", "prestações enviadas")}
             {naoEnviadas > 0 && (
               <span className="text-warning font-medium" title="Ainda não enviadas pelo responsável — ficam fora do comparativo até o envio no Realizado">
                 {" "}· {plural(naoEnviadas, "não enviada", "não enviadas")}
+              </span>
+            )}
+            {nForaDosTotais > 0 && (
+              <span title="Devolvidas ou recusadas pelo RH — seguem na lista, mas ficam fora dos totais até o reenvio" data-testid="comparativo-fora-dos-totais">
+                {" "}· {nForaDosTotais} fora dos totais
               </span>
             )}
             {nAusentes > 0 && <span title="Quem não participou fica fora dos totais"> · {nAusentes} não {nAusentes === 1 ? "participou" : "participaram"}</span>}

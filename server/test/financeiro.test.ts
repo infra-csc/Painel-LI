@@ -359,3 +359,29 @@ describe("POST /api/budget-comparison/calculate/:eventId — 'não participou' (
     expect(res.body.variance).toBe(5_000);
   });
 });
+
+describe("POST /api/budget-comparison/calculate/:eventId — quem entra nos totais (08/10)", () => {
+  it("aprovadas e enviadas pendentes entram; devolvida, recusada e não enviada ficam fora (o critério da tela, da NF e do Flash)", async () => {
+    const { agent, user } = await agenteLogado("admin");
+    const evento = await criarEvento();
+    const funcao = await criarFuncao();
+    const base = { eventId: evento.id, functionId: funcao.id, createdBy: user.id, dailyQuantity: 1 };
+    const somar = [
+      { sentForReview: true, rhStatus: "aprovado", dailyValue: 10_000 },
+      { sentForReview: true, rhStatus: "pendente", dailyValue: 20_000 },
+    ];
+    const fora = [
+      { sentForReview: false, rhStatus: "devolvido", dailyValue: 100_000 },
+      { sentForReview: false, rhStatus: "rejeitado", dailyValue: 200_000 },
+      { sentForReview: false, rhStatus: "pendente", dailyValue: 400_000 },
+    ];
+    for (const o of [...somar, ...fora]) {
+      const colab = await criarColaborador();
+      await criarPrestacao({ ...base, ...o, collaboratorId: colab.id });
+    }
+    const res = await mutacao(agent.post(`/api/budget-comparison/calculate/${evento.id}`)).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.totalActual).toBe(30_000);
+    expect(res.body.totalPlanned).toBe(0);
+  });
+});

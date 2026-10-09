@@ -102,12 +102,6 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
     return undefined;
   }, [budgetPlanned, plannedById, plannedPorColabFuncEvento, plannedPorColabEvento]);
 
-  const hasItemDivergence = useCallback((item: BudgetActual): boolean => {
-    const planned = getPlannedRef(item);
-    if (!planned) return false;
-    return planned.totalValue !== item.totalValue;
-  }, [getPlannedRef]);
-
   const getItemInclusion = useCallback((item: BudgetActual): TeamInclusion | undefined => {
     if (!item.collaboratorId) return undefined;
     return inclusaoPorColabEvento.get(chaveComposta(item.collaboratorId, item.eventId))?.[0];
@@ -164,6 +158,15 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
     const isGParent = !isGChild && (actualsPorGrupo.get(item.id)?.length ?? 0) > 1;
     return getCardPlanned(item, { isGParent, isGChild });
   }, [actualsPorGrupo, getCardPlanned]);
+
+  // Divergência contra o MESMO planejado que o cartão mostra (08/10: o
+  // titular de divisão era comparado com o planejado CHEIO e ficava sempre
+  // marcado, mesmo batendo com o proporcional exibido).
+  const hasItemDivergence = useCallback((item: BudgetActual): boolean => {
+    const planned = getPlannedDaPrestacao(item);
+    if (!planned) return false;
+    return planned.totalValue !== item.totalValue;
+  }, [getPlannedDaPrestacao]);
 
   // `useDeferredValue` (23/09): a lista é grande e refiltrar a cada tecla
   // travava a digitação. O input continua controlado por `searchTerm`.

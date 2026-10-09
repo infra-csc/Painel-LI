@@ -124,3 +124,22 @@ describe("Comparativo — ajuste do RH", () => {
     expect(screen.getByLabelText("Total (R$)")).toHaveValue("1.500,00");
   });
 });
+
+describe("Comparativo — devolvidas e recusadas fora dos totais (o critério do servidor)", () => {
+  it("seguem na lista, mas não somam no realizado, no planejado nem em Casa/Freela", () => {
+    const dados = dadosDoComparativo(
+      [planejadoFake({ id: "p1", collaboratorId: "colab-1", totalValue: 90000 }), planejadoFake({ id: "p2", collaboratorId: "colab-2", totalValue: 50000 }), planejadoFake({ id: "p3", collaboratorId: "colab-3", totalValue: 40000 })],
+      [
+        realizadoFake({ id: "a1", plannedId: "p1", collaboratorId: "colab-1", totalValue: 80000, rhStatus: "aprovado" }),
+        realizadoFake({ id: "a2", plannedId: "p2", collaboratorId: "colab-2", totalValue: 70000, sentForReview: false, rhStatus: "devolvido" }),
+        realizadoFake({ id: "a3", plannedId: "p3", collaboratorId: "colab-3", totalValue: 30000, sentForReview: false, rhStatus: "rejeitado" }),
+      ],
+    );
+    expect(dados.comparisonData.map(r => r.actual.id).sort()).toEqual(["a1", "a2", "a3"]);
+    expect(dados.totals).toMatchObject({ totalActual: 80000, totalPlanned: 90000, difference: -10000, totalFreela: 80000, nFreela: 1 });
+    renderComTudo(
+      <ResumoDoComparativo selectedEvent={undefined} budgetActual={[]} comparisonData={dados.comparisonData} totals={dados.totals} naoEnviadas={0} />,
+    );
+    expect(screen.getByTestId("comparativo-fora-dos-totais")).toHaveTextContent("2 fora dos totais");
+  });
+});
