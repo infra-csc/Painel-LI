@@ -8,11 +8,20 @@
  * cada ocupante — viraram duas colunas com o dia da semana junto da data; o
  * cabeçalho diz quantos quartos há, quantos já estão confirmados e oferece
  * "Refazer sugestões" no lugar em que o resultado aparece.
+ *
+ * 09/10: entrada e saída vêm da PASSAGEM (regra em shared/datas-do-quarto.ts,
+ * calculada no servidor e enviada em `row.datasDoQuarto`); cada data diz de
+ * onde veio ("da passagem", "sugerida", "da hospedagem", "da escala") e o
+ * motivo de um dia a mais (volta a partir das 18h). Hospedagem reservada com
+ * outras datas aparece como aviso na linha, e a observação "Datas diferentes
+ * entre os ocupantes" é recalculada com as datas mostradas.
  */
 import { useState, useEffect } from "react";
-import { CheckCheck, Loader2, RefreshCw, BedDouble, Scissors } from "lucide-react";
+import { AlertTriangle, CheckCheck, Loader2, RefreshCw, BedDouble, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { RoomGroup } from "@shared/operational-mirror-types";
+import { seloDaOrigem } from "@shared/datas-do-quarto";
+import { observacaoDeDatas, PREFIXO_DATAS_DIFERENTES } from "@shared/room-pairing";
 import { cn } from "@/lib/utils";
 import { MoverPara } from "./mover-para";
 import { diaSemana, fmtDate, memberInfo, useLarguraMinima, type GroupViewProps } from "./mirror-shared";
@@ -111,7 +120,8 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
   /** Como cada quarto se descreve na lista de destinos: por quem está nele. */
   const descreve = (g: RoomGroup) => {
     const nomes = (g.members || []).map((m) => memberInfo(m, collabById).name.split(" ")[0]);
-    return nomes.length ? `Com ${nomes.join(", ")}` : "Quarto vazio";
+    // 3 é o máximo (09/10): o destino cheio já se anuncia antes da escolha.
+    return nomes.length ? `Com ${nomes.join(", ")}${nomes.length >= 3 ? " · lotado (máx. 3)" : ""}` : "Quarto vazio";
   };
   const confirmados = groups.filter((g) => g.confirmed).length;
   const pessoas = groups.reduce((n, g) => n + (g.members || []).length, 0);
@@ -125,9 +135,22 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
     // Estadia DESTA pessoa, quando ela difere do grupo (montagem,
     // desmontagem). Vazio = segue o quarto.
     const bruto = (g.members || [])[mi] as { id?: string; checkInDate?: string | null; checkOutDate?: string | null } | undefined;
-    const ini = bruto?.checkInDate || r?.accommodation?.checkInDate || r?.schedule.startDate || g.checkInDate;
-    const fim = bruto?.checkOutDate || r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
-    return { m, r, bruto, ini, fim, mi };
+    // Sem estadia própria, vale a regra da passagem (09/10); servidor antigo
+    // sem `datasDoQuarto` cai na ordem de antes.
+    const dq = r?.datasDoQuarto;
+    const ini = bruto?.checkInDate || dq?.checkIn || r?.accommodation?.checkInDate || r?.schedule.startDate || g.checkInDate;
+    const fim = bruto?.checkOutDate || dq?.checkOut || r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
+    /** De onde veio cada data — o selo discreto embaixo dela. */
+    const origem = (qual: "entrada" | "saida"): { base: string; extra?: string } | null => {
+      if (qual === "entrada" ? bruto?.checkInDate : bruto?.checkOutDate) return { base: "ajustada no quarto" };
+      if (!dq) return null;
+      const base = seloDaOrigem(qual === "entrada" ? dq.origemEntrada : dq.origemSaida);
+      if (!base) return null;
+      if (qual === "entrada" && dq.chegadaDepoisDaMeiaNoite) return { base, extra: "chega após 0h" };
+      if (qual === "saida" && dq.diariaExtraNaVolta) return { base, extra: `+1 diária (volta ${dq.diariaExtraNaVolta.horario})` };
+      return { base };
+    };
+    return { m, r, bruto, ini, fim, mi, origem, divergencia: dq?.divergencia?.texto ?? null };
   });
   type Ocupante = ReturnType<typeof ocupantes>[number];
   const nomeDoOcupante = (g: RoomGroup, o: Ocupante) => (
@@ -143,16 +166,47 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         )}
       </span>
       <span className="block text-2xs capitalize text-muted-foreground">{o.r?.function.area || o.r?.function.name || "—"}</span>
+      {o.divergencia && (
+        // Hospedagem já reservada com outras datas: não vence a passagem, mas
+        // também não some — quem confere vê aqui.
+        <span className="mt-0.5 flex max-w-[230px] items-start gap-1 whitespace-normal text-2xs leading-snug text-warning" data-testid={`room-divergencia-${g.id}-${o.mi}`}>
+          <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+          <span>{o.divergencia}</span>
+        </span>
+      )}
     </>
   );
-  const data = (o: Ocupante, qual: "entrada" | "saida") => (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="w-7 text-muted-foreground">{diaSemana(qual === "entrada" ? o.ini : o.fim)}</span>
-      <DataDoOcupante valor={qual === "entrada" ? o.ini : o.fim} propria={!!(qual === "entrada" ? o.bruto?.checkInDate : o.bruto?.checkOutDate)}
-        canEdit={canEdit && !!o.bruto?.id} rotulo={`${qual === "entrada" ? "Entrada" : "Saída"} de ${o.m.name}`}
-        aoSalvar={(v) => onPatchMembro?.(o.bruto!.id as string, qual === "entrada" ? { checkInDate: v } : { checkOutDate: v })} />
-    </span>
-  );
+  const data = (o: Ocupante, qual: "entrada" | "saida") => {
+    const selo = o.origem(qual);
+    return (
+      <span className="inline-flex flex-col items-start">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-7 text-muted-foreground">{diaSemana(qual === "entrada" ? o.ini : o.fim)}</span>
+          <DataDoOcupante valor={qual === "entrada" ? o.ini : o.fim} propria={!!(qual === "entrada" ? o.bruto?.checkInDate : o.bruto?.checkOutDate)}
+            canEdit={canEdit && !!o.bruto?.id} rotulo={`${qual === "entrada" ? "Entrada" : "Saída"} de ${o.m.name}`}
+            aoSalvar={(v) => onPatchMembro?.(o.bruto!.id as string, qual === "entrada" ? { checkInDate: v } : { checkOutDate: v })} />
+        </span>
+        {selo && (
+          // Quebra antes do motivo em vez de alargar a coluna (a tabela cabe em 1366).
+          <span className="flex max-w-[160px] flex-wrap gap-x-1 whitespace-normal pl-[34px] text-2xs leading-tight text-muted-foreground" data-testid={`room-origem-${qual}`}>
+            <span>{selo.base}{selo.extra ? " ·" : ""}</span>
+            {selo.extra && <span className="whitespace-nowrap font-medium text-foreground">{selo.extra}</span>}
+          </span>
+        )}
+      </span>
+    );
+  };
+  /**
+   * "Datas diferentes entre os ocupantes — N noites em comum" recalculada com
+   * as datas que as linhas mostram (09/10): a gravada no recálculo podia ser
+   * de antes da regra da passagem. Uma observação escrita à mão continua.
+   */
+  const observacoes = (g: RoomGroup, lista: Ocupante[]) => {
+    const dia = (v: string | null | undefined) => (v ? String(v).slice(0, 10) : null);
+    const auto = observacaoDeDatas(lista.map((o) => ({ checkIn: dia(o.ini), checkOut: dia(o.fim) })));
+    const manual = g.notes && !g.notes.startsWith(PREFIXO_DATAS_DIFERENTES) ? g.notes : null;
+    return [auto, manual].filter((x): x is string => !!x);
+  };
   /* Hotel e tipo aparecem uma vez por grupo, como na planilha —
      e são editáveis aqui mesmo, sem abrir outra tela. */
   const hotel = (g: RoomGroup) => canEdit ? (
@@ -163,7 +217,9 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
       rotulo="Hotel do quarto"
     />
   ) : (g.hotelName || <span className="text-warning">sem hotel</span>);
-  const tipo = (g: RoomGroup, n: number) => (
+  const tipo = (g: RoomGroup, lista: Ocupante[]) => {
+    const n = lista.length;
+    return (
     <span className="flex flex-col items-start gap-1">
       <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
         <span className="text-xs font-semibold text-foreground">
@@ -180,11 +236,12 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
           <Scissors className="h-3 w-3" aria-hidden="true" /> Separar<span className="hidden 2xl:inline">&nbsp;em individuais</span>
         </button>
       )}
-      {g.notes && (
-        <span className="max-w-[220px] text-2xs leading-snug text-muted-foreground">{g.notes}</span>
-      )}
+      {observacoes(g, lista).map((nota) => (
+        <span key={nota} className="max-w-[220px] text-2xs leading-snug text-muted-foreground" data-testid={`room-obs-${g.id}`}>{nota}</span>
+      ))}
     </span>
-  );
+    );
+  };
   const situacao = (g: RoomGroup) => g.confirmed ? (
     canEdit ? (
       <Tooltip>
@@ -227,7 +284,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
               <li key={g.id} className={cn("esp-grupo-cartao px-4 py-3", g.confirmed && "bg-success-soft/25")}
                 style={{ ["--esp-cor" as string]: COR_DO_GRUPO[gi % COR_DO_GRUPO.length] }} data-testid={`room-card-${g.id}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  {tipo(g, lista.length)}
+                  {tipo(g, lista)}
                   {situacao(g)}
                 </div>
                 <div className="mt-2 flex max-w-[420px] items-center gap-2"><span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Hotel</span><div className="min-w-0 flex-1 text-xs">{hotel(g)}</div></div>
@@ -235,9 +292,11 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
                   {lista.map((o) => (
                     <li key={`${g.id}-${o.m.id ?? o.mi}`} className="group/linha text-sm" data-testid={`room-row-${g.id}-${o.mi}`}>
                       {nomeDoOcupante(g, o)}
-                      <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <span className="inline-flex items-center gap-1"><span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Entra</span>{data(o, "entrada")}</span>
-                        <span className="inline-flex items-center gap-1"><span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Sai</span>{data(o, "saida")}</span>
+                      {/* Entra | Sai lado a lado, rótulo em cima: com o selo de origem
+                          embaixo da data, o rótulo ao lado desalinhava as duas. */}
+                      <span className="mt-1.5 grid max-w-[420px] grid-cols-2 gap-x-3 text-xs">
+                        <span className="flex flex-col gap-0.5"><span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Entra</span>{data(o, "entrada")}</span>
+                        <span className="flex flex-col gap-0.5"><span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Sai</span>{data(o, "saida")}</span>
                       </span>
                     </li>
                   ))}
@@ -273,11 +332,11 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
                     className={cn("esp-grupo group/linha transition-colors hover:bg-surface-muted/60", g.confirmed && "bg-success-soft/25")}
                     style={{ ["--esp-cor" as string]: cor }}
                     data-testid={`room-row-${g.id}-${o.mi}`}>
-                    <td className={cn("py-1.5 pl-4 pr-3", borda)}>{nomeDoOcupante(g, o)}</td>
-                    <td className={cn("whitespace-nowrap px-3 py-1.5", borda)}>{data(o, "entrada")}</td>
-                    <td className={cn("whitespace-nowrap px-3 py-1.5", borda)}>{data(o, "saida")}</td>
+                    <td className={cn("pb-1.5 pl-4 pr-3 pt-2 align-top", borda)}>{nomeDoOcupante(g, o)}</td>
+                    <td className={cn("whitespace-nowrap px-3 py-1.5 align-top", borda)}>{data(o, "entrada")}</td>
+                    <td className={cn("whitespace-nowrap px-3 py-1.5 align-top", borda)}>{data(o, "saida")}</td>
                     {o.mi === 0 ? <td className={cn("border-l border-l-border px-3 py-1.5 align-middle", fechaGrupo)} rowSpan={lista.length}>{hotel(g)}</td> : null}
-                    {o.mi === 0 ? <td className={cn("px-3 py-1.5 align-middle", fechaGrupo)} rowSpan={lista.length}>{tipo(g, lista.length)}</td> : null}
+                    {o.mi === 0 ? <td className={cn("px-3 py-1.5 align-middle", fechaGrupo)} rowSpan={lista.length}>{tipo(g, lista)}</td> : null}
                     {o.mi === 0 ? <td className={cn("py-1.5 pl-3 pr-4 text-right align-middle", fechaGrupo)} rowSpan={lista.length}>{situacao(g)}</td> : null}
                   </tr>
                 );

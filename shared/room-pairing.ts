@@ -91,13 +91,98 @@ export function podemDividir(a: RoomCandidate, b: RoomCandidate, config: RoomPai
 }
 
 /**
+ * Função de cenotécnica (09/10): nome sem acento/caixa contendo "cenotecnica".
+ * "Sup Ceno" NÃO entra — o supervisor não divide o triplo da equipe.
+ */
+export function ehCenotecnica(nomeDaFuncao: string | null | undefined): boolean {
+  if (!nomeDaFuncao) return false;
+  return nomeDaFuncao.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes("cenotecnica");
+}
+
+/**
+ * Quantas pessoas cabem num quarto com estes ocupantes. Triplo com a chave
+ * global ligada, ou — mesmo com ela desligada — quando TODOS são de
+ * cenotécnica (pedido do dono, 09/10). Nunca mais de 3.
+ */
+export function capacidadeDoQuarto(funcoes: (string | null | undefined)[], allowTripleRoom: boolean): 2 | 3 {
+  if (allowTripleRoom) return 3;
+  return funcoes.length > 0 && funcoes.every(ehCenotecnica) ? 3 : 2;
+}
+
+/** Tipo do quarto pelo número de ocupantes (1 single, 2 duplo, 3 triplo). */
+export function tipoPorOcupantes(n: number): "single" | "double" | "triple" {
+  return n <= 1 ? "single" : n === 2 ? "double" : "triple";
+}
+
+/**
+ * Por que estes ocupantes NÃO podem ficar num mesmo quarto (null = podem).
+ * Usado pelo "Mover" — a sugestão já monta dentro do limite.
+ */
+export function motivoDeLotacao(funcoes: (string | null | undefined)[], allowTripleRoom: boolean): string | null {
+  const n = funcoes.length;
+  if (n >= 4) return "Um quarto comporta no máximo 3 pessoas.";
+  if (n === 3 && capacidadeDoQuarto(funcoes, allowTripleRoom) < 3) {
+    return "Quarto triplo só para a equipe de cenotécnica — os três ocupantes precisam ser de cenotécnica.";
+  }
+  return null;
+}
+
+/**
+ * Noites que TODOS os ocupantes passam juntos — o cruzamento dos períodos
+ * (09/10). Antes era o menor par com o primeiro ocupante, que num triplo
+ * contava noites que o segundo e o terceiro não dividiam.
+ */
+export function noitesEmComumDeTodos(periodos: { checkIn: string | null; checkOut: string | null }[]): number {
+  if (periodos.length === 0 || periodos.some((p) => !p.checkIn || !p.checkOut)) return 0;
+  const inicio = periodos.map((p) => p.checkIn as string).reduce((x, y) => (x > y ? x : y));
+  const fim = periodos.map((p) => p.checkOut as string).reduce((x, y) => (x < y ? x : y));
+  if (fim <= inicio) return 0;
+  const dias = (Date.parse(fim) - Date.parse(inicio)) / 86400000;
+  return Number.isFinite(dias) ? Math.max(0, Math.round(dias)) : 0;
+}
+
+/** Começo da observação automática — a tela reconhece e recalcula ao vivo. */
+export const PREFIXO_DATAS_DIFERENTES = "Datas diferentes entre os ocupantes";
+
+/**
+ * Observação do quarto quando os ocupantes têm datas diferentes — a mesma
+ * frase no recálculo (gravada em `notes`) e na tela (calculada com as datas
+ * que as linhas mostram). Null quando as datas são iguais ou é individual.
+ */
+export function observacaoDeDatas(periodos: { checkIn: string | null; checkOut: string | null }[]): string | null {
+  if (periodos.length < 2) return null;
+  const [p0] = periodos;
+  if (periodos.every((p) => p.checkIn === p0.checkIn && p.checkOut === p0.checkOut)) return null;
+  const n = noitesEmComumDeTodos(periodos);
+  return `${PREFIXO_DATAS_DIFERENTES} — ${n} ${n === 1 ? "noite" : "noites"} em comum. Confirme entrada/saída com o hotel.`;
+}
+
+/**
+ * Fechar este triplo deixaria exatamente UMA pessoa que poderia dividir com o
+ * dono do quarto sem ninguém para dividir? Então é melhor parar no duplo.
+ */
+function deixariaAlguemSozinho(
+  candidatos: RoomCandidate[], i: number, usados: Set<string>, noQuarto: RoomCandidate[], a: RoomCandidate, config: RoomPairingConfig,
+): boolean {
+  const ocupados = new Set(noQuarto.map((m) => m.collaboratorId));
+  const restantes = candidatos.slice(i + 1).filter((x) => !usados.has(x.collaboratorId) && !ocupados.has(x.collaboratorId));
+  const doGrupo = restantes.filter((x) => podemDividir(a, x, config));
+  if (doGrupo.length !== 1) return false;
+  const [sobra] = doGrupo;
+  return !restantes.some((y) => y !== sobra && podemDividir(sobra, y, config));
+}
+
+/**
  * Monta os quartos. Quem não encontra parceiro fica em individual — o que é
  * um resultado legítimo, não uma falha.
+ *
+ * Cenotécnica (09/10): fecha triplo quando os três são de cenotécnica, mesmo
+ * com a chave global desligada — mas sem deixar alguém sozinho por causa
+ * disso: 3 → 3, 4 → 2+2, 5 → 3+2, 6 → 3+3, 7 → 3+2+2.
  */
 export function sugerirQuartos(candidatos: RoomCandidate[], config: RoomPairingConfig): SuggestedRoom[] {
   const usados = new Set<string>();
   const quartos: SuggestedRoom[] = [];
-  const maxPorQuarto = config.allowTripleRoom ? 3 : 2;
 
   for (let i = 0; i < candidatos.length; i++) {
     const a = candidatos[i];
@@ -123,12 +208,18 @@ export function sugerirQuartos(candidatos: RoomCandidate[], config: RoomPairingC
 
     const membros = [a];
     for (const p of parceiros) {
-      if (membros.length >= maxPorQuarto) break;
+      if (membros.length >= 3) break;
       // Um triplo só fecha se TODOS se aceitam entre si.
-      if (membros.every((m) => m === a || podemDividir(m, p, config))) {
-        membros.push(p);
-        usados.add(p.collaboratorId);
+      if (!membros.every((m) => m === a || podemDividir(m, p, config))) continue;
+      if (membros.length === 2) {
+        const funcoes = [...membros, p].map((m) => m.functionName);
+        if (capacidadeDoQuarto(funcoes, config.allowTripleRoom) < 3) continue;
+        // Triplo de cenotécnica não deixa UMA pessoa do grupo sem par: nesse
+        // caso ficam dois duplos (4 → 2+2, e não 3+1).
+        if (funcoes.every(ehCenotecnica) && deixariaAlguemSozinho(candidatos, i, usados, [...membros, p], a, config)) break;
       }
+      membros.push(p);
+      usados.add(p.collaboratorId);
     }
     usados.add(a.collaboratorId);
 
@@ -137,15 +228,14 @@ export function sugerirQuartos(candidatos: RoomCandidate[], config: RoomPairingC
     const generoDoQuarto = membros.find((m) => conhecido(m.gender))?.gender;
 
     quartos.push({
-      roomType: membros.length === 1 ? "single" : membros.length === 2 ? "double" : "triple",
+      roomType: tipoPorOcupantes(membros.length),
       genderRule: generoDoQuarto === "male" ? "male" : generoDoQuarto === "female" ? "female" : "none",
       hotelName: a.hotelName,
       checkIn: entradas.length ? entradas.reduce((x, y) => (x < y ? x : y)) : null,
       checkOut: saidas.length ? saidas.reduce((x, y) => (x > y ? x : y)) : null,
       members: membros.map((m) => m.collaboratorId),
-      sharedNights: membros.length > 1
-        ? Math.min(...membros.slice(1).map((m) => noitesEmComum(membros[0], m)))
-        : 1,
+      // Noites que os ocupantes passam JUNTOS — num triplo, o cruzamento dos três.
+      sharedNights: membros.length > 1 ? noitesEmComumDeTodos(membros) : 1,
       partialOverlap: membros.length > 1 && membros.some((m) => m.checkIn !== a.checkIn || m.checkOut !== a.checkOut),
     });
   }

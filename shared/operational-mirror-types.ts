@@ -9,6 +9,7 @@ import type {
   UberGroup as UberGroupRow,
   UberGroupMember,
 } from "./schema";
+import type { DatasDoQuarto } from "./datas-do-quarto";
 
 export interface MirrorCollaborator {
   id: string | null;
@@ -83,6 +84,12 @@ export interface MirrorRow {
   needsAccommodation?: boolean;
   suggestedRoomGroupId: string | null;
   roomGroupLabel: string | null;
+  /**
+   * Entrada/saída do quarto desta vaga e de onde vieram (09/10): passagem →
+   * datas sugeridas → hospedagem → escala, com o aviso quando a hospedagem
+   * reservada diverge. Opcional porque servidores antigos não mandam.
+   */
+  datasDoQuarto?: DatasDoQuarto;
   pendencies: string[];
 }
 

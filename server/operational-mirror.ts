@@ -86,8 +86,56 @@ export function timeToMinutes(t: string | null | undefined): number | null {
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
-import { sugerirQuartos } from "@shared/room-pairing";
+import { sugerirQuartos, observacaoDeDatas, motivoDeLotacao, ehCenotecnica } from "@shared/room-pairing";
+import { datasDoQuarto, type DatasDoQuarto } from "@shared/datas-do-quarto";
 import { inferirGenero } from "@shared/gender-inference";
+
+/**
+ * Entrada e saída do quarto de UMA vaga (09/10): da passagem, depois as
+ * datas sugeridas de viagem, a hospedagem registrada e a escala — regra em
+ * shared/datas-do-quarto.ts. O espelho manda o resultado para a aba Quartos e
+ * o recálculo de sugestões pareia por ele.
+ */
+function datasDoQuartoDaVaga(
+  ti: typeof teamInclusions.$inferSelect,
+  ticket: Ticket | null | undefined,
+  acc: typeof accommodations.$inferSelect | null | undefined,
+): DatasDoQuarto {
+  return datasDoQuarto({
+    passagem: ticket ?? null,
+    vaga: {
+      flightDepartureDate: ti.flightDepartureDate,
+      flightReturnDate: ti.flightReturnDate,
+      flightReturnSuggestedTime: ti.flightReturnSuggestedTime,
+      scheduleStartDate: ti.scheduleStartDate,
+      scheduleEndDate: ti.scheduleEndDate,
+    },
+    hospedagem: acc ?? null,
+  });
+}
+
+/**
+ * Estes colaboradores podem ficar juntos num quarto do evento? Devolve o
+ * motivo quando não (09/10, "Mover"): no máximo 3, e 3 só se todos forem de
+ * cenotécnica — ou com a chave global `allow_triple_room` ligada.
+ */
+export async function motivoDeLotacaoDoQuarto(eventId: string, collaboratorIds: string[], exec: Exec = db): Promise<string | null> {
+  if (collaboratorIds.length < 3) return null;
+  const [config, vagas] = await Promise.all([
+    getLogisticsConfig(),
+    exec.select({ collaboratorId: teamInclusions.collaboratorId, functionName: functions.name, deletedAt: teamInclusions.deletedAt, phase: teamInclusions.phase })
+      .from(teamInclusions)
+      .leftJoin(functions, eq(functions.id, teamInclusions.functionId))
+      .where(and(eq(teamInclusions.eventId, eventId), inArray(teamInclusions.collaboratorId, collaboratorIds))),
+  ]);
+  // Uma pessoa com mais de uma vaga no evento vale pela função que a põe na
+  // cenotécnica, se houver.
+  const funcoes = collaboratorIds.map((cid) => {
+    const nomes = vagas.filter((v) => v.collaboratorId === cid && !v.deletedAt && v.phase !== "sugestao").map((v) => v.functionName);
+    return nomes.find((n) => ehCenotecnica(n)) ?? nomes[0] ?? null;
+  });
+  return motivoDeLotacao(funcoes, config.allowTripleRoom);
+}
 
 // ---------- Passagens: ida e volta em linhas separadas ----------
 /**
@@ -481,6 +529,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
       needsAccommodation: !!ti.needsAccommodation,
       suggestedRoomGroupId: roomGroup?.id || null,
       roomGroupLabel: roomGroup ? `${roomGroup.roomType || ""} ${roomGroup.confirmed ? "(Confirmado)" : "(Sugestão)"}`.trim() : null,
+      datasDoQuarto: datasDoQuartoDaVaga(ti, ticket, acc),
       pendencies,
     };
   });
@@ -612,7 +661,9 @@ const FIELD_MAP: Record<string, FieldTarget> = {
   "accommodation.totalCents": { table: "accommodations", col: "totalCents", type: "int" },
   "accommodation.hotelName": { table: "accommodations", col: "hotelName", type: "text" },
   "accommodation.reservationNumber": { table: "accommodations", col: "reservationNumber", type: "text" },
-  // Check-in/out reais da hospedagem — a sugestão de quarto usa acc.checkInDate/checkOutDate
+  // Check-in/out reais da hospedagem. A sugestão de quarto usa a PASSAGEM
+  // primeiro (09/10, shared/datas-do-quarto.ts); estas entram no fallback e no
+  // aviso de divergência.
   "accommodation.checkInDate": { table: "accommodations", col: "checkInDate", type: "date" },
   "accommodation.checkInTime": { table: "accommodations", col: "checkInTime", type: "text" },
   "accommodation.checkOutDate": { table: "accommodations", col: "checkOutDate", type: "date" },
@@ -899,7 +950,7 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
 
     const base = await carregarBaseDoEvento(eventId, tx);
     if (!base) throw new Error("Evento não encontrado");
-    const { inclusions, collabMap, ticketByInclusion, accByInclusion } = base;
+    const { inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion } = base;
 
     const [existingRoomGroups, roomMembers, existingUberGroups, uberMembers] = await Promise.all([
       tx.select().from(hotelRoomGroups).where(eq(hotelRoomGroups.eventId, eventId)),
@@ -932,13 +983,16 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
     }).map((ti) => {
       const acc = accByInclusion.get(ti.id);
       const collab = collabMap.get(ti.collaboratorId!);
+      // Datas do quarto vêm da PASSAGEM (dono, 09/10), não da diária — ver
+      // shared/datas-do-quarto.ts.
+      const datas = datasDoQuartoDaVaga(ti, ticketByInclusion.get(ti.id), acc);
       return {
         inclusion: ti,
         collab,
         acc,
         hotelName: acc?.hotelName || null,
-        checkIn: acc?.checkInDate || ti.scheduleStartDate || null,
-        checkOut: acc?.checkOutDate || ti.scheduleEndDate || null,
+        checkIn: datas.checkIn,
+        checkOut: datas.checkOut,
         // Sem gênero no cadastro, o primeiro nome dá o palpite (96% da base
         // é reconhecida). O cadastro SEMPRE vence; nome ambíguo fica "unknown"
         // e cai na regra de mesma função.
@@ -947,9 +1001,11 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
           : (inferirGenero(collab?.fullName || "").genero || "unknown"),
         area: ti.area || null,
         functionId: ti.functionId || null,
-        functionName: null as string | null,
+        // O nome decide o triplo de cenotécnica (09/10) — antes ia sempre nulo.
+        functionName: (ti.functionId ? fnMap.get(ti.functionId)?.name : null) ?? null,
       };
     });
+    const periodoDe = new Map(roomCandidates.map((c) => [c.inclusion.collaboratorId!, { checkIn: c.checkIn, checkOut: c.checkOut }]));
 
     // A regra de quem divide com quem mora em shared/room-pairing.ts, com
     // testes sobre casos reais de evento: pareia por NOITES EM COMUM (e não por
@@ -983,9 +1039,8 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
       checkOutDate: q.checkOut,
       // Quem divide quarto com períodos diferentes precisa ser conferido com o
       // hotel (entrada/saída em dias distintos), então a sugestão já diz isso.
-      notes: q.partialOverlap
-        ? `Datas diferentes entre os ocupantes — ${q.sharedNights} ${q.sharedNights === 1 ? "noite" : "noites"} em comum. Confirme entrada/saída com o hotel.`
-        : null,
+      // Mesma frase que a aba Quartos recalcula ao vivo (shared/room-pairing.ts).
+      notes: observacaoDeDatas(q.members.map((cid) => periodoDe.get(cid) ?? { checkIn: null, checkOut: null })),
       suggested: true,
       confirmed: false,
       members: q.members,
