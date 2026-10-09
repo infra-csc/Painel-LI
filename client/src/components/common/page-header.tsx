@@ -45,7 +45,15 @@ export function PageHeader({ variant = "default", icon: Icon, title, subtitle, a
           <>
             {/* No celular o subtítulo desce para a linha de baixo: o filete ficava solto. */}
             <span aria-hidden="true" className="hidden sm:block w-px h-5 bg-border shrink-0" />
-            <p className="min-w-0 text-xs text-muted-foreground truncate" aria-live="polite">{subtitle}</p>
+            {/* No celular quebra a linha em vez de cortar (09/10: "69 vagas em 4
+                eventos · 5 sem nome" sumia atrás das reticências). */}
+            <p
+              className="min-w-0 text-xs text-muted-foreground max-sm:basis-full sm:truncate"
+              title={typeof subtitle === "string" ? subtitle : undefined}
+              aria-live="polite"
+            >
+              {subtitle}
+            </p>
           </>
         )}
         {context && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0">{context}</div>}
