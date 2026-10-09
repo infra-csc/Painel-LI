@@ -939,6 +939,41 @@ export function montarGruposUber(
   return grupos;
 }
 
+/** Um carro a recalcular fora do "Refazer sugestões" (ex.: mover alguém de carro). */
+export interface CarroParaHorario {
+  chave: string;
+  /** "volta" ou ida (qualquer outro valor, como no carro gravado). */
+  direction: string | null;
+  /** Data do carro: só conta o voo daquele dia (quem tem duas vagas no evento). */
+  date: string | null;
+  membros: string[];
+}
+
+/**
+ * Horário CALCULADO de cada carro pelos voos de quem está nele (09/10) — a
+ * mesma conta do "Refazer sugestões": `horarioDoCarro` com a antecedência
+ * configurada antes do voo mais cedo da direção do carro (ida: voo de ida;
+ * volta: voo de volta). Quem foi dispensado do Uber não puxa o horário, como
+ * no recálculo. Devolve chave → "HH:MM" (ou null quando ninguém tem horário).
+ */
+export async function horariosCalculadosDosCarros(eventId: string, carros: CarroParaHorario[], exec: Exec = db): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  if (carros.length === 0) return out;
+  const [base, config] = await Promise.all([carregarBaseDoEvento(eventId, exec), getLogisticsConfig()]);
+  for (const carro of carros) {
+    const direcao: "ida" | "volta" = carro.direction === "volta" ? "volta" : "ida";
+    const data = carro.date ? String(carro.date).slice(0, 10) : null;
+    const membros = new Set(carro.membros);
+    const passageiros = (base?.inclusions ?? [])
+      .filter((ti) => ti.collaboratorId && membros.has(ti.collaboratorId) && !ti.skipUber)
+      .map((ti) => ({ ti, voo: vooDoCarro(base!.ticketByInclusion.get(ti.id), direcao) }))
+      .filter(({ voo }) => voo.minutos != null && (!data || voo.data === data))
+      .map(({ ti, voo }) => ({ id: ti.collaboratorId!, data: voo.data ?? "", aeroporto: voo.aeroporto ?? "", minutos: voo.minutos }));
+    out.set(carro.chave, horarioDoCarro(passageiros, direcao, { antecedenciaMin: config.uberAdvanceMinutes }));
+  }
+  return out;
+}
+
 /** INSERT multi-linha em lotes — o Postgres aceita até 65.535 parâmetros por comando. */
 const TAMANHO_DO_LOTE = 500;
 async function inserirEmLotes<T>(inserir: (lote: T[]) => Promise<unknown>, linhas: T[]) {

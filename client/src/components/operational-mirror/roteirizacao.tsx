@@ -528,7 +528,7 @@ function CartaoDoCarro({
                 <div className="col-start-2 row-start-1 flex shrink-0 items-center justify-end gap-1 lg:col-start-4">
                   {m.id && (
                     <MoverPara pessoa={m.name} grupoAtual={g.id} rotuloNovo="Carro só para esta pessoa"
-                      consequencia="O horário do carro de origem e do destino é recalculado a partir dos voos de quem sobrar em cada um."
+                      consequencia="O horário do carro de origem e do destino é recalculado pelos voos de quem ficar em cada um — menos o de carro confirmado ou com horário ajustado à mão, que fica como está."
                       destinos={grupos.filter((o) => o.id !== g.id).map((o) => ({ id: o.id, descricao: descreve(o) }))}
                       onMover={(para) => onMover(m.id as string, g.id, para)} />
                   )}

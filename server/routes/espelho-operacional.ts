@@ -32,6 +32,7 @@ import {
   patchOperationalMirrorCell,
   lerPlanilhaParaOEspelho,
   motivoDeLotacaoDoQuarto,
+  horariosCalculadosDosCarros,
 } from "../operational-mirror";
 import { tipoPorOcupantes } from "@shared/room-pairing";
 import { chaveDoHotel } from "@shared/rooming-list";
@@ -219,6 +220,24 @@ export function registrarEspelhoOperacional(app: Express): void {
   const grupoDeQuarto = async (id: string) => (await db.select().from(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.id, id)))[0];
   const grupoDeUber = async (id: string) => (await db.select().from(uberGroupsTable).where(eq(uberGroupsTable.id, id)))[0];
 
+  /**
+   * O horário do carro foi decidido por alguém? (mover pessoa, 09/10)
+   *  1. MARCA explícita: `manualTime` preenchido — é o que o PATCH grava quando
+   *     a tela ajusta o horário à mão (e o que o "Refazer sugestões" respeita).
+   *  2. Sem marca: `time` diferente do horário CALCULADO antes da mudança. O
+   *     PATCH também aceita `time` direto (API, carros antigos sem
+   *     `suggestedTime`), e aí a única pista de decisão humana é o horário não
+   *     bater com a conta. O calculado é o `suggestedTime` gravado pelo
+   *     recálculo; sem ele, a conta refeita com os passageiros de antes.
+   * Na dúvida, não sobrescreve: perder um ajuste humano é pior do que deixar
+   * um horário para conferir.
+   */
+  const horarioFoiDecididoAMao = (g: { time: string | null; suggestedTime: string | null; manualTime: string | null }, calculadoAntes: string | null) => {
+    if (g.manualTime && g.manualTime.trim()) return true;
+    if (!g.time) return false;
+    return g.time !== (g.suggestedTime ?? calculadoAntes);
+  };
+
   app.post("/api/hotel-room-groups/:id/confirm", async (req, res) => {
     const ator = await requireRoles(req, res, LOGISTICA_ROLES);
     if (!ator) return;
@@ -377,7 +396,15 @@ export function registrarEspelhoOperacional(app: Express): void {
     }
   });
 
-  /** Mesma ideia para os carros do Uber. */
+  /**
+   * Mesma ideia para os carros do Uber.
+   *
+   * Horário (09/10): o carro de origem e o de destino são recalculados pela
+   * mesma regra do "Refazer sugestões" (`horarioDoCarro`: antecedência antes
+   * do voo mais cedo da direção do carro), com os passageiros de DEPOIS da
+   * mudança. NÃO recalcula carro que estava confirmado nem carro com horário
+   * decidido por alguém — ver `horarioFoiDecididoAMao`.
+   */
   app.post("/api/uber-groups/mover", async (req, res) => {
     const ator = await requireRoles(req, res, LOGISTICA_ROLES);
     if (!ator) return;
@@ -388,8 +415,8 @@ export function registrarEspelhoOperacional(app: Express): void {
       const origem = await grupoDeUber(String(deGrupoId));
       if (!origem) return res.status(404).json({ message: "Carro de origem não encontrado." });
       if (!await assertEventEditable(origem.eventId, ator, res)) return;
+      const destino = paraGrupoId ? await grupoDeUber(String(paraGrupoId)) : null;
       if (paraGrupoId) {
-        const destino = await grupoDeUber(String(paraGrupoId));
         if (!destino) return res.status(404).json({ message: "Carro de destino não encontrado." });
         if (destino.eventId !== origem.eventId) return res.status(400).json({ message: "O carro de destino é de outro evento." });
       }
@@ -398,6 +425,30 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(uberGroupMembersTable.uberGroupId, deGrupoId));
       const membro = membrosOrigem.find((m) => m.collaboratorId === collaboratorId);
       if (!membro) return res.status(404).json({ message: "Esta pessoa não está neste carro." });
+      const membrosDestino = destino
+        ? (await db.select().from(uberGroupMembersTable).where(eq(uberGroupMembersTable.uberGroupId, destino.id))).map((m) => m.collaboratorId)
+        : [];
+
+      // Horário calculado ANTES (para reconhecer ajuste à mão sem marca) e
+      // DEPOIS da mudança (o que o carro passa a ter), numa leitura só.
+      const idsOrigem = membrosOrigem.map((m) => m.collaboratorId);
+      const carroNovo = { direction: origem.direction, date: origem.date };
+      const calculado = await horariosCalculadosDosCarros(origem.eventId, [
+        { chave: "origemAntes", ...carroNovo, membros: idsOrigem },
+        { chave: "origemDepois", ...carroNovo, membros: idsOrigem.filter((c) => c !== collaboratorId) },
+        ...(destino
+          ? [
+            { chave: "destinoAntes", direction: destino.direction, date: destino.date, membros: membrosDestino },
+            { chave: "destinoDepois", direction: destino.direction, date: destino.date, membros: [...membrosDestino, String(collaboratorId)] },
+          ]
+          : [{ chave: "novo", ...carroNovo, membros: [String(collaboratorId)] }]),
+      ]);
+      const recalculaOrigem = membrosOrigem.length > 1 && !origem.confirmed && !horarioFoiDecididoAMao(origem, calculado.get("origemAntes") ?? null);
+      const recalculaDestino = !!destino && !destino.confirmed && !horarioFoiDecididoAMao(destino, calculado.get("destinoAntes") ?? null);
+      const horarioNovo = (chave: string) => {
+        const h = calculado.get(chave) ?? null;
+        return { time: h, suggestedTime: h };
+      };
 
       const destinoId = await db.transaction(async (tx) => {
         let destinoId: string = paraGrupoId ?? "";
@@ -409,7 +460,9 @@ export function registrarEspelhoOperacional(app: Express): void {
             origin: origem.origin,
             destination: origem.destination,
             date: origem.date,
-            time: origem.time,
+            // Carro novo: ninguém decidiu o horário dele — vale o calculado
+            // pelo voo de quem entra (antes copiava o horário do carro de origem).
+            ...horarioNovo("novo"),
             suggested: origem.suggested,
             confirmed: false,
             status: "sugerido",
@@ -426,16 +479,24 @@ export function registrarEspelhoOperacional(app: Express): void {
           // escolher de novo, em vez de apontar quem não está mais nele.
           const limpaTitular = origem.titularCollaboratorId === collaboratorId ? { titularCollaboratorId: null } : {};
           await tx.update(uberGroupsTable)
-            .set({ ...limpaTitular, confirmed: false, updatedAt: new Date() })
+            .set({ ...limpaTitular, ...(recalculaOrigem ? horarioNovo("origemDepois") : {}), confirmed: false, updatedAt: new Date() })
             .where(eq(uberGroupsTable.id, deGrupoId));
         }
-        await tx.update(uberGroupsTable)
-          .set({ confirmed: false, updatedAt: new Date() })
-          .where(eq(uberGroupsTable.id, destinoId));
+        if (destino) {
+          await tx.update(uberGroupsTable)
+            .set({ ...(recalculaDestino ? horarioNovo("destinoDepois") : {}), confirmed: false, updatedAt: new Date() })
+            .where(eq(uberGroupsTable.id, destinoId));
+        }
         return destinoId;
       });
-      await createAuditLog("update", "uber_group", destinoId, { acao: "mover", collaboratorId, deGrupoId, paraGrupoId: destinoId, eventId: origem.eventId }, ator.id, ator.name, undefined, req);
-      res.json({ ok: true, destinoId });
+      // O que NÃO foi recalculado, para a tela dizer (carro confirmado ou com
+      // horário decidido à mão fica como estava).
+      const horarioMantido = [
+        ...(membrosOrigem.length > 1 && !recalculaOrigem ? ["origem"] : []),
+        ...(destino && !recalculaDestino ? ["destino"] : []),
+      ];
+      await createAuditLog("update", "uber_group", destinoId, { acao: "mover", collaboratorId, deGrupoId, paraGrupoId: destinoId, eventId: origem.eventId, horarioMantido }, ator.id, ator.name, undefined, req);
+      res.json({ ok: true, destinoId, horarioMantido });
     } catch (error) {
       console.error("erro ao mover pessoa de carro:", error);
       res.status(400).json({ message: "Não foi possível mover a pessoa." });

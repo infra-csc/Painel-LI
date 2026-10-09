@@ -98,7 +98,7 @@ export function validateDraft(d: ProposedDraft, type: ChangeRequestType): string
  * proposedChanges { v: 1, ... } a partir do rascunho.
  *  - AJUSTE com `base`: só os campos que diferem da vaga (o servidor rejeita
  *    ajuste sem nenhum campo); sem `base`: todos os campos preenchidos.
- *  - INCLUSÃO: objeto completo + quantity.
+ *  - INCLUSÃO: objeto completo + quantity (inclusive só ida / trecho direto).
  *  - EXCLUSÃO: { v: 1 }.
  * Devolve null quando o ajuste não muda nada.
  */
@@ -109,7 +109,9 @@ export function draftToProposed(d: ProposedDraft, type: ChangeRequestType, base?
     const out: ProposedChanges = { v: 1, quantity: Number(d.quantity) || 1, workDays: d.workDays, dailyRates: full.dailyRates ?? d.workDays.length };
     out.needsTicket = full.needsTicket;
     out.needsAccommodation = full.needsAccommodation;
-    for (const k of ["transportModeIda", "transportModeVolta", "flightDepartureDate", "flightDepartureSuggestedTime", "flightArrivalSuggestedTime", "flightReturnDate", "flightReturnSuggestedTime", "city", "observations"] as const) {
+    // Só ida / só volta / trecho direto (09/10) seguem como no ajuste — sem
+    // eles o reajuste de uma inclusão "só ida, segue para Y" virava ida e volta.
+    for (const k of ["transportModeIda", "transportModeVolta", "flightDepartureDate", "flightDepartureSuggestedTime", "flightArrivalSuggestedTime", "flightReturnDate", "flightReturnSuggestedTime", "trechosSugeridos", "idaVemDoEventoId", "voltaSegueParaEventoId", "city", "observations"] as const) {
       const v = full[k];
       if (v !== null && v !== undefined) (out as Record<string, unknown>)[k] = v;
     }

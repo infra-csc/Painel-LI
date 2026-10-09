@@ -2022,6 +2022,14 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           // Reajustar de volta para como a vaga está é permitido: o pedido é
           // resolvido e nenhum campo muda (allowEmptyAjuste).
           changesToApply = rule(() => parseProposedChanges(editedChanges, requestType, { allowEmptyAjuste: true }));
+          // Inclusão reajustada com só ida / trecho direto (09/10): a mesma
+          // normalização da abertura do pedido ("segue para Y" = sem volta;
+          // de/para o próprio evento = erro) antes de criar as vagas.
+          if (requestType === "inclusao") {
+            const completo = completarTrechosDoPedido(changesToApply, null, request.eventId);
+            if (completo.erro) return res.status(400).json({ message: completo.erro });
+            changesToApply = completo.proposed;
+          }
           editedJson = changesToApply;
         } else {
           changesToApply = rule(() => parseProposedChanges(request.proposedChanges, requestType));
