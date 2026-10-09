@@ -237,7 +237,7 @@ function EspelhoOperacional() {
                         onPatchMembro={(membroId, campos) => m.patchMembroQuarto.mutate({ id: membroId, campos })}
                         onConfirm={(id: string) => m.confirmRoom.mutate(id)} pendingId={m.confirmRoom.isPending ? m.confirmRoom.variables : null}
                         onRecalc={pedirRecalculo} recalcPending={m.recalc.isPending} />}
-                      {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows}
+                      {view === "uber" && <UberView groups={data.uberGroups} collabById={collabById} rows={rows} evento={data.event}
                         onMover={(c, de, para) => m.mover.mutate({ tipo: "uber", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })}
                         onSkipUber={(rowId, skip) => m.skipUber.mutate({ id: rowId, skip })} canEdit={canEditMirror}
                         onPatch={(id, campos) => {

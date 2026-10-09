@@ -3412,3 +3412,28 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .sim-linha, .sim-abrir, .sim-ver, .sim-segmento { transition: none; }
   .sim-ver:active:not(:disabled) { transform: none; }
 }
+
+/* ══ Espelho · Uber (esp-uber) — redesenho 09/10 ═════════════════════════════
+ * Roteirização por CARRO, ida e volta em abas. O Tailwind cobre o bloco; aqui
+ * fica o que ele não diz bem: o "Mover" sempre à vista dentro do carro (no
+ * resto do espelho ele só aparece no hover), a troca de aba sem salto e o
+ * horário do carro, que é o dado mais lido da tela. */
+
+/* Ações da pessoa sempre à vista, discretas; ganham peso quando a linha é apontada. */
+.esp-uber-pessoa .esp-revela { opacity: 1; color: var(--muted-foreground); border-color: transparent; background: transparent; }
+.esp-uber-pessoa:hover .esp-revela { border-color: var(--border); background: var(--card); }
+.esp-uber-pessoa .esp-revela:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); background: var(--brand-soft); }
+
+/* Troca de aba: o painel entra num fade curto, sem deslizar. */
+@keyframes esp-uber-entra { from { opacity: 0; } to { opacity: 1; } }
+.esp-uber [role="tabpanel"] { animation: esp-uber-entra 140ms ease-out both; }
+
+/* Horário do carro: o seletor nativo de hora fica discreto até ser usado. */
+.esp-uber-carro input[type="time"]::-webkit-calendar-picker-indicator { opacity: .35; cursor: pointer; transition: opacity 120ms ease; }
+.esp-uber-carro input[type="time"]:hover::-webkit-calendar-picker-indicator,
+.esp-uber-carro input[type="time"]:focus-visible::-webkit-calendar-picker-indicator { opacity: .8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .esp-uber [role="tabpanel"] { animation: none; }
+  .esp-uber-carro input[type="time"]::-webkit-calendar-picker-indicator { transition: none; }
+}
