@@ -33,7 +33,7 @@ async function cenario() {
   const vaga = await criarVaga({ userId: adminUser.id, eventId: evento.id, functionId: funcao.id, collaboratorId: colab.id, status: "escalado", phase: "escalacao" });
   const passagem = await mutacao(admin.post("/api/tickets")).send({
     teamInclusionId: vaga.id, transportType: "aereo", value: 91000, purchaseOrderNumber: "OC-1", ticketStatus: "comprada",
-    actualDepartureDate: "2099-10-10", actualDepartureTime: "08:00",
+    actualDepartureDate: "2027-10-10", actualDepartureTime: "08:00",
   });
   expect(passagem.status).toBe(200);
   return { evento, funcao, vaga };

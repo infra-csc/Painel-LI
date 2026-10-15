@@ -12,6 +12,7 @@
  *
  * Nos dois primeiros as quantidades seguem a ORDEM das colunas de dia da grade.
  */
+import { SAI_DE_SP } from "@shared/swap-sai-de";
 import { PERIOD_MARGIN_DAYS, addDaysYmd } from "./grid-dates";
 import { emptyGridRow, type SuggestionGridRow } from "./grid-rows";
 import {
@@ -78,6 +79,16 @@ export interface PasteResult {
   problem?: "cabecalho-nao-encontrado";
 }
 
+/**
+ * "Sai de" lido da planilha (09/10): "SP", "São Paulo" e "São Paulo - SP" viram
+ * o mesmo texto que o botão "São Paulo - SP" grava; o resto entra como veio
+ * (até 120 caracteres — a régua do "Sai de").
+ */
+export function cidadeDaPlanilha(raw: string): string {
+  const c = raw.trim().replace(/\s+/g, " ").slice(0, 120);
+  return /^(sp|sao paulo(\s*[-/(]?\s*sp\)?)?)$/.test(normalizeStr(c)) ? SAI_DE_SP : c;
+}
+
 /** Linha só com o nome da função e mais nada: não é vaga nenhuma, é resto de planilha. */
 const isEmptyDataRow = (cols: string[], colFunction: number) =>
   cols.every((c, i) => i === colFunction || !c.trim());
@@ -128,6 +139,9 @@ function parseLogisticaText(
     row.flightReturnDate = parseSheetDate(cell(cols, cols3.dataVolta), defaultYear);
     row.flightReturnSuggestedTime = parsePtBrTime(cell(cols, cols3.horaRetorno));
     row.observations = cell(cols, cols3.obs);
+    // "Sai de" (09/10): só quando o cabeçalho tem a coluna de cidade.
+    const cidade = cidadeDaPlanilha(cell(cols, cols3.cidade));
+    if (cidade) row.city = cidade;
     // Sem coluna de hotel na planilha, vaga com VIAGEM entra com hotel marcado
     // (regra do dono, 28/08). Com a coluna presente, ela manda.
     row.needsAccommodation = cols3.hotel >= 0

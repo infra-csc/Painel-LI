@@ -168,7 +168,7 @@ export function AppliedValuesSection({ form, alteradasPorSecao }: AppliedValuesS
       <GrupoDeAjustes
         id={ancoraDaSecao("percurseiro")}
         titulo="Percurseiro (motoqueiro)"
-        descricao="Pacote fechado por diária, com alimentação e mobilidade incluídas. Em viagem são sempre 2 diárias; local, 1. O tipo de cada percurseiro é escolhido na escalação (ou no Planejado, para quem já está escalado)."
+        descricao="Pacote fechado por diária, com alimentação e mobilidade incluídas. Uma diária por dia trabalhado na escala, em viagem ou local. O tipo de cada percurseiro é escolhido na escalação (ou no Planejado, para quem já está escalado)."
         alteradas={alteradasPorSecao.percurseiro}
         data-testid="cfg-grupo-percurseiro"
       >

@@ -140,6 +140,17 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
                     )}
                   </Card>
                 )}
+                {/* Pedido em PAR (09/10): o outro lado, decidido junto. */}
+                {r.par && (
+                  <Card id="det-par" title={`E na outra vaga (#${r.par.inclusionNumber ?? "?"} · ${r.par.eventName ?? "outro evento"})`} icon={ListChecks}
+                    acessorio={<span className="text-2xs text-muted-foreground">decidido junto</span>}>
+                    <p className="mb-2 text-xs leading-relaxed text-slate-600" data-testid="det-par-explica">
+                      A pessoa vai direto de um evento para o outro: a vaga do 1º evento fica sem volta própria e a ida da vaga do 2º sai da cidade do 1º.
+                      {" "}<strong className="font-semibold text-foreground">Aprovar ou negar decide as duas vagas de uma vez</strong> — não há reajuste de um lado só.
+                    </p>
+                    <DiffTable diff={r.par.diff} tom="pedido" />
+                  </Card>
+                )}
                 {type === "inclusao" && (
                   <Card id="det-prop" title="Vaga(s) proposta(s)" icon={ClipboardList}>
                     <ProposedList proposed={r.proposed} />
@@ -185,9 +196,11 @@ export function RequestDetailDialog({ open, onOpenChange, request, inclusion, va
                   <div className="contents sm:flex sm:items-center sm:gap-2">
                     {/* Reticências = abre outro passo (comentário obrigatório);
                         "como veio" = a única decisão sem edição. */}
+                    {!r.grupoId && (
                     <Button type="button" variant="outline" className="val-alvo order-3 h-9 rounded-lg bg-card sm:order-none" disabled={busy} onClick={() => onReajustar(r)}>
                       <PencilLine className="mr-1.5 h-4 w-4" aria-hidden="true" /> Reajustar…
                     </Button>
+                    )}
                     <Button type="button" className={cn("val-alvo order-1 col-span-2 h-9 rounded-lg bg-success px-4 font-semibold text-white shadow-1 hover:bg-success/90 sm:order-none")} disabled={busy} onClick={() => onApprove(r)}>
                       <CheckCircle2 className="mr-1.5 h-4 w-4" aria-hidden="true" /> Aprovar como veio
                     </Button>

@@ -2,8 +2,9 @@ import { Clock, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateBr, formatDayMonthBr } from "@/lib/dates";
 import { StatusBadge, toneDoStatus, type Tone } from "@/components/common/status-badge";
+import { nomeDoEventoNoCache } from "@/lib/nome-do-evento";
 import {
-  CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS, TRANSPORT_MODE_LABELS,
+  CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS, TRANSPORT_MODE_LABELS, TRECHOS_SUGERIDOS_LABELS,
   DANGER_DAYS, STALLED_DAYS, PROPOSED_FIELD_LABELS, pendingSeverity,
   type ChangeRequestType, type ChangeRequestStatus, type InclusionDiffEntry,
   type ProposedChanges, type ProposedField, type TransportMode,
@@ -148,6 +149,8 @@ export function changeSummary(r: {
 }
 
 export function formatProposedValue(field: ProposedField, v: unknown): string {
+  // Trechos (09/10): vazio é "ida e volta", o padrão — não "não definido".
+  if (field === "trechosSugeridos") return TRECHOS_SUGERIDOS_LABELS[(v || "ida_e_volta") as keyof typeof TRECHOS_SUGERIDOS_LABELS] ?? String(v);
   // No de/para, campo vazio precisa se dizer: um travessão some no meio da
   // frase e o aprovador não sabe se havia valor antes.
   if (v === null || v === undefined || v === "") return "não definido";
@@ -163,6 +166,9 @@ export function formatProposedValue(field: ProposedField, v: unknown): string {
     case "flightDepartureDate":
     case "flightReturnDate":
       return formatDateBr(ymd(v));
+    case "idaVemDoEventoId":
+    case "voltaSegueParaEventoId":
+      return nomeDoEventoNoCache(String(v));
     case "dailyRates":
       return `${v} ${Number(v) === 1 ? "diária" : "diárias"}`;
     default:

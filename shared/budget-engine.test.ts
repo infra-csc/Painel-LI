@@ -83,7 +83,9 @@ describe("calcularPlanejadoDaVaga — sequência da tela, sem a tela", () => {
     expect(comOverride.hasOverride).toBe(true);
   });
 
-  it("percurso: pacote fechado, 2 diárias em viagem, sem deflação, sem alimentação nem mobilidade", () => {
+  it("percurso: pacote fechado, uma diária por dia trabalhado, sem deflação, sem alimentação nem mobilidade", () => {
+    // Regra mudou em 15/10: antes eram 2 diárias fixas em viagem; agora a
+    // semana inteira (6 dias trabalhados) vale 6 diárias do pacote.
     const r = calcularPlanejadoDaVaga({
       vaga: { ...semana, needsTicket: true, dailyRates: 6, dailyValue: 0, percurseiroTipo: "tipo_2" },
       functionName: "Percurso",
@@ -92,12 +94,97 @@ describe("calcularPlanejadoDaVaga — sequência da tela, sem a tela", () => {
       eventLocation: "Recife - PE",
     });
     expect(r.isPercurso).toBe(true);
-    expect(r.diasComDiaria).toBe(2);
+    expect(r.diasComDiaria).toBe(6);
     expect(r.percurseiro?.total).toBe(r.valorDiaria);
-    expect(r.subtotalDiarias).toBe(r.valorDiaria * 2);
+    expect(r.subtotalDiarias).toBe(r.valorDiaria * 6);
     expect(r.deflationSegments[0]?.label).toBe("pacote fechado");
     expect(r.mobilidade).toBe(0);
     expect(r.ajudaCusto).toBe(0);
+  });
+
+  it("percurso (regra 15/10) — Alex, Night Run Teresina: escala só 10/10 com passagem → 1 diária = R$ 1.129,76 (era 2 × = R$ 2.259,52)", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { scheduleStartDate: "2026-10-10", scheduleEndDate: "2026-10-10", dailyRates: 1, needsTicket: true, dailyValue: 0, percurseiroTipo: "tipo_1" },
+      functionName: "Percurso",
+      collaboratorType: "freela",
+      settings: {},
+      eventLocation: "Teresina - PI",
+      ticket: {
+        actualDepartureDate: "2026-10-09", actualDepartureTime: "23:35", actualArrivalTime: "02:35",
+        actualReturnDate: "2026-10-11", actualReturnTime: "18:55",
+      },
+    });
+    expect(r.diasComDiaria).toBe(1);
+    expect(r.valorDiaria).toBe(112976);
+    expect(r.subtotalDiarias).toBe(112976);
+    expect(r.ajudaCusto).toBe(0); // alimentação e mobilidade continuam dentro do pacote
+    expect(r.totalFinal).toBe(112976);
+  });
+
+  it("percurso (regra 15/10): dias marcados na escala (workDays) mandam sobre o intervalo; local também conta por dia", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { ...semana, workDays: ["2026-09-01", "2026-09-03"], needsTicket: false, dailyRates: 2, dailyValue: 0, percurseiroTipo: "tipo_1" },
+      functionName: "Percurso",
+      collaboratorType: "freela",
+      settings: {},
+      eventLocation: "São Paulo - SP",
+    });
+    expect(r.diasComDiaria).toBe(2);
+    expect(r.subtotalDiarias).toBe(2 * 112976);
+  });
+
+  it("alimentação (15/10) — Everson, casa CLT produção, Teresina 07–11/10, volta 12/10 03:45: fds R$ 160, úteis R$ 135, total R$ 295", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { scheduleStartDate: "2026-10-07", scheduleEndDate: "2026-10-11", dailyRates: 5, needsTicket: true, dailyValue: 0 },
+      functionName: "Produção",
+      collaboratorType: "casa",
+      settings: {},
+      eventLocation: "Teresina - PI",
+      ticket: {
+        actualDepartureDate: "2026-10-07", actualDepartureTime: "06:50", actualArrivalTime: "10:00",
+        actualReturnDate: "2026-10-12", actualReturnTime: "03:45",
+      },
+    });
+    expect(r.weekdays).toBe(3);
+    expect(r.weekends).toBe(2);
+    // sábado e domingo: 2 almoços + 2 jantares de R$ 40 (antes: R$ 80, só o sábado)
+    expect(r.almocoFds).toBe(8000);
+    expect(r.jantarFds).toBe(8000);
+    // qua/qui/sex: 3 × (5 + 40)
+    expect(r.almocoSemana + r.jantarSemana).toBe(13500);
+    expect(r.almocoSemana + r.jantarSemana + r.almocoFds + r.jantarFds).toBe(29500);
+    expect(r.alimEstimada).toBe(false);
+  });
+
+  it("alimentação (15/10): sem passagem, as datas SUGERIDAS da vaga fazem o mesmo papel", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: {
+        scheduleStartDate: "2026-10-07", scheduleEndDate: "2026-10-11", dailyRates: 5, needsTicket: true, dailyValue: 0,
+        flightDepartureDate: "2026-10-07", flightDepartureSuggestedTime: "06:50", flightArrivalSuggestedTime: "10:00",
+        flightReturnDate: "2026-10-12", flightReturnSuggestedTime: "03:45",
+      },
+      functionName: "Produção",
+      collaboratorType: "casa",
+      settings: {},
+      eventLocation: "Teresina - PI",
+    });
+    expect(r.almocoFds + r.jantarFds).toBe(16000);
+  });
+
+  it("alimentação (15/10): volta na MESMA data do último dia às 18:55 → domingo só com almoço (R$ 120 no fds)", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { scheduleStartDate: "2026-10-07", scheduleEndDate: "2026-10-11", dailyRates: 5, needsTicket: true, dailyValue: 0 },
+      functionName: "Produção",
+      collaboratorType: "casa",
+      settings: {},
+      eventLocation: "Teresina - PI",
+      ticket: {
+        actualDepartureDate: "2026-10-07", actualDepartureTime: "06:50", actualArrivalTime: "10:00",
+        actualReturnDate: "2026-10-11", actualReturnTime: "18:55",
+      },
+    });
+    expect(r.almocoFds).toBe(8000);
+    expect(r.jantarFds).toBe(4000);
   });
 
   it("empreita por empresa: o total é exatamente o valor fechado da vaga", () => {

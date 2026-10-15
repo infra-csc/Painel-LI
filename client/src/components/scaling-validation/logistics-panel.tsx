@@ -3,9 +3,12 @@ import { BedDouble, Check, PlaneLanding, PlaneTakeoff, Ticket, TriangleAlert, ty
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { CampoSaiDe } from "@/components/scaling/campo-sai-de";
+import { SAI_DE_SP, validarSaiDeOpcional } from "@shared/swap-sai-de";
 import { ModeSelect } from "./mode-select";
 import { avisosDeViagem } from "./travel-warnings";
 import type { SuggestionGridRow } from "./scaling-grid-utils";
+import { TrechoDaPerna, modoDaIda, modoDaVolta, type EventoParaTrecho, type PatchDeTrechos } from "./trechos-da-perna";
 
 export interface LogisticsPanelProps {
   row: SuggestionGridRow;
@@ -17,6 +20,8 @@ export interface LogisticsPanelProps {
    * mesmo `avisosDeViagem` do cartão de viagem dos pedidos.
    */
   workDays?: string[];
+  /** Outros eventos para "vem direto de / segue direto para" (09/10), do mais próximo ao mais longe. */
+  eventos?: EventoParaTrecho[];
 }
 
 const GROUP = "flex items-center gap-1.5 text-xs font-semibold text-foreground";
@@ -64,12 +69,23 @@ function Toggle({ label, icon: Icon, on, disabled, onToggle, rowName }: {
  * `padding-top` de 18px fingia o rótulo e, quando a linha quebrava, sobrava um
  * buraco); os botões de hotel/passagem mostram o ✓ quando marcados.
  */
-export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: LogisticsPanelProps) {
+export function LogisticsPanel({ row, disabled, onChangeRow, workDays, eventos = [] }: LogisticsPanelProps) {
   const patch = (p: Partial<SuggestionGridRow>) => onChangeRow(row.rowId, p);
   // ids reais para <Label htmlFor>: o painel é um só por vez, mas o useId
   // evita colisão com os campos de período/observação da página.
   const id = useId();
   const f = (name: string) => `${id}-${name}`;
+  // Só ida / só volta / trecho direto (09/10): a perna que não existe esconde os campos.
+  // "Vem direto de outro evento" apaga o "Sai de": a origem é a cidade daquele evento.
+  const patchTrechos = ({ flightDepartureSuggestedTime: _semCampoNaGrade, ...resto }: PatchDeTrechos) =>
+    patch(resto.idaVemDoEventoId ? { ...resto, city: "" } : resto);
+  const idaNormal = modoDaIda(row) !== "sem";
+  // "Sai de" (09/10): some quando a ida vem direto de outro evento.
+  const comSaiDe = modoDaIda(row) !== "direto";
+  const cidade = row.city ?? "";
+  const saiDeSP = cidade.trim() === SAI_DE_SP;
+  const cidadeOk = !!cidade.trim() && !validarSaiDeOpcional(cidade);
+  const voltaNormal = modoDaVolta(row) === "normal";
   const avisos = useMemo(
     () => avisosDeViagem({ flightDepartureDate: row.flightDepartureDate, flightReturnDate: row.flightReturnDate }, workDays),
     [row.flightDepartureDate, row.flightReturnDate, workDays],
@@ -79,6 +95,8 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: Logisti
       <div className="grid gap-x-8 gap-y-4 xl:grid-cols-2">
         <fieldset className="min-w-0">
           <legend className={GROUP}><PlaneTakeoff className="h-3.5 w-3.5 text-primary" aria-hidden="true" /> Ida</legend>
+          <TrechoDaPerna perna="ida" valor={row} eventos={eventos} disabled={disabled} idBase={id} onPatch={patchTrechos} contexto={row.functionName} className="mt-2" />
+          {idaNormal && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,150px)_minmax(0,140px)_minmax(0,1fr)]">
             <div className="min-w-0">
               <Label htmlFor={f("modal-ida")} className={FIELD_LABEL}>Modal</Label>
@@ -96,10 +114,32 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: Logisti
                 onChange={(e) => patch({ flightArrivalSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightArrivalSuggestedTime), "w-full tabular-nums sm:max-w-[180px]")} />
             </div>
           </div>
+          )}
+          {/* "Sai de" (09/10) DEPOIS de modal/data/horário: assim a linha de campos da ida continua alinhada com a da volta. */}
+          {comSaiDe && (
+            <div className="mt-3 max-w-[440px]">
+              <CampoSaiDe
+                key={row.rowId}
+                id="sug-sai-de"
+                opcional
+                rotulo="Sai de"
+                rotuloCidade={`Cidade de onde a equipe sai — ${row.functionName}`}
+                ajuda="Cidade de onde a equipe desta linha sai — a Escalação pode trocar por pessoa."
+                saiDeSP={saiDeSP}
+                cidade={saiDeSP ? SAI_DE_SP : cidade}
+                desabilitado={disabled}
+                classeRotulo="text-2xs text-muted-foreground"
+                classeCidade={cn("h-8 text-xs placeholder:text-muted-foreground", cidadeOk && "border-primary/30 bg-brand-soft/60")}
+                onChange={(sp, c) => patch({ city: sp ? SAI_DE_SP : c })}
+              />
+            </div>
+          )}
         </fieldset>
 
         <fieldset className="min-w-0 xl:border-l xl:border-border xl:pl-8">
           <legend className={GROUP}><PlaneLanding className="h-3.5 w-3.5 text-primary" aria-hidden="true" /> Volta</legend>
+          <TrechoDaPerna perna="volta" valor={row} eventos={eventos} disabled={disabled} idBase={id} onPatch={patchTrechos} contexto={row.functionName} className="mt-2" />
+          {voltaNormal && (
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,150px)_minmax(0,140px)_minmax(0,1fr)]">
             <div className="min-w-0">
               <Label htmlFor={f("modal-volta")} className={FIELD_LABEL}>Modal</Label>
@@ -119,6 +159,7 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays }: Logisti
                 onChange={(e) => patch({ flightReturnSuggestedTime: e.target.value })} className={cn(inputCls(!!row.flightReturnSuggestedTime), "w-full tabular-nums sm:max-w-[180px]")} />
             </div>
           </div>
+          )}
         </fieldset>
       </div>
 

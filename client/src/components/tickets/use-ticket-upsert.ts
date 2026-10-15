@@ -22,17 +22,27 @@ interface UseTicketUpsertArgs {
 
 export type UpsertMode = "created" | "updated";
 
-/** `POST/PATCH /api/tickets` devolvem a passagem + o status resultante da vaga (24/09). */
-type TicketComStatusDaVaga = Ticket & { inclusionStatus?: string };
+/**
+ * `POST/PATCH /api/tickets` devolvem a passagem + o status resultante da vaga (24/09)
+ * e, num trecho direto (09/10), a volta que a vaga anterior ainda tem registrada.
+ */
+type TicketComStatusDaVaga = Ticket & {
+  inclusionStatus?: string;
+  voltaParaCancelar?: { inclusionId: string; numero: number; eventName: string; quando: string };
+};
 
 export function useTicketUpsert({ getTicket, onTicketUpdated }: UseTicketUpsertArgs) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   // Durante o lote, as falhas são consolidadas numa lista ao final — sem um toast por item.
   const batchRunning: MutableRefObject<boolean> = useRef(false);
+  // O modal mostra o bloqueio de viagem (409 "viagem_cruzada") no próprio
+  // formulário, com a saída — o toast repetiria a mesma frase por cima.
+  const silenciarViagemCruzada = useRef(false);
 
   const mutationError = (fallback: string) => (err: unknown) => {
     if (batchRunning.current) return;
+    if (silenciarViagemCruzada.current && (err as { body?: { code?: string } } | null)?.body?.code === "viagem_cruzada") return;
     toast({ title: "Passagem não salva", description: apiErrorMessage(err, fallback), variant: "destructive" });
   };
 
@@ -44,6 +54,16 @@ export function useTicketUpsert({ getTicket, onTicketUpdated }: UseTicketUpsertA
     }
     queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
     queryClient.invalidateQueries({ queryKey: [TEAM_INCLUSIONS_KEY] });
+    // Pendências: viagens que se cruzam / datas impossíveis (09/10).
+    queryClient.invalidateQueries({ queryKey: ["shell", "viagens-e-datas"] });
+    // Trecho direto: a vaga de onde a pessoa sai ainda tem volta registrada.
+    const volta = ticket?.voltaParaCancelar;
+    if (volta) {
+      toast({
+        title: `A vaga #${volta.numero} ainda tem volta registrada`,
+        description: `${volta.eventName}: volta em ${volta.quando}. Com o trecho direto ela não é mais usada — edite a passagem de lá para tirar a volta (e cancele o bilhete, se já foi emitido).`,
+      });
+    }
   };
 
   const createTicketMutation = useMutation({
@@ -84,5 +104,6 @@ export function useTicketUpsert({ getTicket, onTicketUpdated }: UseTicketUpsertA
     upsertTicketForInclusion,
     isSubmitting: createTicketMutation.isPending || updateTicketMutation.isPending,
     batchRunning,
+    silenciarViagemCruzada,
   };
 }

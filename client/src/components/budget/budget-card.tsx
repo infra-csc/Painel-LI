@@ -107,11 +107,11 @@ function BudgetCardBody({ budget, isNotAttended }: { budget: CalculatedBudget; i
   return (
     <dl className={cn("pla-extrato m-0 px-4 py-1", isNotAttended && "opacity-50 grayscale select-none")}>
       <Lancamento rotulo="Diárias" cor="bg-primary" valor={budget.subtotalDiarias} riscado={isNotAttended}>
-        {/* Percurso: pacote fechado × diárias fixas (viagem 2 / local 1) */}
+        {/* Percurso: pacote fechado × dias trabalhados (regra 15/10) */}
         {budget.isPercurso && (
           <>
             <Conta
-              rotulo={`${budget.diasComDiaria} ${budget.diasComDiaria === 1 ? "diária" : "diárias"} (${budget.inclusion.needsTicket ? "percurso em viagem — regra fixa" : "percurso local — regra fixa"})`}
+              rotulo={`${budget.diasComDiaria} ${budget.diasComDiaria === 1 ? "diária" : "diárias"} · pacote por dia trabalhado`}
               valor={formatCurrency(budget.valorDiaria)}
             />
             {budget.percurseiro && (

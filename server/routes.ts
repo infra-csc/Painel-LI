@@ -23,6 +23,7 @@ import { registrarFuncoesEResponsaveis } from "./routes/funcoes-e-responsaveis";
 import { registrarColaboradores } from "./routes/colaboradores";
 import { registrarEscalacao } from "./routes/escalacao";
 import { registrarPassagens } from "./routes/passagens";
+import { registrarBuscaDePassagens } from "./busca-de-passagens/rotas";
 import { registrarHospedagem } from "./routes/hospedagem";
 import { registrarAvisosDeAlteracao } from "./routes/avisos-de-alteracao";
 import { registrarEspelhoOperacional } from "./routes/espelho-operacional";
@@ -68,6 +69,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Escalação e logística ─────────────────────────────────────────────────
   registrarEscalacao(app);
   registrarPassagens(app);
+  // Busca de preços na internet (09/10) — só admin e Compras.
+  registrarBuscaDePassagens(app);
   registrarHospedagem(app);
   registrarAvisosDeAlteracao(app);
   registrarEspelhoOperacional(app);

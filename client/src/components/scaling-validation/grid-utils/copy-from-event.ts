@@ -3,7 +3,7 @@
  * as vagas de um evento em linhas da grade, reagregando por função + assinatura
  * de logística — é a inversa exata de `decomposeGridRows`.
  */
-import type { TransportMode } from "@shared/scaling-validation-rules";
+import { TRECHOS_SUGERIDOS, type TransportMode, type TrechosSugeridos } from "@shared/scaling-validation-rules";
 import { YMD_RE, toYmdLocal } from "./grid-dates";
 import { QTY_MAX, TRANSPORT_MODE_SET, emptyGridRow, type SuggestionGridRow } from "./grid-rows";
 
@@ -22,6 +22,12 @@ export interface CopyableSuggestion {
   transportModeVolta?: string | null;
   flightReturnDate?: string | Date | null;
   flightReturnSuggestedTime?: string | null;
+  /** Só ida / só volta / trecho direto (09/10) — acompanham a cópia. */
+  trechosSugeridos?: string | null;
+  idaVemDoEventoId?: string | null;
+  voltaSegueParaEventoId?: string | null;
+  /** "Sai de" (09/10) — acompanha a cópia. */
+  city?: string | null;
   needsAccommodation?: boolean | null;
   needsTicket?: boolean | null;
   observations?: string | null;
@@ -61,6 +67,8 @@ const copyTime = (v: string | null | undefined): string => {
 };
 const copyMode = (v: string | null | undefined): TransportMode | "" =>
   v && TRANSPORT_MODE_SET.has(v) ? (v as TransportMode) : "";
+/** "Sai de" da vaga (09/10): aparado; quem vem direto de outro evento não tem. */
+const copyCity = (s: CopyableSuggestion): string => (s.idaVemDoEventoId ? "" : (s.city ?? "").trim().slice(0, 120));
 
 /**
  * "Assinatura de logística" de UMA vaga: ida (modal/data/hora), volta
@@ -79,6 +87,12 @@ export function copyLogisticsSignature(s: CopyableSuggestion): string {
     copyTime(s.flightReturnSuggestedTime),
     s.needsTicket === true ? "1" : "0",
     s.needsAccommodation === true ? "1" : "0",
+    // Trecho direto (09/10): entra na assinatura só quando existe (as antigas não mudam).
+    ...(s.trechosSugeridos || s.idaVemDoEventoId || s.voltaSegueParaEventoId
+      ? [`t:${s.trechosSugeridos ?? ""}:${s.idaVemDoEventoId ?? ""}:${s.voltaSegueParaEventoId ?? ""}`]
+      : []),
+    // "Sai de" (09/10): idem — só quando a vaga tem (as assinaturas antigas não mudam).
+    ...(copyCity(s) ? [`c:${copyCity(s)}`] : []),
     (s.observations ?? "").trim(),
   ].join("|"); // a observação é o último campo: um "|" dentro dela não gera ambiguidade
 }
@@ -151,6 +165,10 @@ export function rowsFromSuggestions(
       row.transportModeVolta = copyMode(src.transportModeVolta);
       row.flightReturnDate = copyYmd(src.flightReturnDate);
       row.flightReturnSuggestedTime = copyTime(src.flightReturnSuggestedTime);
+      if (src.trechosSugeridos && (TRECHOS_SUGERIDOS as readonly string[]).includes(src.trechosSugeridos)) row.trechosSugeridos = src.trechosSugeridos as TrechosSugeridos;
+      if (src.idaVemDoEventoId) row.idaVemDoEventoId = src.idaVemDoEventoId;
+      if (src.voltaSegueParaEventoId) row.voltaSegueParaEventoId = src.voltaSegueParaEventoId;
+      if (copyCity(src)) row.city = copyCity(src);
       row.needsAccommodation = src.needsAccommodation === true;
       row.needsTicket = src.needsTicket === true;
       row.observations = (src.observations ?? "").trim();

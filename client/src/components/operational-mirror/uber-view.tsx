@@ -13,11 +13,13 @@ export type UberViewProps = GroupViewProps<UberGroup> & {
   /** "Refazer sugestões" no lugar em que o resultado aparece. */
   onRecalc?: () => void;
   recalcPending?: boolean;
+  /** Período do evento — aponta voo com data fora dele (09/10). */
+  evento?: { startDate: string | null; endDate: string | null } | null;
 };
 
 const COR_DO_GRUPO = ["var(--info-strong)", "var(--primary)", "var(--warning-strong)", "var(--success-strong)", "var(--danger-strong)", "var(--muted-foreground)"];
 
-export function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMover, pendingId, onSkipUber, onRecalc, recalcPending }: UberViewProps) {
+export function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onMover, pendingId, onSkipUber, onRecalc, recalcPending, evento }: UberViewProps) {
   const refazer = canEdit && onRecalc ? (
     <button type="button" onClick={onRecalc} disabled={recalcPending}
       className="esp-alvo inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-slate-700 shadow-1 transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
@@ -88,52 +90,24 @@ export function UberView({ groups, collabById, rows, canEdit, onConfirm, onPatch
   const internos = groups.filter((g) => g.direction !== "ida" && g.direction !== "volta");
 
   /**
-   * UMA LINHA POR PESSOA, com ida e volta lado a lado — é o formato da planilha
-   * que a equipe usa. Duas tabelas empilhadas obrigavam a procurar a mesma
-   * pessoa duas vezes para saber a viagem dela inteira.
-   *
-   * Os agrupamentos das duas direções são INDEPENDENTES: dá para ser titular na
-   * ida e passageiro na volta. Por isso "Carro N" aparece em toda linha — a
-   * tabela é ordenada pela ida, e os carros da volta não ficam contíguos.
+   * Por CARRO, ida e volta em abas (09/10) — ver roteirizacao.tsx. Os
+   * agrupamentos das duas direções são INDEPENDENTES (dá para ser titular na
+   * ida e passageiro na volta), e quem fica fora de uma direção aparece no fim
+   * daquela aba, com o motivo.
    */
-  const indexar = (lista: UberGroup[]) => {
-    const numero = new Map<string, number>();
-    const porPessoa = new Map<string, UberGroup>();
-    lista.forEach((g, i) => {
-      numero.set(g.id, i + 1);
-      for (const m of g.members || []) if (m.collaboratorId) porPessoa.set(m.collaboratorId, g);
-    });
-    return { numero, porPessoa };
-  };
-  const naIda = indexar(idas);
-  const naVolta = indexar(voltas);
-
-  const linhas = rows
-    .filter((r) => r.collaborator.id && (naIda.porPessoa.has(r.collaborator.id) || naVolta.porPessoa.has(r.collaborator.id)))
-    .map((r) => ({
-      row: r,
-      ida: naIda.porPessoa.get(r.collaborator.id as string),
-      volta: naVolta.porPessoa.get(r.collaborator.id as string),
-    }))
-    // Ordenada pela ida — quem sai antes aparece antes.
-    .sort((a, b) => `${a.ida?.date ?? "9"}${a.ida?.time ?? "9"}`.localeCompare(`${b.ida?.date ?? "9"}${b.ida?.time ?? "9"}`));
-
   const th = "h-9 px-3 text-left align-middle text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap border-b border-border";
   return (
-    <div className="space-y-4">
-      {linhas.length > 0 && (
+    <div className="space-y-6">
+      {idas.length + voltas.length > 0 ? (
         <Roteirizacao
-          linhas={linhas} naIda={naIda} naVolta={naVolta}
-          totalIda={idas.length} totalVolta={voltas.length}
+          rows={rows} evento={evento}
           collabById={collabById} canEdit={canEdit}
           onConfirm={onConfirm} onPatch={onPatch} onMover={onMover}
           pendingId={pendingId} onSkipUber={onSkipUber}
           gruposIda={idas} gruposVolta={voltas}
           acao={refazer} fora={foraDaRoteirizacao.length}
         />
-      )}
-
-      {blocoFora}
+      ) : blocoFora}
 
       {internos.length > 0 && (
         <section className="overflow-hidden rounded-xl border border-border bg-card shadow-1">

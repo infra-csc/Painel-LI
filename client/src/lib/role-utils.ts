@@ -68,6 +68,7 @@ export interface RolePermissions {
   canChangeUserRole: boolean;    // espelha PATCH /api/users/:id — role/area só admin (allowedFieldsForAdmin)
   canAccessCalendar: boolean;
   canAccessBaggage: boolean;     // controle de bagagem — admin e compras
+  canAccessBuscaDePassagens: boolean; // busca de passagens na internet (09/10) — admin e compras
   // ── Módulo Validação de Escala (decisão do usuário, 20/08 — revoga o
   // admin-only de 19/08) ───────────────────────────────────────────────────
   // Regra: ACESSO às 4 telas é de TODOS os papéis conhecidos; a ESCRITA real
@@ -116,6 +117,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: true,
         canAccessCalendar: true,
         canAccessBaggage: true,
+        canAccessBuscaDePassagens: true,
         canAccessScalingSuggestion: true,
         canEditScalingSuggestion: true,
         canAccessScalingValidation: true,
@@ -153,6 +155,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
+        canAccessBuscaDePassagens: false,
         canAccessScalingSuggestion: true,
         canEditScalingSuggestion: true,   // production monta/envia/cancela a sugestão (espelha o /bulk)
         canAccessScalingValidation: true,
@@ -190,6 +193,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
+        canAccessBuscaDePassagens: false,
         canAccessScalingSuggestion: true,
         canEditScalingSuggestion: false,
         canAccessScalingValidation: true,
@@ -227,6 +231,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: true,
+        canAccessBuscaDePassagens: true,
         canAccessScalingSuggestion: true,   // view por padrão de papel
         canEditScalingSuggestion: false,
         canAccessScalingValidation: true,
@@ -264,6 +269,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: true,
         canAccessBaggage: false,
+        canAccessBuscaDePassagens: false,
         canAccessScalingSuggestion: true,   // view por padrão de papel
         canEditScalingSuggestion: false,
         canAccessScalingValidation: true,
@@ -301,6 +307,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canChangeUserRole: false,
         canAccessCalendar: false,
         canAccessBaggage: false,
+        canAccessBuscaDePassagens: false,
         canAccessScalingSuggestion: false,
         canEditScalingSuggestion: false,
         canAccessScalingValidation: false,

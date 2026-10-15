@@ -1,7 +1,8 @@
 /**
  * Validação de linha e leitura de campo de logística (25/09 — extraído de scaling-grid-utils.ts).
  */
-import type { SuggestionGridRow } from "./grid-rows";
+import { validarSaiDeOpcional } from "@shared/swap-sai-de";
+import { cidadeDaLinha, type SuggestionGridRow } from "./grid-rows";
 
 export interface RowValidation {
   /** Impedem o envio. */
@@ -23,6 +24,9 @@ export function validateGridRow(row: SuggestionGridRow): RowValidation {
   if (row.flightArrivalSuggestedTime && !horarioOk(row.flightArrivalSuggestedTime)) errors.push("horário de desembarque inválido (ex.: 11:00 ou 8-14h)");
   if (row.flightReturnSuggestedTime && !horarioOk(row.flightReturnSuggestedTime)) errors.push("horário de embarque inválido (ex.: 11:00 ou 8-14h)");
   if (row.flightDepartureDate && row.flightReturnDate && row.flightReturnDate < row.flightDepartureDate) errors.push("data de volta anterior à data de ida");
+  // "Sai de" (09/10): opcional, mas a cidade digitada tem de servir (a régua da Escalação).
+  const erroSaiDe = validarSaiDeOpcional(cidadeDaLinha(row));
+  if (erroSaiDe) errors.push(erroSaiDe.charAt(0).toLowerCase() + erroSaiDe.slice(1).replace(/\.$/, ""));
   // Só ida ou só volta é legítimo (04/09); o aviso é para NENHUMA data.
   if (row.needsTicket && !row.flightDepartureDate && !row.flightReturnDate) warnings.push("passagem marcada sem data de ida nem de volta");
   if (errors.length === 0 && warnings.length === 0) return NO_ISSUES;

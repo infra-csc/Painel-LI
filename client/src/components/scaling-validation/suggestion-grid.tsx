@@ -5,8 +5,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { cn } from "@/lib/utils";
 import { QtyCell } from "./qty-cell";
 import { LogisticsPanel } from "./logistics-panel";
-import { CHIP_NEUTRAL, LegChip, NeedChips, dayText } from "./logistics-chips";
-import { formatDateHeader, totalsByDay, type DateHeader, type RowValidation, type SuggestionGridRow } from "./scaling-grid-utils";
+import type { EventoParaTrecho } from "./trechos-da-perna";
+import { CHIP_NEED, CHIP_NEUTRAL, LegChip, NeedChips, SaiDeChip, dayText } from "./logistics-chips";
+import { textoDaIndicacao } from "@shared/janela-de-viagem";
+import { nomeDoEventoNoCache } from "@/lib/nome-do-evento";
+import { cidadeDaLinha, formatDateHeader, totalsByDay, type DateHeader, type RowValidation, type SuggestionGridRow } from "./scaling-grid-utils";
 
 export interface SuggestionGridProps {
   rows: SuggestionGridRow[];
@@ -40,6 +43,8 @@ export interface SuggestionGridProps {
   /** Período do EVENTO ("AAAA-MM-DD"): os dias dele ganham o filete no cabeçalho (o resto é margem de montagem/desmontagem). */
   eventStart?: string;
   eventEnd?: string;
+  /** Outros eventos para "vem direto de / segue direto para" no painel de logística (09/10). */
+  eventosParaTrecho?: EventoParaTrecho[];
 }
 
 // Cabeçalho de tabela do design system: 11px, bold, caixa alta, slate-500.
@@ -105,7 +110,9 @@ const GridRow = memo(function GridRow({
 
   const hasLogistics = hasLeg(row.transportModeIda, row.flightDepartureDate, row.flightArrivalSuggestedTime)
     || hasLeg(row.transportModeVolta, row.flightReturnDate, row.flightReturnSuggestedTime)
-    || row.needsAccommodation || row.needsTicket || !!row.observations;
+    || row.needsAccommodation || row.needsTicket || !!row.observations || !!cidadeDaLinha(row);
+  // "Sai de" (09/10): de onde a equipe da linha sai.
+  const saiDe = cidadeDaLinha(row);
 
   return (
     // scroll-mb-16: ao focar por teclado, a linha não fica escondida atrás do rodapé fixo.
@@ -164,6 +171,7 @@ const GridRow = memo(function GridRow({
       <td className="border-r border-border px-2 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <div className="sug-chips flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            <SaiDeChip cidade={saiDe} testId={`sug-chip-sai-de-${row.rowId}`} />
             <LegChip
               dir="ida" mode={row.transportModeIda} className="shrink-0"
               date={row.flightDepartureDate} time={row.flightArrivalSuggestedTime}
@@ -173,6 +181,12 @@ const GridRow = memo(function GridRow({
               date={row.flightReturnDate} time={row.flightReturnSuggestedTime}
             />
             <NeedChips needsTicket={row.needsTicket} needsAccommodation={row.needsAccommodation} className="shrink-0" />
+            {/* Só ida / só volta / trecho direto (09/10). */}
+            {textoDaIndicacao(row, nomeDoEventoNoCache).map((t) => (
+              <span key={t} className={cn(CHIP_NEED, "min-w-0 max-w-full font-medium")} title={t} data-testid={`sug-chip-trecho-${row.rowId}`}>
+                <Route className="h-3 w-3 shrink-0" aria-hidden="true" /><span className="truncate">{t}</span>
+              </span>
+            ))}
             {row.observations && (
               <span className={cn(CHIP_NEUTRAL, "min-w-0 max-w-full")} title={row.observations}>
                 <span className="truncate italic">{row.observations}</span>
@@ -242,7 +256,7 @@ const GridRow = memo(function GridRow({
  */
 export function SuggestionGrid({
   rows, dates, issuesByRow, areaByFunctionId, onChangeRow, onChangeQty, onDuplicateRow, onRemoveRow,
-  onPaste, onAddFunction, onCopyEvent, startDisabled, disabled, openRowId: openRowIdProp, onOpenRowChange, vagasTotal, eventStart, eventEnd,
+  onPaste, onAddFunction, onCopyEvent, startDisabled, disabled, openRowId: openRowIdProp, onOpenRowChange, vagasTotal, eventStart, eventEnd, eventosParaTrecho,
 }: SuggestionGridProps) {
   const evIni = eventStart?.slice(0, 10) ?? "";
   const evFim = eventEnd?.slice(0, 10) ?? "";
@@ -430,7 +444,7 @@ export function SuggestionGrid({
             </button>
           </div>
           <div className="px-4 py-3.5">
-            <LogisticsPanel row={openRow} disabled={disabled} onChangeRow={onChangeRow} workDays={openRowWorkDays} />
+            <LogisticsPanel row={openRow} disabled={disabled} onChangeRow={onChangeRow} workDays={openRowWorkDays} eventos={eventosParaTrecho} />
           </div>
         </div>
       )}

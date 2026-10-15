@@ -362,8 +362,12 @@ export const FUNCAO_LOCAL_RAZAO = "Função local — sem alimentação e sem mo
 // PERCURSEIRO (função "percurso" — motoqueiro): pacote FECHADO por diária,
 // Tipo 1 x Tipo 2 (regra do usuário 17/08). Alimentação e mobilidade do
 // Planejado ficam em 0 (já estão dentro do pacote). Sem deflação.
-//   • Em VIAGEM (needsTicket): SEMPRE 2 diárias, independente do período.
-//   • LOCAL (sem passagem — SP/Grande SP): 1 diária. Mesma tabela.
+//   • Quantidade (regra do dono, 15/10): UMA diária do pacote por DIA
+//     TRABALHADO — os dias da escala (`workDays` da vaga; sem eles, o período
+//     início→fim; legado: `dailyRates`), em viagem ou local. Mesma contagem da
+//     empreita (`diasEmpreita`). Substitui a regra de 17/08 "em viagem sempre
+//     2 diárias, local 1" — ex.: Alex (percurso freela, Night Run Teresina,
+//     escala só 10/10, com passagem) era 2 × 1.129,76 e passa a 1 × 1.129,76.
 // Tabela CONFIRMADA pelo usuário em 17/08 ("Motoqueiros em viagem (2 diárias)"):
 // NF Tipo 1 = R$ 172,76 e Tipo 2 = R$ 194,67 (totais 1.129,76 / 1.266,67); a
 // versão "planilha base" antiga (172,26 / 192,96) foi descartada.
@@ -435,7 +439,12 @@ export function percurseiroDiariaCents(
   return { motoqueiro, fee, alimentacao, transporte, nf, total: motoqueiro + fee + alimentacao + transporte + nf };
 }
 
-/** Diárias do percurseiro: em viagem (passagem) sempre 2; local 1. */
-export function diasPercurseiro(needsTicket: boolean | null | undefined): number {
-  return needsTicket ? 2 : 1;
+/**
+ * Diárias do percurseiro (regra 15/10): uma por DIA TRABALHADO da vaga, em
+ * viagem ou local — a mesma contagem de `diasEmpreita`. Vaga sem nenhum dia
+ * informado conta 1 (o percurseiro escalado trabalha ao menos um dia; zerar
+ * esconderia o custo no Planejado).
+ */
+export function diasPercurseiro(inclusion: DiasEmpreitaInput | null | undefined): number {
+  return Math.max(1, diasEmpreita(inclusion));
 }

@@ -32,7 +32,7 @@ async function vagaEscalada(userId: string, eventId: string) {
 async function comprarPassagem(agent: TestAgent, vagaId: string) {
   const res = await mutacao(agent.post("/api/tickets")).send({
     teamInclusionId: vagaId, transportType: "aereo", value: 85000, purchaseOrderNumber: "ABC123",
-    actualDepartureDate: "2099-10-10", actualDepartureTime: "08:00",
+    actualDepartureDate: "2027-10-10", actualDepartureTime: "08:00",
   });
   expect(res.status).toBe(200);
 }

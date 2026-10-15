@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { diffInclusion, PROPOSED_FIELD_LABELS, type ProposedChanges, type LastDecisionInfo } from "@shared/scaling-validation-rules";
-import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "./travel-fields";
+import { TravelFields, EMPTY_TRAVEL, cidadeDoRascunho, travelFromInclusion, validateTravel, type TravelDraft } from "./travel-fields";
 import { WorkDaysPicker } from "./work-days-picker";
 import { DiariasDerivadas, VagaCard } from "./vaga-card";
 import { SECTION_TITLE } from "./logistics-chips";
@@ -110,6 +110,12 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     flightReturnSuggestedTime: orNull(travel.flightReturnSuggestedTime),
     transportModeIda: orNull(travel.transportModeIda),
     transportModeVolta: orNull(travel.transportModeVolta),
+    // Só ida / só volta / trecho direto (09/10): o servidor completa o resto.
+    trechosSugeridos: orNull(travel.trechosSugeridos),
+    idaVemDoEventoId: orNull(travel.idaVemDoEventoId),
+    voltaSegueParaEventoId: orNull(travel.voltaSegueParaEventoId),
+    // "Sai de" (09/10): entra no de/para como os outros campos de viagem.
+    city: orNull(cidadeDoRascunho(travel)),
     needsTicket: travel.needsTicket,
     needsAccommodation: travel.needsAccommodation,
     observations: observations.trim() === "" ? null : observations.trim(),
@@ -215,7 +221,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
             <Passo n={2} id="adj-passo-2" dica={DICA_VIAGEM}>Viagem — ida e volta (não é diária)</Passo>
             <div className={cn(error?.campo === "travel" && BLOCO_INVALIDO)} aria-describedby={error?.campo === "travel" ? "adj-erro" : undefined}>
               <TravelFields idPrefix="adj" value={travel} workDays={workDays} disabled={mutation.isPending}
-                eventStartDate={event?.startDate} eventEndDate={event?.endDate}
+                eventStartDate={event?.startDate} eventEndDate={event?.endDate} eventId={vaga?.eventId}
                 onChange={(p) => setTravel((t) => ({ ...t, ...p }))} />
             </div>
           </section>

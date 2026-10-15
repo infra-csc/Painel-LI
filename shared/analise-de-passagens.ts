@@ -47,6 +47,12 @@ export interface PassagemParaAnalise {
   origem: string | null;
   /** Aeroporto (preferido) ou cidade de destino da ida. */
   destino: string | null;
+  /**
+   * Trecho direto (09/10): a ida desta passagem sai de OUTRO evento do mesmo
+   * colaborador (pinga-pinga). Ela já é a passagem da vaga de DESTINO — conta
+   * uma vez, no evento de destino; a vaga de origem não tem passagem de volta.
+   */
+  trechoDireto?: boolean;
 }
 
 /** Aviso de alteração que mexeu em passagem (remarcação). */
@@ -140,6 +146,8 @@ export interface AnaliseDePassagens {
     semDataIda: number;
     /** Compra depois da ida — data digitada errada; fica fora da antecedência. */
     compraDepoisDaIda: number;
+    /** Passagens que são trecho direto entre eventos (já contadas no evento de destino). */
+    trechosDiretos: number;
   };
   minimoPorDia: number;
   diasDaIda: DiaDaSemana[];
@@ -491,7 +499,10 @@ export function analisarPassagens(
 
   return {
     filtros: { de, ate, eventId, companhia, transporte },
-    totais: { ...base, eventos: eventos.size, semValor: base.passagens - base.comValor, semDataCompra, semDataIda, compraDepoisDaIda },
+    totais: {
+      ...base, eventos: eventos.size, semValor: base.passagens - base.comValor, semDataCompra, semDataIda, compraDepoisDaIda,
+      trechosDiretos: lista.filter((p) => p.trechoDireto).length,
+    },
     minimoPorDia,
     diasDaIda: porDiaDaSemana(lista, (p) => p.dataIda, minimoPorDia),
     diasDaVolta: porDiaDaSemana(lista, (p) => p.dataVolta, minimoPorDia),

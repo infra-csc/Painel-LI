@@ -9,7 +9,7 @@ import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, seri
 // script da data, rodado à mão pelo dono.
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { isValidHhmm, type ProposedChanges } from "./scaling-validation-rules";
+import { isValidHhmm, TRECHOS_SUGERIDOS, type ProposedChanges } from "./scaling-validation-rules";
 import type { MudancaDoAviso } from "./aviso-de-alteracao";
 
 // TIPOS DO BANCO (25/09 — auditoria de 23/09). Espelho em produção:
@@ -108,6 +108,11 @@ export const events = pgTable("events", {
   status: text("status").notNull().default("planejado"), // planejado, em_andamento, concluido
   paymentCompanyName: text("payment_company_name"),
   paymentCompanyCnpj: text("payment_company_cnpj"),
+  // Aeroporto do evento (09/10 — busca de passagens): confirmado UMA vez por
+  // admin/Compras na tela da busca (sugestão pela cidade do evento) e
+  // reaproveitado em toda busca. Só a rota da busca grava (fora dos schemas de
+  // insert/update abaixo). Código IATA de 3 letras; null = não confirmado.
+  aeroportoIata: text("aeroporto_iata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -255,6 +260,16 @@ export const teamInclusions = pgTable("team_inclusions", {
   // Validação de Escala: modal sugerido pela logística para ida/volta
   transportModeIda: text("transport_mode_ida"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
   transportModeVolta: text("transport_mode_volta"), // 'aereo' | 'onibus' | 'van' | 'carro' | 'transfer' | null
+  // TRECHO DIRETO / UMA PERNA (09/10 — caso Alonso: Night Run Aracaju → Makai
+  // João Pessoa). Indicação de quem planeja (Sugestão, Inclusão, Escalação):
+  // a vaga pode ter só ida ou só volta, e a perna que falta pode ser o trecho
+  // direto de/para OUTRO evento (evento, não vaga: na Sugestão a vaga do outro
+  // evento pode nem existir ainda). null = ida e volta, como sempre foi.
+  // Compras CONFIRMA o encadeamento ao registrar a passagem
+  // (tickets.ida_vem_de_inclusion_id). Regra única: shared/janela-de-viagem.ts.
+  trechosSugeridos: text("trechos_sugeridos"), // 'ida_e_volta' | 'so_ida' | 'so_volta' | null
+  idaVemDoEventoId: varchar("ida_vem_do_evento_id"), // a ida sai direto deste evento (da cidade dele)
+  voltaSegueParaEventoId: varchar("volta_segue_para_evento_id"), // sem volta própria: segue direto para este evento
   suggestionSentAt: timestamp("suggestion_sent_at", { withTimezone: true }), // quando a sugestão foi enviada para validação da área
   validatedAt: timestamp("validated_at", { withTimezone: true }), // quando a área validou a sugestão
   validatedBy: varchar("validated_by").references(() => users.id), // quem validou (responsável da função)
@@ -348,6 +363,13 @@ export const tickets = pgTable("tickets", {
   baggageTotalCents: integer("baggage_total_cents"), // valor total bagagem em centavos
   baggageOc: text("baggage_oc"), // OC da bagagem
   baggageNotes: text("baggage_notes"), // observações da bagagem
+  // TRECHO DIRETO (09/10): a IDA desta passagem sai do evento da vaga indicada
+  // (pinga-pinga — "o Alonso vai direto de ARA p/ JP"). Só Compras grava, ao
+  // registrar a passagem. A vaga indicada fica SEM volta própria (a volta dela
+  // é esta ida) e o custo do trecho é desta vaga, a de DESTINO. Uma perna só
+  // (só ida / só volta) NÃO tem coluna: continua derivada dos campos vazios
+  // (shared/janela-de-viagem.ts · trechosDaPassagem).
+  idaVemDeInclusionId: varchar("ida_vem_de_inclusion_id"),
   // HISTÓRICO (dono, 01/10: "eu comprei mas vamos trocar o colaborador —
   // aquela passagem fica de histórico, e o custo mantém na prova"). Quando uma
   // troca é aprovada, a passagem de quem saiu NÃO é apagada nem editada: ganha
@@ -644,6 +666,7 @@ export const insertEventSchema = createInsertSchema(events).omit({
   eventNumber: true, // tem valor default com sequence
   status: true, // tem valor default "planejado"
   createdAt: true,
+  aeroportoIata: true, // só a busca de passagens grava (09/10)
 });
 
 // Schema for updating events (allows status field)
@@ -651,6 +674,7 @@ export const updateEventSchema = createInsertSchema(events).omit({
   id: true,
   eventNumber: true,
   createdAt: true,
+  aeroportoIata: true, // só a busca de passagens grava (09/10)
 }).partial();
 
 export const insertFunctionSchema = createInsertSchema(functions).omit({
@@ -675,6 +699,9 @@ export const teamInclusionRowSchema = createInsertSchema(teamInclusions).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // Trecho direto / uma perna (09/10): domínio fechado, como o transporte.
+  trechosSugeridos: z.enum(TRECHOS_SUGERIDOS).nullish(),
 });
 
 /**
@@ -1096,6 +1123,10 @@ export const scalingChangeRequests = pgTable("scaling_change_requests", {
   reviewedByName: text("reviewed_by_name"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   resolvedInclusionId: varchar("resolved_inclusion_id").references(() => teamInclusions.id), // inclusão criada quando 'inclusao' é aprovada
+  // PEDIDO EM PAR (09/10 — "vai direto de um evento para o outro"): dois
+  // pedidos de ajuste, um em cada vaga do mesmo colaborador, com o mesmo
+  // grupo. O aprovador decide os dois juntos, numa transação só. null = avulso.
+  grupoId: varchar("grupo_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -1122,6 +1153,7 @@ export const insertScalingChangeRequestSchema = createInsertSchema(scalingChange
     reviewedByName: true,
     reviewedAt: true,
     resolvedInclusionId: true,
+    grupoId: true,         // só a rota do pedido em par (09/10) liga dois pedidos
   })
   .extend({
     requestType: z.enum(["ajuste", "inclusao", "exclusao"]),
@@ -1200,6 +1232,118 @@ export const rascunhosDoPlanejado = pgTable("rascunhos_do_planejado", {
 ]);
 
 export type RascunhoDoPlanejado = typeof rascunhosDoPlanejado.$inferSelect;
+
+// ===== BUSCA DE PASSAGENS NA INTERNET (09/10) =====
+// Cache COMPARTILHADO das consultas ao fornecedor (Ignav) e o registro de
+// consumo que alimenta o contador/teto do mês. A chave é o pedido normalizado
+// (shared/busca-de-passagens.ts · chaveDaConsulta) — sem dado pessoal; a
+// resposta guardada é a JÁ normalizada (nunca a resposta crua). Links de
+// compra também ficam aqui, com chave "link|<id do itinerário>". Tabelas
+// novas e aditivas, criadas também pelo server/ensure-schema.ts.
+export const buscaPassagensCache = pgTable("busca_passagens_cache", {
+  chave: text("chave").primaryKey(),
+  fornecedor: text("fornecedor").notNull(),
+  resposta: jsonb("resposta").$type<unknown>().notNull(),
+  consultadoEm: timestamp("consultado_em", { withTimezone: true }).notNull().defaultNow(),
+  consultadoPor: varchar("consultado_por"),
+});
+
+/**
+ * Uma linha por consulta DE VERDADE ao fornecedor (conta no teto) e uma por
+ * resultado servido do cache a quem não consultou (`do_cache`, NÃO conta —
+ * só mede quanto o cache economizou na aba Consumo).
+ */
+export const buscaPassagensConsumo = pgTable("busca_passagens_consumo", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  consultadoEm: timestamp("consultado_em", { withTimezone: true }).notNull().defaultNow(),
+  tipo: text("tipo").notNull(), // 'ida' | 'volta' | 'ida_e_volta' | 'link'
+  chave: text("chave").notNull(),
+  fornecedor: text("fornecedor").notNull(),
+  usuarioId: varchar("usuario_id"),
+  doCache: boolean("do_cache").notNull().default(false),
+}, (t) => [
+  index("busca_passagens_consumo_mes_idx").on(t.consultadoEm),
+]);
+
+/**
+ * HISTÓRICO das consultas reais (09/10) — base das análises (preço por rota
+ * ao longo do tempo, pago × encontrado, antecedência, dia da semana, horário,
+ * companhia). Uma linha por consulta ao fornecedor, para sempre (o cache
+ * expira; isto não). Sem dado pessoal: as vagas ficam por id.
+ */
+export const buscaPassagensConsultas = pgTable("busca_passagens_consultas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  consultadoEm: timestamp("consultado_em", { withTimezone: true }).notNull().defaultNow(),
+  usuarioId: varchar("usuario_id"),
+  fornecedor: text("fornecedor").notNull(),
+  chave: text("chave").notNull(), // chaveDaConsulta (perna|origem>destino|datas|filtros)
+  perna: text("perna").notNull(), // 'ida' | 'volta' | 'ida_e_volta'
+  origem: text("origem").notNull(),
+  destino: text("destino").notNull(),
+  dataIda: date("data_ida").notNull(), // data do voo (1ª perna)
+  dataVolta: date("data_volta"),
+  maxParadas: integer("max_paradas").notNull(),
+  filtros: jsonb("filtros").$type<{ horarioIda: unknown; horarioVolta: unknown }>(),
+  /** Datas flexíveis: dias deslocados da data sugerida ({ ida, volta }); null = data sugerida. */
+  deslocamento: jsonb("deslocamento").$type<{ ida: number; volta: number } | null>(),
+  vagaIds: text("vaga_ids").array(),
+  eventoIds: text("evento_ids").array(),
+  /** Dias entre a consulta (data de São Paulo) e o voo. */
+  antecedenciaDias: integer("antecedencia_dias"),
+  qtdOpcoes: integer("qtd_opcoes").notNull().default(0),
+  menorPrecoCentavos: integer("menor_preco_centavos"),
+  /** Menor preço por companhia ({ LA: 45600, G3: 39800 }). */
+  menorPorCia: jsonb("menor_por_cia").$type<Record<string, number>>(),
+  observadoEm: timestamp("observado_em", { withTimezone: true }),
+}, (t) => [
+  index("busca_passagens_consultas_em_idx").on(t.consultadoEm),
+  index("busca_passagens_consultas_rota_idx").on(t.origem, t.destino, t.dataIda),
+  index("busca_passagens_consultas_chave_idx").on(t.chave),
+]);
+
+/** As 10 opções mais baratas de cada consulta (companhia, voos, horários, preço). */
+export const buscaPassagensOpcoes = pgTable("busca_passagens_opcoes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  consultaId: varchar("consulta_id").notNull().references(() => buscaPassagensConsultas.id, { onDelete: "cascade" }),
+  posicao: integer("posicao").notNull(), // 1 = mais barata
+  itinerarioId: text("itinerario_id").notNull(),
+  companhia: text("companhia").notNull(), // código da 1ª perna (LA/G3/AD)
+  voos: text("voos").notNull(), // "LA 3456 + LA 3210 / LA 3211"
+  idaPartida: text("ida_partida"), // hora local "AAAA-MM-DDTHH:MM"
+  idaChegada: text("ida_chegada"),
+  voltaPartida: text("volta_partida"),
+  voltaChegada: text("volta_chegada"),
+  paradas: integer("paradas").notNull(),
+  duracaoMin: integer("duracao_min"),
+  precoCentavos: integer("preco_centavos").notNull(),
+}, (t) => [
+  index("busca_passagens_opcoes_consulta_idx").on(t.consultaId),
+  index("busca_passagens_opcoes_cia_idx").on(t.companhia),
+]);
+
+/**
+ * "Usar este voo" que virou passagem registrada: o preço ENCONTRADO no
+ * momento, ligado à vaga e à passagem — base do "pago × encontrado".
+ */
+export const buscaPassagensUsos = pgTable("busca_passagens_usos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  usadoEm: timestamp("usado_em", { withTimezone: true }).notNull().defaultNow(),
+  usuarioId: varchar("usuario_id"),
+  teamInclusionId: varchar("team_inclusion_id").notNull(),
+  ticketId: varchar("ticket_id"),
+  consultaId: varchar("consulta_id"),
+  chave: text("chave").notNull(),
+  perna: text("perna").notNull(),
+  itinerarioId: text("itinerario_id").notNull(),
+  companhia: text("companhia"),
+  voos: text("voos"),
+  precoEncontradoCentavos: integer("preco_encontrado_centavos").notNull(),
+  /** Quando aquele preço foi visto (consulta/cache). */
+  precoVistoEm: timestamp("preco_visto_em", { withTimezone: true }),
+}, (t) => [
+  index("busca_passagens_usos_vaga_idx").on(t.teamInclusionId),
+  index("busca_passagens_usos_ticket_idx").on(t.ticketId),
+]);
 
 // ===== CONTROLE DE BAGAGEM =====
 // Solicitações de bagagem por colaborador/evento (porte do app standalone).

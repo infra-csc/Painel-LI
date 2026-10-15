@@ -258,23 +258,38 @@ export async function createScalingChangeRequestWithTransition(
 export async function resolveScalingChangeRequest(
   requestId: string,
   requestUpdates: Partial<InsertScalingChangeRequestRow>,
-  ops: {
-    inclusionUpdate?: {
-      id: string; patch: Partial<InsertTeamInclusion>;
-      /** Estado que a vaga PRECISA ter para o patch valer (guarda TOCTOU). */
-      expected?: { phase: string; statuses: readonly string[] };
-    } | null;
-    inclusionInserts?: InsertTeamInclusion[];
-    /** Registros das vagas criadas, gravados DENTRO da transação (23/09). */
-    logsForCreated?: (created: TeamInclusion[]) => InsertTeamInclusionLog[];
-    /**
-     * Aviso para Compras (02/10): ajuste aprovado em vaga que já tem
-     * passagem/hospedagem. Na MESMA transação — aprovação sem aviso não existe.
-     */
-    aviso?: Omit<InsertAvisoDeAlteracao, "changeRequestId"> | null;
-  } = {},
+  ops: OpsDaDecisao = {},
 ): Promise<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null; createdInclusions: TeamInclusion[] }> {
-  return await db.transaction(async (tx) => {
+  return await db.transaction((tx) => decidirNaTransacao(tx, requestId, requestUpdates, ops));
+}
+
+/** Transação do Drizzle (o `tx` do `db.transaction`). */
+type Transacao = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** O que a decisão de UM pedido faz na transação (mesma para o pedido avulso e o par). */
+export interface OpsDaDecisao {
+  inclusionUpdate?: {
+    id: string; patch: Partial<InsertTeamInclusion>;
+    /** Estado que a vaga PRECISA ter para o patch valer (guarda TOCTOU). */
+    expected?: { phase: string; statuses: readonly string[] };
+  } | null;
+  inclusionInserts?: InsertTeamInclusion[];
+  /** Registros das vagas criadas, gravados DENTRO da transação (23/09). */
+  logsForCreated?: (created: TeamInclusion[]) => InsertTeamInclusionLog[];
+  /**
+   * Aviso para Compras (02/10): ajuste aprovado em vaga que já tem
+   * passagem/hospedagem. Na MESMA transação — aprovação sem aviso não existe.
+   */
+  aviso?: Omit<InsertAvisoDeAlteracao, "changeRequestId"> | null;
+}
+
+async function decidirNaTransacao(
+  tx: Transacao,
+  requestId: string,
+  requestUpdates: Partial<InsertScalingChangeRequestRow>,
+  ops: OpsDaDecisao,
+): Promise<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null; createdInclusions: TeamInclusion[] }> {
+  {
     // Trava o pedido: só decide se ainda estiver pendente (evita dupla decisão em retry).
     const [locked] = await tx.update(scalingChangeRequests)
       .set({ updatedAt: new Date() })
@@ -329,5 +344,44 @@ export async function resolveScalingChangeRequest(
       .where(eq(scalingChangeRequests.id, requestId))
       .returning();
     return { request, updatedInclusion, createdInclusions };
+  }
+}
+
+// ── Pedido de ajuste em PAR (09/10 — trecho direto entre dois eventos) ──────
+
+/**
+ * Abre os dois pedidos do par (um em cada vaga, mesmo `grupoId`) numa
+ * transação só: ou nascem os dois, ou nenhum. O índice único de pedido
+ * pendente por vaga continua valendo para cada lado.
+ */
+export async function createParDeAjuste(
+  pedidos: readonly [InsertScalingChangeRequestRow, InsertScalingChangeRequestRow],
+): Promise<ScalingChangeRequest[]> {
+  return await db.transaction(async (tx) => tx.insert(scalingChangeRequests).values([...pedidos]).returning());
+}
+
+/** Os pedidos de um grupo (par), na ordem de criação. */
+export async function getScalingChangeRequestsByGrupo(grupoId: string): Promise<ScalingChangeRequest[]> {
+  return await db.select().from(scalingChangeRequests)
+    .where(eq(scalingChangeRequests.grupoId, grupoId))
+    .orderBy(scalingChangeRequests.createdAt);
+}
+
+/**
+ * Decide os dois pedidos do par numa ÚNICA transação (aprovar aplica as duas
+ * vagas; negar nega as duas). Qualquer lado que falhe a guarda (vaga mudou de
+ * estado, pedido já decidido) desfaz tudo — o par nunca é aplicado pela metade.
+ */
+export async function resolveParDeAjuste(
+  itens: ReadonlyArray<{ requestId: string; ops: OpsDaDecisao }>,
+  requestUpdates: Partial<InsertScalingChangeRequestRow>,
+): Promise<Array<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null }>> {
+  return await db.transaction(async (tx) => {
+    const out: Array<{ request: ScalingChangeRequest; updatedInclusion: TeamInclusion | null }> = [];
+    for (const item of itens) {
+      const r = await decidirNaTransacao(tx, item.requestId, requestUpdates, item.ops);
+      out.push({ request: r.request, updatedInclusion: r.updatedInclusion });
+    }
+    return out;
   });
 }

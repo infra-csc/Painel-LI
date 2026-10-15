@@ -39,6 +39,8 @@ function logisticsLabel(r: SuggestionGridRow): string {
   const leg = (mode: string, date: string, time: string) =>
     [mode ? TRANSPORT_MODE_LABELS[mode as keyof typeof TRANSPORT_MODE_LABELS] : "", date ? formatDayMonthBr(date) : "", time].filter(Boolean).join(" ");
   const parts: string[] = [];
+  // "Sai de" (09/10): duas linhas da mesma função podem diferir só pela cidade.
+  if (r.city?.trim()) parts.push(`Sai de ${r.city.trim()}`);
   const ida = leg(r.transportModeIda, r.flightDepartureDate, r.flightArrivalSuggestedTime);
   if (ida) parts.push(`Ida ${ida}`);
   const volta = leg(r.transportModeVolta, r.flightReturnDate, r.flightReturnSuggestedTime);

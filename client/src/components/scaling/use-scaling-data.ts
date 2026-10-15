@@ -9,6 +9,7 @@
  * devolvido é o mesmo de antes — nada de quem importa `ScalingData` mudou.
  */
 import { tipoDeConflitoDeAgenda } from "./scaling-utils";
+import { conflitosDeViagem, vizinhasParaTrechoDireto } from "@shared/janela-de-viagem";
 import { useMemo } from "react";
 import type { SortConfig } from "@/components/common/sortable-header";
 import { fixEncoding } from "@/lib/utils";
@@ -157,7 +158,7 @@ export function useScalingData(opts: {
     return idx;
   }, [vagasParaAgenda]);
   const getCollaboratorConflicts = (collaboratorId: string, refInclusion: TeamInclusion | null | undefined) => {
-    if (!collaboratorId || !vagasParaAgenda.length) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[], mesmoDia: [] as TeamInclusion[] };
+    if (!collaboratorId || !vagasParaAgenda.length) return { sameEvent: [] as TeamInclusion[], dateOverlap: [] as TeamInclusion[], mesmoDia: [] as TeamInclusion[], viagensProximas: [] as TeamInclusion[] };
     // Prefere a versão fresca da lista (como o find original), cai no objeto passado
     const ref = (refInclusion?.id && inclusionById.get(refInclusion.id)) || refInclusion;
     const others = (activeInclusionsByCollaborator.get(collaboratorId) ?? []).filter(ti => ti.id !== ref?.id);
@@ -166,7 +167,29 @@ export function useScalingData(opts: {
     // mesmo dia) vira aviso — dono, 18/09.
     const dateOverlap = others.filter(ti => ref && tipoDeConflitoDeAgenda(ti, ref) === "sobreposicao");
     const mesmoDia = others.filter(ti => ref && ti.eventId !== ref.eventId && tipoDeConflitoDeAgenda(ti, ref) === "mesmo_dia");
-    return { sameEvent, dateOverlap, mesmoDia };
+    // Viagens que se cruzam (09/10 — caso Alonso): a ESCALA não se cruza, mas a
+    // viagem sim (datas sugeridas / passagens). A Escalação NÃO bloqueia por
+    // isso — Compras decide a rota (pode comprar trecho direto); é só aviso.
+    // Encadeadas (indicação ou passagem) não avisam: regra única do shared.
+    const jaAvisadas = new Set([...sameEvent, ...dateOverlap].map((ti) => ti.id));
+    const comPassagem = (ti: TeamInclusion) => ({ ...ti, passagem: ticketByInclusion.get(ti.id) ?? null });
+    const viagem = ref ? conflitosDeViagem(comPassagem({ ...ref, collaboratorId }), others.map(comPassagem)) : { bloqueia: [], avisos: [] };
+    const viagensProximas = [...viagem.bloqueia, ...viagem.avisos]
+      .map((c) => others.find((o) => o.id === c.outra.id))
+      .filter((ti): ti is TeamInclusion => !!ti && !jaAvisadas.has(ti.id));
+    return { sameEvent, dateOverlap, mesmoDia, viagensProximas };
+  };
+
+  /**
+   * Vagas do MESMO colaborador em outra cidade que terminam até 3 dias antes
+   * desta começar ("anterior") ou começam até 3 dias depois de ela terminar
+   * ("seguinte") — de onde sai o "Vai direto de/para outro evento" (09/10).
+   */
+  const getVizinhasDeViagem = (inclusion: TeamInclusion | null | undefined) => {
+    if (!inclusion?.collaboratorId) return [];
+    const comLocal = (ti: TeamInclusion) => ({ ...ti, eventLocation: eventById.get(ti.eventId)?.location ?? null, eventName: eventById.get(ti.eventId)?.name ?? null });
+    const outras = (activeInclusionsByCollaborator.get(inclusion.collaboratorId) ?? []).filter((ti) => ti.id !== inclusion.id);
+    return vizinhasParaTrechoDireto(comLocal(inclusion), outras.map(comLocal));
   };
 
   const hasActiveFilters =
@@ -199,7 +222,7 @@ export function useScalingData(opts: {
     // helpers
     getEventName, getFunctionName, getCollaboratorName, getCollaboratorCity,
     getTicket, getPurchasedTicket, getAccommodation, isCenotecnicaFunction, isAtendimentoInclusion, isPercursoInclusion,
-    getCollaboratorConflicts,
+    getCollaboratorConflicts, getVizinhasDeViagem,
   };
 }
 

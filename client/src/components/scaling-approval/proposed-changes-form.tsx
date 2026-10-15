@@ -5,7 +5,7 @@ import { formatDayMonthBr } from "@/lib/dates";
 import { DiariasDerivadas } from "@/components/scaling-validation/vaga-card";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { diffInclusion, type ChangeRequestType, type ProposedChanges } from "@shared/scaling-validation-rules";
-import { TravelFields, EMPTY_TRAVEL, travelFromInclusion, validateTravel, type TravelDraft } from "@/components/scaling-validation/travel-fields";
+import { TravelFields, EMPTY_TRAVEL, cidadeDoRascunho, travelFromInclusion, validateTravel, type TravelDraft } from "@/components/scaling-validation/travel-fields";
 import { WorkDaysPicker } from "@/components/scaling-validation/work-days-picker";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
@@ -41,6 +41,12 @@ export function draftFromProposed(proposed: ProposedChanges | null, base?: TeamI
   if (p.flightReturnSuggestedTime !== undefined) travel.flightReturnSuggestedTime = p.flightReturnSuggestedTime ?? "";
   if (p.needsTicket !== undefined) travel.needsTicket = !!p.needsTicket;
   if (p.needsAccommodation !== undefined) travel.needsAccommodation = !!p.needsAccommodation;
+  // Só ida / só volta / trecho direto (09/10).
+  if (p.trechosSugeridos !== undefined) travel.trechosSugeridos = p.trechosSugeridos && p.trechosSugeridos !== "ida_e_volta" ? p.trechosSugeridos : "";
+  if (p.idaVemDoEventoId !== undefined) travel.idaVemDoEventoId = p.idaVemDoEventoId ?? "";
+  if (p.voltaSegueParaEventoId !== undefined) travel.voltaSegueParaEventoId = p.voltaSegueParaEventoId ?? "";
+  // "Sai de" (09/10).
+  if (p.city !== undefined) travel.city = p.city ?? "";
   const dailyRates = p.dailyRates !== undefined ? p.dailyRates : (base?.dailyRates ?? days.length);
   const observations = p.observations !== undefined ? (p.observations ?? "") : (base?.observations ?? "");
   return {
@@ -65,6 +71,10 @@ export function fullFromDraft(d: ProposedDraft): ProposedChanges {
     flightReturnSuggestedTime: orNull(d.travel.flightReturnSuggestedTime),
     transportModeIda: orNull(d.travel.transportModeIda),
     transportModeVolta: orNull(d.travel.transportModeVolta),
+    trechosSugeridos: orNull(d.travel.trechosSugeridos),
+    idaVemDoEventoId: orNull(d.travel.idaVemDoEventoId),
+    voltaSegueParaEventoId: orNull(d.travel.voltaSegueParaEventoId),
+    city: orNull(cidadeDoRascunho(d.travel)),
     needsTicket: d.travel.needsTicket,
     needsAccommodation: d.travel.needsAccommodation,
     observations: d.observations.trim() === "" ? null : d.observations.trim(),
@@ -88,7 +98,7 @@ export function validateDraft(d: ProposedDraft, type: ChangeRequestType): string
  * proposedChanges { v: 1, ... } a partir do rascunho.
  *  - AJUSTE com `base`: só os campos que diferem da vaga (o servidor rejeita
  *    ajuste sem nenhum campo); sem `base`: todos os campos preenchidos.
- *  - INCLUSÃO: objeto completo + quantity.
+ *  - INCLUSÃO: objeto completo + quantity (inclusive só ida / trecho direto).
  *  - EXCLUSÃO: { v: 1 }.
  * Devolve null quando o ajuste não muda nada.
  */
@@ -99,7 +109,9 @@ export function draftToProposed(d: ProposedDraft, type: ChangeRequestType, base?
     const out: ProposedChanges = { v: 1, quantity: Number(d.quantity) || 1, workDays: d.workDays, dailyRates: full.dailyRates ?? d.workDays.length };
     out.needsTicket = full.needsTicket;
     out.needsAccommodation = full.needsAccommodation;
-    for (const k of ["transportModeIda", "transportModeVolta", "flightDepartureDate", "flightDepartureSuggestedTime", "flightArrivalSuggestedTime", "flightReturnDate", "flightReturnSuggestedTime", "observations"] as const) {
+    // Só ida / só volta / trecho direto (09/10) seguem como no ajuste — sem
+    // eles o reajuste de uma inclusão "só ida, segue para Y" virava ida e volta.
+    for (const k of ["transportModeIda", "transportModeVolta", "flightDepartureDate", "flightDepartureSuggestedTime", "flightArrivalSuggestedTime", "flightReturnDate", "flightReturnSuggestedTime", "trechosSugeridos", "idaVemDoEventoId", "voltaSegueParaEventoId", "city", "observations"] as const) {
       const v = full[k];
       if (v !== null && v !== undefined) (out as Record<string, unknown>)[k] = v;
     }

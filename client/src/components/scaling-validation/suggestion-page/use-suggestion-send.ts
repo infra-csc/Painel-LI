@@ -159,6 +159,12 @@ export function useSuggestionSend({ draft, eventId, selectedEvent, canAccess, re
           flightArrivalSuggestedTime: r.flightArrivalSuggestedTime,
           flightReturnDate: r.flightReturnDate,
           flightReturnSuggestedTime: r.flightReturnSuggestedTime,
+          // Só ida / só volta / trecho direto (09/10). De/para o próprio evento (cópia) não vale.
+          trechosSugeridos: r.trechosSugeridos ?? null,
+          idaVemDoEventoId: r.idaVemDoEventoId && r.idaVemDoEventoId !== eventId ? r.idaVemDoEventoId : null,
+          voltaSegueParaEventoId: r.voltaSegueParaEventoId && r.voltaSegueParaEventoId !== eventId ? r.voltaSegueParaEventoId : null,
+          // "Sai de" (09/10): a cidade da linha (a Escalação pode trocar por pessoa).
+          city: r.city ?? null,
           observations: r.observations,
         })),
       };

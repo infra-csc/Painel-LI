@@ -436,6 +436,33 @@ describe("buildPlannedImpact (funções reais de shared/)", () => {
     expect(lines[4]).toContain("3 almoços + 2 jantares em 3 dias → R$ 200");
   });
 
+  it("datas (15/10): volta na madrugada do dia SEGUINTE ao último dia deixa o último dia cheio (caso Everson)", () => {
+    const i = buildPlannedImpact(
+      {
+        actualDepartureDate: "2026-10-07", actualDepartureTime: "06:50", actualArrivalTime: "10:00",
+        actualReturnDate: "2026-10-12", actualReturnTime: "03:45",
+      },
+      { workDays: periodDays("2026-10-07", "2026-10-11"), almocoCents: 4000, jantarCents: 4000 },
+    )!;
+    expect(i.alimentacao.retorno).toEqual({ almoco: true, jantar: true });
+    expect(i.alimentacao.periodo).toMatchObject({ dias: 5, almocos: 5, jantares: 5 });
+    // sem as datas, o mesmo horário ainda corta o último dia (regra só de horário)
+    const semData = buildPlannedImpact(
+      { actualDepartureTime: "06:50", actualArrivalTime: "10:00", actualReturnTime: "03:45" },
+      { workDays: periodDays("2026-10-07", "2026-10-11"), almocoCents: 4000, jantarCents: 4000 },
+    )!;
+    expect(semData.alimentacao.retorno).toEqual({ almoco: false, jantar: false });
+  });
+
+  it("datas (15/10): sai na véspera às 23:35 e chega 02:35 → chega no 1º dia, almoço + jantar", () => {
+    const i = buildPlannedImpact(
+      { actualDepartureDate: "2026-10-06", actualDepartureTime: "23:35", actualArrivalTime: "02:35", actualReturnDate: "2026-10-11", actualReturnTime: "18:55" },
+      { workDays: periodDays("2026-10-07", "2026-10-11"), almocoCents: 4000, jantarCents: 4000 },
+    )!;
+    expect(i.alimentacao.chegada).toEqual({ almoco: true, jantar: true });
+    expect(i.alimentacao.retorno).toEqual({ almoco: true, jantar: false });
+  });
+
   it("apenas ida: volta ignorada mesmo se digitada", () => {
     const i = buildPlannedImpact({ isOneWay: true, actualArrivalTime: "10:00", actualReturnTime: "22:00" })!;
     expect(i.mobilidade.volta).toBeNull();

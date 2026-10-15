@@ -180,6 +180,11 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                     {r.reason
                       ? <p className="line-clamp-2 break-words border-l-2 border-border pl-2 text-xs italic text-slate-600" title={r.reason}>{r.reason}</p>
                       : <p className="text-xs text-muted-foreground" title="Sem motivo informado">Sem motivo informado</p>}
+                    {r.par && (
+                      <p className="text-2xs font-medium text-primary" data-testid={`pedido-par-${r.id}`}>
+                        Em par com #{r.par.inclusionNumber ?? "?"} · {r.par.eventName ?? "outro evento"} — decididos juntos
+                      </p>
+                    )}
                   </div>
                 </td>
                 <td data-col="acoes" className="whitespace-nowrap py-2.5 pl-2 pr-3 text-right">
@@ -190,11 +195,13 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                         className={cn(ICONE_DA_LINHA, "hover:bg-danger-soft hover:text-danger")}>
                         <XCircle className="h-4 w-4" aria-hidden="true" />
                       </button>
+                      {!r.grupoId && (
                       <button type="button" disabled={busy} onClick={() => onReajustar!(r)}
                         aria-label={`Reajustar o pedido de ${r.functionName ?? "função"}`} title="Reajustar pedido"
                         className={cn(ICONE_DA_LINHA, "mr-1 hover:bg-brand-soft hover:text-primary")}>
                         <PencilLine className="h-4 w-4" aria-hidden="true" />
                       </button>
+                      )}
                       <button type="button" disabled={busy} onClick={() => onApprove!(r)}
                         aria-label={`Aprovar o pedido de ${r.functionName ?? "função"}`} className={cn(APROVAR_DA_LINHA, "w-[92px]")}>
                         <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Aprovar

@@ -22,7 +22,7 @@ export {
 } from "./grid-utils/grid-dates";
 export {
   QTY_MAX, sortFunctionsByOrder, countOutsidePeriod, emptyGridRow, reframeRows, sanitizeDraftRow, sanitizeDraftRows,
-  decomposeGridRows, summarizeGrid, totalsByDay, pasteConflicts, mergePastedRows,
+  decomposeGridRows, cidadeDaLinha, summarizeGrid, totalsByDay, pasteConflicts, mergePastedRows,
   type SuggestionGridRow, type SuggestionRecord, type DayTotalsSummary,
 } from "./grid-utils/grid-rows";
 export {

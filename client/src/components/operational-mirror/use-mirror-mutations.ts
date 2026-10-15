@@ -120,11 +120,22 @@ export function useMirrorMutations(eventId: string, mirrorKey: unknown[]) {
     onError: erro("Não foi possível salvar o quarto"),
   });
   const mover = useMutation({
-    mutationFn: async ({ tipo, corpo }: { tipo: "quarto" | "uber"; corpo: Record<string, unknown> }) =>
-      apiRequest("POST", tipo === "quarto" ? "/api/hotel-room-groups/mover" : "/api/uber-groups/mover", corpo),
-    onSuccess: (_d, v) => {
+    mutationFn: async ({ tipo, corpo }: { tipo: "quarto" | "uber"; corpo: Record<string, unknown> }): Promise<{ horarioMantido?: string[] }> => {
+      const r = await apiRequest("POST", tipo === "quarto" ? "/api/hotel-room-groups/mover" : "/api/uber-groups/mover", corpo);
+      return r.json().catch(() => ({}));
+    },
+    onSuccess: (d, v) => {
       invalidate();
-      toast({ title: v.tipo === "quarto" ? "Pessoa movida de quarto" : "Pessoa movida de carro" });
+      // Carro confirmado ou com horário ajustado à mão não é recalculado (09/10) — a tela diz.
+      const mantidos = v.tipo === "uber" ? (d?.horarioMantido?.length ?? 0) : 0;
+      toast({
+        title: v.tipo === "quarto" ? "Pessoa movida de quarto" : "Pessoa movida de carro",
+        ...(mantidos > 0
+          ? { description: mantidos === 1
+            ? "Um dos carros manteve o horário (confirmado ou ajustado à mão) — confira."
+            : "Os dois carros mantiveram o horário (confirmados ou ajustados à mão) — confira." }
+          : {}),
+      });
     },
     onError: erro("Não foi possível mover"),
   });

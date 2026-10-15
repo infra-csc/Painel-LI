@@ -18,7 +18,8 @@ export const SheetRowDiasCell = memo(function SheetRowDiasCell({ budget }: { bud
           <TooltipTrigger asChild>
             <span className="pla-dias inline-flex items-center justify-center min-w-[2rem] h-7 px-1.5 rounded-md text-sm font-medium tabular-nums text-slate-700 cursor-default select-none">
               {budget.diasComDiaria}
-              {(budget.regraDiaria === "fds" || budget.regraDiaria === "nenhuma" || budget.isPercurso) && budget.diasComDiaria !== budget.weekdays + budget.weekends && (
+              {/* Percurso saiu daqui em 15/10: a diária é por dia trabalhado — não há "regra fixa" a contrastar com o período. */}
+              {!budget.isPercurso && (budget.regraDiaria === "fds" || budget.regraDiaria === "nenhuma") && budget.diasComDiaria !== budget.weekdays + budget.weekends && (
                 <span className="text-2xs font-normal text-muted-foreground">/{budget.weekdays + budget.weekends}</span>
               )}
             </span>
@@ -46,7 +47,7 @@ export const SheetRowDiasCell = memo(function SheetRowDiasCell({ budget }: { bud
               )}
               {budget.isPercurso && (
                 <span className="text-muted-foreground mt-0.5">
-                  Percurso: {budget.diasComDiaria} {budget.diasComDiaria === 1 ? "diária" : "diárias"} ({budget.inclusion.needsTicket ? "em viagem — regra fixa de 2 diárias" : "local (SP/Grande SP) — regra fixa de 1 diária"}), pacote fechado por diária
+                  Percurso: {budget.diasComDiaria} {budget.diasComDiaria === 1 ? "diária" : "diárias"} · pacote por dia trabalhado (pacote fechado por diária)
                 </span>
               )}
               {budget.cenoEmpreita && (

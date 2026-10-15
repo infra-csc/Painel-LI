@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BudgetActual, BudgetPlanned, InsertBudgetActual, TeamInclusion, Ticket } from "@shared/schema";
 import { isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo } from "@shared/calculation-rules";
 import { isTransporteTerrestre } from "@shared/atendimento";
-import { calcAlimentacao, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
+import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
 import { idaEVoltaDaMobilidade } from "@shared/comparativo";
 import {
   alimSignature, isWeekendDate, reconstructDailyValues, subtotalDiariasDe,
@@ -32,7 +32,10 @@ export interface EntradaDoEditorDoRealizado {
 /** O que o salvar manda para `PATCH /api/budget-actual/:id`. */
 export interface PayloadDaPrestacao { id: string; data: Partial<InsertBudgetActual> }
 
-const TRAVEL_VAZIO = { chegadaIda: "", partidaVolta: "", chegadaSrc: "nenhum" as TravelSource, partidaSrc: "nenhum" as TravelSource };
+const TRAVEL_VAZIO = {
+  chegadaIda: "", partidaVolta: "", chegadaSrc: "nenhum" as TravelSource, partidaSrc: "nenhum" as TravelSource,
+  dataChegadaIda: null as string | null, dataPartidaVolta: null as string | null,
+};
 
 export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
   const { getItemInclusion, getItemDayCounts, getPlannedRef, getFunctionName, functionNameById, ticketByInclusion, actualsPorGrupo, systemSettings } = e;
@@ -70,8 +73,16 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
   // Horários de viagem já conhecidos para este item: a PASSAGEM registrada
   // manda; sem passagem, cai nos horários SUGERIDOS na escalação (texto livre,
   // normalizado para HH:MM por toHoraHHMM).
+  //
+  // DATAS (15/10): a chegada da ida e a partida da volta também têm DATA
+  // (passagem > sugerida na escalação — a mesma precedência do Planejado,
+  // shared/budget-engine). Volta no dia SEGUINTE ao último dia ⇒ o último dia
+  // é cheio. As datas não são editáveis no modal: quando o horário é digitado
+  // à mão, ele vale para o próprio primeiro/último dia ativo (data = null ⇒
+  // regra só de horário, ver `editTravel`).
   const deriveTravel = useCallback((item: BudgetActual): {
     chegadaIda: string; partidaVolta: string; chegadaSrc: TravelSource; partidaSrc: TravelSource;
+    dataChegadaIda: string | null; dataPartidaVolta: string | null;
   } => {
     const inclusion = getItemInclusion(item);
     const ticket = inclusion ? ticketByInclusion.get(inclusion.id) : undefined;
@@ -79,11 +90,16 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     const partidaPassagem = toHoraHHMM(ticket?.actualReturnTime);
     const chegadaSugerida = toHoraHHMM(inclusion?.flightArrivalSuggestedTime);
     const partidaSugerida = toHoraHHMM(inclusion?.flightReturnSuggestedTime);
+    const chegadaIda = chegadaPassagem || chegadaSugerida || "";
+    const dataPartidaIda = ticket?.actualDepartureDate || inclusion?.flightDepartureDate || null;
+    const horaPartidaIda = ticket?.actualDepartureTime || inclusion?.flightDepartureSuggestedTime || null;
     return {
-      chegadaIda: chegadaPassagem || chegadaSugerida || "",
+      chegadaIda,
       partidaVolta: partidaPassagem || partidaSugerida || "",
       chegadaSrc: chegadaPassagem ? "passagem" : chegadaSugerida ? "sugerido" : "nenhum",
       partidaSrc: partidaPassagem ? "passagem" : partidaSugerida ? "sugerido" : "nenhum",
+      dataChegadaIda: dataDeChegadaDaIda(dataPartidaIda, horaPartidaIda, chegadaIda || null),
+      dataPartidaVolta: ticket?.actualReturnDate || inclusion?.flightReturnDate || null,
     };
   }, [getItemInclusion, ticketByInclusion]);
 
@@ -133,6 +149,8 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     activeDates: string[],
     chegadaIda: string,
     partidaVolta: string,
+    dataChegadaIda: string | null = null,
+    dataPartidaVolta: string | null = null,
   ): { weekdayLunch: number; weekdayDinner: number; weekendLunch: number; weekendDinner: number } => {
     const out = { weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0 };
     const fnName = item.functionId ? functionNameById.get(item.functionId) || "-" : "-";
@@ -171,6 +189,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       voa,
       chegadaIda: ehPrimeiroDoGrupo ? (chegadaIda || null) : null,
       partidaVolta: ehUltimoDoGrupo ? (partidaVolta || null) : null,
+      // Data acompanha o horário: só vale na borda REAL da viagem
+      dataChegadaIda: ehPrimeiroDoGrupo ? dataChegadaIda : null,
+      dataPartidaVolta: ehUltimoDoGrupo ? dataPartidaVolta : null,
       // totalCents não é usado aqui — a distribuição por dia usa refUtil/refFds
       almocoCents: refUtil.almocoCents,
       jantarCents: refUtil.jantarCents,
@@ -193,9 +214,13 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     () => editingItem ? deriveTravel(editingItem) : TRAVEL_VAZIO,
     [editingItem, deriveTravel],
   );
+  // Horário digitado à mão vale no próprio 1º/último dia ativo: a data da
+  // passagem/escalação deixa de valer (data null ⇒ regra só de horário).
   const editTravel = useMemo(() => ({
     chegadaIda: travelManual.chegadaIda ?? travelDerivado.chegadaIda,
     partidaVolta: travelManual.partidaVolta ?? travelDerivado.partidaVolta,
+    dataChegadaIda: travelManual.chegadaIda !== undefined ? null : travelDerivado.dataChegadaIda,
+    dataPartidaVolta: travelManual.partidaVolta !== undefined ? null : travelDerivado.dataPartidaVolta,
   }), [travelManual, travelDerivado]);
   const travelSource = useMemo(() => ({
     chegada: (travelManual.chegadaIda !== undefined ? "manual" : travelDerivado.chegadaSrc) as TravelSource,
@@ -203,7 +228,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
   }), [travelManual, travelDerivado]);
 
   const activeDates = useMemo(() => editDayEntries.filter(d => d.active).map(d => d.date), [editDayEntries]);
-  const alimSigAtual = alimSignature(activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+  const alimSigAtual = alimSignature(activeDates, editTravel.chegadaIda, editTravel.partidaVolta, editTravel.dataChegadaIda, editTravel.dataPartidaVolta);
   // Dias/horários mudaram DEPOIS de um ajuste manual — aviso discreto + botão
   const alimStale = alimManual && alimSigAtual !== alimSigBase;
   // Alimentação recalculada pelos dias ativos + horários — só quando a
@@ -212,7 +237,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
   const alimAuto = useMemo(() => {
     if (!editingItem || editingItem.sentForReview || alimManual) return null;
     if (alimSigAtual === alimSigBase) return null;
-    return calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+    return calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta, editTravel.dataChegadaIda, editTravel.dataPartidaVolta);
   }, [editingItem, alimManual, alimSigAtual, alimSigBase, calcAlimentacaoRealizado, activeDates, editTravel]);
   // O que a tela mostra e o saveEdit grava.
   const editFormData = useMemo(
@@ -325,6 +350,8 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       dayEntries.filter(d => d.active).map(d => d.date),
       travel.chegadaIda,
       travel.partidaVolta,
+      travel.dataChegadaIda,
+      travel.dataPartidaVolta,
     ));
   };
 
@@ -332,7 +359,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
   // "ajustado manualmente" (usado pelo botão "Recalcular pela viagem").
   const recalcAlimentacao = () => {
     if (!editingItem) return;
-    const next = calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta);
+    const next = calcAlimentacaoRealizado(editingItem, activeDates, editTravel.chegadaIda, editTravel.partidaVolta, editTravel.dataChegadaIda, editTravel.dataPartidaVolta);
     setEditFormData(prev => prev ? { ...prev, ...next } : prev);
     setAlimManual(false);
     setAlimSigBase(alimSigAtual);

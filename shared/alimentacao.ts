@@ -12,10 +12,26 @@
  *   · dia de RETORNO:  almoço se o voo de volta PARTE a partir das 13h;
  *                      jantar se parte a partir das 21h
  *   · viagem de 1 dia: aplica as duas condições no mesmo dia
+ * - DATAS da viagem (15/10 — caso Everson, Night Run Teresina: escala 07–11/10,
+ *   volta 12/10 às 03:45; o horário 03:45 era aplicado ao domingo 11/10 e
+ *   tirava o almoço e o jantar dele). Os horários só valem no dia em que a
+ *   viagem ACONTECE:
+ *   · volta numa data DEPOIS do último dia da escala → o último dia é cheio
+ *     (almoço + jantar) e o dia da partida não tem refeição (não é dia
+ *     trabalhado); volta na MESMA data do último dia → regra de horário acima;
+ *   · chegada da ida numa data ANTES do primeiro dia → o primeiro dia é cheio;
+ *     na MESMA data → regra de horário. A data de chegada é a da partida da
+ *     ida, +1 dia quando o voo cruza a meia-noite (chegada no relógio menor
+ *     que a partida) — ver `dataDeChegadaDaIda`;
+ *   · data estranha (chegada DEPOIS do primeiro dia, volta ANTES do último) ou
+ *     sem data → regra de horário de sempre (compatível; nada é inventado).
  * - Fonte dos horários: a PASSAGEM registrada (chegada da ida =
- *   tickets.actualArrivalTime; partida da volta = tickets.actualReturnTime).
- *   Sem passagem/horário ainda: assume dia cheio e marca `estimado` — o modal
- *   exibe o aviso; não subpaga enquanto a compra não acontece.
+ *   tickets.actualArrivalTime; partida da volta = tickets.actualReturnTime;
+ *   datas = actualDepartureDate / actualReturnDate). Sem passagem: os
+ *   sugeridos da escalação (flight*SuggestedTime, flightDepartureDate /
+ *   flightReturnDate). Sem horário nem data que resolva o dia: assume dia
+ *   cheio e marca `estimado` — o modal exibe o aviso; não subpaga enquanto a
+ *   compra não acontece.
  * - Valores por refeição editáveis no Valores Padrão (Demais 40/40,
  *   Cenotécnica 35/35, Key Account / Gerente 44/44 por padrão — regra 18/08:
  *   "Executivo 40,00, Key/Gerente 44,00"; Executivo de Contas = Demais).
@@ -51,6 +67,17 @@ export interface AlimentacaoInput {
   chegadaIda?: string | null;
   /** Horário de PARTIDA do voo de volta ("HH:MM") — da passagem registrada */
   partidaVolta?: string | null;
+  /**
+   * DATA em que o voo de ida CHEGA (YYYY-MM-DD) — use `dataDeChegadaDaIda`
+   * (cruzar a meia-noite empurra para o dia seguinte). Antes do 1º dia da
+   * escala ⇒ 1º dia cheio. Ausente ⇒ regra só de horário.
+   */
+  dataChegadaIda?: string | null;
+  /**
+   * DATA da PARTIDA da volta (YYYY-MM-DD). Depois do último dia da escala ⇒
+   * último dia cheio. Ausente ⇒ regra só de horário.
+   */
+  dataPartidaVolta?: string | null;
   /** Valor do almoço/jantar em centavos (já escolhidos p/ Demais ou Cenotécnica) */
   almocoCents: number;
   jantarCents: number;
@@ -69,6 +96,34 @@ const CHEGADA_JANTAR_ATE = 19 * 60;      // chega até 19:00 → janta
 const RETORNO_ALMOCO_APOS = 13 * 60;     // volta parte ≥ 13:00 → almoça
 const RETORNO_JANTAR_APOS = 21 * 60;     // VOO de volta parte ≥ 21:00 → janta
 const RETORNO_JANTAR_APOS_TERRESTRE = 20 * 60; // van/ônibus saindo ≥ 20:00 → janta (regra 17/08)
+
+/** "YYYY-MM-DD" (aceita timestamp ISO — corta o horário); inválido/vazio → null. */
+function dataISO(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+/**
+ * Data em que o voo de IDA chega: a data da partida, +1 dia quando o horário
+ * de chegada no relógio é MENOR que o de partida (cruzou a meia-noite — ex.:
+ * sai 09/10 23:35, chega 02:35 ⇒ chega 10/10). Sem data de partida → null;
+ * sem um dos horários → a própria data de partida (não dá para ver o cruzamento).
+ */
+export function dataDeChegadaDaIda(
+  dataPartida: string | null | undefined,
+  horaPartida: string | null | undefined,
+  horaChegada: string | null | undefined,
+): string | null {
+  const d = dataISO(dataPartida);
+  if (!d) return null;
+  const p = parseHoraMin(horaPartida);
+  const c = parseHoraMin(horaChegada);
+  if (p === null || c === null || c >= p) return d;
+  const [y, m, dia] = d.split("-").map(Number);
+  const prox = new Date(Date.UTC(y, m - 1, dia + 1));
+  return `${prox.getUTCFullYear()}-${String(prox.getUTCMonth() + 1).padStart(2, "0")}-${String(prox.getUTCDate()).padStart(2, "0")}`;
+}
 
 export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
   const dias: AlimentacaoDia[] = [];
@@ -93,6 +148,13 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
   }
   const chegada = parseHoraMin(input.chegadaIda);
   const partida = parseHoraMin(input.partidaVolta);
+  // Datas da viagem: chegou num dia ANTES do 1º dia / volta num dia DEPOIS do
+  // último ⇒ a borda é dia cheio e o horário não se aplica. Mesma data, data
+  // estranha ou sem data ⇒ regra de horário (comparação de string: YYYY-MM-DD).
+  const dataChegada = dataISO(input.dataChegadaIda);
+  const dataVolta = dataISO(input.dataPartidaVolta);
+  const chegouAntes = dataChegada !== null && dataChegada < sorted[0];
+  const voltaDepois = dataVolta !== null && dataVolta > sorted[sorted.length - 1];
 
   for (let i = 0; i < sorted.length; i++) {
     const primeiro = i === 0;
@@ -103,7 +165,7 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
     let almoco = true;
     let jantar = true;
 
-    if (papel === "chegada" || papel === "unico") {
+    if ((papel === "chegada" || papel === "unico") && !chegouAntes) {
       if (chegada === null) {
         estimado = true; // sem horário da passagem — assume dia cheio
       } else {
@@ -111,7 +173,7 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
         jantar = chegada <= CHEGADA_JANTAR_ATE;
       }
     }
-    if (papel === "retorno" || papel === "unico") {
+    if ((papel === "retorno" || papel === "unico") && !voltaDepois) {
       if (partida === null) {
         estimado = true;
       } else {

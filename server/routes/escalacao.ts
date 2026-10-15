@@ -41,7 +41,8 @@ import {
 import { montarHistoricoDaVaga } from "@shared/inclusion-timeline";
 import { trocaNaVisaoDaVaga, type TrocaCrua } from "@shared/swap-permuta";
 import { ONDE_A_VAGA_NASCEU, origemDaCriacao } from "@shared/criacao-da-vaga";
-import { isSuggestionInclusion, SUGESTAO_PHASE } from "@shared/scaling-validation-rules";
+import { isSuggestionInclusion, SUGESTAO_PHASE, TRECHOS_SUGERIDOS } from "@shared/scaling-validation-rules";
+import { normalizarTrechosDaVaga, CAMPOS_DE_TRECHOS_DA_VAGA } from "@shared/janela-de-viagem";
 import { effectiveUserId } from "../simulation";
 import {
   normalizarEmpreita,
@@ -489,10 +490,27 @@ export function registrarEscalacao(app: Express): void {
         'actualDailyRates', 'observations', 'actualObservations', 'emergencyRecord',
         'city', 'atendimentoTipo', 'percurseiroTipo',
         'cenoFreelaTipo', 'empreitaEmpresa', 'empreitaPessoas', 'empreitaValor',
+        // Trecho direto / uma perna (09/10) — indicação de quem planeja.
+        'trechosSugeridos', 'idaVemDoEventoId', 'voltaSegueParaEventoId',
       ]);
       const updates: Partial<InsertTeamInclusion> = { updatedBy: userId };
       for (const [k, v] of Object.entries(bodyData)) {
         if (EDITABLE_INCLUSION_FIELDS.has(k)) (updates as DadosSoltos)[k] = v;
+      }
+      // Só ida / só volta / de-para outro evento: a mesma normalização de toda
+      // porta (shared/janela-de-viagem.ts) — "segue direto" esvazia a volta etc.
+      if (updates.trechosSugeridos !== undefined || updates.idaVemDoEventoId !== undefined || updates.voltaSegueParaEventoId !== undefined) {
+        if (updates.trechosSugeridos != null && !(TRECHOS_SUGERIDOS as readonly string[]).includes(String(updates.trechosSugeridos))) {
+          return res.status(400).json({ message: "Trechos inválidos — use ida e volta, só ida ou só volta." });
+        }
+        const base: DadosSoltos = {};
+        for (const c of CAMPOS_DE_TRECHOS_DA_VAGA) base[c] = (updates as DadosSoltos)[c] !== undefined ? (updates as DadosSoltos)[c] : (currentInclusion as DadosSoltos)[c];
+        const r = normalizarTrechosDaVaga(base, currentInclusion.eventId);
+        if (r.erro) return res.status(400).json({ message: r.erro });
+        for (const c of CAMPOS_DE_TRECHOS_DA_VAGA) {
+          const novo = (r.valor as DadosSoltos)[c] ?? null;
+          if ((updates as DadosSoltos)[c] !== undefined || novo !== ((currentInclusion as DadosSoltos)[c] ?? null)) (updates as DadosSoltos)[c] = novo;
+        }
       }
 
       // Atendimento: ao ter colaborador atribuído, o tipo (Key Account /
