@@ -122,3 +122,24 @@ export function rotuloDoAeroporto(iata: string | null | undefined): string {
   const a = AEROPORTOS[c];
   return a ? `${c} · ${a.nome}` : c;
 }
+
+/**
+ * Aeroportos ALTERNATIVOS (09/10, "testar CGH/VCP em vez de GRU"): para cada
+ * aeroporto, os outros que atendem a mesma região metropolitana e que Compras
+ * costuma comparar. Mapa estático e curto de propósito — cada alternativa
+ * testada gasta uma consulta, então só entra o que faz sentido de verdade.
+ */
+export const ALTERNATIVAS_DO_AEROPORTO: Record<string, readonly string[]> = {
+  GRU: ["CGH", "VCP"], CGH: ["GRU", "VCP"], VCP: ["GRU", "CGH"],
+  GIG: ["SDU"], SDU: ["GIG"],
+  CNF: ["PLU"], PLU: ["CNF"],
+  NVT: ["FLN", "JOI"], FLN: ["NVT"], JOI: ["NVT"],
+  CXJ: ["POA"],
+  SJK: ["GRU"], IZA: ["CNF", "GIG"],
+};
+
+/** Alternativas de um aeroporto (sem ele mesmo); desconhecido → []. */
+export function alternativasDoAeroporto(iata: string | null | undefined): string[] {
+  const c = String(iata ?? "").trim().toUpperCase();
+  return [...(ALTERNATIVAS_DO_AEROPORTO[c] ?? [])].filter((a) => a !== c);
+}

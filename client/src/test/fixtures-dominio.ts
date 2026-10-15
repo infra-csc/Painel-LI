@@ -88,6 +88,7 @@ export function passagemFake(parcial: Partial<Ticket> = {}): Ticket {
     archivedCollaboratorId: null,
     archivedReason: null,
     idaVemDeInclusionId: null,
+    justificativaPreco: null,
     transportType: "aereo",
     purchaseDate: "2026-03-20",
     actualDepartureDate: "2026-04-09",

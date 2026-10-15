@@ -1,6 +1,7 @@
 import { createApp } from "./app";
 import { garantirEstrutura } from "./ensure-schema";
 import { setupVite, serveStatic, log } from "./vite";
+import { iniciarAgendadorDaBusca } from "./busca-de-passagens/agendador";
 
 // ── Processo: nunca cair por uma promise esquecida (23/09) ──────────────────
 // Um `await` rejeitado fora de try/catch (ou fora do asyncHandler) viraria
@@ -58,5 +59,7 @@ process.on("uncaughtException", (err) => {
     ...(process.platform === "linux" ? { reusePort: true } : {}),
   }, () => {
     log(`serving on port ${port}`);
+    // Acompanhar preço (09/10): checagem diária com lock no banco (uma réplica roda).
+    iniciarAgendadorDaBusca();
   });
 })();

@@ -13,6 +13,9 @@
  *     próximos 30 dias (07/10) — SÓ admin, contado no servidor.
  *   • `/api/shell/viagens-e-datas` → viagens que se cruzam (sem trecho direto) e
  *     passagens com data impossível (09/10) — só admin e Compras.
+ *   • `/api/shell/precos-acompanhados` → preços acompanhados na Busca de passagens
+ *     que mudaram (caiu X% ou a tendência virou "subir") e ninguém viu (09/10) —
+ *     admin e Compras; o aviso é da equipe (a fila é compartilhada), não pessoal.
  * O que não existe de forma barata e confiável NÃO vira badge (nem zero):
  *   • "vagas aguardando aprovação" exige `eventId` no GET /api/scaling-suggestions;
  *   • pendências de Financeiro/Cadastros não têm endpoint de contagem.
@@ -33,7 +36,7 @@ import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestTy
 import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "./shell-prefs";
 import { buscarAvisos, podeVerAvisos, CHAVE_AVISOS_CASCA, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 
-import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2 } from "lucide-react";
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2, BellRing } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
@@ -289,6 +292,15 @@ export function useShellData() {
   const viagensQueSeCruzam = isPurchasing ? (viagensData?.cruzam ?? 0) : 0;
   const datasImpossiveis = isPurchasing ? (viagensData?.datasImpossiveis ?? 0) : 0;
 
+  /** Preços acompanhados que mudaram (Busca de passagens, 09/10) — admin e Compras. */
+  const { data: precosData } = useQuery<{ count: number }>({
+    queryKey: ["shell", "precos-acompanhados"],
+    queryFn: ({ signal }) => fetchJson<{ count: number }>("/api/shell/precos-acompanhados", signal),
+    enabled: isPurchasing,
+    staleTime: 60_000,
+  });
+  const precosQueMudaram = isPurchasing ? (precosData?.count ?? 0) : 0;
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -348,6 +360,8 @@ export function useShellData() {
     // Viagens que se cruzam / data impossível (09/10): levam à lista já recortada.
     const VERMELHO = "bg-danger-soft text-danger";
     entrada(viagensQueSeCruzam, "viagens-cruzam", `${viagensQueSeCruzam} ${viagensQueSeCruzam === 1 ? "viagem que se cruza" : "viagens que se cruzam"}`, "Mesmo colaborador em dois lugares — encadeie como trecho direto ou corrija as datas", "Passagens", "/tickets?conflito=viagem", Route, VERMELHO);
+    // Preços acompanhados que mudaram (09/10): leva à Busca com a lista aberta.
+    entrada(precosQueMudaram, "precos-acompanhados", `${precosQueMudaram} ${precosQueMudaram === 1 ? "preço acompanhado mudou" : "preços acompanhados mudaram"}`, "Caiu o suficiente para avisar ou a tendência virou “subir”", "Busca de passagens", "/busca-de-passagens?acompanhando=1", BellRing, AMBAR);
     entrada(datasImpossiveis, "datas-impossiveis", `${datasImpossiveis} ${datasImpossiveis === 1 ? "passagem com data impossível" : "passagens com data impossível"}`, "Volta antes da ida ou ano fora do esperado", "Passagens", "/tickets?conflito=data", CalendarX2, VERMELHO);
 
     if (isPurchasing) {
@@ -362,7 +376,7 @@ export function useShellData() {
     entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis, precosQueMudaram]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
@@ -370,7 +384,7 @@ export function useShellData() {
 
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
   const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount
-    + avisosPassagem + avisosSoHospedagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis;
+    + avisosPassagem + avisosSoHospedagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis + precosQueMudaram;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
@@ -383,6 +397,8 @@ export function useShellData() {
     // Tudo que espera ação do aprovador: pedidos + vagas validadas aguardando ele.
     "scaling-approval": canSeeApprovals ? pedidosQuePodeDecidir.length + myAwaitingApprovalCount : 0,
     "scaling-validation": myAwaitingValidationCount,
+    // Preços acompanhados que mudaram (09/10).
+    "busca-de-passagens": precosQueMudaram,
   };
 
   return { tabBadgeCount, notifications, pendingTotal, hasUnseen: notifications.some((n) => n.isNew), markAllSeen };

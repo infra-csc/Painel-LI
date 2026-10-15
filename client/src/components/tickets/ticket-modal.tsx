@@ -43,6 +43,7 @@ import { SECAO } from "./ticket-summary-tab";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
 import { TrechoDiretoCampo, BloqueioDeViagemAviso, SegueDiretoAviso, type BloqueioDeViagem } from "./trecho-direto-campo";
 import { TrechoDiretoDaVaga } from "./sinais-da-vaga";
+import { JustificativaDoPrecoHost } from "./justificativa-do-preco";
 
 /**
  * Moldura do modal (07/10): 1100px no computador; no celular ocupa a tela
@@ -544,6 +545,8 @@ export default function TicketModal({
       </Dialog>
 
       <CommentsModal open={showCommentsModal} onClose={() => onShowCommentsModal(false)} teamInclusionId={sid} />
+      {/* Teto por trecho (09/10): a justificativa do valor acima do típico da rota. */}
+      <JustificativaDoPrecoHost />
     </>
   );
 }

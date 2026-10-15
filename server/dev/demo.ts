@@ -29,19 +29,23 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
 (async () => {
   // Imports dinâmicos: server/db.ts lê PAINEL_DB no carregamento, então o
   // ambiente acima precisa estar definido antes de qualquer módulo do servidor.
-  const [{ db, inicializarBancoDeTeste }, { criarSchemaPglite }, { semearDemo, DEMO_PAPEIS, DEMO_SENHA, DEMO_USUARIOS }, { createApp }, { setupVite, log }] = await Promise.all([
+  const [{ db, inicializarBancoDeTeste }, { criarSchemaPglite }, { semearDemo, DEMO_PAPEIS, DEMO_SENHA, DEMO_USUARIOS }, { createApp }, { setupVite, log }, { iniciarAgendadorDaBusca }, { semearBuscaDemo }] = await Promise.all([
     import("../db"),
     import("./pglite-schema"),
     import("./demo-seed"),
     import("../app"),
     import("../vite"),
+    import("../busca-de-passagens/agendador"),
+    import("./demo-seed-busca"),
   ]);
 
   const t0 = Date.now();
   await inicializarBancoDeTeste();
   await criarSchemaPglite(db);
   const resumo = await semearDemo(db);
-  log(`banco embutido pronto em ${Date.now() - t0} ms — ${resumo.vagas} vagas, ${resumo.colaboradores} colaboradores, ${resumo.eventos} eventos`, "demo");
+  // Busca de passagens (etapa 2): histórico de consultas, usos e acompanhamentos — SÓ no demo.
+  const busca = await semearBuscaDemo(db);
+  log(`banco embutido pronto em ${Date.now() - t0} ms — ${resumo.vagas} vagas, ${resumo.colaboradores} colaboradores, ${resumo.eventos} eventos, ${busca.consultas} consultas de preço`, "demo");
 
   const { app, server } = await createApp({ modoSeguro: false, cookieSecure: false });
   await setupVite(app, server);
@@ -57,6 +61,7 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
   });
   server.listen({ port, host: "0.0.0.0" }, () => {
     log(`serving on port ${port}`);
+    iniciarAgendadorDaBusca();
     console.warn("\n[Demo] Logins automáticos (a sessão nasce como se viesse do SSO):");
     for (const papel of DEMO_PAPEIS) {
       console.warn(`  http://localhost:${port}/__demo/entrar?papel=${papel.padEnd(13)} → ${DEMO_USUARIOS[papel].name} (${DEMO_USUARIOS[papel].role}${DEMO_USUARIOS[papel].canApproveCenotecnica ? ", aprova cenotécnica" : ""})`);

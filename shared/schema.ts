@@ -370,6 +370,9 @@ export const tickets = pgTable("tickets", {
   // (só ida / só volta) NÃO tem coluna: continua derivada dos campos vazios
   // (shared/janela-de-viagem.ts · trechosDaPassagem).
   idaVemDeInclusionId: varchar("ida_vem_de_inclusion_id"),
+  // TETO POR TRECHO (09/10): valor acima de N% do preço típico da rota (busca
+  // de passagens) só é registrado com justificativa — gravada aqui e na auditoria.
+  justificativaPreco: text("justificativa_preco"),
   // HISTÓRICO (dono, 01/10: "eu comprei mas vamos trocar o colaborador —
   // aquela passagem fica de histórico, e o custo mantém na prova"). Quando uma
   // troca é aprovada, a passagem de quem saiu NÃO é apagada nem editada: ganha
@@ -1344,6 +1347,52 @@ export const buscaPassagensUsos = pgTable("busca_passagens_usos", {
   index("busca_passagens_usos_vaga_idx").on(t.teamInclusionId),
   index("busca_passagens_usos_ticket_idx").on(t.ticketId),
 ]);
+
+/**
+ * ACOMPANHAR PREÇO (etapa 2, 09/10): escalação marcada por admin/Compras; o
+ * agendador do servidor checa 1x/dia (respeitando o teto do mês e o limite de
+ * acompanhadas) e avisa no sino quando o preço cai X% ou a tendência vira
+ * "subir". Para sozinho quando a passagem é registrada. Uma ATIVA por vaga.
+ */
+export const buscaPassagensAcompanhamentos = pgTable("busca_passagens_acompanhamentos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamInclusionId: varchar("team_inclusion_id").notNull(),
+  criadoPor: varchar("criado_por"),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  ativo: boolean("ativo").notNull().default(true),
+  /** Ajuste da busca no momento em que passou a acompanhar (aeroporto, datas…). */
+  ajuste: jsonb("ajuste").$type<Record<string, unknown> | null>(),
+  /** Chaves das consultas da vaga na última checagem. */
+  chaves: text("chaves").array(),
+  precoInicialCentavos: integer("preco_inicial_centavos"),
+  /** Base do "caiu X%": o primeiro preço ou o do último aviso de queda. */
+  precoReferenciaCentavos: integer("preco_referencia_centavos"),
+  ultimoPrecoCentavos: integer("ultimo_preco_centavos"),
+  menorPrecoCentavos: integer("menor_preco_centavos"),
+  ultimaChecagemEm: timestamp("ultima_checagem_em", { withTimezone: true }),
+  tendencia: text("tendencia"), // 'subir' | 'baixar' | 'estavel' | 'sem_dado'
+  aviso: text("aviso"), // 'caiu' | 'subir'
+  avisoTexto: text("aviso_texto"),
+  avisoEm: timestamp("aviso_em", { withTimezone: true }),
+  avisoVistoEm: timestamp("aviso_visto_em", { withTimezone: true }),
+  paradoEm: timestamp("parado_em", { withTimezone: true }),
+  motivoParada: text("motivo_parada"),
+}, (t) => [
+  uniqueIndex("busca_passagens_acomp_vaga_ativa_uq").on(t.teamInclusionId).where(sql`${t.ativo}`),
+  index("busca_passagens_acomp_ativos_idx").on(t.ativo),
+]);
+
+/**
+ * Execuções do agendador (um dia por linha): o INSERT do dia é o LOCK — com
+ * réplicas, só a instância que conseguir inserir roda a checagem daquele dia.
+ */
+export const buscaPassagensExecucoes = pgTable("busca_passagens_execucoes", {
+  dia: date("dia").primaryKey(),
+  iniciadoEm: timestamp("iniciado_em", { withTimezone: true }).notNull().defaultNow(),
+  terminadoEm: timestamp("terminado_em", { withTimezone: true }),
+  instancia: text("instancia"),
+  resumo: jsonb("resumo").$type<Record<string, unknown> | null>(),
+});
 
 // ===== CONTROLE DE BAGAGEM =====
 // Solicitações de bagagem por colaborador/evento (porte do app standalone).

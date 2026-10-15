@@ -345,6 +345,54 @@ const PASSOS: Passo[] = [
     descricao: "índice dos usos da busca por passagem",
     sql: `CREATE INDEX IF NOT EXISTS busca_passagens_usos_ticket_idx ON busca_passagens_usos (ticket_id)`,
   },
+  // 09/10 — busca de passagens, etapa 2: teto por trecho (justificativa na
+  // passagem), acompanhar preço e o lock diário do agendador.
+  {
+    descricao: "tickets.justificativa_preco (valor acima do teto por trecho)",
+    sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS justificativa_preco text`,
+  },
+  {
+    descricao: "tabela busca_passagens_acompanhamentos (acompanhar preço de uma escalação)",
+    sql: `CREATE TABLE IF NOT EXISTS busca_passagens_acompanhamentos (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      team_inclusion_id varchar NOT NULL,
+      criado_por varchar,
+      criado_em timestamptz NOT NULL DEFAULT now(),
+      ativo boolean NOT NULL DEFAULT true,
+      ajuste jsonb,
+      chaves text[],
+      preco_inicial_centavos integer,
+      preco_referencia_centavos integer,
+      ultimo_preco_centavos integer,
+      menor_preco_centavos integer,
+      ultima_checagem_em timestamptz,
+      tendencia text,
+      aviso text,
+      aviso_texto text,
+      aviso_em timestamptz,
+      aviso_visto_em timestamptz,
+      parado_em timestamptz,
+      motivo_parada text
+    )`,
+  },
+  {
+    descricao: "um acompanhamento ATIVO por vaga",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS busca_passagens_acomp_vaga_ativa_uq ON busca_passagens_acompanhamentos (team_inclusion_id) WHERE ativo`,
+  },
+  {
+    descricao: "índice dos acompanhamentos ativos",
+    sql: `CREATE INDEX IF NOT EXISTS busca_passagens_acomp_ativos_idx ON busca_passagens_acompanhamentos (ativo)`,
+  },
+  {
+    descricao: "tabela busca_passagens_execucoes (lock diário do agendador do acompanhamento)",
+    sql: `CREATE TABLE IF NOT EXISTS busca_passagens_execucoes (
+      dia date PRIMARY KEY,
+      iniciado_em timestamptz NOT NULL DEFAULT now(),
+      terminado_em timestamptz,
+      instancia text,
+      resumo jsonb
+    )`,
+  },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o
@@ -370,7 +418,7 @@ const PASSOS: Passo[] = [
  */
 const RE_COLUNA = /ALTER TABLE (\w+) ADD COLUMN IF NOT EXISTS (\w+)/i;
 const RE_TABELA = /CREATE TABLE IF NOT EXISTS (\w+)/i;
-const RE_INDICE = /CREATE INDEX IF NOT EXISTS (\w+)/i;
+const RE_INDICE = /CREATE (?:UNIQUE )?INDEX IF NOT EXISTS (\w+)/i;
 
 async function jaExiste(sql: string): Promise<boolean> {
   if (sql === SQL_USUARIO_SISTEMA) {

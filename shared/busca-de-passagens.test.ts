@@ -7,13 +7,17 @@ import {
   faixaEmTexto,
   filtroDaFaixa,
   ordenarOpcoes,
+  lerChave,
   planejarBusca,
+  temFiltroDeHorario,
+  textoForaDoHorario,
+  variantesDeAeroporto,
   variantesDeData,
   type EventoDaBusca,
   type ItinerarioDeVoo,
   type VagaDaBusca,
 } from "./busca-de-passagens";
-import { aeroportosDaCidade, chaveDaCidade } from "./aeroportos-do-brasil";
+import { aeroportosDaCidade, alternativasDoAeroporto, chaveDaCidade } from "./aeroportos-do-brasil";
 
 const HOJE = "2026-10-09";
 
@@ -253,5 +257,89 @@ describe("custo total e ordenação", () => {
     const o = avaliarOpcao(rt, rota, { diariaCentavos: 30000, diariasDaData: 1 });
     expect(o.diarias).toBe(2);
     expect(o.custoTotalCentavos).toBe(160000);
+  });
+});
+
+describe("\"Ver sem o horário sugerido\" (09/10 — JPA→GRU sem voo depois das 18h)", () => {
+  it("a consulta vai sem filtro (outra chave), mas a janela fica para os selos", () => {
+    const comFiltro = planejarBusca({ vagas: [vaga("a")], eventos: eventos([JPA]), hoje: HOJE }).rotas[0];
+    const sem = planejarBusca({ vagas: [vaga("a")], eventos: eventos([JPA]), hoje: HOJE, ajustes: { a: { semHorario: true } } }).rotas[0];
+    expect(temFiltroDeHorario(comFiltro)).toBe(true);
+    expect(sem.horarioIda).toBeNull();
+    expect(sem.horarioVolta).toBeNull();
+    expect(sem.faixaVolta).toEqual({ desde: 18 * 60, ate: null });
+    expect(sem.semHorario).toBe(true);
+    expect(sem.chave).not.toBe(comFiltro.chave);
+    expect(comFiltro.semHorario).toBe(false);
+  });
+
+  it("opção fora da janela é MARCADA com quanto e para onde: \"Sai 17:45 — antes do sugerido 18h\"", () => {
+    const volta = itin("v", 50000, [{ companhia: "LA", duracaoMin: 200, segmentos: [seg("LA", "3", "JPA", "GRU", "2026-11-16T17:45", "2026-11-16T21:05")] }]);
+    const o = avaliarOpcao(volta, { perna: "volta", faixaIda: null, faixaVolta: { desde: 18 * 60, ate: null } });
+    expect(o.grupo).toBe(1);
+    expect(o.selos.find((s) => s.tipo === "fora_do_horario")?.texto).toBe("Sai 17:45 — antes do sugerido 18h");
+    const ida = itin("i", 50000, [{ companhia: "G3", duracaoMin: 200, segmentos: [seg("G3", "9", "GRU", "JPA", "2026-11-12T12:00", "2026-11-12T15:20")] }]);
+    expect(avaliarOpcao(ida, { perna: "ida", faixaIda: { desde: null, ate: 14 * 60 }, faixaVolta: null }).selos.find((s) => s.tipo === "fora_do_horario")?.texto)
+      .toBe("Chega 15:20 — depois do sugerido 14h");
+    expect(textoForaDoHorario("Chega", 7 * 60 + 40, { desde: 9 * 60, ate: 12 * 60 })).toBe("Chega 07:40 — antes do sugerido 9h–12h");
+  });
+});
+
+describe("aeroportos alternativos", () => {
+  it("mapa estático: GRU ↔ CGH/VCP, GIG ↔ SDU; desconhecido = nada", () => {
+    expect(alternativasDoAeroporto("gru")).toEqual(["CGH", "VCP"]);
+    expect(alternativasDoAeroporto("GIG")).toEqual(["SDU"]);
+    expect(alternativasDoAeroporto("JPA")).toEqual([]);
+  });
+
+  it("uma variante por alternativa, com a MESMA chave que a troca daria (trocar depois não gasta)", () => {
+    const rio: EventoDaBusca = { id: "ev-rio", name: "Meia do Rio", location: "Aterro, Rio de Janeiro - RJ", aeroportoIata: "GIG" };
+    const r = planejarBusca({ vagas: [vaga("a", { eventId: "ev-rio" })], eventos: eventos([rio]), hoje: HOJE }).rotas[0];
+    expect(r.alternativasDoEvento).toEqual(["SDU"]);
+    const v = variantesDeAeroporto(r);
+    expect(v.map((x) => [x.lado, x.iata, x.rotulo])).toEqual([["casa", "CGH", "Sair de CGH"], ["casa", "VCP", "Sair de VCP"], ["evento", "SDU", "Evento por SDU"]]);
+    const trocado = planejarBusca({ vagas: [vaga("a", { eventId: "ev-rio" })], eventos: eventos([rio]), hoje: HOJE, ajustes: { a: { aeroportoDoEvento: "SDU" } } }).rotas[0];
+    expect(trocado.destino).toBe("SDU");
+    expect(trocado.chave).toBe(v[2].chave);
+    expect(trocado.alternativasDoEvento).toEqual(["GIG"]);
+    const casa = planejarBusca({ vagas: [vaga("a", { eventId: "ev-rio" })], eventos: eventos([rio]), hoje: HOJE, ajustes: { a: { aeroportoDeCasa: "VCP" } } }).rotas[0];
+    expect(casa.chave).toBe(v[1].chave);
+  });
+
+  it("volta: a ponta de casa é o destino", () => {
+    const r = planejarBusca({ vagas: [vaga("v", { trechosSugeridos: "so_volta", flightDepartureDate: null })], eventos: eventos([JPA]), hoje: HOJE }).rotas[0];
+    expect(variantesDeAeroporto(r)[0]).toMatchObject({ rotulo: "Chegar em CGH", consulta: { origem: "JPA", destino: "CGH" } });
+  });
+});
+
+describe("mala no custo total (quem despacha)", () => {
+  const rota = { perna: "ida_e_volta" as const, faixaIda: null, faixaVolta: null };
+  const pernas: ItinerarioDeVoo["pernas"] = [
+    { companhia: "G3", duracaoMin: 200, segmentos: [seg("G3", "1", "GRU", "JPA", "2026-11-12T08:00", "2026-11-12T11:20")] },
+    { companhia: "G3", duracaoMin: 200, segmentos: [seg("G3", "2", "JPA", "GRU", "2026-11-16T15:00", "2026-11-16T18:20")] },
+  ];
+
+  it("tarifa sem mala soma a estimativa por perna e ordena pelo total; com mala, \"Inclui mala\"", () => {
+    const semMala = itin("sem", 90000, pernas, { bagagem: { mao: 1, despachada: 0 } });
+    const comMala = itin("com", 110000, pernas, { bagagem: { mao: 1, despachada: 1 } });
+    const ordem = ordenarOpcoes([semMala, comMala], rota, { malaCentavos: 15000 });
+    expect(ordem.map((o) => [o.itinerario.id, o.custoTotalCentavos, o.malaCentavos])).toEqual([["com", 110000, 0], ["sem", 120000, 30000]]);
+    expect(ordem[0].selos.map((s) => s.texto)).toContain("Inclui mala");
+    expect(ordem[1].selos.map((s) => s.texto)).toContain("+R$ 300 de mala");
+    // Ninguém despacha: nada muda.
+    expect(avaliarOpcao(semMala, rota).malaCentavos).toBeNull();
+  });
+
+  it("a rota conta quantas vagas despacham", () => {
+    const r = planejarBusca({ vagas: [vaga("a", { precisaMala: true }), vaga("b")], eventos: eventos([JPA]), hoje: HOJE }).rotas[0];
+    expect(r.vagasComMala).toBe(1);
+  });
+});
+
+describe("lerChave", () => {
+  it("volta a rota e as datas de uma chave de consulta", () => {
+    expect(lerChave("ida_e_volta|GRU>JPA|2026-11-12|2026-11-16|p1|,,,14|18,,,")).toEqual({ perna: "ida_e_volta", origem: "GRU", destino: "JPA", dataIda: "2026-11-12", dataVolta: "2026-11-16" });
+    expect(lerChave("volta|JPA>GRU|2026-11-16|-|p1|-|-")).toMatchObject({ perna: "volta", dataVolta: null });
+    expect(lerChave("link|abc")).toBeNull();
   });
 });

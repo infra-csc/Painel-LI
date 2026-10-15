@@ -2,14 +2,21 @@
  * Filtros e abas da tela Busca de passagens (09/10) — na URL, como as outras
  * telas: recarregar ou mandar o link abre o mesmo recorte.
  *
- *   ?aba=buscar|preco-por-rota|pago-x-encontrado|melhor-momento|consumo
+ *   ?aba=buscar|previsao|melhor-momento|preco-por-rota|pago-x-encontrado|orcamento|consumo
+ *   &periodo=90|180|365|tudo  (abas de análise; padrão 180 — sai da URL)
  *   &situacao=pendentes|compradas|todas   (padrão: pendentes — sai da URL)
  *   &q= &evento= &funcoes=a,b &saida= &destino= &trecho= &falta= &de= &ate=
  *   &vagas=id,id  (atalho de Passagens: vagas já selecionadas; consumido na abertura)
  *   &idaDe=<vaga anterior>  (atalho "Buscar preços do trecho direto")
+ *   &remarcar=1  (atalho do aviso de alteração: busca as datas NOVAS da vaga, não as da passagem)
+ *   &acompanhando=1  (atalho do sino: abre a lista de preços acompanhados)
  */
-export type AbaDaBusca = "buscar" | "preco-por-rota" | "pago-x-encontrado" | "melhor-momento" | "consumo";
-export const ABAS_DA_BUSCA: AbaDaBusca[] = ["buscar", "preco-por-rota", "pago-x-encontrado", "melhor-momento", "consumo"];
+export type AbaDaBusca = "buscar" | "previsao" | "melhor-momento" | "preco-por-rota" | "pago-x-encontrado" | "orcamento" | "consumo";
+export const ABAS_DA_BUSCA: AbaDaBusca[] = ["buscar", "previsao", "melhor-momento", "preco-por-rota", "pago-x-encontrado", "orcamento", "consumo"];
+
+/** Período das abas de análise (dias para trás, ou tudo). */
+export type PeriodoDaAnalise = "90" | "180" | "365" | "tudo";
+export const PERIODOS_DA_ANALISE: PeriodoDaAnalise[] = ["90", "180", "365", "tudo"];
 
 export type Situacao = "pendentes" | "compradas" | "todas";
 export type FiltroDeTrecho = "todos" | "ida_e_volta" | "so_ida" | "so_volta" | "direto";
@@ -41,6 +48,9 @@ export interface EstadoDaUrl {
   filtros: FiltrosDaBusca;
   vagas: string[];
   idaDe: string | null;
+  periodo: PeriodoDaAnalise;
+  remarcar: boolean;
+  acompanhando: boolean;
 }
 
 export function lerUrl(search: string): EstadoDaUrl {
@@ -62,13 +72,17 @@ export function lerUrl(search: string): EstadoDaUrl {
     },
     vagas: lista("vagas").slice(0, 80),
     idaDe: p.get("idaDe") || null,
+    periodo: um(p.get("periodo"), PERIODOS_DA_ANALISE, "180"),
+    remarcar: p.get("remarcar") === "1",
+    acompanhando: p.get("acompanhando") === "1",
   };
 }
 
 /** Só o que foge do padrão vai para a URL (o atalho `vagas` não volta). */
-export function escreverUrl(aba: AbaDaBusca, f: FiltrosDaBusca): string {
+export function escreverUrl(aba: AbaDaBusca, f: FiltrosDaBusca, periodo: PeriodoDaAnalise = "180"): string {
   const p = new URLSearchParams();
   if (aba !== "buscar") p.set("aba", aba);
+  if (aba !== "buscar" && aba !== "consumo" && periodo !== "180") p.set("periodo", periodo);
   if (f.situacao !== "pendentes") p.set("situacao", f.situacao);
   if (f.q.trim()) p.set("q", f.q);
   if (f.evento !== "all") p.set("evento", f.evento);

@@ -9,15 +9,17 @@
  * opções em ordem de custo total. Todo botão que gasta diz quanto.
  */
 import { useMemo, useState } from "react";
-import { ArrowRight, CalendarRange, CircleAlert, CloudOff, Plane, RefreshCw, Sparkles, X, Layers } from "lucide-react";
+import { ArrowRight, CalendarRange, CircleAlert, Clock, CloudOff, Luggage, MapPinned, Plane, RefreshCw, Sparkles, X, Layers } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
 import { formatarMoeda, toTitleCase } from "@/lib/format";
-import { rotuloDoAeroporto } from "@shared/aeroportos-do-brasil";
 import {
   faixaEmTexto,
   ordenarOpcoes,
+  reaisInteiros,
+  temFiltroDeHorario,
+  type AlternativaNaTela,
   type OpcaoAvaliada,
   type RespostaDaBusca,
   type RotaNaTela,
@@ -38,6 +40,12 @@ export interface AcoesDaRota {
   trocarSaida: (rota: RotaNaTela, iata: string) => void;
   consultar: (rota: RotaNaTela) => void;
   usar: (vagaId: string, rota: RotaNaTela, opcao: OpcaoAvaliada, resultado: ResultadoNaTela) => void;
+  /** Etapa 2 (09/10): consulta SEM a janela de horário (1 consulta). */
+  semHorario?: (rota: RotaNaTela) => void;
+  /** Testa os aeroportos alternativos (1 consulta cada). */
+  testarAlternativas?: (rota: RotaNaTela) => void;
+  /** Troca para um alternativo já testado (do cache, não gasta). */
+  usarAlternativa?: (rota: RotaNaTela, alt: AlternativaNaTela) => void;
 }
 
 function Esqueleto() {
@@ -91,13 +99,13 @@ function RotaDeResultados({ rota, vagas, acoes, ocupado, carregandoEsta, simulad
   const resultado = atual ? atual.resultado : rota.resultado;
   const erro = atual ? atual.erro : rota.erro;
   const opcoes = useMemo(
-    () => (resultado ? ordenarOpcoes(resultado.itinerarios, rota, { diariaCentavos: rota.diariaCentavos, diariasDaData: atual?.diarias ?? 0 }) : []),
+    () => (resultado ? ordenarOpcoes(resultado.itinerarios, rota, { diariaCentavos: rota.diariaCentavos, diariasDaData: atual?.diarias ?? 0, malaCentavos: rota.malaCentavos }) : []),
     [resultado, rota, atual],
   );
   const visiveis = verTodas ? opcoes : opcoes.slice(0, 5);
   const menorPorData = (r: ResultadoNaTela | null, diarias: number) => {
     if (!r) return null;
-    const o = ordenarOpcoes(r.itinerarios, rota, { diariaCentavos: rota.diariaCentavos, diariasDaData: diarias })[0];
+    const o = ordenarOpcoes(r.itinerarios, rota, { diariaCentavos: rota.diariaCentavos, diariasDaData: diarias, malaCentavos: rota.malaCentavos })[0];
     return o ? o.custoTotalCentavos : null;
   };
 
@@ -126,6 +134,11 @@ function RotaDeResultados({ rota, vagas, acoes, ocupado, carregandoEsta, simulad
   };
 
   const vagasPendentes = vagas.filter((v) => !v.comprada);
+  const alternativasPossiveis = [...(rota.trechoDireto ? [] : rota.alternativasDeCasa), ...(rota.alternativasDoEvento ?? [])].filter((a, i, l) => l.indexOf(a) === i);
+  // A rota tem janela de horário e voltou vazia ou só com opções absurdas: oferecer a consulta sem ela.
+  const podeSemHorario = !!acoes.semHorario && temFiltroDeHorario(rota) && !rota.semHorario && !atual;
+  const soRuins = opcoes.length > 0 && opcoes.every((o) => o.grupo === 2);
+  const menorDaAlternativa = (r: ResultadoNaTela | null) => menorPorData(r, 0);
   return (
     <section className="pas-bp-chega border-b border-border px-4 py-4 last:border-0 sm:px-5" style={{ ["--i" as string]: indice }} aria-label={`Rota ${rota.origem} para ${rota.destino}`} data-testid={`rota-${rota.chave}`}>
       {/* Cabeçalho da rota: o trecho e quando foi consultada; embaixo, quem viaja e as ferramentas. */}
@@ -156,20 +169,22 @@ function RotaDeResultados({ rota, vagas, acoes, ocupado, carregandoEsta, simulad
             {v.comprada && <span className="text-success">· comprada</span>}
           </span>
         ))}
+        {rota.malaCentavos ? (
+          <span className="inline-flex h-[22px] items-center gap-1 rounded-md bg-info-soft px-1.5 text-2xs font-medium text-info-strong" title="Função que despacha mala (ajuste do administrador): o custo total soma a mala quando a tarifa não a inclui" data-testid={`mala-${rota.chave}`}>
+            <Luggage className="h-3 w-3" aria-hidden="true" />{rota.vagasComMala === vagas.length ? "despacha mala" : `${rota.vagasComMala} de ${vagas.length} despacham mala`} · {reaisInteiros(rota.malaCentavos)} por perna
+          </span>
+        ) : null}
+        {rota.semHorario && (
+          <span className="inline-flex h-[22px] items-center gap-1 rounded-md bg-warning-soft px-1.5 text-2xs font-medium text-warning-strong" title="Consulta feita sem a janela de horário: as opções fora dela aparecem marcadas">
+            <Clock className="h-3 w-3" aria-hidden="true" />sem o horário sugerido
+          </span>
+        )}
         {rota.resultado && (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-            {rota.alternativasDeCasa.length > 0 && !rota.trechoDireto && (
-              <select
-                value=""
-                disabled={ocupado}
-                onChange={(e) => { if (e.target.value) acoes.trocarSaida(rota, e.target.value); }}
-                className="pas-alvo h-8 max-w-[190px] rounded-lg border border-border bg-card px-2 text-xs font-medium text-slate-700 hover:bg-muted focus:border-primary focus:outline-none"
-                aria-label={`Trocar o aeroporto de ${rota.perna === "volta" ? "chegada" : "saída"} (1 consulta)`}
-                data-testid={`trocar-saida-${rota.chave}`}
-              >
-                <option value="">{rota.perna === "volta" ? "Chegar em" : "Sair de"} {rota.perna === "volta" ? rota.destino : rota.origem}</option>
-                {rota.alternativasDeCasa.map((a) => <option key={a} value={a}>{rotuloDoAeroporto(a)} — 1 consulta</option>)}
-              </select>
+            {alternativasPossiveis.length > 0 && !rota.alternativas && acoes.testarAlternativas && (
+              <BotaoQueGasta onClick={() => acoes.testarAlternativas?.(rota)} disabled={ocupado} custo={rota.consultasDasAlternativas ?? alternativasPossiveis.length} testid={`alternativas-${rota.chave}`}>
+                <MapPinned className="h-3.5 w-3.5" aria-hidden="true" /><span className="max-w-[160px] truncate">Testar {alternativasPossiveis.join(", ")}</span>
+              </BotaoQueGasta>
             )}
             {!rota.variantes && (
               <BotaoQueGasta onClick={() => acoes.datasFlexiveis(rota)} disabled={ocupado} custo={rota.consultasDoFlex} testid={`flex-${rota.chave}`}>
@@ -206,6 +221,36 @@ function RotaDeResultados({ rota, vagas, acoes, ocupado, carregandoEsta, simulad
       )}
 
 
+      {/* Aeroportos alternativos (depois de testados): o menor custo de cada um e a troca — do cache, sem gastar. */}
+      {rota.resultado && rota.alternativas && rota.alternativas.length > 0 && (() => {
+        const atualMenor = menorDaAlternativa(rota.resultado);
+        const lista = rota.alternativas.map((a) => ({ a, menor: menorDaAlternativa(a.resultado) }));
+        const melhor = Math.min(atualMenor ?? Infinity, ...lista.map((x) => x.menor ?? Infinity));
+        return (
+          <div className="mt-2.5 rounded-lg border border-border bg-background p-[3px]" data-testid={`alternativas-testadas-${rota.chave}`}>
+            <p className="m-0 px-2 pb-1 pt-0.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Aeroportos · menor custo</p>
+            <div className="flex flex-wrap gap-0.5">
+              <span className="flex min-h-8 flex-col justify-center rounded-md bg-card px-2.5 py-1 text-2xs leading-4 shadow-1 ring-1 ring-border">
+                <span className="font-semibold text-primary">Atual · {rota.origem}→{rota.destino}</span>
+                <span className={`tabular-nums ${atualMenor === melhor ? "font-semibold text-success" : "text-muted-foreground"}`}>{atualMenor ? formatarMoeda(atualMenor) : "sem voo"}</span>
+              </span>
+              {lista.map(({ a, menor }) => (
+                <button key={a.chave} type="button" disabled={ocupado || !a.resultado || !acoes.usarAlternativa} onClick={() => acoes.usarAlternativa?.(rota, a)}
+                  title={a.resultado ? "Trocar para este aeroporto — já consultado, não gasta" : a.erro?.mensagem ?? "Não consultado"}
+                  className="pas-alvo flex min-h-8 flex-col items-start justify-center rounded-md px-2.5 py-1 text-left text-2xs leading-4 text-muted-foreground transition-colors hover:bg-card hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid={`usar-alternativa-${a.iata}`}>
+                  <span className="font-medium">{a.rotulo}</span>
+                  <span className={`tabular-nums ${menor !== null && menor === melhor ? "font-semibold text-success" : ""}`}>
+                    {menor ? `${formatarMoeda(menor)}${atualMenor ? ` · ${menor < atualMenor ? "−" : "+"}${Math.abs(Math.round(((menor - atualMenor) / atualMenor) * 100))}%` : ""}` : a.erro ? "falhou" : "sem voo"}
+                    {menor !== null && menor === melhor && <span className="sr-only"> (mais barato)</span>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Corpo: estados da rota */}
       <div className="mt-3" aria-live="polite">
         {carregandoEsta && !resultado ? (
@@ -232,16 +277,39 @@ function RotaDeResultados({ rota, vagas, acoes, ocupado, carregandoEsta, simulad
             <p className="m-0 mt-1 text-xs leading-relaxed text-muted-foreground">
               LATAM, GOL e Azul{rota.maxParadas === 1 ? " com até 1 conexão" : ""}{rota.faixaIda ? `, chegando ${faixaEmTexto(rota.faixaIda)}` : ""}{rota.faixaVolta ? `, saindo ${faixaEmTexto(rota.faixaVolta).replace("a partir de ", "após ")}` : ""}, não têm voo nesta data.
             </p>
-            {rota.maxParadas === 1 && !atual && (
-              <div className="mt-2.5">
-                <BotaoQueGasta onClick={() => acoes.duasConexoes(rota)} disabled={ocupado} custo={1} testid={`duas-conexoes-${rota.chave}`}>
-                  <Layers className="h-3.5 w-3.5" aria-hidden="true" />Tentar com 2 conexões
-                </BotaoQueGasta>
+            {(podeSemHorario || (rota.maxParadas === 1 && !atual)) && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {podeSemHorario && (
+                  <BotaoQueGasta onClick={() => acoes.semHorario?.(rota)} disabled={ocupado} custo={1} primario testid={`sem-horario-${rota.chave}`}>
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />Ver sem o horário sugerido
+                  </BotaoQueGasta>
+                )}
+                {rota.maxParadas === 1 && !atual && (
+                  <BotaoQueGasta onClick={() => acoes.duasConexoes(rota)} disabled={ocupado} custo={1} testid={`duas-conexoes-${rota.chave}`}>
+                    <Layers className="h-3.5 w-3.5" aria-hidden="true" />Tentar com 2 conexões
+                  </BotaoQueGasta>
+                )}
               </div>
+            )}
+            {podeSemHorario && (
+              <p className="m-0 mt-2 text-2xs leading-4 text-muted-foreground">Sem o horário, as opções fora da janela aparecem marcadas (“Sai 17:45 — antes do sugerido 18h”) — a escolha continua sua.</p>
             )}
           </div>
         ) : (
           <>
+            {soRuins && podeSemHorario && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-warning/30 bg-warning-soft/50 px-3 py-2" data-testid={`so-ruins-${rota.chave}`}>
+                <p className="m-0 min-w-0 flex-1 basis-[220px] text-xs leading-5 text-foreground">No horário sugerido só há voos com 2 conexões, muito longos ou com troca de companhia.</p>
+                <BotaoQueGasta onClick={() => acoes.semHorario?.(rota)} disabled={ocupado} custo={1} testid={`sem-horario-${rota.chave}`}>
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />Ver sem o horário sugerido
+                </BotaoQueGasta>
+              </div>
+            )}
+            {rota.semHorario && !atual && (
+              <p className="m-0 mb-2 text-2xs leading-4 text-muted-foreground" data-testid={`aviso-sem-horario-${rota.chave}`}>
+                Consulta sem a janela de horário{rota.faixaIda ? ` (chegar ${faixaEmTexto(rota.faixaIda)})` : ""}{rota.faixaVolta ? ` (${rota.perna === "volta" ? "sair" : "volta"} ${faixaEmTexto(rota.faixaVolta).replace("a partir de ", "após ")})` : ""}: as opções fora dela estão marcadas, não escondidas.
+              </p>
+            )}
             <ul className="space-y-2">
               {visiveis.map((o, i) => (
                 <OpcaoDeVoo
@@ -266,7 +334,11 @@ function RotaDeResultados({ rota, vagas, acoes, ocupado, carregandoEsta, simulad
             {atual && <p className="m-0 mt-2 text-2xs text-muted-foreground">Data vizinha: para registrar, ajuste a data na Escalação e busque de novo.</p>}
             {rota.diariaCentavos ? (
               <p className="m-0 mt-2 text-2xs text-muted-foreground">Custo total = preço + diária média do hotel deste evento ({formatarMoeda(rota.diariaCentavos)}) quando a volta sai a partir das 18h.</p>
-            ) : opcoes.some((o) => o.diarias !== 0) ? (
+            ) : null}
+            {rota.malaCentavos ? (
+              <p className="m-0 mt-1 text-2xs text-muted-foreground">Quem despacha: “Inclui mala” quando a tarifa já tem bagagem; senão o custo total soma {reaisInteiros(rota.malaCentavos)} por perna (estimativa — confira no site da companhia).</p>
+            ) : null}
+            {!rota.diariaCentavos && opcoes.some((o) => o.diarias !== 0) ? (
               <p className="m-0 mt-2 text-2xs text-muted-foreground">“+1 diária”: volta a partir das 18h (regra do Espelho). Sem diária de hotel registrada no evento, o selo não entra no preço.</p>
             ) : null}
           </>

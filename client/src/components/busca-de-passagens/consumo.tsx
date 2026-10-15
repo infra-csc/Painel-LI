@@ -5,7 +5,8 @@
  *  - `ConsumoNoRodape`: a mesma conta, discreta, embaixo da lista (só admin).
  *  - `AbaConsumo` (só admin): mês corrente, projeção contra o teto, quanto o
  *    cache poupou, últimos 6 meses e quem consultou — com as peças da aba
- *    Análises de Passagens (Painel, Numero, LinhaDeBarra).
+ *    Análises de Passagens (Painel, Numero, LinhaDeBarra) — e, embaixo, os
+ *    AJUSTES da busca (etapa 2: teto por trecho, acompanhamento, mala).
  */
 import { useState } from "react";
 import { Gauge, Loader2, Pencil, RotateCw } from "lucide-react";
@@ -16,6 +17,7 @@ import { situacaoDoTeto, type ConsumoDaBusca } from "@shared/busca-de-passagens"
 import { rotuloDoMes } from "@shared/consumo-da-busca";
 import { Painel, Numero, LinhaDeBarra } from "@/components/tickets/analises/partes";
 import { useAlterarTeto, useDetalheDoConsumo } from "./use-busca-de-passagens";
+import { AjustesDaBusca } from "./ajustes-da-busca";
 import { plural } from "./formato";
 
 const MESES_LONGOS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -168,22 +170,9 @@ export function AbaConsumo() {
           )}
         </Painel>
       </div>
+      <AjustesDaBusca />
       <p className="m-0 text-xs leading-relaxed text-muted-foreground">
         Conta no teto toda consulta que vai ao fornecedor (preços e links de compra). Resultado do cache — a mesma rota buscada por outra pessoa nas últimas {d.cacheHoras} h — não conta. No teto, a busca para até o dia 1º ou até o teto ser aumentado.
-      </p>
-    </div>
-  );
-}
-
-/** Abas de análise que chegam na próxima etapa: estado vazio honesto. */
-export function AbaEmConstrucao({ titulo, pergunta }: { titulo: string; pergunta: string }) {
-  return (
-    <div className="pas-entra flex flex-col items-center rounded-xl border border-dashed border-border bg-card px-6 py-14 text-center" data-testid="aba-em-construcao">
-      <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-brand-soft text-primary" aria-hidden="true"><Gauge className="h-5 w-5" /></span>
-      <h2 className="m-0 text-base font-semibold text-foreground">{titulo}</h2>
-      <p className="m-0 mt-1.5 max-w-[460px] text-sm leading-relaxed text-muted-foreground">{pergunta}</p>
-      <p className="m-0 mt-3 max-w-[460px] text-xs leading-relaxed text-muted-foreground">
-        Em construção — as análises completas chegam na próxima etapa. Cada consulta feita a partir de hoje já fica guardada (rota, data do voo, quando foi consultada, companhias, horários e preços) para alimentar esta aba.
       </p>
     </div>
   );

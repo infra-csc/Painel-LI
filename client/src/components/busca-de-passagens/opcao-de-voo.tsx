@@ -35,6 +35,8 @@ const COR_DO_SELO: Record<Selo["tipo"], string> = {
   conexao_longa: "bg-warning-soft text-warning-strong",
   viagem_longa: "bg-danger-soft text-danger-strong",
   troca_de_cia: "bg-danger-soft text-danger-strong",
+  mala_inclusa: "bg-success-soft text-success",
+  mala_extra: "bg-info-soft text-info-strong",
 };
 
 function Perna({ rotulo, p }: { rotulo: string; p: PernaDeVoo }) {
@@ -100,8 +102,9 @@ export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar
             </p>
             <div className="shrink-0 text-right">
               <p className="m-0 text-base font-semibold leading-5 tabular-nums text-foreground" data-testid={`preco-${it.id}`}>{formatarMoeda(it.precoCentavos)}</p>
-              {opcao.diarias !== 0 && diariaCentavos ? (
-                <p className="m-0 text-2xs leading-4 tabular-nums text-muted-foreground" title={`Diária média do hotel deste evento: ${formatarMoeda(diariaCentavos)}`}>
+              {(opcao.diarias !== 0 && diariaCentavos) || (opcao.malaCentavos ?? 0) > 0 ? (
+                <p className="m-0 text-2xs leading-4 tabular-nums text-muted-foreground"
+                  title={[opcao.diarias !== 0 && diariaCentavos ? `Diária média do hotel deste evento: ${formatarMoeda(diariaCentavos)}` : "", (opcao.malaCentavos ?? 0) > 0 ? `Mala estimada: ${formatarMoeda(opcao.malaCentavos)}` : ""].filter(Boolean).join(" · ")}>
                   total {formatarMoeda(opcao.custoTotalCentavos)}
                 </p>
               ) : (

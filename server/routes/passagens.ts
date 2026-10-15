@@ -22,6 +22,8 @@ import {
   type PassagemDaJanela,
 } from "@shared/janela-de-viagem";
 import { ocupaAgenda } from "@shared/conflito-de-agenda";
+import { avaliarTetoDoTrecho, chaveDaRota, justificativaValida, nomeDaRota, rotaDaPassagem } from "@shared/regras-da-busca";
+import { lerAjustes, precoTipicoDaRota } from "../busca-de-passagens/servico";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
 import { carregarVagasDeViagem, conflitosDaVagaComPassagem, juntarPassagens, sinaisDeViagem } from "../viagens";
 import {
@@ -44,6 +46,42 @@ const CAMPOS_DA_VIAGEM = [
 const CAMPOS_DE_DATA = [...CAMPOS_DA_VIAGEM, "purchaseDate"] as const;
 
 const mesmoValor = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
+
+/** Campos que mudam a rota da passagem (e, com isso, o típico que vale para o teto). */
+const CAMPOS_DA_ROTA = ["departureAirport", "destinationAirport", "returnOriginAirport", "returnDestinationAirport", "actualDepartureDate", "actualReturnDate"] as const;
+
+/**
+ * TETO POR TRECHO (09/10, extra aprovado pelo dono): passagem aérea com valor
+ * acima de N% do preço típico da rota (mediana das consultas reais da busca,
+ * 180 dias) só é gravada com justificativa — ela fica na passagem
+ * (`justificativaPreco`) e, por isso, na auditoria. Rota sem típico (pouca
+ * amostra) não é julgada. `exigirNova`: na edição que muda o VALOR, a
+ * justificativa precisa vir agora (a antiga era de outro valor).
+ */
+async function conferirTetoDoTrecho(
+  proposta: PassagemDaJanela & { value?: number | null; transportType?: string | null; justificativaPreco?: string | null },
+  exigirNova: { justificativa: unknown } | null,
+): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  if (proposta.transportType && proposta.transportType !== "aereo") return null;
+  const rota = rotaDaPassagem(proposta);
+  if (!rota || typeof proposta.value !== "number" || proposta.value <= 0) return null;
+  const [tipico, ajustes] = await Promise.all([precoTipicoDaRota(rota.perna, rota.origem, rota.destino), lerAjustes()]);
+  const teto = avaliarTetoDoTrecho(proposta.value, tipico, ajustes.tetoPorTrechoPct);
+  if (!teto?.acima) return null;
+  const justificativa = exigirNova ? exigirNova.justificativa : proposta.justificativaPreco;
+  if (justificativaValida(justificativa)) return null;
+  const reais = (c: number) => formatarCentavos(c);
+  return {
+    status: 422,
+    body: {
+      code: "preco_acima_do_teto",
+      message: `${reais(proposta.value)} está ${teto.pctAcimaDoTipico}% acima do preço típico de ${nomeDaRota(chaveDaRota(rota.perna, rota.origem, rota.destino))} (${reais(teto.tipico)}, de ${teto.amostra} consultas). Acima de ${teto.pctPermitido}% é preciso justificar.`,
+      teto: { ...teto, rota: nomeDaRota(chaveDaRota(rota.perna, rota.origem, rota.destino)), valor: proposta.value },
+    },
+  };
+}
+
+const formatarCentavos = (c: number) => `R$ ${(c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface ConferenciaDaPassagem {
   /** Resposta de recusa (400/409) — nada é gravado. */
@@ -340,6 +378,9 @@ export function registrarPassagens(app: Express): void {
       const outrasLinhas = await storage.getTicketsByInclusionId(ticketData.teamInclusionId);
       const conferencia = await conferirPassagem(vaga.id, vaga.collaboratorId ?? null, ticketData, outrasLinhas);
       if (conferencia.recusa) return res.status(conferencia.recusa.status).json(conferencia.recusa.body);
+      // Teto por trecho (09/10): acima do típico da rota, só com justificativa.
+      const teto = await conferirTetoDoTrecho(ticketData, null);
+      if (teto) return res.status(teto.status).json(teto.body);
       const ticket = await storage.createTicket({ ...ticketData, updatedBy: ticketCreator.id });
       await createAuditLog('create', 'ticket', ticket.id, ticket, ticketCreator.id, ticketCreator.name || 'Sistema', undefined, req);
       // Status da vaga DERIVADO pelo servidor (23/09): o client não manda mais
@@ -468,6 +509,12 @@ export function registrarPassagens(app: Express): void {
         const conferencia = await conferirPassagem(prev.teamInclusionId, vaga?.collaboratorId ?? null, { ...prev, ...allowed }, outrasLinhas, alterados);
         if (conferencia.recusa) return res.status(conferencia.recusa.status).json(conferencia.recusa.body);
         if (conferencia.voltaParaCancelar && alterados.has("idaVemDeInclusionId")) extra = { voltaParaCancelar: conferencia.voltaParaCancelar };
+      }
+      // Teto por trecho (09/10): só quando o valor ou a rota mudam. Valor novo pede justificativa nova.
+      const mudou = (c: string) => c in allowed && !mesmoValor((allowed as Record<string, unknown>)[c], (prev as Record<string, unknown>)[c]);
+      if (mudou("value") || CAMPOS_DA_ROTA.some(mudou)) {
+        const teto = await conferirTetoDoTrecho({ ...prev, ...allowed }, mudou("value") ? { justificativa: (allowed as Record<string, unknown>).justificativaPreco } : null);
+        if (teto) return res.status(teto.status).json(teto.body);
       }
       const ticket = await storage.updateTicket(id, updates);
       await createAuditLog('update', 'ticket', id, ticket, ticketEditor.id, ticketEditor.name || 'Sistema', prev, req);

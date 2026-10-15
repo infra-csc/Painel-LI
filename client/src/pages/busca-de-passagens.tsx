@@ -1,7 +1,10 @@
 // Busca de passagens (09/10) — tela própria, logo abaixo de Passagens no menu.
 // Só admin e Compras (ProtectedRoute + as rotas do servidor). Casca da família
 // Passagens: barra de contexto de 56px (título · resumo · abas · consumo),
-// conteúdo até 1560px. Filtros e aba na URL.
+// conteúdo até 1560px. Filtros, aba e período na URL.
+// Etapa 2 (09/10): abas de análise (só admin — regra única em
+// shared/regras-da-busca.ts): Previsão, Melhor momento, Preço por rota,
+// Pago × encontrado e Orçamento.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Lock } from "lucide-react";
@@ -10,16 +13,24 @@ import { PageHeader } from "@/components/common/page-header";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission, isAdmin } from "@/lib/role-utils";
 import { hojeISO } from "@shared/hoje-sp";
-import { lerUrl, escreverUrl, type AbaDaBusca, type FiltrosDaBusca } from "@/components/busca-de-passagens/filtros-da-busca";
-import { AbasDaBusca, abasVisiveis, ROTULO_DA_ABA } from "@/components/busca-de-passagens/abas-da-busca";
+import { lerUrl, escreverUrl, type AbaDaBusca, type FiltrosDaBusca, type PeriodoDaAnalise } from "@/components/busca-de-passagens/filtros-da-busca";
+import { AbasDaBusca, abasVisiveis } from "@/components/busca-de-passagens/abas-da-busca";
 import { AbaBuscar } from "@/components/busca-de-passagens/aba-buscar";
-import { AbaConsumo, AbaEmConstrucao, ConsumoNaBarra, ConsumoNoRodape } from "@/components/busca-de-passagens/consumo";
+import { AbaConsumo, ConsumoNaBarra, ConsumoNoRodape } from "@/components/busca-de-passagens/consumo";
 import { useConsumoDaBusca } from "@/components/busca-de-passagens/use-busca-de-passagens";
+import { AbaMelhorMomento } from "@/components/busca-de-passagens/analises/melhor-momento";
+import { AbaPrecoPorRota } from "@/components/busca-de-passagens/analises/preco-por-rota";
+import { AbaPagoXEncontrado } from "@/components/busca-de-passagens/analises/pago-x-encontrado";
+import { AbaPrevisao } from "@/components/busca-de-passagens/analises/previsao";
+import { AbaOrcamento } from "@/components/busca-de-passagens/analises/orcamento";
 
-const ANALISES: Partial<Record<AbaDaBusca, { titulo: string; pergunta: string; resumo: string }>> = {
-  "preco-por-rota": { titulo: "Preço por rota", pergunta: "Menor preço visto por rota e data, a companhia mais barata de cada rota e como o menor preço muda entre as consultas.", resumo: "Quanto custa cada rota ao longo do tempo" },
-  "pago-x-encontrado": { titulo: "Pago × encontrado", pergunta: "Para as passagens registradas pelo “Usar este voo”: o valor pago contra o menor preço encontrado na mesma rota e data — por evento, companhia e quem registrou.", resumo: "Quanto se pagou contra o que se achou" },
-  "melhor-momento": { titulo: "Melhor momento", pergunta: "Quando comprar fica mais barato (antecedência), em que dia da semana e horário voar — pelo que foi pesquisado e pelo que foi pago.", resumo: "Quando está mais barato e mais caro" },
+const RESUMO: Partial<Record<AbaDaBusca, string>> = {
+  previsao: "Vai subir ou vai baixar",
+  "melhor-momento": "Quando está mais barato",
+  "preco-por-rota": "Cada rota ao longo do tempo",
+  "pago-x-encontrado": "Pago contra o encontrado",
+  orcamento: "Falta gastar e custos ocultos",
+  consumo: "Consultas, cache e teto do mês",
 };
 
 export default function BuscaDePassagens() {
@@ -30,6 +41,9 @@ export default function BuscaDePassagens() {
   const inicial = useMemo(() => lerUrl(typeof window !== "undefined" ? window.location.search : search), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [abaEscolhida, setAba] = useState<AbaDaBusca>(inicial.aba);
   const [filtros, setFiltros] = useState<FiltrosDaBusca>(inicial.filtros);
+  const [periodo, setPeriodo] = useState<PeriodoDaAnalise>(inicial.periodo);
+  /** Escalações pedidas por uma aba de análise ("Buscar preços" da previsão): a Buscar abre com elas marcadas. */
+  const [vagasPedidas, setVagasPedidas] = useState<{ ids: string[]; vez: number }>({ ids: inicial.vagas, vez: 0 });
   const [resumo, setResumo] = useState("Carregando…");
   const abas = abasVisiveis(user);
   const aba = abas.includes(abaEscolhida) ? abaEscolhida : "buscar";
@@ -37,22 +51,30 @@ export default function BuscaDePassagens() {
   const podeEntrar = hasPermission(user, "canAccessBuscaDePassagens");
   const consumo = useConsumoDaBusca(podeEntrar);
 
-  // Filtros e aba na URL (replace). Os atalhos `vagas`/`idaDe` saem depois de lidos.
+  // Filtros, aba e período na URL (replace). Os atalhos `vagas`/`idaDe`/`remarcar` saem depois de lidos.
   useEffect(() => {
-    const qs = escreverUrl(aba, filtros);
+    const qs = escreverUrl(aba, filtros, periodo);
     const atual = (typeof window !== "undefined" ? window.location.search : "").replace(/^\?/, "");
     if (qs !== atual) setLocation(`${location}${qs ? `?${qs}` : ""}`, { replace: true });
-  }, [aba, filtros]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [aba, filtros, periodo]); // eslint-disable-line react-hooks/exhaustive-deps
   // Voltar do navegador / link do menu: a URL manda.
   useEffect(() => {
     const u = lerUrl(search);
     if (u.vagas.length) return; // atalho recém-chegado: o estado inicial já o leu
     if (JSON.stringify(u.filtros) !== JSON.stringify(filtros)) setFiltros(u.filtros);
     if (u.aba !== abaEscolhida) setAba(u.aba);
+    if (u.periodo !== periodo) setPeriodo(u.periodo);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onResumo = useCallback((t: string) => setResumo(t), []);
-  const subtitulo = aba === "buscar" ? resumo : aba === "consumo" ? "Consultas ao fornecedor, cache e teto do mês" : ANALISES[aba]?.resumo ?? "";
+  const irParaBuscar = useCallback(() => setAba("buscar"), []);
+  const buscarVagas = useCallback((ids: string[]) => {
+    setVagasPedidas((v) => ({ ids, vez: v.vez + 1 }));
+    // As pedidas podem estar fora do recorte atual: a lista volta às pendentes, sem filtro.
+    setFiltros((f) => ({ ...f, q: "", evento: "all", funcoes: [], saida: "all", destino: "all", trecho: "todos", falta: "todas", de: "", ate: "", situacao: "pendentes" }));
+    setAba("buscar");
+  }, []);
+  const subtitulo = aba === "buscar" ? resumo : RESUMO[aba] ?? "";
 
   const barra = (
     <PageHeader
@@ -78,13 +100,32 @@ export default function BuscaDePassagens() {
             </div>
           ) : aba === "buscar" ? (
             <>
-              <AbaBuscar user={user} filtros={filtros} onFiltros={setFiltros} vagasDaUrl={inicial.vagas} idaDeDaUrl={inicial.idaDe} onResumo={onResumo} />
+              <AbaBuscar
+                key={vagasPedidas.vez}
+                user={user}
+                filtros={filtros}
+                onFiltros={setFiltros}
+                vagasDaUrl={vagasPedidas.ids}
+                idaDeDaUrl={vagasPedidas.vez === 0 ? inicial.idaDe : null}
+                remarcar={vagasPedidas.vez === 0 && inicial.remarcar}
+                abrirAcompanhamentos={inicial.acompanhando}
+                onResumo={onResumo}
+                onVerPrevisao={() => setAba("previsao")}
+              />
               {admin && <ConsumoNoRodape consumo={consumo.data} mes={hojeISO().slice(0, 7)} />}
             </>
           ) : aba === "consumo" ? (
             <AbaConsumo />
+          ) : aba === "previsao" ? (
+            <AbaPrevisao onBuscarVagas={buscarVagas} onIrParaBuscar={irParaBuscar} />
+          ) : aba === "melhor-momento" ? (
+            <AbaMelhorMomento periodo={periodo} onPeriodo={setPeriodo} onIrParaBuscar={irParaBuscar} />
+          ) : aba === "preco-por-rota" ? (
+            <AbaPrecoPorRota periodo={periodo} onPeriodo={setPeriodo} onIrParaBuscar={irParaBuscar} />
+          ) : aba === "pago-x-encontrado" ? (
+            <AbaPagoXEncontrado periodo={periodo} onPeriodo={setPeriodo} onIrParaBuscar={irParaBuscar} />
           ) : (
-            <AbaEmConstrucao titulo={ANALISES[aba]?.titulo ?? ROTULO_DA_ABA[aba].rotulo} pergunta={ANALISES[aba]?.pergunta ?? ""} />
+            <AbaOrcamento periodo={periodo} onPeriodo={setPeriodo} onVerPrevisao={() => setAba("previsao")} />
           )}
         </div>
       </div>

@@ -27,8 +27,8 @@ import {
   chaveDoLink,
   pick,
   planejarBusca,
+  variantesDeAeroporto,
   variantesDeData,
-  type AjusteDaBusca,
   type ConsultaDePassagens,
   type ConsumoDaBusca,
   type DadoFaltando,
@@ -42,6 +42,7 @@ import {
 } from "@shared/busca-de-passagens";
 import { ehIata, AEROPORTOS } from "@shared/aeroportos-do-brasil";
 import { hojeISO } from "@shared/hoje-sp";
+import { PAPEIS_DA_BUSCA, PAPEIS_DAS_ANALISES, funcoesQueDespacham } from "@shared/regras-da-busca";
 import { createAuditLog, requireRoles } from "../routes/_compartilhado";
 import { ErroDoFornecedor, type LinkDeCompra } from "./fornecedor";
 import {
@@ -50,6 +51,8 @@ import {
   diariaMediaPorEvento,
   fornecedorAtual,
   gravarCache,
+  lerAjuste,
+  lerAjustes,
   lerCache,
   linksUmaVez,
   linhasDeConsumo,
@@ -58,26 +61,15 @@ import {
   registrarHistorico,
   tetoMensal,
 } from "./servico";
+import { registrarAjustesDaBusca } from "./ajustes";
+import { registrarAnalisesDaBusca } from "./analises";
+import { registrarAcompanhamentoDePreco } from "./acompanhamento";
 
-const QUEM_BUSCA = ["admin", "purchasing"] as const;
-const DATA = /^\d{4}-\d{2}-\d{2}$/;
+/** Regra única em shared/regras-da-busca.ts (busca: admin e Compras; análises: só admin). */
+const QUEM_BUSCA = PAPEIS_DA_BUSCA;
 
 const listaDeTexto = (v: unknown, max = 200): string[] =>
   Array.isArray(v) ? Array.from(new Set(v.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 300))).slice(0, max) : [];
-
-/** Ajuste vindo da tela → só o que a regra aceita (nada mais passa). */
-function lerAjuste(bruto: unknown): AjusteDaBusca {
-  if (!bruto || typeof bruto !== "object") return {};
-  const a = bruto as Record<string, unknown>;
-  const out: AjusteDaBusca = {};
-  if (typeof a.aeroportoDeCasa === "string" && ehIata(a.aeroportoDeCasa)) out.aeroportoDeCasa = a.aeroportoDeCasa.toUpperCase();
-  if (typeof a.dataIda === "string" && DATA.test(a.dataIda)) out.dataIda = a.dataIda;
-  if (typeof a.dataVolta === "string" && DATA.test(a.dataVolta)) out.dataVolta = a.dataVolta;
-  if (a.maxParadas === 2) out.maxParadas = 2;
-  if (typeof a.idaDoEventoId === "string" && a.idaDoEventoId.length <= 64) out.idaDoEventoId = a.idaDoEventoId;
-  if (a.somente === "ida" || a.somente === "volta") out.somente = a.somente;
-  return out;
-}
 
 async function consumoAtual(): Promise<ConsumoDaBusca> {
   const f = fornecedorAtual();
@@ -128,6 +120,8 @@ export function registrarBuscaDePassagens(app: Express): void {
     const atualizar = new Set(listaDeTexto(corpo.atualizar));
     const flex = new Set(listaDeTexto(corpo.flex));
     const mostrarFlex = new Set([...listaDeTexto(corpo.mostrarFlex), ...Array.from(flex)]);
+    const alternativas = new Set(listaDeTexto(corpo.alternativas));
+    const mostrarAlternativas = new Set([...listaDeTexto(corpo.mostrarAlternativas), ...Array.from(alternativas)]);
 
     try {
       const hoje = hojeISO();
@@ -149,16 +143,28 @@ export function registrarBuscaDePassagens(app: Express): void {
       for (const p of pedidas) if (p.ajuste.idaDoEventoId) eventIds.add(p.ajuste.idaDoEventoId);
       const eventos = new Map<string, EventoDaBusca>((await storage.getEventsByIds(Array.from(eventIds)))
         .map((e) => [e.id, { id: e.id, name: e.name, location: e.location, aeroportoIata: e.aeroportoIata ?? null }]));
+      // Quem despacha mala (lista do admin ou cenotécnica): a busca soma a mala no custo total.
+      const [ajustesDaBusca, funcoes] = await Promise.all([
+        lerAjustes(),
+        storage.getFunctionsByIds(Array.from(new Set(vagasDoBanco.map((v) => v.functionId).filter((x): x is string => !!x)))),
+      ]);
+      const despacham = funcoesQueDespacham(funcoes.map((f) => ({ id: f.id, name: f.name })), ajustesDaBusca.funcoesComMala);
       const vagas: VagaDaBusca[] = vagasDoBanco.map((v) => ({
         ...v,
         cidadeDeSaida: v.city || (v.collaboratorId ? cidades.get(v.collaboratorId) : null) || null,
+        precisaMala: despacham.has(v.functionId),
       }));
       const ajustes = Object.fromEntries(pedidas.map((p) => [p.id, p.ajuste]));
       const plano = planejarBusca({ vagas, eventos, ajustes, hoje });
 
       // ── Datas vizinhas e cache
       const variantesPorRota = new Map(plano.rotas.map((r) => [r.chave, variantesDeData(r, hoje)]));
-      const todasAsChaves = [...plano.rotas.map((r) => r.chave), ...Array.from(variantesPorRota.values()).flat().map((v) => v.chave)];
+      const alternativasPorRota = new Map(plano.rotas.map((r) => [r.chave, variantesDeAeroporto(r)]));
+      const todasAsChaves = [
+        ...plano.rotas.map((r) => r.chave),
+        ...Array.from(variantesPorRota.values()).flat().map((v) => v.chave),
+        ...Array.from(alternativasPorRota.values()).flat().map((v) => v.chave),
+      ];
       const cache = await lerCache<ResultadoDaConsulta>(todasAsChaves);
 
       // ── O que este pedido autoriza a gastar (e só se não estiver no cache)
@@ -170,6 +176,12 @@ export function registrarBuscaDePassagens(app: Express): void {
         if (flex.has(r.chave)) {
           for (const v of variantesPorRota.get(r.chave) ?? []) {
             if (!cache.has(v.chave) || atualizar.has(v.chave)) aConsultar.set(v.chave, { consulta: v.consulta, tipo: r.perna, vagaIds: r.vagas.map((x) => x.vagaId), eventoIds: r.eventoIds, deslocamento: v.deslocamento });
+          }
+        }
+        // "Testar CGH/VCP em vez de GRU": uma consulta por aeroporto alternativo.
+        if (alternativas.has(r.chave)) {
+          for (const v of alternativasPorRota.get(r.chave) ?? []) {
+            if (!cache.has(v.chave) || atualizar.has(v.chave)) aConsultar.set(v.chave, { consulta: v.consulta, tipo: r.perna, vagaIds: r.vagas.map((x) => x.vagaId), eventoIds: r.eventoIds, deslocamento: null });
           }
         }
       }
@@ -244,6 +256,13 @@ export function registrarBuscaDePassagens(app: Express): void {
             }))
             : null,
           consultasDoFlex: variantes.filter((v) => !cache.has(v.chave) && !agora.has(v.chave)).length,
+          alternativas: mostrarAlternativas.has(r.chave)
+            ? (alternativasPorRota.get(r.chave) ?? []).map((v) => ({
+              chave: v.chave, lado: v.lado, iata: v.iata, rotulo: v.rotulo, resultado: naTela(v.chave), erro: erros.get(v.chave) ?? null,
+            }))
+            : null,
+          consultasDasAlternativas: (alternativasPorRota.get(r.chave) ?? []).filter((v) => !cache.has(v.chave) && !agora.has(v.chave)).length,
+          malaCentavos: r.vagasComMala > 0 ? ajustesDaBusca.valorDaMalaCentavos : null,
         };
       });
 
@@ -251,6 +270,7 @@ export function registrarBuscaDePassagens(app: Express): void {
       const servidasDoCache = rotas.flatMap((r) => [
         ...(r.resultado?.doCache && cache.get(r.chave) ? [{ chave: r.chave, tipo: r.perna, entrada: cache.get(r.chave)! }] : []),
         ...(r.variantes ?? []).filter((v) => v.resultado?.doCache && cache.get(v.chave)).map((v) => ({ chave: v.chave, tipo: r.perna, entrada: cache.get(v.chave)! })),
+        ...(r.alternativas ?? []).filter((v) => v.resultado?.doCache && cache.get(v.chave)).map((v) => ({ chave: v.chave, tipo: r.perna, entrada: cache.get(v.chave)! })),
       ]);
       await registrarAcertosDoCache(ator.id, servidasDoCache).catch((e) => console.error("[busca-de-passagens] acertos do cache:", e instanceof Error ? e.message : e));
 
@@ -316,7 +336,7 @@ export function registrarBuscaDePassagens(app: Express): void {
 
   /** Aba Consumo (só admin): mês corrente, 6 meses, por usuário, cache e projeção. */
   app.get("/api/busca-de-passagens/consumo/detalhe", async (req, res) => {
-    if (!await requireRoles(req, res, ["admin"])) return;
+    if (!await requireRoles(req, res, PAPEIS_DAS_ANALISES)) return;
     try {
       const [linhas, teto] = await Promise.all([linhasDeConsumo(6), tetoMensal()]);
       const ids = Array.from(new Set(linhas.map((l) => l.usuarioId).filter((x): x is string => !!x)));
@@ -385,4 +405,9 @@ export function registrarBuscaDePassagens(app: Express): void {
       res.status(500).json({ message: "Erro ao salvar o teto" });
     }
   });
+
+  // Etapa 2 (09/10): ajustes do admin, abas de análise e acompanhar preço.
+  registrarAjustesDaBusca(app);
+  registrarAnalisesDaBusca(app);
+  registrarAcompanhamentoDePreco(app);
 }

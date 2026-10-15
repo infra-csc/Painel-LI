@@ -21,7 +21,7 @@
  *     os voos absurdos (2 conexões, 12 h+, conexão de 8 h+) no fim.
  */
 import { HORA_DA_VOLTA_COM_DIARIA_EXTRA } from "./datas-do-quarto";
-import { aeroportosDaCidade, ehIata } from "./aeroportos-do-brasil";
+import { aeroportosDaCidade, alternativasDoAeroporto, ehIata } from "./aeroportos-do-brasil";
 import { cidadeDoEvento, diaDe, somarDiasISO } from "./janela-de-viagem";
 
 // ── Constantes do dono ─────────────────────────────────────────────────────
@@ -209,6 +209,8 @@ export interface VagaDaBusca {
   trechosSugeridos?: string | null;
   idaVemDoEventoId?: string | null;
   voltaSegueParaEventoId?: string | null;
+  /** Despacha mala (função na lista do admin ou cenotécnica — shared/regras-da-busca.ts). */
+  precisaMala?: boolean | null;
 }
 
 export interface EventoDaBusca {
@@ -232,6 +234,15 @@ export interface AjusteDaBusca {
   idaDoEventoId?: string | null;
   /** Só uma perna (ex.: "Buscar preços do trecho direto" = só a ida). */
   somente?: "ida" | "volta" | null;
+  /**
+   * "Ver sem o horário sugerido" (09/10): a consulta vai SEM a janela de
+   * horário (a rota tinha filtro e voltou vazia ou só com opções ruins). A
+   * janela continua valendo para os selos — a opção fora dela é marcada
+   * ("Sai 17:45 — antes do sugerido 18h"), nunca escondida.
+   */
+  semHorario?: boolean | null;
+  /** Aeroporto alternativo do EVENTO escolhido na tela ("SDU" em vez de "GIG"). */
+  aeroportoDoEvento?: string | null;
 }
 
 export type TipoDeDadoFaltando =
@@ -271,6 +282,12 @@ export interface RotaPlanejada extends ConsultaDePassagens {
   trechoDireto: boolean;
   /** Outros aeroportos da cidade de casa, para trocar ("GRU" → CGH, VCP). */
   alternativasDeCasa: string[];
+  /** Outros aeroportos que atendem o evento ("GIG" → SDU). */
+  alternativasDoEvento: string[];
+  /** A rota tem janela de horário, mas a consulta foi pedida SEM ela. */
+  semHorario: boolean;
+  /** Quantas vagas desta rota despacham mala (o custo total soma a mala de quem não a tem incluída). */
+  vagasComMala: number;
 }
 
 export interface PlanoDaBusca {
@@ -339,7 +356,12 @@ export function planejarBusca(entrada: {
       });
       return null;
     };
-    const aeroEvento = aeroportoDoEvento(evento, v.eventId);
+    const aeroEventoOriginal = aeroportoDoEvento(evento, v.eventId);
+    const trocaDoEvento = aj.aeroportoDoEvento && ehIata(aj.aeroportoDoEvento) ? aj.aeroportoDoEvento.toUpperCase() : null;
+    const aeroEvento = aeroEventoOriginal && trocaDoEvento ? trocaDoEvento : aeroEventoOriginal;
+    const alternativasDoEvento = aeroEventoOriginal
+      ? [aeroEventoOriginal, ...alternativasDoAeroporto(aeroEventoOriginal)].filter((a, i, l) => a !== aeroEvento && l.indexOf(a) === i)
+      : [];
 
     // Origem da ida: evento anterior (trecho direto) ou a cidade de casa.
     const idaDoEventoId = aj.idaDoEventoId || v.idaVemDoEventoId || null;
@@ -356,6 +378,7 @@ export function planejarBusca(entrada: {
       if (escolhido) {
         aeroCasa = escolhido;
         alternativas = daCidade.filter((a) => a !== escolhido);
+        for (const a of alternativasDoAeroporto(escolhido)) if (a !== escolhido && !alternativas.includes(a)) alternativas.push(a);
       } else if (!cidade) {
         dizer("sem_cidade_de_saida", "Sem cidade de saída (\"Sai de\") na vaga nem no cadastro do colaborador.");
       } else if (daCidade.length === 0) {
@@ -363,6 +386,7 @@ export function planejarBusca(entrada: {
       } else {
         aeroCasa = daCidade[0];
         alternativas = daCidade.slice(1);
+        for (const a of alternativasDoAeroporto(aeroCasa)) if (a !== aeroCasa && !alternativas.includes(a)) alternativas.push(a);
       }
       if (aeroCasa && aeroEvento && (aeroCasa === aeroEvento || daCidade.includes(aeroEvento))) {
         dizer("mesmo_aeroporto", `A cidade de saída usa o mesmo aeroporto do evento (${aeroEvento}) — não há voo a buscar.`);
@@ -400,20 +424,28 @@ export function planejarBusca(entrada: {
     const maxParadas: 1 | 2 = aj.maxParadas === 2 ? 2 : 1;
     const faixaIda = faixaDeHorario(v.flightArrivalSuggestedTime, "chegar_ate");
     const faixaVolta = faixaDeHorario(v.flightReturnSuggestedTime, "sair_apos");
+    const semHorario = aj.semHorario === true;
+    /** "Ver sem o horário sugerido": a consulta vai sem filtro; a janela fica só para os selos. */
+    const filtro = (f: Faixa | null, ponta: "partida" | "chegada") => (semHorario ? null : filtroDaFaixa(f, ponta));
     const adicionar = (c: ConsultaDePassagens, perna: PernaDaRota, extra: { faixaIda: Faixa | null; faixaVolta: Faixa | null; trechoDireto: boolean; alternativas: string[] }) => {
       const chave = chaveDaConsulta(c);
       const atual = rotas.get(chave);
+      const comMala = v.precisaMala ? 1 : 0;
       if (atual) {
         atual.vagas.push({ vagaId: v.id, perna });
         if (!atual.eventoIds.includes(v.eventId)) atual.eventoIds.push(v.eventId);
         atual.faixaIda = estreitar(atual.faixaIda, extra.faixaIda);
         atual.faixaVolta = estreitar(atual.faixaVolta, extra.faixaVolta);
+        atual.vagasComMala += comMala;
         return;
       }
       rotas.set(chave, {
         ...c, chave, vagas: [{ vagaId: v.id, perna }], eventoIds: [v.eventId],
         faixaIda: extra.faixaIda, faixaVolta: extra.faixaVolta, trechoDireto: extra.trechoDireto,
         alternativasDeCasa: extra.alternativas,
+        alternativasDoEvento,
+        semHorario: semHorario && !!(extra.faixaIda || extra.faixaVolta),
+        vagasComMala: comMala,
       });
     };
 
@@ -421,20 +453,20 @@ export function planejarBusca(entrada: {
     if (precisaIda && precisaVolta && !idaDoEventoId) {
       adicionar({
         perna: "ida_e_volta", origem: aeroCasa!, destino: aeroEvento!, dataIda: dataIda!, dataVolta: dataVolta!, maxParadas,
-        horarioIda: filtroDaFaixa(faixaIda, "chegada"), horarioVolta: filtroDaFaixa(faixaVolta, "partida"),
+        horarioIda: filtro(faixaIda, "chegada"), horarioVolta: filtro(faixaVolta, "partida"),
       }, "ida_e_volta", { faixaIda, faixaVolta, trechoDireto: false, alternativas });
       continue;
     }
     if (precisaIda) {
       adicionar({
         perna: "ida", origem: origemIda, destino: aeroEvento!, dataIda: dataIda!, dataVolta: null, maxParadas,
-        horarioIda: filtroDaFaixa(faixaIda, "chegada"), horarioVolta: null,
+        horarioIda: filtro(faixaIda, "chegada"), horarioVolta: null,
       }, "ida", { faixaIda, faixaVolta: null, trechoDireto: !!idaDoEventoId, alternativas: idaDoEventoId ? [] : alternativas });
     }
     if (precisaVolta) {
       adicionar({
         perna: "volta", origem: aeroEvento!, destino: aeroCasa!, dataIda: dataVolta!, dataVolta: null, maxParadas,
-        horarioIda: filtroDaFaixa(faixaVolta, "partida"), horarioVolta: null,
+        horarioIda: filtro(faixaVolta, "partida"), horarioVolta: null,
       }, "volta", { faixaIda: null, faixaVolta, trechoDireto: false, alternativas });
     }
   }
@@ -496,6 +528,54 @@ export function pick(r: ConsultaDePassagens): ConsultaDePassagens {
   };
 }
 
+// ── Aeroportos alternativos (09/10) ────────────────────────────────────────
+
+export interface VarianteDeAeroporto {
+  consulta: ConsultaDePassagens;
+  chave: string;
+  /** Qual ponta troca: a de casa ou a do evento. */
+  lado: "casa" | "evento";
+  iata: string;
+  /** "Sair de CGH", "Chegar em CGH", "Evento por SDU". */
+  rotulo: string;
+}
+
+/**
+ * "Testar CGH/VCP em vez de GRU" — uma consulta por aeroporto alternativo, a
+ * MESMA que a busca faria se a pessoa escolhesse aquele aeroporto (mesma
+ * chave → depois de testada, trocar não gasta nada). Casa: a ponta de casa
+ * da rota (origem da ida / destino da volta); evento: a outra ponta.
+ */
+export function variantesDeAeroporto(rota: RotaPlanejada): VarianteDeAeroporto[] {
+  const out: VarianteDeAeroporto[] = [];
+  const base = pick(rota);
+  const casaNaOrigem = rota.perna !== "volta";
+  if (!rota.trechoDireto) {
+    for (const iata of rota.alternativasDeCasa) {
+      const consulta = casaNaOrigem ? { ...base, origem: iata } : { ...base, destino: iata };
+      if (consulta.origem === consulta.destino) continue;
+      out.push({ consulta, chave: chaveDaConsulta(consulta), lado: "casa", iata, rotulo: rota.perna === "volta" ? `Chegar em ${iata}` : `Sair de ${iata}` });
+    }
+  }
+  for (const iata of rota.alternativasDoEvento) {
+    const consulta = casaNaOrigem ? { ...base, destino: iata } : { ...base, origem: iata };
+    if (consulta.origem === consulta.destino) continue;
+    out.push({ consulta, chave: chaveDaConsulta(consulta), lado: "evento", iata, rotulo: `Evento por ${iata}` });
+  }
+  return out;
+}
+
+/** A rota tem janela de horário no pedido (a consulta vai filtrada)? */
+export const temFiltroDeHorario = (r: Pick<ConsultaDePassagens, "horarioIda" | "horarioVolta">) => !!(r.horarioIda || r.horarioVolta);
+
+/** Os campos de uma chave (`chaveDaConsulta`) — para ligar histórico, uso e vaga pela rota/data. */
+export function lerChave(chave: string): Pick<ConsultaDePassagens, "perna" | "origem" | "destino" | "dataIda" | "dataVolta"> | null {
+  const [perna, trecho, dataIda, dataVolta] = String(chave ?? "").split("|");
+  const m = /^([A-Z]{3})>([A-Z]{3})$/.exec(trecho ?? "");
+  if (!m || (perna !== "ida" && perna !== "volta" && perna !== "ida_e_volta") || !/^\d{4}-\d{2}-\d{2}$/.test(dataIda ?? "")) return null;
+  return { perna, origem: m[1], destino: m[2], dataIda, dataVolta: /^\d{4}-\d{2}-\d{2}$/.test(dataVolta ?? "") ? dataVolta : null };
+}
+
 // ── Resultado normalizado e custo total ────────────────────────────────────
 
 export interface SegmentoDeVoo {
@@ -533,7 +613,9 @@ export interface ResultadoDaConsulta {
   observadoEm: string | null;
 }
 
-export type TipoDeSelo = "no_horario" | "fora_do_horario" | "diaria_extra" | "diaria_a_menos" | "conexao_longa" | "viagem_longa" | "troca_de_cia" | "menor_custo";
+export type TipoDeSelo =
+  | "no_horario" | "fora_do_horario" | "diaria_extra" | "diaria_a_menos" | "conexao_longa" | "viagem_longa" | "troca_de_cia" | "menor_custo"
+  | "mala_inclusa" | "mala_extra";
 
 export interface Selo { tipo: TipoDeSelo; texto: string }
 
@@ -553,6 +635,38 @@ export interface OpcaoAvaliada {
   /** 0 = boa, 1 = fora do horário sugerido, 2 = absurda (fim da lista). */
   grupo: 0 | 1 | 2;
   selos: Selo[];
+  /**
+   * Mala de quem despacha (09/10): 0 quando a tarifa já inclui; o valor
+   * estimado × pernas quando não inclui (entra no custo total); null quando
+   * nenhuma vaga da rota despacha.
+   */
+  malaCentavos: number | null;
+}
+
+/** Contexto do custo total de uma opção. */
+export interface ContextoDaOpcao {
+  diariaCentavos?: number | null;
+  diariasDaData?: number;
+  /** Valor estimado de UMA mala despachada por perna; só quando alguém da rota despacha. */
+  malaCentavos?: number | null;
+}
+
+/** "R$ 150" — reais inteiros, para os selos. */
+export const reaisInteiros = (centavos: number) => `R$ ${Math.round(centavos / 100).toLocaleString("pt-BR")}`;
+
+const hhmmDe = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+const horaCurta = (min: number) => (min % 60 === 0 ? `${Math.floor(min / 60)}h` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`);
+
+/**
+ * "Sai 17:45 — antes do sugerido 18h" / "Chega 15:10 — depois do sugerido
+ * 14h": a opção fora da janela diz QUANTO e PARA ONDE está fora (dono, 09/10:
+ * marcar em vez de esconder quando a busca vai sem o horário).
+ */
+export function textoForaDoHorario(verbo: "Chega" | "Sai" | "Volta sai", minuto: number, f: Faixa): string {
+  const hora = hhmmDe(minuto);
+  if (f.desde !== null && minuto < f.desde) return `${verbo} ${hora} — antes do sugerido ${f.ate === null ? horaCurta(f.desde) : faixaEmTexto(f)}`;
+  if (f.ate !== null && minuto > f.ate) return `${verbo} ${hora} — depois do sugerido ${f.desde === null ? horaCurta(f.ate) : faixaEmTexto(f)}`;
+  return `${verbo} ${hora} — fora do horário sugerido`;
 }
 
 /** "AAAA-MM-DDTHH:MM" → minutos desde 00:00 daquele dia. */
@@ -594,7 +708,7 @@ export function pernasDaOpcao(it: ItinerarioDeVoo, perna: PernaDaRota): { ida: P
 export function avaliarOpcao(
   it: ItinerarioDeVoo,
   rota: Pick<RotaPlanejada, "perna" | "faixaIda" | "faixaVolta">,
-  ctx: { diariaCentavos?: number | null; diariasDaData?: number } = {},
+  ctx: ContextoDaOpcao = {},
 ): OpcaoAvaliada {
   const { ida, volta } = pernasDaOpcao(it, rota.perna);
   const selos: Selo[] = [];
@@ -610,9 +724,13 @@ export function avaliarOpcao(
   const diariaExtraNaVolta = minPartidaVolta !== null && minPartidaVolta >= HORA_DA_VOLTA_COM_DIARIA_EXTRA;
   const diarias = (diariaExtraNaVolta ? 1 : 0) + (ctx.diariasDaData ?? 0);
   const diaria = ctx.diariaCentavos && ctx.diariaCentavos > 0 ? ctx.diariaCentavos : null;
-  const custoTotalCentavos = it.precoCentavos + (diaria ? diarias * diaria : 0);
-
   const pernas = [ida, volta].filter((p): p is PernaDeVoo => !!p);
+  // Mala: a tarifa já inclui (bagagem despachada ≥ 1) ou soma a estimativa por perna.
+  const malaPorPerna = ctx.malaCentavos && ctx.malaCentavos > 0 ? ctx.malaCentavos : null;
+  const malaInclusa = (it.bagagem?.despachada ?? 0) >= 1;
+  const malaCentavos = malaPorPerna === null ? null : malaInclusa ? 0 : malaPorPerna * Math.max(1, pernas.length);
+  const custoTotalCentavos = it.precoCentavos + (diaria ? diarias * diaria : 0) + (malaCentavos ?? 0);
+
   const paradas = Math.max(0, ...pernas.map((p) => p.segmentos.length - 1));
   const duracoes = pernas.map((p) => p.duracaoMin);
   const duracaoMin = duracoes.every((d) => typeof d === "number") ? (duracoes as number[]).reduce((s, d) => s + d, 0) : null;
@@ -631,8 +749,23 @@ export function avaliarOpcao(
       selos.push({ tipo: "no_horario", texto: rota.perna === "volta" ? "Sai no horário sugerido" : "Chega no horário sugerido" });
     }
   }
-  if (chegaNoHorario === false) selos.push({ tipo: "fora_do_horario", texto: chegaDiaSeguinte ? "Chega no dia seguinte" : "Chega fora do horário sugerido" });
-  if (saiNoHorario === false) selos.push({ tipo: "fora_do_horario", texto: "Volta fora do horário sugerido" });
+  if (chegaNoHorario === false) {
+    const min = ultimaChegadaIda ? minutoDoDia(ultimaChegadaIda.chegada) : null;
+    selos.push({
+      tipo: "fora_do_horario",
+      texto: chegaDiaSeguinte
+        ? `Chega no dia seguinte${min !== null ? ` (${hhmmDe(min)})` : ""}`
+        : min !== null && rota.faixaIda ? textoForaDoHorario("Chega", min, rota.faixaIda) : "Chega fora do horário sugerido",
+    });
+  }
+  if (saiNoHorario === false) {
+    selos.push({
+      tipo: "fora_do_horario",
+      texto: minPartidaVolta !== null && rota.faixaVolta
+        ? textoForaDoHorario(rota.perna === "volta" ? "Sai" : "Volta sai", minPartidaVolta, rota.faixaVolta)
+        : "Volta fora do horário sugerido",
+    });
+  }
   if (diarias > 0) selos.push({ tipo: "diaria_extra", texto: diarias === 1 ? "+1 diária" : `+${diarias} diárias` });
   if (diarias < 0) selos.push({ tipo: "diaria_a_menos", texto: diarias === -1 ? "−1 diária" : `${diarias} diárias` });
   if (maiorConexaoMin >= CONEXAO_LONGA_MIN) selos.push({ tipo: "conexao_longa", texto: `Conexão longa (${duracaoEmTexto(maiorConexaoMin)})` });
@@ -641,9 +774,11 @@ export function avaliarOpcao(
     selos.push({ tipo: "viagem_longa", texto: paradas >= 2 ? `${paradas} conexões${maisLonga ? ` · ${duracaoEmTexto(maisLonga)}` : ""}` : `Viagem longa (${duracaoEmTexto(maisLonga)})` });
   }
   if (it.trocaDeCompanhia) selos.push({ tipo: "troca_de_cia", texto: "Troca de companhia por conta própria" });
+  if (malaCentavos === 0) selos.push({ tipo: "mala_inclusa", texto: "Inclui mala" });
+  else if (malaCentavos !== null) selos.push({ tipo: "mala_extra", texto: `+${reaisInteiros(malaCentavos)} de mala` });
 
   const grupo: 0 | 1 | 2 = absurda ? 2 : chegaNoHorario === false || saiNoHorario === false ? 1 : 0;
-  return { itinerario: it, custoTotalCentavos, diarias, diariaExtraNaVolta, chegaNoHorario, saiNoHorario, paradas, duracaoMin, maiorConexaoMin, absurda, grupo, selos };
+  return { itinerario: it, custoTotalCentavos, diarias, diariaExtraNaVolta, chegaNoHorario, saiNoHorario, paradas, duracaoMin, maiorConexaoMin, absurda, grupo, selos, malaCentavos };
 }
 
 /**
@@ -654,7 +789,7 @@ export function avaliarOpcao(
 export function ordenarOpcoes(
   itinerarios: readonly ItinerarioDeVoo[],
   rota: Pick<RotaPlanejada, "perna" | "faixaIda" | "faixaVolta">,
-  ctx: { diariaCentavos?: number | null; diariasDaData?: number } = {},
+  ctx: ContextoDaOpcao = {},
 ): OpcaoAvaliada[] {
   const avaliadas = itinerarios
     .filter((it) => Number.isFinite(it.precoCentavos) && it.precoCentavos > 0 && it.pernas.length > 0)
@@ -692,8 +827,9 @@ export interface VagaDoPedido { id: string; ajuste?: AjusteDaBusca }
  *  - `consultarVagas`: rotas destas vagas (ex.: "Tentar com 2 conexões" e a
  *    troca de aeroporto, que mudam a chave);
  *  - `atualizar`: chaves a reconsultar mesmo com cache ("Atualizar");
- *  - `flex`: rotas cujas datas vizinhas (±1 dia) a pessoa pediu agora.
- * `mostrarFlex` só devolve as datas vizinhas que já estão no cache.
+ *  - `flex`: rotas cujas datas vizinhas (±1 dia) a pessoa pediu agora;
+ *  - `alternativas`: rotas cujos aeroportos alternativos a pessoa mandou testar.
+ * `mostrarFlex`/`mostrarAlternativas` só devolvem o que já está no cache.
  */
 export interface PedidoDaBusca {
   vagas: VagaDoPedido[];
@@ -702,6 +838,8 @@ export interface PedidoDaBusca {
   atualizar?: string[];
   flex?: string[];
   mostrarFlex?: string[];
+  alternativas?: string[];
+  mostrarAlternativas?: string[];
 }
 
 export interface ResultadoNaTela extends ResultadoDaConsulta {
@@ -732,6 +870,21 @@ export interface RotaNaTela extends RotaPlanejada {
   variantes: VarianteNaTela[] | null;
   /** Quantas consultas "Datas flexíveis" gastaria agora (as que não estão no cache). */
   consultasDoFlex: number;
+  /** Aeroportos alternativos já testados (null = não pedidos). */
+  alternativas?: AlternativaNaTela[] | null;
+  /** Quantas consultas "Testar aeroportos alternativos" gastaria agora. */
+  consultasDasAlternativas?: number;
+  /** Mala estimada por perna (centavos) quando alguém da rota despacha; null quando ninguém. */
+  malaCentavos?: number | null;
+}
+
+export interface AlternativaNaTela {
+  chave: string;
+  lado: "casa" | "evento";
+  iata: string;
+  rotulo: string;
+  resultado: ResultadoNaTela | null;
+  erro: ErroNaRota | null;
 }
 
 export interface ConsumoDaBusca {

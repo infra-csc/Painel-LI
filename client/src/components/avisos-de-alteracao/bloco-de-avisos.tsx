@@ -17,6 +17,8 @@
 import { useId, useMemo, useState } from "react";
 import { CalendarClock, ChevronDown, History, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { hasPermission } from "@/lib/role-utils";
 import { ItemDoAviso } from "./item-do-aviso";
 import { AvisosResolvidosDialog } from "./avisos-resolvidos";
 import {
@@ -74,6 +76,9 @@ export function BlocoDeAvisos({ tipo, onAbrir, className }: {
   const corpoId = useId();
   const tituloId = useId();
   const t = TEXTO[tipo];
+  // Remarcar pelo aviso (09/10): quem usa a Busca de passagens abre a busca já com a vaga e a data NOVA.
+  const { user } = useAuth();
+  const buscaNovaData = tipo === "passagem" && hasPermission(user, "canAccessBuscaDePassagens");
 
   if (!ativo) return null;
   // Erro de rede/servidor: uma linha discreta — pode haver aviso e não dá para
@@ -157,7 +162,7 @@ export function BlocoDeAvisos({ tipo, onAbrir, className }: {
               <ul className="m-0 p-0 list-none divide-y divide-border">
                 {g.avisos.map((a) => (
                   <li key={a.id} className="pas-aviso-linha">
-                    <ItemDoAviso aviso={a} onAbrir={onAbrir} rotuloAbrir={t.abrir} />
+                    <ItemDoAviso aviso={a} onAbrir={onAbrir} rotuloAbrir={t.abrir} linkDaBusca={buscaNovaData ? `/busca-de-passagens?vagas=${encodeURIComponent(a.teamInclusionId)}&remarcar=1` : undefined} />
                   </li>
                 ))}
               </ul>

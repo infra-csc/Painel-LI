@@ -3625,3 +3625,123 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .pas-bp-chega, .pas-bp-pulso { animation: none; }
   .pas-bp-linha, .pas-bp-opcao, .pas-bp-opcao .pas-bp-acao-sec, .pas-bp-medidor > span { transition: none; }
 }
+
+/* ══ Busca de passagens · análises e extras (bpa-) — etapa 2, 09/10 ══════════
+ * Abas Previsão, Melhor momento, Preço por rota, Pago × encontrado e Orçamento,
+ * e os extras da aba Buscar (acompanhar preço, alerta de grupo). Usa as peças
+ * da aba Análises de Passagens (Painel, Numero, Barra) e da família Passagens
+ * (pas-osso, pas-entra, pas-alvo). Aqui só o que é dela: a barra divergente
+ * ("abaixo | acima do típico"), as grades das listas que viram cartão no
+ * estreito e a linha do tempo do preço. */
+
+/* Barra divergente: o centro é o preço típico da rota. */
+.bpa-divergente { position: relative; display: block; height: 8px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+.bpa-divergente::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: color-mix(in srgb, var(--foreground) 28%, transparent); }
+.bpa-divergente-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; transition: width 300ms cubic-bezier(.2, 0, 0, 1); }
+
+/* Linha "rótulo · barra · % · média · n" (faixas, dias, horários). */
+.bpa-linha-indice { display: grid; grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 52px; align-items: center; column-gap: 12px; padding: 5px 0; }
+.bpa-linha-indice-media, .bpa-linha-indice-n { display: none; }
+.bpa-linha-indice-cabeca { padding: 0 0 4px; }
+@media (min-width: 640px) {
+  .bpa-linha-indice { grid-template-columns: 136px minmax(0, 1fr) 52px 72px 82px; }
+  .bpa-linha-indice-media, .bpa-linha-indice-n { display: block; }
+}
+
+/* Tabelas curtas em grade (quem compra, recortes): colunas opcionais somem no estreito. */
+.bpa-quem, .bpa-grupo { display: grid; align-items: center; column-gap: 12px; padding: 8px 16px; border-top: 1px solid var(--border); }
+.bpa-quem { grid-template-columns: minmax(0, 1fr) 48px 72px 84px; }
+.bpa-grupo { grid-template-columns: minmax(0, 1fr) 52px 104px; }
+.bpa-quem-opc, .bpa-grupo-opc { display: none; }
+.bpa-quem-cabeca, .bpa-grupo-cabeca, .bpa-compra-cabeca, .bpa-prev-cabeca { border-top: 0; padding-top: 0; padding-bottom: 6px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+@media (min-width: 640px) {
+  .bpa-quem { grid-template-columns: minmax(110px, 1fr) 56px 82px 52px 88px; }
+  .bpa-grupo { grid-template-columns: minmax(96px, 1fr) 44px 78px 78px 96px; column-gap: 10px; }
+  .bpa-quem-opc, .bpa-grupo-opc { display: block; }
+}
+
+/* Compras pela busca: cartão de 2 linhas no estreito, tabela de 6 colunas no largo. */
+.bpa-compra { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "a a a" "c d f"; gap: 4px 12px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--border); }
+.bpa-compra > :nth-child(1) { grid-area: a; }
+.bpa-compra > :nth-child(2), .bpa-compra > :nth-child(3) { display: none; }
+.bpa-compra > :nth-child(4) { grid-area: c; text-align: left; }
+.bpa-compra > :nth-child(5) { grid-area: d; }
+.bpa-compra > :nth-child(6) { grid-area: f; }
+.bpa-compra-cabeca { display: none; }
+@media (min-width: 900px) {
+  .bpa-compra, .bpa-compra-cabeca { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 1fr) 96px 96px 96px 110px; grid-template-areas: none; }
+  .bpa-compra > * { grid-area: auto !important; display: block !important; }
+  .bpa-compra > :nth-child(4) { text-align: right; }
+  .bpa-compra-cabeca { padding: 0 16px 6px; }
+}
+
+.bpa-mes { display: grid; grid-template-columns: 52px minmax(0, 1fr) 84px; align-items: center; column-gap: 12px; padding: 5px 0; }
+.bpa-mes > :last-child { display: none; }
+@media (min-width: 640px) { .bpa-mes { grid-template-columns: 56px minmax(0, 1fr) 88px 112px; } .bpa-mes > :last-child { display: block; } }
+
+/* Preço por rota: a linha de uma rota (largo) / cartão (estreito). */
+.bpa-rota { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "nome" "numeros" "serie" "variacao" "cias"; gap: 8px 16px; padding: 12px 16px; border-top: 1px solid var(--border); transition: background-color 120ms ease; }
+.bpa-rota:hover { background: color-mix(in srgb, var(--brand-soft) 35%, transparent); }
+.bpa-rota > [data-area="nome"] { grid-area: nome; }
+.bpa-rota > [data-area="numeros"] { grid-area: numeros; }
+.bpa-rota > [data-area="variacao"] { grid-area: variacao; text-align: left; display: flex; gap: 12px; }
+.bpa-rota > [data-area="serie"] { grid-area: serie; }
+.bpa-rota > [data-area="cias"] { grid-area: cias; }
+.bpa-rota dl > div > dd { white-space: nowrap; }
+@media (max-width: 639px) { .bpa-rota dl { text-align: left; } }
+@media (min-width: 1100px) {
+  .bpa-rota { grid-template-columns: minmax(150px, 1fr) minmax(250px, 1.35fr) 92px minmax(120px, 0.8fr); grid-template-areas: "nome numeros variacao serie" "cias cias cias cias"; align-items: center; }
+  .bpa-rota > [data-area="variacao"] { display: block; text-align: right; }
+}
+.bpa-serie { display: block; width: 100%; height: 44px; overflow: visible; }
+.bpa-serie-area { fill: color-mix(in srgb, var(--primary) 8%, transparent); }
+.bpa-serie-linha { fill: none; stroke: var(--primary); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.bpa-serie-menor { fill: var(--success-strong); stroke: var(--card); stroke-width: 1.5; }
+.bpa-serie-ultimo { fill: var(--card); stroke: var(--primary); stroke-width: 1.5; }
+
+/* Previsão: escalação · voo · tendência e por quê · preço · ação. */
+.bpa-prev { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "quem preco" "voo voo" "tendencia tendencia" "acao acao"; gap: 8px 16px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.bpa-prev > [data-area="quem"] { grid-area: quem; }
+.bpa-prev > [data-area="voo"] { grid-area: voo; }
+.bpa-prev > [data-area="tendencia"] { grid-area: tendencia; }
+.bpa-prev > [data-area="preco"] { grid-area: preco; }
+.bpa-prev > [data-area="acao"] { grid-area: acao; }
+.bpa-prev-urgente { box-shadow: inset 3px 0 0 var(--danger-strong); }
+.bpa-prev-cabeca { display: none; }
+@media (min-width: 1100px) {
+  .bpa-prev, .bpa-prev-cabeca { grid-template-columns: minmax(160px, 0.9fr) minmax(130px, 0.7fr) minmax(280px, 2fr) 116px 156px; grid-template-areas: "quem voo tendencia preco acao"; align-items: start; }
+  .bpa-prev > [data-area="acao"] { padding-top: 2px; }
+  .bpa-prev-cabeca { display: grid; padding: 10px 16px 8px; border-top: 0; background: var(--surface-muted); box-shadow: inset 0 -1px 0 var(--border); }
+  .bpa-prev-cabeca > :nth-child(4) { text-align: right; }
+}
+
+/* Orçamento por evento: barra empilhada (gasto cheio | falta claro). */
+.bpa-orc { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "evento" "barra" "numeros"; gap: 6px 16px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.bpa-orc > [data-area="evento"] { grid-area: evento; }
+.bpa-orc > [data-area="barra"] { grid-area: barra; }
+.bpa-orc > [data-area="numeros"] { grid-area: numeros; }
+@media (max-width: 639px) { .bpa-orc dl { text-align: left; } }
+@media (min-width: 640px) {
+  .bpa-orc { grid-template-columns: minmax(0, 1fr) 250px; grid-template-areas: "evento numeros" "barra numeros"; align-items: center; column-gap: 20px; }
+}
+.bpa-orc-trilho { display: flex; height: 10px; border-radius: 999px; background: var(--muted); overflow: hidden; margin-bottom: 4px; }
+.bpa-orc-gasto { background: var(--primary); transition: width 300ms cubic-bezier(.2, 0, 0, 1); }
+.bpa-orc-falta { background: color-mix(in srgb, var(--warning-strong) 55%, transparent); transition: width 300ms cubic-bezier(.2, 0, 0, 1); }
+
+/* Preços acompanhados (aba Buscar). */
+.bpa-acomp { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "quem acoes" "preco preco" "aviso aviso"; gap: 6px 12px; padding: 10px 16px; border-top: 1px solid var(--border); align-items: center; }
+.bpa-acomp:first-child { border-top: 0; }
+.bpa-acomp > [data-area="quem"] { grid-area: quem; }
+.bpa-acomp > [data-area="preco"] { grid-area: preco; }
+.bpa-acomp > [data-area="aviso"] { grid-area: aviso; }
+.bpa-acomp > [data-area="acoes"] { grid-area: acoes; }
+@media (min-width: 1024px) {
+  .bpa-acomp { grid-template-columns: minmax(220px, 1.2fr) minmax(200px, 1fr) minmax(220px, 1.1fr) auto; grid-template-areas: "quem preco aviso acoes"; }
+}
+/* "Acompanhar" na linha: pílula pequena, mas com alvo de 44px no toque. */
+.bpa-acompanhar { position: relative; }
+@media (pointer: coarse) { .bpa-acompanhar::after { content: ""; position: absolute; inset: -11px -4px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bpa-divergente-barra, .bpa-orc-gasto, .bpa-orc-falta, .bpa-rota { transition: none; }
+}

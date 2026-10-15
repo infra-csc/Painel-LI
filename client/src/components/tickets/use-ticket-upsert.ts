@@ -7,6 +7,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { aplicarStatusDaVagaNoCache, TEAM_INCLUSIONS_KEY } from "@/hooks/use-vaga-acoes";
 import { buildTicketPayload, type TicketFormValues } from "@/lib/ticket-form";
 import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
+import { lerTetoDoErro, pedirJustificativaDoPreco } from "./justificativa-do-preco";
 
 interface UseTicketUpsertArgs {
   getTicket: (inclusionId: string) => Ticket | undefined;
@@ -43,6 +44,8 @@ export function useTicketUpsert({ getTicket, onTicketUpdated }: UseTicketUpsertA
   const mutationError = (fallback: string) => (err: unknown) => {
     if (batchRunning.current) return;
     if (silenciarViagemCruzada.current && (err as { body?: { code?: string } } | null)?.body?.code === "viagem_cruzada") return;
+    // Teto por trecho (09/10): o diálogo de justificativa é quem responde — sem toast por cima.
+    if (lerTetoDoErro(err)) return;
     toast({ title: "Passagem não salva", description: apiErrorMessage(err, fallback), variant: "destructive" });
   };
 
@@ -92,11 +95,28 @@ export function useTicketUpsert({ getTicket, onTicketUpdated }: UseTicketUpsertA
         existing = fresh?.find(t => t.teamInclusionId === inclusion.id);
       } catch { /* sem rede: segue com o cache */ }
     }
+    // Teto por trecho (09/10): valor acima do típico da rota → pede a justificativa e reenvia.
+    const comJustificativa = async <T,>(enviar: (extra: Record<string, unknown>) => Promise<T>): Promise<T> => {
+      try {
+        return await enviar({});
+      } catch (erro) {
+        const teto = batchRunning.current ? null : lerTetoDoErro(erro);
+        if (!teto) throw erro;
+        const justificativa = await pedirJustificativaDoPreco(teto.teto, teto.mensagem);
+        if (!justificativa) {
+          if (batchRunning.current) throw erro;
+          // Voltou para revisar: o formulário continua aberto, sem toast de erro.
+          throw Object.assign(new Error("justificativa_cancelada"), { body: { code: "justificativa_cancelada" } });
+        }
+        return enviar({ justificativaPreco: justificativa });
+      }
+    };
     if (existing) {
-      await updateTicketMutation.mutateAsync({ id: existing.id, payload: buildTicketPayload(form) });
+      const id = existing.id;
+      await comJustificativa((extra) => updateTicketMutation.mutateAsync({ id, payload: { ...buildTicketPayload(form), ...extra } }));
       return "updated";
     }
-    await createTicketMutation.mutateAsync(buildTicketPayload(form, { teamInclusionId: inclusion.id }));
+    await comJustificativa((extra) => createTicketMutation.mutateAsync({ ...buildTicketPayload(form, { teamInclusionId: inclusion.id }), ...extra }));
     return "created";
   };
 

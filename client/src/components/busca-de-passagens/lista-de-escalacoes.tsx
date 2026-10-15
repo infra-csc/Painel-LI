@@ -8,7 +8,9 @@
  * vira cartão por CSS (`.pas-bp-linha`, áreas da grade) — nada é duplicado.
  */
 import { memo } from "react";
-import { ArrowRight, CheckCircle2, Route, PlaneTakeoff, PlaneLanding, CircleDot } from "lucide-react";
+import { ArrowRight, BellPlus, BellRing, CheckCircle2, Loader2, Route, PlaneTakeoff, PlaneLanding, CircleDot } from "lucide-react";
+import type { TendenciaDoPreco } from "@shared/regras-da-busca";
+import { VISUAL_DA_TENDENCIA } from "./analises/previsao";
 import { formatarMoeda, toTitleCase } from "@/lib/format";
 import { faixaDeHorario, faixaEmTexto, type AjusteDaBusca } from "@shared/busca-de-passagens";
 import { aeroportosDaCidade } from "@shared/aeroportos-do-brasil";
@@ -75,13 +77,19 @@ function Datas({ l }: { l: LinhaDaBusca }) {
   );
 }
 
-export const LinhaDeEscalacao = memo(function LinhaDeEscalacao({ l, selecionada, onAlternar, onAjustar, podeCorrigir, indice }: {
+export const LinhaDeEscalacao = memo(function LinhaDeEscalacao({ l, selecionada, onAlternar, onAjustar, podeCorrigir, indice, acompanhando = false, onAcompanhar, acompanhandoAgora = false, tendencia = null }: {
   l: LinhaDaBusca;
   selecionada: boolean;
   onAlternar: (id: string) => void;
   onAjustar: (vagaId: string, patch: Partial<AjusteDaBusca>) => void;
   podeCorrigir: boolean;
   indice: number;
+  /** Etapa 2 (09/10): acompanhar preço (admin e Compras). */
+  acompanhando?: boolean;
+  onAcompanhar?: (vagaId: string) => void;
+  acompanhandoAgora?: boolean;
+  /** Tendência da previsão (só admin vê). */
+  tendencia?: TendenciaDoPreco | null;
 }) {
   const id = l.vaga.id;
   const pronta = l.faltas.length === 0;
@@ -129,6 +137,26 @@ export const LinhaDeEscalacao = memo(function LinhaDeEscalacao({ l, selecionada,
             <CircleDot className="h-3 w-3 text-primary" aria-hidden="true" />Pronta para buscar
           </span>
         ) : null}
+        {!l.comprada && tendencia && tendencia !== "sem_dado" && (() => {
+          const t = VISUAL_DA_TENDENCIA[tendencia];
+          const Icone = t.icone;
+          return <span className={`${PILULA} ${t.pilula}`} title={`${t.rotulo} — previsão pelo histórico da rota (estimativa, não certeza)`} data-testid={`tendencia-${id}`}><Icone className="h-3 w-3" aria-hidden="true" />{tendencia === "subir" ? "sobe" : tendencia === "baixar" ? "baixa" : "estável"}<span className="sr-only"> ({t.rotulo})</span></span>;
+        })()}
+        {!l.comprada && pronta && onAcompanhar && (acompanhando ? (
+          <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md bg-brand-soft text-primary" title="Acompanhando: o app checa o preço uma vez por dia e avisa no sino" data-testid={`acompanhando-${id}`}><BellRing className="h-3 w-3" aria-hidden="true" /><span className="sr-only">Acompanhando o preço</span></span>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAcompanhar(id); }}
+            disabled={acompanhandoAgora}
+            className="bpa-acompanhar inline-flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border text-slate-500 transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            aria-label="Acompanhar o preço desta escalação"
+            title="Checa o preço uma vez por dia e avisa no sino se cair ou se a tendência virar subir (não gasta agora)"
+            data-testid={`acompanhar-${id}`}
+          >
+            {acompanhandoAgora ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <BellPlus className="h-3 w-3" aria-hidden="true" />}
+          </button>
+        ))}
         {l.faltas.map((f, i) => (
           <PilulaDeFalta key={`${f.tipo}-${i}`} falta={f} nomeDoEvento={f.eventId ? (f.eventId === evento?.id ? evento?.name : undefined) : undefined} ajuste={l.ajuste} onAjustar={(p) => onAjustar(id, p)} podeCorrigir={podeCorrigir} />
         ))}

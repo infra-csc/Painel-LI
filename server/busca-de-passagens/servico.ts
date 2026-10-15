@@ -16,13 +16,34 @@ import {
   HORAS_DE_CACHE_DA_BUSCA,
   TETO_MENSAL_PADRAO,
   inicioDoMes,
+  type AjusteDaBusca,
   type ConsultaDePassagens,
   type ResultadoDaConsulta,
 } from "@shared/busca-de-passagens";
+import { ehIata } from "@shared/aeroportos-do-brasil";
 import { hojeISO } from "@shared/hoje-sp";
+import { CHAVES_DOS_AJUSTES, lerAjustesDaBusca, precoTipico, tipoDaRota, type AjustesDaBusca, type PrecoTipico } from "@shared/regras-da-busca";
 import type { FornecedorDePassagens, LinkDeCompra } from "./fornecedor";
 import { criarIgnav } from "./ignav";
 import { criarSimulado } from "./simulado";
+
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Ajuste vindo da tela → só o que a regra aceita (nada mais passa). */
+export function lerAjuste(bruto: unknown): AjusteDaBusca {
+  if (!bruto || typeof bruto !== "object") return {};
+  const a = bruto as Record<string, unknown>;
+  const out: AjusteDaBusca = {};
+  if (typeof a.aeroportoDeCasa === "string" && ehIata(a.aeroportoDeCasa)) out.aeroportoDeCasa = a.aeroportoDeCasa.toUpperCase();
+  if (typeof a.dataIda === "string" && DATA.test(a.dataIda)) out.dataIda = a.dataIda;
+  if (typeof a.dataVolta === "string" && DATA.test(a.dataVolta)) out.dataVolta = a.dataVolta;
+  if (a.maxParadas === 2) out.maxParadas = 2;
+  if (typeof a.idaDoEventoId === "string" && a.idaDoEventoId.length <= 64) out.idaDoEventoId = a.idaDoEventoId;
+  if (a.somente === "ida" || a.somente === "volta") out.somente = a.somente;
+  if (a.semHorario === true) out.semHorario = true;
+  if (typeof a.aeroportoDoEvento === "string" && ehIata(a.aeroportoDoEvento)) out.aeroportoDoEvento = a.aeroportoDoEvento.toUpperCase();
+  return out;
+}
 
 // ── Fornecedor ─────────────────────────────────────────────────────────────
 
@@ -180,6 +201,31 @@ export async function tetoMensal(): Promise<number> {
   const [linha] = await db.select().from(systemSettings).where(eq(systemSettings.key, CHAVE_DO_TETO_MENSAL));
   const n = linha ? Number(String(linha.value).trim()) : NaN;
   return Number.isInteger(n) && n >= 0 ? n : TETO_MENSAL_PADRAO;
+}
+
+/** Ajustes da busca (etapa 2) — system_settings com o padrão do código no que faltar. */
+export async function lerAjustes(): Promise<AjustesDaBusca> {
+  const chaves = Object.values(CHAVES_DOS_AJUSTES);
+  const linhas = await db.select().from(systemSettings).where(inArray(systemSettings.key, chaves));
+  return lerAjustesDaBusca(Object.fromEntries(linhas.map((l) => [l.key, l.value])));
+}
+
+/**
+ * Preço típico de uma rota (mediana dos menores preços das consultas reais
+ * dos últimos 180 dias) — base do teto por trecho e das estimativas. Ida e
+ * volta e uma perna são tarifas diferentes (chaveDaRota).
+ */
+export async function precoTipicoDaRota(perna: string, origem: string, destino: string): Promise<PrecoTipico | null> {
+  const desde = new Date(Date.now() - 180 * 86_400_000);
+  const pernas = tipoDaRota(perna) === "rt" ? ["ida_e_volta"] : ["ida", "volta"];
+  const linhas = await db.select({ preco: buscaPassagensConsultas.menorPrecoCentavos }).from(buscaPassagensConsultas)
+    .where(and(
+      eq(buscaPassagensConsultas.origem, origem.toUpperCase()),
+      eq(buscaPassagensConsultas.destino, destino.toUpperCase()),
+      inArray(buscaPassagensConsultas.perna, pernas),
+      gte(buscaPassagensConsultas.consultadoEm, desde),
+    ));
+  return precoTipico(linhas.map((l) => l.preco));
 }
 
 // ── Diária de hotel do evento (para o custo total) ─────────────────────────

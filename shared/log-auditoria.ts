@@ -53,6 +53,9 @@ export const MODULOS: Record<string, Modulo> = {
   operational_mirror: { rotulo: "Espelho operacional", substantivo: "espelho operacional", artigo: "o" },
   payment_company: { rotulo: "Empresas pagadoras", substantivo: "empresa pagadora", artigo: "a" },
   uber_group: { rotulo: "Grupos de Uber", substantivo: "grupo de Uber", artigo: "o" },
+  // 09/10: busca de passagens na internet (apareciam como "Outro registro").
+  busca_de_passagens: { rotulo: "Busca de passagens", substantivo: "busca de preços de passagem", artigo: "a" },
+  busca_passagens_acompanhamento: { rotulo: "Acompanhamento de preço", substantivo: "acompanhamento de preço", artigo: "o" },
 };
 
 /** Tipo que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -116,6 +119,11 @@ export const ACOES: Record<string, Acao> = {
   note: { rotulo: "Anotação", verbo: "anotou n", tom: "neutro" },
   // 09/10: rooming list em PDF para o hotel (Espelho → Quartos).
   export: { rotulo: "Exportação", verbo: "exportou", tom: "neutro" },
+  // 09/10: busca de passagens — consultas pagas ao fornecedor e o acompanhamento de preço.
+  buscar_precos: { rotulo: "Busca de preços", verbo: "buscou preços de passagem", tom: "neutro" },
+  acompanhar_preco: { rotulo: "Acompanhamento iniciado", verbo: "passou a acompanhar o preço d", tom: "criar" },
+  parar_acompanhamento: { rotulo: "Acompanhamento encerrado", verbo: "parou de acompanhar o preço d", tom: "excluir" },
+  checar_precos: { rotulo: "Checagem diária de preços", verbo: "checou os preços acompanhados", tom: "neutro" },
 };
 
 /** Ação que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -207,6 +215,18 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   prazo_dias_escalacao: "Prazo da escalação (dias antes do evento)",
   prazo_dias_escalado: "Prazo do escalado (dias antes do evento)",
   prazo_dias_passagem: "Prazo da passagem emitida (dias antes do evento)",
+  // busca de passagens (09/10)
+  consultas: "Consultas ao fornecedor", vagas: "Escalações", rotas: "Rotas consultadas", fornecedor: "Fornecedor",
+  aeroportoIata: "Aeroporto do evento", justificativaPreco: "Justificativa do preço",
+  rota: "Rota", precoInicial: "Preço ao começar", checadas: "Escalações checadas", avisos: "Avisos gerados",
+  paradas: "Acompanhamentos encerrados", puladas: "Puladas (teto do mês)", motivo: "Motivo",
+  busca_passagens_teto_mensal: "Teto mensal de consultas da busca",
+  busca_passagens_teto_trecho_pct: "Teto por trecho (% acima do típico)",
+  busca_passagens_acompanhar_limite: "Limite de escalações acompanhadas",
+  busca_passagens_acompanhar_queda_pct: "Queda que vira aviso (%)",
+  busca_passagens_acompanhar_hora: "Hora da checagem diária",
+  busca_passagens_valor_mala: "Valor estimado da mala",
+  busca_passagens_funcoes_com_mala: "Funções que despacham mala",
 };
 
 /** Campo que ainda não tem nome: "Outro campo", nunca o código em inglês (18/09). */
@@ -219,7 +239,7 @@ export const campoOculto = (campo: string): boolean => CAMPOS_OCULTOS.has(campo)
 const CAMPOS_EM_CENTAVOS = new Set([
   "dailyValue", "value", "empreitaValor", "baggageTotalCents", "totalValue", "costAssistance", "mobility",
   "mobilityIda", "mobilityVolta", "transport", "weekdayLunch", "weekdayDinner", "weekendLunch", "weekendDinner",
-  "dailyRate",
+  "dailyRate", "precoInicial", "busca_passagens_valor_mala",
   "default_daily_value_weekday", "default_daily_value_weekend", "default_daily_value_weekday_freela",
   "default_daily_value_weekend_freela", "default_mobility", "default_mobility_ida", "default_mobility_volta",
   "default_mobility_ida_freela", "default_mobility_volta_freela", "default_weekday_lunch", "default_weekday_dinner",
@@ -305,6 +325,13 @@ function dataHoraBr(iso: string): string {
   }).replace(",", " às");
 }
 
+/** Chave de consulta da busca ("ida_e_volta|GRU>JPA|2026-11-12|…") → "GRU ⇄ JPA 12/11". */
+export function rotaDaChaveLegivel(chave: string): string {
+  const m = /^(ida_e_volta|ida|volta)\|([A-Z]{3})>([A-Z]{3})\|(\d{4})-(\d{2})-(\d{2})/.exec(chave);
+  if (!m) return chave.startsWith("link|") ? "link de compra" : "rota";
+  return `${m[2]} ${m[1] === "ida_e_volta" ? "⇄" : "→"} ${m[3]} ${m[6]}/${m[5]}`;
+}
+
 /** Centavos → "R$ 1.234,56" (mesma escrita do histórico da vaga em server/storage/vagas-historico.ts). */
 export const reais = (centavos: number) =>
   `R$ ${(centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -335,6 +362,11 @@ export function formatarValor(campo: string, valor: unknown, nomes: NomesParaLog
   if (Array.isArray(valor)) {
     if (valor.length === 0) return "nenhum";
     if (campo === "attachmentIds") return `${valor.length} ${valor.length === 1 ? "arquivo" : "arquivos"}`;
+    // Rotas da busca de passagens (09/10): a chave da consulta vira "GRU ⇄ JPA 12/11".
+    if (campo === "rotas" && valor.every((v) => typeof v === "string")) {
+      const legiveis = (valor as string[]).map(rotaDaChaveLegivel);
+      return legiveis.length > 6 ? `${legiveis.slice(0, 6).join(", ")} e mais ${legiveis.length - 6}` : legiveis.join(", ");
+    }
     if (valor.every((v) => typeof v === "string" && v.length <= 40)) return valor.join(", ");
     return `${valor.length} ${valor.length === 1 ? "item" : "itens"}`;
   }
@@ -495,6 +527,9 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
     alvo = loc ? `a passagem LOC ${loc}` : "a passagem";
   } else if (log.entityType === "system_settings") {
     alvo = "as configurações do sistema";
+  } else if (log.entityType === "busca_passagens_acompanhamento") {
+    const numero = dado.inclusionNumber ?? nomeGravado.match(/#(\d+)/)?.[1];
+    alvo = numero ? `a vaga #${numero}` : "uma vaga";
   } else {
     const nome = nomeQuebrado(nomeGravado, log.entityType)
       ? (dado.name ?? dado.fullName ?? dado.collaboratorName ?? colaborador ?? null)
@@ -512,6 +547,10 @@ export function descreverLog(log: RegistroDeLog, nomes: NomesParaLog = {}): LogD
     frase = "comentou em uma vaga";
   } else if (log.entityType === "scaling_function_manager" && log.action === "create") {
     frase = `cadastrou ${alvo}`;
+  } else if (log.action === "buscar_precos" || log.action === "checar_precos") {
+    // "buscou preços de passagem — 3 consultas ao fornecedor" (nada pessoal no registro).
+    const n = Number(dado.consultas ?? 0);
+    frase = `${acao.verbo}${n > 0 ? ` — ${n} ${n === 1 ? "consulta" : "consultas"} ao fornecedor` : ""}`;
   } else if (log.action === "suggestion_sent") {
     const n = Number(dado.count ?? 0);
     const ev = dado.eventName ?? evento;

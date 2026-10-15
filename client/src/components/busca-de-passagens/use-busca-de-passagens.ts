@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, fetchJson, isApiError } from "@/lib/queryClient";
-import type { ConsumoDaBusca, PedidoDaBusca, RespostaDaBusca, VagaDoPedido } from "@shared/busca-de-passagens";
+import type { AjusteDaBusca, ConsumoDaBusca, PedidoDaBusca, RespostaDaBusca, VagaDoPedido } from "@shared/busca-de-passagens";
+import type { AjustesDaBusca, TendenciaDoPreco } from "@shared/regras-da-busca";
 import type { ResumoDoConsumo } from "@shared/consumo-da-busca";
 
 export const CHAVE_DO_CONSUMO = ["/api/busca-de-passagens/consumo"] as const;
@@ -66,9 +67,10 @@ export function useBuscaDePassagens(vagas: VagaDoPedido[]) {
   const pedidoAtual = useRef(0);
   const assinatura = JSON.stringify(vagas);
   const mostrarFlex = useRef<Set<string>>(new Set());
+  const mostrarAlternativas = useRef<Set<string>>(new Set());
 
   const executar = useCallback(async (extra: Omit<PedidoDaBusca, "vagas">, lista: VagaDoPedido[]) => {
-    const corpo: PedidoDaBusca = { vagas: lista, mostrarFlex: Array.from(mostrarFlex.current), ...extra };
+    const corpo: PedidoDaBusca = { vagas: lista, mostrarFlex: Array.from(mostrarFlex.current), mostrarAlternativas: Array.from(mostrarAlternativas.current), ...extra };
     const r = await apiRequest("POST", "/api/busca-de-passagens", corpo);
     return (await r.json()) as RespostaDaBusca;
   }, []);
@@ -92,6 +94,7 @@ export function useBuscaDePassagens(vagas: VagaDoPedido[]) {
     /** `vagas`: a lista com um ajuste que acabou de mudar (2 conexões, outro aeroporto). */
     mutationFn: ({ extra, vagas: outras }: { extra: Omit<PedidoDaBusca, "vagas">; vagas?: VagaDoPedido[] }) => {
       for (const k of extra.flex ?? []) mostrarFlex.current.add(k);
+      for (const k of [...(extra.alternativas ?? []), ...(extra.mostrarAlternativas ?? [])]) mostrarAlternativas.current.add(k);
       pedidoAtual.current++; // uma prévia atrasada não sobrescreve o resultado
       return executar(extra, outras ?? (JSON.parse(assinatura) as VagaDoPedido[]));
     },
@@ -178,6 +181,98 @@ export function useAlterarTeto() {
     onSuccess: (c) => {
       queryClient.setQueryData(CHAVE_DO_CONSUMO, c);
       queryClient.invalidateQueries({ queryKey: ["/api/busca-de-passagens/consumo/detalhe"] });
+    },
+  });
+}
+
+// ── Etapa 2 (09/10): acompanhar preço e os ajustes do admin ──────────────
+
+export interface AcompanhamentoNaTela {
+  id: string;
+  teamInclusionId: string;
+  inclusionNumber: number | null;
+  eventId: string | null;
+  eventName: string | null;
+  colaborador: string | null;
+  funcao: string | null;
+  criadoPorNome: string | null;
+  criadoEm: string | null;
+  ativo: boolean;
+  rotas: string[];
+  precoInicial: number | null;
+  ultimoPreco: number | null;
+  menorPreco: number | null;
+  ultimaChecagemEm: string | null;
+  tendencia: TendenciaDoPreco | null;
+  aviso: "caiu" | "subir" | null;
+  avisoTexto: string | null;
+  avisoEm: string | null;
+  avisoNovo: boolean;
+  paradoEm: string | null;
+  motivoParada: string | null;
+}
+export interface ListaDeAcompanhamentos { itens: AcompanhamentoNaTela[]; limite: number; ativos: number; hora: number; quedaPct: number }
+export interface ResumoDaChecagem { checadas: number; consultas: number; avisos: number; puladas: number; paradas: number }
+
+export const CHAVE_DOS_ACOMPANHAMENTOS = ["/api/busca-de-passagens/acompanhamentos"] as const;
+export const CHAVE_DO_SINO_DE_PRECOS = ["shell", "precos-acompanhados"] as const;
+
+export function useAcompanhamentos(ativo = true) {
+  return useQuery<ListaDeAcompanhamentos>({
+    queryKey: CHAVE_DOS_ACOMPANHAMENTOS,
+    queryFn: ({ signal }) => fetchJson<ListaDeAcompanhamentos>("/api/busca-de-passagens/acompanhamentos", signal),
+    enabled: ativo,
+    staleTime: 30_000,
+  });
+}
+
+/** Acompanhar / parar / tirar o aviso / checar agora — todos refazem a lista e o sino. */
+export function useAcoesDoAcompanhamento() {
+  const queryClient = useQueryClient();
+  const refazer = () => {
+    queryClient.invalidateQueries({ queryKey: CHAVE_DOS_ACOMPANHAMENTOS });
+    queryClient.invalidateQueries({ queryKey: CHAVE_DO_SINO_DE_PRECOS });
+  };
+  const acompanhar = useMutation({
+    mutationFn: async ({ teamInclusionId, ajuste }: { teamInclusionId: string; ajuste?: AjusteDaBusca }) =>
+      (await apiRequest("POST", "/api/busca-de-passagens/acompanhamentos", { teamInclusionId, ajuste })).json() as Promise<{ id: string; jaExistia: boolean }>,
+    onSuccess: refazer,
+  });
+  const parar = useMutation({
+    mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/busca-de-passagens/acompanhamentos/${id}`)).json(),
+    onSuccess: refazer,
+  });
+  const vistos = useMutation({
+    mutationFn: async (ids?: string[]) => (await apiRequest("POST", "/api/busca-de-passagens/acompanhamentos/vistos", ids ? { ids } : {})).json(),
+    onSuccess: refazer,
+  });
+  const checar = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/busca-de-passagens/acompanhamentos/checar", {})).json() as Promise<ResumoDaChecagem>,
+    onSuccess: () => {
+      refazer();
+      queryClient.invalidateQueries({ queryKey: CHAVE_DO_CONSUMO });
+    },
+  });
+  return { acompanhar, parar, vistos, checar };
+}
+
+export interface RespostaDosAjustes { ajustes: AjustesDaBusca; padrao: AjustesDaBusca }
+export const CHAVE_DOS_AJUSTES = ["/api/busca-de-passagens/ajustes"] as const;
+export function useAjustesDaBusca(ativo: boolean) {
+  return useQuery<RespostaDosAjustes>({
+    queryKey: CHAVE_DOS_AJUSTES,
+    queryFn: ({ signal }) => fetchJson<RespostaDosAjustes>("/api/busca-de-passagens/ajustes", signal),
+    enabled: ativo,
+    staleTime: 60_000,
+  });
+}
+export function useSalvarAjustes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (parcial: Partial<AjustesDaBusca>) => (await apiRequest("PUT", "/api/busca-de-passagens/ajustes", parcial)).json() as Promise<RespostaDosAjustes>,
+    onSuccess: (r) => {
+      queryClient.setQueryData(CHAVE_DOS_AJUSTES, r);
+      queryClient.invalidateQueries({ queryKey: CHAVE_DOS_ACOMPANHAMENTOS });
     },
   });
 }

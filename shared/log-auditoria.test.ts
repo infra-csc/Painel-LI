@@ -160,3 +160,30 @@ describe("exclusão gravada como alteração e alteração sem diff (08/10)", ()
     expect(descreverLog({ action: "create", entityType: "event", newData: { name: "A" } }).semMudancaDeCampo).toBe(false);
   });
 });
+
+describe("busca de passagens no log (09/10 — aparecia como \"Outro registro\")", () => {
+  it("busca de preços: módulo, ação e frase com o número de consultas; rotas legíveis", () => {
+    const d = descreverLog({
+      action: "buscar_precos", entityType: "busca_de_passagens", entityName: "busca de preços de passagem",
+      newData: { consultas: 3, vagas: 5, rotas: ["ida_e_volta|GRU>JPA|2026-11-12|2026-11-16|p1|,,,14|18,,,", "volta|JPA>CGH|2026-11-16|-|p1|-|-"], fornecedor: "ignav" },
+    });
+    expect(d.modulo).toBe("Busca de passagens");
+    expect(d.acao).toBe("Busca de preços");
+    expect(d.frase).toBe("buscou preços de passagem — 3 consultas ao fornecedor");
+    expect(d.dados).toEqual([
+      { campo: "Consultas ao fornecedor", valor: "3" },
+      { campo: "Escalações", valor: "5" },
+      { campo: "Rotas consultadas", valor: "GRU ⇄ JPA 12/11, JPA → CGH 16/11" },
+      { campo: "Fornecedor", valor: "ignav" },
+    ]);
+  });
+
+  it("acompanhamento de preço e os ajustes da busca têm nome", () => {
+    const d = descreverLog({ action: "acompanhar_preco", entityType: "busca_passagens_acompanhamento", entityName: "Vaga #4045", newData: { inclusionNumber: 4045, precoInicial: 98000 } });
+    expect(d.frase).toBe("passou a acompanhar o preço da vaga #4045");
+    expect(d.dados.find((x) => x.campo === "Preço ao começar")?.valor).toBe("R$ 980,00");
+    const s = descreverLog({ action: "update", entityType: "system_settings", previousData: { busca_passagens_teto_trecho_pct: 30 }, newData: { busca_passagens_teto_trecho_pct: 40 } });
+    expect(s.mudancas).toEqual([{ campo: "Teto por trecho (% acima do típico)", antes: "30", depois: "40" }]);
+    expect(descreverLog({ action: "update", entityType: "ticket", previousData: { justificativaPreco: null }, newData: { justificativaPreco: "Único voo antes da montagem" } }).mudancas[0].campo).toBe("Justificativa do preço");
+  });
+});

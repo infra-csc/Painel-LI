@@ -12,7 +12,7 @@ import { RegistroPeloVoo } from "./registro-pelo-voo";
 const rota = (chave: string, comResultado: boolean, itinerarios: ItinerarioDeVoo[] = []): RotaNaTela => ({
   chave, perna: "ida", origem: "GRU", destino: "JPA", dataIda: "2026-11-12", dataVolta: null, maxParadas: 1,
   horarioIda: null, horarioVolta: null, vagas: [{ vagaId: "v1", perna: "ida" }], eventoIds: ["e1"], faixaIda: null, faixaVolta: null,
-  trechoDireto: false, alternativasDeCasa: ["CGH"], diariaCentavos: null, variantes: null, consultasDoFlex: 2, erro: null,
+  trechoDireto: false, alternativasDeCasa: ["CGH"], alternativasDoEvento: [], semHorario: false, vagasComMala: 0, diariaCentavos: null, variantes: null, consultasDoFlex: 2, erro: null,
   resultado: comResultado ? { itinerarios, observadoEm: null, consultadoEm: new Date().toISOString(), doCache: true } : null,
 });
 const resposta = (rotas: RotaNaTela[]): RespostaDaBusca => ({

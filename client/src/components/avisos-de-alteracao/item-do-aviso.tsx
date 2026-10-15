@@ -7,7 +7,8 @@
  * com as ações lado a lado à direita: com 15 avisos, a altura de cada um é o
  * que decide se a lista de passagens continua à vista.
  */
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Search } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { MudancasDoAviso } from "./mudancas-do-aviso";
 import { JaAtuei } from "./ja-atuei";
@@ -52,7 +53,7 @@ export function QuemPediuEAprovou({ aviso, className, emLinha }: { aviso: AvisoD
   );
 }
 
-export function ItemDoAviso({ aviso, onAbrir, rotuloAbrir = "Abrir passagem", resolvido }: {
+export function ItemDoAviso({ aviso, onAbrir, rotuloAbrir = "Abrir passagem", resolvido, linkDaBusca }: {
   aviso: AvisoDeAlteracao;
   /** "Abrir passagem" — abre o modal da vaga. Sem ele o botão não aparece. */
   onAbrir?: (aviso: AvisoDeAlteracao) => void;
@@ -60,6 +61,8 @@ export function ItemDoAviso({ aviso, onAbrir, rotuloAbrir = "Abrir passagem", re
   rotuloAbrir?: string;
   /** Lista de resolvidos: sem ações, com quem resolveu e o que fez. */
   resolvido?: boolean;
+  /** "Buscar nova data" (09/10): abre a Busca de passagens com a vaga e as datas novas. */
+  linkDaBusca?: string;
 }) {
   const nome = nomeProprio(aviso.collaboratorName) || "Sem colaborador";
   return (
@@ -97,6 +100,17 @@ export function ItemDoAviso({ aviso, onAbrir, rotuloAbrir = "Abrir passagem", re
               <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
               {rotuloAbrir}
             </button>
+          )}
+          {linkDaBusca && (
+            <Link
+              href={linkDaBusca}
+              className="pas-alvo inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-card text-xs font-medium text-slate-700 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              title="Abre a Busca de passagens com esta vaga e as datas novas"
+              data-testid={`aviso-buscar-${aviso.id}`}
+            >
+              <Search className="w-3.5 h-3.5" aria-hidden="true" />
+              Buscar nova data
+            </Link>
           )}
           <JaAtuei aviso={aviso} />
         </div>
