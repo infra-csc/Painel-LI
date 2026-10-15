@@ -216,6 +216,8 @@ export default function TicketModal({
     });
   };
 
+  // Um anexo só: o PDF do voucher vira comprovante E preenche os campos
+  // (pedido do dono, 28/08 — "não ter dois pra subir").
   const useSuggestion = () => {
     const patch = suggestionToFormPatch(suggestion, form);
     const keys = Object.keys(patch);

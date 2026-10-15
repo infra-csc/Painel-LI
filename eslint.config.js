@@ -10,7 +10,7 @@ import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "node_modules/**", "attached_assets/**", "scripts/tmp/**", "migrations/**"] },
+  { ignores: ["dist/**", "node_modules/**", ".local/**", "attached_assets/**", "scripts/tmp/**", "migrations/**"] },
   ...tseslint.configs.recommended,
   {
     files: ["**/*.{ts,tsx}"],

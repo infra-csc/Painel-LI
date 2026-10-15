@@ -1,12 +1,10 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { createServer as createViteServer, createLogger } from "vite";
+import { createServer as createViteServer } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
-
-const viteLogger = createLogger();
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -29,17 +27,9 @@ export async function setupVite(app: Express, server: Server) {
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
-    // 28/09: o logger antigo fazia `process.exit(1)` em QUALQUER erro. O Vite 8
-    // encaminha o console do navegador para este logger, então um
-    // `console.error` de um componente derrubava o servidor de desenvolvimento
-    // inteiro (aconteceu três vezes na conferência visual). Agora só registra;
-    // erro de configuração do próprio Vite já rejeita o `createViteServer`.
-    customLogger: {
-      ...viteLogger,
-      error: (msg, options) => {
-        viteLogger.error(msg, options);
-      },
-    },
+    // O logger padrão registra erros de compilação e mensagens encaminhadas
+    // pelo navegador sem encerrar a API. O antigo customLogger.error chamava
+    // process.exit(1) até em console.error do React, derrubando o workflow.
     server: serverOptions,
     appType: "custom",
   });

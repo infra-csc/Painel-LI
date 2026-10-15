@@ -4,3 +4,6 @@
 - [apiRequest error shape](apirequest-error-shape.md) — thrown Error now carries .status/.body/.response shim so onError toasts show the real server message, not a generic fallback.
 - [Maratona integration API](maratona-integration.md) — read-only /api/integration/* (Bearer token); externalId MUST stay the stable uuid PK; CPF/phone exposed on purpose per contract.
 - [Route authz identity source](route-authz-identity.md) — derive identity from req.session.userId ONLY on destructive/role-gated routes; the `|| req.body._userId` fallback (in older routes) is spoofable.
+- [Server changes need restart](server-changes-restart.md) — Vite HMR updates the client only; changes under server/ require restarting the application workflow before testing.
+- [Vite browser errors and workflow](vite-browser-errors.md) — client console errors reach Vite's server logger; never make its error logger exit the shared API process.
+- [Git pull recovery](git-pull-rebase-recovery.md) — UI Pull reattaches upstream; protect unpublished main with a local rebase guard and use fetch+merge until push is available.
