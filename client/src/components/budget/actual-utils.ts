@@ -19,10 +19,14 @@ export const TRAVEL_SOURCE_LABEL: Record<TravelSource, string> = {
   nenhum: "sem horário",
 };
 
-// Assinatura dos dados que dirigem a alimentação (dias ativos + horários).
+// Assinatura dos dados que dirigem a alimentação (dias ativos + horários e,
+// desde 15/10, as DATAS da chegada da ida e da partida da volta).
 // Enquanto ela não muda, a alimentação salva é mantida como está.
-export function alimSignature(dates: string[], chegadaIda: string, partidaVolta: string): string {
-  return `${[...dates].sort().join(",")}|${chegadaIda}|${partidaVolta}`;
+export function alimSignature(
+  dates: string[], chegadaIda: string, partidaVolta: string,
+  dataChegadaIda: string | null = null, dataPartidaVolta: string | null = null,
+): string {
+  return `${[...dates].sort().join(",")}|${chegadaIda}|${partidaVolta}|${dataChegadaIda ?? ""}|${dataPartidaVolta ?? ""}`;
 }
 
 // Reconstrói os valores de diária útil/fds a partir do subtotal gravado.

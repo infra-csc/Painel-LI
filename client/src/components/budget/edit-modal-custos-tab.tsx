@@ -141,7 +141,7 @@ function DiariasBlock(p: CustosTabProps) {
           )}
           {info.percurseiro && (
             <span className="w-full text-2xs text-muted-foreground tabular-nums">
-              Pacote por diária: motoqueiro {formatCurrency(info.percurseiro.motoqueiro)} + fee Ivan {formatCurrency(info.percurseiro.fee)} + alimentação {formatCurrency(info.percurseiro.alimentacao)} + transporte {formatCurrency(info.percurseiro.transporte)} + NF {formatCurrency(info.percurseiro.nf)} = <b>{formatCurrency(info.percurseiro.total)}</b> · {info.voa ? "2 diárias (em viagem — regra fixa)" : "1 diária (local)"} · alimentação e mobilidade incluídas no pacote
+              Pacote por diária: motoqueiro {formatCurrency(info.percurseiro.motoqueiro)} + fee Ivan {formatCurrency(info.percurseiro.fee)} + alimentação {formatCurrency(info.percurseiro.alimentacao)} + transporte {formatCurrency(info.percurseiro.transporte)} + NF {formatCurrency(info.percurseiro.nf)} = <b>{formatCurrency(info.percurseiro.total)}</b> · {diasDiariaModal} {diasDiariaModal === 1 ? "diária" : "diárias"} · pacote por dia trabalhado · alimentação e mobilidade incluídas no pacote
             </span>
           )}
         </div>
@@ -188,7 +188,7 @@ function DiariasBlock(p: CustosTabProps) {
               × {empreitaModal ? empreitaModal.dias : diasDiariaModal} {(empreitaModal ? empreitaModal.dias : diasDiariaModal) === 1 ? "dia" : "dias"}
               {info.regraDiaria === "fds" && " (só fins de semana)"}
               {info.regraDiaria === "nenhuma" && " (cenotécnica CLT: sem diária)"}
-              {info.isPercurso && (info.voa ? " (percurso em viagem — regra fixa de 2 diárias)" : " (percurso local — regra fixa de 1 diária)")}
+              {info.isPercurso && " (percurso — pacote por dia trabalhado)"}
             </span>
             {empreitaModal && (
               <span

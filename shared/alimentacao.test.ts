@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcAlimentacao, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "./alimentacao";
+import { calcAlimentacao, dataDeChegadaDaIda, isCenotecnicaFunction, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "./alimentacao";
 
 const base = { almocoCents: 4000, jantarCents: 4000 };
 const dias3 = ["2026-08-28", "2026-08-29", "2026-08-30"];
@@ -106,6 +106,93 @@ describe("sem horário da passagem → dia cheio + estimado", () => {
     const r = calcAlimentacao({ workDays: dias3, voa: true, ...base });
     expect(r.totalCents).toBe(3 * 8000);
     expect(r.estimado).toBe(true);
+  });
+});
+
+describe("datas da viagem (15/10 — volta no dia seguinte não corta o último dia)", () => {
+  // Caso real: Everson, Night Run Teresina, escala qua 07/10 → dom 11/10/2026
+  const everson = ["2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"];
+
+  it("Everson: volta 12/10 03:45 (madrugada de segunda) → domingo 11/10 cheio, nada no dia 12", () => {
+    const r = calcAlimentacao({
+      workDays: everson, voa: true, ...base,
+      chegadaIda: "10:00", dataChegadaIda: "2026-10-07",
+      partidaVolta: "03:45", dataPartidaVolta: "2026-10-12",
+    });
+    expect(r.dias).toHaveLength(5); // o dia 12 não é dia trabalhado: não entra
+    expect(r.dias[4]).toMatchObject({ date: "2026-10-11", papel: "retorno", almoco: true, jantar: true });
+    expect(r.almocos).toBe(5);
+    expect(r.jantares).toBe(5);
+    expect(r.estimado).toBe(false);
+  });
+
+  it("o MESMO caso sem as datas (comportamento antigo, compatível): 03:45 tira o almoço e o jantar do domingo", () => {
+    const r = calcAlimentacao({ workDays: everson, voa: true, ...base, chegadaIda: "10:00", partidaVolta: "03:45" });
+    expect(r.dias[4]).toMatchObject({ almoco: false, jantar: false });
+  });
+
+  it("volta na MESMA data do último dia às 18:55 → só almoço (regra de horário)", () => {
+    const r = calcAlimentacao({
+      workDays: everson, voa: true, ...base,
+      chegadaIda: "10:00", dataChegadaIda: "2026-10-07",
+      partidaVolta: "18:55", dataPartidaVolta: "2026-10-11",
+    });
+    expect(r.dias[4]).toMatchObject({ almoco: true, jantar: false });
+  });
+
+  it("sai 06/10 23:35 e chega 02:35 → chega no 1º dia (07/10): almoço + jantar pela regra de horário", () => {
+    const dataChegadaIda = dataDeChegadaDaIda("2026-10-06", "23:35", "02:35");
+    expect(dataChegadaIda).toBe("2026-10-07");
+    const r = calcAlimentacao({
+      workDays: everson, voa: true, ...base,
+      chegadaIda: "02:35", dataChegadaIda, partidaVolta: "22:00", dataPartidaVolta: "2026-10-11",
+    });
+    expect(r.dias[0]).toMatchObject({ papel: "chegada", almoco: true, jantar: true });
+  });
+
+  it("chegada numa data ANTES do 1º dia (06/10 22:30) → 1º dia cheio (sem a data, 22:30 tiraria as duas)", () => {
+    const comData = calcAlimentacao({
+      workDays: everson, voa: true, ...base,
+      chegadaIda: "22:30", dataChegadaIda: dataDeChegadaDaIda("2026-10-06", "20:00", "22:30"),
+      partidaVolta: "22:00",
+    });
+    expect(comData.dias[0]).toMatchObject({ almoco: true, jantar: true });
+    const semData = calcAlimentacao({ workDays: everson, voa: true, ...base, chegadaIda: "22:30", partidaVolta: "22:00" });
+    expect(semData.dias[0]).toMatchObject({ almoco: false, jantar: false });
+  });
+
+  it("data estranha (chegada DEPOIS do 1º dia / volta ANTES do último) → mantém a regra de horário, não inventa", () => {
+    const r = calcAlimentacao({
+      workDays: everson, voa: true, ...base,
+      chegadaIda: "15:00", dataChegadaIda: "2026-10-08",
+      partidaVolta: "08:00", dataPartidaVolta: "2026-10-10",
+    });
+    expect(r.dias[0]).toMatchObject({ almoco: false, jantar: true });
+    expect(r.dias[4]).toMatchObject({ almoco: false, jantar: false });
+  });
+
+  it("volta no dia seguinte resolve o último dia mesmo SEM horário (não fica 'estimado')", () => {
+    const r = calcAlimentacao({
+      workDays: everson, voa: true, ...base,
+      chegadaIda: "10:00", dataChegadaIda: "2026-10-07", dataPartidaVolta: "2026-10-12",
+    });
+    expect(r.dias[4]).toMatchObject({ almoco: true, jantar: true });
+    expect(r.estimado).toBe(false);
+  });
+
+  it("viagem de 1 dia: chegou na véspera e volta no dia seguinte → dia cheio", () => {
+    const r = calcAlimentacao({
+      workDays: ["2026-10-10"], voa: true, ...base,
+      chegadaIda: "02:35", dataChegadaIda: "2026-10-09", partidaVolta: "03:45", dataPartidaVolta: "2026-10-11",
+    });
+    expect(r.dias[0]).toMatchObject({ papel: "unico", almoco: true, jantar: true });
+  });
+
+  it("dataDeChegadaDaIda: sem cruzar a meia-noite fica na data da partida; aceita timestamp; sem data → null", () => {
+    expect(dataDeChegadaDaIda("2026-10-07", "06:50", "10:00")).toBe("2026-10-07");
+    expect(dataDeChegadaDaIda("2026-10-31T00:00:00.000Z", "23:00", "01:10")).toBe("2026-11-01");
+    expect(dataDeChegadaDaIda("2026-10-07", null, "10:00")).toBe("2026-10-07");
+    expect(dataDeChegadaDaIda(null, "23:35", "02:35")).toBeNull();
   });
 });
 

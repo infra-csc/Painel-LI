@@ -142,7 +142,7 @@ export function SecaoQuemRecebe({ r }: { r: RegrasVigentes }) {
       celulas: [
         <span key="r"><span className="block">Percurseiro</span><span className="block text-2xs font-normal text-muted-foreground">função de percurso (motoqueiro)</span></span>,
         <Celula key="d" marca="parcial">Pacote fixo por tipo</Celula>,
-        <Celula key="c" marca="parcial">2 em viagem · 1 sem passagem</Celula>,
+        <Celula key="c" marca="sim">Dias trabalhados</Celula>,
         <Celula key="f" marca="nao">Não</Celula>,
         <Celula key="a" marca="nao">Dentro do pacote</Celula>,
         <Celula key="m" marca="nao">Dentro do pacote</Celula>,

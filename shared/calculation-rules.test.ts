@@ -68,15 +68,23 @@ describe("tabela do percurseiro", () => {
     expect(r.total).toBe(80000 + 8000 + 10200 + 5000 + 20000);
   });
 
-  it("diárias: em viagem sempre 2, local 1; isPercursoFunction", () => {
-    expect(diasPercurseiro(true)).toBe(2);
-    expect(diasPercurseiro(false)).toBe(1);
+  it("diárias: uma por dia trabalhado (regra mudou em 15/10 — antes viagem 2 / local 1); isPercursoFunction", () => {
+    expect(diasPercurseiro({ workDays: ["2026-10-10"] })).toBe(1);
+    expect(diasPercurseiro({ scheduleStartDate: "2026-10-09", scheduleEndDate: "2026-10-11" })).toBe(3);
+    expect(diasPercurseiro({ workDays: ["2026-10-09", "2026-10-11"], scheduleStartDate: "2026-10-09", scheduleEndDate: "2026-10-11" })).toBe(2);
+    expect(diasPercurseiro({ dailyRates: 4 })).toBe(4);
+    // sem nenhum dia informado conta 1 (não zera o custo da vaga)
     expect(diasPercurseiro(null)).toBe(1);
+    expect(diasPercurseiro({})).toBe(1);
     expect(isPercursoFunction("Percurso")).toBe(true);
     expect(isPercursoFunction("percurseiro")).toBe(true);
     expect(isPercursoFunction("Produção")).toBe(false);
-    // Exemplo do usuário: David Oliveira, percurso freela com passagem, tipo 1
-    expect(diasPercurseiro(true) * percurseiroDiariaCents("tipo_1", {})!.total).toBe(225952);
+    // Exemplo do usuário: David Oliveira, percurso freela com passagem, tipo 1.
+    // Regra mudou em 15/10: os R$ 2.259,52 (2 diárias fixas em viagem) só
+    // continuam valendo se ele trabalhou 2 dias; com 1 dia, 1 diária.
+    expect(diasPercurseiro({ scheduleStartDate: "2026-10-10", scheduleEndDate: "2026-10-11" }) * percurseiroDiariaCents("tipo_1", {})!.total).toBe(225952);
+    // Alex (Night Run Teresina, escala só 10/10, com passagem): 1 × 1.129,76
+    expect(diasPercurseiro({ scheduleStartDate: "2026-10-10", scheduleEndDate: "2026-10-10" }) * percurseiroDiariaCents("tipo_1", {})!.total).toBe(112976);
   });
 });
 
@@ -252,9 +260,9 @@ describe("isFuncaoLocal (função local = só diária)", () => {
   it("'percurso local' continua sendo percurso (pacote fechado)", () => {
     expect(isPercursoFunction("percurso local")).toBe(true);
     expect(isFuncaoLocal("percurso local")).toBe(true);
-    // A contagem fixa do percurseiro (local = 1 diária) não muda
-    expect(diasPercurseiro(false)).toBe(1);
-    expect(diasPercurseiro(true)).toBe(2);
+    // Regra mudou em 15/10: a contagem é por dia trabalhado, local ou em viagem
+    expect(diasPercurseiro({ workDays: ["2026-10-10"] })).toBe(1);
+    expect(diasPercurseiro({ workDays: ["2026-10-10", "2026-10-11"] })).toBe(2);
   });
 });
 

@@ -56,7 +56,7 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
         {totalDias} {totalDias === 1 ? "dia" : "dias"}
         {budget.regraDiaria === "fds" && ` · diária em ${budget.diasComDiaria} (só fins de semana — CLT)`}
         {budget.regraDiaria === "nenhuma" && ` · sem diária (cenotécnica CLT)`}
-        {budget.isPercurso && ` · ${budget.diasComDiaria} ${budget.diasComDiaria === 1 ? "diária" : "diárias"} (percurso ${budget.inclusion.needsTicket ? "em viagem — regra fixa" : "local — regra fixa"}, pacote fechado)`}
+        {budget.isPercurso && ` · ${budget.diasComDiaria} ${budget.diasComDiaria === 1 ? "diária" : "diárias"} · pacote por dia trabalhado (percurso, pacote fechado)`}
         {budget.cenoEmpreita && ` · empreita ${CENO_FREELA_TIPO_LABELS[budget.cenoEmpreita.tipo]} — valor fechado por ${budget.cenoEmpreita.dias} ${budget.cenoEmpreita.dias === 1 ? "dia" : "dias"}`}
         {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && ` · ${ddmm(budget.inclusion.scheduleStartDate)} → ${ddmm(budget.inclusion.scheduleEndDate)}`}
       </div>

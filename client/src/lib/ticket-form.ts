@@ -9,7 +9,7 @@
 // batiam com o que era validado).
 import { parseBrNumber } from "@/lib/utils";
 import { mobilidadeTrechoCents, isEventoEmSP, parseHoraMin, MOBILIDADE_TRECHO_MADRUGADA_CENTS } from "@shared/atendimento";
-import { calcAlimentacao, type AlimentacaoDia } from "@shared/alimentacao";
+import { calcAlimentacao, dataDeChegadaDaIda, type AlimentacaoDia } from "@shared/alimentacao";
 import { errosDeDataDaPassagem } from "@shared/janela-de-viagem";
 
 export type TransportType = "aereo" | "rodoviario" | "van";
@@ -564,19 +564,33 @@ export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: Plan
   const almocoCents = ctx.almocoCents ?? 4000;
   const jantarCents = ctx.jantarCents ?? 4000;
 
-  // Flags do 1º/último dia: dois dias sintéticos bastam para ler a regra real.
+  // DATAS (15/10): a volta numa data DEPOIS do último dia da escala (ex.:
+  // madrugada de segunda) deixa o último dia cheio; a chegada numa data ANTES
+  // do 1º dia deixa o 1º dia cheio. A chegada cruza a meia-noite quando o
+  // horário de chegada é menor que o de partida (dataDeChegadaDaIda).
+  const dataChegada = dataDeChegadaDaIda(dateOnly(form.actualDepartureDate), depTime, arrTime);
+  const dataVolta = oneWay ? null : dateOnly(form.actualReturnDate);
+  const dias = ctx.workDays && ctx.workDays.length > 0 ? [...ctx.workDays].sort() : null;
+  const chegouAntes = !!dias && !!dataChegada && dataChegada < dias[0];
+  const voltaDepois = !!dias && !!dataVolta && dataVolta > dias[dias.length - 1];
+
+  // Flags do 1º/último dia: dois dias sintéticos bastam para ler a regra real
+  // (as datas sintéticas só dizem "antes do 1º" / "depois do último").
   const flags = calcAlimentacao({
-    workDays: ["0001-01-01", "0001-01-02"], voa: true,
+    workDays: ["0001-01-02", "0001-01-03"], voa: true,
     chegadaIda: arrTime, partidaVolta: retTime, almocoCents, jantarCents,
+    dataChegadaIda: chegouAntes ? "0001-01-01" : null,
+    dataPartidaVolta: voltaDepois ? "0001-01-04" : null,
   });
   const chegada = arrTime ? dayMeals(flags.dias[0]) : null;
   const retorno = retTime ? dayMeals(flags.dias[1]) : null;
 
   let periodo: PlannedImpact["alimentacao"]["periodo"] = null;
-  if (ctx.workDays && ctx.workDays.length > 0) {
+  if (dias) {
     const r = calcAlimentacao({
-      workDays: ctx.workDays, voa: true,
+      workDays: dias, voa: true,
       chegadaIda: arrTime, partidaVolta: retTime, almocoCents, jantarCents,
+      dataChegadaIda: dataChegada, dataPartidaVolta: dataVolta,
     });
     periodo = { dias: r.dias.length, almocos: r.almocos, jantares: r.jantares, totalCents: r.totalCents, estimado: r.estimado };
   }

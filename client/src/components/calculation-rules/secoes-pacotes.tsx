@@ -98,7 +98,7 @@ export function SecaoPercurseiro({ r }: { r: RegrasVigentes }) {
       grupo="Pacotes fechados"
       titulo="Percurseiro"
       fonte="editavel"
-      lede="Motoqueiros: pacote fixo por tipo, sempre com emissão de NF. Em viagem (com passagem) são sempre 2 diárias, independente do período; sem passagem, 1 diária."
+      lede="Motoqueiros: pacote fixo por tipo, sempre com emissão de NF. Uma diária do pacote por dia trabalhado (os dias da escala), em viagem ou local — regra de 15/10, que substituiu as 2 diárias fixas em viagem."
     >
       <Tabela
         legenda="Composição da diária do percurseiro"
@@ -107,7 +107,7 @@ export function SecaoPercurseiro({ r }: { r: RegrasVigentes }) {
         linhas={[
           ...linhas.map(l => ({ chave: l.label, celulas: [l.label, ...tipos.map(t => <Valor key={t.label} cents={l.get(t.d)} />)] })),
           { tipo: "total" as const, chave: "total", celulas: ["Total por diária", ...tipos.map(t => <Valor key={t.label} cents={t.d.total} forte />)] },
-          { tipo: "total-forte" as const, chave: "viagem", celulas: ["Em viagem (2 diárias)", ...tipos.map(t => <Valor key={t.label} cents={t.d.total * 2} forte />)] },
+          { tipo: "total-forte" as const, chave: "viagem", celulas: ["Exemplo: 2 dias trabalhados", ...tipos.map(t => <Valor key={t.label} cents={t.d.total * 2} forte />)] },
         ]}
       />
       {t1 && (
@@ -118,6 +118,7 @@ export function SecaoPercurseiro({ r }: { r: RegrasVigentes }) {
       <Regras
         itens={[
           { chave: "tipo", titulo: "Tipo", texto: "escolhido na Escalação; sem tipo, conta o Tipo 1." },
+          { chave: "dias", titulo: "Quantidade", texto: "uma diária por dia trabalhado na escala, com ou sem passagem (vaga sem dias informados conta 1)." },
           { chave: "defl", titulo: "Deflação", texto: "não se aplica — é pacote fechado." },
           { chave: "dentro", titulo: "Alimentação e mobilidade", texto: "já estão dentro do pacote e não entram de novo no Planejado." },
         ]}

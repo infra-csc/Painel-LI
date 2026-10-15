@@ -38,7 +38,7 @@ import {
   isTransporteTerrestre,
   type AtendimentoTipo,
 } from "./atendimento";
-import { calcAlimentacao, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction } from "./alimentacao";
+import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction } from "./alimentacao";
 import { cenoEmpreitaTotalCents, usaEmpreitaCenotecnica, vagaComEmpreita, type CenoFreelaTipo, type CenoEmpreitaValor } from "./cenotecnica-empreita";
 import { listarDiasDeTrabalho } from "./dias-de-trabalho";
 
@@ -61,10 +61,15 @@ export interface VagaParaPlanejado {
   flightDepartureSuggestedTime?: string | null;
   flightArrivalSuggestedTime?: string | null;
   flightReturnSuggestedTime?: string | null;
+  /** Datas sugeridas de ida/volta (YYYY-MM-DD) — situam os horários na escala (alimentação). */
+  flightDepartureDate?: string | null;
+  flightReturnDate?: string | null;
 }
 
 /** Passagem registrada da vaga — os horários REAIS mandam sobre os sugeridos. */
 export interface PassagemParaPlanejado {
+  actualDepartureDate?: string | null;
+  actualReturnDate?: string | null;
   actualDepartureTime?: string | null;
   actualArrivalTime?: string | null;
   actualReturnTime?: string | null;
@@ -113,7 +118,7 @@ export interface ResultadoDoPlanejado {
   qtdDiarias: number;
   weekdays: number;
   weekends: number;
-  /** Dias que recebem diária (casa: só fds; percurso: 2 ou 1). */
+  /** Dias que recebem diária (casa: só fds; percurso: um por dia trabalhado — regra 15/10). */
   diasComDiaria: number;
   regraDiaria: RegraDiaria;
   valorDiaria: number;
@@ -246,7 +251,7 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   // Quantos dias recebem diária
   const regraDiaria: RegraDiaria = isPercurso ? "todos" : regraDiariaPorTipo(collabType, fnName);
   const diasComDiaria = isPercurso
-    ? diasPercurseiro(inclusion.needsTicket)
+    ? diasPercurseiro(inclusion)
     : calcDiasComDiaria(collabType, weekdays, weekends, fnName);
 
   // Empreita cenotécnica: valor fechado por nº de dias trabalhados
@@ -312,9 +317,16 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   const { almocoCents, jantarCents } = refeicaoCents(perfil, ss);
   const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: collabType, isWeekend: false });
   const refFds = refeicaoCentsDia(perfil, ss, { tipoColaborador: collabType, isWeekend: true });
+  // Datas da viagem (15/10): mesma precedência dos horários — passagem, senão
+  // a sugerida na escalação. Volta no dia SEGUINTE ao último dia da escala
+  // (ex.: madrugada de segunda) não corta as refeições do último dia.
+  const dataPartidaIda = ticket?.actualDepartureDate || inclusion.flightDepartureDate || null;
+  const dataPartidaVolta = ticket?.actualReturnDate || inclusion.flightReturnDate || null;
   const alim = calcAlimentacao({
     workDays: semMobilidade ? [] : diasPeriodo, voa,
     chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
+    dataChegadaIda: dataDeChegadaDaIda(dataPartidaIda, vooPartidaIda, vooChegadaIda),
+    dataPartidaVolta,
     almocoCents, jantarCents,
     terrestre,
   });
