@@ -4,9 +4,16 @@
  *
  * Aqui só se MONTAM os dados do documento — puro, testável, sem gerar o
  * binário (o PDF é desenhado no navegador a partir deste resultado). Um
- * documento por hotel; quartos sem hotel definido ficam de fora (a tela avisa).
+ * documento por hotel — ou, desde 15/10 (dono: "aqui não necessariamente
+ * precisa definir o hotel"), um documento com os quartos SEM hotel definido:
+ * cabeçalho do evento e "Hotel: a definir" (ou o nome digitado só para o PDF).
  * O tipo de cada quarto vem da ocupação noite a noite: um quarto pode ser
  * Single até o colega chegar e Duplo depois.
+ *
+ * Hotel do evento (15/10, dono: "todos ficam no mesmo hotel por evento"): não
+ * há coluna própria — é o hotel comum aos quartos (`hotelDoEvento`). Aplicá-lo
+ * a todos segue `planoDoHotelDoEvento`: quarto confirmado fica como está, e
+ * quarto em OUTRO hotel (exceção feita à mão) só muda se a pessoa pedir.
  */
 import { diariasDosTrechos, ocupacaoPorNoite, rotuloDoTipo, type TipoDoTrecho } from "./ocupacao-por-noite";
 
@@ -28,7 +35,13 @@ export interface QuartoDaRoomingList {
 }
 
 export interface EntradaDaRoomingList {
-  hotel: string;
+  /** Hotel escolhido; `null` = os quartos SEM hotel definido. */
+  hotel: string | null;
+  /**
+   * Só com `hotel: null`: nome digitado no diálogo para o cabeçalho deste
+   * arquivo (não grava nos quartos). Vazio → "a definir".
+   */
+  nomeDoHotelNoPdf?: string | null;
   evento: { nome: string; local: string | null; inicio: string | null; fim: string | null };
   quartos: QuartoDaRoomingList[];
   incluirCpf: boolean;
@@ -47,7 +60,10 @@ export interface LinhaDaRoomingList {
 
 export interface RoomingList {
   titulo: string;
+  /** Nome do hotel; sem hotel definido, o digitado para o PDF ou "a definir". */
   hotel: string;
+  /** Falso quando o documento é dos quartos sem hotel: o cabeçalho passa a ser o evento. */
+  hotelDefinido: boolean;
   evento: string;
   cidade: string | null;
   /** Período do evento, por extenso curto ("14/11/2026 a 15/11/2026"). */
@@ -88,6 +104,12 @@ const periodo = (de: string | null | undefined, ate: string | null | undefined):
 /** Mesma comparação de nome de hotel da tela: sem caixa e sem espaço sobrando. */
 export const chaveDoHotel = (nome: string | null | undefined): string => String(nome ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
 
+/** Nome como deve ser gravado e mostrado: sem espaço sobrando. */
+export const nomeDeHotelLimpo = (nome: string | null | undefined): string => String(nome ?? "").trim().replace(/\s+/g, " ");
+
+/** Linha do hotel quando o documento é dos quartos sem hotel e ninguém digitou um nome. */
+export const HOTEL_A_DEFINIR = "a definir";
+
 /** Hotéis com quartos (nome como foi escrito na primeira vez) e quantos quartos não têm hotel. */
 export function hoteisDosQuartos(quartos: readonly { hotelName: string | null | undefined }[]): { hoteis: { nome: string; quartos: number }[]; semHotel: number } {
   const porChave = new Map<string, { nome: string; quartos: number }>();
@@ -97,9 +119,70 @@ export function hoteisDosQuartos(quartos: readonly { hotelName: string | null | 
     if (!chave) { semHotel += 1; continue; }
     const atual = porChave.get(chave);
     if (atual) atual.quartos += 1;
-    else porChave.set(chave, { nome: String(q.hotelName).trim().replace(/\s+/g, " "), quartos: 1 });
+    else porChave.set(chave, { nome: nomeDeHotelLimpo(q.hotelName), quartos: 1 });
   }
   return { hoteis: Array.from(porChave.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")), semHotel };
+}
+
+/**
+ * O hotel do evento: o que tem MAIS quartos (empate → ordem alfabética, para
+ * ser estável). Nenhum quarto com hotel → null.
+ */
+export function hotelDoEvento(quartos: readonly { hotelName: string | null | undefined }[]): string | null {
+  let melhor: { nome: string; quartos: number } | null = null;
+  for (const h of hoteisDosQuartos(quartos).hoteis) if (!melhor || h.quartos > melhor.quartos) melhor = h;
+  return melhor?.nome ?? null;
+}
+
+export interface QuartoParaOHotelDoEvento {
+  id: string;
+  hotelName: string | null | undefined;
+  confirmed: boolean | null | undefined;
+}
+
+export interface PlanoDoHotelDoEvento {
+  /** Nome que será gravado (limpo). */
+  hotel: string;
+  /** Quartos que passam a ter o hotel. */
+  aplicar: string[];
+  /** Já estavam nele — nada a fazer. */
+  jaNoHotel: number;
+  /** Confirmados com outro hotel (ou sem): ficam como estavam. */
+  confirmadosMantidos: number;
+  /** Quartos abertos em OUTRO hotel (exceção feita à mão) — só mudam com `trocarOutros`. */
+  emOutroHotel: { id: string; hotel: string }[];
+  /** Dos `emOutroHotel`, os que ficaram como estavam. */
+  outrosMantidos: number;
+}
+
+/**
+ * O que "aplicar o hotel do evento" faz em cada quarto:
+ *  - já está no hotel (qualquer grafia) → nada;
+ *  - confirmado → fica como está (entra no aviso "N confirmados…");
+ *  - sem hotel, ou no hotel do evento ATUAL (trocar o hotel do evento leva
+ *    junto quem o seguia) → recebe o novo;
+ *  - em OUTRO hotel → exceção feita à mão: só troca com `trocarOutros`.
+ */
+export function planoDoHotelDoEvento(
+  quartos: readonly QuartoParaOHotelDoEvento[],
+  novo: string,
+  opcoes: { trocarOutros?: boolean } = {},
+): PlanoDoHotelDoEvento {
+  const hotel = nomeDeHotelLimpo(novo);
+  const chaveNova = chaveDoHotel(hotel);
+  const chaveAtual = chaveDoHotel(hotelDoEvento(quartos));
+  const plano: PlanoDoHotelDoEvento = { hotel, aplicar: [], jaNoHotel: 0, confirmadosMantidos: 0, emOutroHotel: [], outrosMantidos: 0 };
+  if (!chaveNova) return plano;
+  for (const q of quartos) {
+    const chave = chaveDoHotel(q.hotelName);
+    if (chave === chaveNova) { plano.jaNoHotel += 1; continue; }
+    if (q.confirmed) { plano.confirmadosMantidos += 1; continue; }
+    if (!chave || chave === chaveAtual) { plano.aplicar.push(q.id); continue; }
+    plano.emOutroHotel.push({ id: q.id, hotel: nomeDeHotelLimpo(q.hotelName) });
+    if (opcoes.trocarOutros) plano.aplicar.push(q.id);
+    else plano.outrosMantidos += 1;
+  }
+  return plano;
 }
 
 /** CPF com máscara (só 11 dígitos; outro formato não é CPF e não sai). */
@@ -117,15 +200,17 @@ export function dataHoraDeSaoPaulo(d: Date): string {
   return `${p("day")}/${p("month")}/${p("year")} ${p("hour") === "24" ? "00" : p("hour")}:${p("minute")}`;
 }
 
-/** Nome de arquivo seguro em qualquer sistema. */
-export function nomeDoArquivoDaRoomingList(hotel: string, evento: string): string {
+/** Nome de arquivo seguro em qualquer sistema. Sem hotel definido (`null`): só o evento. */
+export function nomeDoArquivoDaRoomingList(hotel: string | null, evento: string): string {
   const limpo = (s: string) => s.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
-  return `Rooming list - ${limpo(hotel)} - ${limpo(evento)}.pdf`;
+  return hotel ? `Rooming list - ${limpo(hotel)} - ${limpo(evento)}.pdf` : `Rooming list - ${limpo(evento)}.pdf`;
 }
 
 export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
+  const semHotel = e.hotel === null;
   const chave = chaveDoHotel(e.hotel);
-  const doHotel = e.quartos.filter((q) => chave && chaveDoHotel(q.hotelName) === chave && q.hospedes.length > 0);
+  const doHotel = e.quartos.filter((q) => q.hospedes.length > 0
+    && (semHotel ? !chaveDoHotel(q.hotelName) : !!chave && chaveDoHotel(q.hotelName) === chave));
 
   const quartosPorTipo = new Map<TipoDoTrecho, number>();
   const diariasPorTipo = new Map<TipoDoTrecho, number>();
@@ -162,10 +247,13 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
   });
 
   const lista = (m: Map<TipoDoTrecho, number>) => ORDEM.filter((t) => m.get(t)).map((t) => ({ tipo: rotuloDoTipo(t), quantidade: m.get(t) as number }));
-  const hotel = doHotel[0]?.hotelName ? String(doHotel[0].hotelName).trim().replace(/\s+/g, " ") : e.hotel.trim();
+  const hotel = semHotel
+    ? nomeDeHotelLimpo(e.nomeDoHotelNoPdf) || HOTEL_A_DEFINIR
+    : nomeDeHotelLimpo(doHotel[0]?.hotelName) || nomeDeHotelLimpo(e.hotel);
   return {
     titulo: "Rooming list",
     hotel,
+    hotelDefinido: !semHotel,
     evento: e.evento.nome,
     cidade: e.evento.local,
     periodoDoEvento: periodo(e.evento.inicio, e.evento.fim),
@@ -179,6 +267,8 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
     incluiCpf: e.incluirCpf,
     geradoEm: dataHoraDeSaoPaulo(e.geradoEm),
     contato: e.contato.email ? `${e.contato.nome} · ${e.contato.email}` : e.contato.nome,
-    nomeDoArquivo: nomeDoArquivoDaRoomingList(hotel, e.evento.nome),
+    // Sem hotel definido o arquivo leva só o evento — o nome digitado no
+    // diálogo vale para o cabeçalho, não para o arquivo.
+    nomeDoArquivo: nomeDoArquivoDaRoomingList(semHotel ? null : hotel, e.evento.nome),
   };
 }

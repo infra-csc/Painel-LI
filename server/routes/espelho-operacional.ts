@@ -22,7 +22,7 @@ import {
   type InsertUberGroup,
   type InsertLogisticsExtraCost,
 } from "@shared/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { isValidHhmm } from "@shared/scaling-validation-rules";
 import { assertEventEditable, assertInclusionEventEditable } from "../event-guard";
 import {
@@ -35,7 +35,7 @@ import {
   horariosCalculadosDosCarros,
 } from "../operational-mirror";
 import { tipoPorOcupantes } from "@shared/room-pairing";
-import { chaveDoHotel } from "@shared/rooming-list";
+import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, planoDoHotelDoEvento } from "@shared/rooming-list";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
 import { createAuditLog, upload, requireRoles, LOGISTICA_ROLES, TODOS_OS_PAPEIS } from "./_compartilhado";
 
@@ -178,16 +178,22 @@ export function registrarEspelhoOperacional(app: Express): void {
     const ator = await requireRoles(req, res, TODOS_OS_PAPEIS);
     if (!ator) return;
     try {
-      const hotel = typeof req.body?.hotel === "string" ? req.body.hotel.trim() : "";
+      // `semHotel: true` (15/10): o documento dos quartos SEM hotel definido —
+      // o dono não quer ser obrigado a definir o hotel para gerar o PDF.
+      const semHotel = req.body?.semHotel === true;
+      const hotel = !semHotel && typeof req.body?.hotel === "string" ? req.body.hotel.trim() : "";
+      const nomeNoPdf = semHotel && typeof req.body?.nomeDoHotelNoPdf === "string" ? nomeDeHotelLimpo(req.body.nomeDoHotelNoPdf).slice(0, 120) : "";
       const incluirCpf = req.body?.incluirCpf === true;
-      if (!hotel) return res.status(400).json({ message: "Escolha o hotel." });
+      if (!hotel && !semHotel) return res.status(400).json({ message: "Escolha o hotel." });
       if (incluirCpf && !hasRoleIn(ator.role, ROLE_GROUPS.dadosPessoais)) {
         return res.status(403).json({ message: "Seu perfil não vê CPF de colaboradores — exporte sem CPF." });
       }
       const chave = chaveDoHotel(hotel);
       const grupos = (await db.select().from(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.eventId, req.params.eventId)))
         .filter((g) => chaveDoHotel(g.hotelName) === chave);
-      if (!grupos.length) return res.status(404).json({ message: "Nenhum quarto deste evento está neste hotel." });
+      if (!grupos.length) {
+        return res.status(404).json({ message: semHotel ? "Todos os quartos deste evento já têm hotel." : "Nenhum quarto deste evento está neste hotel." });
+      }
       const membros = await db.select().from(hotelRoomGroupMembersTable)
         .where(inArray(hotelRoomGroupMembersTable.hotelRoomGroupId, grupos.map((g) => g.id)));
       const ids = Array.from(new Set(membros.map((m) => m.collaboratorId).filter((x): x is string => !!x)));
@@ -207,7 +213,9 @@ export function registrarEspelhoOperacional(app: Express): void {
         }
       }
       await createAuditLog("export", "operational_mirror", req.params.eventId, {
-        eventId: req.params.eventId, acao: "rooming list (PDF)", hotel, quartos: grupos.length, hospedes: ids.length, incluiuCpf: incluirCpf,
+        eventId: req.params.eventId, acao: "rooming list (PDF)",
+        hotel: semHotel ? null : hotel, ...(semHotel ? { semHotelDefinido: true, nomeNoPdf: nomeNoPdf || null } : {}),
+        quartos: grupos.length, hospedes: ids.length, incluiuCpf: incluirCpf,
       }, ator.id, ator.name, undefined, req);
       res.set("Cache-Control", "no-store");
       res.json({ cpfs });
@@ -216,6 +224,65 @@ export function registrarEspelhoOperacional(app: Express): void {
       res.status(500).json({ message: "Não foi possível preparar a rooming list." });
     }
   });
+
+  /**
+   * PATCH /api/events/:eventId/operational-mirror/hotel — "Hotel do evento"
+   * (15/10, dono: "todos ficam no mesmo hotel por evento"). Grava o hotel em
+   * todos os quartos do evento numa transação, pela regra de
+   * `planoDoHotelDoEvento` (shared/rooming-list.ts): confirmado fica como
+   * está; quarto em OUTRO hotel (exceção feita à mão) só troca com
+   * `trocarOutros: true`. Mesma permissão e trava de evento encerrado da
+   * edição de hotel de um quarto; uma linha de auditoria com o que mudou.
+   */
+  app.patch("/api/events/:eventId/operational-mirror/hotel", async (req, res) => {
+    const ator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ator) return;
+    try {
+      const hotel = typeof req.body?.hotelName === "string" ? nomeDeHotelLimpo(req.body.hotelName) : "";
+      if (!hotel) return res.status(400).json({ message: "Escreva o nome do hotel." });
+      if (hotel.length > 120) return res.status(400).json({ message: "Nome do hotel muito longo (máximo 120 caracteres)." });
+      const trocarOutros = req.body?.trocarOutros === true;
+      const { eventId } = req.params;
+      if (!await assertEventEditable(eventId, ator, res)) return;
+
+      const resultado = await db.transaction(async (tx) => {
+        // Mesmo lock do "Refazer sugestões": aplicar o hotel no meio de um
+        // recálculo gravaria em quartos que estão sendo apagados.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"mirror:" + eventId}))`);
+        const quartos = await tx.select({ id: hotelRoomGroupsTable.id, hotelName: hotelRoomGroupsTable.hotelName, confirmed: hotelRoomGroupsTable.confirmed })
+          .from(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.eventId, eventId));
+        const anterior = hotelDoEvento(quartos);
+        const plano = planoDoHotelDoEvento(quartos, hotel, { trocarOutros });
+        if (plano.aplicar.length) {
+          await tx.update(hotelRoomGroupsTable)
+            .set({ hotelName: plano.hotel, updatedAt: new Date() })
+            .where(and(eq(hotelRoomGroupsTable.eventId, eventId), eq(hotelRoomGroupsTable.confirmed, false), inArray(hotelRoomGroupsTable.id, plano.aplicar)));
+        }
+        return { anterior, plano, total: quartos.length };
+      });
+      const { plano } = resultado;
+      await createAuditLog("update", "hotel_room_group", eventId, {
+        eventId, acao: "hotel do evento", hotel: plano.hotel, hotelAnterior: resultado.anterior,
+        aplicados: plano.aplicar.length, confirmadosMantidos: plano.confirmadosMantidos,
+        emOutroHotel: plano.emOutroHotel.length, outrosMantidos: plano.outrosMantidos, trocarOutros,
+      }, ator.id, ator.name, undefined, req);
+      res.json({
+        hotel: plano.hotel,
+        aplicados: plano.aplicar.length,
+        jaNoHotel: plano.jaNoHotel,
+        confirmadosMantidos: plano.confirmadosMantidos,
+        outrosMantidos: plano.outrosMantidos,
+        totalDeQuartos: resultado.total,
+      });
+    } catch (error) {
+      console.error("erro ao aplicar o hotel do evento:", error);
+      res.status(500).json({ message: "Não foi possível aplicar o hotel aos quartos." });
+    }
+  });
+
+  /** Hotel do evento lido do banco — para quarto novo nascer nele (Mover para quarto novo). */
+  const hotelDoEventoNoBanco = async (eventId: string) =>
+    hotelDoEvento(await db.select({ hotelName: hotelRoomGroupsTable.hotelName }).from(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.eventId, eventId)));
 
   const grupoDeQuarto = async (id: string) => (await db.select().from(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.id, id)))[0];
   const grupoDeUber = async (id: string) => (await db.select().from(uberGroupsTable).where(eq(uberGroupsTable.id, id)))[0];
@@ -280,12 +347,15 @@ export function registrarEspelhoOperacional(app: Express): void {
         return res.status(400).json({ message: "Este quarto já é individual." });
       }
 
+      // Quarto sem hotel nasce no hotel do evento (15/10); com hotel, os
+      // separados ficam no mesmo hotel de onde saíram.
+      const hotelDosNovos = grupo.hotelName || await hotelDoEventoNoBanco(grupo.eventId);
       const restante = await db.transaction(async (tx) => {
         // O primeiro fica; cada um dos outros ganha o seu.
         for (const m of membros.slice(1)) {
           const [novo] = await tx.insert(hotelRoomGroupsTable).values({
             eventId: grupo.eventId,
-            hotelName: grupo.hotelName,
+            hotelName: hotelDosNovos,
             roomType: "single",
             genderRule: grupo.genderRule,
             checkInDate: grupo.checkInDate,
@@ -356,12 +426,15 @@ export function registrarEspelhoOperacional(app: Express): void {
         ocupantesNoDestino = juntos.length;
       }
 
+      // Quarto novo nasce no hotel do evento (15/10: "todos ficam no mesmo
+      // hotel por evento"); sem hotel do evento, o do quarto de origem.
+      const hotelDoNovo = paraGrupoId ? null : (await hotelDoEventoNoBanco(origem.eventId)) || origem.hotelName;
       const destinoId = await db.transaction(async (tx) => {
         let destinoId: string = paraGrupoId ?? "";
         if (!destinoId) {
           const [novo] = await tx.insert(hotelRoomGroupsTable).values({
             eventId: origem.eventId,
-            hotelName: origem.hotelName,
+            hotelName: hotelDoNovo,
             roomType: "single",
             genderRule: origem.genderRule,
             checkInDate: origem.checkInDate,

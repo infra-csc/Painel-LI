@@ -17,15 +17,21 @@
  * 14→16 Duplo", shared/ocupacao-por-noite.ts), que substitui a frase "Datas
  * diferentes entre os ocupantes". A grade é por container query (bloco `esp-`
  * quartos do index.css): o mesmo markup serve à mesa, ao tablet e ao celular.
+ *
+ * 15/10, dono: "todos ficam no mesmo hotel por evento" — um campo "Hotel do
+ * evento" no topo (hotel-do-evento.tsx) aplica o hotel a todos os quartos; o
+ * cabeçalho de cada bloco mostra o hotel discreto e "trocar só este" vira a
+ * exceção, em vez de pedir "Definir hotel…" quarto a quarto.
  */
-import { useState, useEffect, type ReactNode } from "react";
-import { AlertTriangle, Building2, CheckCheck, Loader2, Moon, RefreshCw, BedDouble, Scissors, StickyNote } from "lucide-react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { AlertTriangle, Building2, CheckCheck, Loader2, Moon, Pencil, RefreshCw, BedDouble, Scissors, StickyNote } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MirrorEvent, RoomGroup } from "@shared/operational-mirror-types";
 import { seloDaOrigem } from "@shared/datas-do-quarto";
 import { observacaoDeDatas, PREFIXO_DATAS_DIFERENTES } from "@shared/room-pairing";
 import { ocupacaoPorNoite, rotuloDoTipo, type TipoDoTrecho } from "@shared/ocupacao-por-noite";
-import type { QuartoDaRoomingList } from "@shared/rooming-list";
+import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, type QuartoDaRoomingList } from "@shared/rooming-list";
+import { HotelDoEvento } from "./hotel-do-evento";
 import { MoverPara } from "./mover-para";
 import { RoomingListPdf } from "./rooming-list-pdf";
 import { diaSemana, fmtDate, memberInfo, type GroupViewProps } from "./mirror-shared";
@@ -47,27 +53,105 @@ const ddmm = (v: string | null | undefined) => {
  * Texto editável no lugar, para os campos do grupo (hotel). Salva ao sair do
  * campo ou no Enter; Esc devolve o valor anterior.
  */
-function TextoEditavel({ valor, placeholder, aoSalvar, rotulo }: {
+function TextoEditavel({ valor, placeholder, aoSalvar, rotulo, list, autoFocus, aoTerminar }: {
   valor: string | null | undefined;
   placeholder: string;
   aoSalvar: (v: string) => void;
   rotulo: string;
+  /** id de um <datalist> com sugestões. */
+  list?: string;
+  autoFocus?: boolean;
+  /** Chamado ao sair do campo (salvando ou não). */
+  aoTerminar?: () => void;
 }) {
   const [texto, setTexto] = useState(valor ?? "");
+  // Esc descarta: o blur que vem logo depois ainda vê o texto digitado.
+  const descartar = useRef(false);
   useEffect(() => { setTexto(valor ?? ""); }, [valor]);
   return (
     <input
       value={texto}
       aria-label={rotulo}
       placeholder={placeholder}
+      list={list}
+      autoFocus={autoFocus}
+      maxLength={120}
       onChange={(e) => setTexto(e.target.value)}
-      onBlur={() => { if ((valor ?? "") !== texto) aoSalvar(texto.trim()); }}
+      onBlur={() => {
+        if (!descartar.current && (valor ?? "") !== texto) aoSalvar(texto.trim());
+        descartar.current = false;
+        aoTerminar?.();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
-        if (e.key === "Escape") { e.preventDefault(); setTexto(valor ?? ""); (e.target as HTMLInputElement).blur(); }
+        if (e.key === "Escape") { e.preventDefault(); descartar.current = true; setTexto(valor ?? ""); (e.target as HTMLInputElement).blur(); }
       }}
       className="h-8 w-full min-w-[130px] rounded-md border border-transparent bg-transparent px-2 text-xs font-medium text-foreground transition-colors hover:border-input hover:bg-card focus:border-primary focus:bg-card focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 placeholder:font-normal placeholder:text-warning"
     />
+  );
+}
+
+/**
+ * Hotel no cabeçalho de um quarto (15/10, dono: "todos ficam no mesmo hotel
+ * por evento"). Não pede mais "Definir hotel…" em cada bloco: o hotel do
+ * evento aparece discreto, e "trocar só este" (no hover/foco; sempre à vista
+ * no toque) abre o campo para a exceção. Quarto em OUTRO hotel aparece
+ * destacado — é a exceção que alguém escolheu.
+ */
+function HotelDoQuarto({ valor, doEvento, canEdit, listaDeSugestoes, aoSalvar }: {
+  valor: string | null | undefined;
+  doEvento: string | null;
+  canEdit: boolean;
+  listaDeSugestoes: string;
+  aoSalvar: (v: string | null) => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const chave = chaveDoHotel(valor);
+  const segueOEvento = !!chave && chave === chaveDoHotel(doEvento);
+  const icone = <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />;
+
+  if (canEdit && editando) {
+    return (
+      <span className="esp-quarto-hotel flex min-w-0 items-center gap-1.5 text-xs">
+        {icone}
+        <TextoEditavel valor={valor} placeholder={doEvento ?? "Hotel deste quarto"} rotulo="Hotel só deste quarto" list={listaDeSugestoes} autoFocus
+          aoSalvar={(v) => aoSalvar(nomeDeHotelLimpo(v) || null)} aoTerminar={() => setEditando(false)} />
+      </span>
+    );
+  }
+
+  // Na exceção (outro hotel) o lápis fica sempre à vista e sem texto — o nome
+  // do hotel é o que precisa de espaço; nos demais, o texto aparece no hover.
+  const excecao = !!chave && !segueOEvento;
+  const trocar = canEdit ? (
+    <button type="button" onClick={() => setEditando(true)} data-testid="quarto-hotel-trocar"
+      aria-label={valor ? `Trocar o hotel só deste quarto (${valor})` : "Definir o hotel só deste quarto"}
+      title={excecao ? "Trocar o hotel só deste quarto" : undefined}
+      className={`esp-alvo inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-2xs font-medium text-muted-foreground transition-[opacity,color,background-color] hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        excecao ? "" : "esp-revela opacity-0 focus:opacity-100 group-hover/quarto:opacity-100 group-focus-within/quarto:opacity-100"}`}>
+      <Pencil className="h-3 w-3" aria-hidden="true" />
+      {/* No celular só o lápis: o nome do hotel precisa da largura. */}
+      {excecao ? null : <span className="esp-hotel-trocar-texto">{valor ? "trocar só este" : "definir só este"}</span>}
+    </button>
+  ) : null;
+
+  return (
+    <span className="esp-quarto-hotel flex min-w-0 items-center gap-1.5 text-xs" data-testid="quarto-hotel">
+      {icone}
+      {!chave ? (
+        // Sem hotel: com hotel do evento definido isto é pendência (confirmado
+        // que ficou de fora); sem ele, só "a definir" — o campo do topo resolve.
+        <span className={doEvento ? "font-medium text-warning" : "text-muted-foreground"}>{doEvento ? "sem hotel" : "hotel a definir"}</span>
+      ) : segueOEvento ? (
+        <span className="min-w-0 truncate text-muted-foreground" title="Hotel do evento">{valor}</span>
+      ) : (
+        <span className="flex min-w-0 items-center gap-1.5" title={doEvento ? `Este quarto não segue o hotel do evento (${doEvento})` : undefined}>
+          <span className="min-w-0 truncate font-medium text-foreground">{valor}</span>
+          <span className="shrink-0 whitespace-nowrap rounded bg-info-soft px-1.5 text-2xs font-medium leading-5 text-info">outro hotel</span>
+        </span>
+      )}
+      {trocar}
+    </span>
   );
 }
 
@@ -262,14 +346,17 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
     );
   };
 
-  /* Hotel aparece uma vez por quarto — e é editável aqui mesmo, sem abrir outra tela. */
+  /* Hotel: o do evento, discreto; a exceção ("trocar só este") fica no próprio bloco. */
+  const hotelEvento = hotelDoEvento(groups);
+  const listaDeHoteis = `esp-hoteis-${evento?.id ?? "quartos"}`;
+  // Sugestões: hotéis já usados nos quartos e nas hospedagens do evento.
+  const sugestoesDeHotel = Array.from(new Map(
+    [...groups.map((g) => g.hotelName), ...rows.map((r) => r.accommodation?.hotelName)]
+      .map((h) => nomeDeHotelLimpo(h)).filter(Boolean).map((h) => [chaveDoHotel(h), h] as const),
+  ).values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
   const hotel = (g: RoomGroup) => (
-    <span className="esp-quarto-hotel flex min-w-0 items-center gap-1.5 text-xs">
-      <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      {canEdit ? (
-        <TextoEditavel valor={g.hotelName} placeholder="Definir hotel…" aoSalvar={(v) => onPatch(g.id, { hotelName: v || null })} rotulo="Hotel do quarto" />
-      ) : (g.hotelName ? <span className="truncate font-medium text-foreground">{g.hotelName}</span> : <span className="text-warning">sem hotel</span>)}
-    </span>
+    <HotelDoQuarto valor={g.hotelName} doEvento={hotelEvento} canEdit={canEdit} listaDeSugestoes={listaDeHoteis}
+      aoSalvar={(v) => onPatch(g.id, { hotelName: v })} />
   );
 
   const situacao = (g: RoomGroup) => g.confirmed ? (
@@ -337,6 +424,14 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         </span>
       </header>
 
+      <datalist id={listaDeHoteis}>
+        {sugestoesDeHotel.map((h) => <option key={h} value={h} />)}
+      </datalist>
+      {evento && (
+        <HotelDoEvento eventId={evento.id} canEdit={canEdit} listaDeSugestoes={listaDeHoteis}
+          quartos={groups.map((g) => ({ id: g.id, hotelName: g.hotelName, confirmed: g.confirmed }))} />
+      )}
+
       <div className="esp-quartos-lista">
         {/* Uma régua de colunas para todos os blocos — a mesma grade das linhas. */}
         <div className="esp-quartos-colunas" aria-hidden="true">
@@ -349,7 +444,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         {quartos.map((q) => {
           const { g } = q;
           return (
-            <article key={g.id} className="esp-quarto" data-confirmado={g.confirmed ? "true" : undefined}
+            <article key={g.id} className="esp-quarto group/quarto" data-confirmado={g.confirmed ? "true" : undefined}
               aria-label={`Quarto ${q.numero}`} data-testid={`room-card-${g.id}`}>
               <div className="esp-quarto-cab">
                 <span className="esp-quarto-id flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">

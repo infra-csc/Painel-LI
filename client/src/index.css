@@ -3546,6 +3546,36 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .esp-quarto, .esp-ocupante { transition: none; }
 }
 
+/* Hotel do evento (15/10, "todos ficam no mesmo hotel por evento"): uma faixa
+   acima dos blocos — rótulo, campo + Aplicar, e a situação (em quantos quartos
+   está). Celular: empilha; da tablet em diante, uma linha só. */
+.esp-hotel-evento {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  margin-bottom: 12px; padding: 10px 12px 10px 16px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+  box-shadow: var(--elevation-1);
+}
+.esp-hotel-evento-rotulo {
+  display: inline-flex; align-items: center; gap: 6px; flex-basis: 100%;
+  font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted-foreground); white-space: nowrap;
+}
+.esp-hotel-evento-campo { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; min-width: 0; }
+.esp-hotel-evento-situacao { flex-basis: 100%; font-size: 12px; line-height: 16px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+/* O hotel do quarto divide a faixa com o selo "outro hotel" e o "trocar só
+   este": um pouco mais de largura para o nome não cortar. */
+.esp-quarto-hotel { min-width: 168px; }
+.esp-hotel-trocar-texto { display: none; }
+@container (min-width: 620px) {
+  .esp-quarto-hotel { flex-basis: 340px; min-width: 0; }
+  .esp-hotel-trocar-texto { display: inline; }
+}
+@media (min-width: 768px) {
+  .esp-hotel-evento-rotulo { flex-basis: auto; }
+  .esp-hotel-evento-campo { flex: 0 1 460px; }
+  .esp-hotel-evento-situacao { flex: 1 1 0; min-width: 160px; }
+}
+
 /* ══ Passagens · Busca de passagens (pas- busca) — tela nova 09/10 ═════════════
  * Família Passagens (pas-osso, pas-entra, pas-sobe, pas-alvo). Aqui só o que é
  * da busca: a linha da escalação que vira cartão no estreito, a chegada dos

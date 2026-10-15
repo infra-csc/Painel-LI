@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { cpfFormatado, dataHoraDeSaoPaulo, hoteisDosQuartos, montarRoomingList, nomeDoArquivoDaRoomingList, type EntradaDaRoomingList } from "./rooming-list";
+import {
+  cpfFormatado, dataHoraDeSaoPaulo, hoteisDosQuartos, hotelDoEvento, montarRoomingList, nomeDoArquivoDaRoomingList, planoDoHotelDoEvento,
+  type EntradaDaRoomingList,
+} from "./rooming-list";
 
 const base = (extra: Partial<EntradaDaRoomingList> = {}): EntradaDaRoomingList => ({
   hotel: "Hotel Atlântico Rio",
@@ -63,6 +66,74 @@ describe("montarRoomingList", () => {
     expect(r.totalDeQuartos).toBe(0);
     expect(r.periodoDaHospedagem).toBeNull();
   });
+
+  it("quartos sem hotel definido (hotel: null): só eles, cabeçalho do evento, \"a definir\" e arquivo com o evento", () => {
+    const r = montarRoomingList(base({ hotel: null }));
+    expect(r.hotelDefinido).toBe(false);
+    expect(r.hotel).toBe("a definir");
+    expect(r.totalDeQuartos).toBe(1);
+    expect(r.linhas[0].hospedes.map((h) => h.nome)).toEqual(["Yara"]);
+    expect(r.linhas[0].tipo).toBe("Single");
+    expect(r.periodoDaHospedagem).toBe("23/04/2026 a 25/04/2026");
+    expect(r.nomeDoArquivo).toBe("Rooming list - Night Run 1ª Etapa Rio.pdf");
+  });
+
+  it("sem hotel com nome digitado só para o PDF: vai no cabeçalho, não no nome do arquivo", () => {
+    const r = montarRoomingList(base({ hotel: null, nomeDoHotelNoPdf: "  Hotel   Copacabana " }));
+    expect(r.hotel).toBe("Hotel Copacabana");
+    expect(r.hotelDefinido).toBe(false);
+    expect(r.nomeDoArquivo).toBe("Rooming list - Night Run 1ª Etapa Rio.pdf");
+  });
+
+  it("nenhum quarto com hotel: hotel null leva TODOS os quartos", () => {
+    const quartos = base().quartos.map((q) => ({ ...q, hotelName: null }));
+    const r = montarRoomingList(base({ hotel: null, quartos }));
+    expect(r.totalDeQuartos).toBe(4);
+    expect(r.totalDeHospedes).toBe(7);
+  });
+
+  it("o nome digitado para o PDF não vale quando o hotel está definido", () => {
+    const r = montarRoomingList(base({ nomeDoHotelNoPdf: "Outro nome" }));
+    expect(r.hotel).toBe("Hotel Atlântico Rio");
+    expect(r.hotelDefinido).toBe(true);
+  });
+});
+
+describe("hotel do evento", () => {
+  const q = (id: string, hotelName: string | null, confirmed = false) => ({ id, hotelName, confirmed });
+
+  it("hotelDoEvento: o de mais quartos; empate em ordem alfabética; nenhum → null", () => {
+    expect(hotelDoEvento([q("1", "B"), q("2", " b "), q("3", "A"), q("4", null)])).toBe("B");
+    expect(hotelDoEvento([q("1", "Zeta"), q("2", "Alfa")])).toBe("Alfa");
+    expect(hotelDoEvento([q("1", null), q("2", "  ")])).toBeNull();
+  });
+
+  it("sem hotel nenhum: aplica a todos os abertos e conta os confirmados que ficaram", () => {
+    const p = planoDoHotelDoEvento([q("1", null), q("2", null), q("3", null, true)], "  Hotel   Rio ");
+    expect(p.hotel).toBe("Hotel Rio");
+    expect(p.aplicar).toEqual(["1", "2"]);
+    expect(p.confirmadosMantidos).toBe(1);
+    expect(p.emOutroHotel).toEqual([]);
+  });
+
+  it("trocar o hotel do evento leva quem o seguia; exceção em outro hotel só com trocarOutros", () => {
+    const quartos = [q("1", "Hotel A"), q("2", "Hotel A"), q("3", "Hotel X"), q("4", null), q("5", "hotel b"), q("6", "Hotel A", true)];
+    const p = planoDoHotelDoEvento(quartos, "Hotel B");
+    expect(p.aplicar).toEqual(["1", "2", "4"]);
+    expect(p.jaNoHotel).toBe(1);
+    expect(p.emOutroHotel).toEqual([{ id: "3", hotel: "Hotel X" }]);
+    expect(p.outrosMantidos).toBe(1);
+    expect(p.confirmadosMantidos).toBe(1);
+
+    const todos = planoDoHotelDoEvento(quartos, "Hotel B", { trocarOutros: true });
+    expect(todos.aplicar).toEqual(["1", "2", "3", "4"]);
+    expect(todos.outrosMantidos).toBe(0);
+  });
+
+  it("confirmado que já está no hotel não conta como \"ficou como estava\"; nome vazio não aplica nada", () => {
+    expect(planoDoHotelDoEvento([q("1", "Hotel A", true)], "hotel a").confirmadosMantidos).toBe(0);
+    expect(planoDoHotelDoEvento([q("1", null)], "   ").aplicar).toEqual([]);
+  });
 });
 
 describe("apoio", () => {
@@ -80,5 +151,6 @@ describe("apoio", () => {
   it("data e hora sempre em São Paulo; nome de arquivo sem caracteres proibidos", () => {
     expect(dataHoraDeSaoPaulo(new Date("2026-01-01T02:30:00Z"))).toBe("31/12/2025 23:30");
     expect(nomeDoArquivoDaRoomingList("Hotel A/B", "Evento: 1")).toBe("Rooming list - Hotel A B - Evento 1.pdf");
+    expect(nomeDoArquivoDaRoomingList(null, "Evento: 1")).toBe("Rooming list - Evento 1.pdf");
   });
 });

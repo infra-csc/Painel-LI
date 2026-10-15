@@ -92,6 +92,7 @@ export function timeToMinutes(t: string | null | undefined): number | null {
 }
 
 import { sugerirQuartos, observacaoDeDatas, motivoDeLotacao, ehCenotecnica } from "@shared/room-pairing";
+import { hotelDoEvento } from "@shared/rooming-list";
 import { datasDoQuarto, type DatasDoQuarto } from "@shared/datas-do-quarto";
 import { inferirGenero } from "@shared/gender-inference";
 
@@ -1009,6 +1010,9 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
 
     // ===== QUARTOS =====
     // Colaboradores já em grupos confirmados ficam onde estão.
+    // Hotel do evento (15/10, "todos ficam no mesmo hotel por evento"): lido
+    // ANTES de apagar as sugestões, para os quartos refeitos nascerem nele.
+    const hotelDoEventoAntes = hotelDoEvento(existingRoomGroups);
     const confirmedRoomGroupIds = new Set(existingRoomGroups.filter((g) => g.confirmed).map((g) => g.id));
     const lockedCollabRoom = new Set<string>();
     for (const m of roomMembers) {
@@ -1080,7 +1084,8 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
     const groupsToCreate = sugeridos.map((q) => ({
       id: randomUUID(),
       eventId,
-      hotelName: q.hotelName,
+      // Sem hotel na hospedagem, o quarto nasce no hotel do evento (15/10).
+      hotelName: q.hotelName || hotelDoEventoAntes,
       roomType: q.roomType as string,
       genderRule: q.genderRule as string,
       checkInDate: q.checkIn,

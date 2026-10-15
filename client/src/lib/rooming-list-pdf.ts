@@ -35,9 +35,15 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   const H = doc.internal.pageSize.getHeight();
   const M = 16;
   const util = W - 2 * M;
-  doc.setProperties({ title: `Rooming list — ${r.hotel} — ${r.evento}`, subject: "Rooming list", creator: "Painel de Logística Interna" });
+  doc.setProperties({
+    title: r.hotelDefinido ? `Rooming list — ${r.hotel} — ${r.evento}` : `Rooming list — ${r.evento}`,
+    subject: "Rooming list", creator: "Painel de Logística Interna",
+  });
 
   // ── Cabeçalho ──────────────────────────────────────────────────────────
+  // Com hotel: título = hotel, linha de baixo = evento · cidade. Sem hotel
+  // definido (15/10): título = evento, linha de baixo = "Hotel: a definir"
+  // (ou o nome digitado só para este PDF) · cidade.
   let y = M + 2;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
@@ -46,13 +52,14 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   y += 8;
   doc.setFontSize(19);
   doc.setTextColor(...COR.texto);
-  const tituloHotel = doc.splitTextToSize(r.hotel, util) as string[];
-  doc.text(tituloHotel, M, y);
-  y += 7.5 * tituloHotel.length - 1;
+  const titulo = doc.splitTextToSize(r.hotelDefinido ? r.hotel : r.evento, util) as string[];
+  doc.text(titulo, M, y);
+  y += 7.5 * titulo.length - 1;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(...COR.suave);
-  doc.text([r.evento, r.cidade].filter(Boolean).join("  ·  "), M, y + 1.5);
+  const subtitulo = r.hotelDefinido ? [r.evento, r.cidade] : [`Hotel: ${r.hotel}`, r.cidade];
+  doc.text(doc.splitTextToSize(subtitulo.filter(Boolean).join("  ·  "), util) as string[], M, y + 1.5);
   y += 7;
 
   // ── Resumo em quatro colunas ───────────────────────────────────────────
@@ -172,7 +179,7 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   return doc;
 }
 
-/** Gera e baixa "Rooming list - <hotel> - <evento>.pdf". */
+/** Gera e baixa "Rooming list - <hotel> - <evento>.pdf" (sem hotel definido: "Rooming list - <evento>.pdf"). */
 export async function baixarRoomingListPdf(r: RoomingList): Promise<void> {
   const doc = await gerarPdfDaRoomingList(r);
   doc.save(r.nomeDoArquivo);
