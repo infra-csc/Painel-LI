@@ -5,7 +5,7 @@
  * `expectedStatus`, `updateTeamInclusionIfState`) moram aqui; os fluxos que
  * envolvem também pedidos de ajuste ficam em validacao-de-escala.ts.
  */
-import { eq, and, or, sql, isNull, isNotNull, ne, asc, desc, inArray } from "drizzle-orm";
+import { eq, and, or, sql, isNull, isNotNull, ne, asc, desc, inArray, gte } from "drizzle-orm";
 import { db } from "../db";
 import {
   teamInclusions, teamInclusionLogs, functions, events, users, collaborators, systemLogs,
@@ -64,6 +64,12 @@ export interface TeamInclusionListOptions {
    * trazido para o banco para o `limit` cortar as linhas certas.
    */
   fromSuggestionOnly?: boolean;
+  /**
+   * Só vagas de eventos cujo FIM é neste dia ou depois ("AAAA-MM-DD"). Busca
+   * de passagens (15/10): de primeira só os eventos que ainda não terminaram —
+   * o recorte é no banco para não trafegar o histórico inteiro.
+   */
+  eventoTerminaDesde?: string;
 }
 
 /**
@@ -177,6 +183,7 @@ export async function getTeamInclusions(
   conditions.push(or(isNull(events.status), ne(events.status, "excluído"))!);
   if (opts.eventId) conditions.push(eq(teamInclusions.eventId, opts.eventId));
   if (opts.status) conditions.push(eq(teamInclusions.status, opts.status));
+  if (opts.eventoTerminaDesde) conditions.push(gte(events.endDate, opts.eventoTerminaDesde));
   if (opts.eventIds) {
     // Recorte vazio = nada a devolver (inArray com lista vazia é SQL inválido).
     if (opts.eventIds.length === 0) return [];

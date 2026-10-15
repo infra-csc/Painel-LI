@@ -35,6 +35,8 @@ export interface ParamsDaListaDeVagas {
   phase?: "all" | "sugestao";
   status?: string;
   includeDeleted?: boolean;
+  /** Só vagas de eventos que ainda não terminaram (`?futuros=1`, busca de passagens 15/10). */
+  futuros?: boolean;
 }
 
 const temEvento = (eventId: string | null | undefined): eventId is string =>
@@ -63,6 +65,7 @@ export function urlDaListaDeVagas(params: ParamsDaListaDeVagas = {}): string {
   if (params.phase) qs.set("phase", params.phase);
   if (params.status) qs.set("status", params.status);
   if (params.includeDeleted) qs.set("includeDeleted", "true");
+  if (params.futuros) qs.set("futuros", "1");
   const s = qs.toString();
   return s ? `${TEAM_INCLUSIONS_KEY}?${s}` : TEAM_INCLUSIONS_KEY;
 }
@@ -80,6 +83,7 @@ export function chaveDaListaDeVagas(params: ParamsDaListaDeVagas = {}): QueryKey
   if (params.phase) limpo.phase = params.phase;
   if (params.status) limpo.status = params.status;
   if (params.includeDeleted) limpo.includeDeleted = true;
+  if (params.futuros) limpo.futuros = true;
   return Object.keys(limpo).length > 0 ? [TEAM_INCLUSIONS_KEY, limpo] : [TEAM_INCLUSIONS_KEY];
 }
 

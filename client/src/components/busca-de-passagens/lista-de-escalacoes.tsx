@@ -17,6 +17,7 @@ import { aeroportosDaCidade } from "@shared/aeroportos-do-brasil";
 import { cidadeDoEvento } from "@shared/janela-de-viagem";
 import type { LinhaDaBusca } from "./linhas-da-busca";
 import { PilulaDeFalta } from "./corrigir-falta";
+import { SeloDeAeroportoSugerido } from "./aeroportos-do-evento";
 import { diaCurto } from "./formato";
 
 const PILULA = "inline-flex items-center gap-1 h-[22px] px-[7px] rounded-md text-2xs font-medium whitespace-nowrap";
@@ -28,12 +29,12 @@ const TRECHO: Record<LinhaDaBusca["trecho"], string> = {
 };
 
 /** Origem → destino que a busca vai usar (ou o que falta para saber). */
-function Viagem({ l }: { l: LinhaDaBusca }) {
+function Viagem({ l, podeCorrigir }: { l: LinhaDaBusca; podeCorrigir: boolean }) {
   const ida = l.rotas.find((x) => x.perna !== "volta");
   const volta = l.rotas.find((x) => x.perna === "volta");
   const casa = l.ajuste.aeroportoDeCasa ?? aeroportosDaCidade(l.cidadeDeSaida)[0] ?? null;
   const origem = ida ? ida.origem : volta ? volta.destino : casa;
-  const destino = ida ? ida.destino : volta ? volta.origem : l.evento?.aeroportoIata ?? null;
+  const destino = ida ? ida.destino : volta ? volta.origem : l.evento?.aeroportoIata ?? l.aeroportoSugerido ?? null;
   const Codigo = ({ c, falta }: { c: string | null; falta: string }) =>
     c ? <span className="font-mono font-semibold tabular-nums text-foreground">{c}</span> : <span className="text-warning-strong">{falta}</span>;
   return (
@@ -44,6 +45,9 @@ function Viagem({ l }: { l: LinhaDaBusca }) {
           <Codigo c={l.trecho === "direto" && ida ? ida.origem : origem} falta={l.cidadeDeSaida ? "saída?" : "sem cidade"} />
           <ArrowRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
           <Codigo c={destino} falta={"aeroporto?"} />
+          {l.aeroportoSugerido && destino === l.aeroportoSugerido && (
+            <SeloDeAeroportoSugerido vagaId={l.vaga.id} eventId={l.vaga.eventId} nomeDoEvento={l.evento?.name} iata={l.aeroportoSugerido} opcoes={l.aeroportosDaCidadeDoEvento} podeCorrigir={podeCorrigir} />
+          )}
         </span>
         <span aria-hidden="true">·</span>
         {l.trecho === "direto" ? (
@@ -123,7 +127,7 @@ export const LinhaDeEscalacao = memo(function LinhaDeEscalacao({ l, selecionada,
         <p className="m-0 mt-0.5 truncate text-2xs leading-4 text-muted-foreground">{l.funcao}</p>
       </div>
 
-      <div data-area="via" role="gridcell" className="min-w-0"><Viagem l={l} /></div>
+      <div data-area="via" role="gridcell" className="min-w-0"><Viagem l={l} podeCorrigir={podeCorrigir} /></div>
       <div data-area="data" role="gridcell" className="min-w-0"><Datas l={l} /></div>
 
       <div data-area="situ" role="gridcell" className="flex min-w-0 flex-wrap items-center gap-1 sm:max-lg:justify-end">
@@ -157,7 +161,13 @@ export const LinhaDeEscalacao = memo(function LinhaDeEscalacao({ l, selecionada,
             {acompanhandoAgora ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <BellPlus className="h-3 w-3" aria-hidden="true" />}
           </button>
         ))}
-        {l.faltas.map((f, i) => (
+        {/* O aeroporto do evento é pedido uma vez por evento, na faixa acima da lista (15/10): aqui só a nota. */}
+        {l.faltas.some((f) => f.tipo === "evento_sem_aeroporto") && (
+          <span className="text-2xs leading-4 text-muted-foreground" title="Confirme na faixa acima da lista — vale para todas as escalações do evento" data-testid={`aguarda-aeroporto-${id}`}>
+            Aguarda o aeroporto do evento
+          </span>
+        )}
+        {l.faltas.filter((f) => f.tipo !== "evento_sem_aeroporto").map((f, i) => (
           <PilulaDeFalta key={`${f.tipo}-${i}`} falta={f} nomeDoEvento={f.eventId ? (f.eventId === evento?.id ? evento?.name : undefined) : undefined} ajuste={l.ajuste} onAjustar={(p) => onAjustar(id, p)} podeCorrigir={podeCorrigir} />
         ))}
       </div>

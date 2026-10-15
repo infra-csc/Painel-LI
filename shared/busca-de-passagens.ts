@@ -21,8 +21,8 @@
  *     os voos absurdos (2 conexões, 12 h+, conexão de 8 h+) no fim.
  */
 import { HORA_DA_VOLTA_COM_DIARIA_EXTRA } from "./datas-do-quarto";
-import { aeroportosDaCidade, alternativasDoAeroporto, ehIata } from "./aeroportos-do-brasil";
-import { cidadeDoEvento, diaDe, somarDiasISO } from "./janela-de-viagem";
+import { aeroportosDaCidade, aeroportosDoEvento, alternativasDoAeroporto, ehIata } from "./aeroportos-do-brasil";
+import { diaDe, somarDiasISO } from "./janela-de-viagem";
 
 // ── Constantes do dono ─────────────────────────────────────────────────────
 
@@ -293,6 +293,20 @@ export interface RotaPlanejada extends ConsultaDePassagens {
 export interface PlanoDaBusca {
   rotas: RotaPlanejada[];
   faltando: DadoFaltando[];
+  /**
+   * Eventos SEM aeroporto confirmado cuja cidade foi reconhecida (15/10): a
+   * busca usou o principal da cidade (evento → IATA + os aeroportos da cidade).
+   * Não conta como dado faltando — a tela mostra "aeroporto sugerido" com troca
+   * em um clique e, quando a cidade tem MAIS DE UM (`opcoes` > 1), pede a
+   * confirmação uma vez por evento, sem travar a busca.
+   */
+  aeroportosSugeridos: Record<string, AeroportoSugerido>;
+}
+
+export interface AeroportoSugerido {
+  iata: string;
+  /** Aeroportos da cidade do evento, o principal primeiro (1 = nada a confirmar). */
+  opcoes: string[];
 }
 
 const modoAereo = (m: string | null | undefined) => !m || m === "aereo";
@@ -326,6 +340,7 @@ export function planejarBusca(entrada: {
   const faltando: DadoFaltando[] = [];
   const rotas = new Map<string, RotaPlanejada>();
   const eventoSemAeroportoJaDito = new Set<string>();
+  const aeroportosSugeridos: Record<string, AeroportoSugerido> = {};
 
   for (const v of entrada.vagas) {
     const aj = entrada.ajustes?.[v.id] ?? {};
@@ -344,15 +359,23 @@ export function planejarBusca(entrada: {
       continue;
     }
 
-    // Aeroporto do evento (destino da ida, origem da volta): confirmado e salvo.
+    // Aeroporto do evento (destino da ida, origem da volta): o confirmado e
+    // salvo; sem ele, o PRINCIPAL da cidade do evento (15/10 — pelo local e, se
+    // não reconhecer, pelo nome do evento): Teresina → THE, BH → CNF, Rio → GIG.
+    // Só a cidade desconhecida trava a vaga até alguém confirmar.
     const evento = eventoDe(v.eventId);
     const aeroportoDoEvento = (ev: EventoDaBusca | undefined, eventId: string): string | null => {
       const iata = ev?.aeroportoIata && ehIata(ev.aeroportoIata) ? ev.aeroportoIata.toUpperCase() : null;
       if (iata) return iata;
+      const daCidade = aeroportosDoEvento(ev);
+      if (daCidade.length > 0) {
+        aeroportosSugeridos[eventId] = { iata: daCidade[0], opcoes: daCidade };
+        return daCidade[0];
+      }
       const nome = ev?.name || "do evento";
       dizer("evento_sem_aeroporto", `Aeroporto de ${nome} ainda não confirmado.`, {
         eventId,
-        sugestoes: aeroportosDaCidade(cidadeDoEvento(ev?.location)),
+        sugestoes: [],
       });
       return null;
     };
@@ -470,7 +493,7 @@ export function planejarBusca(entrada: {
       }, "volta", { faixaIda: null, faixaVolta, trechoDireto: false, alternativas });
     }
   }
-  return { rotas: Array.from(rotas.values()), faltando };
+  return { rotas: Array.from(rotas.values()), faltando, aeroportosSugeridos };
 }
 
 /** Quantas consultas a busca vai gastar: as rotas que ainda não estão no cache. */

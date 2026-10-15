@@ -6,7 +6,8 @@
  * região (Santos → CGH/GRU; Balneário Camboriú → NVT).
  *
  * Não é cadastro: o aeroporto do EVENTO é confirmado uma vez por quem compra e
- * fica gravado em `events.aeroporto_iata`; daqui sai só a sugestão. O "Sai de"
+ * fica gravado em `events.aeroporto_iata`; daqui sai a sugestão — que a busca
+ * já usa até alguém confirmar (15/10: o principal da cidade). O "Sai de"
  * da vaga é texto livre ("São Paulo - SP", "Sao Paulo/SP", "GRU") — por isso a
  * leitura tira acento, UF e pontuação antes de procurar.
  */
@@ -114,6 +115,72 @@ export function aeroportosDaCidade(texto: string | null | undefined): string[] {
   }
   const lista = POR_CIDADE[chaveDaCidade(bruto)];
   return lista ? [...lista] : [];
+}
+
+// ── Local do EVENTO (15/10) ────────────────────────────────────────────────
+// O `events.location` vem em formatos variados: "TERESINA", "Rio de Janeiro -
+// RJ (Sambodromo)", "Praça da Liberdade, Belo Horizonte - MG". A leitura tira
+// acento, caixa, parênteses e UF, quebra nos separadores e procura a cidade
+// de trás para a frente (a cidade costuma vir no fim). Sem pedaço que bata,
+// procura o nome de uma cidade conhecida dentro do texto (o mais longo vence).
+
+const UFS = new Set(["ac", "al", "ap", "am", "ba", "ce", "df", "es", "go", "ma", "mt", "ms", "mg", "pa", "pb", "pr", "pe", "pi", "rj", "rn", "rs", "ro", "rr", "sc", "sp", "se", "to"]);
+const CIDADES_POR_TAMANHO = Object.keys(POR_CIDADE).sort((a, b) => b.length - a.length);
+
+/** Texto do local → só letras/números minúsculos sem acento, sem parênteses. */
+function normalizarLocal(texto: string): string {
+  return texto
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\([^)]*\)?/g, " ");
+}
+
+/** Um pedaço do local → chave de cidade (sem UF solta no fim: "belo horizonte mg"). */
+function chaveDoPedaco(pedaco: string): string {
+  const palavras = pedaco.replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+  while (palavras.length > 1 && UFS.has(palavras[palavras.length - 1])) palavras.pop();
+  return palavras.join(" ");
+}
+
+/**
+ * Cidade conhecida do local do evento (a chave do mapa, ex. "rio de janeiro"),
+ * ou null quando não reconhece. Só cidades do mapa — nada é inventado.
+ * `varrer: false` só aceita um PEDAÇO inteiro (entre hífens/vírgulas) — é o
+ * que vale para o NOME do evento ("Circuito … - Curitiba - 2026"), onde achar
+ * "serra" ou "natal" no meio de uma frase seria chute.
+ */
+export function cidadeDoLocal(texto: string | null | undefined, opcoes: { varrer?: boolean } = {}): string | null {
+  const bruto = String(texto ?? "").trim();
+  if (!bruto) return null;
+  const limpo = normalizarLocal(bruto);
+  const pedacos = limpo.split(/\s+-\s+|[,/;|–—]|\s-|-\s/).map(chaveDoPedaco).filter(Boolean);
+  for (let i = pedacos.length - 1; i >= 0; i--) if (POR_CIDADE[pedacos[i]]) return pedacos[i];
+  if (opcoes.varrer === false) return null;
+  const inteiro = ` ${limpo.replace(/[^a-z0-9]+/g, " ").trim()} `;
+  let achada: { chave: string; pos: number } | null = null;
+  for (const chave of CIDADES_POR_TAMANHO) {
+    if (achada && chave.length < achada.chave.length) break; // só empata com a mais longa
+    const pos = inteiro.lastIndexOf(` ${chave} `);
+    if (pos >= 0 && (!achada || pos > achada.pos)) achada = { chave, pos };
+  }
+  return achada?.chave ?? null;
+}
+
+/** Aeroportos da cidade do local do evento, o principal primeiro; desconhecida → []. */
+export function aeroportosDoLocal(texto: string | null | undefined): string[] {
+  const c = cidadeDoLocal(texto);
+  return c ? [...POR_CIDADE[c]] : [];
+}
+
+/**
+ * Aeroportos do EVENTO pela cidade (15/10): primeiro o campo de local; se não
+ * reconhecer, o NOME do evento — os nomes trazem a cidade entre hífens
+ * ("Circuito das Estações - Verão - Curitiba - 2026"). O principal primeiro;
+ * desconhecida → [].
+ */
+export function aeroportosDoEvento(ev: { location?: string | null; name?: string | null } | null | undefined): string[] {
+  const c = cidadeDoLocal(ev?.location) ?? cidadeDoLocal(ev?.name, { varrer: false });
+  return c ? [...POR_CIDADE[c]] : [];
 }
 
 /** "GRU" → "GRU · Guarulhos"; código desconhecido volta como veio. */

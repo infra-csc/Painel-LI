@@ -170,7 +170,8 @@ export async function carregarEventosDaBusca(): Promise<Map<string, EventoDaBusc
 
 /**
  * Escalações que PRECISAM de passagem e ainda NÃO têm (pendentes): vaga ativa,
- * fora da Validação de Escala, não cancelada, de evento não excluído, com a
+ * fora da Validação de Escala, não cancelada, de evento não excluído e que
+ * ainda não terminou (15/10), com a
  * viagem a partir de hoje. Cada uma com as rotas que a busca consultaria
  * (mesma regra do servidor — planejarBusca) ou o que falta para saber.
  */
@@ -195,6 +196,8 @@ export async function carregarPendentes(
       AND ti.status <> 'cancelado'
       AND ti.needs_ticket = TRUE
       AND e.status NOT IN ('excluido', 'excluído')
+      -- Só eventos que ainda não terminaram (15/10): o mesmo recorte padrão da aba Buscar.
+      AND e.end_date::date >= ${hoje}::date
       AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.team_inclusion_id = ti.id AND t.archived_at IS NULL)
       AND COALESCE(ti.flight_departure_date, ti.flight_return_date, ti.schedule_start_date, e.start_date)::date >= ${hoje}::date
       ${somenteIds && somenteIds.length > 0 ? drizzleSql`AND ti.id IN (${drizzleSql.join(somenteIds.map((id) => drizzleSql`${id}`), drizzleSql`, `)})` : drizzleSql``}

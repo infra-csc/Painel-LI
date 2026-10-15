@@ -21,6 +21,7 @@ import {
 } from "@shared/schema";
 import { eq, and, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
 import { normalizeRole } from "@shared/roles";
+import { hojeISO } from "@shared/hoje-sp";
 import { assertEventEditable } from "../event-guard";
 import { HttpError } from "../http";
 import { log } from "../vite";
@@ -80,7 +81,11 @@ export function registrarEscalacao(app: Express): void {
   // Hospedagem) e fica registrado no log para a migração do client.
   app.get("/api/team-inclusions", async (req, res) => {
     try {
-      const { eventId, includeDeleted, phase, status, all } = req.query;
+      const { eventId, includeDeleted, phase, status, all, futuros } = req.query;
+      // `?futuros=1` (15/10, busca de passagens): só vagas de eventos que ainda
+      // não terminaram (fim hoje ou depois, fuso de São Paulo). Encolhe a lista
+      // mas NÃO conta como recorte para a permissão (continua a fila de todos os eventos).
+      const somenteFuturos = futuros === "1";
       const phaseFilter = phase === 'sugestao' || phase === 'all' ? phase : undefined;
       const eventFilter = eventId && eventId !== 'all' ? String(eventId) : undefined;
       const statusFilter = typeof status === "string" && status && status !== "all" ? status : undefined;
@@ -94,7 +99,7 @@ export function registrarEscalacao(app: Express): void {
         if (!podeTudo) {
           return res.status(400).json({ message: "Informe o evento (eventId) ou um filtro de fase/status para listar as vagas." });
         }
-        log(`GET /api/team-inclusions sem recorte (${all === "1" ? "all=1" : "sem all"}) por ${ator?.id ?? "?"} (${papel}) — client deve migrar para ?eventId=`, "warn");
+        if (!somenteFuturos) log(`GET /api/team-inclusions sem recorte (${all === "1" ? "all=1" : "sem all"}) por ${ator?.id ?? "?"} (${papel}) — client deve migrar para ?eventId=`, "warn");
       }
 
       // eventId vai no WHERE (o storage já aceitava e a rota filtrava em JS
@@ -102,7 +107,7 @@ export function registrarEscalacao(app: Express): void {
       const inclusions = await storage.getTeamInclusions(
         includeDeleted === 'true',
         phaseFilter,
-        { eventId: eventFilter, status: statusFilter, orderByInclusionNumber: true },
+        { eventId: eventFilter, status: statusFilter, orderByInclusionNumber: true, ...(somenteFuturos ? { eventoTerminaDesde: hojeISO() } : {}) },
       );
 
       // Disable HTTP caching to prevent stale data

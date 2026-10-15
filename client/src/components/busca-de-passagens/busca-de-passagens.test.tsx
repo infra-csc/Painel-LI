@@ -8,6 +8,9 @@ import type { TicketsData } from "@/components/tickets/use-tickets-data";
 import { BarraDeSelecao } from "./barra-de-selecao";
 import { PainelDeResultados, type AcoesDaRota } from "./painel-de-resultados";
 import { RegistroPeloVoo } from "./registro-pelo-voo";
+import { BarraDeFiltrosDaBusca } from "./barra-de-filtros-da-busca";
+import { FILTROS_PADRAO } from "./filtros-da-busca";
+import { EventosAConfirmar, SeloDeAeroportoSugerido } from "./aeroportos-do-evento";
 
 const rota = (chave: string, comResultado: boolean, itinerarios: ItinerarioDeVoo[] = []): RotaNaTela => ({
   chave, perna: "ida", origem: "GRU", destino: "JPA", dataIda: "2026-11-12", dataVolta: null, maxParadas: 1,
@@ -113,5 +116,61 @@ describe("\"Usar este voo\" preenche o modal de registro de Passagens", () => {
     expect(screen.getByTestId("input-arrival-time-v1")).toHaveValue("11:20");
     expect(screen.getByTestId("trecho-so_ida-v1")).toHaveAttribute("aria-checked", "true");
     expect((screen.getByTestId("textarea-ticket-observations-v1") as HTMLTextAreaElement).value).toMatch(/Busca de preços .*GOL — ida G3 1500/);
+  });
+});
+
+describe("\"Incluir eventos passados\" (15/10)", () => {
+  const barra = (filtros = FILTROS_PADRAO, onChange = vi.fn()) => renderComTudo(
+    <BarraDeFiltrosDaBusca filtros={filtros} onChange={onChange} eventos={[]} saidas={[]} destinos={[]} funcoes={[]} count={3} total={3} />,
+  );
+
+  it("vem desligado; ligar pede o histórico (passados=true) sem mexer no resto", async () => {
+    const onChange = vi.fn();
+    const { user } = barra({ ...FILTROS_PADRAO, situacao: "compradas" }, onChange);
+    const chave = screen.getByRole("switch", { name: /Incluir eventos passados/ });
+    expect(chave).toHaveAttribute("aria-checked", "false");
+    await user.click(chave);
+    expect(onChange).toHaveBeenCalledWith({ ...FILTROS_PADRAO, situacao: "compradas", passados: true });
+  });
+
+  it("ligado: etiqueta \"Com eventos passados\" removível; desligar volta ao padrão", async () => {
+    const onChange = vi.fn();
+    const { user } = barra({ ...FILTROS_PADRAO, passados: true }, onChange);
+    expect(screen.getByRole("switch", { name: /Incluir eventos passados/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Com eventos passados")).toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: /Incluir eventos passados/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...FILTROS_PADRAO, passados: false });
+  });
+});
+
+describe("Aeroporto do evento: uma vez por evento, num lugar só (15/10)", () => {
+  it("faixa lista cada evento uma vez; o de vários aeroportos já busca com o principal e abre a confirmação com ele marcado", async () => {
+    const { user } = renderComTudo(
+      <EventosAConfirmar podeCorrigir eventos={[
+        { eventId: "ev-x", nome: "Corrida da Ilha", local: "Arena Multiuso", sugerido: null, sugestoes: [], escalacoes: 3, primeiraData: "2026-11-10" },
+        { eventId: "ev-bh", nome: "Circuito das Estações - Verão - Belo Horizonte - 2026", local: "", sugerido: "CNF", sugestoes: ["CNF", "PLU"], escalacoes: 12, primeiraData: "2026-11-12" },
+      ]} />,
+    );
+    const faixa = screen.getByTestId("eventos-a-confirmar");
+    expect(faixa).toHaveTextContent("2 eventos com o aeroporto a confirmar");
+    expect(faixa).toHaveTextContent("1 evento sem cidade reconhecida espera o aeroporto para buscar");
+    expect(within(screen.getByTestId("evento-a-confirmar-ev-bh")).getByText(/usando/)).toHaveTextContent("usando CNF · ou PLU");
+    expect(within(screen.getByTestId("evento-a-confirmar-ev-x")).getByText("aguardando o aeroporto")).toBeInTheDocument();
+    await user.click(screen.getByTestId("confirmar-aeroporto-ev-bh"));
+    expect(await screen.findByRole("radio", { name: /CNF/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /PLU/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("input-aeroporto-evento")).toHaveValue("CNF");
+  });
+
+  it("selo \"sugerido · trocar\" abre a troca (que grava no evento) com o sugerido marcado", async () => {
+    const { user } = renderComTudo(<SeloDeAeroportoSugerido vagaId="v1" eventId="ev-the" nomeDoEvento="Corrida Teresina" iata="THE" opcoes={["THE"]} podeCorrigir />);
+    const selo = screen.getByTestId("aeroporto-sugerido-v1");
+    expect(selo).toHaveAccessibleName("Aeroporto sugerido: THE. Trocar o aeroporto do evento");
+    await user.click(selo);
+    expect(await screen.findByTestId("input-aeroporto-evento")).toHaveValue("THE");
+    expect(screen.getByText(/o único aeroporto da cidade do evento/)).toBeInTheDocument();
+    await user.clear(screen.getByTestId("input-aeroporto-evento"));
+    await user.type(screen.getByTestId("input-aeroporto-evento"), "slz");
+    expect(screen.getByTestId("confirmar-aeroporto-evento")).toHaveTextContent("Trocar e salvar no evento");
   });
 });

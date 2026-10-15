@@ -73,15 +73,23 @@ interface UseTicketsDataArgs {
   showOnlyPendingSwaps: boolean;
   sortConfig: SortConfig | null;
   user: User | null;
+  /**
+   * Busca de passagens (15/10): sem evento escolhido, pede ao servidor só as
+   * vagas e passagens de eventos que ainda não terminaram (`?futuros=1`) — o
+   * histórico inteiro só vem com "Incluir eventos passados".
+   */
+  somenteEventosFuturos?: boolean;
 }
 
-export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user }: UseTicketsDataArgs) {
+export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user, somenteEventosFuturos = false }: UseTicketsDataArgs) {
   const queryClient = useQueryClient();
 
   // Recorte por evento (24/09): com evento selecionado a lista vem só dele
   // (`?eventId=`); sem evento, Compras/admin/produção/RH leem a fila inteira
   // (Passagens é multi-evento por natureza) e a área cai em `?phase=all`.
-  const recorte = recorteDaListaDeVagas({ eventId: filters.eventId, user });
+  const recorteBase = recorteDaListaDeVagas({ eventId: filters.eventId, user });
+  const futuros = somenteEventosFuturos && !recorteBase.eventId;
+  const recorte = futuros ? { ...recorteBase, futuros: true } : recorteBase;
   const { data: teamInclusions, isLoading: isLoadingInclusions, error: inclusionsError } = useQuery<TeamInclusion[]>(
     listaDeVagasQuery(recorte),
   );
@@ -102,8 +110,8 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   // evento é `["/api/tickets", { eventId }]`: o prefixo continua o mesmo, então
   // os `setQueryDefaults` e as invalidações `["/api/tickets"]` a alcançam.
   const { data: tickets, isLoading: isLoadingTickets, error: ticketsError } = useQuery<Ticket[]>({
-    queryKey: eventoSelecionado ? ["/api/tickets", { eventId: eventoSelecionado }] : ["/api/tickets"],
-    queryFn: ({ signal }) => fetchJson<Ticket[]>(eventoSelecionado ? `/api/tickets?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/tickets", signal),
+    queryKey: eventoSelecionado ? ["/api/tickets", { eventId: eventoSelecionado }] : futuros ? ["/api/tickets", { futuros: true }] : ["/api/tickets"],
+    queryFn: ({ signal }) => fetchJson<Ticket[]>(eventoSelecionado ? `/api/tickets?eventId=${encodeURIComponent(eventoSelecionado)}` : futuros ? "/api/tickets?futuros=1" : "/api/tickets", signal),
   });
   // Passagens de HISTÓRICO (troca aprovada, 01/10) no mesmo recorte: entram
   // no card "Compradas" — o dono: "ele não entendeu que tem 15 passagens".

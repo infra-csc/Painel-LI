@@ -172,7 +172,9 @@ export function registrarPassagens(app: Express): void {
   app.get("/api/tickets", async (req, res) => {
     try {
       const eventId = eventIdDaQuery(req);
-      const tickets = await storage.getTickets(eventId);
+      // `?futuros=1` (15/10, busca de passagens): só passagens de eventos que
+      // ainda não terminaram (fim hoje ou depois, no fuso de São Paulo).
+      const tickets = await storage.getTickets(eventId, req.query.futuros === "1" ? { eventoTerminaDesde: hojeISO() } : {});
       res.set("Cache-Control", "no-store"); // dados do passageiro
       res.json(tickets);
     } catch {

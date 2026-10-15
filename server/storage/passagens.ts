@@ -1,7 +1,7 @@
 /** Passagens (tabela tickets). */
-import { eq, and, exists, isNull, isNotNull, desc } from "drizzle-orm";
+import { eq, and, exists, isNull, isNotNull, desc, gte } from "drizzle-orm";
 import { db } from "../db";
-import { tickets, teamInclusions, collaborators, type Ticket, type InsertTicket } from "@shared/schema";
+import { tickets, teamInclusions, collaborators, events, type Ticket, type InsertTicket } from "@shared/schema";
 
 /**
  * Passagens ATUAIS (01/10): as que viraram histórico numa troca aprovada
@@ -11,14 +11,19 @@ import { tickets, teamInclusions, collaborators, type Ticket, type InsertTicket 
  */
 const atual = isNull(tickets.archivedAt);
 
-export async function getTickets(eventId?: string): Promise<Ticket[]> {
-  if (!eventId) return await db.select().from(tickets).where(atual);
+export async function getTickets(eventId?: string, opts: { eventoTerminaDesde?: string } = {}): Promise<Ticket[]> {
+  if (!eventId && !opts.eventoTerminaDesde) return await db.select().from(tickets).where(atual);
   // Só as passagens de vagas do evento — a tela de Passagens por evento não
-  // precisa baixar a tabela inteira (23/09).
-  return await db.select().from(tickets).where(and(atual, exists(
-    db.select({ id: teamInclusions.id }).from(teamInclusions)
-      .where(and(eq(teamInclusions.id, tickets.teamInclusionId), eq(teamInclusions.eventId, eventId))),
-  )));
+  // precisa baixar a tabela inteira (23/09). `eventoTerminaDesde` (15/10, busca
+  // de passagens): só as de eventos que terminam neste dia ou depois.
+  const daVaga = eq(teamInclusions.id, tickets.teamInclusionId);
+  const doEvento = eventId ? eq(teamInclusions.eventId, eventId) : undefined;
+  const sub = opts.eventoTerminaDesde
+    ? db.select({ id: teamInclusions.id }).from(teamInclusions)
+      .innerJoin(events, eq(events.id, teamInclusions.eventId))
+      .where(and(daVaga, doEvento, gte(events.endDate, opts.eventoTerminaDesde)))
+    : db.select({ id: teamInclusions.id }).from(teamInclusions).where(and(daVaga, doEvento));
+  return await db.select().from(tickets).where(and(atual, exists(sub)));
 }
 
 /** Por id: devolve também a de histórico (a rota decide o que pode fazer com ela). */

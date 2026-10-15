@@ -59,9 +59,9 @@ beforeEach(async () => {
 /** Datas no futuro (o plano recusa data que já passou). */
 const D = (md: string) => `2027-${md}`;
 
-async function cenario(opts: { aeroporto?: string | null; vagas?: number; cidade?: string } = {}) {
+async function cenario(opts: { aeroporto?: string | null; vagas?: number; cidade?: string; local?: string; nome?: string } = {}) {
   const { user } = await agenteLogado("admin");
-  const evento = await criarEvento({ name: "Makai João Pessoa", location: "Praia de Tambaú, João Pessoa - PB", startDate: D("03-11"), endDate: D("03-14") });
+  const evento = await criarEvento({ name: opts.nome ?? "Makai João Pessoa", location: opts.local ?? "Praia de Tambaú, João Pessoa - PB", startDate: D("03-11"), endDate: D("03-14") });
   if (opts.aeroporto !== null) await ctx.db.update(ctx.schema.events).set({ aeroportoIata: opts.aeroporto ?? "JPA" }).where(eq(ctx.schema.events.id, evento.id));
   const funcao = await criarFuncao();
   const vagas = [];
@@ -164,19 +164,35 @@ describe("POST /api/busca-de-passagens", () => {
   });
 
   it("dado faltando não consulta; confirmar o aeroporto do evento libera a rota", async () => {
-    const { evento, vagas } = await cenario({ aeroporto: null });
+    // Cidade desconhecida (nem no local nem no nome): sem o aeroporto confirmado, a busca não adivinha (15/10).
+    const { evento, vagas } = await cenario({ aeroporto: null, local: "Arena Multiuso", nome: "Corrida da Ilha" });
     const { agent } = await agenteLogado("purchasing");
     const previa = (await buscar(agent, { vagas: [{ id: vagas[0].id }], consultarVagas: [vagas[0].id] })).body as RespostaDaBusca;
     expect(previa.rotas).toEqual([]);
-    expect(previa.faltando[0]).toMatchObject({ tipo: "evento_sem_aeroporto", eventId: evento.id, sugestoes: ["JPA"] });
+    expect(previa.faltando[0]).toMatchObject({ tipo: "evento_sem_aeroporto", eventId: evento.id, sugestoes: [] });
     expect(chamadas).toHaveLength(0);
 
-    const conf = await mutacao(agent.put(`/api/busca-de-passagens/eventos/${evento.id}/aeroporto`)).send({ iata: "jpa" });
+    const conf = await mutacao(agent.put(`/api/busca-de-passagens/eventos/${evento.id}/aeroporto`)).send({ iata: "gig" });
     expect(conf.status).toBe(200);
-    expect(conf.body.aeroportoIata).toBe("JPA");
+    expect(conf.body.aeroportoIata).toBe("GIG");
     const depois = (await buscar(agent, { vagas: [{ id: vagas[0].id }] })).body as RespostaDaBusca;
     expect(depois.rotas).toHaveLength(1);
     expect((await mutacao(agent.put(`/api/busca-de-passagens/eventos/${evento.id}/aeroporto`)).send({ iata: "JP" })).status).toBe(400);
+  });
+
+  it("aeroporto do evento não confirmado: a busca usa o principal da cidade (local ou nome) e não trava (15/10)", async () => {
+    const { vagas } = await cenario({ aeroporto: null, local: "TERESINA" });
+    const { agent } = await agenteLogado("purchasing");
+    const r = (await buscar(agent, { vagas: [{ id: vagas[0].id }], consultarVagas: [vagas[0].id] })).body as RespostaDaBusca;
+    expect(r.faltando).toEqual([]);
+    expect(r.rotas).toHaveLength(1);
+    expect(r.rotas[0]).toMatchObject({ origem: "GRU", destino: "THE" });
+    expect(chamadas[0]).toMatchObject({ destino: "THE" });
+    // Cidade só no NOME, com dois aeroportos: usa CNF (a confirmação é pedida na tela, sem bloquear).
+    const bh = await cenario({ aeroporto: null, local: "", nome: "Circuito das Estações - Verão - Belo Horizonte - 2026" });
+    const b = (await buscar(agent, { vagas: [{ id: bh.vagas[0].id }] })).body as RespostaDaBusca;
+    expect(b.faltando).toEqual([]);
+    expect(b.rotas[0]).toMatchObject({ destino: "CNF", alternativasDoEvento: ["PLU"] });
   });
 
   it("\"Tentar com 2 conexões\" (consultarVagas) consulta só a rota daquela vaga", async () => {
@@ -229,5 +245,61 @@ describe("link, uso e consumo", () => {
     expect(d.status).toBe(200);
     expect(d.body.mesAtual).toMatchObject({ reais: 0, teto: 1500, situacao: "ok" });
     expect(d.body.porMes).toHaveLength(6);
+  });
+});
+
+describe("recorte de período da aba Buscar (15/10): só eventos que ainda não terminaram", () => {
+  it("?futuros=1 traz só vagas e passagens de eventos com fim hoje ou depois; sem ele, o histórico", async () => {
+    const { user } = await agenteLogado("admin");
+    const funcao = await criarFuncao();
+    const passado = await criarEvento({ name: "Eco Run SP 2025", location: "São Paulo - SP", startDate: "2025-10-04", endDate: "2025-10-05" });
+    const futuro = await criarEvento({ name: "Corrida futura", location: "TERESINA", startDate: D("05-02"), endDate: D("05-03") });
+    const vaga = async (eventId: string, ida: string | null, volta: string | null) => {
+      const colab = await criarColaborador({ city: "São Paulo - SP" });
+      const v = await criarVaga({ userId: user.id, eventId, functionId: funcao.id, collaboratorId: colab.id, status: "escalado", phase: "escalacao", city: "São Paulo - SP" });
+      await ctx.db.update(ctx.schema.teamInclusions).set({ needsTicket: true, flightDepartureDate: ida, flightReturnDate: volta }).where(eq(ctx.schema.teamInclusions.id, v.id));
+      return v;
+    };
+    // Sem data de voo: o recorte antigo da Previsão (data da viagem) caía na escala de 2099 e a deixava passar.
+    const pPend = await vaga(passado.id, null, null);
+    const pComp = await vaga(passado.id, "2025-10-03", "2025-10-06");
+    const fPend = await vaga(futuro.id, D("05-01"), D("05-04"));
+    const fComp = await vaga(futuro.id, D("05-01"), D("05-04"));
+    await ctx.db.insert(ctx.schema.tickets).values([
+      { teamInclusionId: pComp.id, transportType: "aereo", value: 90000 },
+      { teamInclusionId: fComp.id, transportType: "aereo", value: 80000 },
+    ] as Array<typeof ctx.schema.tickets.$inferInsert>);
+    const meus = new Set([pPend.id, pComp.id, fPend.id, fComp.id]);
+
+    const { agent } = await agenteLogado("purchasing");
+    const idsDe = (r: { body: Array<{ id: string }> }) => r.body.map((v) => v.id).filter((id) => meus.has(id)).sort();
+    const vagasFuturas = await agent.get("/api/team-inclusions?futuros=1");
+    expect(vagasFuturas.status).toBe(200);
+    expect(idsDe(vagasFuturas)).toEqual([fPend.id, fComp.id].sort());
+    expect(idsDe(await agent.get("/api/team-inclusions"))).toEqual([...meus].sort());
+
+    const doTeste = (r: { body: Array<{ teamInclusionId: string }> }) => r.body.filter((t) => meus.has(t.teamInclusionId)).map((t) => t.teamInclusionId).sort();
+    const passagensFuturas = await agent.get("/api/tickets?futuros=1");
+    expect(passagensFuturas.status).toBe(200);
+    expect(doTeste(passagensFuturas)).toEqual([fComp.id]);
+    expect(doTeste(await agent.get("/api/tickets"))).toEqual([pComp.id, fComp.id].sort());
+
+    // Contagens coerentes com a tela: no recorte padrão, Pendentes 1 · Compradas 1 · Todas 2.
+    const comPassagem = new Set(doTeste(passagensFuturas));
+    const recorte = idsDe(vagasFuturas);
+    expect({ pendentes: recorte.filter((id) => !comPassagem.has(id)).length, compradas: recorte.filter((id) => comPassagem.has(id)).length, todas: recorte.length })
+      .toEqual({ pendentes: 1, compradas: 1, todas: 2 });
+
+    // A Previsão (admin) também só olha pendentes de eventos futuros.
+    const admin = (await agenteLogado("admin")).agent;
+    const prev = await admin.get("/api/busca-de-passagens/analises/previsao");
+    expect(prev.status).toBe(200);
+    const naPrevisao = (prev.body.linhas as Array<{ vagaId: string }>).map((l) => l.vagaId).filter((id) => meus.has(id));
+    expect(naPrevisao).toEqual([fPend.id]);
+  });
+
+  it("?futuros=1 não abre a lista para quem precisa de recorte (área continua com 400)", async () => {
+    const { agent } = await agenteLogado("function_area");
+    expect((await agent.get("/api/team-inclusions?futuros=1")).status).toBe(400);
   });
 });

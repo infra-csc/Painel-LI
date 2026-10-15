@@ -6,6 +6,11 @@
  * o que falta) → SELEÇÃO (barra no rodapé com a prévia "N rotas · M em cache ·
  * gasta K consultas", de graça) → RESULTADOS (painel lateral; tela cheia no
  * celular) → "Usar este voo" (o modal de registro de Passagens, aqui mesmo).
+ *
+ * 15/10 (dono): de primeira só eventos que ainda não terminaram e só as
+ * Pendentes — o servidor já manda só esses (`?futuros=1`); "Incluir eventos
+ * passados" na barra traz o histórico. O aeroporto do evento é pedido uma vez
+ * por evento, na faixa acima da lista (cidade com um aeroporto só já entra).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock, PlaneTakeoff, RotateCw, Search, Sparkles, X, CircleSlash, ListChecks } from "lucide-react";
@@ -28,7 +33,8 @@ import {
 } from "@shared/busca-de-passagens";
 import type { User } from "@shared/schema";
 import type { AlternativaNaTela } from "@shared/busca-de-passagens";
-import { montarLinhas, ordenarLinhas, passaNosFiltros, destinoDaLinha, saidaDaLinha, type CampoContado, type LinhaDaBusca } from "./linhas-da-busca";
+import { eventosAConfirmar, montarLinhas, ordenarLinhas, passaNosFiltros, destinoDaLinha, saidaDaLinha, type CampoContado, type LinhaDaBusca } from "./linhas-da-busca";
+import { EventosAConfirmar } from "./aeroportos-do-evento";
 import { FILTROS_PADRAO, type FiltrosDaBusca, type Situacao } from "./filtros-da-busca";
 import { BarraDeFiltrosDaBusca } from "./barra-de-filtros-da-busca";
 import { CabecaDaLista, LinhaDeEscalacao } from "./lista-de-escalacoes";
@@ -85,7 +91,7 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
   const { acompanhar } = useAcoesDoAcompanhamento();
   const [acompAberto, setAcompAberto] = useState(abrirAcompanhamentos);
   const [remarcacao, setRemarcacao] = useState<Array<{ numero: number | null; ida: string | null; volta: string | null }>>([]);
-  const data = useTicketsData({ filters: { ...DEFAULT_TICKET_FILTERS, ticketStatus: "all" }, showOnlyPendingSwaps: false, sortConfig: null, user });
+  const data = useTicketsData({ filters: { ...DEFAULT_TICKET_FILTERS, ticketStatus: "all" }, showOnlyPendingSwaps: false, sortConfig: null, user, somenteEventosFuturos: !filtros.passados });
   const podeCorrigir = hasPermission(user, "canAccessBuscaDePassagens");
   const hoje = useMemo(() => hojeISO(), []);
   const [selecionadas, setSelecionadas] = useState<Set<string>>(() => new Set(vagasDaUrl));
@@ -118,9 +124,14 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
   const visiveis = useMemo(() => ordenarLinhas(linhas.filter((l) => passaNosFiltros(l, filtros))), [linhas, filtros]);
 
   // Atalhos de Passagens: a vaga comprada só aparece em "Todas"; o trecho direto vira ajuste.
+  // Vaga pedida de evento que já terminou não vem no recorte padrão: liga "Incluir eventos passados".
   const atalhoAplicado = useRef(false);
   useEffect(() => {
     if (atalhoAplicado.current || data.isLoading || vagasDaUrl.length === 0) return;
+    if (!filtros.passados && data.teamInclusions && vagasDaUrl.some((id) => !data.teamInclusions!.some((v) => v.id === id))) {
+      onFiltros({ ...filtros, passados: true });
+      return;
+    }
     atalhoAplicado.current = true;
     if (vagasDaUrl.some((id) => data.ticketByInclusion.has(id)) && filtros.situacao === "pendentes") onFiltros({ ...filtros, situacao: "todas" });
     if (remarcar) {
@@ -150,6 +161,11 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
       todas: base.length,
     };
   }, [linhas, filtros]);
+  /** Eventos cujo aeroporto falta confirmar — na situação escolhida e no recorte de período, sem os outros filtros. */
+  const aConfirmar = useMemo(
+    () => eventosAConfirmar(linhas.filter((l) => passaNosFiltros(l, { ...FILTROS_PADRAO, situacao: filtros.situacao, passados: filtros.passados })), eventById),
+    [linhas, filtros.situacao, filtros.passados, eventById],
+  );
   const opcoesDosFiltros = useMemo(() => ({
     eventos: opcoes(linhas, filtros, "evento", (l) => [l.vaga.eventId], (_id, l) => l.evento?.name ?? "Evento"),
     saidas: opcoes(linhas, filtros, "saida", (l) => [saidaDaLinha(l)], (_id, l) => l.cidadeDeSaida || "—"),
@@ -322,6 +338,7 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
         />
       )}
       <AlertasDeGrupo alertas={alertas} onSelecionar={selecionar} />
+      <EventosAConfirmar eventos={aConfirmar} podeCorrigir={podeCorrigir} />
 
       <FilaDeTrabalho<Situacao>
         rotulo="Situação das escalações"
@@ -358,7 +375,12 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
             </p>
             {temFiltro
               ? <Button variant="outline" onClick={() => onFiltros({ ...FILTROS_PADRAO, situacao: filtros.situacao })} className="mt-5 rounded-lg"><X className="mr-1.5 h-4 w-4" aria-hidden="true" />Limpar filtros</Button>
-              : filtros.situacao === "pendentes" && contagem.compradas > 0 && <Button variant="outline" onClick={() => onFiltros({ ...filtros, situacao: "compradas" })} className="mt-5 rounded-lg">Ver compradas ({contagem.compradas})</Button>}
+              : (
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  {filtros.situacao === "pendentes" && contagem.compradas > 0 && <Button variant="outline" onClick={() => onFiltros({ ...filtros, situacao: "compradas" })} className="rounded-lg">Ver compradas ({contagem.compradas})</Button>}
+                  {!filtros.passados && <Button variant="outline" onClick={() => onFiltros({ ...filtros, passados: true })} className="rounded-lg" data-testid="vazio-incluir-passados">Incluir eventos passados</Button>}
+                </div>
+              )}
           </div>
         ) : (
           <div role="grid" aria-label="Escalações que precisam de passagem" aria-multiselectable="true" aria-rowcount={visiveis.length}>

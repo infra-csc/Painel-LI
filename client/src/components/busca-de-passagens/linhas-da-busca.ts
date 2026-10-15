@@ -6,6 +6,11 @@
  *
  * Passagem comprada entra com as datas e o aeroporto de saída DELA (para
  * comparar o pago com o preço de hoje na mesma viagem).
+ *
+ * 15/10 (dono): de primeira só os eventos que ainda não terminaram (fim hoje
+ * ou depois, fuso de São Paulo) — "Incluir eventos passados" traz o resto. O
+ * servidor já manda só esses (`?futuros=1`); o teste aqui é o mesmo, para a
+ * lista e as contagens das faixas nunca divergirem.
  */
 import type { Collaborator, Event, TeamInclusion, Ticket } from "@shared/schema";
 import {
@@ -18,6 +23,7 @@ import {
   type VagaDaBusca,
 } from "@shared/busca-de-passagens";
 import { chaveDaCidade, ehIata } from "@shared/aeroportos-do-brasil";
+import { isEventPast } from "@shared/event-window";
 import { cidadeDoEvento, diaDe } from "@shared/janela-de-viagem";
 import type { FiltrosDaBusca, FiltroDeTrecho } from "./filtros-da-busca";
 
@@ -40,6 +46,15 @@ export interface LinhaDaBusca {
   sairApos: string | null;
   /** Ajustes automáticos (passagem comprada) + os feitos na tela. */
   ajuste: AjusteDaBusca;
+  /**
+   * Aeroporto do evento que a busca usa sem ninguém ter confirmado (o principal
+   * da cidade, 15/10); null = já confirmado no evento, ou cidade desconhecida.
+   */
+  aeroportoSugerido: string | null;
+  /** Aeroportos da cidade do evento quando o sugerido vale (mais de um = confirmar uma vez no evento). */
+  aeroportosDaCidadeDoEvento: string[];
+  /** O evento já terminou (fim antes de hoje) — só aparece com "Incluir eventos passados". */
+  eventoPassou: boolean;
 }
 
 /** Ajuste que a passagem comprada impõe: as datas e a saída dela. */
@@ -101,6 +116,9 @@ export function montarLinhas(entrada: {
       chegarAte: temIda && faixaDeHorario(v.flightArrivalSuggestedTime, "chegar_ate") ? (v.flightArrivalSuggestedTime ?? null) : null,
       sairApos: temVolta && faixaDeHorario(v.flightReturnSuggestedTime, "sair_apos") ? (v.flightReturnSuggestedTime ?? null) : null,
       ajuste,
+      aeroportoSugerido: plano.aeroportosSugeridos[v.eventId]?.iata ?? null,
+      aeroportosDaCidadeDoEvento: plano.aeroportosSugeridos[v.eventId]?.opcoes ?? [],
+      eventoPassou: !!evento && isEventPast(evento.endDate, entrada.hoje),
     });
   }
   return out;
@@ -120,6 +138,8 @@ export type CampoContado = "situacao" | "evento" | "saida" | "destino" | "funcoe
 
 /** Passa nos filtros? `ignorar` zera um filtro (para contar as opções dele). */
 export function passaNosFiltros(l: LinhaDaBusca, f: FiltrosDaBusca, ignorar?: CampoContado): boolean {
+  // Recorte de período: vale para TUDO (lista, faixas e opções dos filtros).
+  if (!f.passados && l.eventoPassou) return false;
   if (ignorar !== "situacao") {
     if (f.situacao === "pendentes" && l.comprada) return false;
     if (f.situacao === "compradas" && !l.comprada) return false;
@@ -150,4 +170,47 @@ export function ordenarLinhas(linhas: LinhaDaBusca[]): LinhaDaBusca[] {
   return linhas.slice().sort((a, b) =>
     (a.dataIda ?? a.dataVolta ?? "9999").localeCompare(b.dataIda ?? b.dataVolta ?? "9999")
     || (a.vaga.inclusionNumber ?? 0) - (b.vaga.inclusionNumber ?? 0));
+}
+
+/** Um evento cujo aeroporto precisa ser confirmado (cidade com mais de um, ou desconhecida). */
+export interface EventoAConfirmar {
+  eventId: string;
+  nome: string;
+  local: string;
+  /** O que a busca já está usando (principal da cidade); null = cidade desconhecida, as escalações esperam. */
+  sugerido: string | null;
+  /** Aeroportos da cidade do evento, o principal primeiro (vazia quando a cidade é desconhecida). */
+  sugestoes: string[];
+  /** Escalações da lista que dependem dele. */
+  escalacoes: number;
+  /** A ida mais próxima entre elas (ordena a faixa). */
+  primeiraData: string | null;
+}
+
+/**
+ * Eventos a confirmar (15/10): o aeroporto do evento é pedido UMA vez por
+ * evento, num lugar só (a faixa acima da lista) — não numa pílula por linha.
+ *  - cidade com MAIS DE UM aeroporto (BH, Rio, São Paulo…): a busca já usa o
+ *    principal (não trava), e a faixa pede a confirmação;
+ *  - cidade desconhecida: as escalações esperam (dado faltando) até confirmar.
+ * Inclui o evento anterior do trecho direto, quando é ele que falta.
+ */
+export function eventosAConfirmar(linhas: readonly LinhaDaBusca[], eventById: ReadonlyMap<string, Event>): EventoAConfirmar[] {
+  const mapa = new Map<string, EventoAConfirmar>();
+  const somar = (l: LinhaDaBusca, eventId: string, sugerido: string | null, sugestoes: string[]) => {
+    const e = eventById.get(eventId);
+    const atual = mapa.get(eventId) ?? { eventId, nome: e?.name ?? "Evento", local: e?.location ?? "", sugerido, sugestoes, escalacoes: 0, primeiraData: null };
+    atual.escalacoes++;
+    const d = l.dataIda ?? l.dataVolta;
+    if (d && (!atual.primeiraData || d < atual.primeiraData)) atual.primeiraData = d;
+    mapa.set(eventId, atual);
+  };
+  for (const l of linhas) {
+    if (l.aeroportoSugerido && l.aeroportosDaCidadeDoEvento.length > 1) somar(l, l.vaga.eventId, l.aeroportoSugerido, l.aeroportosDaCidadeDoEvento);
+    for (const f of l.faltas) if (f.tipo === "evento_sem_aeroporto" && f.eventId) somar(l, f.eventId, null, []);
+  }
+  // Os que travam (cidade desconhecida) primeiro; depois pela ida mais próxima.
+  return Array.from(mapa.values()).sort((a, b) =>
+    Number(!!a.sugerido) - Number(!!b.sugerido)
+    || (a.primeiraData ?? "9999").localeCompare(b.primeiraData ?? "9999") || a.nome.localeCompare(b.nome, "pt-BR"));
 }

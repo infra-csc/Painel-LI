@@ -17,7 +17,7 @@ import {
   type ItinerarioDeVoo,
   type VagaDaBusca,
 } from "./busca-de-passagens";
-import { aeroportosDaCidade, alternativasDoAeroporto, chaveDaCidade } from "./aeroportos-do-brasil";
+import { aeroportosDaCidade, aeroportosDoEvento, aeroportosDoLocal, alternativasDoAeroporto, chaveDaCidade, cidadeDoLocal } from "./aeroportos-do-brasil";
 
 const HOJE = "2026-10-09";
 
@@ -64,6 +64,56 @@ describe("aeroportos da cidade", () => {
     expect(aeroportosDaCidade("Belo Horizonte, MG")).toEqual(["CNF", "PLU"]);
     expect(aeroportosDaCidade("gru")).toEqual(["GRU"]);
     expect(aeroportosDaCidade("Xique-Xique")).toEqual([]);
+  });
+});
+
+describe("local do EVENTO → cidade → aeroporto (15/10)", () => {
+  it.each([
+    ["TERESINA", "teresina", ["THE"]],
+    ["Rio de Janeiro - RJ (Sambodromo)", "rio de janeiro", ["GIG", "SDU"]],
+    ["Praça da Liberdade, Belo Horizonte - MG", "belo horizonte", ["CNF", "PLU"]],
+    ["Praia de Tambaú, João Pessoa - PB", "joao pessoa", ["JPA"]],
+    ["ARACAJU/SE", "aracaju", ["AJU"]],
+    ["Parque Barigui, Curitiba-PR", "curitiba", ["CWB"]],
+    ["Esplanada dos Ministérios - Brasília DF", "brasilia", ["BSB"]],
+    ["Sambódromo do Anhembi São Paulo", "sao paulo", ["GRU", "CGH", "VCP"]],
+    ["Av. Beira-Mar (em frente ao Mercado), Fortaleza", "fortaleza", ["FOR"]],
+    ["Marina da Glória (RJ), Rio de Janeiro", "rio de janeiro", ["GIG", "SDU"]],
+  ] as const)("%s", (texto, cidade, aeroportos) => {
+    expect(cidadeDoLocal(texto)).toBe(cidade);
+    expect(aeroportosDoLocal(texto)).toEqual(aeroportos);
+  });
+
+  it("cidade não reconhecida (ou vazia) = nenhum aeroporto", () => {
+    expect(aeroportosDoLocal("Xique-Xique - BA")).toEqual([]);
+    expect(aeroportosDoLocal("")).toEqual([]);
+    expect(aeroportosDoLocal(null)).toEqual([]);
+  });
+
+  // Casos reais de produção (print do dono, 15/10): o local vem vazio ou só com
+  // o lugar, e a cidade está no NOME do evento, entre hífens.
+  it.each([
+    [{ name: "Circuito das Estações - Verão - Curitiba - 2026", location: "" }, ["CWB"]],
+    [{ name: "Circuito das Estações - Verão - Fortaleza - 2026", location: "Fortaleza - CE" }, ["FOR"]],
+    [{ name: "Circuito Banco do Brasil - Belém - 2026", location: "Estação das Docas" }, ["BEL"]],
+    [{ name: "Circuito das Estações - Verão - Belo Horizonte - 2026", location: null }, ["CNF", "PLU"]],
+    [{ name: "Desafio Petrobrás - Rio de Janeiro - Travessia - 2026", location: "Praia de Copacabana" }, ["GIG", "SDU"]],
+    [{ name: "Corrida TERESINA", location: "TERESINA" }, ["THE"]],
+    // O LOCAL vence o nome quando os dois têm cidade.
+    [{ name: "Circuito - Curitiba - 2026", location: "Recife - PE" }, ["REC"]],
+  ])("evento %o → %o", (ev, esperado) => {
+    expect(aeroportosDoEvento(ev)).toEqual(esperado);
+  });
+
+  it("no NOME só vale o pedaço inteiro (nada de achar \"serra\" ou \"natal\" no meio da frase)", () => {
+    expect(aeroportosDoEvento({ name: "Corrida da Serra Verde 2026", location: "" })).toEqual([]);
+    expect(aeroportosDoEvento({ name: "Night Run de Natal", location: "" })).toEqual([]);
+    expect(aeroportosDoEvento({ name: "Night Run - Natal - 2026", location: "" })).toEqual(["NAT"]);
+  });
+
+  it("\"São José\" não vira \"São José dos Campos\" (o pedaço exato vence)", () => {
+    expect(cidadeDoLocal("Centro, São José - SC")).toBe("sao jose");
+    expect(cidadeDoLocal("Parque Vicentina Aranha, São José dos Campos - SP")).toBe("sao jose dos campos");
   });
 });
 
@@ -145,7 +195,8 @@ describe("planejarBusca — agrupamento e pernas", () => {
   });
 
   it("dado faltando: a vaga não entra e a tela recebe o que falta (nada é consultado pela metade)", () => {
-    const semAero = { ...JPA, aeroportoIata: null };
+    // Cidade que o mapa não conhece (nem no local nem no nome): a busca não adivinha (15/10).
+    const semAero = { ...JPA, name: "Corrida da Ilha", location: "Arena Multiuso", aeroportoIata: null };
     const plano = planejarBusca({
       vagas: [
         vaga("sem-data", { flightDepartureDate: null }),
@@ -161,8 +212,28 @@ describe("planejarBusca — agrupamento e pernas", () => {
     ]);
     const evento = planejarBusca({ vagas: [vaga("a"), vaga("b")], eventos: eventos([semAero]), hoje: HOJE });
     expect(evento.rotas).toEqual([]);
-    expect(evento.faltando[0]).toMatchObject({ tipo: "evento_sem_aeroporto", eventId: "ev-jpa", sugestoes: ["JPA"] });
+    expect(evento.faltando[0]).toMatchObject({ tipo: "evento_sem_aeroporto", eventId: "ev-jpa", sugestoes: [] });
     expect(evento.faltando[1].sugestoes).toBeUndefined();
+    expect(evento.aeroportosSugeridos).toEqual({});
+  });
+
+  it("evento sem aeroporto confirmado: a busca já usa o principal da cidade, sem falta (15/10)", () => {
+    const the: EventoDaBusca = { id: "ev-the", name: "Corrida Teresina", location: "TERESINA", aeroportoIata: null };
+    const plano = planejarBusca({ vagas: [vaga("a", { eventId: "ev-the" }), vaga("b", { eventId: "ev-the" })], eventos: eventos([the]), hoje: HOJE });
+    expect(plano.faltando).toEqual([]);
+    expect(plano.rotas).toHaveLength(1);
+    expect(plano.rotas[0]).toMatchObject({ origem: "GRU", destino: "THE" });
+    expect(plano.aeroportosSugeridos).toEqual({ "ev-the": { iata: "THE", opcoes: ["THE"] } });
+    // Cidade com dois aeroportos (pelo NOME do evento): usa o principal e guarda as opções para a confirmação.
+    const bh: EventoDaBusca = { id: "ev-bh", name: "Circuito das Estações - Verão - Belo Horizonte - 2026", location: null, aeroportoIata: null };
+    const plBh = planejarBusca({ vagas: [vaga("c", { eventId: "ev-bh" })], eventos: eventos([bh]), hoje: HOJE });
+    expect(plBh.faltando).toEqual([]);
+    expect(plBh.rotas[0]).toMatchObject({ destino: "CNF", alternativasDoEvento: ["PLU"] });
+    expect(plBh.aeroportosSugeridos).toEqual({ "ev-bh": { iata: "CNF", opcoes: ["CNF", "PLU"] } });
+    // O confirmado vale mais que o sugerido (e deixa de ser "sugerido").
+    const confirmado = planejarBusca({ vagas: [vaga("a", { eventId: "ev-the" })], eventos: eventos([{ ...the, aeroportoIata: "SLZ" }]), hoje: HOJE });
+    expect(confirmado.rotas[0].destino).toBe("SLZ");
+    expect(confirmado.aeroportosSugeridos).toEqual({});
   });
 
   it("ajustes da tela: aeroporto de casa trocado, data informada e 2 conexões mudam a chave", () => {

@@ -5,6 +5,7 @@
  *   ?aba=buscar|previsao|melhor-momento|preco-por-rota|pago-x-encontrado|orcamento|consumo
  *   &periodo=90|180|365|tudo  (abas de análise; padrão 180 — sai da URL)
  *   &situacao=pendentes|compradas|todas   (padrão: pendentes — sai da URL)
+ *   &passados=1  (15/10: inclui eventos que já terminaram; padrão = só eventos de hoje em diante)
  *   &q= &evento= &funcoes=a,b &saida= &destino= &trecho= &falta= &de= &ate=
  *   &vagas=id,id  (atalho de Passagens: vagas já selecionadas; consumido na abertura)
  *   &idaDe=<vaga anterior>  (atalho "Buscar preços do trecho direto")
@@ -34,10 +35,16 @@ export interface FiltrosDaBusca {
   /** Data da ida (AAAA-MM-DD), inclusive. */
   de: string;
   ate: string;
+  /**
+   * Incluir eventos que já terminaram (15/10, dono: "de primeira só os eventos
+   * que a data ainda não passou"). Desligado = só evento cujo FIM é hoje ou
+   * depois (fuso de São Paulo) — e o servidor já manda só esses.
+   */
+  passados: boolean;
 }
 
 export const FILTROS_PADRAO: FiltrosDaBusca = {
-  situacao: "pendentes", q: "", evento: "all", funcoes: [], saida: "all", destino: "all", trecho: "todos", falta: "todas", de: "", ate: "",
+  situacao: "pendentes", q: "", evento: "all", funcoes: [], saida: "all", destino: "all", trecho: "todos", falta: "todas", de: "", ate: "", passados: false,
 };
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -69,6 +76,7 @@ export function lerUrl(search: string): EstadoDaUrl {
       falta: um(p.get("falta"), ["todas", "prontas", "com_falta", "sem_data", "sem_cidade", "sem_aeroporto"] as const, "todas"),
       de: DATA.test(p.get("de") ?? "") ? p.get("de")! : "",
       ate: DATA.test(p.get("ate") ?? "") ? p.get("ate")! : "",
+      passados: p.get("passados") === "1",
     },
     vagas: lista("vagas").slice(0, 80),
     idaDe: p.get("idaDe") || null,
@@ -93,5 +101,6 @@ export function escreverUrl(aba: AbaDaBusca, f: FiltrosDaBusca, periodo: Periodo
   if (f.falta !== "todas") p.set("falta", f.falta);
   if (f.de) p.set("de", f.de);
   if (f.ate) p.set("ate", f.ate);
+  if (f.passados) p.set("passados", "1");
   return p.toString();
 }

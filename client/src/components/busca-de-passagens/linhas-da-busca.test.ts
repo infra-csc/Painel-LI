@@ -1,18 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { eventoFake, vagaFake } from "@/test/fixtures-dominio";
 import type { Collaborator, Ticket } from "@shared/schema";
-import { montarLinhas, passaNosFiltros, ordenarLinhas } from "./linhas-da-busca";
+import { eventosAConfirmar, montarLinhas, passaNosFiltros, ordenarLinhas } from "./linhas-da-busca";
 import { FILTROS_PADRAO, escreverUrl, lerUrl } from "./filtros-da-busca";
 import { vooParaFormulario, centavosParaCampo } from "./voo-para-formulario";
 import type { ItinerarioDeVoo } from "@shared/busca-de-passagens";
 
 const HOJE = "2026-10-09";
-const evJpa = eventoFake({ id: "ev-jpa", name: "Makai João Pessoa", location: "Tambaú, João Pessoa - PB", aeroportoIata: "JPA" });
-const evSemAero = eventoFake({ id: "ev-x", name: "Night Run Aracaju", location: "Atalaia, Aracaju - SE" });
+const evJpa = eventoFake({ id: "ev-jpa", name: "Makai João Pessoa", location: "Tambaú, João Pessoa - PB", aeroportoIata: "JPA", startDate: "2026-11-13", endDate: "2026-11-15" });
+// Cidade que o mapa não reconhece: as escalações esperam o aeroporto (15/10).
+const evSemAero = eventoFake({ id: "ev-x", name: "Night Run da Ilha", location: "Arena Multiuso", startDate: "2026-11-13", endDate: "2026-11-15" });
+// Rio tem GIG e SDU: a busca usa GIG (principal) e a faixa pede a confirmação uma vez.
+const evRio = eventoFake({ id: "ev-rio", name: "Desafio Petrobrás - Rio de Janeiro - Travessia - 2026", location: "Praia de Copacabana", startDate: "2026-11-13", endDate: "2026-11-15" });
+// Teresina tem um aeroporto só: a busca já usa THE ("sugerido").
+const evThe = eventoFake({ id: "ev-the", name: "Corrida Teresina", location: "TERESINA", startDate: "2026-11-13", endDate: "2026-11-15" });
+// Evento que já terminou (fim ontem) e um que termina HOJE (ainda vale).
+const evPassado = eventoFake({ id: "ev-passado", name: "Eco Run SP 2025", location: "São Paulo - SP", aeroportoIata: "CGH", startDate: "2025-10-05", endDate: "2026-10-08" });
+const evHoje = eventoFake({ id: "ev-hoje", name: "Termina hoje", location: "Recife - PE", startDate: "2026-10-07", endDate: "2026-10-09" });
 const viagem = { needsTicket: true, city: "São Paulo - SP", flightDepartureDate: "2026-11-12", flightArrivalSuggestedTime: "até 14h", flightReturnDate: "2026-11-16", flightReturnSuggestedTime: "18h+" };
 
-function linhas(extra: { tickets?: Ticket[] } = {}) {
+function linhas(extra: { tickets?: Ticket[]; mais?: ReturnType<typeof vagaFake>[] } = {}) {
   const vagas = [
+    ...(extra.mais ?? []),
     vagaFake({ id: "a", inclusionNumber: 10, eventId: "ev-jpa", ...viagem }),
     vagaFake({ id: "b", inclusionNumber: 11, eventId: "ev-x", ...viagem }),
     vagaFake({ id: "c", inclusionNumber: 12, eventId: "ev-jpa", ...viagem, transportModeIda: "onibus", transportModeVolta: "onibus" }),
@@ -20,7 +29,7 @@ function linhas(extra: { tickets?: Ticket[] } = {}) {
   ];
   return montarLinhas({
     vagas,
-    eventById: new Map([[evJpa.id, evJpa], [evSemAero.id, evSemAero]]),
+    eventById: new Map([evJpa, evSemAero, evRio, evThe, evPassado, evHoje].map((e) => [e.id, e])),
     collaboratorById: new Map<string, Collaborator>(),
     ticketByInclusion: new Map((extra.tickets ?? []).map((t) => [t.teamInclusionId, t])),
     nomeDoColaborador: () => "Ana Souza",
@@ -62,8 +71,59 @@ describe("linhas da aba Buscar", () => {
     expect(ordenarLinhas(l).map((x) => x.vaga.id)).toEqual(["a", "b", "d"]);
   });
 
+  it("recorte de período (15/10): padrão = só eventos que terminam hoje ou depois; \"passados\" traz o histórico", () => {
+    const comprada = { id: "t9", teamInclusionId: "p2", value: 5000 } as Ticket;
+    const l = linhas({
+      tickets: [comprada],
+      mais: [
+        vagaFake({ id: "p1", inclusionNumber: 1, eventId: "ev-passado", ...viagem, flightDepartureDate: "2025-10-04", flightReturnDate: "2025-10-06" }),
+        vagaFake({ id: "p2", inclusionNumber: 2, eventId: "ev-passado", ...viagem, flightDepartureDate: "2025-10-04", flightReturnDate: "2025-10-06" }),
+        vagaFake({ id: "h1", inclusionNumber: 3, eventId: "ev-hoje", ...viagem, flightDepartureDate: "2026-10-06", flightReturnDate: "2026-10-10" }),
+      ],
+    });
+    expect(l.find((x) => x.vaga.id === "p1")?.eventoPassou).toBe(true);
+    expect(l.find((x) => x.vaga.id === "h1")?.eventoPassou).toBe(false);
+    const ids = (f: Partial<typeof FILTROS_PADRAO>) => l.filter((x) => passaNosFiltros(x, { ...FILTROS_PADRAO, ...f })).map((x) => x.vaga.id).sort();
+    // Padrão: Pendentes de eventos futuros (o de hoje entra; o de ontem não).
+    expect(ids({})).toEqual(["a", "b", "d", "h1"]);
+    expect(ids({ situacao: "compradas" })).toEqual([]);
+    expect(ids({ situacao: "todas" })).toEqual(["a", "b", "d", "h1"]);
+    // Com passados: o histórico volta, nas três faixas.
+    expect(ids({ passados: true })).toEqual(["a", "b", "d", "h1", "p1"]);
+    expect(ids({ situacao: "compradas", passados: true })).toEqual(["p2"]);
+    expect(ids({ situacao: "todas", passados: true })).toHaveLength(6);
+  });
+
+  it("aeroporto do evento: cidade reconhecida entra sugerida (pronta); vários aeroportos ou desconhecida vão para a faixa, uma vez por evento", () => {
+    const l = linhas({
+      mais: [
+        vagaFake({ id: "t1", inclusionNumber: 21, eventId: "ev-the", ...viagem }),
+        vagaFake({ id: "x2", inclusionNumber: 22, eventId: "ev-x", ...viagem, flightDepartureDate: "2026-11-10" }),
+        vagaFake({ id: "r1", inclusionNumber: 23, eventId: "ev-rio", ...viagem }),
+        vagaFake({ id: "r2", inclusionNumber: 24, eventId: "ev-rio", ...viagem }),
+      ],
+    });
+    const t1 = l.find((x) => x.vaga.id === "t1")!;
+    expect(t1.faltas).toEqual([]);
+    expect(t1).toMatchObject({ aeroportoSugerido: "THE", aeroportosDaCidadeDoEvento: ["THE"] });
+    expect(t1.rotas[0]).toMatchObject({ destino: "THE" });
+    const r1 = l.find((x) => x.vaga.id === "r1")!;
+    expect(r1.faltas).toEqual([]); // não trava a linha
+    expect(r1).toMatchObject({ aeroportoSugerido: "GIG", aeroportosDaCidadeDoEvento: ["GIG", "SDU"] });
+    expect(r1.rotas[0]).toMatchObject({ origem: "GRU", destino: "GIG" });
+    expect(l.find((x) => x.vaga.id === "a")!.aeroportoSugerido).toBeNull(); // confirmado (JPA) não é "sugerido"
+    const faixa = eventosAConfirmar(l, new Map([evSemAero, evRio].map((e) => [e.id, e])));
+    expect(faixa).toEqual([
+      { eventId: "ev-x", nome: "Night Run da Ilha", local: "Arena Multiuso", sugerido: null, sugestoes: [], escalacoes: 2, primeiraData: "2026-11-10" },
+      { eventId: "ev-rio", nome: "Desafio Petrobrás - Rio de Janeiro - Travessia - 2026", local: "Praia de Copacabana", sugerido: "GIG", sugestoes: ["GIG", "SDU"], escalacoes: 2, primeiraData: "2026-11-12" },
+    ]);
+  });
+
   it("URL: só o que foge do padrão; o atalho de Passagens traz as vagas", () => {
     expect(escreverUrl("buscar", FILTROS_PADRAO)).toBe("");
+    expect(escreverUrl("buscar", { ...FILTROS_PADRAO, passados: true })).toBe("passados=1");
+    expect(lerUrl("?passados=1").filtros.passados).toBe(true);
+    expect(lerUrl("").filtros.passados).toBe(false);
     const qs = escreverUrl("buscar", { ...FILTROS_PADRAO, situacao: "compradas", funcoes: ["f1", "f2"], de: "2026-11-01" });
     expect(lerUrl(qs).filtros).toMatchObject({ situacao: "compradas", funcoes: ["f1", "f2"], de: "2026-11-01" });
     expect(lerUrl("?vagas=a,b&idaDe=x&aba=consumo")).toMatchObject({ vagas: ["a", "b"], idaDe: "x", aba: "consumo" });

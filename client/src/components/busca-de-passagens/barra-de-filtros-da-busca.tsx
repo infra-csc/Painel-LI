@@ -4,9 +4,11 @@
  * evento, "Sai de", destino, funções e data da ida à vista; trecho e dado
  * faltando em "Filtros", com etiqueta removível quando fogem do padrão.
  * A situação (Pendentes / Compradas / Todas) fica na faixa acima da barra.
+ * "Incluir eventos passados" (15/10) é um interruptor à vista: desligado por
+ * padrão, só eventos que ainda não terminaram.
  */
 import { useState } from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, History } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/common/filter-popover";
 import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros } from "@/components/common/barra-de-filtros";
@@ -66,6 +68,28 @@ function DataDaIda({ de, ate, onChange }: { de: string; ate: string; onChange: (
   );
 }
 
+/** Interruptor "Incluir eventos passados" — o recorte de período da lista e das faixas. */
+export function IncluirPassados({ ligado, onChange }: { ligado: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={ligado}
+      aria-label="Incluir eventos passados"
+      onClick={() => onChange(!ligado)}
+      title={ligado ? "Mostrando também eventos que já terminaram" : "Só eventos que terminam hoje ou depois"}
+      className={`pas-alvo inline-flex h-[34px] shrink-0 items-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 ${ligado ? "border-primary/40 text-primary" : "border-border text-slate-700"}`}
+      data-testid="filtro-passados"
+    >
+      <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+      Incluir eventos passados
+      <span aria-hidden="true" className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${ligado ? "bg-primary" : "bg-slate-300"}`}>
+        <span className={`absolute h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${ligado ? "translate-x-[14px]" : "translate-x-0.5"}`} />
+      </span>
+    </button>
+  );
+}
+
 export function BarraDeFiltrosDaBusca({ filtros, onChange, eventos, saidas, destinos, funcoes, count, total }: {
   filtros: FiltrosDaBusca;
   onChange: (f: FiltrosDaBusca) => void;
@@ -97,6 +121,7 @@ export function BarraDeFiltrosDaBusca({ filtros, onChange, eventos, saidas, dest
             <FiltroMultiplo valores={filtros.funcoes} onChange={(ids) => set("funcoes", ids)} opcoes={funcoes} rotuloTodos="Todas as funções" placeholderBusca="Buscar função…" testid="filtro-funcao" />
           </div>
           <DataDaIda de={filtros.de} ate={filtros.ate} onChange={(de, ate) => onChange({ ...filtros, de, ate })} />
+          <IncluirPassados ligado={filtros.passados} onChange={(v) => set("passados", v)} />
           <MaisFiltros
             listas={LISTAS}
             valorDe={(c) => filtros[c as Lista]}
@@ -110,6 +135,7 @@ export function BarraDeFiltrosDaBusca({ filtros, onChange, eventos, saidas, dest
       </div>
       {algum && (
         <div className="flex flex-wrap items-center gap-1.5">
+          {filtros.passados && <EtiquetaDeFiltro etiqueta="Período" valor="Com eventos passados" titulo="Período dos eventos" onTirar={() => set("passados", false)} />}
           {ligadas.map((l) => (
             <EtiquetaDeFiltro key={l.chave} etiqueta={l.etiqueta} valor={l.opcoes.find((o) => o.id === filtros[l.chave])?.nome} titulo={l.titulo} onTirar={() => set(l.chave, l.opcoes[0].id as never)} />
           ))}
