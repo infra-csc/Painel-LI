@@ -6,7 +6,7 @@
  * Aqui também moram os contextos compartilhados pela fila, pelos filtros e
  * pelas Análises, e os textos do topo (resumo, contagem, nomes dos filtros).
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
@@ -57,6 +57,21 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [pendingSwapByInclusion, data.pendingChangeByInclusion, data.purchasedTicketByInclusion, data.accommodationByInclusion, getSelectBlockReason]);
 
+  // Hotel reservado nas Análises (16/10): a MESMA regra do servidor
+  // (server/vaga-guards.ts → hospedagemConta) — com nome de hotel e não
+  // cancelada, em qualquer das hospedagens da vaga. O índice
+  // `accommodationByInclusion` guarda só a primeira e contaria uma cancelada.
+  const vagasComHotel = useMemo(() => {
+    const s = new Set<string>();
+    (data.accommodations || []).forEach((a) => {
+      if (a.teamInclusionId && a.hotelName?.trim() && a.hotelStatus !== "cancelada") s.add(a.teamInclusionId);
+    });
+    return s;
+  }, [data.accommodations]);
+
+  const responsavelDaFuncao = useRef(data.getResponsavelDaFuncao);
+  responsavelDaFuncao.current = data.getResponsavelDaFuncao;
+
   const analyticsContext = useMemo<AnalyticsContext>(() => ({
     temNome: queueContext.temNome,
     temTroca: queueContext.temTroca,
@@ -65,9 +80,11 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     getEventDates: (id) => (id ? data.eventById.get(id) : undefined),
     // Passagem registrada = emitida para o time (18/09); hotel registrado = reservado.
     temPassagem: (i) => data.purchasedTicketByInclusion.has(i.id),
-    temHotel: (i) => data.accommodationByInclusion.has(i.id),
+    temHotel: (i) => vagasComHotel.has(i.id),
+    // Pela ref: a função é recriada a cada render e não pode refazer as Análises.
+    getResponsavelDaFuncao: (functionId) => responsavelDaFuncao.current(functionId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [queueContext, data.eventById, data.functionById, data.collaboratorById, data.purchasedTicketByInclusion, data.accommodationByInclusion]);
+  }), [queueContext, data.eventById, data.functionById, data.collaboratorById, data.purchasedTicketByInclusion, vagasComHotel]);
 
   // ── As camadas do recorte ───────────────────────────────────────────────
   // Datas dos eventos: permitem medir o período pela DATA DO EVENTO (22/09).

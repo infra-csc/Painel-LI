@@ -19,6 +19,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { diaLocal, ehFimDeSemana, pegaFimDeSemana, inicioDoDia } from "./scaling-period";
 import { diaDaProvaISO } from "@shared/dia-da-prova";
 import { getScalingStatusKey } from "./scaling-status";
+import type { EtapaComPrazo } from "@shared/prazos-da-escala";
 
 const MS_DIA = 86_400_000;
 
@@ -43,6 +44,8 @@ export interface AnalyticsContext {
   temPassagem?: (i: TeamInclusion) => boolean;
   /** A vaga já tem hospedagem registrada. */
   temHotel?: (i: TeamInclusion) => boolean;
+  /** Quem responde pela função (a área que valida e escala). null quando não há. */
+  getResponsavelDaFuncao?: (functionId: string) => string | null;
 }
 
 /** Passagem e hotel das vagas que PRECISAM (só na escalação — sugestão ainda não compra nada). */
@@ -208,6 +211,8 @@ export interface EventoAnalisado {
   logistica: Logistica;
   /** Data do EVENTO (não da escala) — base dos prazos de cada etapa. */
   dataEvento: string | null;
+  /** As vagas vivas do evento — o Quadro trava cada uma na etapa em que está parada. */
+  vagas: TeamInclusion[];
 }
 
 /** Abaixo disto, com vaga aberta, o evento entra em alerta. */
@@ -258,6 +263,7 @@ export function analisarPorEvento(linhas: TeamInclusion[], ctx: AnalyticsContext
       // O DIA DA PROVA, não o início da montagem (22/09) — é dele que os prazos contam.
       dataEvento: diaDaProvaISO(ctx.getEventDates?.(eventId)?.startDate, ctx.getEventDates?.(eventId)?.endDate),
       naEscalacao: { semNome: quantos("vaga"), salvo: quantos("salvo"), gestor: quantos("gestor") },
+      vagas: doEvento,
       completaPct: Math.round((etapas.completa / doEvento.length) * 100),
       segmentos: BUCKETS.map((b) => {
         const n = quantos(b.key);
@@ -387,6 +393,116 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
     });
   });
   return out.sort((a, b) => (b.diasParado ?? -1) - (a.diasParado ?? -1));
+}
+
+// ── Quadro de prazos: UMA etapa por vaga (dono, 16/10) ─────────────────────
+//
+// "Não faz sentido a mesma escalação estar em duas colunas, ela tem que travar
+// na coluna." Antes Escalado contava `total − completa` e a mesma vaga sem nome
+// aparecia em Escalação E em Escalado. Agora cada vaga tem UMA etapa atual — a
+// primeira não cumprida — e cada célula conta só quem está parado nela:
+//   Validação → Aprovação → Escalação (sem nome) → Escalado (com nome, falta
+//   confirmar) → Passagem (só quem precisa) → Hotel (só quem precisa) → Concluída.
+// Passagem vem antes de Hotel porque as datas do quarto saem da passagem (regra
+// do Espelho). Invariante (com teste): soma das células + concluídas = total.
+//
+// Escalação × Escalado: nos dados, "nome confirmado" JÁ É a escalação completa
+// (status confirmado → "Escalado"); não existe vaga confirmada e incompleta. O
+// que separa os dois passos do processo ("cadastrar no app" × "completar a
+// escala de pessoas") é o NOME: Escalação = vaga sem nome; Escalado = com nome
+// e ainda não confirmada (salva, ou esperando o gestor da cenotécnica).
+
+export type EtapaDoQuadro = Exclude<EtapaComPrazo, "registro">;
+export type EtapaAtual = EtapaDoQuadro | "concluida";
+
+/** A ordem em que a vaga anda — e das colunas do quadro depois de Registros. */
+export const ETAPAS_DO_QUADRO: EtapaDoQuadro[] = ["validacao", "aprovacao", "escalacao", "escalado", "passagem", "hotel"];
+const ORDEM: Record<EtapaAtual, number> = { validacao: 0, aprovacao: 1, escalacao: 2, escalado: 3, passagem: 4, hotel: 5, concluida: 6 };
+
+/** O que a célula escreve embaixo do número de vagas paradas. */
+export const O_QUE_FALTA: Record<EtapaDoQuadro, string> = {
+  validacao: "a validar",
+  aprovacao: "a aprovar",
+  escalacao: "sem nome",
+  escalado: "a confirmar",
+  passagem: "a emitir",
+  hotel: "a reservar",
+};
+
+/** A etapa em que a vaga está parada: a primeira que ela ainda não cumpriu. */
+export function etapaAtualDaVaga(i: TeamInclusion, ctx: AnalyticsContext): EtapaAtual {
+  const b = bucketDaLinha(i, ctx);
+  if (b === "validacao" || b === "aprovacao") return b;
+  if (b === "vaga") return "escalacao";
+  if (b === "salvo" || b === "gestor") return "escalado";
+  if (i.needsTicket && !ctx.temPassagem?.(i)) return "passagem";
+  if (i.needsAccommodation && !ctx.temHotel?.(i)) return "hotel";
+  return "concluida";
+}
+
+/** "em validação", "sem nome", "com o gestor"… — onde a vaga está, em palavras. */
+export function textoDaEtapaAtual(i: TeamInclusion, ctx: AnalyticsContext): string {
+  switch (etapaAtualDaVaga(i, ctx)) {
+    case "validacao": return "em validação";
+    case "aprovacao": return "em aprovação";
+    case "escalacao": return "sem nome";
+    case "escalado": return bucketDaLinha(i, ctx) === "gestor" ? "com o gestor" : "falta confirmar";
+    case "passagem": return "sem passagem";
+    case "hotel": return "sem hotel";
+    default: return "concluída";
+  }
+}
+
+export interface ColunaDoQuadro {
+  etapa: EtapaDoQuadro;
+  /** As vagas PARADAS nesta etapa — exatamente o número da célula. */
+  paradas: TeamInclusion[];
+  /** Vagas ainda em etapas anteriores (não chegaram aqui). */
+  antes: TeamInclusion[];
+  /** Já passaram por aqui. Passagem/Hotel: só quem precisava e já tem. */
+  passaram: TeamInclusion[];
+  /** Passagem/Hotel: nenhuma vaga do evento precisa. */
+  ninguemPrecisa: boolean;
+}
+
+export interface QuadroDoEvento {
+  colunas: Record<EtapaDoQuadro, ColunaDoQuadro>;
+  /** Passaram por todas as etapas que se aplicam a elas. */
+  concluidas: TeamInclusion[];
+}
+
+const precisaDa = (etapa: EtapaDoQuadro, i: TeamInclusion): boolean =>
+  etapa === "passagem" ? !!i.needsTicket : etapa === "hotel" ? !!i.needsAccommodation : true;
+
+export function quadroDoEvento(vagas: TeamInclusion[], ctx: AnalyticsContext): QuadroDoEvento {
+  const atual = vagas.map((i) => ({ i, e: etapaAtualDaVaga(i, ctx) }));
+  const colunas = Object.fromEntries(ETAPAS_DO_QUADRO.map((etapa) => {
+    const ordem = ORDEM[etapa];
+    const coluna: ColunaDoQuadro = {
+      etapa,
+      paradas: atual.filter((x) => x.e === etapa).map((x) => x.i),
+      antes: atual.filter((x) => ORDEM[x.e] < ordem).map((x) => x.i),
+      passaram: atual.filter((x) => ORDEM[x.e] > ordem && precisaDa(etapa, x.i)).map((x) => x.i),
+      ninguemPrecisa: (etapa === "passagem" || etapa === "hotel") && !vagas.some((i) => precisaDa(etapa, i)),
+    };
+    return [etapa, coluna];
+  })) as Record<EtapaDoQuadro, ColunaDoQuadro>;
+  return { colunas, concluidas: atual.filter((x) => x.e === "concluida").map((x) => x.i) };
+}
+
+/**
+ * Há quantos dias a vaga está parada na etapa atual. Validação conta do envio
+ * para a área; Aprovação, da validação; as demais, da última alteração da vaga
+ * (a melhor aproximação disponível na lista). null sem data.
+ */
+export function diasParadaNaEtapa(i: TeamInclusion, etapa: EtapaAtual, hoje: Date): number | null {
+  const valor = etapa === "validacao" ? (i.suggestionSentAt ?? i.updatedAt)
+    : etapa === "aprovacao" ? (i.validatedAt ?? i.suggestionSentAt ?? i.updatedAt)
+    : i.updatedAt;
+  if (!valor) return null;
+  const d = valor instanceof Date ? valor : new Date(valor);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.max(0, Math.round((inicioDoDia(hoje).getTime() - inicioDoDia(d).getTime()) / MS_DIA));
 }
 
 /** "em 12 dias" / "começa hoje" / "já começou". */

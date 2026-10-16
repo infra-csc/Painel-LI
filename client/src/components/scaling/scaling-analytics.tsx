@@ -218,6 +218,7 @@ export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, on
         {visao === "quadro" ? (
           <QuadroDePrazos
             eventos={eventosVisiveis}
+            ctx={ctx}
             hoje={hoje}
             dias={dias}
             podeEditar={ehAdmin}

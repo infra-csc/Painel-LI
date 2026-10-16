@@ -1,15 +1,22 @@
 /**
- * Prazos de cada etapa da vaga, contados da DATA DO EVENTO (18/09 — planilha do
- * time: "data de validação, escalação e emissão da passagem de acordo com a data
- * do evento"; "editáveis pelo admin"). Para um evento em 20/10 a planilha pede:
- *   registros 18/09 · validação 25/09 · aprovação 26/09 · escalação 03/10 ·
- *   escalado 03/10 · passagem emitida 10/10.
- * Viram "dias antes do evento" (padrão abaixo). O administrador muda no Quadro
- * das Análises; ficam em system_settings, uma chave por etapa.
+ * Prazos de cada etapa da vaga, contados da DATA DO EVENTO em "dias antes"
+ * (editáveis pelo admin no Quadro das Análises; ficam em system_settings, uma
+ * chave por etapa).
+ *
+ * Origem dos números: o PROCESSO DO DONO (16/10), "puxando a data do evento",
+ * que substituiu a planilha do time de 18/09 (32/25/24/17/17/10):
+ *   Registros D-58 (elaborar quantitativo) · Validação D-51 e Aprovação D-51
+ *   (aprovar quantitativo) · Escalação D-47 (cadastrar no app) · Escalado D-44
+ *   (completar escala de pessoas no app) · Passagem emitida D-37 (compra de
+ *   passagem) · Hotel reservado D-30 (etapa nova).
+ * O transfer (D-23) do processo NÃO é etapa do quadro.
+ *
+ * Quem já tinha prazos gravados recebe os novos UMA vez, na subida do servidor
+ * (server/prazos-do-processo.ts, versão "2026-10-16"); depois o admin edita.
  */
-export type EtapaComPrazo = "registro" | "validacao" | "aprovacao" | "escalacao" | "escalado" | "passagem";
+export type EtapaComPrazo = "registro" | "validacao" | "aprovacao" | "escalacao" | "escalado" | "passagem" | "hotel";
 
-export const ETAPAS_COM_PRAZO: EtapaComPrazo[] = ["registro", "validacao", "aprovacao", "escalacao", "escalado", "passagem"];
+export const ETAPAS_COM_PRAZO: EtapaComPrazo[] = ["registro", "validacao", "aprovacao", "escalacao", "escalado", "passagem", "hotel"];
 
 export const ROTULO_DA_ETAPA: Record<EtapaComPrazo, string> = {
   registro: "Registros",
@@ -18,17 +25,30 @@ export const ROTULO_DA_ETAPA: Record<EtapaComPrazo, string> = {
   escalacao: "Escalação",
   escalado: "Escalado",
   passagem: "Passagem emitida",
+  hotel: "Hotel reservado",
+};
+
+/** O passo do processo do dono (16/10) que cada etapa representa. */
+export const ETAPA_DO_PROCESSO: Record<EtapaComPrazo, string> = {
+  registro: "Elaborar quantitativo",
+  validacao: "Aprovar quantitativo",
+  aprovacao: "Aprovar quantitativo",
+  escalacao: "Cadastrar no app",
+  escalado: "Completar escala de pessoas no app",
+  passagem: "Compra de passagem",
+  hotel: "Hotel reservado",
 };
 
 export type DiasDosPrazos = Record<EtapaComPrazo, number>;
 
 export const DIAS_PADRAO: DiasDosPrazos = {
-  registro: 32,
-  validacao: 25,
-  aprovacao: 24,
-  escalacao: 17,
-  escalado: 17,
-  passagem: 10,
+  registro: 58,
+  validacao: 51,
+  aprovacao: 51,
+  escalacao: 47,
+  escalado: 44,
+  passagem: 37,
+  hotel: 30,
 };
 
 /** Chave de cada etapa em system_settings. */
@@ -39,7 +59,16 @@ export const CHAVE_DO_PRAZO: Record<EtapaComPrazo, string> = {
   escalacao: "prazo_dias_escalacao",
   escalado: "prazo_dias_escalado",
   passagem: "prazo_dias_passagem",
+  hotel: "prazo_dias_hotel",
 };
+
+/**
+ * Versão dos prazos já aplicada ao banco (system_settings). O passo único de
+ * server/prazos-do-processo.ts grava os DIAS_PADRAO acima quando a versão
+ * gravada é mais antiga que esta, e nunca mais (o admin continua editando).
+ */
+export const CHAVE_DA_VERSAO_DOS_PRAZOS = "prazos_escala_versao";
+export const VERSAO_DOS_PRAZOS = "2026-10-16";
 
 export const DIAS_MAXIMO = 365;
 

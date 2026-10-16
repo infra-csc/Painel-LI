@@ -215,6 +215,8 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   prazo_dias_escalacao: "Prazo da escalação (dias antes do evento)",
   prazo_dias_escalado: "Prazo do escalado (dias antes do evento)",
   prazo_dias_passagem: "Prazo da passagem emitida (dias antes do evento)",
+  prazo_dias_hotel: "Prazo do hotel reservado (dias antes do evento)",
+  prazos_escala_versao: "Versão dos prazos da escala",
   // busca de passagens (09/10)
   consultas: "Consultas ao fornecedor", vagas: "Escalações", rotas: "Rotas consultadas", fornecedor: "Fornecedor",
   aeroportoIata: "Aeroporto do evento", justificativaPreco: "Justificativa do preço",

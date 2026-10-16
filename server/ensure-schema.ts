@@ -463,6 +463,29 @@ export async function garantirEstrutura(): Promise<void> {
   // antes de qualquer request; não há db:push antigo para desfazer, e o
   // `pool` mínimo desse modo não tem `connect()`.
   if (process.env.PAINEL_DB === "pglite") return;
+  await reporEstruturaAusente();
+  await aplicarAjustesDeDados();
+}
+
+/**
+ * Ajustes de DADOS de uma vez só, depois da estrutura (a tabela tem que
+ * existir). Cada um é idempotente e marca a própria versão no banco; falhar
+ * aqui só é registrado — tenta de novo no próximo boot.
+ */
+async function aplicarAjustesDeDados(): Promise<void> {
+  try {
+    // Import dinâmico: o passo usa o storage/log de auditoria, que este módulo
+    // (importado pelo harness e pelo db) não deve arrastar.
+    const { aplicarPrazosDoProcesso } = await import("./prazos-do-processo");
+    if ((await aplicarPrazosDoProcesso()) === "aplicado") {
+      console.warn("[estrutura] prazos da escala do processo do dono (16/10) aplicados");
+    }
+  } catch (erro) {
+    console.error("[estrutura] falhou: prazos da escala do processo do dono —", erro instanceof Error ? erro.message : erro);
+  }
+}
+
+async function reporEstruturaAusente(): Promise<void> {
   const faltando: Passo[] = [];
   for (const passo of PASSOS) {
     try {
