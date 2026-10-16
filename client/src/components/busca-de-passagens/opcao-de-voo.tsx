@@ -6,11 +6,13 @@
  * volta (duração, paradas e onde) → preço (e o custo total) → selos → ações.
  *
  * "Abrir na companhia" pede o link SÓ no clique (gasta consulta só se não
- * estiver no cache). "Usar este voo" abre o registro da passagem já
- * preenchido — para uma escalação, ou para todas as da rota, uma por vez.
+ * estiver no cache) e abre o site da PRÓPRIA companhia do voo — nunca uma
+ * agência (16/10, regra em shared/links-de-compra.ts). Agências ficam no menu
+ * "Outros sites", com o aviso da taxa própria. "Usar este voo" abre o registro
+ * da passagem já preenchido — para uma escalação, ou para todas as da rota.
  */
-import { ExternalLink, Loader2, ChevronDown, Copy, Check, Users } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, Loader2, ChevronDown, Copy, Check, Users, Search } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -25,6 +27,7 @@ import {
   type PernaDaRota,
   type Selo,
 } from "@shared/busca-de-passagens";
+import { sitesDeCompra, viagemDoItinerario, type LinkDeCompra, type SiteDeCompra, type SitesDaOpcao } from "@shared/links-de-compra";
 import { CLASSE_DA_CIA, diaCurto, hhmm } from "./formato";
 
 export interface VagaDaOpcao { id: string; numero: number | null; nome: string; comprada: boolean; valorPagoCentavos: number | null }
@@ -76,7 +79,111 @@ function Perna({ rotulo, p }: { rotulo: string; p: PernaDeVoo }) {
   );
 }
 
-export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar, onUsarTodas, onAbrirLink, abrindoLink, simulado }: {
+const SUB_DO_CONFIAVEL: Record<string, string> = {
+  "Google Voos": "compara companhias e agências",
+  Skyscanner: "compara companhias e agências",
+  Kayak: "compara companhias e agências",
+  Decolar: "agência brasileira, em reais",
+};
+
+function PrecoDoSite({ s, semPreco }: { s: SiteDeCompra; semPreco: string }) {
+  return (
+    <span className="shrink-0 whitespace-nowrap text-right text-2xs leading-4 tabular-nums text-muted-foreground">
+      {s.precoCentavos !== null ? <span className="font-medium text-foreground">{formatarMoeda(s.precoCentavos)}</span> : semPreco}
+    </span>
+  );
+}
+
+const ROTULO = "px-2 pb-1 pt-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground";
+
+/**
+ * Menu "Outros sites" (16/10), na ordem do dono: "Comparar em" — a lista fixa
+ * de confiáveis (shared/links-de-compra.ts), montada pelo app em reais e
+ * pt-BR, sem gastar consulta — e, no FIM, "Outros sites (menos conhecidos)":
+ * o resto dos links do fornecedor, com o aviso da taxa. Esses só aparecem
+ * depois de pedidos (a mesma consulta do botão, que o cache compartilha).
+ * Preço só quando o fornecedor o informa em reais.
+ */
+function MenuOutrosSites({ id, links, carregando, onCarregar, sites }: {
+  id: string;
+  links: LinkDeCompra[] | null;
+  carregando: boolean;
+  onCarregar: () => void;
+  sites: SitesDaOpcao;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="pas-bp-acao-sec pas-alvo -ml-px inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-r-lg border border-border bg-card text-slate-700 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Outros sites de compra"
+          title="Comparar em outros sites"
+          data-testid={`outros-sites-${id}`}
+        >
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-2rem))]" data-testid={`menu-outros-sites-${id}`}>
+        {sites.confiaveis.length > 0 && (
+          <>
+            <DropdownMenuLabel className={ROTULO}>Comparar em</DropdownMenuLabel>
+            {sites.confiaveis.map((s) => (
+              <DropdownMenuItem key={s.url} asChild className="items-start gap-2">
+                <a href={s.url} target="_blank" rel="noopener noreferrer" data-testid={`confiavel-${id}-${s.nome}`}>
+                  <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{s.nome}</span>
+                    <span className="block text-2xs leading-4 text-muted-foreground">{SUB_DO_CONFIAVEL[s.nome] ?? "em reais"}</span>
+                  </span>
+                  <PrecoDoSite s={s} semPreco="ver preço no site" />
+                </a>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuLabel className={ROTULO}>Outros sites (menos conhecidos)</DropdownMenuLabel>
+        {links === null ? (
+          <DropdownMenuItem
+            onSelect={(e) => { e.preventDefault(); if (!carregando) onCarregar(); }}
+            className="items-start gap-2"
+            data-testid={`carregar-outros-sites-${id}`}
+          >
+            {carregando
+              ? <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+              : <Search className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+            <span className="min-w-0">
+              <span className="block">{carregando ? "Buscando os sites…" : "Ver os sites do fornecedor"}</span>
+              <span className="block text-2xs leading-4 text-muted-foreground">Usa 1 consulta, se a lista ainda não foi pedida</span>
+            </span>
+          </DropdownMenuItem>
+        ) : sites.outros.length === 0 ? (
+          <p className="m-0 px-2 py-1.5 text-xs leading-5 text-muted-foreground" data-testid={`sem-outros-sites-${id}`}>Nenhum outro site vende este voo.</p>
+        ) : (
+          sites.outros.map((s, i) => (
+            <DropdownMenuItem key={s.url} asChild className="items-start gap-2">
+              <a href={s.url} target="_blank" rel="noopener noreferrer" data-testid={`outro-site-${id}-${i}`}>
+                <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{s.nome}</span>
+                  <span className={`block text-2xs leading-4 ${s.tipo === "agencia" ? "text-warning-strong" : "text-muted-foreground"}`}>
+                    {s.tipo === "agencia" ? "agência — pode cobrar taxa própria" : "site da companhia"}
+                  </span>
+                </span>
+                <PrecoDoSite s={s} semPreco="preço pode variar" />
+              </a>
+            </DropdownMenuItem>
+          ))
+        )}
+        <DropdownMenuSeparator />
+        <p className="m-0 px-2 pb-1 pt-0.5 text-2xs leading-4 text-muted-foreground">O preço nestes sites pode ser diferente do mostrado aqui.</p>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar, onUsarTodas, onAbrirLink, abrindoLink, links, carregandoLinks, onCarregarLinks, simulado }: {
   opcao: OpcaoAvaliada;
   perna: PernaDaRota;
   diariaCentavos: number | null;
@@ -87,9 +194,14 @@ export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar
   onUsarTodas?: () => void;
   onAbrirLink: () => void;
   abrindoLink: boolean;
+  /** Links já pedidos deste voo (null = ainda não). */
+  links: LinkDeCompra[] | null;
+  carregandoLinks: boolean;
+  onCarregarLinks: () => void;
   simulado: boolean;
 }) {
   const it = opcao.itinerario;
+  const sites = useMemo(() => sitesDeCompra(links, viagemDoItinerario(it)), [links, it]);
   const { ida, volta } = pernasDaOpcao(it, perna);
   const cia = it.pernas[0]?.segmentos[0]?.companhia ?? it.pernas[0]?.companhia ?? "";
   const nomeCia = Array.from(new Set(it.pernas.map((p) => companhiaDaPerna(p)))).join(" / ");
@@ -161,17 +273,20 @@ export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar
         <button type="button" onClick={copiar} className="pas-bp-acao-sec pas-alvo inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Copiar companhia, voos e preço" title="Copiar voos e preço">
           {copiado ? <Check className="h-4 w-4 text-success" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
         </button>
-        <button
-          type="button"
-          onClick={onAbrirLink}
-          disabled={abrindoLink}
-          className="pas-bp-acao-sec pas-alvo inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-slate-700 hover:bg-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title={simulado ? "Simulação: abre o site da companhia" : "Abre o site de compra (o link é pedido agora)"}
-          data-testid={`abrir-companhia-${it.id}`}
-        >
-          {abrindoLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />}
-          <span className="bpr-so-largo">Abrir na companhia</span><span className="bpr-so-estreito">Companhia</span>
-        </button>
+        <div className="inline-flex shrink-0 items-center">
+          <button
+            type="button"
+            onClick={onAbrirLink}
+            disabled={abrindoLink}
+            className="pas-bp-acao-sec pas-alvo relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-l-lg border border-border bg-card px-2.5 text-xs font-medium text-slate-700 hover:bg-muted focus-visible:z-10 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            title={`${simulado ? "Simulação: " : ""}abre o site da ${sites.companhia?.nome ?? "companhia"}${links === null ? " (o link é pedido agora)" : ""}`}
+            data-testid={`abrir-companhia-${it.id}`}
+          >
+            {abrindoLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />}
+            <span className="bpr-so-largo">Abrir na companhia</span><span className="bpr-so-estreito">Companhia</span>
+          </button>
+          <MenuOutrosSites id={it.id} links={links} carregando={carregandoLinks} onCarregar={onCarregarLinks} sites={sites} />
+        </div>
         {onUsar && pendentes.length === 1 && (
           <button type="button" onClick={() => onUsar(pendentes[0].id)} className={`pas-alvo inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors ${usar} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1`} data-testid={`usar-voo-${it.id}`}>
             Usar este voo

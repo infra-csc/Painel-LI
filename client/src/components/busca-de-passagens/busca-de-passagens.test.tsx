@@ -93,6 +93,47 @@ describe("Rota aberta na tela de resultados", () => {
     // A mesma saída não se repete na coluna lateral.
     expect(screen.getAllByTestId("duas-conexoes-sem")).toHaveLength(1);
   });
+
+  it("\"Abrir na companhia\" nunca abre agência; o menu compara nos confiáveis e deixa o Kiwi no fim, em reais (16/10)", async () => {
+    const fetchMock = mockarFetch((url) => {
+      if (url.includes("/api/busca-de-passagens/link")) {
+        return respostaJson({
+          doCache: false,
+          links: [
+            { nome: "Kiwi.com", url: "https://www.kiwi.com/en/booking?token=t&currency=EUR", tipo: "third_party", vooExato: true, precoCentavos: 61974, moeda: "EUR" },
+            { nome: "Decolar", url: "https://www.decolar.com/checkout/x", tipo: "third_party", vooExato: true, precoCentavos: 210000, moeda: "BRL" },
+          ],
+        });
+      }
+      return respostaJson([]);
+    });
+    const janela = { opener: {}, location: { href: "" }, close: vi.fn() };
+    const abrirJanela = vi.spyOn(window, "open").mockReturnValue(janela as unknown as Window);
+    const { user } = abrir(rota("com", true, [voo]), acoes());
+
+    await user.click(await screen.findByTestId("outros-sites-it-1"));
+    const menu = await screen.findByTestId("menu-outros-sites-it-1");
+    expect(menu).toHaveTextContent("Comparar em");
+    expect(within(menu).getByTestId("confiavel-it-1-Google Voos")).toHaveAttribute("href", expect.stringContaining("curr=BRL"));
+    expect(within(menu).getByTestId("confiavel-it-1-Decolar")).toHaveTextContent("ver preço no site");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.click(within(menu).getByTestId("carregar-outros-sites-it-1"));
+    const kiwi = await within(menu).findByTestId("outro-site-it-1-0");
+    expect(kiwi).toHaveTextContent("agência — pode cobrar taxa própria");
+    expect(kiwi).toHaveTextContent("preço pode variar");
+    expect(kiwi.getAttribute("href")).toContain("currency=BRL");
+    expect(within(menu).getByTestId("confiavel-it-1-Decolar")).toHaveTextContent("R$ 2.100,00");
+    expect(menu.textContent!.indexOf("Comparar em")).toBeLessThan(menu.textContent!.indexOf("menos conhecidos"));
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("abrir-companhia-it-1"));
+    await waitFor(() => expect(janela.location.href).toMatch(/^https:\/\/b2c\.voegol\.com\.br\/compra\/busca-parceiros\?pv=br/));
+    expect(janela.location.href).toContain("de=GRU&para=JPA&ida=12-11-2026");
+    // Os links já pedidos não são pedidos de novo.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    abrirJanela.mockRestore();
+  });
 });
 
 describe("\"Usar este voo\" preenche o modal de registro de Passagens", () => {

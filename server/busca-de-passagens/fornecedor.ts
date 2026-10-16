@@ -10,17 +10,10 @@
  *    explicar (limite do fornecedor, chave inválida, pedido recusado…).
  */
 import type { ConsultaDePassagens, ResultadoDaConsulta } from "@shared/busca-de-passagens";
+import type { LinkDeCompra } from "@shared/links-de-compra";
 
-export interface LinkDeCompra {
-  /** "LATAM", "Decolar"… */
-  nome: string;
-  url: string;
-  /** "airline" quando é o site da própria companhia. */
-  tipo: string | null;
-  /** Link do voo exato (true) ou de uma página de resultados (false). */
-  vooExato: boolean;
-  precoCentavos: number | null;
-}
+// O tipo mora em shared/: a tela escolhe o site da companhia com a mesma regra (16/10).
+export type { LinkDeCompra };
 
 export type CodigoDoErro =
   | "limite_do_fornecedor"   // 402/429: plano sem crédito ou limite de gasto do fornecedor

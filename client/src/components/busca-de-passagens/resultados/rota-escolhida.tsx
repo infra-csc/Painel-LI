@@ -17,13 +17,16 @@ import {
   faixaEmTexto,
   ordenarOpcoes,
   reaisInteiros,
+  voosDaPerna,
+  type ItinerarioDeVoo,
   type ResultadoNaTela,
   type RotaNaTela,
   type VarianteNaTela,
 } from "@shared/busca-de-passagens";
 import { OpcaoDeVoo, type VagaDaOpcao } from "../opcao-de-voo";
-import { diaCurto, haQuanto, plural } from "../formato";
-import { melhorLink, pedirLinkDeCompra } from "../use-busca-de-passagens";
+import { sitesDeCompra, viagemDoItinerario, type LinkDeCompra } from "@shared/links-de-compra";
+import { diaCurto, haQuanto, hhmm, plural } from "../formato";
+import { pedirLinkDeCompra } from "../use-busca-de-passagens";
 import { BotaoQueGasta, custoEmTexto, saidasDaRota, type AcoesDaRota, type IdDaSaida } from "./acoes-que-gastam";
 import { BarraDeFiltrosDasOpcoes, type ContagemDosFiltros } from "./filtros-das-opcoes";
 import { CIAS_DOS_FILTROS, FILTROS_DAS_OPCOES_PADRAO, ciasDaOpcao, filtrosLigados, ordenarParaTela, passaNasOpcoes, type FiltrosDasOpcoes } from "./estado-dos-resultados";
@@ -123,6 +126,8 @@ export function RotaEscolhida({ rota, vagas, acoes, ocupado, carregandoEsta, sim
   const [variante, setVariante] = useState<string | null>(null);
   const [quantas, setQuantas] = useState(POR_VEZ);
   const [abrindo, setAbrindo] = useState<string | null>(null);
+  const [carregandoLinks, setCarregandoLinks] = useState<string | null>(null);
+  const [linksPorVoo, setLinksPorVoo] = useState<Record<string, LinkDeCompra[]>>({});
   const atual: VarianteNaTela | null = variante ? rota.variantes?.find((v) => v.chave === variante) ?? null : null;
   const resultado = atual ? atual.resultado : rota.resultado;
   const erro = atual ? atual.erro : rota.erro;
@@ -150,26 +155,54 @@ export function RotaEscolhida({ rota, vagas, acoes, ocupado, carregandoEsta, sim
     return o ? o.custoTotalCentavos : null;
   };
 
-  const abrirLink = async (itinerarioId: string) => {
+  /** Links de compra já pedidos nesta tela (o servidor também guarda no cache de 3 h). */
+  const buscarLinks = async (itinerarioId: string): Promise<LinkDeCompra[]> => {
+    const ja = linksPorVoo[itinerarioId];
+    if (ja) return ja;
+    const { links } = await pedirLinkDeCompra(itinerarioId);
+    setLinksPorVoo((m) => ({ ...m, [itinerarioId]: links }));
+    return links;
+  };
+
+  const abrirLink = async (it: ItinerarioDeVoo) => {
     // A janela abre JÁ no clique (senão o navegador bloqueia) e recebe o endereço quando o link chega.
     const janela = window.open("about:blank", "_blank");
     if (janela) janela.opener = null;
-    setAbrindo(itinerarioId);
+    setAbrindo(it.id);
     try {
-      const { links } = await pedirLinkDeCompra(itinerarioId);
-      const link = melhorLink(links);
-      if (!link) {
+      // Sempre o site da PRÓPRIA companhia (voo exato > busca dela > busca montada pelo app); agência nunca.
+      const { companhia } = sitesDeCompra(await buscarLinks(it.id), viagemDoItinerario(it));
+      if (!companhia) {
         janela?.close();
-        toast({ title: "Sem link direto para este voo", description: "Procure o mesmo voo no site da companhia." });
+        toast({ title: "Sem link da companhia para este voo", description: "Veja “Outros sites” ou procure o mesmo voo no site da companhia." });
         return;
       }
-      if (janela) janela.location.href = link.url;
-      else window.open(link.url, "_blank", "noopener");
+      if (janela) janela.location.href = companhia.url;
+      else window.open(companhia.url, "_blank", "noopener");
+      if (!companhia.vooExato) {
+        const [ida, volta] = it.pernas;
+        const voo = (p: typeof ida) => `${voosDaPerna(p)} (${diaCurto(p.segmentos[0]?.partida)}, ${hhmm(p.segmentos[0]?.partida)})`;
+        toast({
+          title: `Abrimos a busca no site da ${companhia.nome}`,
+          description: `Escolha ${volta ? `a ida ${voo(ida)} e a volta ${voo(volta)}` : `o voo ${voo(ida)}`}. O preço no site pode variar.`,
+        });
+      }
     } catch (e) {
       janela?.close();
       toast({ title: "Não foi possível abrir o link", description: apiErrorMessage(e, "Tente de novo."), variant: "destructive" });
     } finally {
       setAbrindo(null);
+    }
+  };
+
+  const carregarOutrosSites = async (itinerarioId: string) => {
+    setCarregandoLinks(itinerarioId);
+    try {
+      await buscarLinks(itinerarioId);
+    } catch (e) {
+      toast({ title: "Não foi possível buscar os sites", description: apiErrorMessage(e, "Tente de novo."), variant: "destructive" });
+    } finally {
+      setCarregandoLinks(null);
     }
   };
 
@@ -361,8 +394,11 @@ export function RotaEscolhida({ rota, vagas, acoes, ocupado, carregandoEsta, sim
                     simulado={simulado}
                     onUsar={vagasPendentes.length > 0 && !atual ? (vagaId) => acoes.usar(vagaId, rota, o, resultado) : undefined}
                     onUsarTodas={vagasPendentes.length > 1 && !atual && acoes.usarParaTodas ? () => acoes.usarParaTodas?.(rota, o, resultado) : undefined}
-                    onAbrirLink={() => abrirLink(o.itinerario.id)}
+                    onAbrirLink={() => abrirLink(o.itinerario)}
                     abrindoLink={abrindo === o.itinerario.id}
+                    links={linksPorVoo[o.itinerario.id] ?? null}
+                    carregandoLinks={carregandoLinks === o.itinerario.id}
+                    onCarregarLinks={() => carregarOutrosSites(o.itinerario.id)}
                   />
                 ))}
               </ul>

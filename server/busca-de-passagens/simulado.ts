@@ -7,7 +7,8 @@
  * resultados, voo absurdo, volta noturna com +1 diária — aparecem de verdade.
  * A tela mostra "Preços simulados" sempre que é ele quem responde.
  */
-import type { ConsultaDePassagens, FiltroDeHorario, ItinerarioDeVoo, PernaDeVoo, ResultadoDaConsulta } from "@shared/busca-de-passagens";
+import { NOME_DA_CIA, type ConsultaDePassagens, type FiltroDeHorario, type ItinerarioDeVoo, type PernaDeVoo, type ResultadoDaConsulta } from "@shared/busca-de-passagens";
+import { linkDaCompanhia } from "@shared/links-de-compra";
 import type { FornecedorDePassagens, LinkDeCompra } from "./fornecedor";
 
 const SITES: Record<string, string> = {
@@ -81,14 +82,22 @@ function passaNoFiltro(p: PernaDeVoo, f: FiltroDeHorario | null, maxParadas: num
 }
 
 const semBase = ({ base: _b, ...p }: PernaDeVoo & { base: number }): PernaDeVoo => p;
-const id = (cia: string, partes: string[]) => `sim-${cia}-${Math.floor(aleatorio(partes.join("|"))() * 1e12).toString(36)}`;
+/**
+ * "sim-LA-GRUBEL-20261112-20261115-<hash>": a rota e as datas vão no id para
+ * o link de compra simulado saber montar a busca no site da companhia.
+ */
+const compacta = (d: string | null) => (d ? d.replace(/-/g, "") : "x");
+const id = (cia: string, c: ConsultaDePassagens, partes: string[]) =>
+  `sim-${cia}-${c.origem}${c.destino}-${compacta(c.dataIda)}-${compacta(c.perna === "ida_e_volta" ? c.dataVolta : null)}-${Math.floor(aleatorio(partes.join("|"))() * 1e12).toString(36)}`;
+const ID_SIMULADO = /^sim-(LA|G3|AD)-([A-Z]{3})([A-Z]{3})-(\d{8})-(\d{8}|x)-/;
+const dia = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
 
 export function buscarSimulado(c: ConsultaDePassagens): ResultadoDaConsulta {
   const idas = voosDoDia(c.origem, c.destino, c.dataIda).filter((p) => passaNoFiltro(p, c.horarioIda, c.maxParadas));
   if (c.perna !== "ida_e_volta" || !c.dataVolta) {
     return {
       itinerarios: idas.map((p): ItinerarioDeVoo => ({
-        id: id(p.companhia, [c.origem, c.destino, c.dataIda, p.segmentos.map((s) => s.numero).join("+")]),
+        id: id(p.companhia, c, [c.origem, c.destino, c.dataIda, p.segmentos.map((s) => s.numero).join("+")]),
         precoCentavos: Math.round(p.base * 100), moeda: "BRL", pernas: [semBase(p)],
         bagagem: { mao: 1, despachada: p.companhia === "AD" ? 1 : 0 },
       })),
@@ -101,7 +110,7 @@ export function buscarSimulado(c: ConsultaDePassagens): ResultadoDaConsulta {
     // Cada ida combina com até 2 voltas da MESMA companhia (como a tarifa ida e volta).
     voltas.filter((v) => v.companhia === ida.companhia).slice(i % 2, (i % 2) + 2).forEach((volta) => {
       itinerarios.push({
-        id: id(ida.companhia, [c.origem, c.destino, c.dataIda, c.dataVolta!, ida.segmentos[0].numero, volta.segmentos[0].numero]),
+        id: id(ida.companhia, c, [c.origem, c.destino, c.dataIda, c.dataVolta!, ida.segmentos[0].numero, volta.segmentos[0].numero]),
         precoCentavos: Math.round((ida.base + volta.base) * 0.93 * 100), moeda: "BRL",
         pernas: [semBase(ida), semBase(volta)],
         bagagem: { mao: 1, despachada: ida.companhia === "AD" ? 1 : 0 },
@@ -109,6 +118,32 @@ export function buscarSimulado(c: ConsultaDePassagens): ResultadoDaConsulta {
     });
   });
   return { itinerarios, observadoEm: new Date().toISOString() };
+}
+
+/**
+ * Links simulados como o fornecedor real devolve (16/10): o site da companhia
+ * (LATAM e GOL) e uma agência em EURO — o Kiwi do print do dono — para a tela
+ * mostrar o botão da companhia e o menu "Outros sites". A Azul vem SEM link da
+ * companhia, para o demo exercitar a busca montada pelo app.
+ */
+export function linksSimulados(itinerarioId: string): LinkDeCompra[] {
+  const m = ID_SIMULADO.exec(itinerarioId);
+  const cia = (m?.[1] ?? /^sim-(LA|G3|AD)-/.exec(itinerarioId)?.[1] ?? "LA") as "LA" | "G3" | "AD";
+  if (!m) return [{ nome: NOME_DA_CIA[cia], url: SITES[cia], tipo: "airline", vooExato: false, precoCentavos: null, moeda: null }];
+  const [, , origem, destino, ida, volta] = m;
+  const links: LinkDeCompra[] = [];
+  const daCia = cia === "AD" ? null : linkDaCompanhia(cia, origem, destino, dia(ida), volta === "x" ? null : dia(volta));
+  if (daCia) links.push({ nome: NOME_DA_CIA[cia], url: daCia, tipo: "airline", vooExato: false, precoCentavos: null, moeda: null });
+  const r = aleatorio(itinerarioId);
+  links.push({
+    nome: "Kiwi.com",
+    url: `https://www.kiwi.com/deep?from=${origem}&to=${destino}&departure=${dia(ida)}${volta === "x" ? "" : `&return=${dia(volta)}`}&currency=EUR&lang=en`,
+    tipo: "third_party",
+    vooExato: false,
+    precoCentavos: Math.round((150 + r() * 500) * 100),
+    moeda: "EUR",
+  });
+  return links;
 }
 
 export function criarSimulado(): FornecedorDePassagens {
@@ -119,8 +154,7 @@ export function criarSimulado(): FornecedorDePassagens {
       return buscarSimulado(c);
     },
     async linksDeCompra(itinerarioId): Promise<LinkDeCompra[]> {
-      const cia = /^sim-(LA|G3|AD)-/.exec(itinerarioId)?.[1] ?? "LA";
-      return [{ nome: cia === "LA" ? "LATAM" : cia === "G3" ? "GOL" : "Azul", url: SITES[cia], tipo: "airline", vooExato: false, precoCentavos: null }];
+      return linksSimulados(itinerarioId);
     },
   };
 }

@@ -5,7 +5,8 @@
  *
  *  - POST /api/fares/one-way      — uma perna (ida, volta ou trecho direto);
  *  - POST /api/fares/round-trip   — ida e volta numa consulta só;
- *  - POST /api/fares/booking-links — links de compra de um itinerário (só no clique).
+ *  - POST /api/fares/booking-links — links de compra de um itinerário (só no
+ *    clique), com market "BR"; qual deles abre é a regra de shared/links-de-compra.ts.
  *
  * Autenticação: header `X-Api-Key` com a chave do Secret IGNAV_API_KEY.
  * NUNCA logar a chave nem a resposta: só status e código do erro.
@@ -108,6 +109,36 @@ export function normalizarRespostaIgnav(json: unknown, idaEVolta: boolean): Resu
   return { itinerarios, observadoEm: typeof j.observed_at === "string" ? j.observed_at : null };
 }
 
+/** Corpo do pedido de links: o id e o mercado BR (moeda e provedores do Brasil). */
+export function corpoDosLinksIgnav(itinerarioId: string): Record<string, unknown> {
+  return { ignav_id: itinerarioId, market: "BR" };
+}
+
+/** `booking_options[].links[]` → links normalizados, com a moeda do preço de cada um. */
+export function normalizarLinksIgnav(json: unknown): LinkDeCompra[] {
+  const j = (json && typeof json === "object" ? json : {}) as Bruto;
+  const opcoes = Array.isArray(j.booking_options) ? (j.booking_options as Bruto[]) : [];
+  const links: LinkDeCompra[] = [];
+  for (const o of opcoes) {
+    for (const l of Array.isArray(o.links) ? (o.links as Bruto[]) : []) {
+      const url = urlSegura(l.url);
+      if (!url) continue;
+      const preco = (l.price ?? null) as Bruto | null;
+      const valor = numero(preco?.amount);
+      links.push({
+        nome: texto(l.provider_name) || "Site de compra",
+        url,
+        tipo: texto(l.provider_type) || null,
+        vooExato: l.specificity === "exact_flight",
+        // amount 0 = marcador "unverified" do Ignav, não preço.
+        precoCentavos: valor === null || valor <= 0 ? null : Math.round(valor * 100),
+        moeda: texto(preco?.currency).toUpperCase() || null,
+      });
+    }
+  }
+  return links;
+}
+
 // ── Chamada ────────────────────────────────────────────────────────────────
 
 async function postar(chave: string, caminho: string, corpo: unknown): Promise<unknown> {
@@ -158,24 +189,19 @@ export function criarIgnav(chave: string): FornecedorDePassagens {
       }
     },
     async linksDeCompra(itinerarioId) {
-      const json = (await postar(chave, "/fares/booking-links", { ignav_id: itinerarioId })) as Bruto;
-      const opcoes = Array.isArray(json?.booking_options) ? (json.booking_options as Bruto[]) : [];
-      const links: LinkDeCompra[] = [];
-      for (const o of opcoes) {
-        for (const l of Array.isArray(o.links) ? (o.links as Bruto[]) : []) {
-          const url = urlSegura(l.url);
-          if (!url) continue;
-          const preco = numero((l.price as Bruto | undefined)?.amount);
-          links.push({
-            nome: texto(l.provider_name) || "Site de compra",
-            url,
-            tipo: texto(l.provider_type) || null,
-            vooExato: l.specificity === "exact_flight",
-            precoCentavos: preco === null ? null : Math.round(preco * 100),
-          });
-        }
+      // O padrão do Ignav para links é market "US" (doc /docs/booking-links): sem
+      // "BR" vinham agências estrangeiras em USD/EUR (Kiwi em euro, 16/10). O
+      // OpenAPI aceita `market` junto do `ignav_id` (e NÃO aceita currency/locale:
+      // additionalProperties false). Se um dia recusar a combinação, repete só
+      // com o id — 400 não é consulta cobrada.
+      let json: Bruto;
+      try {
+        json = (await postar(chave, "/fares/booking-links", corpoDosLinksIgnav(itinerarioId))) as Bruto;
+      } catch (e) {
+        if (!(e instanceof ErroDoFornecedor) || e.codigo !== "pedido_recusado") throw e;
+        json = (await postar(chave, "/fares/booking-links", { ignav_id: itinerarioId })) as Bruto;
       }
-      return links;
+      return normalizarLinksIgnav(json);
     },
   };
 }

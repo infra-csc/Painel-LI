@@ -12,6 +12,7 @@ import { apiRequest, fetchJson, isApiError } from "@/lib/queryClient";
 import type { AjusteDaBusca, ConsumoDaBusca, PedidoDaBusca, RespostaDaBusca, VagaDoPedido } from "@shared/busca-de-passagens";
 import type { AjustesDaBusca, TendenciaDoPreco } from "@shared/regras-da-busca";
 import type { ResumoDoConsumo } from "@shared/consumo-da-busca";
+import type { LinkDeCompra } from "@shared/links-de-compra";
 
 export const CHAVE_DO_CONSUMO = ["/api/busca-de-passagens/consumo"] as const;
 
@@ -158,14 +159,7 @@ export function useConfirmarAeroporto() {
   });
 }
 
-export interface LinkDeCompra { nome: string; url: string; tipo: string | null; vooExato: boolean; precoCentavos: number | null }
-
-/** O melhor link: o site da companhia, de preferência o do voo exato. */
-export function melhorLink(links: LinkDeCompra[]): LinkDeCompra | null {
-  return links.slice().sort((a, b) =>
-    Number(b.tipo === "airline") - Number(a.tipo === "airline") || Number(b.vooExato) - Number(a.vooExato))[0] ?? null;
-}
-
+/** Qual link abre (companhia × agência) é a regra de shared/links-de-compra.ts. */
 export async function pedirLinkDeCompra(itinerarioId: string): Promise<{ links: LinkDeCompra[]; doCache: boolean }> {
   const r = await apiRequest("POST", "/api/busca-de-passagens/link", { itinerarioId });
   return r.json();
