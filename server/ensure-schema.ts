@@ -180,6 +180,97 @@ const PASSOS: Passo[] = [
       PRIMARY KEY (event_id, user_id)
     )`,
   },
+  // 16/10 — honorários da cenotécnica (pedido → aprovação → liberação da
+  // verba). Tabelas novas e aditivas; sem elas as rotas do módulo respondem
+  // 500 — por isso entram aqui, além da migração da data.
+  {
+    descricao: "tabela honorarios_ceno (honorários da cenotécnica)",
+    sql: `CREATE TABLE IF NOT EXISTS honorarios_ceno (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      tipo text NOT NULL,
+      team_inclusion_id varchar REFERENCES team_inclusions(id),
+      function_id varchar REFERENCES functions(id),
+      collaborator_id varchar,
+      nome text NOT NULL,
+      pessoas integer,
+      descricao text,
+      setor text,
+      posicao text,
+      inicio date,
+      fim date,
+      diarias integer,
+      valor_pedido integer NOT NULL DEFAULT 0,
+      valor_aprovado integer,
+      observacao text,
+      status text NOT NULL DEFAULT 'rascunho',
+      versao integer NOT NULL DEFAULT 1,
+      criado_por varchar NOT NULL,
+      criado_por_nome text NOT NULL,
+      enviado_por varchar,
+      enviado_por_nome text,
+      enviado_em timestamptz,
+      decidido_por varchar,
+      decidido_por_nome text,
+      decidido_em timestamptz,
+      motivo_decisao text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    descricao: "índice honorarios_ceno_evento_idx",
+    sql: `CREATE INDEX IF NOT EXISTS honorarios_ceno_evento_idx ON honorarios_ceno (event_id)`,
+  },
+  {
+    descricao: "índice honorarios_ceno_status_idx",
+    sql: `CREATE INDEX IF NOT EXISTS honorarios_ceno_status_idx ON honorarios_ceno (status)`,
+  },
+  {
+    descricao: "índice honorarios_ceno_vaga_uq",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS honorarios_ceno_vaga_uq ON honorarios_ceno (team_inclusion_id) WHERE team_inclusion_id IS NOT NULL`,
+  },
+  {
+    descricao: "tabela honorarios_ceno_historico (honorários da cenotécnica)",
+    sql: `CREATE TABLE IF NOT EXISTS honorarios_ceno_historico (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      honorario_id varchar NOT NULL REFERENCES honorarios_ceno(id) ON DELETE CASCADE,
+      acao text NOT NULL,
+      valor_anterior integer,
+      valor_novo integer,
+      motivo text,
+      detalhe text,
+      por_id varchar NOT NULL,
+      por_nome text NOT NULL,
+      em timestamptz NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    descricao: "índice honorarios_ceno_historico_idx",
+    sql: `CREATE INDEX IF NOT EXISTS honorarios_ceno_historico_idx ON honorarios_ceno_historico (honorario_id, em)`,
+  },
+  {
+    descricao: "tabela honorarios_ceno_liberacoes (honorários da cenotécnica)",
+    sql: `CREATE TABLE IF NOT EXISTS honorarios_ceno_liberacoes (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      honorario_id varchar NOT NULL REFERENCES honorarios_ceno(id) ON DELETE CASCADE,
+      data date NOT NULL,
+      oc text NOT NULL,
+      valor integer NOT NULL,
+      observacao text,
+      por_id varchar NOT NULL,
+      por_nome text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      estornada_em timestamptz,
+      estornada_por varchar,
+      estornada_por_nome text,
+      motivo_estorno text
+    )`,
+  },
+  {
+    descricao: "índice honorarios_ceno_liberacoes_idx",
+    sql: `CREATE INDEX IF NOT EXISTS honorarios_ceno_liberacoes_idx ON honorarios_ceno_liberacoes (honorario_id)`,
+  },
   // 09/10 — trecho direto entre eventos e viagem de uma perna (caso Alonso:
   // Aracaju → João Pessoa). O `select` explícito do storage lista as colunas
   // da vaga e o GET de passagens lê todas as de tickets: sem elas, as duas
@@ -199,6 +290,28 @@ const PASSOS: Passo[] = [
   {
     descricao: "tickets.ida_vem_de_inclusion_id (trecho direto confirmado por Compras)",
     sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ida_vem_de_inclusion_id varchar`,
+  },
+  // 16/10 — transporte terrestre da vaga (carro/van/ônibus por perna). A
+  // derivação do status da vaga e o alerta "sem passagem" leem esta tabela:
+  // sem ela, registrar passagem cairia — por isso entra aqui.
+  {
+    descricao: "tabela transportes_terrestres (vaga vai de carro/van/ônibus em vez de avião)",
+    sql: `CREATE TABLE IF NOT EXISTS transportes_terrestres (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      team_inclusion_id varchar NOT NULL REFERENCES team_inclusions(id) ON DELETE CASCADE,
+      trecho text NOT NULL,
+      modo text NOT NULL,
+      empresa text,
+      valor_centavos integer NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      created_by varchar REFERENCES users(id),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by varchar REFERENCES users(id)
+    )`,
+  },
+  {
+    descricao: "índice transportes_terrestres_vaga_trecho_uq",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS transportes_terrestres_vaga_trecho_uq ON transportes_terrestres (team_inclusion_id, trecho)`,
   },
   {
     descricao: "scaling_change_requests.grupo_id (pedido de ajuste em par)",

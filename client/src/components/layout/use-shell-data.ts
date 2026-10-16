@@ -36,7 +36,8 @@ import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_TYPE_LABELS, type ChangeRequestTy
 import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "./shell-prefs";
 import { buscarAvisos, podeVerAvisos, CHAVE_AVISOS_CASCA, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 
-import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2, BellRing } from "lucide-react";
+import { buscarPendencias, CHAVE_DO_SINO, type PendenciasHonorarios } from "@/components/honorarios-ceno/api";
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2, BellRing, CircleDollarSign, HandCoins } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
@@ -301,6 +302,22 @@ export function useShellData() {
   });
   const precosQueMudaram = isPurchasing ? (precosData?.count ?? 0) : 0;
 
+  /**
+   * Honorários da cenotécnica (16/10): ao enviar, avisa o aprovador; ao
+   * aprovar, o Financeiro; ao devolver, quem pediu. Contado no servidor; quem
+   * não participa do módulo recebe zeros (nunca 403).
+   */
+  const { data: honorarios } = useQuery<PendenciasHonorarios>({
+    queryKey: [...CHAVE_DO_SINO],
+    queryFn: ({ signal }) => buscarPendencias(signal),
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+  const honAprovar = honorarios?.aguardandoMinhaAprovacao ?? 0;
+  const honPodeDecidir = honorarios?.aguardandoPodeDecidir ?? 0;
+  const honDevolvidos = honorarios?.devolvidosParaMim ?? 0;
+  const honLiberar = honorarios?.aLiberar ?? 0;
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -362,6 +379,11 @@ export function useShellData() {
     entrada(viagensQueSeCruzam, "viagens-cruzam", `${viagensQueSeCruzam} ${viagensQueSeCruzam === 1 ? "viagem que se cruza" : "viagens que se cruzam"}`, "Mesmo colaborador em dois lugares — encadeie como trecho direto ou corrija as datas", "Passagens", "/tickets?conflito=viagem", Route, VERMELHO);
     // Preços acompanhados que mudaram (09/10): leva à Busca com a lista aberta.
     entrada(precosQueMudaram, "precos-acompanhados", `${precosQueMudaram} ${precosQueMudaram === 1 ? "preço acompanhado mudou" : "preços acompanhados mudaram"}`, "Caiu o suficiente para avisar ou a tendência virou “subir”", "Busca de passagens", "/busca-de-passagens?acompanhando=1", BellRing, AMBAR);
+    // Honorários da cenotécnica (16/10).
+    const honorario = (n: number) => `${n} ${n === 1 ? "honorário" : "honorários"}`;
+    entrada(honAprovar, "hon-aprovar", `${honorario(honAprovar)} aguardando sua aprovação`, "Valor negociado pela cenotécnica", "Aprovação de escala", "/scaling-approval?aba=honorarios", CircleDollarSign, "bg-brand-soft text-primary");
+    entrada(honDevolvidos, "hon-devolvidos", `${honorario(honDevolvidos)} ${honDevolvidos === 1 ? "devolvido" : "devolvidos"} para negociar`, "O aprovador pediu para rever o valor", "Validação de escala", "/scaling-validation?aba=honorarios", Undo2, "bg-brand-soft text-primary");
+    entrada(honLiberar, "hon-liberar", `${honorario(honLiberar)} ${honLiberar === 1 ? "aprovado" : "aprovados"} a liberar`, "Registre a data, a OC/DP e o valor liberado", "Honorários da cenotécnica", "/honorarios-ceno", HandCoins, AMBAR);
     entrada(datasImpossiveis, "datas-impossiveis", `${datasImpossiveis} ${datasImpossiveis === 1 ? "passagem com data impossível" : "passagens com data impossível"}`, "Volta antes da ida ou ano fora do esperado", "Passagens", "/tickets?conflito=data", CalendarX2, VERMELHO);
 
     if (isPurchasing) {
@@ -376,7 +398,7 @@ export function useShellData() {
     entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis, precosQueMudaram]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis, precosQueMudaram, honAprovar, honDevolvidos, honLiberar]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
@@ -384,7 +406,8 @@ export function useShellData() {
 
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
   const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount
-    + avisosPassagem + avisosSoHospedagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis + precosQueMudaram;
+    + avisosPassagem + avisosSoHospedagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis + precosQueMudaram
+    + honAprovar + honDevolvidos + honLiberar;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
@@ -395,10 +418,13 @@ export function useShellData() {
     // Trocas + cenotécnica aguardando o gestor (15/09).
     scaling: (isPurchasing ? scalingSwapCount : myScalingSwapsCount) + aguardandoGestorCount,
     // Tudo que espera ação do aprovador: pedidos + vagas validadas aguardando ele.
-    "scaling-approval": canSeeApprovals ? pedidosQuePodeDecidir.length + myAwaitingApprovalCount : 0,
-    "scaling-validation": myAwaitingValidationCount,
+    // + honorários da cenotécnica que esta pessoa decide / que voltaram para ela (16/10).
+    "scaling-approval": (canSeeApprovals ? pedidosQuePodeDecidir.length + myAwaitingApprovalCount : 0) + honPodeDecidir,
+    "scaling-validation": myAwaitingValidationCount + honDevolvidos,
     // Preços acompanhados que mudaram (09/10).
     "busca-de-passagens": precosQueMudaram,
+    // Honorários da cenotécnica (16/10).
+    "honorarios-ceno": honLiberar,
   };
 
   return { tabBadgeCount, notifications, pendingTotal, hasUnseen: notifications.some((n) => n.isNew), markAllSeen };

@@ -17,12 +17,12 @@
  * ativa. No celular continua 2 × 2 (são só quatro blocos e o "Compradas"
  * carrega o valor em R$, que numa pílula sumiria), mais baixa.
  */
-import { ShoppingCart, Clock, ArrowLeftRight, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, Clock, ArrowLeftRight, CheckCircle2, Car } from "lucide-react";
 import { formatBrl, type TicketsData } from "./use-tickets-data";
 import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/fila-de-trabalho";
 
 /** Qual bloco está ativo — deriva dos filtros, não é estado novo. */
-export type FilaDePassagens = "comprar" | "sem-chegada" | "troca" | "compradas" | null;
+export type FilaDePassagens = "comprar" | "sem-chegada" | "troca" | "compradas" | "terrestre" | null;
 
 /** Uma cor por significado — a mesma da pílula de status correspondente. */
 const COR: Record<Exclude<FilaDePassagens, null>, string> = {
@@ -30,6 +30,7 @@ const COR: Record<Exclude<FilaDePassagens, null>, string> = {
   "sem-chegada": "text-danger-strong",
   troca: "text-info-strong",
   compradas: "text-success-strong",
+  terrestre: "text-success-strong",
 };
 
 const ICONE = {
@@ -37,6 +38,7 @@ const ICONE = {
   "sem-chegada": Clock,
   troca: ArrowLeftRight,
   compradas: CheckCircle2,
+  terrestre: Car,
 } as const;
 
 export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas, ativa, onEscolher }: {
@@ -72,6 +74,17 @@ export default function TicketsWorkQueue({ kpis, trocasPendentes, mostrarTrocas,
           ? `Histórico de trocas: ${kpis.historico.count} · ${formatBrl(kpis.historico.totalCents)} (passagens de quem saiu — o custo continua no evento)`
           : null,
       ].filter(Boolean).join("\n"),
+    },
+    {
+      // 16/10: quem vai de carro/van/ônibus — contado e somado À PARTE do
+      // "Compradas" (que é passagem). O valor é o registrado nas vagas.
+      key: "terrestre",
+      rotulo: "Carro / van",
+      n: kpis.terrestre?.count ?? 0,
+      sub: formatBrl(kpis.terrestre?.totalCents ?? 0),
+      titulo: (kpis.terrestre?.count ?? 0) > 0
+        ? `${kpis.terrestre.count} ${kpis.terrestre.count === 1 ? "vaga vai" : "vagas vão"} de carro, van ou ônibus · ${formatBrl(kpis.terrestre.totalCents)} registrados (não entra no Planejado/Realizado)`
+        : "Nenhuma vaga registrada como carro, van ou ônibus",
     },
   ];
 

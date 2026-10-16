@@ -2,7 +2,7 @@
 // + rodapé. Queries e mutations que dependem da inclusão selecionada vivem aqui.
 import { useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Edit, CheckCircle, FileText, Bus, Truck, Lock, Loader2, Settings2 } from "lucide-react";
+import { Plane, Edit, CheckCircle, FileText, Bus, Truck, Lock, Loader2, Settings2, Car } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,12 +79,14 @@ interface TicketModalProps {
   avisoDosDados?: ReactNode;
   /** "Buscar preços" desta vaga (09/10): leva à tela Busca de passagens. */
   onBuscarPrecos?: () => void;
+  /** "Vai de carro/van" (16/10): troca este modal pelo do transporte terrestre. */
+  onTerrestre?: () => void;
 }
 
 export default function TicketModal({
   open, inclusion, data, user, form, helpers, handlers, editingTicketId, activeTab, onTabChange,
   showCommentsModal, onShowCommentsModal, onRequestClose, onStartEdit, onCancelEdit, onSubmit, isSubmitting, sinal, bloqueioDeViagem,
-  avisoDosDados, onBuscarPrecos,
+  avisoDosDados, onBuscarPrecos, onTerrestre,
 }: TicketModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -404,7 +406,11 @@ export default function TicketModal({
                             <SelectContent>
                               <SelectItem value="aereo"><span className="inline-flex items-center gap-2"><Plane className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Aérea</span></SelectItem>
                               <SelectItem value="rodoviario"><span className="inline-flex items-center gap-2"><Bus className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Rodoviária</span></SelectItem>
-                              <SelectItem value="van"><span className="inline-flex items-center gap-2"><Truck className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Van</span></SelectItem>
+                              {/* Van como PASSAGEM (só a empresa) fica para as já gravadas assim;
+                                  a nova é "Vai de carro/van" (transporte terrestre, com valor) — 16/10. */}
+                              {form.transportType === "van" && (
+                                <SelectItem value="van"><span className="inline-flex items-center gap-2"><Truck className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Van</span></SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
@@ -447,6 +453,15 @@ export default function TicketModal({
                           </div>
                         )}
                       </div>
+                      {onTerrestre && !ticket && !dis && (
+                        <p className="m-0 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600" data-testid={`dica-terrestre-${sid}`}>
+                          <Car className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+                          Vai de carro, van ou ônibus em vez de avião?
+                          <button type="button" onClick={onTerrestre} className="font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm" data-testid={`abrir-terrestre-do-modal-${sid}`}>
+                            Registrar sem passagem
+                          </button>
+                        </p>
+                      )}
                       {/* Trecho direto (09/10): só quando o bilhete tem a ida. */}
                       {form.transportType !== "van" && !form.isReturnOnly && (
                         <TrechoDiretoCampo

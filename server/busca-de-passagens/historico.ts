@@ -220,7 +220,10 @@ export async function carregarPendentes(
 ): Promise<VagaParaPrevisao[]> {
   const rows = await db.execute(drizzleSql`
     SELECT ti.id, ti.inclusion_number, ti.event_id, ti.function_id, ti.city, c.city AS cidade_colab, c.full_name,
-      f.name AS funcao, ti.needs_ticket, ti.transport_mode_ida, ti.transport_mode_volta,
+      f.name AS funcao, ti.needs_ticket,
+      -- 16/10: perna registrada como carro/van/ônibus (transporte terrestre) não é aérea.
+      COALESCE((SELECT tt.modo FROM transportes_terrestres tt WHERE tt.team_inclusion_id = ti.id AND tt.trecho = 'ida'), ti.transport_mode_ida) AS transport_mode_ida,
+      COALESCE((SELECT tt.modo FROM transportes_terrestres tt WHERE tt.team_inclusion_id = ti.id AND tt.trecho = 'volta'), ti.transport_mode_volta) AS transport_mode_volta,
       to_char(ti.flight_departure_date, 'YYYY-MM-DD') AS ida, ti.flight_arrival_suggested_time,
       to_char(ti.flight_return_date, 'YYYY-MM-DD') AS volta, ti.flight_return_suggested_time,
       ti.trechos_sugeridos, ti.ida_vem_do_evento_id, ti.volta_segue_para_evento_id

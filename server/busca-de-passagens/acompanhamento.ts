@@ -24,6 +24,7 @@ import { PAPEIS_DA_BUSCA, PAPEIS_DAS_ANALISES, decidirAvisoDoAcompanhamento, nom
 import { prepararPrevisao, preverVaga, type VagaParaPrevisao } from "@shared/previsao-da-busca";
 import { createAuditLog, requireRoles } from "../routes/_compartilhado";
 import { carregarConsultas, carregarPendentes } from "./historico";
+import { SQL_TERRESTRE_COBRE_A_VAGA } from "../transporte-terrestre";
 import {
   consultarUmaVez,
   consumoDoMes,
@@ -63,7 +64,16 @@ export async function pararOsQueJaTemPassagem(): Promise<number> {
       drizzleSql`EXISTS (SELECT 1 FROM tickets t WHERE t.team_inclusion_id = ${buscaPassagensAcompanhamentos.teamInclusionId} AND t.archived_at IS NULL)`,
     ))
     .returning({ id: buscaPassagensAcompanhamentos.id });
-  return r.length;
+  // 16/10: quem passou a ir de carro/van/ônibus em todas as pernas não tem voo
+  // a acompanhar — cada checagem gastaria consulta à toa.
+  const terrestre = await db.update(buscaPassagensAcompanhamentos)
+    .set({ ativo: false, paradoEm: new Date(), motivoParada: "Vai de carro/van (transporte terrestre)" })
+    .where(and(
+      eq(buscaPassagensAcompanhamentos.ativo, true),
+      drizzleSql`EXISTS (SELECT 1 FROM team_inclusions ti WHERE ti.id = ${buscaPassagensAcompanhamentos.teamInclusionId} AND ${SQL_TERRESTRE_COBRE_A_VAGA})`,
+    ))
+    .returning({ id: buscaPassagensAcompanhamentos.id });
+  return r.length + terrestre.length;
 }
 
 /**

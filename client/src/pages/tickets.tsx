@@ -41,6 +41,7 @@ import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
 import VoucherLoteDialog from "@/components/tickets/voucher-lote-dialog";
 import TicketsTable from "@/components/tickets/tickets-table";
 import TicketModal from "@/components/tickets/ticket-modal";
+import TerrestreDialog, { type AberturaDoTerrestre } from "@/components/tickets/terrestre-dialog";
 import { useSinaisDeViagem, passaNoRecorteDeConflito, recorteDaUrl, type RecorteDeConflito } from "@/components/tickets/use-sinais-de-viagem";
 import type { BloqueioDeViagem } from "@/components/tickets/trecho-direto-campo";
 import { apiErrorStatus } from "@/lib/api-error";
@@ -135,6 +136,14 @@ export default function Tickets() {
   const painelLoteRef = useRef<HTMLDivElement | null>(null);
   const [voucherLoteAberto, setVoucherLoteAberto] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  // "Vai de carro/van" (16/10): o diálogo da vaga, aberto pela linha, pelo atalho da Sugestão ou pelo modal.
+  const [terrestreAberto, setTerrestreAberto] = useState<AberturaDoTerrestre | null>(null);
+  // A última vaga aberta fica guardada: o diálogo some com animação e não pode esvaziar no meio dela.
+  const [vagaDoTerrestre, setVagaDoTerrestre] = useState<TeamInclusion | null>(null);
+  const abrirTerrestre = useCallback((inclusion: TeamInclusion, modo?: AberturaDoTerrestre["modo"]) => {
+    setVagaDoTerrestre(inclusion);
+    setTerrestreAberto({ inclusion, modo });
+  }, []);
   const [modalActiveTab, setModalActiveTab] = useState("resumo");
 
   // 28/09: a barra de filtros recebe `filters` na hora (a tecla aparece já);
@@ -144,7 +153,7 @@ export default function Tickets() {
   const data = useTicketsData({ filters: filtrosAplicados, showOnlyPendingSwaps, sortConfig, user });
   const {
     events, functions, collaborators, eventById, accommodationByInclusion,
-    getTicket, getEventName, getFunctionName, getCollaboratorName,
+    getTicket, getEventName, getFunctionName, getCollaboratorName, getCobertura,
     ticketInclusions, filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis, isPurchasingRole,
   } = data;
   // Espelha POST/PATCH /api/tickets (admin, production, purchasing) — mesma flag do modal.
@@ -177,6 +186,7 @@ export default function Tickets() {
     : filters.ticketStatus === "pending" ? "comprar"
     : filters.ticketStatus === "no_arrival" ? "sem-chegada"
     : filters.ticketStatus === "processed" ? "compradas"
+    : filters.ticketStatus === "terrestre" ? "terrestre"
     : null;
 
   const escolherFila = (k: FilaDePassagens) => {
@@ -189,6 +199,7 @@ export default function Tickets() {
         k === "comprar" ? "pending"
         : k === "sem-chegada" ? "no_arrival"
         : k === "compradas" ? "processed"
+        : k === "terrestre" ? "terrestre"
         : "all",
     }));
   };
@@ -349,9 +360,14 @@ export default function Tickets() {
     const eventLocation = eventById.get(inclusion.eventId)?.location;
     // Prefill de origem: "Sai de" da inclusão ou cidade do colaborador.
     const originCity = inclusion.city || (inclusion.collaboratorId ? data.collaboratorById.get(inclusion.collaboratorId)?.city : undefined) || "";
+    // Uma perna já é de carro/van/ônibus (16/10): o bilhete novo é só da outra.
+    const cob = getTicket(inclusion.id) ? undefined : getCobertura(inclusion.id);
+    const soAOutraPerna = cob?.porPerna.ida && !cob.porPerna.volta ? { isReturnOnly: true, isOneWay: false }
+      : cob?.porPerna.volta && !cob.porPerna.ida ? { isOneWay: true, isReturnOnly: false } : {};
     setTicketData(prev => ({
       ...prev,
       [inclusion.id]: {
+        ...(prev[inclusion.id] ? {} : soAOutraPerna),
         ...prev[inclusion.id],
         ...(eventLocation ? {
           departureCityDestination: prev[inclusion.id]?.departureCityDestination || eventLocation,
@@ -363,7 +379,13 @@ export default function Tickets() {
         } : {}),
       },
     }));
-  }, [eventById, data.collaboratorById]);
+  }, [eventById, data.collaboratorById, getCobertura, getTicket]);
+
+  /** Clique na linha: vaga toda de carro/van abre o terrestre; o resto, a passagem. */
+  const abrirLinha = useCallback((inclusion: TeamInclusion) => {
+    if (!getTicket(inclusion.id) && getCobertura(inclusion.id)?.cobreTudo) { abrirTerrestre(inclusion); return; }
+    openModal(inclusion);
+  }, [getTicket, getCobertura, abrirTerrestre, openModal]);
 
   /**
    * "Registrar trecho direto" (09/10): abre o modal na aba Dados já com a ida
@@ -598,6 +620,12 @@ export default function Tickets() {
     }
     setBatchResult({ created, updated, failures });
   };
+  // Lote "Carro / van" (16/10): as vagas marcadas, como objetos.
+  const vagasSelecionadas = useMemo(
+    () => effectiveSelectedTickets.map(id => filteredTicketInclusions.find(inc => inc.id === id)).filter((inc): inc is TeamInclusion => !!inc),
+    [effectiveSelectedTickets, filteredTicketInclusions],
+  );
+  const nomeDaVagaNoLote = useCallback((inc: TeamInclusion) => `#${inc.inclusionNumber ?? "?"} ${toTitleCase(getCollaboratorName(inc.collaboratorId))}`, [getCollaboratorName]);
   const batchNames = effectiveSelectedTickets
     .map(id => filteredTicketInclusions.find(inc => inc.id === id))
     .filter((inc): inc is TeamInclusion => !!inc)
@@ -792,6 +820,9 @@ export default function Tickets() {
             isPending={isSubmitting}
             onClear={() => clearScope("quick")}
             onApply={handleApplyToSelected}
+            vagasSelecionadas={vagasSelecionadas}
+            nomeDaVaga={nomeDaVagaNoLote}
+            onTerrestreConcluido={(ids) => setSelectedTickets(prev => prev.filter(id => !ids.includes(id)))}
           />
         </div>
 
@@ -844,7 +875,8 @@ export default function Tickets() {
             allSelectableSelected={allSelectableSelected}
             onToggleAll={toggleAllTickets}
             onToggleSelect={toggleTicketSelection}
-            onOpen={openModal}
+            onOpen={abrirLinha}
+            onTerrestre={canEdit ? abrirTerrestre : undefined}
             canEdit={canEdit}
             onToggleEmitida={podeEmitir ? toggleEmitida : undefined}
             emitindo={emitirMutation.isPending}
@@ -953,12 +985,31 @@ export default function Tickets() {
         isSubmitting={isSubmitting}
         sinal={selectedInclusion ? sinais.porVaga[selectedInclusion.id] : undefined}
         bloqueioDeViagem={bloqueioDeViagem}
+        onTerrestre={canEdit && selectedInclusion ? () => {
+          // Vai de carro/van em vez de avião: troca o modal pelo do terrestre
+          // (com dados digitados, o "Descartar alterações?" decide antes).
+          if (isModalDirty()) { setDiscardTarget("close"); return; }
+          const inc = selectedInclusion;
+          closeModalDiscarding();
+          abrirTerrestre(inc);
+        } : undefined}
         onBuscarPrecos={podeBuscarPrecos && selectedInclusion ? () => {
           // Nada digitado se perde sem perguntar: com o formulário sujo, o
           // "Descartar alterações?" de sempre decide antes de sair.
           if (isModalDirty()) { setDiscardTarget("close"); return; }
           irParaBusca([selectedInclusion.id]);
         } : undefined}
+      />
+
+      <TerrestreDialog
+        abertura={terrestreAberto}
+        onClose={() => setTerrestreAberto(null)}
+        registros={vagaDoTerrestre ? data.getTerrestres(vagaDoTerrestre.id) : []}
+        ticket={vagaDoTerrestre ? getTicket(vagaDoTerrestre.id) : undefined}
+        collaboratorName={vagaDoTerrestre ? toTitleCase(getCollaboratorName(vagaDoTerrestre.collaboratorId)) : ""}
+        eventName={vagaDoTerrestre ? getEventName(vagaDoTerrestre.eventId) : ""}
+        functionName={vagaDoTerrestre ? getFunctionName(vagaDoTerrestre.functionId) : ""}
+        somenteLeitura={!canEdit || (!!vagaDoTerrestre && data.isEventLocked(vagaDoTerrestre))}
       />
 
       <DiscardChangesDialog

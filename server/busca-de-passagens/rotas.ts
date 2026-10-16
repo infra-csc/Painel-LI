@@ -19,6 +19,8 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { buscaPassagensConsultas, buscaPassagensUsos, collaborators, events, systemSettings, tickets, users } from "@shared/schema";
 import { resumirConsumo } from "@shared/consumo-da-busca";
+import { comModoTerrestre } from "@shared/transporte-terrestre";
+import { comoTrecho, terrestresDasVagas } from "../transporte-terrestre";
 import {
   CHAVE_DO_TETO_MENSAL,
   HORAS_DE_CACHE_DA_BUSCA,
@@ -149,8 +151,10 @@ export function registrarBuscaDePassagens(app: Express): void {
         storage.getFunctionsByIds(Array.from(new Set(vagasDoBanco.map((v) => v.functionId).filter((x): x is string => !!x)))),
       ]);
       const despacham = funcoesQueDespacham(funcoes.map((f) => ({ id: f.id, name: f.name })), ajustesDaBusca.funcoesComMala);
+      // 16/10: perna registrada como carro/van/ônibus não é aérea — a busca a ignora.
+      const terrestres = await terrestresDasVagas(vagasDoBanco.map((v) => v.id));
       const vagas: VagaDaBusca[] = vagasDoBanco.map((v) => ({
-        ...v,
+        ...comModoTerrestre(v, terrestres.filter((t) => t.teamInclusionId === v.id).map(comoTrecho)),
         cidadeDeSaida: v.city || (v.collaboratorId ? cidades.get(v.collaboratorId) : null) || null,
         precisaMala: despacham.has(v.functionId),
       }));

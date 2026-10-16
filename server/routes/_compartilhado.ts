@@ -20,6 +20,7 @@ import { validarEmpreita } from "@shared/cenotecnica-empreita";
 import { faseParaStatus } from "@shared/vaga-status";
 import { conflitosDoColaborador, type VagaParaConflito } from "@shared/conflito-de-agenda";
 import { podeEditarVaga, statusDeLogistica, passagemConta, hospedagemConta } from "../vaga-guards";
+import { terrestresDaVaga, terrestreCobreAVaga } from "../transporte-terrestre";
 
 // Comparação de tokens em tempo constante (defesa contra timing attacks)
 export function safeTokenEqual(a: string, b: string): boolean {
@@ -365,15 +366,23 @@ export const podeEditarVagaAsync = async (ator: User, inclusion: { functionId: s
   return podeEditarVaga(ator, func, ehResponsavel);
 };
 
-/** Passagem/hospedagem VIVAS da vaga (as que contam para o status e travam a troca direta). */
+/**
+ * Passagem/hospedagem VIVAS da vaga (as que contam para o status e travam a troca direta).
+ * 16/10: vaga com TODAS as pernas de carro/van/ônibus (transporte terrestre)
+ * conta como "tem passagem" — não há bilhete a comprar, a logística de
+ * transporte está resolvida (o status anda como andava com a passagem de van).
+ */
 export const logisticaDaVaga = async (inclusionId: string) => {
-  const [passagens, hospedagens] = await Promise.all([
+  const [passagens, hospedagens, terrestres] = await Promise.all([
     storage.getTicketsByInclusionId(inclusionId),
     storage.getAccommodationsByInclusionId(inclusionId),
+    terrestresDaVaga(inclusionId),
   ]);
+  const vaga = terrestres.length > 0 ? await storage.getTeamInclusion(inclusionId) : undefined;
+  const terrestreCobre = !!vaga && terrestreCobreAVaga(vaga, terrestres);
   return {
-    passagens, hospedagens,
-    temPassagem: passagens.some(passagemConta),
+    passagens, hospedagens, terrestres,
+    temPassagem: passagens.some(passagemConta) || terrestreCobre,
     temHospedagem: hospedagens.some(hospedagemConta),
   };
 };

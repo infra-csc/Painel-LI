@@ -54,12 +54,14 @@ const STATUS_DA_PASSAGEM = [
   { id: "pending", nome: "Pendentes" },
   { id: "processed", nome: "Compradas" },
   { id: "no_arrival", nome: "Compradas sem horário de chegada" },
+  { id: "terrestre", nome: "Carro, van ou ônibus" },
 ];
 const TRANSPORTES = [
   { id: "all", nome: "Todos os transportes" },
   { id: "aereo", nome: "Aéreo" },
   { id: "rodoviario", nome: "Rodoviário" },
   { id: "van", nome: "Van" },
+  { id: "carro", nome: "Carro" },
 ];
 // Aqui o padrão NÃO é "all": a tela abre em "Inclusões ativas", e "Todas" é
 // uma escolha explícita. Por isso é a primeira da lista.

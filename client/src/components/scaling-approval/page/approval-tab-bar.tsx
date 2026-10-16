@@ -8,7 +8,7 @@
  * "(9)" grudado no rótulo. No celular a faixa rola de lado em vez de quebrar
  * em duas linhas, e os rótulos encurtam.
  */
-import { ClipboardCheck, Inbox, Stamp, Timer } from "lucide-react";
+import { CircleDollarSign, ClipboardCheck, Inbox, Stamp, Timer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -43,8 +43,10 @@ function Aba({ value, Icon, curto, longo, n, destaque }: { value: ApprovalTab; I
   );
 }
 
-export function ApprovalTabBar({ f, v, counts, isApprover, filteredCount, itemsCount, filaIndisponivel = false }: {
+export function ApprovalTabBar({ f, v, counts, isApprover, filteredCount, itemsCount, filaIndisponivel = false, honorarios = null }: {
   f: ApprovalFilters; v: ApprovalVagas; counts: ContagemPendentes; isApprover: boolean; showMineFilter?: boolean; filteredCount: number; itemsCount: number;
+  /** Honorários da cenotécnica (16/10): aba à parte, "pois é financeiro" — só para quem aprova. */
+  honorarios?: { pendentes: number } | null;
   /** A fila ainda carrega ou falhou: "0 de 0 pedidos" ali seria mentira. */
   filaIndisponivel?: boolean;
 }) {
@@ -57,6 +59,7 @@ export function ApprovalTabBar({ f, v, counts, isApprover, filteredCount, itemsC
     switch (tab) {
       case "fila": return filaIndisponivel ? null : `${filteredCount} de ${itemsCount} ${itemsCount === 1 ? "pedido" : "pedidos"}`;
       case "aprovacao": return vagasIndisponiveis ? null : `${awaitingRows.length} ${awaitingRows.length === 1 ? "vaga validada aguardando" : "vagas validadas aguardando"} a sua decisão`;
+      case "honorarios": return "Valores da cenotécnica — não mexe na escala";
       case "paradas": return vagasIndisponiveis ? null : `${stalledRows.length} ${stalledRows.length === 1 ? "vaga que a área não validou" : "vagas que a área não validou"} há ${STALLED_DAYS}+ dias`;
       default: return "Decisões já tomadas (somente leitura)";
     }
@@ -72,6 +75,13 @@ export function ApprovalTabBar({ f, v, counts, isApprover, filteredCount, itemsC
           <Aba value="fila" Icon={Inbox} curto="Pedidos" longo="Fila de pedidos" n={counts.pendentes} destaque={false} />
           {isApprover && <Aba value="paradas" Icon={Timer} curto="Paradas" longo="Paradas na área" n={stalledRows.length} />}
           <Aba value="decididas" Icon={ClipboardCheck} curto="Decididas" longo="Decididas" />
+          {honorarios && (
+            <>
+              {/* Separada das abas da escala: é dinheiro, não vaga. */}
+              <span aria-hidden="true" className="mx-1 my-1.5 w-px self-stretch bg-border" />
+              <Aba value="honorarios" Icon={CircleDollarSign} curto="Honorários" longo="Honorários" n={honorarios.pendentes} destaque={tab !== "honorarios"} />
+            </>
+          )}
         </TabsList>
       </div>
       {contagemDaAba !== null && (

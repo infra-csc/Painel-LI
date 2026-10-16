@@ -5,6 +5,7 @@ import type { TicketFilters } from "./types";
 import {
   VALID_STATUSES_WITHOUT_COLLABORATOR, contarPorOpcao, passaNosFiltrosBase, passaNosFiltrosDePassagem,
 } from "./tickets-filtering";
+import { coberturaTerrestre } from "@shared/transporte-terrestre";
 
 /**
  * Estes testes existem por um motivo específico: o predicado foi EXTRAÍDO de
@@ -131,6 +132,22 @@ describe("filtros de passagem (segundo estágio)", () => {
     expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "no_arrival" }), semChegada)).toBe(true);
     // Van não tem horário obrigatório — não entra na conta de qualidade.
     expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "no_arrival" }), van)).toBe(false);
+  });
+
+  it("carro/van (16/10): toda terrestre sai do 'Comprar'; parcial continua; o filtro 'terrestre' e o de transporte acham", () => {
+    const v = vaga();
+    const ida = { trecho: "ida" as const, modo: "van" as const, empresa: "X", valorCentavos: 1 };
+    const volta = { trecho: "volta" as const, modo: "carro" as const, empresa: null, valorCentavos: 1 };
+    const toda = { ...semPassagem, coberturaDe: () => coberturaTerrestre({}, [ida, volta]) };
+    const parcial = { ...semPassagem, coberturaDe: () => coberturaTerrestre({}, [ida]) };
+    expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "pending" }), toda)).toBe(false);
+    expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "pending" }), parcial)).toBe(true);
+    expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "processed" }), toda)).toBe(false);
+    expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "terrestre" }), parcial)).toBe(true);
+    expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "terrestre" }), semPassagem)).toBe(false);
+    expect(passaNosFiltrosDePassagem(v, filtros({ transportType: "van" }), toda)).toBe(true);
+    expect(passaNosFiltrosDePassagem(v, filtros({ transportType: "carro" }), toda)).toBe(true);
+    expect(passaNosFiltrosDePassagem(v, filtros({ transportType: "aereo" }), toda)).toBe(false);
   });
 
   it("o recorte de trocas mantém só quem tem troca pendente", () => {

@@ -49,6 +49,20 @@ describe("linhas da aba Buscar", () => {
     expect(l[2]).toMatchObject({ trecho: "so_ida", dataVolta: null });
   });
 
+  it("perna registrada como carro/van (16/10) não é aérea: toda terrestre some; só a ida terrestre vira 'só volta'", () => {
+    const montar = (terrestres: Array<[string, Array<{ trecho: "ida" | "volta"; modo: "carro" | "van" }>]>) => montarLinhas({
+      vagas: [vagaFake({ id: "t1", eventId: "ev-jpa", ...viagem })],
+      eventById: new Map([[evJpa.id, evJpa]]),
+      collaboratorById: new Map<string, Collaborator>(),
+      ticketByInclusion: new Map(),
+      nomeDoColaborador: () => "Ana Souza", nomeDaFuncao: () => "Montagem", ajustes: {}, hoje: HOJE,
+      terrestreByInclusion: new Map(terrestres.map(([id, l]) => [id, l.map((t) => ({ ...t, empresa: null, valorCentavos: 1 }))])),
+    });
+    expect(montar([]).map((l) => l.trecho)).toEqual(["ida_e_volta"]);
+    expect(montar([["t1", [{ trecho: "ida", modo: "van" }, { trecho: "volta", modo: "van" }]]])).toEqual([]);
+    expect(montar([["t1", [{ trecho: "ida", modo: "carro" }]]]).map((l) => l.trecho)).toEqual(["so_volta"]);
+  });
+
   it("sai da mesma região do evento (16/10): sem voo, fora da lista — a não ser que já tenha passagem", () => {
     const sp = eventoFake({ id: "ev-sp", name: "Maratona SP", location: "Ibirapuera, São Paulo - SP", startDate: "2026-11-13", endDate: "2026-11-15" });
     const campinas = eventoFake({ id: "ev-vcp", name: "Corrida Campinas", location: "Campinas - SP", startDate: "2026-11-13", endDate: "2026-11-15" });

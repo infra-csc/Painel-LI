@@ -15,7 +15,8 @@
  * 1280px, lote em barra escura flutuante e estados (carregando, vazio, erro,
  * sem acesso) no desenho do módulo. Lógica intacta.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useSearch } from "wouter";
 import { CheckCircle2, CloudOff, Inbox, SearchX, Stamp } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ToastAction } from "@/components/ui/toast";
@@ -44,6 +45,9 @@ import { useApprovalVagas } from "@/components/scaling-approval/page/use-approva
 import { ApprovalHeader, ApprovalSummary, FilaToolbar } from "@/components/scaling-approval/page/approval-filter-bar";
 import { ApprovalTabBar, MinhasFuncoesToggle, temFiltroMinhasFuncoes } from "@/components/scaling-approval/page/approval-tab-bar";
 import { AcessoNegadoAprovacao, EsqueletoDaLista } from "@/components/scaling-approval/page/estados-da-aprovacao";
+// Honorários da cenotécnica (16/10): aba à parte para o mesmo aprovador da escala.
+import { useAcessoHonorarios, useFilaDeAprovacao } from "@/components/honorarios-ceno/api";
+import { AprovacaoPainel } from "@/components/honorarios-ceno/aprovacao-painel";
 
 export default function ScalingApprovalPage() {
   usePageTitle("Aprovação de escala");
@@ -59,6 +63,14 @@ export default function ScalingApprovalPage() {
   const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { allEventsDefault: true });
   const { toast } = useToast();
   const f = useApprovalFilters();
+  const acessoHonorarios = useAcessoHonorarios(!!user);
+  const veHonorarios = !!acessoHonorarios.data?.podeAprovar;
+  const filaHonorarios = useFilaDeAprovacao("pendentes", null, veHonorarios);
+  // Link do sino com a tela já aberta (?aba=honorarios&t=…): vai para a aba.
+  const busca = useSearch();
+  useEffect(() => { if (new URLSearchParams(busca).get("aba") === "honorarios") f.switchTab("honorarios"); }, [busca]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Quem não aprova honorários e chegou com ?aba=honorarios cai na fila (a aba não existe para ele).
+  useEffect(() => { if (f.tab === "honorarios" && acessoHonorarios.data && !veHonorarios) f.setTab("fila"); }, [f.tab, acessoHonorarios.data, veHonorarios]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dados ──
   const d = useApprovalData({ canAccess, canDecideByRole, isAdmin, userId: user?.id, eventId, statusFilter: f.statusFilter, sanitize });
@@ -154,7 +166,8 @@ export default function ScalingApprovalPage() {
       <ApprovalSummary f={f} d={d} v={v} counts={counts} isApprover={isApprover} showMineFilter={showMineFilter} />
 
       <Tabs value={f.tab} onValueChange={(val) => (val === "fila" ? f.openFilaTab() : f.switchTab(val as ApprovalTab))} className="space-y-4">
-        <ApprovalTabBar f={f} v={v} counts={counts} isApprover={isApprover} showMineFilter={showMineFilter} filteredCount={filtered.length} itemsCount={items.length} filaIndisponivel={listQuery.isLoading || !!loadError} />
+        <ApprovalTabBar f={f} v={v} counts={counts} isApprover={isApprover} showMineFilter={showMineFilter} filteredCount={filtered.length} itemsCount={items.length} filaIndisponivel={listQuery.isLoading || !!loadError}
+          honorarios={veHonorarios ? { pendentes: (filaHonorarios.data ?? []).filter((h) => h.podeDecidir).length } : null} />
 
         {isApprover && (
           <TabsContent value="aprovacao" className="val-entra mt-0 space-y-3">
@@ -287,6 +300,12 @@ export default function ScalingApprovalPage() {
                 />
               )
             )}
+          </TabsContent>
+        )}
+
+        {veHonorarios && (
+          <TabsContent value="honorarios" className="val-entra mt-0 space-y-3">
+            <AprovacaoPainel eventId={eventId || null} />
           </TabsContent>
         )}
 

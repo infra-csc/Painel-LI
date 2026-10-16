@@ -18,6 +18,8 @@ import { useSwapRequests } from "@/hooks/use-swap-requests";
 import { vagasDaTroca } from "@/lib/swap-types";
 
 import { formatarMoeda, toTitleCase as nomeEmTitulo } from "@/lib/format";
+import { coberturaTerrestre, type CoberturaTerrestre, type TrechoTerrestre } from "@shared/transporte-terrestre";
+import { useTerrestres } from "./use-transporte-terrestre";
 /** Linha crua de /api/swap-requests (SQL direto → snake_case junto com o tipo drizzle). */
 export type SwapRequestRow = SwapRequest & {
   team_inclusion_id?: string;
@@ -30,6 +32,8 @@ export type SwapRequestRow = SwapRequest & {
 };
 
 export type UserName = Pick<User, "id" | "name">;
+
+const SEM_TERRESTRE: readonly TrechoTerrestre[] = Object.freeze([]);
 
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -122,6 +126,8 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     queryFn: ({ signal }) => fetchJson<Ticket[]>(eventoSelecionado ? `/api/tickets/historico?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/tickets/historico", signal),
     staleTime: 60_000,
   });
+  // Transporte terrestre (16/10): carro/van/ônibus por perna, no MESMO recorte das passagens.
+  const { terrestreByInclusion } = useTerrestres({ eventId: eventoSelecionado, futuros });
   const { data: accommodations } = useQuery<Accommodation[]>({
     queryKey: eventoSelecionado ? ["/api/accommodations", { eventId: eventoSelecionado }] : ["/api/accommodations"],
     queryFn: ({ signal }) => fetchJson<Accommodation[]>(eventoSelecionado ? `/api/accommodations?eventId=${encodeURIComponent(eventoSelecionado)}` : "/api/accommodations", signal),
@@ -162,6 +168,20 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
       queryClient.invalidateQueries({ queryKey: [key] });
     }
   };
+
+  // Cobertura terrestre por vaga — só das que têm registro (as outras: undefined).
+  const coberturaByInclusion = useMemo(() => {
+    const map = new Map<string, CoberturaTerrestre>();
+    if (terrestreByInclusion.size === 0 || !teamInclusions) return map;
+    for (const inc of teamInclusions) {
+      const regs = terrestreByInclusion.get(inc.id);
+      if (regs?.length) map.set(inc.id, coberturaTerrestre(inc, regs));
+    }
+    return map;
+  }, [terrestreByInclusion, teamInclusions]);
+  const getCobertura = useCallback((id: string) => coberturaByInclusion.get(id), [coberturaByInclusion]);
+  // Lista vazia ESTÁVEL: a linha é memo() e um [] novo a cada render a repintaria.
+  const getTerrestres = useCallback((id: string): readonly TrechoTerrestre[] => terrestreByInclusion.get(id) ?? SEM_TERRESTRE, [terrestreByInclusion]);
 
   // ── Índices O(1) — "primeiro registro vence" do .find() é preservado ──
   const ticketByInclusion = useMemo(() => {
@@ -249,8 +269,8 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   // contador do popover precisa da MESMA base que a lista.
   const hoje = useMemo(() => new Date(), []);
   const contextoDosFiltros = useMemo(
-    () => ({ eventById, collaboratorById, hoje, temPassagem: (id: string) => ticketByInclusion.has(id) }),
-    [eventById, collaboratorById, hoje, ticketByInclusion],
+    () => ({ eventById, collaboratorById, hoje, temPassagem: (id: string) => ticketByInclusion.has(id) || coberturaByInclusion.has(id) }),
+    [eventById, collaboratorById, hoje, ticketByInclusion, coberturaByInclusion],
   );
   const ticketInclusions = useMemo(
     () => teamInclusions?.filter(inclusion => passaNosFiltrosBase(inclusion, filters, contextoDosFiltros)) || [],
@@ -302,15 +322,15 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   const completarPipeline = useCallback(
     (linhas: TeamInclusion[], f: typeof filters) =>
       deduplicar(linhas).filter(i => passaNosFiltrosDePassagem(i, f, {
-        ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps,
+        ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps, coberturaDe: getCobertura,
       })),
-    [deduplicar, ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps],
+    [deduplicar, ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps, getCobertura],
   );
 
   // ── Filtro de status da passagem/transporte + ordenação ──
   const filteredTicketInclusions = useMemo(() => {
     const filtered = deduplicatedInclusions.filter(inclusion =>
-      passaNosFiltrosDePassagem(inclusion, filters, { ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps }));
+      passaNosFiltrosDePassagem(inclusion, filters, { ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps, coberturaDe: getCobertura }));
 
     if (!sortConfig) return filtered;
     const { field, direction } = sortConfig;
@@ -334,7 +354,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
           return 0;
       }
     });
-  }, [deduplicatedInclusions, filters, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, sortConfig, getCollaboratorName, getEventName, getFunctionName]);
+  }, [deduplicatedInclusions, filters, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, getCobertura, sortConfig, getCollaboratorName, getEventName, getFunctionName]);
 
   // Banner: trocas pendentes que aparecem de fato na tabela (mesma lista renderizada).
   const pendingTicketSwapsCount = useMemo(() => {
@@ -347,25 +367,31 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   const selectableInclusionIds = useMemo(() => {
     const ids = new Set<string>();
     filteredTicketInclusions.forEach(inc => {
-      // Evento encerrado fica fora do lote: o POST/PATCH tomaria 403
-      if (!ticketByInclusion.has(inc.id) && inc.status !== "cancelado" && !isEventLocked(inc)) ids.add(inc.id);
+      // Evento encerrado fica fora do lote: o POST/PATCH tomaria 403. Vaga
+      // toda terrestre (16/10) já está resolvida: edita-se na linha.
+      if (!ticketByInclusion.has(inc.id) && !coberturaByInclusion.get(inc.id)?.cobreTudo && inc.status !== "cancelado" && !isEventLocked(inc)) ids.add(inc.id);
     });
     return ids;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredTicketInclusions, ticketByInclusion, eventById, podeAgirEmEventoPassado]);
+  }, [filteredTicketInclusions, ticketByInclusion, coberturaByInclusion, eventById, podeAgirEmEventoPassado]);
 
   // ── KPIs do filtro atual ──
   const kpis = useMemo(() => {
     let compradas = 0, aguardando = 0, semChegada = 0;
     const values: Array<number | null | undefined> = [];
+    // Terrestre (16/10): conta e soma À PARTE — "Compradas R$" é passagem;
+    // carro/van/ônibus têm o próprio bloco, para o valor não se misturar.
+    const terrestre = { count: 0, totalCents: 0 };
     for (const inc of filteredTicketInclusions) {
       const t = ticketByInclusion.get(inc.id);
+      const cob = coberturaByInclusion.get(inc.id);
+      if (cob && inc.status !== "cancelado") { terrestre.count++; terrestre.totalCents += cob.totalCentavos; }
       if (t) {
         compradas++;
         values.push(t.value);
         if (t.transportType !== "van" && !t.actualArrivalTime) semChegada++;
-      } else if (inc.status !== "cancelado") {
-        // Inclusão cancelada não é "aguardando".
+      } else if (inc.status !== "cancelado" && !cob?.cobreTudo) {
+        // Inclusão cancelada não é "aguardando"; quem vai todo por terra também não.
         aguardando++;
       }
     }
@@ -373,9 +399,9 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     const idsNoFiltro = new Set(filteredTicketInclusions.map((i) => i.id));
     const doHistorico = (historicoDePassagens ?? []).filter((t) => idsNoFiltro.has(t.teamInclusionId));
     const historico = { count: doHistorico.length, totalCents: doHistorico.reduce((s, t) => s + (t.value || 0), 0) };
-    return { total: filteredTicketInclusions.length, compradas, aguardando, semChegada, valor: purchasedValueKpi(values), historico };
+    return { total: filteredTicketInclusions.length, compradas, aguardando, semChegada, valor: purchasedValueKpi(values), historico, terrestre };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredTicketInclusions, ticketByInclusion, eventById, podeAgirEmEventoPassado, historicoDePassagens]);
+  }, [filteredTicketInclusions, ticketByInclusion, coberturaByInclusion, eventById, podeAgirEmEventoPassado, historicoDePassagens]);
 
   return {
     // dados crus
@@ -383,6 +409,7 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     isLoading, loadError, retryLoad,
     // índices
     ticketByInclusion, eventById, functionById, collaboratorById, accommodationByInclusion,
+    terrestreByInclusion, coberturaByInclusion, getCobertura, getTerrestres,
     pendingSwapByInclusion, approvedSwapInclusionIds, isPurchasingRole, isEventLocked,
     completarPipeline,
     hoje,

@@ -26,6 +26,8 @@ import { avaliarTetoDoTrecho, chaveDaRota, justificativaValida, nomeDaRota, rota
 import { lerAjustes, precoTipicoDaRota } from "../busca-de-passagens/servico";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
 import { carregarVagasDeViagem, conflitosDaVagaComPassagem, juntarPassagens, sinaisDeViagem } from "../viagens";
+import { SQL_TERRESTRE_COBRE_A_VAGA, terrestresDaVaga } from "../transporte-terrestre";
+import { NOME_DO_MODO, type ModoTerrestre } from "@shared/transporte-terrestre";
 import {
   montarLogDeAuditoria,
   createAuditLog,
@@ -77,6 +79,25 @@ async function conferirTetoDoTrecho(
       code: "preco_acima_do_teto",
       message: `${reais(proposta.value)} está ${teto.pctAcimaDoTipico}% acima do preço típico de ${nomeDaRota(chaveDaRota(rota.perna, rota.origem, rota.destino))} (${reais(teto.tipico)}, de ${teto.amostra} consultas). Acima de ${teto.pctPermitido}% é preciso justificar.`,
       teto: { ...teto, rota: nomeDaRota(chaveDaRota(rota.perna, rota.origem, rota.destino)), valor: proposta.value },
+    },
+  };
+}
+
+/**
+ * 16/10: a perna que a vaga faz de carro/van/ônibus (transporte terrestre) não
+ * ganha passagem — o mesmo trecho seria pago duas vezes. Compras desfaz o
+ * terrestre da perna (na linha da vaga) e então registra a passagem.
+ */
+async function conflitoComTerrestre(vagaId: string, proposta: PassagemDaJanela): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  const terrestres = await terrestresDaVaga(vagaId);
+  const perna = terrestres.find((t) => (t.trecho === "ida" ? passagemTemIda(proposta) : passagemTemVolta(proposta)));
+  if (!perna) return null;
+  const modo = (NOME_DO_MODO[perna.modo as ModoTerrestre] ?? perna.modo).toLowerCase();
+  return {
+    status: 409,
+    body: {
+      code: "perna_terrestre",
+      message: `A ${perna.trecho} desta vaga está registrada como ${modo} (transporte terrestre). Desfaça o terrestre dessa perna antes de registrar a passagem — ou registre só a outra perna.`,
     },
   };
 }
@@ -319,6 +340,8 @@ export function registrarPassagens(app: Express): void {
           AND ti.needs_ticket = TRUE
           AND e.status NOT IN ('excluido', 'excluído')
           AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.team_inclusion_id = ti.id AND t.archived_at IS NULL)
+          -- 16/10: quem vai de carro/van/ônibus em todas as pernas não precisa de passagem.
+          AND NOT ${SQL_TERRESTRE_COBRE_A_VAGA}
           AND COALESCE(ti.flight_departure_date, ti.schedule_start_date)::date BETWEEN ${hoje}::date AND ${limite}::date
       `);
       res.set("Cache-Control", "no-store");
@@ -381,6 +404,8 @@ export function registrarPassagens(app: Express): void {
       const outrasLinhas = await storage.getTicketsByInclusionId(ticketData.teamInclusionId);
       const conferencia = await conferirPassagem(vaga.id, vaga.collaboratorId ?? null, ticketData, outrasLinhas);
       if (conferencia.recusa) return res.status(conferencia.recusa.status).json(conferencia.recusa.body);
+      const terrestre = await conflitoComTerrestre(vaga.id, ticketData);
+      if (terrestre) return res.status(terrestre.status).json(terrestre.body);
       // Teto por trecho (09/10): acima do típico da rota, só com justificativa.
       const teto = await conferirTetoDoTrecho(ticketData, null);
       if (teto) return res.status(teto.status).json(teto.body);
@@ -512,6 +537,8 @@ export function registrarPassagens(app: Express): void {
         const conferencia = await conferirPassagem(prev.teamInclusionId, vaga?.collaboratorId ?? null, { ...prev, ...allowed }, outrasLinhas, alterados);
         if (conferencia.recusa) return res.status(conferencia.recusa.status).json(conferencia.recusa.body);
         if (conferencia.voltaParaCancelar && alterados.has("idaVemDeInclusionId")) extra = { voltaParaCancelar: conferencia.voltaParaCancelar };
+        const terrestre = await conflitoComTerrestre(prev.teamInclusionId, { ...prev, ...allowed });
+        if (terrestre) return res.status(terrestre.status).json(terrestre.body);
       }
       // Teto por trecho (09/10): só quando o valor ou a rota mudam. Valor novo pede justificativa nova.
       const mudou = (c: string) => c in allowed && !mesmoValor((allowed as Record<string, unknown>)[c], (prev as Record<string, unknown>)[c]);

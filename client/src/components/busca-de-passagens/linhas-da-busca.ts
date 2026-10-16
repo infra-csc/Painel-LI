@@ -26,6 +26,7 @@ import { chaveDaCidade, ehIata } from "@shared/aeroportos-do-brasil";
 import { isEventPast } from "@shared/event-window";
 import { cidadeDoEvento, diaDe } from "@shared/janela-de-viagem";
 import type { FiltrosDaBusca, FiltroDeTrecho } from "./filtros-da-busca";
+import { comModoTerrestre, type TrechoTerrestre } from "@shared/transporte-terrestre";
 
 export interface LinhaDaBusca {
   vaga: TeamInclusion;
@@ -82,11 +83,14 @@ export function montarLinhas(entrada: {
   nomeDaFuncao: (id: string) => string;
   ajustes: Record<string, AjusteDaBusca | undefined>;
   hoje: string;
+  /** 16/10: perna registrada como carro/van/ônibus não é aérea (a mesma regra do servidor). */
+  terrestreByInclusion?: ReadonlyMap<string, readonly TrechoTerrestre[]>;
 }): LinhaDaBusca[] {
   const eventos = new Map<string, EventoDaBusca>();
   entrada.eventById.forEach((e, id) => eventos.set(id, eventoDaBusca(e)));
   const out: LinhaDaBusca[] = [];
-  for (const v of entrada.vagas) {
+  for (const vagaCrua of entrada.vagas) {
+    const v = comModoTerrestre(vagaCrua, entrada.terrestreByInclusion?.get(vagaCrua.id));
     const passagem = entrada.ticketByInclusion.get(v.id);
     const cidadeDeSaida = (v.city || (v.collaboratorId ? entrada.collaboratorById.get(v.collaboratorId)?.city : "") || "").trim();
     const ajuste: AjusteDaBusca = { ...ajusteDaPassagem(passagem), ...(entrada.ajustes[v.id] ?? {}) };

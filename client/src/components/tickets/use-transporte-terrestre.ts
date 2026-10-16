@@ -1,0 +1,74 @@
+// Transporte terrestre da vaga (16/10) — leitura e gravação.
+//
+// A chave começa com "/api/tickets": tudo que já invalida as passagens
+// (registrar, aprovar troca, emitir) recarrega o terrestre junto — e o
+// terrestre gravado invalida as passagens (a fila e o status andam juntos).
+import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, fetchJson } from "@/lib/queryClient";
+import { aplicarStatusDaVagaNoCache, TEAM_INCLUSIONS_KEY } from "@/hooks/use-vaga-acoes";
+import type { TransporteTerrestre } from "@shared/schema";
+import type { ItemTerrestre, PernaDaViagem, TrechoTerrestre } from "@shared/transporte-terrestre";
+
+export const comoTrechoTerrestre = (r: TransporteTerrestre): TrechoTerrestre => ({
+  trecho: r.trecho as PernaDaViagem,
+  modo: r.modo as TrechoTerrestre["modo"],
+  empresa: r.empresa ?? null,
+  valorCentavos: r.valorCentavos,
+});
+
+/** Mesmo recorte das passagens: um evento, só os que não terminaram, ou tudo. */
+export function useTerrestres(recorte: { eventId?: string; futuros?: boolean }) {
+  const { eventId, futuros } = recorte;
+  const { data } = useQuery<TransporteTerrestre[]>({
+    queryKey: eventId ? ["/api/tickets", "terrestres", { eventId }] : futuros ? ["/api/tickets", "terrestres", { futuros: true }] : ["/api/tickets", "terrestres"],
+    queryFn: ({ signal }) => fetchJson<TransporteTerrestre[]>(
+      eventId ? `/api/transportes-terrestres?eventId=${encodeURIComponent(eventId)}` : futuros ? "/api/transportes-terrestres?futuros=1" : "/api/transportes-terrestres",
+      signal,
+    ),
+  });
+  const porVaga = useMemo(() => {
+    const map = new Map<string, TrechoTerrestre[]>();
+    for (const r of data ?? []) {
+      const lista = map.get(r.teamInclusionId) ?? [];
+      lista.push(comoTrechoTerrestre(r));
+      map.set(r.teamInclusionId, lista);
+    }
+    return map;
+  }, [data]);
+  return { terrestreByInclusion: porVaga, carregado: !!data };
+}
+
+export interface RespostaDoRegistro {
+  gravados: number;
+  vagas: number;
+  falhas: { teamInclusionId: string; numero: number | null; mensagem: string }[];
+  statusPorVaga: Record<string, string>;
+}
+
+/** Registrar (um ou vários) e desfazer. Os erros sobem para quem chamou (o formulário mostra). */
+export function useTerrestreMutations() {
+  const queryClient = useQueryClient();
+  const recarregar = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+    queryClient.invalidateQueries({ queryKey: [TEAM_INCLUSIONS_KEY] });
+    queryClient.invalidateQueries({ queryKey: ["shell", "sem-passagem-30d"] });
+  };
+  const registrar = useMutation({
+    mutationFn: async (itens: ItemTerrestre[]) =>
+      (await apiRequest("POST", "/api/transportes-terrestres", { itens })).json() as Promise<RespostaDoRegistro>,
+    onSuccess: (res) => {
+      for (const [id, status] of Object.entries(res.statusPorVaga ?? {})) aplicarStatusDaVagaNoCache(queryClient, id, status);
+      recarregar();
+    },
+  });
+  const desfazer = useMutation({
+    mutationFn: async ({ inclusionId, trecho }: { inclusionId: string; trecho?: PernaDaViagem }) =>
+      (await apiRequest("DELETE", `/api/transportes-terrestres/${encodeURIComponent(inclusionId)}${trecho ? `?trecho=${trecho}` : ""}`)).json() as Promise<{ removidos: number; inclusionStatus?: string }>,
+    onSuccess: (res, vars) => {
+      if (res.inclusionStatus) aplicarStatusDaVagaNoCache(queryClient, vars.inclusionId, res.inclusionStatus);
+      recarregar();
+    },
+  });
+  return { registrar, desfazer };
+}

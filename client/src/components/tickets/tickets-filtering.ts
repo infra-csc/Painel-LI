@@ -13,6 +13,7 @@
 import type { Collaborator, Event, TeamInclusion } from "@shared/schema";
 import { fazTesteDePeriodo, temRecorteDePeriodo } from "@/components/scaling/scaling-period";
 import type { TicketFilters } from "./types";
+import type { CoberturaTerrestre } from "@shared/transporte-terrestre";
 
 /** Status que mostram a inclusão mesmo sem colaborador (compra antes do nome). */
 export const VALID_STATUSES_WITHOUT_COLLABORATOR = [
@@ -103,19 +104,30 @@ export function passaNosFiltrosDePassagem(
     /** Set ou Map — só o `has` importa aqui. */
     pendingSwapByInclusion: { has: (id: string) => boolean };
     showOnlyPendingSwaps: boolean;
+    /** Transporte terrestre da vaga (16/10): carro/van/ônibus por perna. */
+    coberturaDe?: (inclusionId: string) => CoberturaTerrestre | undefined;
   },
 ): boolean {
   if (ctx.showOnlyPendingSwaps && !ctx.pendingSwapByInclusion.has(inclusion.id)) return false;
   const t = ctx.ticketByInclusion.get(inclusion.id);
+  const cob = ctx.coberturaDe?.(inclusion.id);
+  const temTerrestre = !!cob && Object.keys(cob.porPerna).length > 0;
   if (filters.ticketStatus !== "all") {
     const hasTicket = !!t;
-    if (filters.ticketStatus === "pending" && hasTicket) return false;
+    // Quem vai de carro/van/ônibus em todas as pernas não tem passagem a comprar.
+    if (filters.ticketStatus === "pending" && (hasTicket || !!cob?.cobreTudo)) return false;
     if (filters.ticketStatus === "processed" && !hasTicket) return false;
+    if (filters.ticketStatus === "terrestre" && !temTerrestre) return false;
     // Qualidade: compradas (aéreo/rodoviário) sem horário de chegada.
     if (filters.ticketStatus === "no_arrival" && !(t && t.transportType !== "van" && !t.actualArrivalTime)) return false;
   }
   if (filters.transportType !== "all") {
-    if (!t || (t.transportType || "aereo") !== filters.transportType) return false;
+    // A passagem e o terrestre contam: "Van" acha a passagem de van antiga e a
+    // van registrada como terrestre; ônibus terrestre entra em "Rodoviário".
+    const tipos = new Set<string>();
+    if (t) tipos.add(t.transportType || "aereo");
+    for (const r of Object.values(cob?.porPerna ?? {})) if (r) tipos.add(r.modo === "onibus" ? "rodoviario" : r.modo);
+    if (!tipos.has(filters.transportType)) return false;
   }
   return true;
 }

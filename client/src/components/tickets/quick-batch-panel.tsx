@@ -6,13 +6,14 @@
 // de seleção ("Preencher dados em lote"). Aberto, ele é o mesmo: os mesmos
 // campos, o progresso, o status da operação e o rodapé com o "Aplicar".
 import { useEffect, useRef, type ReactNode } from "react";
-import { Plane, Bus, Truck, X, Paperclip, NotebookPen, ClipboardCheck, Users, Check } from "lucide-react";
+import { Plane, Bus, Car, X, Paperclip, NotebookPen, ClipboardCheck, Users, Check } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getMissingRequiredFields, hasUnsavedTicketInput, type TicketFormValues, type PlannedImpactContext } from "@/lib/ticket-form";
-import type { Event } from "@shared/schema";
+import type { Event, TeamInclusion } from "@shared/schema";
 import TicketFormFields, { fieldTestIdSlug } from "./ticket-form-fields";
+import TerrestreLote from "./terrestre-lote";
 import type { FormFieldHelpers, TicketFormHandlers } from "./types";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,10 @@ interface QuickBatchPanelProps {
   isPending: boolean;
   onClear: () => void;
   onApply: () => void;
+  /** "Carro / van" (16/10): as vagas marcadas, o nome de cada uma e o aviso de concluído. */
+  vagasSelecionadas?: TeamInclusion[];
+  nomeDaVaga?: (v: TeamInclusion) => string;
+  onTerrestreConcluido?: (ids: string[]) => void;
 }
 
 const quickTestId = (name: string) => `input-quick-${fieldTestIdSlug(name)}`;
@@ -49,9 +54,13 @@ function Secao({ icone: Icone, titulo, children }: { icone: typeof Paperclip; ti
 
 export default function QuickBatchPanel({
   expanded, onToggle, quick, helpers, handlers, filteredEvent, impactCtx, selectedCount, canEdit, isPending, onClear, onApply,
+  vagasSelecionadas = [], nomeDaVaga = (v) => `#${v.inclusionNumber ?? "?"}`, onTerrestreConcluido,
 }: QuickBatchPanelProps) {
   const q = quick;
   const transportType = q?.transportType || "aereo";
+  // 16/10: "Carro / van" troca a passagem de van (só empresa) pelo transporte
+  // terrestre da vaga (carro, van ou ônibus, com valor, por perna).
+  const terrestre = transportType === "terrestre";
   const isOneWay = !!q?.isOneWay;
   const tituloRef = useRef<HTMLHeadingElement>(null);
   // Abriu: o foco vai para o título do painel (teclado e leitor de tela sabem onde estão).
@@ -115,14 +124,16 @@ export default function QuickBatchPanel({
       <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h3 id="titulo-lote-passagens" ref={tituloRef} tabIndex={-1} className="m-0 text-sm font-semibold text-foreground outline-none">Aplicar em lote</h3>
-          <p className="m-0 text-xs text-muted-foreground mt-0.5">Os mesmos dados da compra para todas as passagens marcadas na lista.</p>
+          <p className="m-0 text-xs text-muted-foreground mt-0.5">
+            {terrestre ? "Carro, van ou ônibus para todas as vagas marcadas na lista — sem passagem a comprar." : "Os mesmos dados da compra para todas as passagens marcadas na lista."}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5" role="radiogroup" aria-label="Modalidade" data-testid="select-quick-transport-type">
             {[
               { value: "aereo", label: "Aérea", Icon: Plane },
               { value: "rodoviario", label: "Rodoviária", Icon: Bus },
-              { value: "van", label: "Van", Icon: Truck },
+              { value: "terrestre", label: "Carro / van", Icon: Car },
             ].map(opt => {
               const active = transportType === opt.value;
               return (
@@ -134,7 +145,7 @@ export default function QuickBatchPanel({
               );
             })}
           </div>
-          <label className="flex items-center gap-2 pl-3 border-l border-border cursor-pointer">
+          {!terrestre && <label className="flex items-center gap-2 pl-3 border-l border-border cursor-pointer">
             <span className="text-xs font-medium text-slate-600 select-none whitespace-nowrap">Apenas ida</span>
             <button
               type="button" role="switch"
@@ -146,7 +157,7 @@ export default function QuickBatchPanel({
             >
               <span className={cn("inline-block w-4 h-4 bg-card rounded-full shadow-1 transition-transform duration-200", isOneWay ? "translate-x-[18px]" : "translate-x-0.5")} />
             </button>
-          </label>
+          </label>}
           <button
             type="button"
             onClick={onToggle}
@@ -159,7 +170,12 @@ export default function QuickBatchPanel({
         </div>
       </div>
 
+      {terrestre && (
+        <TerrestreLote vagas={vagasSelecionadas} nomeDaVaga={nomeDaVaga} canEdit={canEdit} onConcluido={(ids) => onTerrestreConcluido?.(ids)} />
+      )}
+
       {/* Barra de progresso */}
+      {!terrestre && <>
       <div className="px-4 py-1.5 bg-surface-muted border-b border-border flex items-center gap-3">
         <div className="flex-1 h-1 rounded-full bg-border overflow-hidden" role="progressbar" aria-label="Campos preenchidos" aria-valuemin={0} aria-valuemax={total} aria-valuenow={filled}>
           <div className={`h-full rounded-full transition-[width] duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
@@ -293,6 +309,7 @@ export default function QuickBatchPanel({
           )}
         </div>
       </div>
+      </>}
     </section>
   );
 }

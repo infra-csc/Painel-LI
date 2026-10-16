@@ -21,6 +21,7 @@ import TicketRow from "./ticket-row";
 import type { TicketsData } from "./use-tickets-data";
 import type { TicketFilters } from "./types";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
+import type { ModoTerrestre } from "@shared/transporte-terrestre";
 
 /**
  * Abaixo disto a tabela não cabe sem espremer coluna e vira cartão.
@@ -63,6 +64,8 @@ interface TicketsTableProps {
   onCorrigirPassagem?: (inclusion: TeamInclusion) => void;
   /** Vagas que precisam de passagem sem recorte nenhum — o "de M" do rodapé. */
   total?: number;
+  /** "Vai de carro/van" (16/10): abre o transporte terrestre da vaga (com o tipo da Sugestão). */
+  onTerrestre?: (inclusion: TeamInclusion, modo?: ModoTerrestre) => void;
 }
 
 // 11px/600 com tracking curto — era 10px `font-black` com 0.15em, caixa alta
@@ -71,7 +74,7 @@ const TH = "px-2.5 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] tex
 
 export default function TicketsTable({
   data, filters, sortConfig, onSort, selectedTickets, allSelectableSelected, onToggleAll, onToggleSelect, onOpen, canEdit, onToggleEmitida, emitindo,
-  vagasComAlteracao, temFiltro, onLimparFiltros, total, sinais, linhas, vazioDoRecorte, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto, onCorrigirPassagem,
+  vagasComAlteracao, temFiltro, onLimparFiltros, total, sinais, linhas, vazioDoRecorte, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto, onCorrigirPassagem, onTerrestre,
 }: TicketsTableProps) {
   const rows = linhas ?? data.filteredTicketInclusions;
   // Medido sobre a largura ÚTIL, não pela janela: o menu lateral compacto
@@ -102,6 +105,7 @@ export default function TicketsTable({
     const titulo = vazioDoRecorte?.titulo ?? (filters.ticketStatus === "pending" ? "Nenhuma passagem pendente"
       : filters.ticketStatus === "processed" ? "Nenhuma passagem comprada"
       : filters.ticketStatus === "no_arrival" ? "Todas as compradas têm horário de chegada"
+      : filters.ticketStatus === "terrestre" ? "Ninguém registrado de carro ou van"
       : "Nenhuma passagem encontrada");
     const texto = vazioDoRecorte?.texto ?? (filters.ticketStatus === "pending"
       ? "Todas as passagens foram compradas ou não há colaboradores escalados."
@@ -109,6 +113,8 @@ export default function TicketsTable({
       ? "Nenhuma passagem foi comprada ainda."
       : filters.ticketStatus === "no_arrival"
       ? "Nenhuma passagem comprada está sem o horário de chegada da ida."
+      : filters.ticketStatus === "terrestre"
+      ? "Nenhuma vaga deste recorte foi registrada como carro, van ou ônibus. Use “Vai de carro/van” na linha da vaga."
       : "Não há colaboradores escalados que necessitem de passagens.");
     const Icone = temFiltro ? SearchX : Plane;
     return (
@@ -220,6 +226,9 @@ export default function TicketsTable({
               data-index={rowIdx}
               inclusion={inclusion}
               ticket={data.getTicket(inclusion.id)}
+              terrestres={data.getTerrestres(inclusion.id)}
+              cobertura={data.getCobertura(inclusion.id)}
+              onTerrestre={onTerrestre}
               rowIdx={rowIdx}
               eventName={data.getEventName(inclusion.eventId)}
               functionName={data.getFunctionName(inclusion.functionId)}
@@ -262,7 +271,7 @@ export default function TicketsTable({
             <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-warning-strong" />espera você (comprar, troca em análise, remarcar, viagem a conferir)
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-success-strong" />comprada
+            <span aria-hidden="true" className="w-[3px] h-[11px] rounded-full bg-success-strong" />comprada ou de carro/van
           </span>
         </span>
       </div>

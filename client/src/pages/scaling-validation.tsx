@@ -10,8 +10,8 @@
  * moldura, lista que vira cartões abaixo de 1280px e estados (vazio, erro,
  * sem acesso, carregando) no desenho da Escalação. Lógica intacta.
  */
-import { useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { Link, useSearch } from "wouter";
 import { CalendarDays, ClipboardCheck, CloudOff, Eye, History, Inbox, Info, List, Plus, SearchX } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -40,6 +40,10 @@ import { ValidationToolbar } from "@/components/scaling-validation/validation-pa
 import { BulkActionBar } from "@/components/scaling-validation/validation-page/bulk-action-bar";
 import { ValidateDialog } from "@/components/scaling-validation/validation-page/validate-dialog";
 import { AcaoDoEstado, AcessoNegadoValidacao, BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
+// Honorários da cenotécnica (16/10): seção à parte, só para quem pede (cenotécnica).
+import { useAcessoHonorarios } from "@/components/honorarios-ceno/api";
+import { PedidoPainel } from "@/components/honorarios-ceno/pedido-painel";
+import { SeletorDeSecao, secaoInicialDaUrl, type SecaoDaTela } from "@/components/honorarios-ceno/secao-do-modulo";
 
 /** Aba segmentada (07/10) — o mesmo desenho das abas da Escalação. */
 const ABA = "val-alvo h-8 gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-[color,background-color,box-shadow] duration-150 hover:text-foreground data-[state=active]:bg-card data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-1 data-[state=active]:ring-1 data-[state=active]:ring-border focus-visible:ring-offset-0";
@@ -53,6 +57,14 @@ export default function ScalingValidationPage() {
   // FILTRO. Sem `?eventId=` na URL, nada é pré-selecionado.
   const { eventId, setEventId, sanitize } = useScalingEvent(BASE_PATH, { allEventsDefault: true });
   const [tab, setTab] = useState<ValidationTab>("lista");
+  // Honorários da cenotécnica (16/10): "em outra aba, pois é financeiro".
+  const [secao, setSecao] = useState<SecaoDaTela>(secaoInicialDaUrl);
+  const acessoHonorarios = useAcessoHonorarios(!!user);
+  const veHonorarios = !!acessoHonorarios.data?.podePedir;
+  const emHonorarios = veHonorarios && secao === "honorarios";
+  // Link do sino com a tela já aberta (?aba=honorarios&t=…): troca de seção.
+  const busca = useSearch();
+  useEffect(() => { if (new URLSearchParams(busca).get("aba") === "honorarios") setSecao("honorarios"); }, [busca]);
 
   const d = useValidationData({ user, eventId, sanitize });
   const sel = useValidationSelection(d, eventId);
@@ -112,6 +124,9 @@ export default function ScalingValidationPage() {
       {/* Âncora do "voltar ao topo" depois de validar — logo abaixo da barra
           grudada; o scroll-margin grande faz a página parar no topo de verdade. */}
       <div ref={topRef} aria-hidden="true" className="scroll-mt-[60vh]" />
+
+      {veHonorarios && <SeletorDeSecao secao={secao} onSecao={setSecao} />}
+      {emHonorarios ? <PedidoPainel eventId={eventId || null} onEscolherEvento={setEventId} /> : (<>
 
       {/* Resumo — soma SEMPRE o conjunto exibido (um evento ou todos). Funil de
           um lado, recorte do outro — "Minhas pendentes" é fatia de
@@ -258,6 +273,7 @@ export default function ScalingValidationPage() {
       )}
 
       <BulkActionBar sel={sel} act={act} />
+      </>)}
 
       {/* Confirmar "selecionar todas" acima do teto */}
       {/* ConfirmDialog único (23/09) — mesma moldura da Sugestão e da Escalação. */}

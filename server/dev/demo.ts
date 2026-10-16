@@ -29,7 +29,7 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
 (async () => {
   // Imports dinâmicos: server/db.ts lê PAINEL_DB no carregamento, então o
   // ambiente acima precisa estar definido antes de qualquer módulo do servidor.
-  const [{ db, inicializarBancoDeTeste }, { criarSchemaPglite }, { semearDemo, DEMO_PAPEIS, DEMO_SENHA, DEMO_USUARIOS }, { createApp }, { setupVite, log }, { iniciarAgendadorDaBusca }, { semearBuscaDemo }] = await Promise.all([
+  const [{ db, inicializarBancoDeTeste }, { criarSchemaPglite }, { semearDemo, DEMO_PAPEIS, DEMO_SENHA, DEMO_USUARIOS }, { createApp }, { setupVite, log }, { iniciarAgendadorDaBusca }, { semearBuscaDemo }, { semearHonorariosDemo }] = await Promise.all([
     import("../db"),
     import("./pglite-schema"),
     import("./demo-seed"),
@@ -37,6 +37,7 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
     import("../vite"),
     import("../busca-de-passagens/agendador"),
     import("./demo-seed-busca"),
+    import("./demo-seed-honorarios"),
   ]);
 
   const t0 = Date.now();
@@ -45,7 +46,9 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
   const resumo = await semearDemo(db);
   // Busca de passagens (etapa 2): histórico de consultas, usos e acompanhamentos — SÓ no demo.
   const busca = await semearBuscaDemo(db);
-  log(`banco embutido pronto em ${Date.now() - t0} ms — ${resumo.vagas} vagas, ${resumo.colaboradores} colaboradores, ${resumo.eventos} eventos, ${busca.consultas} consultas de preço`, "demo");
+  // Honorários da cenotécnica (16/10): pedidos em todas as etapas — SÓ no demo.
+  const honorarios = await semearHonorariosDemo(db);
+  log(`banco embutido pronto em ${Date.now() - t0} ms — ${resumo.vagas} vagas, ${resumo.colaboradores} colaboradores, ${resumo.eventos} eventos, ${busca.consultas} consultas de preço, ${honorarios.pedidos} pedidos de honorário`, "demo");
 
   const { app, server } = await createApp({ modoSeguro: false, cookieSecure: false });
   await setupVite(app, server);

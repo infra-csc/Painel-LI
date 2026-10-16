@@ -25,6 +25,8 @@ export interface Modulo { rotulo: string; substantivo: string; artigo: "o" | "a"
 export const MODULOS: Record<string, Modulo> = {
   team_inclusion: { rotulo: "Vagas (Escala)", substantivo: "vaga", artigo: "a" },
   ticket: { rotulo: "Passagens", substantivo: "passagem", artigo: "a" },
+  // 16/10: vaga que vai de carro/van/ônibus em vez de avião.
+  transporte_terrestre: { rotulo: "Transporte terrestre", substantivo: "transporte terrestre", artigo: "o" },
   accommodation: { rotulo: "Hospedagens", substantivo: "hospedagem", artigo: "a" },
   event: { rotulo: "Eventos", substantivo: "evento", artigo: "o" },
   comment: { rotulo: "Comentários de vaga", substantivo: "comentário", artigo: "o" },
@@ -56,6 +58,8 @@ export const MODULOS: Record<string, Modulo> = {
   // 09/10: busca de passagens na internet (apareciam como "Outro registro").
   busca_de_passagens: { rotulo: "Busca de passagens", substantivo: "busca de preços de passagem", artigo: "a" },
   busca_passagens_acompanhamento: { rotulo: "Acompanhamento de preço", substantivo: "acompanhamento de preço", artigo: "o" },
+  // 16/10: honorários da cenotécnica.
+  honorario_ceno: { rotulo: "Honorários da cenotécnica", substantivo: "pedido de honorário", artigo: "o" },
 };
 
 /** Tipo que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -124,6 +128,11 @@ export const ACOES: Record<string, Acao> = {
   acompanhar_preco: { rotulo: "Acompanhamento iniciado", verbo: "passou a acompanhar o preço d", tom: "criar" },
   parar_acompanhamento: { rotulo: "Acompanhamento encerrado", verbo: "parou de acompanhar o preço d", tom: "excluir" },
   checar_precos: { rotulo: "Checagem diária de preços", verbo: "checou os preços acompanhados", tom: "neutro" },
+  // 16/10: honorários da cenotécnica.
+  honorario_enviado: { rotulo: "Honorário enviado", verbo: "enviou para aprovação", tom: "enviar" },
+  aprovar_com_ajuste: { rotulo: "Aprovação com ajuste", verbo: "aprovou com ajuste", tom: "aprovar" },
+  liberar_verba: { rotulo: "Verba liberada", verbo: "liberou a verba d", tom: "aprovar" },
+  estornar_liberacao: { rotulo: "Liberação estornada", verbo: "estornou a liberação d", tom: "recusar" },
 };
 
 /** Ação que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -184,6 +193,8 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   returnCityDestination: "Cidade de chegada (volta)", attachmentIds: "Anexos", emittedAt: "Emitida em",
   emittedBy: "Emitida por", checkIn3: "Conferência", baggageTotalCents: "Valor da bagagem",
   baggageOc: "OC da bagagem", baggageNotes: "Observações da bagagem",
+  // transporte terrestre (16/10)
+  trecho: "Trecho", modo: "Transporte", empresa: "Empresa", valorCentavos: "Valor",
   // pedidos
   requestType: "Tipo de pedido", proposedChanges: "Mudanças pedidas", reviewComment: "Comentário da decisão",
   reviewedByName: "Decidido por", reviewedAt: "Decidido em", requestedByName: "Pedido por",
@@ -241,7 +252,7 @@ export const campoOculto = (campo: string): boolean => CAMPOS_OCULTOS.has(campo)
 const CAMPOS_EM_CENTAVOS = new Set([
   "dailyValue", "value", "empreitaValor", "baggageTotalCents", "totalValue", "costAssistance", "mobility",
   "mobilityIda", "mobilityVolta", "transport", "weekdayLunch", "weekdayDinner", "weekendLunch", "weekendDinner",
-  "dailyRate", "precoInicial", "busca_passagens_valor_mala",
+  "dailyRate", "precoInicial", "busca_passagens_valor_mala", "valorCentavos",
   "default_daily_value_weekday", "default_daily_value_weekend", "default_daily_value_weekday_freela",
   "default_daily_value_weekend_freela", "default_mobility", "default_mobility_ida", "default_mobility_volta",
   "default_mobility_ida_freela", "default_mobility_volta_freela", "default_weekday_lunch", "default_weekday_dinner",
@@ -304,6 +315,8 @@ const VALORES_DO_CAMPO: Record<string, Record<string, string>> = {
   cenoFreelaTipo: { ...(CENO_FREELA_TIPO_LABELS as Record<string, string>) },
   requestType: { inclusao: "Inclusão", exclusao: "Exclusão", ajuste: "Ajuste" },
   transportType: { aereo: "Aéreo", rodoviario: "Rodoviário", van: "Van" },
+  modo: { carro: "Carro", van: "Van", onibus: "Ônibus" },
+  trecho: { ida: "Ida", volta: "Volta" },
 };
 
 // ─── Formatação de valores ───────────────────────────────────────────────────

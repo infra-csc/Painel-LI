@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
 import { IndicacaoDaLogistica, ProblemasDaViagem, SugestaoDeTrechoDireto, TrechoDiretoDaVaga } from "./sinais-da-vaga";
+import { rotuloDaCobertura, reaisDoTerrestre, type CoberturaTerrestre, type ModoTerrestre, type TrechoTerrestre } from "@shared/transporte-terrestre";
+import { AtalhoDoTerrestre, LinhasDoTerrestre } from "./terrestre-na-linha";
 
 export interface TicketRowProps {
   inclusion: TeamInclusion;
@@ -53,6 +55,11 @@ export interface TicketRowProps {
   onCorrigirPassagem?: (inclusion: TeamInclusion) => void;
   /** Índice da linha na lista virtual (o virtualizador mede a altura por ele). */
   "data-index"?: number;
+  /** Transporte terrestre da vaga (16/10): carro/van/ônibus por perna. */
+  terrestres?: readonly TrechoTerrestre[];
+  cobertura?: CoberturaTerrestre;
+  /** "Vai de carro/van": registrar/editar o terrestre (sem permissão: ausente). */
+  onTerrestre?: (inclusion: TeamInclusion, modo?: ModoTerrestre) => void;
 }
 
 const transportLabel = (t: Ticket) => (t.transportType === "van" ? "Van" : t.transportType === "rodoviario" ? "Rodoviário" : "Aéreo");
@@ -111,6 +118,7 @@ function Perna({ ida, data, partida, chegada, origem, destino, rodo }: {
 const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function TicketRow({
   inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation, onToggleEmitida, emitindo,
   hasPendingSwap, hasApprovedSwap, alteracaoPendente, selected, canEdit, locked, onToggleSelect, onOpen, sinal, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto, onCorrigirPassagem, "data-index": dataIndex,
+  terrestres = [], cobertura, onTerrestre,
 }, ref) {
   const cancelado = inclusion.status === "cancelado";
   const cellCls = `px-2.5 py-2.5 align-top cursor-pointer ${cancelado ? "opacity-60" : ""}`;
@@ -122,11 +130,15 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   const voltaVazia = !hasSuggestionValue(suggestion.retorno);
   const summary = ticket ? ticketSummaryLine(ticket) : "";
   const rodo = ticket?.transportType === "rodoviario";
+  // Vai de carro/van/ônibus em TODAS as pernas e sem passagem (16/10): não há o que comprar.
+  const terrestreTotal = !ticket && !!cobertura?.cobreTudo;
+  const podeTerrestre = !!onTerrestre && canEdit && !locked && !cancelado;
+  const editarTerrestre = podeTerrestre ? () => onTerrestre!(inclusion) : undefined;
   // A borda esquerda diz de quem é a vez: âmbar = espera você (compra
   // pendente, troca em análise, alteração aprovada para remarcar); verde =
   // comprada; cinza = cancelada.
   // Viagem que cruza outra, data impossível (09/10) ou suspeita (16/10) também esperam alguém de Compras.
-  const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado)
+  const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado && !terrestreTotal)
     || (!cancelado && (!!sinal?.cruzaCom?.length || !!sinal?.dataImpossivel || !!sinal?.datasSuspeitas?.length));
 
   return (
@@ -149,7 +161,7 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
       <td data-col="sel" className="pl-3 pr-1 py-2.5 align-top whitespace-nowrap w-9" onClick={(e) => e.stopPropagation()}>
         {/* O alvo é o <label> de 40x40: margem não amplia área de clique e
             padding em checkbox nativo não funciona. */}
-        {!ticket && !cancelado && !locked ? (
+        {!ticket && !cancelado && !locked && !terrestreTotal ? (
           <label className="flex items-center justify-center w-10 h-10 -m-2.5 cursor-pointer">
             <input
               type="checkbox"
@@ -261,14 +273,19 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
                   rodo={rodo}
                 />
               )}
+              {/* A outra perna de carro/van (a passagem é só de ida ou só de volta). */}
+              <LinhasDoTerrestre terrestres={terrestres} cobertura={cobertura} inclusionId={inclusion.id} onEditar={editarTerrestre} />
               <TrechoDiretoDaVaga sinal={sinal} inclusionId={inclusion.id} />
               {/* Inverso da sugestão (09/10): a próxima vaga começa logo depois, em outra cidade. */}
               {sinal?.seguePara && <SugestaoDeTrechoDireto sinal={{ seguePara: sinal.seguePara, segueDiretoPara: sinal.segueDiretoPara }} inclusionId={inclusion.id} podeRegistrar={false} />}
             </div>
           )
+        ) : terrestres.length > 0 ? (
+          <LinhasDoTerrestre terrestres={terrestres} cobertura={cobertura} inclusionId={inclusion.id} onEditar={editarTerrestre} mostrarFalta />
         ) : (
           <>
             <span className="text-xs text-muted-foreground italic whitespace-nowrap">Não comprada</span>
+            {podeTerrestre && <AtalhoDoTerrestre inclusion={inclusion} onAbrir={onTerrestre!} />}
             {!cancelado && (
               <SugestaoDeTrechoDireto
                 sinal={sinal} inclusionId={inclusion.id} podeRegistrar={canEdit && !locked}
@@ -348,6 +365,15 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
               })()}
             </span>
           </div>
+        ) : terrestreTotal && cobertura ? (
+          <div className="flex flex-col items-start gap-1 min-w-0" data-testid={`ticket-terrestre-${inclusion.id}`}>
+            <span className={`${PILULA} bg-success-soft text-success`}>
+              <span className="w-[5px] h-[5px] rounded-full bg-success shrink-0" aria-hidden="true" />{rotuloDaCobertura(cobertura)}
+            </span>
+            <span className="pas-resumo text-2xs leading-snug text-muted-foreground tabular-nums whitespace-nowrap">
+              {reaisDoTerrestre(cobertura.totalCentavos)} · sem passagem
+            </span>
+          </div>
         ) : (
           <span className={`${PILULA} bg-warning-soft text-warning`}>
             <span className="w-[5px] h-[5px] rounded-full bg-warning shrink-0" aria-hidden="true" />Pendente
@@ -361,7 +387,7 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
           {/* Emitida: o carimbo de quem compra. Marcar não exige a passagem
               preenchida — é aviso de que o bilhete saiu e de que a área não
               pede mais ajuste. Clicar de novo desfaz (erro de clique acontece). */}
-          {!cancelado && onToggleEmitida && (
+          {!cancelado && onToggleEmitida && !terrestreTotal && (
             <MotivoDesabilitado motivo={ticket?.emittedAt
                 ? "Passagem emitida — clique para desfazer"
                 : "Marcar como emitida — registra que o bilhete saiu"} desabilitado={!canEdit || locked || emitindo}>
@@ -379,7 +405,18 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
             </MotivoDesabilitado>
           )}
           {!cancelado && (
-            ticket ? (
+            terrestreTotal ? (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); open(); }}
+                data-testid={`view-terrestre-${inclusion.inclusionNumber}`}
+                title="Ver o transporte terrestre"
+                aria-label={`Ver o transporte terrestre da inclusão #${inclusion.inclusionNumber ?? ""}`}
+                className="pas-alvo pas-abrir w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-muted-foreground hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Eye className="w-4 h-4" aria-hidden="true" />
+              </button>
+            ) : ticket ? (
               <button
                 type="button"
                 onClick={open}

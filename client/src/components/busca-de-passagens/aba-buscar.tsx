@@ -104,7 +104,8 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, ajustesDaUrl =
     nomeDaFuncao: data.getFunctionName,
     ajustes,
     hoje,
-  }), [data.filteredTicketInclusions, eventById, data.collaboratorById, data.ticketByInclusion, data.getCollaboratorName, data.getFunctionName, ajustes, hoje]);
+    terrestreByInclusion: data.terrestreByInclusion,
+  }), [data.filteredTicketInclusions, eventById, data.collaboratorById, data.ticketByInclusion, data.getCollaboratorName, data.getFunctionName, ajustes, hoje, data.terrestreByInclusion]);
   const linhaPorId = useMemo(() => new Map(linhas.map((l) => [l.vaga.id, l])), [linhas]);
   const visiveis = useMemo(() => ordenarLinhas(linhas.filter((l) => passaNosFiltros(l, filtros))), [linhas, filtros]);
 

@@ -20,7 +20,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
-  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff,
+  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -71,6 +71,7 @@ export const ALL_TABS: NavTab[] = [
   { id: "rh-control",         path: "/rh-control",         label: "Controle RH",          icon: Users,             permission: "canAccessScreen5" },
   { id: "invoices",           path: "/invoices",           label: "Notas fiscais",        icon: Receipt,           permission: "canAccessFinanceiro" },
   { id: "flash-account",      path: "/flash-account",      label: "Conta corrente Flash", icon: PiggyBank,         permission: "canAccessFinanceiro" },
+  { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessFinanceiro" },
   { id: "calculation-rules",  path: "/calculation-rules",  label: "Regras de cálculo",    icon: Calculator,        permission: "canAccessFinanceiro" },
   { id: "system-settings",    path: "/system-settings",    label: "Valores padrão",       icon: SlidersHorizontal, permission: "canAccessFinanceiro" },
   { id: "consultation",       path: "/consultation",       label: "Log de auditoria",     icon: FileSearch,        permission: "canAccessScreen6" },
@@ -105,7 +106,7 @@ export const MENU_GROUPS: NavGroup[] = [
       ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"],
     },
   },
-  { title: "Financeiro", tone: "success", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "calculation-rules", "system-settings"] },
+  { title: "Financeiro", tone: "success", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "honorarios-ceno", "calculation-rules", "system-settings"] },
   { title: "Gestão", tone: "warning", ids: ["consultation", "admin-users", "simulation"] },
 ];
 

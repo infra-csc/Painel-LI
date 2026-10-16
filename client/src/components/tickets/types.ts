@@ -14,11 +14,11 @@ export interface TicketFilters {
   functionId: string[];
   collaboratorId: string;
   searchId: string;
-  /** all | pending | processed | no_arrival */
+  /** all | pending | processed | no_arrival | terrestre (carro/van/ônibus, 16/10) */
   ticketStatus: string;
   /** all | active | cancelado */
   inclusionStatus: string;
-  /** all | aereo | rodoviario | van */
+  /** all | aereo | rodoviario | van | carro — passagem e transporte terrestre */
   transportType: string;
   /**
    * Período da vaga — o MESMO filtro da Escalação (04/09), com "Já terminou"

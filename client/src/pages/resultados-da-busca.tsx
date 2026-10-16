@@ -136,7 +136,8 @@ export default function ResultadosDaBusca() {
   const linhas = useMemo(() => montarLinhas({
     vagas: data.filteredTicketInclusions, eventById, collaboratorById: data.collaboratorById, ticketByInclusion: data.ticketByInclusion,
     nomeDoColaborador: data.getCollaboratorName, nomeDaFuncao: data.getFunctionName, ajustes, hoje,
-  }), [data.filteredTicketInclusions, eventById, data.collaboratorById, data.ticketByInclusion, data.getCollaboratorName, data.getFunctionName, ajustes, hoje]);
+    terrestreByInclusion: data.terrestreByInclusion,
+  }), [data.filteredTicketInclusions, eventById, data.collaboratorById, data.ticketByInclusion, data.getCollaboratorName, data.getFunctionName, ajustes, hoje, data.terrestreByInclusion]);
   const linhaPorId = useMemo(() => new Map(linhas.map((l) => [l.vaga.id, l])), [linhas]);
   const pronto = !data.isLoading && !!data.teamInclusions && (!faltamNaLista || incluirPassados);
   const pedido = useMemo<VagaDoPedido[]>(() => (pronto ? vagas.filter((id) => linhaPorId.has(id)).map((id) => {

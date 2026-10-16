@@ -388,6 +388,29 @@ export const tickets = pgTable("tickets", {
   index("tickets_inclusion_idx").on(t.teamInclusionId), // 23/09
 ]);
 
+// TRANSPORTE TERRESTRE da vaga (16/10 — dono: "vai de carro ou van. Van precisa
+// informar o nome da empresa e o valor; carro, só o valor do carro"). Um
+// registro por vaga e perna (ida/volta): a perna terrestre não precisa de
+// passagem. Regra em shared/transporte-terrestre.ts; o valor NÃO entra no
+// Planejado/Realizado (só registrado). Migração:
+// scripts/migrations/2026-10-16-transporte-terrestre.sql (o boot também cria).
+export const transportesTerrestres = pgTable("transportes_terrestres", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id, { onDelete: "cascade" }),
+  trecho: text("trecho").notNull(), // 'ida' | 'volta'
+  modo: text("modo").notNull(), // 'carro' | 'van' | 'onibus'
+  empresa: text("empresa"), // van/ônibus: obrigatória; carro: null
+  valorCentavos: integer("valor_centavos").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+}, (t) => [
+  uniqueIndex("transportes_terrestres_vaga_trecho_uq").on(t.teamInclusionId, t.trecho),
+]);
+export type TransporteTerrestre = typeof transportesTerrestres.$inferSelect;
+export type InsertTransporteTerrestre = typeof transportesTerrestres.$inferInsert;
+
 // Accommodations table
 export const accommodations = pgTable("accommodations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1241,6 +1264,99 @@ export const rascunhosDoPlanejado = pgTable("rascunhos_do_planejado", {
 ]);
 
 export type RascunhoDoPlanejado = typeof rascunhosDoPlanejado.$inferSelect;
+
+// ===== HONORÁRIOS DA CENOTÉCNICA (16/10) =====
+// Valor negociado pela cenotécnica → aprovação (mesmo aprovador da escala) →
+// liberação da verba pelo Financeiro. Módulo À PARTE da escala: nada aqui é
+// lido pelo Planejado/Realizado nem muda team_inclusions (a vaga é só uma
+// referência opcional — a linha de EMPREITA não tem vaga). Regras em
+// shared/honorarios-ceno.ts. Migração: scripts/migrations/2026-10-16-
+// honorarios-cenotecnica.sql; o boot também cria (server/ensure-schema.ts).
+export const honorariosCeno = pgTable("honorarios_ceno", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  /** 'vaga' (vaga escalada do app) | 'empreita' (equipe terceirizada, sem vaga) */
+  tipo: text("tipo").notNull(),
+  teamInclusionId: varchar("team_inclusion_id").references(() => teamInclusions.id),
+  /** Função da vaga (snapshot) — decide quem pede e quem aprova. Nula na empreita. */
+  functionId: varchar("function_id").references(() => functions.id),
+  collaboratorId: varchar("collaborator_id"),
+  /** Nome do colaborador (snapshot) ou do responsável da empreita. */
+  nome: text("nome").notNull(),
+  pessoas: integer("pessoas"),
+  descricao: text("descricao"),
+  setor: text("setor"), // 'sup_ceno' | 'marceneiro' | 'montagem'
+  posicao: text("posicao"), // 'freela_local' | 'freela_viagem' | 'empreita'
+  inicio: date("inicio"),
+  fim: date("fim"),
+  diarias: integer("diarias"),
+  valorPedido: integer("valor_pedido").notNull().default(0), // centavos
+  valorAprovado: integer("valor_aprovado"), // centavos; null até a aprovação
+  observacao: text("observacao"),
+  status: text("status").notNull().default("rascunho"),
+  /** Trava de corrida: toda mutação exige a versão lida e soma 1. */
+  versao: integer("versao").notNull().default(1),
+  criadoPor: varchar("criado_por").notNull(),
+  criadoPorNome: text("criado_por_nome").notNull(),
+  enviadoPor: varchar("enviado_por"),
+  enviadoPorNome: text("enviado_por_nome"),
+  enviadoEm: timestamp("enviado_em", { withTimezone: true }),
+  decididoPor: varchar("decidido_por"),
+  decididoPorNome: text("decidido_por_nome"),
+  decididoEm: timestamp("decidido_em", { withTimezone: true }),
+  /** Último motivo do aprovador (ajuste ou devolução) — o histórico tem todos. */
+  motivoDecisao: text("motivo_decisao"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("honorarios_ceno_evento_idx").on(t.eventId),
+  index("honorarios_ceno_status_idx").on(t.status),
+  // Uma linha por vaga: o devolvido é reeditado na MESMA linha.
+  uniqueIndex("honorarios_ceno_vaga_uq").on(t.teamInclusionId).where(sql`${t.teamInclusionId} IS NOT NULL`),
+]);
+
+export type HonorarioCeno = typeof honorariosCeno.$inferSelect;
+export type InsertHonorarioCeno = typeof honorariosCeno.$inferInsert;
+
+/** Histórico do pedido: quem, quando, o que fez e valor anterior → novo. */
+export const honorariosCenoHistorico = pgTable("honorarios_ceno_historico", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  honorarioId: varchar("honorario_id").notNull().references(() => honorariosCeno.id, { onDelete: "cascade" }),
+  /** criado | editado | enviado | aprovado | aprovado_ajuste | devolvido | liberacao | liberacao_estornada */
+  acao: text("acao").notNull(),
+  valorAnterior: integer("valor_anterior"),
+  valorNovo: integer("valor_novo"),
+  motivo: text("motivo"),
+  detalhe: text("detalhe"),
+  porId: varchar("por_id").notNull(),
+  porNome: text("por_nome").notNull(),
+  em: timestamp("em", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("honorarios_ceno_historico_idx").on(t.honorarioId, t.em),
+]);
+
+export type HonorarioCenoHistorico = typeof honorariosCenoHistorico.$inferSelect;
+
+/** Liberação de verba pelo Financeiro (aceita parcial). Estorno é lógico — nada se apaga. */
+export const honorariosCenoLiberacoes = pgTable("honorarios_ceno_liberacoes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  honorarioId: varchar("honorario_id").notNull().references(() => honorariosCeno.id, { onDelete: "cascade" }),
+  data: date("data").notNull(),
+  oc: text("oc").notNull(),
+  valor: integer("valor").notNull(), // centavos
+  observacao: text("observacao"),
+  porId: varchar("por_id").notNull(),
+  porNome: text("por_nome").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  estornadaEm: timestamp("estornada_em", { withTimezone: true }),
+  estornadaPor: varchar("estornada_por"),
+  estornadaPorNome: text("estornada_por_nome"),
+  motivoEstorno: text("motivo_estorno"),
+}, (t) => [
+  index("honorarios_ceno_liberacoes_idx").on(t.honorarioId),
+]);
+
+export type HonorarioCenoLiberacao = typeof honorariosCenoLiberacoes.$inferSelect;
 
 // ===== BUSCA DE PASSAGENS NA INTERNET (09/10) =====
 // Cache COMPARTILHADO das consultas ao fornecedor (Ignav) e o registro de
