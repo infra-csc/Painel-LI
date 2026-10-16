@@ -22,8 +22,8 @@ export const ROTULO_DA_ETAPA: Record<EtapaComPrazo, string> = {
   registro: "Registros",
   validacao: "Validação",
   aprovacao: "Aprovação",
-  escalacao: "Escalação",
-  escalado: "Escalado",
+  escalacao: "Colaborador definido",
+  escalado: "Escala confirmada",
   passagem: "Passagem emitida",
   hotel: "Hotel reservado",
 };
