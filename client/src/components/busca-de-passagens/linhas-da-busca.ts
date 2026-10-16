@@ -94,6 +94,10 @@ export function montarLinhas(entrada: {
     const plano = planejarBusca({ vagas: [vaga], eventos, ajustes: { [v.id]: ajuste }, hoje: entrada.hoje });
     // Só escalação com trecho AÉREO a comprar entra na tela.
     if (plano.faltando.some((f) => f.tipo === "nao_precisa" || f.tipo === "sem_trecho_aereo")) continue;
+    // Sai da mesma cidade/região do evento (16/10, dono: "não é intuitivo"):
+    // não há voo a comprar, então não é pendência da busca. Com passagem
+    // comprada continua na lista (o registro existe e precisa aparecer).
+    if (!passagem && plano.faltando.some((f) => f.tipo === "mesmo_aeroporto")) continue;
     const temIda = v.trechosSugeridos !== "so_volta" && (!v.transportModeIda || v.transportModeIda === "aereo") && ajuste.somente !== "volta";
     const temVolta = v.trechosSugeridos !== "so_ida" && !v.voltaSegueParaEventoId && (!v.transportModeVolta || v.transportModeVolta === "aereo") && ajuste.somente !== "ida";
     const direto = !!(v.idaVemDoEventoId || ajuste.idaDoEventoId);

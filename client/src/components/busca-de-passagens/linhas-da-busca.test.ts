@@ -15,7 +15,7 @@ const evRio = eventoFake({ id: "ev-rio", name: "Desafio Petrobrás - Rio de Jane
 // Teresina tem um aeroporto só: a busca já usa THE ("sugerido").
 const evThe = eventoFake({ id: "ev-the", name: "Corrida Teresina", location: "TERESINA", startDate: "2026-11-13", endDate: "2026-11-15" });
 // Evento que já terminou (fim ontem) e um que termina HOJE (ainda vale).
-const evPassado = eventoFake({ id: "ev-passado", name: "Eco Run SP 2025", location: "São Paulo - SP", aeroportoIata: "CGH", startDate: "2025-10-05", endDate: "2026-10-08" });
+const evPassado = eventoFake({ id: "ev-passado", name: "Eco Run Rio 2025", location: "Rio de Janeiro - RJ", aeroportoIata: "GIG", startDate: "2025-10-05", endDate: "2026-10-08" });
 const evHoje = eventoFake({ id: "ev-hoje", name: "Termina hoje", location: "Recife - PE", startDate: "2026-10-07", endDate: "2026-10-09" });
 const viagem = { needsTicket: true, city: "São Paulo - SP", flightDepartureDate: "2026-11-12", flightArrivalSuggestedTime: "até 14h", flightReturnDate: "2026-11-16", flightReturnSuggestedTime: "18h+" };
 
@@ -47,6 +47,21 @@ describe("linhas da aba Buscar", () => {
     expect(l[0].rotas[0]).toMatchObject({ origem: "GRU", destino: "JPA", perna: "ida_e_volta" });
     expect(l[1].faltas.map((f) => f.tipo)).toEqual(["evento_sem_aeroporto"]);
     expect(l[2]).toMatchObject({ trecho: "so_ida", dataVolta: null });
+  });
+
+  it("sai da mesma região do evento (16/10): sem voo, fora da lista — a não ser que já tenha passagem", () => {
+    const sp = eventoFake({ id: "ev-sp", name: "Maratona SP", location: "Ibirapuera, São Paulo - SP", startDate: "2026-11-13", endDate: "2026-11-15" });
+    const campinas = eventoFake({ id: "ev-vcp", name: "Corrida Campinas", location: "Campinas - SP", startDate: "2026-11-13", endDate: "2026-11-15" });
+    const montar = (tickets: Ticket[] = []) => montarLinhas({
+      vagas: [vagaFake({ id: "s1", eventId: "ev-sp", ...viagem }), vagaFake({ id: "s2", eventId: "ev-vcp", ...viagem })],
+      eventById: new Map([sp, campinas].map((e) => [e.id, e])),
+      collaboratorById: new Map<string, Collaborator>(),
+      ticketByInclusion: new Map(tickets.map((t) => [t.teamInclusionId, t])),
+      nomeDoColaborador: () => "Ana Souza", nomeDaFuncao: () => "Montagem", ajustes: {}, hoje: HOJE,
+    });
+    expect(montar()).toEqual([]);
+    const [s1] = montar([{ id: "t", teamInclusionId: "s1", value: 1000 } as Ticket]);
+    expect(s1.faltas.map((f) => f.tipo)).toEqual(["mesmo_aeroporto"]);
   });
 
   it("passagem comprada usa as datas e o aeroporto dela e mostra o valor pago", () => {

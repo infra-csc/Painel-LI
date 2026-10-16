@@ -411,12 +411,17 @@ export function planejarBusca(entrada: {
         alternativas = daCidade.slice(1);
         for (const a of alternativasDoAeroporto(aeroCasa)) if (a !== aeroCasa && !alternativas.includes(a)) alternativas.push(a);
       }
-      if (aeroCasa && aeroEvento && (aeroCasa === aeroEvento || daCidade.includes(aeroEvento))) {
-        dizer("mesmo_aeroporto", `A cidade de saída usa o mesmo aeroporto do evento (${aeroEvento}) — não há voo a buscar.`);
+      // Mesma cidade/região do evento (16/10, dono: "não é intuitivo"): sem voo
+      // — a viagem é por terra. Aeroporto de saída ESCOLHIDO (na tela ou pela
+      // passagem comprada) só conta quando é o próprio aeroporto do evento.
+      const mesmaRegiao = escolhido ? aeroCasa === aeroEvento : !!aeroCasa && !!aeroEvento && (aeroCasa === aeroEvento || daCidade.includes(aeroEvento));
+      if (aeroCasa && aeroEvento && mesmaRegiao) {
+        const onde = evento?.name ? `${evento.name} (${aeroEvento})` : `o evento (${aeroEvento})`;
+        dizer("mesmo_aeroporto", `Sai de ${cidade || aeroCasa}, na mesma região de ${onde}: a viagem é por terra, não há voo a buscar.`, { texto: cidade || aeroCasa });
       }
     }
     if (precisaIda && idaDoEventoId && aeroOrigemIda && aeroEvento && aeroOrigemIda === aeroEvento) {
-      dizer("mesmo_aeroporto", `O evento anterior usa o mesmo aeroporto (${aeroEvento}) — não há voo a buscar.`);
+      dizer("mesmo_aeroporto", `O evento anterior fica na mesma região (${aeroEvento}): a viagem é por terra, não há voo a buscar.`);
     }
 
     // Datas: da vaga ou informadas na hora.

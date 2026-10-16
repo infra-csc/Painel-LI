@@ -32,7 +32,7 @@ export function rotuloDaFalta(f: DadoFaltando): string {
     case "sem_data_volta": return "Sem data da volta";
     case "data_passada": return "Data já passou";
     case "volta_antes_da_ida": return "Volta antes da ida";
-    case "mesmo_aeroporto": return "Mesmo aeroporto";
+    case "mesmo_aeroporto": return "Sem voo · por terra";
     default: return "Indisponível";
   }
 }

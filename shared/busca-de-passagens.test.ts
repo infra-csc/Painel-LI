@@ -251,6 +251,17 @@ describe("planejarBusca — agrupamento e pernas", () => {
     const sp: EventoDaBusca = { id: "ev-sp", name: "Maratona SP", location: "Ibirapuera, São Paulo - SP", aeroportoIata: "CGH" };
     const plano = planejarBusca({ vagas: [vaga("a", { eventId: "ev-sp" })], eventos: eventos([sp]), hoje: HOJE });
     expect(plano.faltando[0].tipo).toBe("mesmo_aeroporto");
+    expect(plano.faltando[0].mensagem).toMatch(/por terra/);
+  });
+
+  it("aeroporto de saída escolhido só é 'mesma região' quando é o próprio aeroporto do evento", () => {
+    const campinas: EventoDaBusca = { id: "ev-vcp", name: "Corrida Campinas", location: "Campinas - SP", aeroportoIata: null };
+    // Sai de São Paulo (GRU, CGH, VCP) para Campinas (VCP): por terra.
+    expect(planejarBusca({ vagas: [vaga("a", { eventId: "ev-vcp" })], eventos: eventos([campinas]), hoje: HOJE }).faltando[0]?.tipo).toBe("mesmo_aeroporto");
+    // Passagem comprada saindo de GRU para um evento em VCP: não é a mesma pista — consulta.
+    const escolhido = planejarBusca({ vagas: [vaga("a", { eventId: "ev-vcp" })], eventos: eventos([campinas]), hoje: HOJE, ajustes: { a: { aeroportoDeCasa: "GRU" } } });
+    expect(escolhido.faltando).toEqual([]);
+    expect(escolhido.rotas[0]).toMatchObject({ origem: "GRU", destino: "VCP" });
   });
 });
 
