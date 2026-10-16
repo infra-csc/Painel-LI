@@ -49,6 +49,8 @@ export interface TicketRowProps {
   onTrechoDireto?: (inclusion: TeamInclusion, anteriorId: string) => void;
   /** "Buscar preços do trecho direto" (09/10): leva à Busca de passagens. */
   onBuscarTrechoDireto?: (inclusion: TeamInclusion, anteriorId: string) => void;
+  /** Abre a passagem já em edição — atalho do aviso de data suspeita (16/10). */
+  onCorrigirPassagem?: (inclusion: TeamInclusion) => void;
   /** Índice da linha na lista virtual (o virtualizador mede a altura por ele). */
   "data-index"?: number;
 }
@@ -108,7 +110,7 @@ function Perna({ ida, data, partida, chegada, origem, destino, rodo }: {
 // e a rolagem "pula".
 const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function TicketRow({
   inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation, onToggleEmitida, emitindo,
-  hasPendingSwap, hasApprovedSwap, alteracaoPendente, selected, canEdit, locked, onToggleSelect, onOpen, sinal, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto, "data-index": dataIndex,
+  hasPendingSwap, hasApprovedSwap, alteracaoPendente, selected, canEdit, locked, onToggleSelect, onOpen, sinal, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto, onCorrigirPassagem, "data-index": dataIndex,
 }, ref) {
   const cancelado = inclusion.status === "cancelado";
   const cellCls = `px-2.5 py-2.5 align-top cursor-pointer ${cancelado ? "opacity-60" : ""}`;
@@ -123,8 +125,9 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   // A borda esquerda diz de quem é a vez: âmbar = espera você (compra
   // pendente, troca em análise, alteração aprovada para remarcar); verde =
   // comprada; cinza = cancelada.
-  // Viagem que cruza outra ou data impossível (09/10) também esperam alguém de Compras.
-  const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado) || (!cancelado && (!!sinal?.cruzaCom?.length || !!sinal?.dataImpossivel));
+  // Viagem que cruza outra, data impossível (09/10) ou suspeita (16/10) também esperam alguém de Compras.
+  const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado)
+    || (!cancelado && (!!sinal?.cruzaCom?.length || !!sinal?.dataImpossivel || !!sinal?.datasSuspeitas?.length));
 
   return (
     <tr
@@ -275,7 +278,10 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
             )}
           </>
         )}
-        <ProblemasDaViagem sinal={sinal} inclusionId={inclusion.id} />
+        <ProblemasDaViagem
+          sinal={sinal} inclusionId={inclusion.id}
+          onCorrigir={ticket && canEdit && !locked && !cancelado && onCorrigirPassagem ? () => onCorrigirPassagem(inclusion) : undefined}
+        />
       </td>
 
       {/* Sugestões */}

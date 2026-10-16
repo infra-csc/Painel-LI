@@ -10,7 +10,7 @@
 import { parseBrNumber } from "@/lib/utils";
 import { mobilidadeTrechoCents, isEventoEmSP, parseHoraMin, MOBILIDADE_TRECHO_MADRUGADA_CENTS } from "@shared/atendimento";
 import { calcAlimentacao, dataDeChegadaDaIda, type AlimentacaoDia } from "@shared/alimentacao";
-import { errosDeDataDaPassagem } from "@shared/janela-de-viagem";
+import { datasSuspeitasDaPassagem, diaEmTextoCompleto, errosDeDataDaPassagem, textoDaDataSuspeita } from "@shared/janela-de-viagem";
 
 export type TransportType = "aereo" | "rodoviario" | "van";
 
@@ -220,6 +220,9 @@ export interface ChronologyContext {
   today?: string;
   scheduleStartDate?: string | null;
   scheduleEndDate?: string | null;
+  /** Datas do evento — referência da data suspeita (16/10), junto com a escala. */
+  eventStartDate?: string | null;
+  eventEndDate?: string | null;
 }
 
 export interface ChronologyResult {
@@ -315,6 +318,19 @@ export function validateTicketChronology(form: TicketFormData, ctx: ChronologyCo
   }
   if (ret && end && ret < end) {
     warnings.push(`A volta (${fmtBr(ret)}) é antes do término do período de trabalho (${fmtBr(end)}).`);
+  }
+
+  // Data suspeita (16/10 — vaga #2446: volta digitada 27/07/2027 num evento de
+  // julho/2026). Mesma regra do servidor; aviso com "continuar mesmo assim",
+  // porque a data pode ser real. Volta antes da ida já é erro acima.
+  const suspeitas = datasSuspeitasDaPassagem(
+    { actualDepartureDate: dep, actualReturnDate: ret },
+    { eventStartDate: ctx.eventStartDate, eventEndDate: ctx.eventEndDate, scheduleStartDate: ctx.scheduleStartDate, scheduleEndDate: ctx.scheduleEndDate },
+  );
+  for (const s of suspeitas) {
+    if (s.motivo === "volta_antes_da_ida" || errors[s.campo]) continue;
+    const certo = s.provavel ? ` Provável erro de digitação — seria ${diaEmTextoCompleto(s.provavel)}?` : " Confira se não é erro de digitação.";
+    warnings.push(`${textoDaDataSuspeita(s, today)}.${certo}`);
   }
 
   return { errors, warnings };

@@ -4,6 +4,10 @@ import {
   cidadesDiferentes,
   conflitosDeViagem,
   cruzamentoDeJanelas,
+  DIAS_DE_FOLGA_DA_DATA_DA_PASSAGEM,
+  datasSuspeitasDaPassagem,
+  detalheDaDataSuspeita,
+  textoDaDataSuspeita,
   encadeamentoEntre,
   errosDeDataDaPassagem,
   estaoEncadeadas,
@@ -252,6 +256,94 @@ describe("indicação na vaga (normalizarTrechosDaVaga)", () => {
     const nome = (id: string) => ({ "ev-aju": "Night Run Aracaju" } as Record<string, string>)[id];
     expect(textoDaIndicacao({ idaVemDoEventoId: "ev-aju" }, nome)).toEqual(["vem direto de Night Run Aracaju"]);
     expect(textoDaIndicacao({ trechosSugeridos: "so_ida" }, nome)).toEqual(["só ida (sem volta)"]);
+  });
+});
+
+describe("data suspeita (16/10 — caso #2446, volta digitada em 2027)", () => {
+  // Night Run Campo Grande (evento 25–26/07/2026). Ida 22/07/2026 06:05; a volta
+  // saiu 27/07/2027 05:15. Sugestão da escala: volta 26/07/2026. Segue direto
+  // para Maceió (#4692) e tem, no ano seguinte, as vagas #3950 e #4021.
+  const campoGrande = (extra: Partial<VagaDaJanela> = {}): VagaDaJanela => ({
+    id: "v2446", inclusionNumber: 2446, eventId: "ev-cg", eventName: "Night Run - Campo Grande - MS",
+    eventLocation: "Campo Grande - MS", collaboratorId: "mauricio", status: "passagem_comprada", phase: "passagem",
+    eventStartDate: "2026-07-25", eventEndDate: "2026-07-26",
+    scheduleStartDate: "2026-07-23", scheduleEndDate: "2026-07-26",
+    flightDepartureDate: "2026-07-22", flightReturnDate: "2026-07-26",
+    passagem: { id: "t2446", actualDepartureDate: "2026-07-22", actualDepartureTime: "06:05", actualReturnDate: "2027-07-27", actualReturnTime: "05:15" },
+    ...extra,
+  });
+  const noAnoSeguinte = (id: string, n: number, ini: string, fim: string): VagaDaJanela => ({
+    id, inclusionNumber: n, eventId: `ev-${id}`, eventName: `Evento ${n}`, eventLocation: "Recife - PE", collaboratorId: "mauricio",
+    status: "passagem_comprada", phase: "passagem", eventStartDate: ini, eventEndDate: fim, scheduleStartDate: ini, scheduleEndDate: fim,
+    passagem: { actualDepartureDate: ini, actualDepartureTime: "08:00", actualReturnDate: fim, actualReturnTime: "20:00" },
+  });
+
+  it("a volta de 27/07/2027 é suspeita, com o provável 27/07/2026", () => {
+    const [s, ...resto] = datasSuspeitasDaPassagem(campoGrande().passagem, campoGrande());
+    expect(resto).toHaveLength(0);
+    expect(s).toMatchObject({ trecho: "volta", campo: "actualReturnDate", dia: "2027-07-27", motivo: "depois_do_periodo", provavel: "2026-07-27" });
+    expect(textoDaDataSuspeita(s, "2026-10-16")).toBe("Data da volta suspeita: 27/07/2027, o evento terminou em 26/07/2026");
+    expect(detalheDaDataSuspeita(s)).toMatch(/erro de digitação no ano — o certo deve ser 27\/07\/2026/);
+  });
+
+  it("a janela usa a sugestão da vaga no lugar da volta suspeita — e não cruza mais com o ano seguinte", () => {
+    expect(janelaDaVaga(campoGrande()).fim).toEqual({ dia: "2026-07-26", hora: null, fonte: "sugestao" });
+    const outras = [noAnoSeguinte("v3950", 3950, "2027-03-10", "2027-03-12"), noAnoSeguinte("v4021", 4021, "2027-05-02", "2027-05-04")];
+    expect(conflitosDeViagem(campoGrande(), outras)).toEqual({ bloqueia: [], avisos: [] });
+    expect(viagensQueSeCruzam([campoGrande(), ...outras])).toHaveLength(0);
+  });
+
+  it("sem sugestão, cai na escala; sem escala, nas datas do evento", () => {
+    expect(janelaDaVaga(campoGrande({ flightReturnDate: null })).fim).toEqual({ dia: "2026-07-26", hora: null, fonte: "escala" });
+    const soEvento = campoGrande({ flightReturnDate: null, scheduleStartDate: null, scheduleEndDate: null });
+    expect(janelaDaVaga(soEvento).fim).toEqual({ dia: "2026-07-26", hora: null, fonte: "evento" });
+  });
+
+  it("com as datas plausíveis, o cruzamento de verdade continua", () => {
+    // Outra vaga do colaborador em 24–28/07/2026: cruza pelas datas certas.
+    const cruza = noAnoSeguinte("v9", 9, "2026-07-24", "2026-07-28");
+    expect(conflitosDeViagem(campoGrande(), [cruza]).bloqueia.map((c) => c.outra.id)).toEqual(["v9"]);
+  });
+
+  it("depois de corrigida (27/07/2026), nada é suspeito e a janela volta a ser a da passagem", () => {
+    const corrigida = campoGrande({ passagem: { actualDepartureDate: "2026-07-22", actualDepartureTime: "06:05", actualReturnDate: "2026-07-27", actualReturnTime: "05:15" } });
+    expect(datasSuspeitasDaPassagem(corrigida.passagem, corrigida)).toEqual([]);
+    expect(janelaDaVaga(corrigida).fim).toEqual({ dia: "2026-07-27", hora: "05:15", fonte: "passagem" });
+  });
+
+  it(`folga de ${DIAS_DE_FOLGA_DA_DATA_DA_PASSAGEM} dias: no limite ainda vale; um dia além é suspeito`, () => {
+    const ref = { eventStartDate: "2026-07-25", eventEndDate: "2026-07-26" };
+    expect(datasSuspeitasDaPassagem({ actualDepartureDate: "2026-07-18", actualReturnDate: "2026-08-02" }, ref)).toEqual([]);
+    const r = datasSuspeitasDaPassagem({ actualDepartureDate: "2026-07-17", actualReturnDate: "2026-08-03" }, ref);
+    expect(r.map((s) => [s.trecho, s.motivo])).toEqual([["ida", "antes_do_periodo"], ["volta", "depois_do_periodo"]]);
+    expect(textoDaDataSuspeita(r[0], "2026-07-01")).toBe("Data da ida suspeita: 17/07/2026, o evento começa em 25/07/2026");
+    expect(r[0].provavel).toBeNull();
+  });
+
+  it("a escala alarga o período (montagem antes do evento não é suspeita)", () => {
+    const ref = { eventStartDate: "2026-07-25", eventEndDate: "2026-07-26", scheduleStartDate: "2026-07-10", scheduleEndDate: "2026-07-27" };
+    expect(datasSuspeitasDaPassagem({ actualDepartureDate: "2026-07-09" }, ref)).toEqual([]);
+  });
+
+  it("ida com o ano trocado também é pega, com o provável", () => {
+    const [s] = datasSuspeitasDaPassagem({ actualDepartureDate: "2025-07-22" }, { eventStartDate: "2026-07-25", eventEndDate: "2026-07-26" });
+    expect(s).toMatchObject({ trecho: "ida", motivo: "antes_do_periodo", provavel: "2026-07-22" });
+  });
+
+  it("evento na virada do ano: janeiro do ano seguinte é normal; o provável usa o ano certo", () => {
+    const ref = { eventStartDate: "2026-12-30", eventEndDate: "2027-01-01" };
+    expect(datasSuspeitasDaPassagem({ actualDepartureDate: "2026-12-29", actualReturnDate: "2027-01-02" }, ref)).toEqual([]);
+    expect(datasSuspeitasDaPassagem({ actualReturnDate: "2026-01-02" }, ref)[0].provavel).toBe("2027-01-02");
+  });
+
+  it("volta antes da ida (as duas no período): a volta é a suspeita e sai da janela", () => {
+    const v = campoGrande({ passagem: { actualDepartureDate: "2026-07-24", actualReturnDate: "2026-07-22" } });
+    expect(datasSuspeitasDaPassagem(v.passagem, v)).toEqual([expect.objectContaining({ trecho: "volta", motivo: "volta_antes_da_ida" })]);
+    expect(janelaDaVaga(v).fim?.fonte).toBe("sugestao");
+  });
+
+  it("sem datas do evento nem da escala, nada é suspeito por período", () => {
+    expect(datasSuspeitasDaPassagem({ actualDepartureDate: "2026-07-22", actualReturnDate: "2027-07-27" }, {})).toEqual([]);
   });
 });
 

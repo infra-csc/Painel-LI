@@ -172,7 +172,12 @@ export function useScalingData(opts: {
     // isso — Compras decide a rota (pode comprar trecho direto); é só aviso.
     // Encadeadas (indicação ou passagem) não avisam: regra única do shared.
     const jaAvisadas = new Set([...sameEvent, ...dateOverlap].map((ti) => ti.id));
-    const comPassagem = (ti: TeamInclusion) => ({ ...ti, passagem: ticketByInclusion.get(ti.id) ?? null });
+    // Datas do evento (16/10): a data de passagem que não bate com o evento
+    // (volta digitada no ano seguinte) fica fora da janela — senão "cruza" com tudo.
+    const comPassagem = (ti: TeamInclusion) => {
+      const ev = eventById.get(ti.eventId);
+      return { ...ti, eventStartDate: ev?.startDate ?? null, eventEndDate: ev?.endDate ?? null, passagem: ticketByInclusion.get(ti.id) ?? null };
+    };
     const viagem = ref ? conflitosDeViagem(comPassagem({ ...ref, collaboratorId }), others.map(comPassagem)) : { bloqueia: [], avisos: [] };
     const viagensProximas = [...viagem.bloqueia, ...viagem.avisos]
       .map((c) => others.find((o) => o.id === c.outra.id))

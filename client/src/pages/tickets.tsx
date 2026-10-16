@@ -24,6 +24,7 @@ import {
   periodDays,
   type TicketFormValues,
   type PlannedImpactContext,
+  type ChronologyContext,
 } from "@/lib/ticket-form";
 import { refeicaoCents } from "@shared/alimentacao";
 import type { TeamInclusion, Ticket } from "@shared/schema";
@@ -305,7 +306,7 @@ export default function Tickets() {
   const validateTicketForm = (
     scope: string,
     form: TicketFormValues,
-    ctx: { scheduleStartDate?: string | null; scheduleEndDate?: string | null },
+    ctx: ChronologyContext,
     proceed: () => void,
   ) => {
     const missing = getMissingRequiredFields(form || {});
@@ -447,12 +448,32 @@ export default function Tickets() {
     setEditingTicketId(selectedInclusion.id);
     setModalActiveTab("dados");
   };
+  /**
+   * "Corrigir passagem" do aviso de data suspeita (16/10): abre o modal com a
+   * passagem já em edição na aba Dados — o mesmo que Visualizar → Editar.
+   */
+  const corrigirPassagem = useCallback((inclusion: TeamInclusion) => {
+    const ticket = getTicket(inclusion.id);
+    openModal(inclusion);
+    if (!ticket) return;
+    const prefill = ticketToFormValues(ticket);
+    setTicketData(prev => ({ ...prev, [inclusion.id]: prefill }));
+    setEditSnapshot(JSON.stringify(prefill));
+    setEditingTicketId(inclusion.id);
+    setModalActiveTab("dados");
+  }, [getTicket, openModal]);
   const submitModal = () => {
     if (!selectedInclusion || isSubmitting) return;
     const inc = selectedInclusion;
     const form = ticketData[inc.id] || {};
     const isEditing = !!editingTicketId;
-    validateTicketForm(inc.id, form, { scheduleStartDate: inc.scheduleStartDate, scheduleEndDate: inc.scheduleEndDate }, async () => {
+    // Datas do evento (16/10): a data que não bate com o evento pede confirmação.
+    const ev = eventById.get(inc.eventId);
+    const ctx: ChronologyContext = {
+      scheduleStartDate: inc.scheduleStartDate, scheduleEndDate: inc.scheduleEndDate,
+      eventStartDate: ev?.startDate ?? null, eventEndDate: ev?.endDate ?? null,
+    };
+    validateTicketForm(inc.id, form, ctx, async () => {
       setBloqueioDeViagem(null);
       silenciarViagemCruzada.current = true;
       try {
@@ -839,6 +860,7 @@ export default function Tickets() {
             nomeDoEvento={nomeDoEvento}
             onTrechoDireto={canEdit ? abrirTrechoDireto : undefined}
             onBuscarTrechoDireto={podeBuscarPrecos ? (inc, anteriorId) => irParaBusca([inc.id], anteriorId) : undefined}
+            onCorrigirPassagem={canEdit ? corrigirPassagem : undefined}
           />
         </div>
 

@@ -21,8 +21,9 @@
  *  - o que já se cruza hoje só é LISTADO (Pendências) — nada muda sozinho.
  *
  * Janela de ocupação de uma vaga = da partida da ida até a chegada da volta.
- * Cada ponta tem a sua fonte, nesta ordem: passagem atual → datas sugeridas da
- * vaga (dia inteiro, sem hora) → período da escala. Vaga encadeada: a janela
+ * Cada ponta tem a sua fonte, nesta ordem: passagem atual (se a data não for
+ * SUSPEITA — 16/10, ver `datasSuspeitasDaPassagem`) → datas sugeridas da vaga
+ * (dia inteiro, sem hora) → período da escala → datas do evento. Vaga encadeada: a janela
  * da anterior termina na partida do trecho direto, onde começa a da seguinte —
  * as duas nunca conflitam entre si.
  *
@@ -79,6 +80,9 @@ export interface VagaDaJanela {
   deletedAt?: Date | string | null;
   scheduleStartDate?: Dia;
   scheduleEndDate?: Dia;
+  /** Datas do evento (`events.startDate/endDate`): referência da data suspeita e último recurso da janela. */
+  eventStartDate?: Dia;
+  eventEndDate?: Dia;
   flightDepartureDate?: Dia;
   flightReturnDate?: Dia;
   trechosSugeridos?: string | null;
@@ -92,7 +96,7 @@ export interface VagaDaJanela {
 export interface Marco {
   dia: string;
   hora: string | null;
-  fonte: "passagem" | "sugestao" | "escala";
+  fonte: "passagem" | "sugestao" | "escala" | "evento";
 }
 
 export interface JanelaDeViagem {
@@ -240,32 +244,169 @@ export function estaoEncadeadas(a: VagaDaJanela, b: VagaDaJanela): boolean {
   return encadeamentoEntre(a, b) !== null;
 }
 
+// ── Data suspeita (16/10) ───────────────────────────────────────────────────
+//
+// Caso real (tela Passagens, vaga #2446, Night Run Campo Grande): ida
+// 22/07/2026, volta digitada 27/07/2027 — o ano errado. A janela de viagem ia
+// de 22/07/2026 a 27/07/2027 e "cruzava" com tudo o que o colaborador tinha no
+// ano seguinte (#3950, #4021). Dono: "esse cruza tem que validar as datas
+// também, não faz sentido cruzar sem validar as datas".
+//
+// Data SUSPEITA = não bate com o evento da vaga. Ela NÃO entra na janela: para
+// aquele trecho vale a data da vaga (sugestão → escala → evento), e a tela
+// mostra o aviso próprio ("Data da volta suspeita: …") no lugar do cruzamento
+// falso. Não é recusa: a data pode ser real (quem registra confirma).
+
+/**
+ * Folga, em dias, entre o período da vaga e a data da passagem. Ida até 7 dias
+ * antes do início (montagem, chegar antes) ou volta até 7 dias depois do fim
+ * (ficar, emendar folga) ainda é plausível; além disso, é quase sempre
+ * digitação — o ano trocado cai a ~365 dias.
+ */
+export const DIAS_DE_FOLGA_DA_DATA_DA_PASSAGEM = 7;
+
+/** O período de referência: as datas do evento, alargadas pela escala da vaga. */
+export interface ReferenciaDaDataDaPassagem {
+  eventStartDate?: Dia;
+  eventEndDate?: Dia;
+  scheduleStartDate?: Dia;
+  scheduleEndDate?: Dia;
+}
+
+export type MotivoDaDataSuspeita = "antes_do_periodo" | "depois_do_periodo" | "volta_antes_da_ida";
+
+export interface DataSuspeita {
+  trecho: "ida" | "volta";
+  campo: "actualDepartureDate" | "actualReturnDate";
+  /** A data registrada ("AAAA-MM-DD"). */
+  dia: string;
+  motivo: MotivoDaDataSuspeita;
+  /** O limite citado na frase: o início/fim do evento (ou da escala, sem evento). */
+  limite: { dia: string; de: "evento" | "escala"; lado: "inicio" | "fim" } | null;
+  /** A mesma data com o ano do evento, quando ela cai no período: o provável certo. */
+  provavel: string | null;
+}
+
+const menorDia = (a: string | null, b: string | null) => (a && b ? (a < b ? a : b) : a ?? b);
+const maiorDia = (a: string | null, b: string | null) => (a && b ? (a > b ? a : b) : a ?? b);
+
+/**
+ * Datas da passagem que não batem com o evento (vazio = nenhuma). Regra:
+ *  - ida ou volta mais de `DIAS_DE_FOLGA_DA_DATA_DA_PASSAGEM` dias antes do
+ *    início ou depois do fim do período (evento ∪ escala);
+ *  - ano diferente do evento com mês/dia que cai no período é o mesmo caso
+ *    (fica a ~1 ano) — vem com o `provavel` (a data com o ano do evento);
+ *  - volta antes da ida (as duas dentro do período): a volta é a suspeita.
+ * Sem datas do evento nem da escala, só a última regra vale.
+ */
+export function datasSuspeitasDaPassagem(
+  t: PassagemDaJanela | null | undefined,
+  ref: ReferenciaDaDataDaPassagem,
+): DataSuspeita[] {
+  if (!t) return [];
+  const evIni = diaDe(ref.eventStartDate), evFim = diaDe(ref.eventEndDate);
+  const esIni = diaDe(ref.scheduleStartDate), esFim = diaDe(ref.scheduleEndDate);
+  const ini = menorDia(evIni, esIni), fim = maiorDia(evFim, esFim);
+  const piso = ini ? somarDiasISO(ini, -DIAS_DE_FOLGA_DA_DATA_DA_PASSAGEM) : null;
+  const teto = fim ? somarDiasISO(fim, DIAS_DE_FOLGA_DA_DATA_DA_PASSAGEM) : null;
+  const noPeriodo = (d: string) => (!piso || d >= piso) && (!teto || d <= teto);
+  const anosDoEvento = Array.from(new Set([ini, fim].filter((d): d is string => !!d).map((d) => d.slice(0, 4))));
+  const provavelDe = (d: string): string | null => {
+    for (const ano of anosDoEvento) {
+      const c = `${ano}${d.slice(d.length - 6)}`; // "-MM-DD"
+      if (c !== d && noPeriodo(c)) return c;
+    }
+    return null;
+  };
+  const out: DataSuspeita[] = [];
+  const conferir = (trecho: "ida" | "volta", campo: DataSuspeita["campo"], v: Dia) => {
+    const d = diaDe(v);
+    if (!d || noPeriodo(d)) return;
+    const antes = !!piso && d < piso;
+    const limite = antes
+      ? { dia: (evIni ?? esIni)!, de: evIni ? "evento" as const : "escala" as const, lado: "inicio" as const }
+      : { dia: (evFim ?? esFim)!, de: evFim ? "evento" as const : "escala" as const, lado: "fim" as const };
+    out.push({ trecho, campo, dia: d, motivo: antes ? "antes_do_periodo" : "depois_do_periodo", limite, provavel: provavelDe(d) });
+  };
+  conferir("ida", "actualDepartureDate", t.actualDepartureDate);
+  conferir("volta", "actualReturnDate", t.actualReturnDate);
+  const ida = diaDe(t.actualDepartureDate), volta = diaDe(t.actualReturnDate);
+  if (out.length === 0 && ida && volta && volta < ida) {
+    out.push({ trecho: "volta", campo: "actualReturnDate", dia: volta, motivo: "volta_antes_da_ida", limite: null, provavel: null });
+  }
+  return out;
+}
+
+/** "27/07/2027". */
+export function diaEmTextoCompleto(iso: string): string {
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a}`;
+}
+
+/**
+ * A frase do aviso: "Data da volta suspeita: 27/07/2027, o evento terminou em
+ * 26/07/2026". `hoje` ("AAAA-MM-DD") escolhe o tempo do verbo (terminou/termina).
+ */
+export function textoDaDataSuspeita(s: DataSuspeita, hoje?: string | null): string {
+  const cabeca = `Data da ${s.trecho} suspeita: ${diaEmTextoCompleto(s.dia)}`;
+  if (s.motivo === "volta_antes_da_ida" || !s.limite) return `${cabeca}, antes da ida`;
+  const passado = !!hoje && s.limite.dia < hoje;
+  const quem = s.limite.de === "evento" ? "o evento" : "a escala";
+  const verbo = s.limite.lado === "inicio" ? (passado ? "começou" : "começa") : (passado ? "terminou" : "termina");
+  return `${cabeca}, ${quem} ${verbo} em ${diaEmTextoCompleto(s.limite.dia)}`;
+}
+
+/** Explicação para o title/popover: provável digitação e o que a conferência faz enquanto isso. */
+export function detalheDaDataSuspeita(s: DataSuspeita): string {
+  const certo = s.provavel ? ` — o certo deve ser ${diaEmTextoCompleto(s.provavel)}` : "";
+  const porQue = s.motivo === "volta_antes_da_ida"
+    ? "A volta está antes da ida"
+    : `A ${s.trecho} está a mais de ${DIAS_DE_FOLGA_DA_DATA_DA_PASSAGEM} dias do período do evento`;
+  return `${porQue}: provavelmente erro de digitação${s.provavel ? " no ano" : ""}${certo}. `
+    + `Enquanto não for corrigida, a conferência de viagem cruzada usa a data da escala para este trecho. Corrija a passagem.`;
+}
+
 // ── Janela ──────────────────────────────────────────────────────────────────
+
+/** A ponta da VOLTA registrada na passagem (chegada, ou partida), sem validar datas. */
+export function voltaDaPassagem(t: PassagemDaJanela | null | undefined): Marco | null {
+  const volta = diaDe(t?.actualReturnDate);
+  if (!volta) return null;
+  const partida = horaDe(t?.actualReturnTime);
+  const chegada = horaDe(t?.returnArrivalTime);
+  // Chegada "antes" da partida = chega no dia seguinte (voo noturno).
+  const dia = partida && chegada && chegada < partida ? somarDiasISO(volta, 1) : volta;
+  return { dia, hora: chegada ?? partida, fonte: "passagem" };
+}
+
+/** Campos da passagem que a janela NÃO usa por estarem suspeitos. */
+function camposSuspeitos(v: VagaDaJanela): Set<DataSuspeita["campo"]> {
+  return new Set(datasSuspeitasDaPassagem(v.passagem, v).map((s) => s.campo));
+}
 
 function inicioProprio(v: VagaDaJanela): Marco | null {
   const t = v.passagem;
   const idaComprada = diaDe(t?.actualDepartureDate);
-  if (idaComprada) return { dia: idaComprada, hora: horaDe(t?.actualDepartureTime), fonte: "passagem" };
+  if (idaComprada && !camposSuspeitos(v).has("actualDepartureDate")) {
+    return { dia: idaComprada, hora: horaDe(t?.actualDepartureTime), fonte: "passagem" };
+  }
   const sugerida = diaDe(v.flightDepartureDate);
   if (sugerida) return { dia: sugerida, hora: null, fonte: "sugestao" };
   const escala = diaDe(v.scheduleStartDate);
-  return escala ? { dia: escala, hora: null, fonte: "escala" } : null;
+  if (escala) return { dia: escala, hora: null, fonte: "escala" };
+  const evento = diaDe(v.eventStartDate);
+  return evento ? { dia: evento, hora: null, fonte: "evento" } : null;
 }
 
 function fimProprio(v: VagaDaJanela): Marco | null {
-  const t = v.passagem;
-  const volta = diaDe(t?.actualReturnDate);
-  if (volta) {
-    const partida = horaDe(t?.actualReturnTime);
-    const chegada = horaDe(t?.returnArrivalTime);
-    // Chegada "antes" da partida = chega no dia seguinte (voo noturno).
-    const dia = partida && chegada && chegada < partida ? somarDiasISO(volta, 1) : volta;
-    return { dia, hora: chegada ?? partida, fonte: "passagem" };
-  }
+  const daPassagem = voltaDaPassagem(v.passagem);
+  if (daPassagem && !camposSuspeitos(v).has("actualReturnDate")) return daPassagem;
   const sugerida = diaDe(v.flightReturnDate);
   if (sugerida) return { dia: sugerida, hora: null, fonte: "sugestao" };
   const escala = diaDe(v.scheduleEndDate);
-  return escala ? { dia: escala, hora: null, fonte: "escala" } : null;
+  if (escala) return { dia: escala, hora: null, fonte: "escala" };
+  const evento = diaDe(v.eventEndDate);
+  return evento ? { dia: evento, hora: null, fonte: "evento" } : null;
 }
 
 /**
@@ -689,6 +830,19 @@ export interface SinalDeViagem {
   cruzaCom?: Array<RefDeVaga & { nivel: "bloqueia" | "aviso" }>;
   /** Passagem com data impossível ("Data da volta antes da ida"). */
   dataImpossivel?: string;
+  /**
+   * Datas que não batem com o evento (16/10), uma por trecho: ficam FORA da
+   * janela de cruzamento e aparecem no lugar do "cruza com" falso.
+   */
+  datasSuspeitas?: Array<{
+    trecho: "ida" | "volta";
+    dia: string;
+    provavel: string | null;
+    /** "Data da volta suspeita: 27/07/2027, o evento terminou em 26/07/2026". */
+    texto: string;
+    /** Para o title: provável digitação e o que a conferência faz enquanto isso. */
+    detalhe: string;
+  }>;
   /** A ida desta vaga é o trecho direto vindo de outra (Compras confirmou ou a logística indicou). */
   vemDiretoDe?: RefDeVaga & { confirmado: boolean };
   /** Esta vaga não tem volta própria: segue direto para outra. */

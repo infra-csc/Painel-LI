@@ -167,6 +167,29 @@ describe("sinais de viagem e Pendências", () => {
     expect((await ctx.storage.getTicketsByInclusionId(outra.id))[0].actualReturnDate).toBe(A("10-20"));
   });
 
+  it("data suspeita (16/10, caso #2446): volta com o ano errado não gera cruzamento falso nem 409; corrigida, o aviso some", async () => {
+    const { agent, vagaAju, vagaJpa } = await cenarioAlonso();
+    // Volta digitada um ano à frente: sem a regra, a janela ia até 2028 e
+    // "cruzava" a escala de João Pessoa (26/10–02/11) — o registro dava 409.
+    const res = await registrar(agent, { ...passagemAracaju(vagaAju.id), actualReturnDate: "2028-10-26" });
+    expect(res.status).toBe(200);
+    // Uma passagem de João Pessoa sem cruzar de verdade (ida 26/10 12:00).
+    expect((await registrar(agent, idaJoaoPessoa(vagaJpa.id, { actualDepartureDate: A("10-26"), actualDepartureTime: "12:00" }))).status).toBe(200);
+
+    const sinais = (await agent.get("/api/tickets/sinais-de-viagem")).body.porVaga;
+    expect(sinais[vagaAju.id].datasSuspeitas).toEqual([expect.objectContaining({
+      trecho: "volta", dia: "2028-10-26", provavel: A("10-26"),
+      texto: "Data da volta suspeita: 26/10/2028, o evento termina em 25/10/2027",
+    })]);
+    expect(sinais[vagaAju.id].cruzaCom).toBeUndefined();
+    expect(sinais[vagaJpa.id]?.cruzaCom).toBeUndefined();
+
+    const corrige = await mutacao(agent.patch(`/api/tickets/${res.body.id}`)).send({ actualReturnDate: A("10-26"), actualReturnTime: "03:50" });
+    expect(corrige.status).toBe(200);
+    const depois = (await agent.get("/api/tickets/sinais-de-viagem")).body.porVaga;
+    expect(depois[vagaAju.id]?.datasSuspeitas).toBeUndefined();
+  });
+
   it("Pendências: só admin e Compras; sinais: quem registra passagem", async () => {
     const compras = await agenteLogado("purchasing");
     expect((await compras.agent.get("/api/shell/viagens-e-datas")).status).toBe(200);

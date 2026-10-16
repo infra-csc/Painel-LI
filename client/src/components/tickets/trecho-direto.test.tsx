@@ -56,6 +56,32 @@ describe("linha de Passagens — sinais de viagem", () => {
     expect(within(row).getByTestId("ticket-data-impossivel-v4238")).toHaveTextContent("Data da volta antes da ida");
   });
 
+  it("data suspeita (16/10, caso #2446): aviso âmbar no lugar do cruzamento falso, com o atalho para corrigir", async () => {
+    const onCorrigirPassagem = vi.fn();
+    const sinal: SinalDeViagem = {
+      datasSuspeitas: [{
+        trecho: "volta", dia: "2027-07-27", provavel: "2026-07-27",
+        texto: "Data da volta suspeita: 27/07/2027, o evento terminou em 26/07/2026",
+        detalhe: "A volta está a mais de 7 dias do período do evento: provavelmente erro de digitação no ano — o certo deve ser 27/07/2026.",
+      }],
+    };
+    const { row, inclusion, onOpen, user } = linha({ ticket: passagemFake({ teamInclusionId: "v4238" }), sinal, onCorrigirPassagem });
+    const selo = within(row).getByTestId("ticket-data-suspeita-volta-v4238");
+    expect(selo).toHaveTextContent("Data da volta suspeita: 27/07/2027, o evento terminou em 26/07/2026");
+    expect(selo).toHaveAttribute("title", expect.stringMatching(/erro de digitação/));
+    expect(within(row).queryByTestId("ticket-cruza-v4238")).toBeNull();
+    await user.click(within(row).getByTestId("corrigir-data-suspeita-v4238"));
+    expect(onCorrigirPassagem).toHaveBeenCalledWith(inclusion);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("data suspeita sem permissão de editar: o aviso fica, o atalho não", () => {
+    const sinal: SinalDeViagem = { datasSuspeitas: [{ trecho: "ida", dia: "2025-07-22", provavel: "2026-07-22", texto: "Data da ida suspeita: 22/07/2025, o evento começou em 25/07/2026", detalhe: "x" }] };
+    linha({ ticket: passagemFake({ teamInclusionId: "v4238" }), sinal, canEdit: false, onCorrigirPassagem: vi.fn() });
+    expect(screen.getByTestId("ticket-data-suspeita-ida-v4238")).toBeInTheDocument();
+    expect(screen.queryByTestId("corrigir-data-suspeita-v4238")).toBeNull();
+  });
+
   it("trecho direto confirmado: a ida diz de onde vem", () => {
     linha({ ticket: passagemFake({ teamInclusionId: "v4238" }), sinal: { vemDiretoDe: { ...ARACAJU, confirmado: true } } });
     expect(screen.getByTestId("ticket-trecho-direto-v4238")).toHaveTextContent("Ida direto de #4045 · Aracaju");

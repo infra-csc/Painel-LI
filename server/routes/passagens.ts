@@ -18,7 +18,7 @@ import {
   passagemTemVolta,
   marcoEmTexto,
   cidadeDoEvento,
-  janelaDaVaga,
+  voltaDaPassagem,
   type PassagemDaJanela,
 } from "@shared/janela-de-viagem";
 import { ocupaAgenda } from "@shared/conflito-de-agenda";
@@ -139,7 +139,8 @@ async function conferirPassagem(
     if (passagemTemVolta(anterior.passagem)) {
       voltaParaCancelar = {
         inclusionId: anterior.id, numero: anterior.inclusionNumber, eventName: anterior.eventName,
-        quando: marcoEmTexto(janelaDaVaga({ ...anterior, flightReturnDate: null, scheduleEndDate: null }).fim),
+        // A volta como está gravada (mesmo suspeita): é ela que Compras cancela.
+        quando: marcoEmTexto(voltaDaPassagem(anterior.passagem)),
       };
     }
   }

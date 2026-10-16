@@ -14,8 +14,12 @@ import { events, teamInclusions, tickets, type Ticket } from "@shared/schema";
 import { SUGESTAO_PHASE } from "@shared/scaling-validation-rules";
 import {
   conflitosDeViagem,
+  datasSuspeitasDaPassagem,
+  detalheDaDataSuspeita,
   diaDe,
+  errosDeDataDaPassagem,
   motivoDeDataImpossivel,
+  textoDaDataSuspeita,
   seguidaPorPassagem,
   sugestaoDeTrechoDireto,
   viagensQueSeCruzam,
@@ -89,6 +93,8 @@ export async function carregarVagasDeViagem(colaboradores?: readonly string[]): 
       deletedAt: teamInclusions.deletedAt,
       scheduleStartDate: teamInclusions.scheduleStartDate,
       scheduleEndDate: teamInclusions.scheduleEndDate,
+      eventStartDate: events.startDate,
+      eventEndDate: events.endDate,
       flightDepartureDate: teamInclusions.flightDepartureDate,
       flightReturnDate: teamInclusions.flightReturnDate,
       trechosSugeridos: teamInclusions.trechosSugeridos,
@@ -157,6 +163,15 @@ export function sinaisDeViagem(vagas: readonly VagaDeViagem[], hoje: string): Si
     for (const t of v.passagens) {
       const motivo = motivoDeDataImpossivel(t, hoje);
       if (motivo) { datas += 1; sinal(v.id).dataImpossivel ??= motivo; }
+      // Data suspeita (16/10): não bate com o evento. Fica fora do que a
+      // "data impossível" já diz (volta antes da ida, ano fora de 2024…).
+      const impossiveis = errosDeDataDaPassagem(t, hoje);
+      for (const s of datasSuspeitasDaPassagem(t, v)) {
+        if (s.motivo === "volta_antes_da_ida" || impossiveis[s.campo]) continue;
+        const lista = (sinal(v.id).datasSuspeitas ??= []);
+        if (lista.some((x) => x.trecho === s.trecho)) continue;
+        lista.push({ trecho: s.trecho, dia: s.dia, provavel: s.provavel, texto: textoDaDataSuspeita(s, hoje), detalhe: detalheDaDataSuspeita(s) });
+      }
     }
     // Encadeamentos (confirmados ou indicados).
     for (const o of outras) {

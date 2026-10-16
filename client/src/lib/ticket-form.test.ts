@@ -224,6 +224,22 @@ describe("validateTicketChronology", () => {
     const r = validateTicketChronology({ ...ok, actualDepartureDate: "2026-09-02" }, { today: "2026-08-17" });
     expect(r.warnings).toEqual([]);
   });
+
+  it("data suspeita (16/10 — volta no ano seguinte) pede confirmação, sem travar", () => {
+    const r = validateTicketChronology(
+      { ...ok, actualReturnDate: "2027-09-06" },
+      { ...ctx, eventStartDate: "2026-09-03", eventEndDate: "2026-09-05" },
+    );
+    expect(r.errors).toEqual({});
+    expect(r.warnings).toEqual([
+      "Data da volta suspeita: 06/09/2027, o evento termina em 05/09/2026. Provável erro de digitação — seria 06/09/2026?",
+    ]);
+  });
+
+  it("data suspeita também sai só com a escala (sem as datas do evento)", () => {
+    const r = validateTicketChronology({ ...ok, actualDepartureDate: "2026-08-20" }, ctx);
+    expect(r.warnings.some((w) => /Data da ida suspeita: 20\/08\/2026, a escala começa em 01\/09\/2026/.test(w))).toBe(true);
+  });
 });
 
 describe("hasUnsavedTicketInput", () => {

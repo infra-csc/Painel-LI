@@ -6,20 +6,50 @@
 //    "volta: segue direto para #4238 · Makai João Pessoa" — sem volta própria;
 //  - SUGESTÃO para Compras (vaga sem passagem): "Pode ir direto de Aracaju" com
 //    o botão "Registrar trecho direto", que abre o modal já encadeado.
-import { AlertTriangle, CornerDownRight, Route } from "lucide-react";
+import { AlertTriangle, CornerDownRight, PencilLine, Route } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
-import { textoDaIndicacao } from "@shared/janela-de-viagem";
+import { diaEmTextoCompleto as diaCompleto, textoDaIndicacao } from "@shared/janela-de-viagem";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
 import { diaCurto } from "./use-sinais-de-viagem";
 
 const PILULA = "inline-flex items-center gap-1 h-[22px] px-[7px] rounded-md text-2xs font-medium whitespace-nowrap max-w-full";
 
-/** Problemas da viagem (vermelho): cruza outra viagem · data impossível. */
-export function ProblemasDaViagem({ sinal, inclusionId }: { sinal?: SinalDeViagem; inclusionId: string }) {
+/**
+ * Problemas da viagem: cruza outra viagem · data impossível (vermelho) · data
+ * suspeita (âmbar, 16/10). A suspeita é a data que não bate com o evento (volta
+ * digitada no ano seguinte): ela fica fora da conferência de cruzamento e o
+ * aviso dela aparece NO LUGAR do "cruza com" falso. `onCorrigir` = atalho para
+ * abrir a passagem já em edição (só para quem pode editar).
+ */
+export function ProblemasDaViagem({ sinal, inclusionId, onCorrigir }: { sinal?: SinalDeViagem; inclusionId: string; onCorrigir?: () => void }) {
   const cruza = sinal?.cruzaCom ?? [];
-  if (cruza.length === 0 && !sinal?.dataImpossivel) return null;
+  const suspeitas = sinal?.datasSuspeitas ?? [];
+  if (cruza.length === 0 && !sinal?.dataImpossivel && suspeitas.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1 mt-1">
+      {suspeitas.map((s) => (
+        <span
+          key={s.trecho}
+          className="inline-flex items-start gap-1 max-w-full px-[7px] py-[3px] rounded-md text-2xs leading-4 font-medium bg-warning-soft text-warning-strong"
+          title={s.detalhe}
+          data-testid={`ticket-data-suspeita-${s.trecho}-${inclusionId}`}
+        >
+          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">{s.texto}</span>
+        </span>
+      ))}
+      {suspeitas.length > 0 && onCorrigir && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onCorrigir(); }}
+          className="pas-alvo inline-flex items-center gap-1 h-[22px] px-[7px] rounded-md border border-warning-strong/40 bg-card text-2xs font-semibold whitespace-nowrap text-warning-strong hover:bg-warning-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={suspeitas[0].provavel ? `Abrir a passagem para corrigir a data (provável: ${diaCompleto(suspeitas[0].provavel)})` : "Abrir a passagem para corrigir a data"}
+          data-testid={`corrigir-data-suspeita-${inclusionId}`}
+        >
+          <PencilLine className="w-3 h-3 shrink-0" aria-hidden="true" />
+          Corrigir passagem
+        </button>
+      )}
       {cruza.slice(0, 2).map((c) => (
         <span
           key={c.inclusionId}
