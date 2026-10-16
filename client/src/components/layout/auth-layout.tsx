@@ -11,7 +11,6 @@
  */
 import type { ReactNode } from "react";
 import { ClipboardList, Plane, Luggage, Wallet } from "lucide-react";
-import norteLogo from "@assets/image_1776349526988.png";
 
 const MODULOS = [
   { icon: ClipboardList, texto: "Escala, validação e aprovação da equipe" },
@@ -20,15 +19,11 @@ const MODULOS = [
   { icon: Wallet, texto: "Planejado, realizado e notas fiscais" },
 ];
 
-/** Marca: quadrado branco com o "N" (o PNG tem fundo branco e respiro próprio). */
+/** Marca: selo do kit de identidade do Portal (`/selo-app.svg`) — quadrado branco
+ *  arredondado com o "N" na cor do app; já traz fundo e borda, então vai sem moldura. */
 export function MarcaNorte({ tamanho = 40 }: { tamanho?: number }) {
   return (
-    <span
-      className="flex items-center justify-center shrink-0 rounded-xl bg-card ring-1 ring-inset ring-primary/10 shadow-1 overflow-hidden"
-      style={{ width: tamanho, height: tamanho }}
-    >
-      <img src={norteLogo} alt="" className="object-contain" style={{ width: tamanho * 0.62, height: tamanho * 0.62 }} />
-    </span>
+    <img src="/selo-app.svg" alt="" className="block shrink-0" style={{ width: tamanho, height: tamanho }} />
   );
 }
 

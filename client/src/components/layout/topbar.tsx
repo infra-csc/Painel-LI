@@ -13,7 +13,6 @@
  * rótulo curto entra quando falta espaço e as teclas são `<kbd>` separadas.
  */
 import { useLocation } from "wouter";
-import logoImg from "@assets/image_1776349526988.png";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { TOPBAR_H } from "@/contexts/sidebar-context";
 import { cn } from "@/lib/utils";
@@ -82,9 +81,7 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
 
       {showBrand && (
         <div className="flex items-center gap-2 shrink-0">
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden bg-brand-soft ring-1 ring-inset ring-primary/10">
-            <img src={logoImg} alt="Norte" className="w-5 h-5 object-contain" />
-          </span>
+          <img src="/selo-app.svg" alt="Norte" className="block w-8 h-8 shrink-0" />
           {/* No celular fica só o logotipo (25/09): com "Norte" escrito, o nome
               da tela na trilha sobrava em "E." */}
           <span className="hidden sm:inline text-sm font-bold text-primary tracking-tight">Norte</span>

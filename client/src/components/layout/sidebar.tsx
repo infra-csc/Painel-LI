@@ -21,7 +21,6 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import logoImg from "@assets/image_1776349526988.png";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { SIDEBAR_W, SIDEBAR_COMPACT_W } from "@/contexts/sidebar-context";
@@ -444,9 +443,7 @@ export default function Sidebar() {
             aria-label="Norte — Logística Interna, página inicial"
             className={cn("flex items-center gap-2.5 min-w-0 rounded-lg no-underline", FOCO)}
           >
-            <span className="flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden bg-brand-soft ring-1 ring-inset ring-primary/10 shrink-0">
-              <img src={logoImg} alt="" className="w-[22px] h-[22px] object-contain" />
-            </span>
+            <img src="/selo-app.svg" alt="" className="block w-8 h-8 shrink-0" />
             {!compact && (
               <span className="flex flex-col leading-tight min-w-0">
                 <span className="text-sm font-bold text-primary tracking-tight">Norte</span>
