@@ -81,9 +81,7 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
 
       {showBrand && (
         <div className="flex items-center gap-2 shrink-0">
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden bg-brand-soft ring-1 ring-inset ring-primary/10">
-            <img src="/marca-app.svg" alt="Norte" className="w-auto h-4 object-contain" />
-          </span>
+          <img src="/selo-app.svg" alt="Norte" className="block w-8 h-8 shrink-0" />
           {/* No celular fica só o logotipo (25/09): com "Norte" escrito, o nome
               da tela na trilha sobrava em "E." */}
           <span className="hidden sm:inline text-sm font-bold text-primary tracking-tight">Norte</span>
