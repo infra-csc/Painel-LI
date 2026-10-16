@@ -15,7 +15,7 @@
  * Sem nenhum sinal → "Sem dado suficiente" (estado honesto).
  */
 import { chaveDaRota, faixaDaAntecedencia, FAIXAS_DE_ANTECEDENCIA, precoTipico, tipoDaRota, type ChaveDaAntecedencia, type TendenciaDoPreco } from "./regras-da-busca";
-import { curvaDeAntecedencia, indicesDasConsultas, type ConsultaDoHistorico, type GrupoDePreco, type PassagemDaBusca } from "./analise-da-busca";
+import { acrescentar, curvaDeAntecedencia, indicesDasConsultas, type ConsultaDoHistorico, type GrupoDePreco, type PassagemDaBusca } from "./analise-da-busca";
 import { diasEntre } from "./analise-de-passagens";
 import type { PernaDaRota } from "./busca-de-passagens";
 
@@ -105,15 +105,20 @@ export function prepararPrevisao(ctx: ContextoDaPrevisao) {
   const porRota = new Map<string, ConsultaDoHistorico[]>();
   for (const c of ctx.consultas) {
     if (!c.menorPrecoCentavos || c.menorPrecoCentavos <= 0) continue;
-    const k = chaveDaRota(c.perna, c.origem, c.destino);
-    porRota.set(k, [...(porRota.get(k) ?? []), c]);
+    acrescentar(porRota, chaveDaRota(c.perna, c.origem, c.destino), c);
   }
   const curvas = new Map<string, GrupoDePreco[]>();
   const curvaDaRota = (k: string) => {
     if (!curvas.has(k)) curvas.set(k, curvaDeAntecedencia(porRota.get(k) ?? [], indices));
     return curvas.get(k)!;
   };
-  return { indices, curvaGeral: geralValida ? curvaGeral : null, porRota, curvaDaRota, hoje: ctx.hoje };
+  // Típico da rota inteira, uma vez por rota (antes: reordenado a cada escalação).
+  const tipicos = new Map<string, ReturnType<typeof precoTipico>>();
+  const tipicoDaRotaInteira = (k: string) => {
+    if (!tipicos.has(k)) tipicos.set(k, precoTipico((porRota.get(k) ?? []).map((c) => c.menorPrecoCentavos)));
+    return tipicos.get(k) ?? null;
+  };
+  return { indices, curvaGeral: geralValida ? curvaGeral : null, porRota, curvaDaRota, tipicoDaRotaInteira, hoje: ctx.hoje };
 }
 
 type Preparado = ReturnType<typeof prepararPrevisao>;
@@ -163,7 +168,8 @@ export function preverVaga(v: VagaParaPrevisao, p: Preparado): PrevisaoDaVaga {
     .sort((a, b) => a.consultadoEm.localeCompare(b.consultadoEm));
   const ultima = daData[daData.length - 1];
   const precoAtual = ultima && diasEntre(ultima.dia, p.hoje) <= DIAS_DO_PRECO_ATUAL ? { preco: ultima.menorPrecoCentavos as number, dia: ultima.dia } : null;
-  const tipicoDaRota = precoTipico(daRota.filter((c) => !daData.includes(c)).map((c) => c.menorPrecoCentavos)) ?? precoTipico(daRota.map((c) => c.menorPrecoCentavos));
+  const naData = new Set(daData);
+  const tipicoDaRota = (naData.size > 0 ? precoTipico(daRota.filter((c) => !naData.has(c)).map((c) => c.menorPrecoCentavos)) : null) ?? p.tipicoDaRotaInteira(kRota);
   const ajusteDaFaixa = curva && faixa ? idx(faixa) : null;
   const precoTipicoAgora = tipicoDaRota ? Math.round(tipicoDaRota.mediana * (ajusteDaFaixa ?? 1)) : null;
   if (precoAtual && precoTipicoAgora) {
@@ -259,8 +265,7 @@ export function orcamentoPorEvento(entrada: {
   const porRota = new Map<string, ConsultaDoHistorico[]>();
   for (const c of entrada.consultas) {
     if (!c.menorPrecoCentavos || c.menorPrecoCentavos <= 0) continue;
-    const k = chaveDaRota(c.perna, c.origem, c.destino);
-    porRota.set(k, [...(porRota.get(k) ?? []), c]);
+    acrescentar(porRota, chaveDaRota(c.perna, c.origem, c.destino), c);
   }
   const pagas = entrada.passagens.filter((p) => typeof p.valor === "number" && p.valor > 0);
   const mediaDe = (l: number[]) => (l.length >= 3 ? Math.round(l.reduce((s, x) => s + x, 0) / l.length) : null);
@@ -268,13 +273,15 @@ export function orcamentoPorEvento(entrada: {
     idaEVolta: mediaDe(pagas.filter((p) => p.idaEVolta && !p.trechoDireto).map((p) => p.valor as number)),
     umaPerna: mediaDe(pagas.filter((p) => !p.idaEVolta).map((p) => p.valor as number)),
   };
+  const tipicos = new Map<string, ReturnType<typeof precoTipico>>();
   const estimarRota = (r: RotaDaVaga): { valor: number; fonte: FonteDaEstimativa } | null => {
     const k = chaveDaRota(r.perna, r.origem, r.destino);
     const lista = porRota.get(k) ?? [];
     const daData = lista.filter((c) => c.dataIda === r.dataIda && (c.dataVolta ?? null) === (r.dataVolta ?? null) && !c.deslocada)
       .sort((a, b) => b.consultadoEm.localeCompare(a.consultadoEm))[0];
     if (daData && diasEntre(daData.dia, entrada.hoje) <= 14) return { valor: daData.menorPrecoCentavos as number, fonte: "ultima_consulta" };
-    const t = precoTipico(lista.map((c) => c.menorPrecoCentavos));
+    if (!tipicos.has(k)) tipicos.set(k, precoTipico(lista.map((c) => c.menorPrecoCentavos)));
+    const t = tipicos.get(k) ?? null;
     if (t) return { valor: t.mediana, fonte: "tipico_da_rota" };
     const m = tipoDaRota(r.perna) === "rt" ? mediaPaga.idaEVolta : mediaPaga.umaPerna;
     return m ? { valor: m, fonte: "media_paga" } : null;

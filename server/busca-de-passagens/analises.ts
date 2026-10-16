@@ -16,7 +16,7 @@ import { PAPEIS_DAS_ANALISES } from "@shared/regras-da-busca";
 import { custosOcultos, melhorMomento, pagoXEncontrado, precoPorRota } from "@shared/analise-da-busca";
 import { orcamentoPorEvento, preverEscalacoes } from "@shared/previsao-da-busca";
 import { requireRoles } from "../routes/_compartilhado";
-import { carregarConsultas, carregarOpcoes, carregarPassagens, carregarPendentes, carregarUsos, desdeDoPeriodo, lerPeriodo } from "./historico";
+import { carregarConsultas, carregarHorarioDasOpcoes, carregarPassagens, carregarPendentes, carregarUsos, desdeDoPeriodo, lerPeriodo } from "./historico";
 import { diariaMediaPorEvento } from "./servico";
 
 /** A previsão olha um ano de consultas (a curva de antecedência precisa de amostra). */
@@ -39,8 +39,8 @@ export function registrarAnalisesDaBusca(app: Express): void {
   rota(app, "melhor-momento", "o melhor momento", async (req) => {
     const periodo = lerPeriodo(req.query.periodo);
     const desde = desdeDoPeriodo(periodo);
-    const [consultas, opcoes, passagens] = await Promise.all([carregarConsultas(desde), carregarOpcoes(desde), carregarPassagens(desde)]);
-    return { periodo, ...melhorMomento({ consultas, opcoes, passagens }) };
+    const [consultas, horario, passagens] = await Promise.all([carregarConsultas(desde), carregarHorarioDasOpcoes(desde), carregarPassagens(desde)]);
+    return { periodo, ...melhorMomento({ consultas, horario, passagens }) };
   });
 
   rota(app, "preco-por-rota", "o preço por rota", async (req) => {

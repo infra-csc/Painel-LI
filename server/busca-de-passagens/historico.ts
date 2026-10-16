@@ -11,12 +11,11 @@
 import { sql as drizzleSql } from "drizzle-orm";
 import { db, linhasDe } from "../db";
 import { planejarBusca, type AjusteDaBusca, type EventoDaBusca, type PernaDaRota, type VagaDaBusca } from "@shared/busca-de-passagens";
-import type { ConsultaDoHistorico, OpcaoDoHistoricoNaAnalise, PassagemDaBusca, UsoDaBusca } from "@shared/analise-da-busca";
+import { MIN_OPCOES_DO_HORARIO, PERIODOS_DO_DIA, type ConsultaDoHistorico, type HorarioDasOpcoes, type PassagemDaBusca, type SomaDoGrupo, type UsoDaBusca } from "@shared/analise-da-busca";
 import type { VagaParaPrevisao } from "@shared/previsao-da-busca";
 
 const bool = (v: unknown) => v === true || v === "t" || v === "true";
 const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
-const lista = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : typeof v === "string" && v.startsWith("{") ? v.slice(1, -1).split(",").filter(Boolean) : []);
 const json = <T>(v: unknown): T | null => {
   if (v === null || v === undefined) return null;
   if (typeof v === "string") { try { return JSON.parse(v) as T; } catch { return null; } }
@@ -31,10 +30,10 @@ export const desdeDoPeriodo = (p: Periodo, agora = Date.now()): Date | null => (
 
 export async function carregarConsultas(desde: Date | null): Promise<ConsultaDoHistorico[]> {
   const rows = await db.execute(drizzleSql`
-    SELECT id, consultado_em, usuario_id, perna, origem, destino,
+    SELECT id, consultado_em, perna, origem, destino,
       to_char(data_ida, 'YYYY-MM-DD') AS data_ida, to_char(data_volta, 'YYYY-MM-DD') AS data_volta,
       to_char(consultado_em - interval '3 hours', 'YYYY-MM-DD') AS dia,
-      (deslocamento IS NOT NULL) AS deslocada, antecedencia_dias, menor_preco_centavos, menor_por_cia, evento_ids, vaga_ids
+      (deslocamento IS NOT NULL) AS deslocada, antecedencia_dias, menor_preco_centavos, menor_por_cia
     FROM busca_passagens_consultas
     WHERE ${desde ? drizzleSql`consultado_em >= ${desde}` : drizzleSql`TRUE`}
     ORDER BY consultado_em
@@ -43,7 +42,6 @@ export async function carregarConsultas(desde: Date | null): Promise<ConsultaDoH
     id: String(l.id),
     consultadoEm: new Date(l.consultado_em as string).toISOString(),
     dia: String(l.dia),
-    usuarioId: (l.usuario_id as string | null) ?? null,
     perna: l.perna as PernaDaRota,
     origem: String(l.origem),
     destino: String(l.destino),
@@ -53,25 +51,64 @@ export async function carregarConsultas(desde: Date | null): Promise<ConsultaDoH
     antecedenciaDias: num(l.antecedencia_dias),
     menorPrecoCentavos: num(l.menor_preco_centavos),
     menorPorCia: json<Record<string, number>>(l.menor_por_cia),
-    eventoIds: lista(l.evento_ids),
-    vagaIds: lista(l.vaga_ids),
   }));
 }
 
-export async function carregarOpcoes(desde: Date | null): Promise<OpcaoDoHistoricoNaAnalise[]> {
+/**
+ * Horário das opções JÁ SOMADO no banco (16/10). Antes as opções vinham linha
+ * a linha (10 por consulta — dezenas de milhares de linhas, MBs pelo fio) só
+ * para virar 4 números por período do dia. A conta é a mesma de
+ * `horarioDasOpcoes` (shared/analise-da-busca.ts), e o teste
+ * server/test/busca-de-passagens-analises.test.ts compara as duas: consulta
+ * com ao menos MIN_OPCOES_DO_HORARIO opções e mediana ≠ 0; índice = preço ÷
+ * mediana das opções da consulta (mediana par = média dos dois do meio
+ * arredondada, como `mediana`); período pelo `THH:MM` da partida da ida (ou
+ * da volta), como `minutoDoDia`.
+ */
+export async function carregarHorarioDasOpcoes(desde: Date | null): Promise<HorarioDasOpcoes> {
+  const periodo = drizzleSql.join(
+    PERIODOS_DO_DIA.map((p) => drizzleSql`WHEN minuto BETWEEN ${p.de} AND ${p.ate} THEN ${p.chave}::text`),
+    drizzleSql` `,
+  );
+  // Uma passada só (sem juntar CTEs: o planejador não tem estatística delas e
+  // caía num laço aninhado opções × consultas): a posição de cada preço na
+  // consulta e o total dão a mediana por janela.
   const rows = await db.execute(drizzleSql`
-    SELECT o.consulta_id, o.companhia, o.ida_partida, o.volta_partida, o.preco_centavos
-    FROM busca_passagens_opcoes o
-    JOIN busca_passagens_consultas c ON c.id = o.consulta_id
-    WHERE ${desde ? drizzleSql`c.consultado_em >= ${desde}` : drizzleSql`TRUE`}
+    WITH o AS (
+      SELECT o.consulta_id, o.preco_centavos AS preco, COALESCE(o.ida_partida, o.volta_partida) AS partida,
+        row_number() OVER (PARTITION BY o.consulta_id ORDER BY o.preco_centavos) AS pos,
+        count(*) OVER (PARTITION BY o.consulta_id) AS total
+      FROM busca_passagens_opcoes o
+      JOIN busca_passagens_consultas c ON c.id = o.consulta_id
+      WHERE ${desde ? drizzleSql`c.consultado_em >= ${desde}` : drizzleSql`TRUE`}
+    ), m AS (
+      SELECT preco, partida, total,
+        round(avg(preco) FILTER (WHERE pos = (total + 1) / 2 OR pos = (total + 2) / 2) OVER (PARTITION BY consulta_id)) AS mediana
+      FROM o
+    ), i AS MATERIALIZED (
+      -- MATERIALIZED: sem isto o Postgres copia a expressão (com a regex) em cada
+      -- WHEN do CASE de baixo — 16 regex por linha em vez de 1 (medido: 4× mais lento).
+      SELECT preco, preco::float8 / mediana::float8 AS indice, substring(partida from 'T([0-9]{2}:[0-9]{2})') AS hhmm
+      FROM m
+      WHERE total >= ${MIN_OPCOES_DO_HORARIO} AND mediana <> 0
+    ), j AS (
+      SELECT preco, indice, left(hhmm, 2)::int * 60 + right(hhmm, 2)::int AS minuto FROM i
+    )
+    SELECT CASE ${periodo} END AS grupo, count(*) AS itens,
+      count(*) FILTER (WHERE preco > 0) AS n,
+      COALESCE(sum(preco) FILTER (WHERE preco > 0), 0) AS soma_precos,
+      COALESCE(sum(indice) FILTER (WHERE preco > 0), 0) AS soma_indices
+    FROM j GROUP BY 1
   `);
-  return linhasDe<Record<string, unknown>>(rows).map((l) => ({
-    consultaId: String(l.consulta_id),
-    companhia: String(l.companhia),
-    idaPartida: (l.ida_partida as string | null) ?? null,
-    voltaPartida: (l.volta_partida as string | null) ?? null,
-    precoCentavos: Number(l.preco_centavos),
-  }));
+  let itens = 0;
+  const somas = new Map<string, SomaDoGrupo>();
+  for (const l of linhasDe<Record<string, unknown>>(rows)) {
+    itens += Number(l.itens);
+    const n = Number(l.n);
+    if (l.grupo === null || l.grupo === undefined || n === 0) continue;
+    somas.set(String(l.grupo), { n, somaPrecos: Number(l.soma_precos), nIndices: n, somaIndices: Number(l.soma_indices) });
+  }
+  return { itens, somas };
 }
 
 /**

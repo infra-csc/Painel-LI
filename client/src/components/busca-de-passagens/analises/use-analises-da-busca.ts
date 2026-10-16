@@ -19,12 +19,19 @@ export interface RespostaDoOrcamento { periodo: PeriodoDaAnalise; hoje: string; 
 const BASE = "/api/busca-de-passagens/analises";
 
 function useAnalise<T>(aba: string, periodo: PeriodoDaAnalise | null, ativo = true) {
+  // Só as abas de HISTÓRICO (com período) — a previsão olha as pendentes de agora.
+  const historico = periodo !== null;
   const url = periodo ? `${BASE}/${aba}?periodo=${periodo}` : `${BASE}/${aba}`;
   return useQuery<T>({
     queryKey: [BASE, aba, periodo ?? "-"],
     queryFn: ({ signal }) => fetchJson<T>(url, signal),
     enabled: ativo,
-    staleTime: 60_000,
+    // Histórico (16/10): não muda de um minuto para o outro. Com o
+    // padrão do app (60 s + refetch ao focar a janela) cada volta à aba ou à
+    // janela recalculava tudo no servidor. 5 min, sem refetch ao focar (o F5
+    // continua buscando de novo).
+    staleTime: historico ? 5 * 60_000 : 60_000,
+    refetchOnWindowFocus: !historico,
     placeholderData: keepPreviousData,
   });
 }

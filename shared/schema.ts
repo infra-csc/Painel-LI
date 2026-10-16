@@ -502,6 +502,12 @@ export const systemLogs = pgTable("system_logs", {
   index("system_logs_created_idx").on(t.createdAt.desc()),
   // "O que este usuário fez" (23/09)
   index("system_logs_user_created_idx").on(t.userId, t.createdAt.desc()),
+  // "Quem registrou a passagem" (16/10): as análises da busca de passagens
+  // procuram o log de criação de CADA passagem (LATERAL … LIMIT 1). Com o
+  // índice geral o banco lia todos os logs da passagem (uma página do disco
+  // por log); este acha o primeiro direto e, com quem registrou nas colunas,
+  // responde só pelo índice. Migração: scripts/migrations/2026-10-16-indices-das-analises-da-busca.sql.
+  index("system_logs_ticket_criacao_idx").on(t.entityId, t.createdAt, t.userId, t.userName).where(sql`${t.entityType} = 'ticket' AND ${t.action} = 'create'`),
 ]);
 
 // Valores por função (valores automáticos para cálculo)

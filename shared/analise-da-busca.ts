@@ -39,7 +39,8 @@ export interface ConsultaDoHistorico {
   consultadoEm: string;
   /** Dia da consulta em São Paulo ("AAAA-MM-DD"). */
   dia: string;
-  usuarioId: string | null;
+  /** Não carregado pelas análises (ver eventoIds/vagaIds). */
+  usuarioId?: string | null;
   perna: PernaDaRota;
   origem: string;
   destino: string;
@@ -50,8 +51,13 @@ export interface ConsultaDoHistorico {
   antecedenciaDias: number | null;
   menorPrecoCentavos: number | null;
   menorPorCia: Record<string, number> | null;
-  eventoIds: string[];
-  vagaIds: string[];
+  /**
+   * Quem consultou e para quais eventos/vagas: nenhuma análise usa, e o servidor
+   * NÃO os carrega (16/10) — uma busca de 80 vagas grava 80 ids por consulta e
+   * isso multiplicava o tráfego do banco.
+   */
+  eventoIds?: string[];
+  vagaIds?: string[];
 }
 
 /** Uma das 10 opções mais baratas guardadas de uma consulta. */
@@ -144,25 +150,51 @@ export const rotuloDoMes = (mes: string) => `${MESES[Number(mes.slice(5, 7)) - 1
 const reais = (c: number) => `R$ ${Math.round(c / 100).toLocaleString("pt-BR")}`;
 const pctTexto = (p: number) => `${Math.abs(p)}% ${p < 0 ? "abaixo" : "acima"}`;
 const media = (v: readonly number[]) => (v.length ? Math.round(v.reduce((s, x) => s + x, 0) / v.length) : null);
-const mediaReal = (v: readonly number[]) => (v.length ? v.reduce((s, x) => s + x, 0) / v.length : null);
 
 interface ItemDoGrupo { grupo: string | null; preco: number | null; indice: number | null }
+
+/**
+ * O que `agruparPrecos` precisa de cada grupo: quantos preços (> 0), a soma
+ * deles e a soma/quantidade dos índices desses mesmos preços. Somar à parte
+ * deixa o servidor agregar no SQL o que é grande demais para trazer linha a
+ * linha (as opções de cada consulta — 16/10).
+ */
+export interface SomaDoGrupo { n: number; somaPrecos: number; nIndices: number; somaIndices: number }
+
+export function somarPorGrupo(itens: readonly ItemDoGrupo[]): Map<string, SomaDoGrupo> {
+  const somas = new Map<string, SomaDoGrupo>();
+  for (const i of itens) {
+    if (i.grupo === null || typeof i.preco !== "number" || !(i.preco > 0)) continue;
+    let s = somas.get(i.grupo);
+    if (!s) { s = { n: 0, somaPrecos: 0, nIndices: 0, somaIndices: 0 }; somas.set(i.grupo, s); }
+    s.n += 1;
+    s.somaPrecos += i.preco;
+    if (typeof i.indice === "number") { s.nIndices += 1; s.somaIndices += i.indice; }
+  }
+  return somas;
+}
+
+type GruposFixos = ReadonlyArray<{ chave: string; rotulo: string; curto: string }>;
 
 /**
  * Agrupa preços em grupos fixos (faixas, dias, períodos) e marca o mais caro e
  * o mais barato entre os comparáveis — pelo ÍNDICE quando há, senão pela média.
  */
-export function agruparPrecos(itens: readonly ItemDoGrupo[], grupos: ReadonlyArray<{ chave: string; rotulo: string; curto: string }>, minimo = MIN_POR_GRUPO): GrupoDePreco[] {
+export function agruparPrecos(itens: readonly ItemDoGrupo[], grupos: GruposFixos, minimo = MIN_POR_GRUPO): GrupoDePreco[] {
+  return agruparSomas(somarPorGrupo(itens), grupos, minimo);
+}
+
+/** O mesmo que `agruparPrecos`, a partir das somas de cada grupo. */
+export function agruparSomas(somas: ReadonlyMap<string, SomaDoGrupo>, grupos: GruposFixos, minimo = MIN_POR_GRUPO): GrupoDePreco[] {
   const saida = grupos.map((g) => {
-    const doGrupo = itens.filter((i) => i.grupo === g.chave && typeof i.preco === "number" && i.preco > 0);
-    const precos = doGrupo.map((i) => i.preco as number);
-    const indices = doGrupo.map((i) => i.indice).filter((x): x is number => typeof x === "number");
-    const indice = mediaReal(indices);
+    const s = somas.get(g.chave);
+    const n = s?.n ?? 0;
+    const indice = s && s.nIndices > 0 ? s.somaIndices / s.nIndices : null;
     return {
-      chave: g.chave, rotulo: g.rotulo, curto: g.curto, n: precos.length, media: media(precos),
+      chave: g.chave, rotulo: g.rotulo, curto: g.curto, n, media: s && n > 0 ? Math.round(s.somaPrecos / n) : null,
       indice: indice === null ? null : Math.round(indice * 1000) / 1000,
       pct: indice === null ? null : Math.round((indice - 1) * 100),
-      comparavel: precos.length >= minimo,
+      comparavel: n >= minimo,
       destaque: null as Destaque,
     };
   });
@@ -183,16 +215,33 @@ export function indicesDasConsultas(consultas: readonly ConsultaDoHistorico[]): 
   const porRota = new Map<string, number[]>();
   for (const c of consultas) {
     if (!c.menorPrecoCentavos || c.menorPrecoCentavos <= 0) continue;
-    const k = chaveDaRota(c.perna, c.origem, c.destino);
-    porRota.set(k, [...(porRota.get(k) ?? []), c.menorPrecoCentavos]);
+    acrescentar(porRota, chaveDaRota(c.perna, c.origem, c.destino), c.menorPrecoCentavos);
   }
+  // O típico de cada rota UMA vez (antes: uma ordenação da rota inteira por consulta — O(n² log n)).
+  const tipicos = new Map(Array.from(porRota.entries(), ([k, precos]) => [k, precoTipico(precos, MIN_PARA_INDICE)]));
   const out = new Map<string, number>();
   for (const c of consultas) {
     if (!c.menorPrecoCentavos || c.menorPrecoCentavos <= 0) continue;
-    const t = precoTipico(porRota.get(chaveDaRota(c.perna, c.origem, c.destino)) ?? [], MIN_PARA_INDICE);
+    const t = tipicos.get(chaveDaRota(c.perna, c.origem, c.destino));
     if (t) out.set(c.id, c.menorPrecoCentavos / t.mediana);
   }
   return out;
+}
+
+/** Acrescenta à lista da chave (sem copiar a lista a cada item, como `[...lista, x]` fazia). */
+export function acrescentar<T>(mapa: Map<string, T[]>, chave: string, item: T): void {
+  const lista = mapa.get(chave);
+  if (lista) lista.push(item);
+  else mapa.set(chave, [item]);
+}
+
+/** `f(chave)` calculado uma vez por chave. */
+function porChave<T>(f: (chave: string) => T): (chave: string) => T {
+  const memo = new Map<string, T>();
+  return (chave) => {
+    if (!memo.has(chave)) memo.set(chave, f(chave));
+    return memo.get(chave) as T;
+  };
 }
 
 /** Rota "pagou" de uma passagem: lugares normalizados + ida e volta × uma perna. */
@@ -213,22 +262,19 @@ export function indicesDasPassagens(passagens: readonly PassagemDaBusca[], consu
   const pesquisado = new Map<string, number[]>();
   for (const c of consultas) {
     if (!c.menorPrecoCentavos || c.menorPrecoCentavos <= 0) continue;
-    const k = chaveDaRota(c.perna, c.origem, c.destino);
-    pesquisado.set(k, [...(pesquisado.get(k) ?? []), c.menorPrecoCentavos]);
+    acrescentar(pesquisado, chaveDaRota(c.perna, c.origem, c.destino), c.menorPrecoCentavos);
   }
   const porRota = new Map<string, number[]>();
-  for (const p of passagens) {
-    const r = rotaPagaDe(p);
-    if (!r || !temValor(p)) continue;
-    porRota.set(r.chave, [...(porRota.get(r.chave) ?? []), p.valor as number]);
-  }
+  const rotas = passagens.map((p) => (temValor(p) ? rotaPagaDe(p) : null));
+  passagens.forEach((p, i) => { const r = rotas[i]; if (r) acrescentar(porRota, r.chave, p.valor as number); });
+  const tipico = porChave((k) => precoTipico(pesquisado.get(k) ?? [], MIN_PARA_INDICE) ?? precoTipico(porRota.get(k) ?? [], MIN_PARA_INDICE));
   const out = new Map<string, number>();
-  for (const p of passagens) {
-    const r = rotaPagaDe(p);
-    if (!r || !temValor(p)) continue;
-    const t = precoTipico(pesquisado.get(r.chave) ?? [], MIN_PARA_INDICE) ?? precoTipico(porRota.get(r.chave) ?? [], MIN_PARA_INDICE);
+  passagens.forEach((p, i) => {
+    const r = rotas[i];
+    if (!r) return;
+    const t = tipico(r.chave);
     if (t) out.set(p.ticketId, (p.valor as number) / t.mediana);
-  }
+  });
   return out;
 }
 
@@ -319,10 +365,42 @@ export interface MelhorMomento {
   minimo: number;
 }
 
+/** Consulta com menos opções que isto fica fora da análise de horário. */
+export const MIN_OPCOES_DO_HORARIO = 3;
+
+/**
+ * Horário já somado: quantas opções entraram (`itens`) e a soma de cada
+ * período do dia. O servidor calcula isto no SQL (historico.ts ·
+ * carregarHorarioDasOpcoes) — as opções passam de dezenas de milhares.
+ */
+export interface HorarioDasOpcoes { itens: number; somas: ReadonlyMap<string, SomaDoGrupo> }
+
+/**
+ * Horário: cada opção contra as outras da MESMA consulta (mesma rota, data e
+ * momento) — preço ÷ mediana das opções da consulta, por período da partida.
+ */
+export function horarioDasOpcoes(opcoes: readonly OpcaoDoHistoricoNaAnalise[]): HorarioDasOpcoes {
+  const porConsulta = new Map<string, OpcaoDoHistoricoNaAnalise[]>();
+  for (const o of opcoes) acrescentar(porConsulta, o.consultaId, o);
+  const itens: ItemDoGrupo[] = [];
+  for (const lista of Array.from(porConsulta.values())) {
+    if (lista.length < MIN_OPCOES_DO_HORARIO) continue;
+    const m = mediana(lista.map((o) => o.precoCentavos));
+    if (!m) continue;
+    for (const o of lista) {
+      const partida = o.idaPartida ?? o.voltaPartida;
+      itens.push({ grupo: periodoDoMinuto(partida ? minutoDoDia(partida) : null), preco: o.precoCentavos, indice: o.precoCentavos / m });
+    }
+  }
+  return { itens: itens.length, somas: somarPorGrupo(itens) };
+}
+
 /** "Quando está mais barato, mais caro" — pesquisado e pago, com frases diretas. */
 export function melhorMomento(entrada: {
   consultas: readonly ConsultaDoHistorico[];
-  opcoes: readonly OpcaoDoHistoricoNaAnalise[];
+  /** As opções, linha a linha — ou o `horario` já somado (o servidor soma no SQL). */
+  opcoes?: readonly OpcaoDoHistoricoNaAnalise[];
+  horario?: HorarioDasOpcoes;
   passagens: readonly PassagemDaBusca[];
 }): MelhorMomento {
   const consultas = entrada.consultas;
@@ -332,20 +410,8 @@ export function melhorMomento(entrada: {
     grupo: String(diaDaSemana(c.dataIda)), preco: c.menorPrecoCentavos, indice: indices.get(c.id) ?? null,
   })), GRUPOS_DE_DIA);
 
-  // Horário: cada opção contra as outras da MESMA consulta (mesma rota, data e momento).
-  const porConsulta = new Map<string, OpcaoDoHistoricoNaAnalise[]>();
-  for (const o of entrada.opcoes) porConsulta.set(o.consultaId, [...(porConsulta.get(o.consultaId) ?? []), o]);
-  const itensDeHorario: ItemDoGrupo[] = [];
-  for (const lista of Array.from(porConsulta.values())) {
-    if (lista.length < 3) continue;
-    const m = mediana(lista.map((o) => o.precoCentavos));
-    if (!m) continue;
-    for (const o of lista) {
-      const partida = o.idaPartida ?? o.voltaPartida;
-      itensDeHorario.push({ grupo: periodoDoMinuto(partida ? minutoDoDia(partida) : null), preco: o.precoCentavos, indice: o.precoCentavos / m });
-    }
-  }
-  const horario = agruparPrecos(itensDeHorario, GRUPOS_DE_PERIODO);
+  const somasDoHorario = entrada.horario ?? horarioDasOpcoes(entrada.opcoes ?? []);
+  const horario = agruparSomas(somasDoHorario.somas, GRUPOS_DE_PERIODO);
 
   // Pago: dias entre compra e ida; dia da semana da ida.
   const passagens = entrada.passagens.filter(temValor);
@@ -397,7 +463,7 @@ export function melhorMomento(entrada: {
       consultas: consultas.filter((c) => (c.menorPrecoCentavos ?? 0) > 0).length,
       comIndice: indices.size,
       rotas: new Set(consultas.map((c) => chaveDaRota(c.perna, c.origem, c.destino))).size,
-      opcoes: itensDeHorario.length,
+      opcoes: somasDoHorario.itens,
       passagens: passagens.length,
       passagensComIndice: indicesPago.size,
     },
@@ -457,8 +523,7 @@ export function precoPorRota(entrada: { consultas: readonly ConsultaDoHistorico[
   const grupos = new Map<string, ConsultaDoHistorico[]>();
   for (const c of entrada.consultas) {
     if (!c.menorPrecoCentavos || c.menorPrecoCentavos <= 0) continue;
-    const k = chaveDaRota(c.perna, c.origem, c.destino);
-    grupos.set(k, [...(grupos.get(k) ?? []), c]);
+    acrescentar(grupos, chaveDaRota(c.perna, c.origem, c.destino), c);
   }
   const vezesMaisBarata = new Map<string, number>();
   const rotas: RotaDaAnalise[] = Array.from(grupos.entries()).map(([chave, lista]) => {
@@ -613,9 +678,9 @@ export function pagoXEncontrado(entrada: { usos: readonly UsoDaBusca[]; consulta
     if (!c.menorPrecoCentavos || c.menorPrecoCentavos <= 0) continue;
     const kd = `${chaveDaRota(c.perna, c.origem, c.destino)}|${c.dataIda}|${c.dataVolta ?? ""}`;
     menorPorRotaData.set(kd, Math.min(menorPorRotaData.get(kd) ?? Infinity, c.menorPrecoCentavos));
-    const kr = chaveDaRota(c.perna, c.origem, c.destino);
-    precosPorRota.set(kr, [...(precosPorRota.get(kr) ?? []), c.menorPrecoCentavos]);
+    acrescentar(precosPorRota, chaveDaRota(c.perna, c.origem, c.destino), c.menorPrecoCentavos);
   }
+  const tipicoDaRota = porChave((kr) => precoTipico(precosPorRota.get(kr) ?? [])?.mediana ?? null);
   const linhas: LinhaPagoXEncontrado[] = [];
   let semValorPago = 0;
   for (const u of entrada.usos) {
@@ -623,7 +688,7 @@ export function pagoXEncontrado(entrada: { usos: readonly UsoDaBusca[]; consulta
     const kr = r ? chaveDaRota(r.perna, r.origem, r.destino) : null;
     const kd = r && kr ? `${kr}|${r.dataIda}|${r.dataVolta ?? ""}` : null;
     const menor = Math.min(u.precoEncontrado, kd ? menorPorRotaData.get(kd) ?? Infinity : Infinity);
-    const tipico = kr ? precoTipico(precosPorRota.get(kr) ?? [])?.mediana ?? null : null;
+    const tipico = kr ? tipicoDaRota(kr) : null;
     const pago = typeof u.valorPago === "number" && u.valorPago > 0 ? u.valorPago : null;
     if (pago === null) semValorPago += 1;
     linhas.push({
