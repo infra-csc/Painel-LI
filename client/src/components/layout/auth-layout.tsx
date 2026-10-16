@@ -26,7 +26,7 @@ export function MarcaNorte({ tamanho = 40 }: { tamanho?: number }) {
       className="flex items-center justify-center shrink-0 rounded-xl bg-card ring-1 ring-inset ring-primary/10 shadow-1 overflow-hidden"
       style={{ width: tamanho, height: tamanho }}
     >
-      <img src="/marca-app.svg" alt="" className="object-contain" style={{ width: "auto", height: tamanho * 0.62 }} />
+      <img src="/marca-app.svg" alt="" className="object-contain" style={{ width: "auto", height: tamanho * 0.5 }} />
     </span>
   );
 }

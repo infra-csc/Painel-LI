@@ -444,7 +444,7 @@ export default function Sidebar() {
             className={cn("flex items-center gap-2.5 min-w-0 rounded-lg no-underline", FOCO)}
           >
             <span className="flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden bg-brand-soft ring-1 ring-inset ring-primary/10 shrink-0">
-              <img src="/marca-app.svg" alt="" className="w-auto h-[22px] object-contain" />
+              <img src="/marca-app.svg" alt="" className="w-auto h-[18px] object-contain" />
             </span>
             {!compact && (
               <span className="flex flex-col leading-tight min-w-0">
