@@ -50,6 +50,7 @@ import { DEFAULT_TICKET_FILTERS } from "@/components/tickets/types";
 import { AbasDePassagens, abaDaUrl, comAba, type AbaDePassagens } from "@/components/tickets/analises/abas-de-passagens";
 import AnalisesDePassagens from "@/components/tickets/analises/analises-de-passagens";
 import { mesmaVisao, visaoDaUrl, type VisaoDaAnalise } from "@/components/tickets/analises/url-da-analise";
+import { linkDosResultados } from "@/components/busca-de-passagens/resultados/estado-dos-resultados";
 import type {
   TicketFilters, TicketFormState, FieldErrorsState, BatchResult, FormFieldHelpers, TicketFormHandlers,
 } from "@/components/tickets/types";
@@ -149,10 +150,9 @@ export default function Tickets() {
   const canEdit = hasPermission(user, "canRegisterTickets");
   // Busca de preços na internet (09/10): tela própria; daqui só os atalhos.
   const podeBuscarPrecos = hasPermission(user, "canAccessBuscaDePassagens");
+  // 16/10: os atalhos abrem direto a TELA de resultados (a prévia não gasta; buscar o que falta é um clique com o custo).
   const irParaBusca = useCallback((vagas: string[], idaDe?: string) => {
-    const qs = new URLSearchParams({ vagas: vagas.join(",") });
-    if (idaDe) qs.set("idaDe", idaDe);
-    setLocation(`/busca-de-passagens?${qs.toString()}`);
+    setLocation(linkDosResultados({ vagas, idaDe: idaDe ?? null }));
   }, [setLocation]);
 
   // Sinais de viagem (09/10): cruza outra viagem, data impossível, trecho

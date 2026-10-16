@@ -216,7 +216,7 @@ export default function Sidebar() {
 
   /** Uma linha do menu (expandido ou gaveta). */
   const renderItem = (tab: NavTab, opts: { big?: boolean; showStar?: boolean }) => {
-    const isActive = currentPath === tab.path;
+    const isActive = currentPath === tab.path || currentPath.startsWith(`${tab.path}/`);
     const count = badgeOf(tab.id);
     const fav = favorites.includes(tab.id);
     return (
@@ -525,7 +525,7 @@ export default function Sidebar() {
               <div key={group.title} className="flex flex-col gap-1">
                 {gi > 0 && <div aria-hidden="true" className="h-px bg-border mx-2 mb-1" />}
                 {items.map((tab, ti) => {
-                  const isActive = currentPath === tab.path;
+                  const isActive = currentPath === tab.path || currentPath.startsWith(`${tab.path}/`);
                   const count = badgeOf(tab.id);
                   const { start, end } = subgroupEdges(group, items, ti);
                   return (

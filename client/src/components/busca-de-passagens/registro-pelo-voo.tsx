@@ -33,7 +33,7 @@ import { registrarUsoDoVoo } from "./use-busca-de-passagens";
 import { vooParaFormulario, type VooEscolhido } from "./voo-para-formulario";
 
 
-export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado }: {
+export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado, fila }: {
   data: TicketsData;
   user: User | null;
   vaga: TeamInclusion;
@@ -41,6 +41,8 @@ export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado 
   onFechar: () => void;
   /** A passagem foi registrada (a tela tira a vaga da seleção). */
   onRegistrado?: (vagaId: string) => void;
+  /** "Para as N desta rota" (16/10): qual é esta na sequência (o mesmo registro, uma escalação por vez). */
+  fila?: { atual: number; total: number };
 }) {
   const { toast } = useToast();
   const sid = vaga.id;
@@ -155,7 +157,7 @@ export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado 
     <div className="pas-entra flex flex-wrap items-start gap-x-3 gap-y-2 rounded-xl border border-primary/25 bg-brand-soft/60 px-4 py-3" data-testid={`aviso-voo-da-busca-${sid}`}>
       <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
       <div className="min-w-0 flex-1 basis-[260px]">
-        <p className="m-0 text-sm font-semibold text-foreground">Preenchido com o voo escolhido na busca</p>
+        <p className="m-0 text-sm font-semibold text-foreground">Preenchido com o voo escolhido na busca{fila && fila.total > 1 ? <span className="ml-1.5 inline-flex h-5 items-center rounded-md bg-card px-1.5 align-[1px] text-2xs font-semibold tabular-nums text-primary" data-testid="fila-do-registro">{fila.atual} de {fila.total} desta rota</span> : null}</p>
         <p className="m-0 mt-0.5 text-xs leading-relaxed text-slate-600">
           {String(form.ticketCompany ?? "")} · {voo.itinerario.pernas.map((p) => voosDaPerna(p)).join(" / ")} · {formatarMoeda(voo.itinerario.precoCentavos)} visto na busca.
           Compre no site da companhia, confira o valor pago e informe o LOC antes de registrar.

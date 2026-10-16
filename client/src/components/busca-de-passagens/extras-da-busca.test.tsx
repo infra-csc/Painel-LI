@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { act, screen, within } from "@testing-library/react";
 import { renderComTudo } from "@/test/render";
 import { mockarFetch, respostaJson, urlsChamadas, usuarioFake } from "@/test/fixtures";
-import type { ItinerarioDeVoo, RespostaDaBusca, RotaNaTela } from "@shared/busca-de-passagens";
-import { PainelDeResultados, type AcoesDaRota } from "./painel-de-resultados";
+import type { ItinerarioDeVoo, RotaNaTela } from "@shared/busca-de-passagens";
+import { RotaEscolhida } from "./resultados/rota-escolhida";
+import type { AcoesDaRota } from "./resultados/acoes-que-gastam";
+import { FILTROS_DAS_OPCOES_PADRAO } from "./resultados/estado-dos-resultados";
 import { AlertasDeGrupo, PrecosAcompanhados } from "./extras-da-busca";
 import type { ListaDeAcompanhamentos } from "./use-busca-de-passagens";
 import { JustificativaDoPrecoHost, pedirJustificativaDoPreco } from "@/components/tickets/justificativa-do-preco";
@@ -23,17 +25,19 @@ const rota = (extra: Partial<RotaNaTela> = {}): RotaNaTela => ({
   resultado: { itinerarios: [], observadoEm: null, consultadoEm: new Date().toISOString(), doCache: false },
   ...extra,
 });
-const resposta = (rotas: RotaNaTela[]): RespostaDaBusca => ({ rotas, faltando: [], gastou: 0, consumo: { usadas: 1, teto: 1000, fornecedor: { nome: "simulado", simulado: true }, cacheHoras: 3 } });
 const acoes = (): AcoesDaRota => ({
   atualizar: vi.fn(), datasFlexiveis: vi.fn(), duasConexoes: vi.fn(), trocarSaida: vi.fn(), consultar: vi.fn(), usar: vi.fn(),
   semHorario: vi.fn(), testarAlternativas: vi.fn(), usarAlternativa: vi.fn(),
 });
-const vagas = new Map([["v1", { id: "v1", numero: 4045, nome: "Ana Souza", comprada: false, valorPagoCentavos: null }]]);
+const vagas = [{ id: "v1", numero: 4045, nome: "Ana Souza", comprada: false, valorPagoCentavos: null }];
+const Rota = ({ r, a = acoes() }: { r: RotaNaTela; a?: AcoesDaRota }) => (
+  <RotaEscolhida rota={r} vagas={vagas} acoes={a} ocupado={false} carregandoEsta={false} simulado filtros={FILTROS_DAS_OPCOES_PADRAO} onFiltros={vi.fn()} />
+);
 
 describe("\"Ver sem o horário sugerido\" (JPA→GRU sem voo depois das 18h)", () => {
   it("rota com janela que voltou vazia oferece a consulta sem o horário (1 consulta) e as 2 conexões", async () => {
     const a = acoes();
-    const { user } = renderComTudo(<PainelDeResultados aberto onFechar={vi.fn()} resposta={resposta([rota()])} erro={null} buscando={false} chavesEmAndamento={new Set()} vagaPorId={vagas} acoes={a} onBuscarTudo={vi.fn()} previstas={0} />);
+    const { user } = renderComTudo(<Rota r={rota()} a={a} />);
     const botao = await screen.findByTestId("sem-horario-volta|JPA>GRU");
     expect(botao).toHaveTextContent("Ver sem o horário sugerido");
     expect(botao).toHaveTextContent("1 consulta");
@@ -44,7 +48,7 @@ describe("\"Ver sem o horário sugerido\" (JPA→GRU sem voo depois das 18h)", (
 
   it("consulta sem o horário: a opção fora da janela aparece MARCADA, com quanto está fora", async () => {
     const r = rota({ semHorario: true, horarioIda: null, resultado: { itinerarios: [voo("it-1", "17:45")], observadoEm: null, consultadoEm: new Date().toISOString(), doCache: false } });
-    renderComTudo(<PainelDeResultados aberto onFechar={vi.fn()} resposta={resposta([r])} erro={null} buscando={false} chavesEmAndamento={new Set()} vagaPorId={vagas} acoes={acoes()} onBuscarTudo={vi.fn()} previstas={0} />);
+    renderComTudo(<Rota r={r} a={acoes()} />);
     const opcao = await screen.findByTestId("opcao-it-1");
     expect(opcao).toHaveTextContent("Sai 17:45 — antes do sugerido 18h");
     expect(screen.getByTestId("aviso-sem-horario-volta|JPA>GRU")).toHaveTextContent("as opções fora dela estão marcadas");
@@ -56,7 +60,7 @@ describe("aeroportos alternativos e mala", () => {
   it("\"Testar CGH\" gasta 1; depois de testado, a troca não gasta e mostra a diferença", async () => {
     const a = acoes();
     const comResultado = rota({ resultado: { itinerarios: [voo("it-1", "19:00")], observadoEm: null, consultadoEm: new Date().toISOString(), doCache: false } });
-    const { user, rerender } = renderComTudo(<PainelDeResultados aberto onFechar={vi.fn()} resposta={resposta([comResultado])} erro={null} buscando={false} chavesEmAndamento={new Set()} vagaPorId={vagas} acoes={a} onBuscarTudo={vi.fn()} previstas={0} />);
+    const { user, rerender } = renderComTudo(<Rota r={comResultado} a={a} />);
     const testar = await screen.findByTestId("alternativas-volta|JPA>GRU");
     expect(testar).toHaveTextContent("Testar CGH");
     expect(testar).toHaveTextContent("1 consulta");
@@ -64,7 +68,7 @@ describe("aeroportos alternativos e mala", () => {
     expect(a.testarAlternativas).toHaveBeenCalled();
     const barato = { ...voo("it-2", "19:00"), precoCentavos: 72000 };
     const testada = { ...comResultado, alternativas: [{ chave: "volta|JPA>CGH", lado: "casa" as const, iata: "CGH", rotulo: "Chegar em CGH", erro: null, resultado: { itinerarios: [barato], observadoEm: null, consultadoEm: new Date().toISOString(), doCache: false } }] };
-    rerender(<PainelDeResultados aberto onFechar={vi.fn()} resposta={resposta([testada])} erro={null} buscando={false} chavesEmAndamento={new Set()} vagaPorId={vagas} acoes={a} onBuscarTudo={vi.fn()} previstas={0} />);
+    rerender(<Rota r={testada} a={a} />);
     const cgh = await screen.findByTestId("usar-alternativa-CGH");
     expect(cgh).toHaveTextContent("−20%");
     await user.click(cgh);
@@ -73,7 +77,7 @@ describe("aeroportos alternativos e mala", () => {
 
   it("quem despacha: chip da mala e \"+R$ 150 de mala\" no total quando a tarifa não inclui", async () => {
     const r = rota({ malaCentavos: 15000, vagasComMala: 1, faixaVolta: null, horarioIda: null, resultado: { itinerarios: [voo("it-1", "15:00"), voo("it-2", "16:00", 1)], observadoEm: null, consultadoEm: new Date().toISOString(), doCache: false } });
-    renderComTudo(<PainelDeResultados aberto onFechar={vi.fn()} resposta={resposta([r])} erro={null} buscando={false} chavesEmAndamento={new Set()} vagaPorId={vagas} acoes={acoes()} onBuscarTudo={vi.fn()} previstas={0} />);
+    renderComTudo(<Rota r={r} a={acoes()} />);
     expect(await screen.findByTestId("mala-volta|JPA>GRU")).toHaveTextContent("despacha mala · R$ 150 por perna");
     expect(screen.getByTestId("opcao-it-2")).toHaveTextContent("Inclui mala");
     expect(screen.getByTestId("opcao-it-1")).toHaveTextContent("+R$ 150 de mala");

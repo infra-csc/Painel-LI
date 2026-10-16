@@ -170,6 +170,8 @@ export interface Breadcrumb {
  */
 const CRUMBS_FORA_DO_MENU: Record<string, Breadcrumb> = {
   "/pendencias": { trail: [], label: "Pendências", icon: Inbox },
+  // 16/10: os resultados da Busca de passagens são uma tela própria, abaixo da busca.
+  "/busca-de-passagens/resultados": { trail: ["Operacional", "Busca de passagens"], label: "Preços na internet", icon: PlaneTakeoff },
 };
 
 /** Trilha "Grupo / Subgrupo / Tela atual" derivada da rota. */

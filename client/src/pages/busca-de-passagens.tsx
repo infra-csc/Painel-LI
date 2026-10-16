@@ -5,6 +5,8 @@
 // Etapa 2 (09/10): abas de análise (só admin — regra única em
 // shared/regras-da-busca.ts): Previsão, Melhor momento, Preço por rota,
 // Pago × encontrado e Orçamento.
+// 16/10 (dono): os RESULTADOS são outra tela (/busca-de-passagens/resultados);
+// daqui saem "Buscar preços", a Previsão e os atalhos antigos (?idaDe, ?remarcar).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Lock } from "lucide-react";
@@ -23,6 +25,7 @@ import { AbaPrecoPorRota } from "@/components/busca-de-passagens/analises/preco-
 import { AbaPagoXEncontrado } from "@/components/busca-de-passagens/analises/pago-x-encontrado";
 import { AbaPrevisao } from "@/components/busca-de-passagens/analises/previsao";
 import { AbaOrcamento } from "@/components/busca-de-passagens/analises/orcamento";
+import { linkDosResultados } from "@/components/busca-de-passagens/resultados/estado-dos-resultados";
 
 const RESUMO: Partial<Record<AbaDaBusca, string>> = {
   previsao: "Vai subir ou vai baixar",
@@ -38,12 +41,17 @@ export default function BuscaDePassagens() {
   const { user } = useAuth();
   const search = useSearch();
   const [location, setLocation] = useLocation();
-  const inicial = useMemo(() => lerUrl(typeof window !== "undefined" ? window.location.search : search), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const inicial = useMemo(() => lerUrl(search), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [abaEscolhida, setAba] = useState<AbaDaBusca>(inicial.aba);
   const [filtros, setFiltros] = useState<FiltrosDaBusca>(inicial.filtros);
   const [periodo, setPeriodo] = useState<PeriodoDaAnalise>(inicial.periodo);
-  /** Escalações pedidas por uma aba de análise ("Buscar preços" da previsão): a Buscar abre com elas marcadas. */
-  const [vagasPedidas, setVagasPedidas] = useState<{ ids: string[]; vez: number }>({ ids: inicial.vagas, vez: 0 });
+  /** Seleção que volta da tela de resultados (`?vagas=&aj=`): a Buscar abre com ela marcada. */
+  const vagasPedidas = inicial.vagas;
+  // Atalhos antigos (trecho direto, aviso de alteração) levam direto à tela de resultados.
+  const atalhoDeResultados = !!(inicial.vagas.length && (inicial.idaDe || inicial.remarcar));
+  useEffect(() => {
+    if (atalhoDeResultados) setLocation(linkDosResultados({ vagas: inicial.vagas, idaDe: inicial.idaDe, remarcar: inicial.remarcar }), { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [resumo, setResumo] = useState("Carregando…");
   const abas = abasVisiveis(user);
   const aba = abas.includes(abaEscolhida) ? abaEscolhida : "buscar";
@@ -51,10 +59,11 @@ export default function BuscaDePassagens() {
   const podeEntrar = hasPermission(user, "canAccessBuscaDePassagens");
   const consumo = useConsumoDaBusca(podeEntrar);
 
-  // Filtros, aba e período na URL (replace). Os atalhos `vagas`/`idaDe`/`remarcar` saem depois de lidos.
+  // Filtros, aba e período na URL (replace). A seleção (`vagas`/`aj`) sai depois de lida.
   useEffect(() => {
+    if (atalhoDeResultados) return;
     const qs = escreverUrl(aba, filtros, periodo);
-    const atual = (typeof window !== "undefined" ? window.location.search : "").replace(/^\?/, "");
+    const atual = search.replace(/^\?/, "");
     if (qs !== atual) setLocation(`${location}${qs ? `?${qs}` : ""}`, { replace: true });
   }, [aba, filtros, periodo]); // eslint-disable-line react-hooks/exhaustive-deps
   // Voltar do navegador / link do menu: a URL manda.
@@ -68,12 +77,10 @@ export default function BuscaDePassagens() {
 
   const onResumo = useCallback((t: string) => setResumo(t), []);
   const irParaBuscar = useCallback(() => setAba("buscar"), []);
+  // "Buscar preços" da Previsão: abre os resultados dessas escalações (a prévia não gasta; buscar o que falta é um clique com o custo).
   const buscarVagas = useCallback((ids: string[]) => {
-    setVagasPedidas((v) => ({ ids, vez: v.vez + 1 }));
-    // As pedidas podem estar fora do recorte atual: a lista volta às pendentes, sem filtro.
-    setFiltros((f) => ({ ...f, q: "", evento: "all", funcoes: [], saida: "all", destino: "all", trecho: "todos", falta: "todas", de: "", ate: "", situacao: "pendentes" }));
-    setAba("buscar");
-  }, []);
+    setLocation(linkDosResultados({ vagas: ids.slice(0, 80) }));
+  }, [setLocation]);
   const subtitulo = aba === "buscar" ? resumo : RESUMO[aba] ?? "";
 
   const barra = (
@@ -92,7 +99,7 @@ export default function BuscaDePassagens() {
       {barra}
       <div className="px-[var(--page-gutter)] pb-6 pt-5">
         <div className="mx-auto flex max-w-[1560px] flex-col gap-4">
-          {!podeEntrar ? (
+          {atalhoDeResultados ? null : !podeEntrar ? (
             <div className="pas-entra flex flex-col items-center rounded-xl border border-border bg-card px-6 py-14 text-center" data-testid="busca-sem-acesso">
               <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden="true"><Lock className="h-5 w-5" /></span>
               <h2 className="m-0 text-base font-semibold text-foreground">Acesso negado</h2>
@@ -101,13 +108,11 @@ export default function BuscaDePassagens() {
           ) : aba === "buscar" ? (
             <>
               <AbaBuscar
-                key={vagasPedidas.vez}
                 user={user}
                 filtros={filtros}
                 onFiltros={setFiltros}
-                vagasDaUrl={vagasPedidas.ids}
-                idaDeDaUrl={vagasPedidas.vez === 0 ? inicial.idaDe : null}
-                remarcar={vagasPedidas.vez === 0 && inicial.remarcar}
+                vagasDaUrl={vagasPedidas}
+                ajustesDaUrl={inicial.ajustes}
                 abrirAcompanhamentos={inicial.acompanhando}
                 onResumo={onResumo}
                 onVerPrevisao={() => setAba("previsao")}

@@ -4,8 +4,10 @@
  *
  * Etapas, do largo ao celular: LISTA (escalações com o que a busca vai usar e
  * o que falta) → SELEÇÃO (barra no rodapé com a prévia "N rotas · M em cache ·
- * gasta K consultas", de graça) → RESULTADOS (painel lateral; tela cheia no
- * celular) → "Usar este voo" (o modal de registro de Passagens, aqui mesmo).
+ * gasta K consultas", de graça) → RESULTADOS, numa TELA PRÓPRIA (16/10, dono:
+ * "essa busca tem que levar para outra tela" — /busca-de-passagens/resultados,
+ * com a seleção, os ajustes e este recorte na URL; "Voltar às escalações"
+ * traz tudo de volta) → "Usar este voo" (o modal de registro de Passagens).
  *
  * 15/10 (dono): de primeira só eventos que ainda não terminaram e só as
  * Pendentes — o servidor já manda só esses (`?futuros=1`); "Incluir eventos
@@ -13,6 +15,7 @@
  * por evento, na faixa acima da lista (cidade com um aeroporto só já entra).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { AlertCircle, CheckCircle2, Clock, PlaneTakeoff, RotateCw, Search, Sparkles, X, CircleSlash, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilaDeTrabalho } from "@/components/common/fila-de-trabalho";
@@ -21,34 +24,22 @@ import { useTicketsData } from "@/components/tickets/use-tickets-data";
 import { DEFAULT_TICKET_FILTERS } from "@/components/tickets/types";
 import { hasPermission } from "@/lib/role-utils";
 import { hojeISO } from "@shared/hoje-sp";
-import { diaDe } from "@shared/janela-de-viagem";
 import { alertasDeGrupo, type PernaParaGrupo, type TendenciaDoPreco } from "@shared/regras-da-busca";
-import {
-  situacaoDoTeto,
-  type AjusteDaBusca,
-  type OpcaoAvaliada,
-  type ResultadoNaTela,
-  type RotaNaTela,
-  type VagaDoPedido,
-} from "@shared/busca-de-passagens";
+import { situacaoDoTeto, type AjusteDaBusca, type VagaDoPedido } from "@shared/busca-de-passagens";
 import type { User } from "@shared/schema";
-import type { AlternativaNaTela } from "@shared/busca-de-passagens";
 import { eventosAConfirmar, montarLinhas, ordenarLinhas, passaNosFiltros, destinoDaLinha, saidaDaLinha, type CampoContado, type LinhaDaBusca } from "./linhas-da-busca";
 import { EventosAConfirmar } from "./aeroportos-do-evento";
-import { FILTROS_PADRAO, type FiltrosDaBusca, type Situacao } from "./filtros-da-busca";
+import { FILTROS_PADRAO, escreverUrl, type FiltrosDaBusca, type Situacao } from "./filtros-da-busca";
 import { BarraDeFiltrosDaBusca } from "./barra-de-filtros-da-busca";
 import { CabecaDaLista, LinhaDeEscalacao } from "./lista-de-escalacoes";
-import { PainelDeResultados, type AcoesDaRota } from "./painel-de-resultados";
 import { BarraDeSelecao } from "./barra-de-selecao";
-import { RegistroPeloVoo } from "./registro-pelo-voo";
+import { linkDaLista, linkDosResultados } from "./resultados/estado-dos-resultados";
 import { useAcompanhamentos, useAcoesDoAcompanhamento, useAeroportosConfirmados, useBuscaDePassagens, useConsumoDaBusca } from "./use-busca-de-passagens";
-import { AlertasDeGrupo, AvisoDeRemarcacao, PrecosAcompanhados, ResumoDeTendencia } from "./extras-da-busca";
+import { AlertasDeGrupo, PrecosAcompanhados, ResumoDeTendencia } from "./extras-da-busca";
 import { usePrevisao } from "./analises/use-analises-da-busca";
 import { podeVerAnalises } from "./abas-da-busca";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
-import type { VagaDaOpcao } from "./opcao-de-voo";
-import type { VooEscolhido } from "./voo-para-formulario";
 import { plural } from "./formato";
 
 const COR_SITUACAO: Record<Situacao, string> = { pendentes: "text-warning-strong", compradas: "text-success-strong", todas: "text-primary" };
@@ -69,16 +60,14 @@ function opcoes(linhas: LinhaDaBusca[], f: FiltrosDaBusca, campo: CampoContado, 
   return Array.from(mapa.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
-export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, remarcar = false, abrirAcompanhamentos = false, onResumo, onVerPrevisao }: {
+export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, ajustesDaUrl = {}, abrirAcompanhamentos = false, onResumo, onVerPrevisao }: {
   user: User | null;
   filtros: FiltrosDaBusca;
   onFiltros: (f: FiltrosDaBusca) => void;
-  /** Atalho de Passagens: vagas já selecionadas (`?vagas=`). */
+  /** Seleção que volta da tela de resultados (`?vagas=`). */
   vagasDaUrl: string[];
-  /** Atalho "Buscar preços do trecho direto" (`?idaDe=`). */
-  idaDeDaUrl: string | null;
-  /** Aberta pelo aviso de alteração: as vagas da URL buscam as datas NOVAS (não as da passagem). */
-  remarcar?: boolean;
+  /** Ajustes dessa seleção (`?aj=`). */
+  ajustesDaUrl?: Record<string, AjusteDaBusca>;
   /** Aberta pelo sino: a lista de preços acompanhados já vem aberta. */
   abrirAcompanhamentos?: boolean;
   onResumo: (texto: string) => void;
@@ -90,16 +79,12 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
   const acompanhamentos = useAcompanhamentos();
   const { acompanhar } = useAcoesDoAcompanhamento();
   const [acompAberto, setAcompAberto] = useState(abrirAcompanhamentos);
-  const [remarcacao, setRemarcacao] = useState<Array<{ numero: number | null; ida: string | null; volta: string | null }>>([]);
+  const [, setLocation] = useLocation();
   const data = useTicketsData({ filters: { ...DEFAULT_TICKET_FILTERS, ticketStatus: "all" }, showOnlyPendingSwaps: false, sortConfig: null, user, somenteEventosFuturos: !filtros.passados });
   const podeCorrigir = hasPermission(user, "canAccessBuscaDePassagens");
   const hoje = useMemo(() => hojeISO(), []);
   const [selecionadas, setSelecionadas] = useState<Set<string>>(() => new Set(vagasDaUrl));
-  const [ajustes, setAjustes] = useState<Record<string, AjusteDaBusca>>({});
-  /** Trecho direto pedido pelo atalho: vaga → vaga anterior (para "Usar este voo"). */
-  const [trechoDiretoDe, setTrechoDiretoDe] = useState<Record<string, string>>({});
-  const [painel, setPainel] = useState(false);
-  const [registro, setRegistro] = useState<{ vagaId: string; voo: VooEscolhido } | null>(null);
+  const [ajustes, setAjustes] = useState<Record<string, AjusteDaBusca>>(() => ajustesDaUrl);
   const consumo = useConsumoDaBusca();
   const confirmados = useAeroportosConfirmados();
   const eventById = useMemo(() => {
@@ -123,7 +108,7 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
   const linhaPorId = useMemo(() => new Map(linhas.map((l) => [l.vaga.id, l])), [linhas]);
   const visiveis = useMemo(() => ordenarLinhas(linhas.filter((l) => passaNosFiltros(l, filtros))), [linhas, filtros]);
 
-  // Atalhos de Passagens: a vaga comprada só aparece em "Todas"; o trecho direto vira ajuste.
+  // Seleção que volta dos resultados: a vaga comprada só aparece em "Todas".
   // Vaga pedida de evento que já terminou não vem no recorte padrão: liga "Incluir eventos passados".
   const atalhoAplicado = useRef(false);
   useEffect(() => {
@@ -134,20 +119,7 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
     }
     atalhoAplicado.current = true;
     if (vagasDaUrl.some((id) => data.ticketByInclusion.has(id)) && filtros.situacao === "pendentes") onFiltros({ ...filtros, situacao: "todas" });
-    if (remarcar) {
-      // Remarcar pelo aviso: a data que vale é a NOVA da escalação, não a da passagem já registrada.
-      const vagas = (data.teamInclusions ?? []).filter((v) => vagasDaUrl.includes(v.id));
-      setAjustes((a) => ({ ...a, ...Object.fromEntries(vagas.map((v) => [v.id, { ...a[v.id], ...(diaDe(v.flightDepartureDate) ? { dataIda: diaDe(v.flightDepartureDate)! } : {}), ...(diaDe(v.flightReturnDate) ? { dataVolta: diaDe(v.flightReturnDate)! } : {}) }])) }));
-      setRemarcacao(vagas.map((v) => ({ numero: v.inclusionNumber ?? null, ida: diaDe(v.flightDepartureDate), volta: diaDe(v.flightReturnDate) })));
-    }
-    if (idaDeDaUrl) {
-      const anterior = data.teamInclusions?.find((v) => v.id === idaDeDaUrl);
-      if (anterior) {
-        setAjustes((a) => Object.fromEntries([...Object.entries(a), ...vagasDaUrl.map((id) => [id, { ...a[id], idaDoEventoId: anterior.eventId, somente: "ida" as const }])]));
-        setTrechoDiretoDe(Object.fromEntries(vagasDaUrl.map((id) => [id, anterior.id])));
-      }
-    }
-  }, [data.isLoading, data.ticketByInclusion, data.teamInclusions, vagasDaUrl, idaDeDaUrl, filtros, onFiltros, remarcar]);
+  }, [data.isLoading, data.ticketByInclusion, data.teamInclusions, vagasDaUrl, filtros, onFiltros]);
 
   // ── Contagens e opções dos filtros ──
   const contagem = useMemo(() => {
@@ -207,43 +179,14 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
     setSelecionadas((s) => (s.has(vagaId) ? s : new Set(s).add(vagaId)));
   }, []);
 
-  // ── Ações que gastam (cada uma diz quanto na tela) ──
-  const buscarPrecos = () => {
-    setPainel(true);
-    if (semPreco.length > 0) busca.buscar({ extra: { consultar: semPreco.map((r) => r.chave) } });
+  // ── Ir para os RESULTADOS (tela própria): a seleção, os ajustes e este recorte vão na URL ──
+  // A entrada da lista no histórico ganha a seleção antes: o "voltar" do navegador a traz de volta.
+  const irParaResultados = (buscar: boolean) => {
+    const recorte = escreverUrl("buscar", filtros);
+    setLocation(linkDaLista(recorte, idsSelecionados, ajustes), { replace: true });
+    setLocation(linkDosResultados({ vagas: idsSelecionados, ajustes, lista: recorte, buscar }));
   };
-  const comAjuste = (rota: RotaNaTela, patch: Partial<AjusteDaBusca>, mostrarAlternativas?: string[]) => {
-    const ids = new Set(rota.vagas.map((v) => v.vagaId));
-    setAjustes((a) => ({ ...a, ...Object.fromEntries(Array.from(ids).map((id) => [id, { ...a[id], ...patch }])) }));
-    const novo = pedido.map((p) => (ids.has(p.id) ? { id: p.id, ajuste: { ...(p.ajuste ?? {}), ...patch } } : p));
-    busca.buscar({ extra: { consultarVagas: Array.from(ids), ...(mostrarAlternativas ? { mostrarAlternativas } : {}) }, vagas: novo });
-  };
-  const acoes: AcoesDaRota = {
-    atualizar: (r) => busca.buscar({ extra: { atualizar: [r.chave] } }),
-    datasFlexiveis: (r) => busca.buscar({ extra: { flex: [r.chave] } }),
-    consultar: (r) => busca.buscar({ extra: { consultar: [r.chave] } }),
-    duasConexoes: (r) => comAjuste(r, { maxParadas: 2 }),
-    trocarSaida: (r, iata) => comAjuste(r, { aeroportoDeCasa: iata }),
-    semHorario: (r) => comAjuste(r, { semHorario: true }),
-    testarAlternativas: (r) => busca.buscar({ extra: { alternativas: [r.chave] } }),
-    usarAlternativa: (r: RotaNaTela, alt: AlternativaNaTela) => comAjuste(r, alt.lado === "casa" ? { aeroportoDeCasa: alt.iata } : { aeroportoDoEvento: alt.iata }, [alt.chave]),
-    usar: (vagaId: string, rota: RotaNaTela, opcao: OpcaoAvaliada, resultado: ResultadoNaTela) => {
-      const perna = rota.vagas.find((v) => v.vagaId === vagaId)?.perna ?? rota.perna;
-      setRegistro({ vagaId, voo: { itinerario: opcao.itinerario, perna, chave: rota.chave, vistoEm: resultado.consultadoEm, idaVemDeInclusionId: rota.trechoDireto ? trechoDiretoDe[vagaId] ?? null : null } });
-    },
-  };
-  const andamento = busca.pedidoEmAndamento;
-  const chavesEmAndamento = useMemo(() => {
-    const s = new Set<string>([...(andamento?.consultar ?? []), ...(andamento?.atualizar ?? [])]);
-    for (const r of rotas) {
-      if (andamento?.consultarVagas?.some((id) => r.vagas.some((v) => v.vagaId === id))) s.add(r.chave);
-      if (andamento?.flex?.includes(r.chave)) s.add(r.chave);
-    }
-    return s;
-  }, [andamento, rotas]);
-  const vagaPorId = useMemo(() => new Map<string, VagaDaOpcao>(linhas.map((l) => [l.vaga.id, {
-    id: l.vaga.id, numero: l.vaga.inclusionNumber ?? null, nome: l.colaborador, comprada: l.comprada, valorPagoCentavos: l.valorPagoCentavos,
-  }])), [linhas]);
+  const buscarPrecos = () => irParaResultados(semPreco.length > 0);
 
   // ── Extras (etapa 2): tendência (admin), acompanhar preço, alerta de grupo ──
   const tendenciaPorVaga = useMemo(() => new Map<string, TendenciaDoPreco>((previsao.data?.linhas ?? []).map((l) => [l.vagaId, l.tendencia])), [previsao.data]);
@@ -327,7 +270,6 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
         <p className="m-0 -mb-1 flex items-center gap-1.5 text-xs text-muted-foreground"><Sparkles className="h-3.5 w-3.5 text-info-strong" aria-hidden="true" />Ambiente de demonstração: os preços são simulados (sem a chave do fornecedor).</p>
       )}
 
-      <AvisoDeRemarcacao numeros={remarcacao} onFechar={() => setRemarcacao([])} />
       <PrecosAcompanhados dados={acompanhamentos.data} aberto={acompAberto} onAbrir={setAcompAberto} admin={veAnalises} onSelecionar={(id) => selecionar([id])} />
       {veAnalises && (
         <ResumoDeTendencia
@@ -406,33 +348,14 @@ export function AbaBuscar({ user, filtros, onFiltros, vagasDaUrl, idaDeDaUrl, re
         previaCarregando={busca.previaCarregando}
         erro={busca.erro}
         buscando={busca.buscando}
-        painelAberto={painel}
         bloqueadoPeloTeto={bloqueadoPeloTeto}
         naoConfigurada={naoConfigurada}
         compradas={compradasNaSelecao}
         onLimpar={() => setSelecionadas(new Set())}
-        onVerPainel={() => setPainel(true)}
+        onVerPainel={() => irParaResultados(false)}
         onBuscar={buscarPrecos}
       />
 
-      <PainelDeResultados
-        aberto={painel}
-        onFechar={() => setPainel(false)}
-        resposta={busca.resposta}
-        erro={busca.erro}
-        buscando={busca.buscando}
-        chavesEmAndamento={chavesEmAndamento}
-        vagaPorId={vagaPorId}
-        acoes={acoes}
-        previstas={semPreco.length}
-        onBuscarTudo={() => busca.buscar({ extra: { consultar: semPreco.map((r) => r.chave) } })}
-      />
-
-      {registro && data.teamInclusions && (() => {
-        const vaga = data.teamInclusions.find((v) => v.id === registro.vagaId);
-        return vaga ? <RegistroPeloVoo data={data} user={user} vaga={vaga} voo={registro.voo} onFechar={() => setRegistro(null)}
-          onRegistrado={(id) => setSelecionadas((s) => { const n = new Set(s); n.delete(id); return n; })} /> : null;
-      })()}
     </>
   );
 }

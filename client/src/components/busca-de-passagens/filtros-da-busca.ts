@@ -7,11 +7,14 @@
  *   &situacao=pendentes|compradas|todas   (padrão: pendentes — sai da URL)
  *   &passados=1  (15/10: inclui eventos que já terminaram; padrão = só eventos de hoje em diante)
  *   &q= &evento= &funcoes=a,b &saida= &destino= &trecho= &falta= &de= &ate=
- *   &vagas=id,id  (atalho de Passagens: vagas já selecionadas; consumido na abertura)
- *   &idaDe=<vaga anterior>  (atalho "Buscar preços do trecho direto")
- *   &remarcar=1  (atalho do aviso de alteração: busca as datas NOVAS da vaga, não as da passagem)
+ *   &vagas=id,id  (seleção: volta da tela de resultados ou atalho antigo; consumido na abertura)
+ *   &aj={…}  (ajustes da seleção, como na tela de resultados; consumido na abertura)
+ *   &idaDe= / &remarcar=1  (atalhos antigos: hoje levam direto à tela de resultados)
  *   &acompanhando=1  (atalho do sino: abre a lista de preços acompanhados)
  */
+import type { AjusteDaBusca } from "@shared/busca-de-passagens";
+import { lerAjustes } from "./resultados/estado-dos-resultados";
+
 export type AbaDaBusca = "buscar" | "previsao" | "melhor-momento" | "preco-por-rota" | "pago-x-encontrado" | "orcamento" | "consumo";
 export const ABAS_DA_BUSCA: AbaDaBusca[] = ["buscar", "previsao", "melhor-momento", "preco-por-rota", "pago-x-encontrado", "orcamento", "consumo"];
 
@@ -54,6 +57,8 @@ export interface EstadoDaUrl {
   aba: AbaDaBusca;
   filtros: FiltrosDaBusca;
   vagas: string[];
+  /** Ajustes da seleção (`aj`), de volta da tela de resultados. */
+  ajustes: Record<string, AjusteDaBusca>;
   idaDe: string | null;
   periodo: PeriodoDaAnalise;
   remarcar: boolean;
@@ -79,6 +84,7 @@ export function lerUrl(search: string): EstadoDaUrl {
       passados: p.get("passados") === "1",
     },
     vagas: lista("vagas").slice(0, 80),
+    ajustes: lerAjustes(p.get("aj")),
     idaDe: p.get("idaDe") || null,
     periodo: um(p.get("periodo"), PERIODOS_DA_ANALISE, "180"),
     remarcar: p.get("remarcar") === "1",

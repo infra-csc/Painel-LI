@@ -6,7 +6,9 @@ import { eventoFake, vagaFake } from "@/test/fixtures-dominio";
 import type { RespostaDaBusca, RotaNaTela, ItinerarioDeVoo } from "@shared/busca-de-passagens";
 import type { TicketsData } from "@/components/tickets/use-tickets-data";
 import { BarraDeSelecao } from "./barra-de-selecao";
-import { PainelDeResultados, type AcoesDaRota } from "./painel-de-resultados";
+import { RotaEscolhida } from "./resultados/rota-escolhida";
+import type { AcoesDaRota } from "./resultados/acoes-que-gastam";
+import { FILTROS_DAS_OPCOES_PADRAO } from "./resultados/estado-dos-resultados";
 import { RegistroPeloVoo } from "./registro-pelo-voo";
 import { BarraDeFiltrosDaBusca } from "./barra-de-filtros-da-busca";
 import { FILTROS_PADRAO } from "./filtros-da-busca";
@@ -32,7 +34,7 @@ describe("Barra de seleção — prévia de consumo antes de gastar", () => {
     const onBuscar = vi.fn();
     const { user } = renderComTudo(
       <BarraDeSelecao nSel={4} resposta={resposta([rota("a", true), rota("b", false), rota("c", false)])} previaCarregando={false} erro={null}
-        buscando={false} painelAberto={false} bloqueadoPeloTeto={false} naoConfigurada={false} compradas={1}
+        buscando={false} bloqueadoPeloTeto={false} naoConfigurada={false} compradas={1}
         onLimpar={vi.fn()} onVerPainel={vi.fn()} onBuscar={onBuscar} />,
     );
     const previa = screen.getByTestId("previa-consumo");
@@ -45,13 +47,13 @@ describe("Barra de seleção — prévia de consumo antes de gastar", () => {
 
   it("tudo no cache: \"Ver preços\" sem gastar; no teto ou buscando, o botão trava", () => {
     const { rerender } = renderComTudo(
-      <BarraDeSelecao nSel={1} resposta={resposta([rota("a", true)])} previaCarregando={false} erro={null} buscando={false} painelAberto
+      <BarraDeSelecao nSel={1} resposta={resposta([rota("a", true)])} previaCarregando={false} erro={null} buscando={false}
         bloqueadoPeloTeto={false} naoConfigurada={false} compradas={0} onLimpar={vi.fn()} onVerPainel={vi.fn()} onBuscar={vi.fn()} />,
     );
     expect(screen.getByTestId("previa-consumo")).toHaveTextContent("não gasta consulta");
     expect(screen.getByTestId("buscar-precos")).toHaveTextContent("Ver preços");
     rerender(
-      <BarraDeSelecao nSel={1} resposta={resposta([rota("b", false)])} previaCarregando={false} erro={null} buscando={false} painelAberto={false}
+      <BarraDeSelecao nSel={1} resposta={resposta([rota("b", false)])} previaCarregando={false} erro={null} buscando={false}
         bloqueadoPeloTeto naoConfigurada={false} compradas={0} onLimpar={vi.fn()} onVerPainel={vi.fn()} onBuscar={vi.fn()} />,
     );
     expect(screen.getByTestId("buscar-precos")).toBeDisabled();
@@ -59,26 +61,37 @@ describe("Barra de seleção — prévia de consumo antes de gastar", () => {
   });
 });
 
-describe("Painel de resultados", () => {
+describe("Rota aberta na tela de resultados", () => {
   const acoes = (): AcoesDaRota => ({ atualizar: vi.fn(), datasFlexiveis: vi.fn(), duasConexoes: vi.fn(), trocarSaida: vi.fn(), consultar: vi.fn(), usar: vi.fn() });
-  const vagas = new Map([["v1", { id: "v1", numero: 4045, nome: "Ana Souza", comprada: false, valorPagoCentavos: null }]]);
+  const vagas = [{ id: "v1", numero: 4045, nome: "Ana Souza", comprada: false, valorPagoCentavos: null }];
+  const abrir = (r: RotaNaTela, a: AcoesDaRota) => renderComTudo(
+    <RotaEscolhida rota={r} vagas={vagas} acoes={a} ocupado={false} carregandoEsta={false} simulado filtros={FILTROS_DAS_OPCOES_PADRAO} onFiltros={vi.fn()} />,
+  );
 
-  it("opção com preço e \"Usar este voo\"; sem resultado sugere 2 conexões (custa 1)", async () => {
+  it("opção com preço e \"Usar este voo\"; as ações que gastam dizem quanto", async () => {
     const a = acoes();
-    const { user } = renderComTudo(
-      <PainelDeResultados aberto onFechar={vi.fn()} resposta={resposta([rota("com", true, [voo]), { ...rota("sem", true, []), origem: "GIG" }])} erro={null}
-        buscando={false} chavesEmAndamento={new Set()} vagaPorId={vagas} acoes={a} onBuscarTudo={vi.fn()} previstas={0} />,
-    );
-    const painel = await screen.findByTestId("painel-resultados");
-    expect(within(painel).getByTestId("preco-it-1")).toHaveTextContent("R$ 1.234,56");
-    expect(within(painel).getByText("Preços simulados")).toBeInTheDocument();
-    await user.click(within(painel).getByTestId("usar-voo-it-1"));
+    const { user } = abrir(rota("com", true, [voo]), a);
+    expect(await screen.findByTestId("preco-it-1")).toHaveTextContent("R$ 1.234,56");
+    await user.click(screen.getByTestId("usar-voo-it-1"));
     expect(a.usar).toHaveBeenCalledWith("v1", expect.objectContaining({ chave: "com" }), expect.objectContaining({ itinerario: voo }), expect.anything());
-    const duas = within(painel).getByTestId("duas-conexoes-sem");
+    expect(screen.getByTestId("flex-com")).toHaveTextContent("2 consultas");
+    expect(screen.getByTestId("duas-conexoes-com")).toHaveTextContent("1 consulta");
+    expect(screen.getByTestId("atualizar-com")).toHaveTextContent("1 consulta");
+  });
+
+  it("sem voo: explica o porquê e oferece as saídas com o custo de cada uma", async () => {
+    const a = acoes();
+    const { user } = abrir({ ...rota("sem", true, []), origem: "GIG" }, a);
+    const vazio = await screen.findByTestId("sem-voos-sem");
+    expect(vazio).toHaveTextContent("Nenhum voo com estes filtros");
+    expect(vazio).toHaveTextContent("GIG → JPA");
+    expect(vazio).toHaveTextContent("com no máximo 1 conexão");
+    const duas = within(vazio).getByTestId("duas-conexoes-sem");
     expect(duas).toHaveTextContent("1 consulta");
     await user.click(duas);
     expect(a.duasConexoes).toHaveBeenCalled();
-    expect(within(painel).getByTestId("flex-com")).toHaveTextContent("2 consultas");
+    // A mesma saída não se repete na coluna lateral.
+    expect(screen.getAllByTestId("duas-conexoes-sem")).toHaveLength(1);
   });
 });
 

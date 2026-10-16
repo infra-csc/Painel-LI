@@ -3,24 +3,25 @@
  * Passagens. Diz ANTES de gastar o que a busca vai fazer: "3 rotas · 1 já em
  * cache · gasta 2 consultas" (prévia de graça, recalculada a cada seleção ou
  * ajuste) e trava o botão no teto do mês e durante a busca (sem clique duplo).
+ * 16/10: "Buscar preços" / "Ver preços" levam à TELA de resultados.
  */
 import { Layers, Loader2, Search, X } from "lucide-react";
 import type { RespostaDaBusca } from "@shared/busca-de-passagens";
 import type { ErroDaBusca } from "./use-busca-de-passagens";
 import { plural } from "./formato";
 
-export function BarraDeSelecao({ nSel, resposta, previaCarregando, erro, buscando, painelAberto, bloqueadoPeloTeto, naoConfigurada, compradas, onLimpar, onVerPainel, onBuscar }: {
+export function BarraDeSelecao({ nSel, resposta, previaCarregando, erro, buscando, bloqueadoPeloTeto, naoConfigurada, compradas, onLimpar, onVerPainel, onBuscar }: {
   nSel: number;
   resposta: RespostaDaBusca | null;
   previaCarregando: boolean;
   erro: ErroDaBusca | null;
   buscando: boolean;
-  painelAberto: boolean;
   bloqueadoPeloTeto: boolean;
   naoConfigurada: boolean;
   /** Quantas das selecionadas já têm passagem (comparação com o pago). */
   compradas: number;
   onLimpar: () => void;
+  /** Abre os resultados SEM consultar (só o que já tem preço no cache). */
   onVerPainel: () => void;
   onBuscar: () => void;
 }) {
@@ -59,7 +60,7 @@ export function BarraDeSelecao({ nSel, resposta, previaCarregando, erro, buscand
           )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {rotas.some((r) => r.resultado) && !painelAberto && semPreco > 0 && (
+          {rotas.some((r) => r.resultado) && semPreco > 0 && (
             <button type="button" onClick={onVerPainel} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-background/25 px-3 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60">
               <Layers className="h-4 w-4" aria-hidden="true" />Ver o que já tem preço
             </button>

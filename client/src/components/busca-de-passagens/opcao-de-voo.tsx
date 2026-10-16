@@ -1,15 +1,18 @@
 /**
- * Uma opção de voo nos resultados (09/10). Leitura na ordem da decisão:
- * companhia e voos → horários de cada perna (com paradas e duração) → preço
- * (e o custo total quando há diária a mais) → selos → ações.
+ * Uma opção de voo na tela de RESULTADOS (16/10). Lista densa, para comparar:
+ * a mesma coluna para a companhia, as pernas, o preço e as ações em toda
+ * linha (grade por CSS `.bpr-opcao`, que vira cartão no estreito — nada
+ * duplicado). Leitura na ordem da decisão: companhia → horários de ida e
+ * volta (duração, paradas e onde) → preço (e o custo total) → selos → ações.
  *
  * "Abrir na companhia" pede o link SÓ no clique (gasta consulta só se não
- * estiver no cache). "Usar este voo" abre o registro da passagem já preenchido.
+ * estiver no cache). "Usar este voo" abre o registro da passagem já
+ * preenchido — para uma escalação, ou para todas as da rota, uma por vez.
  */
-import { ExternalLink, Loader2, ChevronDown, Copy, Check } from "lucide-react";
+import { ExternalLink, Loader2, ChevronDown, Copy, Check, Users } from "lucide-react";
 import { useState } from "react";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatarMoeda, toTitleCase } from "@/lib/format";
 import {
@@ -39,35 +42,49 @@ const COR_DO_SELO: Record<Selo["tipo"], string> = {
   mala_extra: "bg-info-soft text-info-strong",
 };
 
+/** Minutos entre a chegada de um trecho e a partida do seguinte (mesmo aeroporto → mesmo fuso). */
+function espera(chegada: string, partida: string): number | null {
+  const a = Date.parse(`${chegada.slice(0, 16)}:00Z`), b = Date.parse(`${partida.slice(0, 16)}:00Z`);
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 60000) : null;
+}
+
 function Perna({ rotulo, p }: { rotulo: string; p: PernaDeVoo }) {
   const ini = p.segmentos[0], fim = p.segmentos[p.segmentos.length - 1];
   const diasDepois = Math.round((Date.parse(`${fim.chegada.slice(0, 10)}T00:00:00Z`) - Date.parse(`${ini.partida.slice(0, 10)}T00:00:00Z`)) / 86_400_000);
-  const escalas = p.segmentos.slice(0, -1).map((s) => s.destino);
+  const conexoes = p.segmentos.slice(0, -1).map((s, i) => ({ onde: s.destino, min: espera(s.chegada, p.segmentos[i + 1].partida) }));
   return (
-    <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-x-2 text-xs leading-5 sm:grid-cols-[48px_86px_minmax(0,1fr)]">
-      <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground leading-5">{rotulo}</span>
-      <span className="hidden tabular-nums text-muted-foreground sm:inline">{diaCurto(ini.partida)}</span>
-      <span className="col-start-2 min-w-0 sm:col-start-auto">
-        <span className="font-semibold tabular-nums text-foreground">{hhmm(ini.partida)}</span>
+    <div className="bpr-perna">
+      <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{rotulo}</span>
+      <span className="text-2xs tabular-nums text-muted-foreground">{diaCurto(ini.partida)}</span>
+      <span className="whitespace-nowrap text-sm tabular-nums text-foreground">
+        <span className="font-semibold">{hhmm(ini.partida)}</span>
         <span className="mx-1 text-muted-foreground" aria-hidden="true">→</span>
-        <span className="font-semibold tabular-nums text-foreground">{hhmm(fim.chegada)}</span>
-        {diasDepois > 0 && <sup className="ml-0.5 text-2xs font-semibold text-warning-strong" title="Chega no dia seguinte">+{diasDepois}</sup>}
-        <span className="text-muted-foreground"> · {duracaoEmTexto(p.duracaoMin)} · </span>
-        <span className={escalas.length === 0 ? "font-medium text-success" : "text-muted-foreground"}>
-          {escalas.length === 0 ? "direto" : `${escalas.length} ${escalas.length === 1 ? "conexão" : "conexões"} (${escalas.join(", ")})`}
-        </span>
+        <span className="sr-only"> a </span>
+        <span className="font-semibold">{hhmm(fim.chegada)}</span>
+        {diasDepois > 0 && <sup className="ml-0.5 text-2xs font-semibold text-warning-strong" title="Chega no dia seguinte">+{diasDepois}<span className="sr-only"> dia</span></sup>}
+      </span>
+      <span className="min-w-0 text-xs leading-5 text-muted-foreground">
+        <span className="tabular-nums">{duracaoEmTexto(p.duracaoMin)}</span>
+        <span aria-hidden="true"> · </span>
+        {conexoes.length === 0
+          ? <span className="font-medium text-success">direto</span>
+          : <span title={conexoes.map((c) => `${c.onde}${c.min !== null ? ` (${duracaoEmTexto(c.min)} de espera)` : ""}`).join(", ")}>
+              {conexoes.length === 1 ? "1 conexão" : `${conexoes.length} conexões`} · <span className="font-mono">{conexoes.map((c) => `${c.onde}${c.min !== null ? ` ${duracaoEmTexto(c.min)}` : ""}`).join(", ")}</span>
+            </span>}
       </span>
     </div>
   );
 }
 
-export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar, onAbrirLink, abrindoLink, simulado }: {
+export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar, onUsarTodas, onAbrirLink, abrindoLink, simulado }: {
   opcao: OpcaoAvaliada;
   perna: PernaDaRota;
   diariaCentavos: number | null;
   vagas: VagaDaOpcao[];
   indice: number;
   onUsar?: (vagaId: string) => void;
+  /** Registra para TODAS as pendentes da rota, uma por vez (o mesmo modal, em fila). */
+  onUsarTodas?: () => void;
   onAbrirLink: () => void;
   abrindoLink: boolean;
   simulado: boolean;
@@ -85,100 +102,112 @@ export function OpcaoDeVoo({ opcao, perna, diariaCentavos, vagas, indice, onUsar
     void navigator.clipboard?.writeText(texto).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 1400); }).catch(() => undefined);
   };
   const destaque = opcao.selos.some((s) => s.tipo === "menor_custo");
+  // Só a melhor opção tem o botão cheio; nas outras ele é suave (uma ação primária por vez na tela).
+  const usar = destaque ? "bg-primary text-primary-foreground hover:bg-primary-hover" : "bg-brand-soft text-primary hover:bg-primary hover:text-primary-foreground";
+  const temTotal = (opcao.diarias !== 0 && !!diariaCentavos) || (opcao.malaCentavos ?? 0) > 0;
 
   return (
     <li
-      className={`pas-bp-opcao pas-bp-chega relative rounded-lg border px-3 py-2.5 sm:px-3.5 ${destaque ? "border-success/40 bg-card" : opcao.absurda ? "border-border bg-surface-muted/60" : "border-border bg-card"}`}
+      className="bpr-opcao pas-bp-chega"
+      data-destaque={destaque ? "" : undefined}
+      data-absurda={opcao.absurda ? "" : undefined}
       style={{ ["--i" as string]: Math.min(indice, 8) }}
       data-testid={`opcao-${it.id}`}
     >
-      <div className="flex items-start gap-3">
-        <span className={`mt-0.5 inline-flex h-7 w-9 shrink-0 items-center justify-center rounded-md font-mono text-2xs font-bold tracking-wide ${CLASSE_DA_CIA[cia] ?? "bg-muted text-foreground"}`} aria-hidden="true">{cia}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <p className="m-0 min-w-0 text-sm leading-5">
-              <span className="font-semibold text-foreground">{nomeCia}</span>
-              <span className="ml-1.5 font-mono text-2xs text-muted-foreground">{voos}</span>
-            </p>
-            <div className="shrink-0 text-right">
-              <p className="m-0 text-base font-semibold leading-5 tabular-nums text-foreground" data-testid={`preco-${it.id}`}>{formatarMoeda(it.precoCentavos)}</p>
-              {(opcao.diarias !== 0 && diariaCentavos) || (opcao.malaCentavos ?? 0) > 0 ? (
-                <p className="m-0 text-2xs leading-4 tabular-nums text-muted-foreground"
-                  title={[opcao.diarias !== 0 && diariaCentavos ? `Diária média do hotel deste evento: ${formatarMoeda(diariaCentavos)}` : "", (opcao.malaCentavos ?? 0) > 0 ? `Mala estimada: ${formatarMoeda(opcao.malaCentavos)}` : ""].filter(Boolean).join(" · ")}>
-                  total {formatarMoeda(opcao.custoTotalCentavos)}
-                </p>
-              ) : (
-                <p className="m-0 text-2xs leading-4 text-muted-foreground">por pessoa</p>
-              )}
-            </div>
-          </div>
-          <div className="mt-1.5 space-y-0.5">
-            {ida && <Perna rotulo="Ida" p={ida} />}
-            {volta && <Perna rotulo="Volta" p={volta} />}
-          </div>
-          {pagas.length > 0 && (
-            <p className="m-0 mt-1.5 text-2xs leading-4 text-muted-foreground">
-              {pagas.slice(0, 2).map((v) => {
-                const dif = it.precoCentavos - (v.valorPagoCentavos ?? 0);
-                const pct = v.valorPagoCentavos ? Math.round((dif / v.valorPagoCentavos) * 100) : 0;
-                return (
-                  <span key={v.id} className="mr-2">
-                    #{v.numero} pagou {formatarMoeda(v.valorPagoCentavos)} ·{" "}
-                    <span className={dif < 0 ? "font-medium text-success" : dif > 0 ? "font-medium text-danger-strong" : ""}>
-                      hoje {dif === 0 ? "igual" : `${dif < 0 ? "−" : "+"}${formatarMoeda(Math.abs(dif))} (${pct > 0 ? "+" : ""}${pct}%)`}
-                    </span>
-                  </span>
-                );
-              })}
-            </p>
-          )}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-wrap gap-1">
-              {opcao.selos.map((s, i) => (
-                <span key={`${s.tipo}-${i}`} className={`inline-flex h-[20px] items-center rounded-md px-1.5 text-2xs font-medium ${COR_DO_SELO[s.tipo]}`}>{s.texto}</span>
+      <span data-area="cia" className={`inline-flex h-7 w-9 items-center justify-center rounded-md font-mono text-2xs font-bold tracking-wide ${CLASSE_DA_CIA[cia] ?? "bg-muted text-foreground"}`} aria-hidden="true">{cia}</span>
+
+      <div data-area="quem" className="min-w-0">
+        <p className="m-0 truncate text-sm font-semibold leading-5 text-foreground">{nomeCia}</p>
+        <p className="m-0 truncate font-mono text-2xs leading-4 text-muted-foreground" title={voos}>{voos}</p>
+      </div>
+
+      <div data-area="pernas" className="min-w-0 space-y-0.5">
+        {ida && <Perna rotulo="Ida" p={ida} />}
+        {volta && <Perna rotulo="Volta" p={volta} />}
+      </div>
+
+      <div data-area="preco" className="text-right">
+        <p className="m-0 whitespace-nowrap text-base font-semibold leading-5 tabular-nums text-foreground" data-testid={`preco-${it.id}`}>{formatarMoeda(it.precoCentavos)}</p>
+        {temTotal ? (
+          <p className="m-0 whitespace-nowrap text-2xs leading-4 tabular-nums text-muted-foreground"
+            title={[opcao.diarias !== 0 && diariaCentavos ? `Diária média do hotel deste evento: ${formatarMoeda(diariaCentavos)}` : "", (opcao.malaCentavos ?? 0) > 0 ? `Mala estimada: ${formatarMoeda(opcao.malaCentavos)}` : ""].filter(Boolean).join(" · ")}>
+            total <span className={destaque ? "font-semibold text-success" : "font-medium text-foreground"}>{formatarMoeda(opcao.custoTotalCentavos)}</span>
+          </p>
+        ) : (
+          <p className="m-0 text-2xs leading-4 text-muted-foreground">por pessoa</p>
+        )}
+      </div>
+
+      <div data-area="rodape" className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        {opcao.selos.map((s, i) => (
+          <span key={`${s.tipo}-${i}`} className={`inline-flex h-[20px] items-center rounded-md px-1.5 text-2xs font-medium ${COR_DO_SELO[s.tipo]}`}>{s.texto}</span>
+        ))}
+        {pagas.slice(0, 2).map((v) => {
+          const dif = it.precoCentavos - (v.valorPagoCentavos ?? 0);
+          const pct = v.valorPagoCentavos ? Math.round((dif / v.valorPagoCentavos) * 100) : 0;
+          return (
+            <span key={v.id} className="inline-flex h-[20px] items-center gap-1 rounded-md bg-muted px-1.5 text-2xs text-slate-700">
+              #{v.numero} pagou {formatarMoeda(v.valorPagoCentavos)} ·
+              <span className={dif < 0 ? "font-semibold text-success" : dif > 0 ? "font-semibold text-danger-strong" : ""}>
+                hoje {dif === 0 ? "igual" : `${dif < 0 ? "−" : "+"}${formatarMoeda(Math.abs(dif))} (${pct > 0 ? "+" : ""}${pct}%)`}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="ml-auto flex items-center justify-end gap-1.5">
+        <button type="button" onClick={copiar} className="pas-bp-acao-sec pas-alvo inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Copiar companhia, voos e preço" title="Copiar voos e preço">
+          {copiado ? <Check className="h-4 w-4 text-success" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+        </button>
+        <button
+          type="button"
+          onClick={onAbrirLink}
+          disabled={abrindoLink}
+          className="pas-bp-acao-sec pas-alvo inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-slate-700 hover:bg-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={simulado ? "Simulação: abre o site da companhia" : "Abre o site de compra (o link é pedido agora)"}
+          data-testid={`abrir-companhia-${it.id}`}
+        >
+          {abrindoLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />}
+          <span className="bpr-so-largo">Abrir na companhia</span><span className="bpr-so-estreito">Companhia</span>
+        </button>
+        {onUsar && pendentes.length === 1 && (
+          <button type="button" onClick={() => onUsar(pendentes[0].id)} className={`pas-alvo inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors ${usar} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1`} data-testid={`usar-voo-${it.id}`}>
+            Usar este voo
+          </button>
+        )}
+        {onUsar && pendentes.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className={`pas-alvo inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg pl-3 pr-2 text-xs font-semibold transition-colors ${usar} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1`} data-testid={`usar-voo-${it.id}`}>
+                Usar este voo<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Registrar para quem?</DropdownMenuLabel>
+              {pendentes.map((v) => (
+                <DropdownMenuItem key={v.id} onSelect={() => onUsar(v.id)} className="gap-2" data-testid={`usar-voo-${it.id}-${v.id}`}>
+                  <span className="font-mono text-2xs font-semibold text-primary">#{v.numero}</span>
+                  <span className="truncate">{toTitleCase(v.nome)}</span>
+                </DropdownMenuItem>
               ))}
-            </div>
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              <button type="button" onClick={copiar} className="pas-bp-acao-sec pas-alvo inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Copiar companhia, voos e preço" title="Copiar voos e preço">
-                {copiado ? <Check className="h-4 w-4 text-success" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
-              </button>
-              <button
-                type="button"
-                onClick={onAbrirLink}
-                disabled={abrindoLink}
-                className="pas-bp-acao-sec pas-alvo inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-slate-700 hover:bg-muted disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title={simulado ? "Simulação: abre o site da companhia" : "Abre o site de compra (o link é pedido agora)"}
-                data-testid={`abrir-companhia-${it.id}`}
-              >
-                {abrindoLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />}
-                <span className="hidden sm:inline">Abrir na companhia</span><span className="sm:hidden">Companhia</span>
-              </button>
-              {onUsar && pendentes.length === 1 && (
-                <button type="button" onClick={() => onUsar(pendentes[0].id)} className="pas-alvo inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-testid={`usar-voo-${it.id}`}>
-                  Usar este voo
-                </button>
+              {onUsarTodas && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={onUsarTodas} className="items-start gap-2" data-testid={`usar-voo-todas-${it.id}`}>
+                    <Users className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block font-medium">Para as {pendentes.length} desta rota</span>
+                      <span className="block text-2xs leading-4 text-muted-foreground">Abre o registro de cada uma, uma por vez</span>
+                    </span>
+                  </DropdownMenuItem>
+                </>
               )}
-              {onUsar && pendentes.length > 1 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button type="button" className="pas-alvo inline-flex h-8 items-center gap-1 rounded-lg bg-primary pl-3 pr-2 text-xs font-semibold text-primary-foreground hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-testid={`usar-voo-${it.id}`}>
-                      Usar este voo<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuLabel className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Registrar para quem?</DropdownMenuLabel>
-                    {pendentes.map((v) => (
-                      <DropdownMenuItem key={v.id} onSelect={() => onUsar(v.id)} className="gap-2">
-                        <span className="font-mono text-2xs font-semibold text-primary">#{v.numero}</span>
-                        <span className="truncate">{toTitleCase(v.nome)}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </div>
-        </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
       </div>
     </li>
   );

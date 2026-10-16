@@ -24,6 +24,7 @@ const TeamInclusion          = lazy(() => import("@/pages/team-inclusion"));
 const Scaling                = lazy(() => import("@/pages/scaling"));
 const Tickets                = lazy(() => import("@/pages/tickets"));
 const BuscaDePassagens       = lazy(() => import("@/pages/busca-de-passagens"));
+const ResultadosDaBusca      = lazy(() => import("@/pages/resultados-da-busca"));
 const Accommodations         = lazy(() => import("@/pages/accommodations"));
 const OperationalMirror      = lazy(() => import("@/pages/operational-mirror"));
 const Consultation           = lazy(() => import("@/pages/consultation"));
@@ -177,6 +178,11 @@ function Router() {
             <Route path="/tickets">
               <ProtectedRoute permission="canAccessScreen3">
                 <Tickets />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/busca-de-passagens/resultados">
+              <ProtectedRoute permission="canAccessBuscaDePassagens">
+                <ResultadosDaBusca />
               </ProtectedRoute>
             </Route>
             <Route path="/busca-de-passagens">

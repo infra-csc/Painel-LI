@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { ItemDoAviso } from "./item-do-aviso";
 import { AvisosResolvidosDialog } from "./avisos-resolvidos";
+import { linkDosResultados } from "@/components/busca-de-passagens/resultados/estado-dos-resultados";
 import {
   dataDaProva, distanciaDaProva, useAvisosPendentes,
   type AvisoDeAlteracao, type TipoDeAviso,
@@ -162,7 +163,7 @@ export function BlocoDeAvisos({ tipo, onAbrir, className }: {
               <ul className="m-0 p-0 list-none divide-y divide-border">
                 {g.avisos.map((a) => (
                   <li key={a.id} className="pas-aviso-linha">
-                    <ItemDoAviso aviso={a} onAbrir={onAbrir} rotuloAbrir={t.abrir} linkDaBusca={buscaNovaData ? `/busca-de-passagens?vagas=${encodeURIComponent(a.teamInclusionId)}&remarcar=1` : undefined} />
+                    <ItemDoAviso aviso={a} onAbrir={onAbrir} rotuloAbrir={t.abrir} linkDaBusca={buscaNovaData ? linkDosResultados({ vagas: [a.teamInclusionId], remarcar: true }) : undefined} />
                   </li>
                 ))}
               </ul>

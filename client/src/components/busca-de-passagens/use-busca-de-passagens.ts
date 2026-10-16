@@ -59,15 +59,16 @@ function lerErro(e: unknown): ErroDaBusca {
  * assentar) + a busca de verdade. O último resultado fica guardado: a prévia
  * seguinte só o substitui quando volta.
  */
-export function useBuscaDePassagens(vagas: VagaDoPedido[]) {
+export function useBuscaDePassagens(vagas: VagaDoPedido[], inicial?: { flex?: readonly string[]; alternativas?: readonly string[] }) {
   const queryClient = useQueryClient();
   const [resposta, setResposta] = useState<RespostaDaBusca | null>(null);
   const [erro, setErro] = useState<ErroDaBusca | null>(null);
   const [previaCarregando, setPreviaCarregando] = useState(false);
   const pedidoAtual = useRef(0);
   const assinatura = JSON.stringify(vagas);
-  const mostrarFlex = useRef<Set<string>>(new Set());
-  const mostrarAlternativas = useRef<Set<string>>(new Set());
+  // Datas vizinhas / aeroportos já pedidos: voltam do cache a cada prévia (a tela de resultados os guarda na URL).
+  const mostrarFlex = useRef<Set<string>>(new Set(inicial?.flex ?? []));
+  const mostrarAlternativas = useRef<Set<string>>(new Set(inicial?.alternativas ?? []));
 
   const executar = useCallback(async (extra: Omit<PedidoDaBusca, "vagas">, lista: VagaDoPedido[]) => {
     const corpo: PedidoDaBusca = { vagas: lista, mostrarFlex: Array.from(mostrarFlex.current), mostrarAlternativas: Array.from(mostrarAlternativas.current), ...extra };
@@ -120,6 +121,8 @@ export function useBuscaDePassagens(vagas: VagaDoPedido[]) {
     buscando: busca.isPending,
     /** Qual ação está rodando (para o esqueleto aparecer só onde importa). */
     pedidoEmAndamento: busca.isPending ? busca.variables?.extra : undefined,
+    /** O que a prévia já pede de volta do cache (datas vizinhas e aeroportos testados). */
+    mostrando: { flex: Array.from(mostrarFlex.current), alternativas: Array.from(mostrarAlternativas.current) },
   };
 }
 
