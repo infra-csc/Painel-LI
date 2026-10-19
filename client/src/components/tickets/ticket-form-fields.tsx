@@ -60,7 +60,7 @@ export function ArrivalHint() {
         <button type="button" className="inline-flex items-center justify-center w-6 h-6 -my-1 rounded-full text-primary text-2xs font-bold cursor-help ml-0.5 normal-case focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Por que é obrigatório?"><span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand-soft" aria-hidden="true">?</span></button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[260px] text-2xs leading-snug">
-        Horário em que o colaborador chega ao destino. Define alimentação (almoço até 11h, jantar até 19h) e mobilidade (madrugada 20h–5h) no Planejado.
+        Horário em que o colaborador chega ao destino. Define alimentação (almoço até 13h, jantar até 19h) e mobilidade (madrugada 20h–5h) no Planejado.
       </TooltipContent>
     </Tooltip>
   );

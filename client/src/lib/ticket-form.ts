@@ -1,8 +1,8 @@
 // Regras compartilhadas do formulário de passagem (modal individual e lote).
 //
 // Os horários gravados aqui alimentam o Planejado: mobilidade (janela de
-// madrugada — chegada entre 20h e 5h) e alimentação (chegada ≤11h almoço,
-// ≤19h jantar; retorno ≥13h/≥21h). Por isso obrigatoriedade, montagem do
+// madrugada — chegada entre 20h e 5h) e alimentação (chegada ≤13h almoço,
+// ≤19h jantar; retorno ≥13h/≥21h ou chega >21h). Por isso obrigatoriedade, montagem do
 // payload e validação cronológica vivem num único lugar — antes cada fluxo
 // tinha a sua cópia e elas divergiam (o lote descartava os aeroportos da
 // volta, o modal não exigia o horário de chegada, os asteriscos da UI não
@@ -594,7 +594,7 @@ export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: Plan
   // (as datas sintéticas só dizem "antes do 1º" / "depois do último").
   const flags = calcAlimentacao({
     workDays: ["0001-01-02", "0001-01-03"], voa: true,
-    chegadaIda: arrTime, partidaVolta: retTime, almocoCents, jantarCents,
+    chegadaIda: arrTime, partidaVolta: retTime, chegadaVolta: retArr, almocoCents, jantarCents,
     dataChegadaIda: chegouAntes ? "0001-01-01" : null,
     dataPartidaVolta: voltaDepois ? "0001-01-04" : null,
   });
@@ -605,7 +605,7 @@ export function buildPlannedImpact(form: TicketFormValues | undefined, ctx: Plan
   if (dias) {
     const r = calcAlimentacao({
       workDays: dias, voa: true,
-      chegadaIda: arrTime, partidaVolta: retTime, almocoCents, jantarCents,
+      chegadaIda: arrTime, partidaVolta: retTime, chegadaVolta: retArr, almocoCents, jantarCents,
       dataChegadaIda: dataChegada, dataPartidaVolta: dataVolta,
     });
     periodo = { dias: r.dias.length, almocos: r.almocos, jantares: r.jantares, totalCents: r.totalCents, estimado: r.estimado };

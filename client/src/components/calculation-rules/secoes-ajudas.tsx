@@ -61,9 +61,9 @@ export function SecaoAlimentacao({ r }: { r: RegrasVigentes }) {
           testid="rgc-regras-alimentacao"
           itens={[
             { chave: "nao-voa", titulo: "Não voa", texto: "almoço e jantar em todos os dias trabalhados. O sistema não registra horas de jornada — as condições da tabela acima não são conferidas." },
-            { chave: "chegada", titulo: "Dia de chegada", texto: "almoço se o voo chega até 11h; jantar se chega até 19h." },
+            { chave: "chegada", titulo: "Dia de chegada", texto: "almoço se o voo chega até 13h; jantar se chega até 19h." },
             { chave: "meio", titulo: "Dias do meio", texto: "almoço e jantar." },
-            { chave: "retorno", titulo: "Dia de retorno", texto: "almoço se a volta parte a partir das 13h; jantar a partir das 21h (van ou ônibus: 20h)." },
+            { chave: "retorno", titulo: "Dia de retorno", texto: "almoço se a volta parte a partir das 13h; jantar se parte a partir das 21h (van ou ônibus: 20h) ou se chega depois das 21h." },
             { chave: "horario", titulo: "Horários", texto: "valem os da passagem; sem passagem, os sugeridos na Escalação. Sem nenhum, o dia conta cheio e o Planejado marca a alimentação como estimada." },
             { chave: "casa-util", titulo: "Casa (CLT) em dia útil", texto: <>almoço de {fmt(r.almocoCasaUtil.demais)} (cenotécnica {fmt(r.almocoCasaUtil.ceno)}) — o vale-refeição cobre o resto. O jantar é o da tabela.</> },
             { chave: "sem", titulo: "Não recebem", texto: "freela (o cachê cobre), percurseiro (está no pacote), função com “local” no nome e empreita por empresa." },

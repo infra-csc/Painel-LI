@@ -189,6 +189,10 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       voa,
       chegadaIda: ehPrimeiroDoGrupo ? (chegadaIda || null) : null,
       partidaVolta: ehUltimoDoGrupo ? (partidaVolta || null) : null,
+      // Chegada da volta (19/10: chegar depois das 21h dá a janta) — só a da
+      // passagem e só quando a partida em uso é a dela (partida editada à mão
+      // não casa com a chegada gravada).
+      chegadaVolta: ehUltimoDoGrupo && partidaVolta && toHoraHHMM(ticket?.actualReturnTime) === partidaVolta ? toHoraHHMM(ticket?.returnArrivalTime) : null,
       // Data acompanha o horário: só vale na borda REAL da viagem
       dataChegadaIda: ehPrimeiroDoGrupo ? dataChegadaIda : null,
       dataPartidaVolta: ehUltimoDoGrupo ? dataPartidaVolta : null,

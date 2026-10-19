@@ -278,8 +278,8 @@ function ViagemBlock({ editor, isReadOnly, modalVoa }: Pick<CustosTabRealizadoPr
             v => { setTravelManual(prev => ({ ...prev, partidaVolta: v })); setExtraDayEdge(prev => prev === "ultimo" ? null : prev); },
             "Este passou a ser o último dia — confirme o horário de partida.")}
           <p className="m-0 px-4 py-2 bg-surface-muted/70 text-2xs leading-4 text-muted-foreground">
-            Chegada até 11h paga almoço e até 19h paga jantar no primeiro dia; na volta,
-            partida a partir das 13h paga almoço e a partir das 21h paga jantar.
+            Chegada até 13h paga almoço e até 19h paga jantar no primeiro dia; na volta,
+            partida a partir das 13h paga almoço; partida a partir das 21h ou chegada depois das 21h paga jantar.
           </p>
         </div>
       ) : (

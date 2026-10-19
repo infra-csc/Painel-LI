@@ -7,10 +7,14 @@
  *   almoço, 10h para jantar — mas o sistema não registra jornada; assume as
  *   duas refeições). Nunca "estimado": não depende de passagem.
  * - Quem voa, por dia do período:
- *   · dia de CHEGADA:  almoço se o voo de ida CHEGA até 11h; jantar se chega até 19h
+ *   · dia de CHEGADA:  almoço se o voo de ida CHEGA até 13h (dono 19/10; era
+ *                      11h — caso Rubem, NR Teresina: chegou 11:30 e perdia o
+ *                      almoço); jantar se chega até 19h
  *   · dias do MEIO:    almoço + jantar
  *   · dia de RETORNO:  almoço se o voo de volta PARTE a partir das 13h;
- *                      jantar se parte a partir das 21h
+ *                      jantar se parte a partir das 21h OU se a volta CHEGA
+ *                      depois das 21h (19/10 — Rubem partiu 18:55 e chegou
+ *                      22:05: janta no caminho)
  *   · viagem de 1 dia: aplica as duas condições no mesmo dia
  * - DATAS da viagem (15/10 — caso Everson, Night Run Teresina: escala 07–11/10,
  *   volta 12/10 às 03:45; o horário 03:45 era aplicado ao domingo 11/10 e
@@ -67,6 +71,8 @@ export interface AlimentacaoInput {
   chegadaIda?: string | null;
   /** Horário de PARTIDA do voo de volta ("HH:MM") — da passagem registrada */
   partidaVolta?: string | null;
+  /** Horário de CHEGADA da volta ("HH:MM", opcional) — chegar depois das 21h dá a janta do dia (19/10) */
+  chegadaVolta?: string | null;
   /**
    * DATA em que o voo de ida CHEGA (YYYY-MM-DD) — use `dataDeChegadaDaIda`
    * (cruzar a meia-noite empurra para o dia seguinte). Antes do 1º dia da
@@ -91,11 +97,12 @@ export interface AlimentacaoInput {
 }
 
 // Cortes confirmados pelo negócio
-const CHEGADA_ALMOCO_ATE = 11 * 60;      // chega até 11:00 → almoça
+const CHEGADA_ALMOCO_ATE = 13 * 60;      // chega até 13:00 → almoça (dono 19/10; era 11:00)
 const CHEGADA_JANTAR_ATE = 19 * 60;      // chega até 19:00 → janta
 const RETORNO_ALMOCO_APOS = 13 * 60;     // volta parte ≥ 13:00 → almoça
 const RETORNO_JANTAR_APOS = 21 * 60;     // VOO de volta parte ≥ 21:00 → janta
 const RETORNO_JANTAR_APOS_TERRESTRE = 20 * 60; // van/ônibus saindo ≥ 20:00 → janta (regra 17/08)
+const RETORNO_JANTAR_SE_CHEGA_APOS = 21 * 60;  // a volta chega depois das 21:00 → janta (dono 19/10)
 
 /** "YYYY-MM-DD" (aceita timestamp ISO — corta o horário); inválido/vazio → null. */
 function dataISO(v: string | null | undefined): string | null {
@@ -148,6 +155,10 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
   }
   const chegada = parseHoraMin(input.chegadaIda);
   const partida = parseHoraMin(input.partidaVolta);
+  const chegadaDaVolta = parseHoraMin(input.chegadaVolta);
+  // Chegou depois das 21h — ou cruzou a meia-noite (chegada no relógio menor
+  // que a partida): a janta foi no caminho.
+  const voltaChegaTarde = chegadaDaVolta !== null && (chegadaDaVolta > RETORNO_JANTAR_SE_CHEGA_APOS || (partida !== null && chegadaDaVolta < partida));
   // Datas da viagem: chegou num dia ANTES do 1º dia / volta num dia DEPOIS do
   // último ⇒ a borda é dia cheio e o horário não se aplica. Mesma data, data
   // estranha ou sem data ⇒ regra de horário (comparação de string: YYYY-MM-DD).
@@ -179,7 +190,7 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
       } else {
         // No dia único, a condição do retorno restringe ainda mais
         const a = partida >= RETORNO_ALMOCO_APOS;
-        const j = partida >= (input.terrestre ? RETORNO_JANTAR_APOS_TERRESTRE : RETORNO_JANTAR_APOS);
+        const j = partida >= (input.terrestre ? RETORNO_JANTAR_APOS_TERRESTRE : RETORNO_JANTAR_APOS) || voltaChegaTarde;
         almoco = papel === "unico" ? (almoco && a) : a;
         jantar = papel === "unico" ? (jantar && j) : j;
       }

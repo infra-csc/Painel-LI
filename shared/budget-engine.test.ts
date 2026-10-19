@@ -156,6 +156,38 @@ describe("calcularPlanejadoDaVaga — sequência da tela, sem a tela", () => {
     expect(r.alimEstimada).toBe(false);
   });
 
+  it("alimentação (19/10) — Rubem, casa, NR Teresina 08–11/10: chega 11:30 (almoço até 13h) e a volta 18:55 chega 22:05 (janta): semana R$ 90, fds R$ 160", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { scheduleStartDate: "2026-10-08", scheduleEndDate: "2026-10-11", dailyRates: 4, needsTicket: true, dailyValue: 0 },
+      functionName: "Dir Prova",
+      collaboratorType: "casa",
+      settings: {},
+      eventLocation: "Teresina - PI",
+      ticket: {
+        actualDepartureDate: "2026-10-08", actualDepartureTime: "06:00", actualArrivalTime: "11:30",
+        actualReturnDate: "2026-10-11", actualReturnTime: "18:55", returnArrivalTime: "22:05",
+      },
+    });
+    expect(r.almocoSemana + r.jantarSemana).toBe(9000); // qui/sex: 2 × (5 + 40) — antes R$ 85
+    expect(r.almocoFds + r.jantarFds).toBe(16000); // sáb/dom: 2 × (40 + 40) — antes R$ 120
+  });
+
+  it("alimentação (19/10): chega 13:30 → sem almoço no 1º dia; volta 18:55 chegando 21:00 em ponto → sem janta", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { scheduleStartDate: "2026-10-08", scheduleEndDate: "2026-10-11", dailyRates: 4, needsTicket: true, dailyValue: 0 },
+      functionName: "Dir Prova",
+      collaboratorType: "casa",
+      settings: {},
+      eventLocation: "Teresina - PI",
+      ticket: {
+        actualDepartureDate: "2026-10-08", actualDepartureTime: "08:00", actualArrivalTime: "13:30",
+        actualReturnDate: "2026-10-11", actualReturnTime: "18:55", returnArrivalTime: "21:00",
+      },
+    });
+    expect(r.almocoSemana).toBe(500); // só a sexta
+    expect(r.jantarFds).toBe(4000); // só o sábado
+  });
+
   it("alimentação (15/10): sem passagem, as datas SUGERIDAS da vaga fazem o mesmo papel", () => {
     const r = calcularPlanejadoDaVaga({
       vaga: {

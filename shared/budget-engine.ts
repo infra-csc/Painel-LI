@@ -324,7 +324,7 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   const dataPartidaVolta = ticket?.actualReturnDate || inclusion.flightReturnDate || null;
   const alim = calcAlimentacao({
     workDays: semMobilidade ? [] : diasPeriodo, voa,
-    chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta,
+    chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta, chegadaVolta: vooChegadaVolta,
     dataChegadaIda: dataDeChegadaDaIda(dataPartidaIda, vooPartidaIda, vooChegadaIda),
     dataPartidaVolta,
     almocoCents, jantarCents,

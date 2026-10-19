@@ -88,7 +88,7 @@ export const CASA_FOOD_2026 = {
     { refeicao: "Jantar (a partir das 20h c/ 10h de jornada)", demaisCents: 4000, cenotecnicaCents: 3500 },
   ],
   emViagem: [
-    { refeicao: "Almoço (chegada voo 11h)", demaisCents: 4000, cenotecnicaCents: 3500 },
+    { refeicao: "Almoço (chegada voo 13h)", demaisCents: 4000, cenotecnicaCents: 3500 },
     { refeicao: "Jantar (chegada voo 19h)", demaisCents: 4000, cenotecnicaCents: 3500 },
   ],
 } as const;
