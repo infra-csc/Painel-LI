@@ -314,7 +314,8 @@ export function datasSuspeitasDaPassagem(
   const provavelDe = (d: string): string | null => {
     for (const ano of anosDoEvento) {
       const c = `${ano}${d.slice(d.length - 6)}`; // "-MM-DD"
-      if (c !== d && noPeriodo(c)) return c;
+      // 29/02 num ano que não é bissexto não existe: nunca sugerir data inválida.
+      if (c !== d && somarDiasISO(c, 0) === c && noPeriodo(c)) return c;
     }
     return null;
   };

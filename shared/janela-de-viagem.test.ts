@@ -345,6 +345,34 @@ describe("data suspeita (16/10 — caso #2446, volta digitada em 2027)", () => {
   it("sem datas do evento nem da escala, nada é suspeito por período", () => {
     expect(datasSuspeitasDaPassagem({ actualDepartureDate: "2026-07-22", actualReturnDate: "2027-07-27" }, {})).toEqual([]);
   });
+
+  // Revisão 16/10 (segunda passada).
+  it("29/02 digitado no ano bissexto errado: suspeito, mas sem sugerir 29/02 de ano comum (data que não existe)", () => {
+    const [s] = datasSuspeitasDaPassagem({ actualDepartureDate: "2024-02-29" }, { eventStartDate: "2025-02-28", eventEndDate: "2025-03-01" });
+    expect(s).toMatchObject({ trecho: "ida", motivo: "antes_do_periodo", provavel: null });
+    // Evento em ano bissexto (27–29/02/2028), volta com o ano trocado: a data certa existe e é sugerida.
+    const [b] = datasSuspeitasDaPassagem({ actualReturnDate: "2029-02-28" }, { eventStartDate: "2028-02-27", eventEndDate: "2028-02-29" });
+    expect(b).toMatchObject({ trecho: "volta", provavel: "2028-02-28" });
+  });
+
+  it("evento de vários dias e montagem longa pela escala: ida 20 dias antes do evento, dentro da escala, não é suspeita", () => {
+    const ref = { eventStartDate: "2026-11-20", eventEndDate: "2026-11-23", scheduleStartDate: "2026-11-01", scheduleEndDate: "2026-11-25" };
+    expect(datasSuspeitasDaPassagem({ actualDepartureDate: "2026-10-31", actualReturnDate: "2026-11-26" }, ref)).toEqual([]);
+  });
+
+  it("não depende do fuso do processo: só compara 'AAAA-MM-DD' (as colunas são date)", () => {
+    const tz = process.env.TZ;
+    try {
+      process.env.TZ = "America/Sao_Paulo";
+      const a = datasSuspeitasDaPassagem({ actualReturnDate: "2027-07-27" }, { eventStartDate: "2026-07-25", eventEndDate: "2026-07-26" });
+      process.env.TZ = "UTC";
+      const b = datasSuspeitasDaPassagem({ actualReturnDate: "2027-07-27" }, { eventStartDate: "2026-07-25", eventEndDate: "2026-07-26" });
+      expect(a).toEqual(b);
+      expect(a[0].provavel).toBe("2026-07-27");
+    } finally {
+      process.env.TZ = tz;
+    }
+  });
 });
 
 describe("Pendências só lista passagens que se cruzam", () => {

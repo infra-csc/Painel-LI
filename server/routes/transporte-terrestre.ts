@@ -2,7 +2,7 @@
  * Transporte terrestre da vaga (16/10) — "vai de carro ou van" em Passagens.
  *
  *   GET    /api/transportes-terrestres[?eventId= | ?futuros=1]
- *   POST   /api/transportes-terrestres            { itens: [{ teamInclusionId, trecho, modo, empresa?, valorCentavos }] }
+ *   POST   /api/transportes-terrestres            { itens: [{ teamInclusionId, trecho, modo, empresa?, valorCentavos }], tudoOuNada? }
  *   DELETE /api/transportes-terrestres/:inclusionId[?trecho=ida|volta]
  *
  * Quem registra passagem (logística: admin, Compras, Produção) registra e
@@ -55,6 +55,8 @@ export function registrarTransporteTerrestre(app: Express): void {
     const brutos: unknown[] = Array.isArray(req.body?.itens) ? req.body.itens : [];
     if (brutos.length === 0) return res.status(400).json({ message: "Nada a registrar." });
     if (brutos.length > MAX_ITENS) return res.status(400).json({ message: "Registre no máximo 200 vagas por vez." });
+    /** Lote "o total, dividido" (revisão 16/10): grava todos os itens ou nenhum. */
+    const tudoOuNada = req.body?.tudoOuNada === true;
 
     // 1. Formato de cada item — tudo ou nada (é erro de quem montou o pedido).
     const itens: ItemTerrestre[] = [];
@@ -85,9 +87,11 @@ export function registrarTransporteTerrestre(app: Express): void {
         const doVaga = itens.filter((i) => i.teamInclusionId === id);
         const falhar = (mensagem: string) => falhas.push({ teamInclusionId: id, numero: vaga?.inclusionNumber ?? null, mensagem });
         if (!vaga || vaga.deletedAt) { falhar("vaga não encontrada ou excluída"); continue; }
-        if (vaga.status === "cancelado") { falhar("a escalação está cancelada"); continue; }
-        // Evento encerrado: só o administrador (a resposta 403 sai daqui, como no resto da logística).
+        // Evento encerrado: só o administrador (a resposta 403 sai daqui, como no
+        // resto da logística). Vem ANTES do "cancelada": permissão primeiro, como
+        // no POST /api/tickets (revisão 16/10).
         if (!await assertInclusionEventEditable(id, ator, res, vaga, eventCache)) return;
+        if (vaga.status === "cancelado") { falhar("a escalação está cancelada"); continue; }
         const pernas = pernasDaVaga(vaga);
         const foraDaVaga = doVaga.find((i) => !pernas.includes(i.trecho));
         if (foraDaVaga) { falhar(`a vaga não tem ${foraDaVaga.trecho === "ida" ? "ida" : "volta"} (trecho sugerido)`); continue; }
@@ -101,6 +105,16 @@ export function registrarTransporteTerrestre(app: Express): void {
       }
       if (aceitos.length === 0) {
         return res.status(409).json({ message: falhas[0]?.mensagem ? primeiraLetraMaiuscula(falhas[0].mensagem) : "Nada foi registrado.", falhas });
+      }
+      // Lote com o TOTAL dividido (revisão 16/10): cada parte foi calculada para
+      // N vagas — gravar só algumas deixaria a soma diferente do total da van.
+      // Tudo ou nada: com qualquer falha, nada é gravado.
+      if (tudoOuNada && falhas.length > 0) {
+        return res.status(409).json({
+          code: "lote_dividido_incompleto",
+          message: `Nada foi registrado: o total dividido precisa valer para todas as vagas, e ${falhas.length === 1 ? "1 vaga não pode" : `${falhas.length} vagas não podem`} receber o transporte. Desmarque ${falhas.length === 1 ? "essa vaga" : "essas vagas"} e registre de novo.`,
+          falhas,
+        });
       }
 
       // 3. Grava (insere ou substitui a perna), audita e refaz o status de cada vaga.
@@ -139,10 +153,14 @@ export function registrarTransporteTerrestre(app: Express): void {
       // Desfazer devolve a vaga à fila: se nada mais cobre o transporte (nem
       // passagem viva, nem o terrestre que sobrou), o "passagem comprada" que
       // o terrestre deu volta atrás — a mesma regressão da troca aprovada.
+      // Só desfaz o que o terrestre fez (revisão 16/10): se ele NÃO cobria a vaga
+      // antes (só uma perna registrada), o "passagem comprada" veio de outro
+      // lugar — status antigo, passagem cancelada — e não é este clique que o tira.
       let inclusionStatus: string | undefined;
       const passagensVivas = (await storage.getTicketsByInclusionId(inclusionId)).some(passagemConta);
       const restantes = await terrestresDaVaga(inclusionId);
-      if (!passagensVivas && !terrestreCobreAVaga(vaga, restantes)) {
+      const cobriaAntes = terrestreCobreAVaga(vaga, [...restantes, ...removidos]);
+      if (cobriaAntes && !passagensVivas && !terrestreCobreAVaga(vaga, restantes)) {
         const temHospedagem = (await storage.getAccommodationsByInclusionId(inclusionId)).some(hospedagemConta);
         const novo = statusDepoisDePassagemParaHistorico(vaga.status, temHospedagem);
         if (novo && novo !== normalizarStatus(vaga.status)) {

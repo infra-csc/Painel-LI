@@ -65,6 +65,9 @@ export default function TerrestreDialog({ abertura, onClose, registros, ticket, 
   const [erroDoServidor, setErroDoServidor] = useState<string | null>(null);
   const [confirmandoDesfazer, setConfirmandoDesfazer] = useState(false);
   const corpoRef = useRef<HTMLDivElement | null>(null);
+  // A confirmação troca o rodapé: o foco vai para o "Manter" (a saída segura), não se perde no diálogo.
+  const manterRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { if (confirmandoDesfazer) manterRef.current?.focus(); }, [confirmandoDesfazer]);
 
   // Cada abertura começa do que está gravado (editar) ou da Sugestão (novo).
   useEffect(() => {
@@ -80,11 +83,16 @@ export default function TerrestreDialog({ abertura, onClose, registros, ticket, 
   }, [abertura]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ocupado = registrar.isPending || desfazer.isPending;
-  const editando = registros.length > 0;
+  // Revisão 16/10: ao fechar depois de registrar, o cache já traz o registro
+  // novo — sem congelar, o título virava "Transporte terrestre" (e o botão
+  // "Salvar") no meio da animação de saída.
+  const editandoAoAbrir = useRef(false);
+  if (abertura) editandoAoAbrir.current = registros.length > 0;
+  const editando = abertura ? registros.length > 0 : editandoAoAbrir.current;
   const resumoDaVaga = { inclusionNumber: inclusion?.inclusionNumber ?? null, eventName, collaboratorName, functionName };
 
   const salvar = async () => {
-    if (!inclusion || !form || ocupado) return;
+    if (!inclusion || !form || ocupado || livres.length === 0) return;
     const r = itensDoFormulario(form, [inclusion.id]);
     if (!r.ok) {
       setErros(r.erros);
@@ -120,7 +128,24 @@ export default function TerrestreDialog({ abertura, onClose, registros, ticket, 
 
   return (
     <Dialog open={!!abertura} onOpenChange={(o) => { if (!o && !ocupado) onClose(); }}>
-      <DialogContent className="max-w-[560px] p-0 gap-0" data-testid="dialogo-terrestre">
+      <DialogContent
+        className="max-w-[560px] p-0 gap-0" data-testid="dialogo-terrestre"
+        // Revisão 16/10: o foco caía no "Cancelar" (o formulário monta um quadro
+        // depois). Vai para o primeiro campo: a empresa/valor, ou o tipo.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          const conteudo = e.currentTarget as HTMLElement | null;
+          setTimeout(() => {
+            const corpo = corpoRef.current;
+            const alvo = corpo?.querySelector<HTMLElement>("input:not([disabled]):not([type=checkbox])")
+              ?? corpo?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]:not([disabled])')
+              ?? corpo?.querySelector<HTMLElement>('[role="radio"]:not([disabled])')
+              ?? conteudo?.querySelector<HTMLElement>("[data-terrestre-fechar]")
+              ?? conteudo;
+            alvo?.focus();
+          }, 0);
+        }}
+      >
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border text-left">
           <DialogTitle className="text-base font-semibold pr-8">
             {editando ? "Transporte terrestre" : "Vai de carro ou van"}
@@ -131,7 +156,14 @@ export default function TerrestreDialog({ abertura, onClose, registros, ticket, 
           </DialogDescription>
         </DialogHeader>
 
-        <div ref={corpoRef} className="px-5 py-4 space-y-4">
+        <div
+          ref={corpoRef} className="px-5 py-4 space-y-4"
+          // Enter num campo de texto registra (como um formulário).
+          onKeyDown={(e) => {
+            const alvo = e.target as HTMLInputElement;
+            if (e.key === "Enter" && !somenteLeitura && alvo.tagName === "INPUT" && alvo.type !== "checkbox") { e.preventDefault(); void salvar(); }
+          }}
+        >
           {form && (
             <CamposDoTerrestre
               valor={form}
@@ -168,8 +200,8 @@ export default function TerrestreDialog({ abertura, onClose, registros, ticket, 
               <span className="text-slate-600">A vaga volta para a fila Comprar.</span>
             </p>
             <div className="flex items-center gap-2 ml-auto">
-              <Button type="button" variant="outline" className="h-9" onClick={() => setConfirmandoDesfazer(false)} disabled={ocupado}>Manter</Button>
-              <Button type="button" variant="destructive" className="h-9" onClick={confirmarDesfazer} disabled={ocupado} data-testid="terrestre-confirmar-desfazer">
+              <Button type="button" variant="outline" className="pas-alvo h-9" onClick={() => setConfirmandoDesfazer(false)} disabled={ocupado} ref={manterRef} data-testid="terrestre-manter">Manter</Button>
+              <Button type="button" variant="destructive" className="pas-alvo h-9" onClick={confirmarDesfazer} disabled={ocupado} data-testid="terrestre-confirmar-desfazer">
                 {desfazer.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" /> : <Undo2 className="w-4 h-4 mr-1.5" aria-hidden="true" />}Desfazer
               </Button>
             </div>
@@ -177,15 +209,15 @@ export default function TerrestreDialog({ abertura, onClose, registros, ticket, 
         ) : (
           <DialogFooter className="px-5 py-3 border-t border-border bg-surface-muted rounded-b-xl gap-2 sm:items-center">
             {editando && !somenteLeitura && (
-              <Button type="button" variant="ghost" className="h-9 sm:mr-auto text-danger-strong hover:text-danger-strong hover:bg-danger-soft" onClick={() => setConfirmandoDesfazer(true)} disabled={ocupado} data-testid="terrestre-desfazer">
+              <Button type="button" variant="ghost" className="pas-alvo h-9 sm:mr-auto text-danger-strong hover:text-danger-strong hover:bg-danger-soft" onClick={() => setConfirmandoDesfazer(true)} disabled={ocupado} data-testid="terrestre-desfazer">
                 <Undo2 className="w-4 h-4 mr-1.5" aria-hidden="true" />Desfazer
               </Button>
             )}
-            <Button type="button" variant="outline" className="h-9" onClick={onClose} disabled={ocupado}>
+            <Button type="button" variant="outline" className="pas-alvo h-9" onClick={onClose} disabled={ocupado} data-terrestre-fechar>
               {somenteLeitura ? "Fechar" : "Cancelar"}
             </Button>
             {!somenteLeitura && (
-              <Button type="button" className="h-9 bg-primary hover:bg-primary-hover text-primary-foreground" onClick={salvar} disabled={ocupado || livres.length === 0} data-testid="terrestre-salvar">
+              <Button type="button" className="pas-alvo h-9 bg-primary hover:bg-primary-hover text-primary-foreground" onClick={salvar} disabled={ocupado || livres.length === 0} data-testid="terrestre-salvar">
                 {registrar.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" aria-hidden="true" /> : null}
                 {editando ? "Salvar" : "Registrar"}
               </Button>

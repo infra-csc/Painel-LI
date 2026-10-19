@@ -67,7 +67,7 @@ function EscolhaDoModo({ valor, onEscolher, rotulo, erro, idBase, disabled }: {
               onClick={() => onEscolher(m)}
               data-testid={`${idBase}-${m}`}
               className={cn(
-                "inline-flex items-center justify-center gap-1.5 h-9 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                "pas-alvo inline-flex items-center justify-center gap-1.5 h-9 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
                 ativo ? "bg-card text-primary shadow-1" : "text-slate-600 hover:text-foreground",
               )}
             >
@@ -163,7 +163,7 @@ export default function CamposDoTerrestre({ valor: f, onChange, erros, pernas, b
                 onClick={() => alternarPerna(p)} title={motivo}
                 data-testid={`${idBase}-perna-${p}`}
                 className={cn(
-                  "inline-flex items-center gap-1.5 h-8 pl-2 pr-3 rounded-lg border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed",
+                  "pas-alvo inline-flex items-center gap-1.5 h-8 pl-2 pr-3 rounded-lg border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed",
                   marcado ? "border-primary/40 bg-brand-soft text-primary" : "border-border bg-card text-slate-600 hover:bg-surface-muted",
                   motivo && "opacity-50",
                 )}
@@ -203,7 +203,7 @@ export default function CamposDoTerrestre({ valor: f, onChange, erros, pernas, b
       </fieldset>
 
       {ambas && (
-        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none w-fit">
+        <label className="pas-alvo flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none w-fit">
           <input
             type="checkbox" checked={f.voltaIgual} disabled={disabled}
             // Desmarcar começa a volta com o que a ida tem — só o que muda é digitado.
@@ -247,7 +247,7 @@ export default function CamposDoTerrestre({ valor: f, onChange, erros, pernas, b
                 onClick={() => onChange({ divisao: op.chave })}
                 data-testid={`${idBase}-divisao-${op.chave}`}
                 className={cn(
-                  "h-8 px-3 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "pas-alvo h-8 px-3 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   f.divisao === op.chave ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700",
                 )}
               >

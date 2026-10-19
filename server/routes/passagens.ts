@@ -46,6 +46,11 @@ const CAMPOS_DA_VIAGEM = [
 ] as const;
 /** Campos de data conferidos por `errosDeDataDaPassagem`. */
 const CAMPOS_DE_DATA = [...CAMPOS_DA_VIAGEM, "purchaseDate"] as const;
+/** Campos que dão a perna de ida/volta à passagem (passagemTemIda/passagemTemVolta). */
+const CAMPOS_DAS_PERNAS = [
+  "actualDepartureDate", "actualDepartureTime", "departureCityOrigin", "departureCityDestination",
+  "actualReturnDate", "actualReturnTime", "returnCityOrigin", "returnCityDestination",
+] as const;
 
 const mesmoValor = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
 
@@ -537,6 +542,11 @@ export function registrarPassagens(app: Express): void {
         const conferencia = await conferirPassagem(prev.teamInclusionId, vaga?.collaboratorId ?? null, { ...prev, ...allowed }, outrasLinhas, alterados);
         if (conferencia.recusa) return res.status(conferencia.recusa.status).json(conferencia.recusa.body);
         if (conferencia.voltaParaCancelar && alterados.has("idaVemDeInclusionId")) extra = { voltaParaCancelar: conferencia.voltaParaCancelar };
+      }
+      // Perna terrestre (16/10): qualquer campo que DÁ a perna à passagem conta —
+      // não só as datas. A cidade da volta numa passagem "só ida"
+      // também cria a volta (passagemTemVolta) e pagaria o trecho duas vezes.
+      if (CAMPOS_DAS_PERNAS.some((c) => c in allowed && !mesmoValor((allowed as Record<string, unknown>)[c], (prev as Record<string, unknown>)[c]))) {
         const terrestre = await conflitoComTerrestre(prev.teamInclusionId, { ...prev, ...allowed });
         if (terrestre) return res.status(terrestre.status).json(terrestre.body);
       }

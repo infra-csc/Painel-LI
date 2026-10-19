@@ -59,9 +59,9 @@ export const LinhasDoTerrestre = memo(function LinhasDoTerrestre({ terrestres, c
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEditar(); }}
-          className="group/terrestre -mx-1 px-1 py-0.5 rounded-md text-left hover:bg-success-soft/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring inline-flex items-start gap-1 max-w-full"
+          className="pas-alvo group/terrestre -mx-1 px-1 py-0.5 rounded-md text-left hover:bg-success-soft/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring inline-flex items-start gap-1 max-w-full"
           title="Editar ou desfazer o transporte terrestre"
-          aria-label={`Editar o transporte terrestre: ${ordem.map((t) => `${NOME_DA_PERNA[t.trecho]} de ${NOME_DO_MODO[t.modo].toLowerCase()}, ${reaisDoTerrestre(t.valorCentavos)}`).join("; ")}`}
+          aria-label={`Editar o transporte terrestre: ${ordem.map((t) => `${NOME_DA_PERNA[t.trecho]} de ${NOME_DO_MODO[t.modo].toLowerCase()}${t.empresa ? ` (${t.empresa})` : ""}, ${reaisDoTerrestre(t.valorCentavos)}`).join("; ")}`}
           data-testid={`editar-terrestre-${inclusionId}`}
         >
           {conteudo}
@@ -92,7 +92,7 @@ export const AtalhoDoTerrestre = memo(function AtalhoDoTerrestre({ inclusion, on
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onAbrir(inclusion, modo); }}
-      className={`mt-1 inline-flex items-center gap-1 h-7 px-2 rounded-md border text-2xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${modo
+      className={`pas-alvo mt-1 inline-flex items-center gap-1 h-7 px-2 rounded-md border text-2xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${modo
         ? "border-success/30 bg-success-soft text-success-strong hover:bg-success-soft/70"
         : "border-border bg-card text-slate-600 hover:bg-surface-muted hover:text-foreground"}`}
       title={modo ? `A Sugestão indica ${NOME_DO_MODO[modo].toLowerCase()} — registrar sem passagem aérea` : "Registrar que vai de carro, van ou ônibus (sem passagem aérea)"}

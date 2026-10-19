@@ -385,7 +385,10 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     for (const inc of filteredTicketInclusions) {
       const t = ticketByInclusion.get(inc.id);
       const cob = coberturaByInclusion.get(inc.id);
-      if (cob && inc.status !== "cancelado") { terrestre.count++; terrestre.totalCents += cob.totalCentavos; }
+      // Conta o que o filtro "Carro, van ou ônibus" lista (revisão 16/10: com
+      // "Todas"/"Canceladas" o bloco dizia 0 e a lista trazia a cancelada) — a
+      // mesma leitura do "Compradas", que também conta a cancelada com passagem.
+      if (cob) { terrestre.count++; terrestre.totalCents += cob.totalCentavos; }
       if (t) {
         compradas++;
         values.push(t.value);

@@ -4,7 +4,7 @@
 // valor pode ser o de CADA vaga ou o TOTAL da van, dividido entre as vagas
 // marcadas (os centavos que sobram vão para as primeiras) — guardar o total
 // em cada vaga somaria a van oito vezes.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,17 +38,32 @@ function formDaPerna(f: FormularioTerrestre, p: PernaDaViagem): FormularioTerres
  * Itens do lote: cada perna só nas vagas que a têm ("só ida" não ganha
  * volta), e o "dividir" reparte entre as vagas que recebem aquela perna.
  */
-export function itensDoLote(f: FormularioTerrestre, vagas: readonly TeamInclusion[]): { itens: ItemTerrestre[]; semPerna: TeamInclusion[] } {
+export function itensDoLote(f: FormularioTerrestre, vagas: readonly TeamInclusion[]): {
+  itens: ItemTerrestre[];
+  semPerna: TeamInclusion[];
+  /** Erro de uma perna que só aparece no recorte dela (ex.: total alto demais para menos vagas). */
+  erros?: Partial<Record<CampoDoFormulario, string>>;
+} {
   const itens: ItemTerrestre[] = [];
+  let erros: Partial<Record<CampoDoFormulario, string>> | undefined;
   for (const p of ["ida", "volta"] as const) {
     if (!(p === "ida" ? f.ida : f.volta)) continue;
     const ids = vagas.filter((v) => pernasDaVaga(v).includes(p)).map((v) => v.id);
     if (ids.length === 0) continue;
     const r = itensDoFormulario(formDaPerna(f, p), ids);
+    // Nunca descartar a perna calado (revisão 16/10): o erro sobe para a tela.
     if (r.ok) itens.push(...r.itens);
+    else if (p === "volta" && f.ida && !f.voltaIgual) {
+      // A volta própria foi lida nos campos da ida (formDaPerna): o erro volta para os campos dela.
+      const daVolta: Partial<Record<CampoDoFormulario, string>> = {};
+      for (const [k, msg] of Object.entries(r.erros) as Array<[CampoDoFormulario, string]>) {
+        daVolta[k === "modo" ? "modoVolta" : k === "empresa" ? "empresaVolta" : k === "valor" ? "valorVolta" : k] = msg;
+      }
+      erros = { ...erros, ...daVolta };
+    } else erros = { ...erros, ...r.erros };
   }
   const comItem = new Set(itens.map((i) => i.teamInclusionId));
-  return { itens, semPerna: vagas.filter((v) => !comItem.has(v.id)) };
+  return { itens, semPerna: vagas.filter((v) => !comItem.has(v.id)), ...(erros ? { erros } : {}) };
 }
 
 export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido }: {
@@ -63,15 +78,31 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
   const { registrar } = useTerrestreMutations();
   const [form, setForm] = useState<FormularioTerrestre>({ ...FORMULARIO_TERRESTRE_VAZIO });
   const [erros, setErros] = useState<Partial<Record<CampoDoFormulario, string>>>({});
-  const [confirmar, setConfirmar] = useState<{ itens: ItemTerrestre[]; semPerna: TeamInclusion[] } | null>(null);
+  const [confirmar, setConfirmar] = useState<{ itens: ItemTerrestre[]; semPerna: TeamInclusion[]; dividir: boolean } | null>(null);
   const n = vagas.length;
 
   const aplicar = () => {
     if (n === 0) return;
     const r = itensDoFormulario(form, vagas.map((v) => v.id));
     if (!r.ok) { setErros(r.erros); return; }
+    const { erros: errosDaPerna, ...plano } = itensDoLote(form, vagas);
+    if (errosDaPerna) { setErros(errosDaPerna); return; }
+    // Revisão 16/10: nenhuma vaga marcada tem o trecho escolhido (todas "só
+    // volta" com só a ida marcada…). Antes abria a confirmação com "R$ ∞" e o
+    // "Confirmar" não fazia nada.
+    if (plano.itens.length === 0) {
+      const outra = form.ida && form.volta ? "" : ` Marque a ${form.ida ? "volta" : "ida"}.`;
+      setErros({ pernas: `${n === 1 ? "A vaga marcada não tem" : "Nenhuma das vagas marcadas tem"} o trecho escolhido.${outra}` });
+      return;
+    }
+    const dividir = form.divisao === "dividir" && n > 1;
+    // O total dividido vai num pedido só (tudo ou nada) — e a rota aceita 400 itens.
+    if (dividir && plano.itens.length > 400) {
+      setErros({ valor: "Para dividir o total, marque no máximo 200 vagas por vez." });
+      return;
+    }
     setErros({});
-    setConfirmar(itensDoLote(form, vagas));
+    setConfirmar({ ...plano, dividir });
   };
 
   const executar = async () => {
@@ -80,16 +111,31 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
     if (!plano || plano.itens.length === 0) return;
     const gravadas: string[] = [];
     const falhas: string[] = [];
-    // 400 itens por pedido (200 vagas × ida e volta) — o limite da rota.
+    // 400 itens por pedido (200 vagas × ida e volta) — o limite da rota. O
+    // total dividido vai inteiro e com `tudoOuNada`: gravar só parte das vagas
+    // deixaria a soma diferente do total digitado (revisão 16/10).
     for (let i = 0; i < plano.itens.length; i += 400) {
       const fatia = plano.itens.slice(i, i + 400);
       try {
-        const res = await registrar.mutateAsync(fatia);
+        const res = await registrar.mutateAsync(plano.dividir ? { itens: fatia, tudoOuNada: true } : fatia);
         const falharam = new Set(res.falhas.map((f) => f.teamInclusionId));
         for (const id of Array.from(new Set(fatia.map((x) => x.teamInclusionId)))) if (!falharam.has(id)) gravadas.push(id);
         falhas.push(...res.falhas.map((f) => `#${f.numero ?? "?"}: ${f.mensagem}`));
       } catch (erro) {
-        const corpo = (erro as { body?: { falhas?: { numero: number | null; mensagem: string }[] } } | null)?.body;
+        const corpo = (erro as { body?: { code?: string; message?: string; falhas?: { numero: number | null; mensagem: string }[] } } | null)?.body;
+        if (corpo?.code === "lote_dividido_incompleto" && corpo.falhas?.length) {
+          toast({
+            variant: "destructive",
+            title: "Nada foi registrado",
+            description: (
+              <div className="space-y-1">
+                <p className="m-0">{corpo.message}</p>
+                <ul className="list-disc pl-4 space-y-0.5 max-h-40 overflow-y-auto">{corpo.falhas.map((f, i) => <li key={i}>#{f.numero ?? "?"}: {f.mensagem}</li>)}</ul>
+              </div>
+            ),
+          });
+          return;
+        }
         if (corpo?.falhas?.length) falhas.push(...corpo.falhas.map((f) => `#${f.numero ?? "?"}: ${f.mensagem}`));
         else falhas.push(apiErrorMessage(erro, "Não foi possível registrar o lote."));
       }
@@ -109,8 +155,9 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
     }
   };
 
-  // Resumo do que será gravado (para a confirmação).
-  const resumo = (() => {
+  // Resumo do que será gravado (para a confirmação). Fica congelado durante a
+  // animação de saída (revisão 16/10: piscava "em 0 vagas" ao confirmar).
+  const resumoAtual = (() => {
     if (!confirmar) return null;
     const porVaga = new Map<string, number>();
     for (const i of confirmar.itens) porVaga.set(i.teamInclusionId, (porVaga.get(i.teamInclusionId) ?? 0) + i.valorCentavos);
@@ -126,8 +173,12 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
         ["Total", reaisDoTerrestre(total)],
       ] as Array<[string, string]>,
       nomes: vagas.filter((v) => porVaga.has(v.id)).map(nomeDaVaga),
+      semPerna: confirmar.semPerna.length,
     };
   })();
+  const ultimoResumo = useRef(resumoAtual);
+  if (resumoAtual) ultimoResumo.current = resumoAtual;
+  const resumo = resumoAtual ?? ultimoResumo.current;
 
   return (
     <>
@@ -197,9 +248,9 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
                   </div>
                 ))}
               </dl>
-              {confirmar && confirmar.semPerna.length > 0 && (
+              {resumo.semPerna > 0 && (
                 <p className="m-0 text-xs text-warning-strong">
-                  {confirmar.semPerna.length} {confirmar.semPerna.length === 1 ? "vaga não tem" : "vagas não têm"} o trecho marcado e {confirmar.semPerna.length === 1 ? "fica" : "ficam"} de fora.
+                  {resumo.semPerna} {resumo.semPerna === 1 ? "vaga não tem" : "vagas não têm"} o trecho marcado e {resumo.semPerna === 1 ? "fica" : "ficam"} de fora.
                 </p>
               )}
               <ul className="m-0 p-0 list-none max-h-32 overflow-y-auto rounded-xl border border-border px-3 py-2 text-xs text-slate-700 space-y-0.5">

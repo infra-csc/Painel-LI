@@ -55,8 +55,11 @@ export function useTerrestreMutations() {
     queryClient.invalidateQueries({ queryKey: ["shell", "sem-passagem-30d"] });
   };
   const registrar = useMutation({
-    mutationFn: async (itens: ItemTerrestre[]) =>
-      (await apiRequest("POST", "/api/transportes-terrestres", { itens })).json() as Promise<RespostaDoRegistro>,
+    // `tudoOuNada` (lote com o total dividido): o servidor grava todos os itens ou nenhum.
+    mutationFn: async (entrada: ItemTerrestre[] | { itens: ItemTerrestre[]; tudoOuNada?: boolean }) => {
+      const corpo = Array.isArray(entrada) ? { itens: entrada } : entrada;
+      return (await apiRequest("POST", "/api/transportes-terrestres", corpo)).json() as Promise<RespostaDoRegistro>;
+    },
     onSuccess: (res) => {
       for (const [id, status] of Object.entries(res.statusPorVaga ?? {})) aplicarStatusDaVagaNoCache(queryClient, id, status);
       recarregar();

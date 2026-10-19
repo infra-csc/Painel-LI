@@ -213,3 +213,68 @@ describe("Pendências: quem vai de carro/van não é 'sem passagem a 30 dias'", 
     expect(depois).toBe(antes - 1);
   });
 });
+
+// ── Revisão de 16/10 (segunda passada) ─────────────────────────────────────
+
+describe("revisão 16/10 — lote dividido, permissão, desfazer e PATCH da passagem", () => {
+  it("lote 'o total, dividido' (tudoOuNada): uma vaga recusada → 409 e NADA gravado (a soma não fica diferente do total)", async () => {
+    const a = await vagaDeCampinas();
+    const b = await vagaDeCampinas({ status: "cancelado" });
+    const res = await mutacao(a.agent.post("/api/transportes-terrestres")).send({
+      tudoOuNada: true,
+      itens: [
+        { teamInclusionId: a.vaga.id, trecho: "ida", modo: "van", empresa: "Transluz", valorCentavos: 33_334 },
+        { teamInclusionId: b.vaga.id, trecho: "ida", modo: "van", empresa: "Transluz", valorCentavos: 33_333 },
+      ],
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("lote_dividido_incompleto");
+    expect(res.body.falhas).toEqual([expect.objectContaining({ teamInclusionId: b.vaga.id })]);
+    expect(await terrestresDa(a.vaga.id)).toEqual([]);
+    expect(await statusDa(a.vaga.id)).toBe("escalado");
+  });
+
+  it("sem tudoOuNada o lote continua parcial (valor por vaga): a boa grava", async () => {
+    const a = await vagaDeCampinas();
+    const b = await vagaDeCampinas({ status: "cancelado" });
+    const res = await registrar(a.agent, [
+      { teamInclusionId: a.vaga.id, trecho: "ida", modo: "carro", valorCentavos: 10_000 },
+      { teamInclusionId: b.vaga.id, trecho: "ida", modo: "carro", valorCentavos: 10_000 },
+    ]);
+    expect(res.status).toBe(200);
+    expect(res.body.gravados).toBe(1);
+  });
+
+  it("evento encerrado + vaga cancelada, quem não é admin: 403 (permissão antes do 409)", async () => {
+    const { agent, vaga, evento } = await vagaDeCampinas({ status: "cancelado" });
+    await ctx.db.update(ctx.schema.events).set({ startDate: diaDaqui(-20), endDate: diaDaqui(-19) }).where(eq(ctx.schema.events.id, evento.id));
+    const res = await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "ida", modo: "carro", valorCentavos: 1_000 }]);
+    expect(res.status).toBe(403);
+  });
+
+  it("desfazer uma perna que NÃO cobria a vaga não mexe no status que veio de outro lugar", async () => {
+    // Status "passagem comprada" sem passagem viva (legado / passagem cancelada).
+    const { agent, vaga } = await vagaDeCampinas({ status: "passagem_comprada" });
+    expect((await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "ida", modo: "carro", valorCentavos: 1_000 }])).status).toBe(200);
+    const res = await desfazer(agent, vaga.id, "ida");
+    expect(res.status).toBe(200);
+    expect(res.body.inclusionStatus).toBeUndefined();
+    expect(await statusDa(vaga.id)).toBe("passagem_comprada");
+  });
+
+  it("PATCH da passagem 'só ida' que ganha a volta só pela cidade/aeroporto, com a volta de van: 409", async () => {
+    const { agent, vaga } = await vagaDeCampinas();
+    expect((await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "volta", modo: "van", empresa: "Transluz", valorCentavos: 20_000 }])).status).toBe(200);
+    const criada = await mutacao(agent.post("/api/tickets")).send({
+      teamInclusionId: vaga.id, transportType: "aereo", value: 80_000, purchaseOrderNumber: "LOC9",
+      actualDepartureDate: diaDaqui(9), actualDepartureTime: "07:00", actualArrivalTime: "08:00",
+      departureAirport: "SSA", destinationAirport: "VCP",
+    });
+    expect(criada.status).toBe(200);
+    const patch = await mutacao(agent.patch(`/api/tickets/${criada.body.id}`)).send({ returnCityOrigin: "Campinas - SP" });
+    expect(patch.status).toBe(409);
+    expect(patch.body.code).toBe("perna_terrestre");
+    // Editar o LOC continua livre.
+    expect((await mutacao(agent.patch(`/api/tickets/${criada.body.id}`)).send({ purchaseOrderNumber: "LOC10" })).status).toBe(200);
+  });
+});
