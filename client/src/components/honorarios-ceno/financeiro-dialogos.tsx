@@ -18,7 +18,7 @@ import { todayIso } from "@/lib/dates";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { HONORARIO_OC_MAX, HONORARIO_TEXTO_MAX, faltaLiberar, validarLiberacao, validarMotivo } from "@shared/honorarios-ceno";
 import { useMutacoesDoFinanceiro, type Honorario, type Liberacao } from "./api";
-import { BarraDaVerba, OrigemDaLinha, brl } from "./pecas";
+import { BarraDaVerba, OrigemDaLinha, brl, useFocoDeVolta } from "./pecas";
 
 export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: () => void }) {
   const { liberar } = useMutacoesDoFinanceiro();
@@ -30,8 +30,11 @@ export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: 
   const [obs, setObs] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const falta = h ? faltaLiberar(h.valorAprovado, h.liberado) : 0;
+  const devolverFoco = useFocoDeVolta(!!h);
+  // Cada abertura começa limpa — inclusive reabrir o MESMO pedido depois de
+  // uma liberação parcial (antes voltavam a OC e o valor da vez anterior).
   if (h && para !== h.id) { setPara(h.id); setData(todayIso()); setOc(""); setValor(falta); setObs(""); setErro(null); }
-  if (!h) return null;
+  if (!h) { if (para !== null) setPara(null); return null; }
   const aprovado = h.valorAprovado ?? 0;
   const parcial = valor > 0 && valor < falta;
   const salvar = async () => {
@@ -56,7 +59,10 @@ export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: 
   };
   return (
     <Dialog open={!!h} onOpenChange={(o) => { if (!o && !liberar.isPending) onClose(); }}>
-      <DialogContent className="max-w-lg gap-0 p-0">
+      {/* Foco no campo da OC pelo Radix (onOpenAutoFocus), não por autoFocus: o
+          autoFocus roubava o "elemento anterior" e, ao fechar, o foco caía no
+          <body> em vez de voltar ao botão "Liberar". */}
+      <DialogContent className="max-w-lg gap-0 p-0" onOpenAutoFocus={(e) => { e.preventDefault(); document.getElementById("hon-lib-oc")?.focus(); }} onCloseAutoFocus={devolverFoco}>
         <DialogHeader className="space-y-1 border-b border-border px-6 pb-4 pt-5 text-left">
           <DialogTitle className="flex items-center gap-2 pr-8 text-base font-semibold">
             <Banknote className="h-4 w-4 text-success" aria-hidden="true" /> Registrar liberação
@@ -79,7 +85,7 @@ export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: 
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="hon-lib-oc">Nº da OC/DP</Label>
-              <Input id="hon-lib-oc" autoFocus className="h-10 rounded-lg bg-card tabular-nums" maxLength={HONORARIO_OC_MAX} value={oc} placeholder="Ex.: 45123" onChange={(e) => { setErro(null); setOc(e.target.value); }} />
+              <Input id="hon-lib-oc" className="h-10 rounded-lg bg-card tabular-nums" maxLength={HONORARIO_OC_MAX} value={oc} placeholder="Ex.: 45123" onChange={(e) => { setErro(null); setOc(e.target.value); }} />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -121,6 +127,7 @@ export function EstornoDialog({ alvo, onClose }: { alvo: { h: Honorario; l: Libe
   const [motivo, setMotivo] = useState("");
   const [para, setPara] = useState<string | null>(null);
   if (alvo && para !== alvo.l.id) { setPara(alvo.l.id); setMotivo(""); }
+  if (!alvo && para !== null) setPara(null);
   const confirmar = async () => {
     if (!alvo || validarMotivo(motivo)) return;
     try {

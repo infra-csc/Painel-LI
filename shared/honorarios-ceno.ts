@@ -223,6 +223,55 @@ export function vagaRecebeHonorario(v: { collaboratorType?: string | null; empre
   return v.collaboratorType !== "casa";
 }
 
+// ── A vaga mudou depois do pedido ───────────────────────────────────────────
+
+/**
+ * O pedido de VAGA guarda um retrato (colaborador, nome, função). Se a escala
+ * muda depois — troca de colaborador, cancelamento, exclusão, a vaga passa
+ * para outra função ou para um funcionário da casa — o pedido não pode seguir
+ * calado: quem pede não envia, e quem aprova/libera vê o aviso.
+ *  - colaborador_trocado: a vaga continua valendo, com OUTRA pessoa (quem pede
+ *    confirma e o pedido passa a ser dela);
+ *  - os demais: a vaga saiu dos honorários (nada a enviar ou editar).
+ */
+export type AvisoDaVaga = "excluida" | "fora_da_escala" | "outra_funcao" | "casa" | "colaborador_trocado";
+
+export const AVISO_DA_VAGA_LABEL: Record<AvisoDaVaga, string> = {
+  excluida: "A vaga foi excluída da escala",
+  fora_da_escala: "A vaga não está mais escalada",
+  outra_funcao: "A vaga saiu da cenotécnica",
+  casa: "A vaga passou para um funcionário da casa",
+  colaborador_trocado: "A vaga trocou de colaborador",
+};
+
+/** Retrato atual da vaga, como as rotas leem (null = a vaga não existe mais). */
+export interface VagaAtual {
+  deletedAt: unknown;
+  status: string | null;
+  phase: string | null;
+  functionId: string | null;
+  collaboratorId: string | null;
+  collaboratorType: string | null;
+  empreitaEmpresa: string | null;
+}
+
+export function avisoDaVaga(
+  h: { tipo: string; functionId: string | null; collaboratorId: string | null },
+  vaga: VagaAtual | null,
+  statusEscalados: readonly string[],
+): AvisoDaVaga | null {
+  if (h.tipo !== "vaga") return null;
+  if (!vaga || vaga.deletedAt) return "excluida";
+  if (!vaga.status || !statusEscalados.includes(vaga.status) || vaga.phase === "sugestao") return "fora_da_escala";
+  if (h.functionId && vaga.functionId !== h.functionId) return "outra_funcao";
+  if (!vagaRecebeHonorario(vaga)) return "casa";
+  if ((vaga.collaboratorId ?? null) !== (h.collaboratorId ?? null)) return "colaborador_trocado";
+  return null;
+}
+
+/** A vaga saiu dos honorários (o pedido fica parado: não se edita nem se envia). */
+export const vagaSaiuDosHonorarios = (a: AvisoDaVaga | null | undefined) => !!a && a !== "colaborador_trocado";
+
 /** Setor sugerido pelo nome da função ("Sup Ceno" → Sup Ceno; "Marcenaria" → Marceneiro). */
 export function setorSugerido(nomeDaFuncao: string | null | undefined): SetorCeno | null {
   if (ehSupervisorDeCenotecnica(nomeDaFuncao)) return "sup_ceno";

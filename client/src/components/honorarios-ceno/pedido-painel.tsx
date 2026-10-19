@@ -27,7 +27,7 @@ import {
   useAcessoHonorarios, useEventosDoPedido, useMutacoesDoPedido, usePedidoDoEvento,
   type CamposDoPedido, type EventoDoPedido, type Honorario, type LinhaDoPedido,
 } from "./api";
-import { BarraDaVerba, EtapaBadge, FaixaDeTotais, ValorComDiaria, brl, brlCurto, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel } from "./pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, ValorComDiaria, brl, brlCurto, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel } from "./pecas";
 import { CampoDeValor, IndicadorDeSalvamento, SelectDePosicao, SelectDeSetor, useSalvamento } from "./linha-editavel";
 import { DetalhesDialog, type AlvoDoFormulario } from "./detalhes-dialog";
 import { HistoricoSheet } from "./historico-sheet";
@@ -348,11 +348,22 @@ function useDadosDaVaga(linha: LinhaDoPedido, eventId: string, cb: Callbacks): D
     ),
     avisos: (
       <>
-        {linha.foraDaEscala && (
+        {h && (h.avisoDaVaga || h.eventoExcluido) ? (
+          <AvisoDaLinha h={h}>
+            {/* Troca de colaborador: o valor foi negociado com outra pessoa — quem pede confere e confirma. */}
+            {h.avisoDaVaga === "colaborador_trocado" && h.podeEditar && (
+              <button type="button" onClick={() => sv.salvar({})} disabled={sv.estado === "salvando"}
+                className="val-alvo inline-flex items-center rounded-md px-1 text-2xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                data-testid={`hon-confirmar-troca-${numero ?? h.id}`}>
+                Passar o pedido para {h.colaboradorAtual ?? "quem está na vaga"}
+              </button>
+            )}
+          </AvisoDaLinha>
+        ) : linha.foraDaEscala ? (
           <span className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-warning-soft px-1.5 py-0.5 text-2xs font-medium text-warning">
-            <AlertTriangle className="h-3 w-3" aria-hidden="true" /> {h?.vagaExcluida ? "A vaga foi excluída da escala" : "A vaga saiu da escala"}
+            <AlertTriangle className="h-3 w-3" aria-hidden="true" /> A vaga saiu da escala
           </span>
-        )}
+        ) : null}
         {h && <AvisoDevolvido h={h} />}
       </>
     ),
@@ -517,9 +528,11 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
     ...(d?.empreitas ?? []),
   ], [d]);
   const editaveis = todas.filter((h) => h.podeEditar);
-  const prontos = editaveis.filter((h) => !faltaParaEnviar(h));
+  /** O que ainda segura a linha (dados ou a troca de colaborador sem confirmar). */
+  const pendencia = (h: Honorario) => faltaParaEnviar(h) ?? (h.avisoDaVaga === "colaborador_trocado" ? "A vaga trocou de colaborador — confirme na linha." : null);
+  const prontos = editaveis.filter((h) => !pendencia(h));
   const incompletos = [
-    ...editaveis.filter((h) => faltaParaEnviar(h)).map((h) => ({ nome: h.nome, motivo: faltaParaEnviar(h)! })),
+    ...editaveis.filter((h) => pendencia(h)).map((h) => ({ nome: h.nome, motivo: pendencia(h)! })),
     ...(d?.linhas.filter((l) => !l.honorario && !l.foraDaEscala).map((l) => ({ nome: l.sugestao?.nome ?? "Vaga", motivo: "Sem valor" })) ?? []),
   ];
   const soma = (f: (h: Honorario) => boolean, v: (h: Honorario) => number = (h) => h.valorPedido) => todas.filter(f).reduce((s, h) => s + v(h), 0);
@@ -581,7 +594,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
       </div>
 
       <FaixaDeTotais testId="hon-totais" itens={[
-        { rotulo: "A enviar", valor: brlCurto(soma((h) => h.podeEditar && !faltaParaEnviar(h))), detalhe: `${prontos.length} ${prontos.length === 1 ? "pronto" : "prontos"}${incompletos.length ? ` · ${incompletos.length} sem dados` : ""}` },
+        { rotulo: "A enviar", valor: brlCurto(soma((h) => h.podeEditar && !pendencia(h))), detalhe: `${prontos.length} ${prontos.length === 1 ? "pronto" : "prontos"}${incompletos.length ? ` · ${incompletos.length} ${incompletos.length === 1 ? "pendente" : "pendentes"}` : ""}` },
         { rotulo: "Aguardando aprovação", valor: brlCurto(soma((h) => h.status === "aguardando")), detalhe: `${todas.filter((h) => h.status === "aguardando").length} com o aprovador`, destaque: todas.some((h) => h.status === "aguardando") ? "warning" : undefined },
         { rotulo: "Aprovado", valor: brlCurto(soma((h) => h.valorAprovado != null, (h) => h.valorAprovado ?? 0)), detalhe: `${todas.filter((h) => h.valorAprovado != null).length} ${todas.filter((h) => h.valorAprovado != null).length === 1 ? "pedido" : "pedidos"}`, destaque: todas.some((h) => h.valorAprovado != null) ? "success" : undefined },
         { rotulo: "Liberado pelo Financeiro", valor: brlCurto(soma(() => true, (h) => h.liberado)), detalhe: soma((h) => h.valorAprovado != null, (h) => h.falta) > 0 ? `faltam ${brlCurto(soma((h) => h.valorAprovado != null, (h) => h.falta))}` : "—" },

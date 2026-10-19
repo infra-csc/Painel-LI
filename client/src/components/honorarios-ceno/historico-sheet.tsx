@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from "react";
 import {
-  ArrowRight, Banknote, CheckCircle2, CircleDashed, CloudOff, FilePen, History, Pencil, RotateCcw, Send, Undo2,
+  ArrowLeftRight, ArrowRight, Banknote, CheckCircle2, CircleDashed, CloudOff, FilePen, History, Pencil, RotateCcw, Send, Undo2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { faltaLiberar, valorPorDiaria } from "@shared/honorarios-ceno";
 import { useHistoricoDoHonorario, type EntradaDoHistorico, type Honorario, type Liberacao } from "./api";
-import { BarraDaVerba, EtapaBadge, OrigemDaLinha, brl, dataBr, diariasTexto, periodoCurto, posicaoLabel, setorLabel, type VisaoDaEtapa } from "./pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, brl, useFocoDeVolta, dataBr, diariasTexto, periodoCurto, posicaoLabel, setorLabel, type VisaoDaEtapa } from "./pecas";
 
 const ACOES: Record<string, { rotulo: string; icone: LucideIcon; tom: string }> = {
   criado: { rotulo: "Pedido iniciado", icone: FilePen, tom: "bg-muted text-muted-foreground" },
@@ -25,6 +25,7 @@ const ACOES: Record<string, { rotulo: string; icone: LucideIcon; tom: string }> 
   devolvido: { rotulo: "Devolvido para negociar", icone: Undo2, tom: "bg-brand-soft text-primary" },
   liberacao: { rotulo: "Verba liberada", icone: Banknote, tom: "bg-success-soft text-success" },
   liberacao_estornada: { rotulo: "Liberação estornada", icone: RotateCcw, tom: "bg-danger-soft text-danger" },
+  colaborador_trocado: { rotulo: "Colaborador da vaga trocado", icone: ArrowLeftRight, tom: "bg-warning-soft text-warning" },
 };
 
 const quando = (iso: string) => {
@@ -122,10 +123,11 @@ export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", aco
   onEstornar?: (h: Honorario, l: Liberacao) => void;
 }) {
   const q = useHistoricoDoHonorario(aberto ? id : null);
+  const devolverFoco = useFocoDeVolta(aberto);
   const h = q.data?.honorario;
   return (
     <Sheet open={aberto} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[460px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[460px]" onCloseAutoFocus={devolverFoco}>
         <SheetHeader className="space-y-1 border-b border-border px-5 pb-4 pt-5 text-left">
           <div className="flex items-center gap-2 pr-8">
             <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -142,6 +144,7 @@ export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", aco
                     <EtapaBadge h={h} visao={visao} />
                     <span className="text-2xs text-muted-foreground">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)}</span>
                   </div>
+                  <AvisoDaLinha h={h} />
                 </>
               ) : <span className="text-xs text-muted-foreground">Carregando…</span>}
             </div>

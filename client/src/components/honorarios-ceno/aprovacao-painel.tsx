@@ -26,7 +26,7 @@ import { BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-valid
 import { APROVAR_DA_LINHA, ICONE_DA_LINHA, MOLDURA, SOBRE_ESCURO, TH } from "@/components/scaling-approval/tokens";
 import { HONORARIO_TEXTO_MAX, validarAjuste, validarMotivo, valorPorDiaria } from "@shared/honorarios-ceno";
 import { useFilaDeAprovacao, useMutacoesDoAprovador, type Honorario } from "./api";
-import { BarraDaVerba, EtapaBadge, OrigemDaLinha, ValorComDiaria, brl, brlCurto, dataBr, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel } from "./pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, ValorComDiaria, brl, brlCurto, dataBr, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel, useFocoDeVolta } from "./pecas";
 import { HistoricoSheet } from "./historico-sheet";
 
 type Situacao = "pendentes" | "decididos";
@@ -53,8 +53,9 @@ function AjusteDialog({ h, onClose }: { h: Honorario | null; onClose: () => void
   const [motivo, setMotivo] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
+  const devolverFoco = useFocoDeVolta(!!h);
   if (h && aberto !== h.id) { setAberto(h.id); setValor(h.valorPedido); setMotivo(""); setErro(null); }
-  if (!h) return null;
+  if (!h) { if (aberto !== null) setAberto(null); return null; }
   const diferenca = valor - h.valorPedido;
   const porDia = valorPorDiaria(valor, h.diarias);
   const salvar = async () => {
@@ -75,7 +76,7 @@ function AjusteDialog({ h, onClose }: { h: Honorario | null; onClose: () => void
   };
   return (
     <Dialog open={!!h} onOpenChange={(o) => { if (!o && !ajustar.isPending) onClose(); }}>
-      <DialogContent className="max-w-lg gap-0 p-0">
+      <DialogContent className="max-w-lg gap-0 p-0" onCloseAutoFocus={devolverFoco}>
         <DialogHeader className="space-y-1 border-b border-border px-6 pb-4 pt-5 text-left">
           <DialogTitle className="pr-8 text-base font-semibold">Aprovar com ajuste</DialogTitle>
           <DialogDescription className="text-xs">{h.nome} · {h.eventName} · {setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {diariasTexto(h.diarias)}</DialogDescription>
@@ -153,6 +154,7 @@ function LinhaPendente({ h, marcado, onMarcar, onAprovar, onAjustar, onDevolver,
         <span className="block break-words text-sm font-semibold leading-5 text-foreground">{h.nome}</span>
         <span className="block"><OrigemDaLinha h={h} /></span>
         <span className="mt-0.5 block text-2xs text-slate-600">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)}</span>
+        <AvisoDaLinha h={h} />
         {h.observacao && (
           <span className="mt-1.5 flex items-start gap-1.5 text-2xs text-slate-600">
             <MessageSquareText className="mt-px h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -432,6 +434,7 @@ function Decididos({ eventId }: { eventId: string | null }) {
             <span className="min-w-0 flex-1 basis-[220px]">
               <span className="block truncate text-sm font-semibold text-foreground">{h.nome}</span>
               <span className="block truncate text-2xs text-muted-foreground">{h.eventName} · {setorLabel(h.setor)} · {posicaoLabel(h.posicao)}</span>
+              <AvisoDaLinha h={h} />
             </span>
             <span className="w-[150px] shrink-0"><EtapaBadge h={h} visao="aprovacao" /><span className="mt-1 block text-2xs text-muted-foreground">{h.decididoPorNome} · {haQuanto(h.decididoEm)}</span></span>
             <span className="w-[130px] shrink-0"><ValorComDiaria valor={h.valorAprovado ?? h.valorPedido} diarias={h.diarias} riscado={h.valorAprovado != null ? h.valorPedido : null} /></span>

@@ -5,6 +5,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, fetchJson } from "@/lib/queryClient";
+import type { AvisoDaVaga } from "@shared/honorarios-ceno";
 
 export const CHAVE = "honorarios-ceno";
 export const CHAVE_DO_SINO = ["shell", "honorarios-ceno"] as const;
@@ -49,6 +50,12 @@ export interface Honorario {
   functionName: string | null;
   vagaStatus: string | null;
   vagaExcluida: boolean;
+  /** A escala mudou depois do pedido (troca de colaborador, vaga cancelada…). */
+  avisoDaVaga: AvisoDaVaga | null;
+  colaboradorAtualId: string | null;
+  /** Quem está HOJE na vaga (o `nome` é o de quando o pedido foi feito). */
+  colaboradorAtual: string | null;
+  eventoExcluido: boolean;
   podeEditar: boolean;
   podeRemover: boolean;
   podeDecidir: boolean;

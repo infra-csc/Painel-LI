@@ -28,7 +28,7 @@ import { BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-valid
 import { downloadCsv, slugify } from "@/components/scaling-validation/event-view/event-view-shared";
 import { MOLDURA } from "@/components/scaling-approval/tokens";
 import { useAcessoHonorarios, useHonorariosDoFinanceiro, type HonorarioDoFinanceiro, type Liberacao } from "@/components/honorarios-ceno/api";
-import { BarraDaVerba, EtapaBadge, FaixaDeTotais, OrigemDaLinha, ValorComDiaria, brl, brlCurto, dataBr, diariasTexto, periodoCurto, posicaoLabel, setorLabel } from "@/components/honorarios-ceno/pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, OrigemDaLinha, ValorComDiaria, brl, brlCurto, dataBr, diariasTexto, periodoCurto, posicaoLabel, setorLabel } from "@/components/honorarios-ceno/pecas";
 import { HistoricoSheet } from "@/components/honorarios-ceno/historico-sheet";
 import { EstornoDialog, LiberacaoDialog } from "@/components/honorarios-ceno/financeiro-dialogos";
 import { Relatorios, TIPOS_DE_RELATORIO } from "@/components/honorarios-ceno/relatorios";
@@ -42,6 +42,7 @@ const ABAS: { id: Aba; rotulo: string; icone: LucideIcon }[] = [
 ];
 
 const TH = "px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap";
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 function casaBusca(h: HonorarioDoFinanceiro, q: string): boolean {
   if (!q.trim()) return true;
@@ -72,6 +73,7 @@ function LinhaALiberar({ h, onLiberar, onHistorico }: { h: HonorarioDoFinanceiro
         <span className="block break-words text-sm font-semibold leading-5 text-foreground">{h.nome}</span>
         <span className="block"><OrigemDaLinha h={h} /></span>
         <span className="mt-0.5 block text-2xs text-slate-600">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {periodoCurto(h.inicio, h.fim)} · {diariasTexto(h.diarias)}</span>
+        <AvisoDaLinha h={h} />
       </td>
       <td data-rotulo="Aprovado" className="px-3 py-3"><ValorComDiaria valor={h.valorAprovado} diarias={h.diarias} riscado={h.valorPedido} alinhar="esquerda" className="xl:text-right" /></td>
       <td data-rotulo="Liberado" className="px-3 py-3">
@@ -114,6 +116,7 @@ function CartaoALiberar({ h, onLiberar, onHistorico }: { h: HonorarioDoFinanceir
             <span className="block break-words text-sm font-semibold leading-5 text-foreground">{h.nome}</span>
             <span className="block"><OrigemDaLinha h={h} /></span>
             <span className="block text-2xs text-slate-600">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {diariasTexto(h.diarias)}</span>
+            <AvisoDaLinha h={h} />
           </div>
           <EtapaBadge h={h} visao="financeiro" />
         </div>
@@ -177,6 +180,7 @@ function LinhaLiberada({ h, onHistorico }: { h: HonorarioDoFinanceiro; onHistori
       <span className="min-w-0 flex-1 basis-[220px]">
         <span className="block truncate text-sm font-semibold text-foreground">{h.nome}</span>
         <span className="block truncate text-2xs text-muted-foreground">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {diariasTexto(h.diarias)}</span>
+        <AvisoDaLinha h={h} />
       </span>
       <span className="min-w-[160px] text-xs text-slate-700">
         {ativas.map((l: Liberacao) => <span key={l.id} className="block tabular-nums">OC/DP {l.oc} · {dataBr(l.data)} · {brlCurto(l.valor)}</span>)}
@@ -261,7 +265,7 @@ export default function HonorariosCenoPage() {
     conteudo = (
       <>
         <FaixaDeTotais testId="hon-fin-totais" itens={[
-          { rotulo: "Aprovado", valor: brlCurto(t.aprovado), detalhe: `${doEvento.filter((h) => h.valorAprovado != null).length} pedidos`, destaque: "success" },
+          { rotulo: "Aprovado", valor: brlCurto(t.aprovado), detalhe: plural(doEvento.filter((h) => h.valorAprovado != null).length, "pedido", "pedidos"), destaque: "success" },
           { rotulo: "Liberado", valor: brlCurto(t.liberado), detalhe: t.aprovado ? `${Math.round((t.liberado / t.aprovado) * 100)}% do aprovado` : "—" },
           { rotulo: "A liberar", valor: brlCurto(t.aLiberar), detalhe: `${nALiberar} ${nALiberar === 1 ? "pedido" : "pedidos"}`, destaque: t.aLiberar > 0 ? "warning" : undefined },
           { rotulo: "Aguardando aprovação", valor: brlCurto(t.aguardando), detalhe: t.emNegociacao ? `${t.emNegociacao} em negociação` : "com o aprovador da escala" },

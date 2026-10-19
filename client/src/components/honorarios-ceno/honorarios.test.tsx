@@ -25,7 +25,8 @@ function honorario(p: Partial<Honorario> = {}): Honorario {
     enviadoPor: null, enviadoPorNome: null, enviadoEm: null, decididoPor: null, decididoPorNome: null, decididoEm: null, motivoDecisao: null,
     createdAt: "2099-10-01T10:00:00Z", updatedAt: "2099-10-01T10:00:00Z", liberado: 0, falta: 0, eventName: "Night Run Teste",
     eventStartDate: "2099-10-11", eventEndDate: "2099-10-12", inclusionNumber: 101, functionName: "Cenotécnica", vagaStatus: "escalado",
-    vagaExcluida: false, podeEditar: true, podeRemover: true, podeDecidir: false, podeDevolver: false, podeLiberar: false, eAprovador: false,
+    vagaExcluida: false, avisoDaVaga: null, colaboradorAtualId: "c1", colaboradorAtual: "Pessoa Um", eventoExcluido: false,
+    podeEditar: true, podeRemover: true, podeDecidir: false, podeDevolver: false, podeLiberar: false, eAprovador: false,
     ...p,
   };
 }
@@ -102,6 +103,26 @@ describe("Honorários — quem pede", () => {
   });
 });
 
+describe("Honorários — quem pede: vaga trocada de colaborador", () => {
+  it("segura o envio e “Passar o pedido para…” confirma com um PATCH só com a versão", async () => {
+    const chamadas: Chamada[] = [];
+    const p = pedido();
+    p.linhas[0] = { ...p.linhas[0], vaga: { ...vaga("v1", 101, "Pessoa Nova"), collaboratorId: "c9" }, honorario: honorario({ avisoDaVaga: "colaborador_trocado", colaboradorAtualId: "c9", colaboradorAtual: "Pessoa Nova" }) };
+    p.linhas = [p.linhas[0]];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(p),
+      "PATCH /api/honorarios-ceno/h1": () => respostaJson(honorario({ nome: "Pessoa Nova", collaboratorId: "c9", versao: 3 })),
+    }, chamadas));
+    const { user } = renderComTudo(<PedidoPainel eventId="ev1" onEscolherEvento={() => {}} />, { user: producao });
+    expect(await screen.findByTestId("hon-aviso-da-vaga")).toHaveTextContent("hoje: Pessoa Nova");
+    expect(screen.getByTestId("hon-enviar")).toBeDisabled();
+    await user.click(screen.getByTestId("hon-confirmar-troca-101"));
+    await waitFor(() => expect(chamadas.some((c) => c.metodo === "PATCH")).toBe(true));
+    expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toEqual({ versao: 2 });
+  });
+});
+
 describe("Honorários — aprovador", () => {
   const pendente = (p: Partial<Honorario>) => honorario({ status: "aguardando", podeEditar: false, podeRemover: false, podeDecidir: true, eAprovador: true, enviadoPorNome: "Quem Pede", enviadoEm: new Date().toISOString(), ...p });
 
@@ -127,6 +148,19 @@ describe("Honorários — aprovador", () => {
     await user.click(within(dialogo).getByRole("button", { name: /^Aprovar R\$/ }));
     await waitFor(() => expect(chamadas.some((c) => c.url.includes("aprovar-com-ajuste"))).toBe(true));
     expect(chamadas.find((c) => c.url.includes("aprovar-com-ajuste"))!.corpo).toEqual({ versao: 2, valor: 100_000, motivo: "Fechado em 3 diárias" });
+  });
+
+  it("avisa o aprovador quando a vaga trocou de colaborador ou o evento foi excluído", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/aprovacao": () => respostaJson([
+        pendente({ id: "a1", nome: "Pessoa Um", avisoDaVaga: "colaborador_trocado", colaboradorAtual: "Pessoa Nova" }),
+        pendente({ id: "a2", nome: "Pessoa Dois", eventoExcluido: true }),
+      ]),
+    }, []));
+    renderComTudo(<AprovacaoPainel eventId={null} />, { user: aprovador });
+    const avisos = await screen.findAllByTestId("hon-aviso-da-vaga");
+    expect(avisos[0]).toHaveTextContent("A vaga trocou de colaborador — hoje: Pessoa Nova");
+    expect(avisos[1]).toHaveTextContent("O evento foi excluído");
   });
 
   it("fila vazia diz que não há nada aguardando (e não é erro)", async () => {
@@ -181,6 +215,50 @@ describe("Honorários — Financeiro", () => {
     const rel = await screen.findByTestId("hon-relatorios");
     expect(within(rel).getByText("Night Run Teste")).toBeInTheDocument();
     expect(within(rel).getByText("Total")).toBeInTheDocument();
+  });
+
+  it("“Liberar o resto” abre o diálogo limpo: OC em branco e o valor que falta (não o da liberação anterior)", async () => {
+    const chamadas: Chamada[] = [];
+    let liberou = false;
+    const lib = { id: "l1", honorarioId: "f1", data: "2099-10-20", oc: "45123", valor: 40_000, observacao: null, porNome: "Financeiro", createdAt: "2099-10-20T10:00:00Z", estornadaEm: null, estornadaPorNome: null, motivoEstorno: null };
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podeLiberar: true }),
+      "GET /api/honorarios-ceno/financeiro": () => respostaJson([liberou
+        ? aprovado({ id: "f1", nome: "Pessoa Um", versao: 3, liberado: 40_000, falta: 60_000, liberacoes: [lib] })
+        : aprovado({ id: "f1", nome: "Pessoa Um" })]),
+      "POST /api/honorarios-ceno/f1/liberacoes": () => { liberou = true; return respostaJson(aprovado({ id: "f1", versao: 3, liberado: 40_000, falta: 60_000 }), 201); },
+    }, chamadas));
+    const { user } = renderComTudo(<HonorariosCenoPage />, { user: rh, rota: "/honorarios-ceno" });
+
+    await user.click(await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" }));
+    let dialogo = await screen.findByRole("dialog");
+    await user.type(within(dialogo).getByLabelText("Nº da OC/DP"), "45123");
+    const valor = within(dialogo).getByLabelText("Valor liberado");
+    await user.clear(valor);
+    await user.type(valor, "400");
+    await user.click(within(dialogo).getByRole("button", { name: /^Liberar R\$/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await user.click(await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" }));
+    dialogo = await screen.findByRole("dialog");
+    expect(within(dialogo).getByLabelText("Nº da OC/DP")).toHaveValue("");
+    expect(within(dialogo).getByLabelText("Valor liberado")).toHaveValue("600,00");
+    expect(within(dialogo).queryByText("Passa do que falta liberar.")).not.toBeInTheDocument();
+  });
+
+  it("Esc fecha o diálogo de liberação e o foco volta ao botão que o abriu", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podeLiberar: true }),
+      "GET /api/honorarios-ceno/financeiro": () => respostaJson([aprovado({ id: "f1", nome: "Pessoa Um" })]),
+    }, []));
+    const { user } = renderComTudo(<HonorariosCenoPage />, { user: rh, rota: "/honorarios-ceno" });
+    const botao = await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" });
+    await user.click(botao);
+    const dialogo = await screen.findByRole("dialog");
+    await waitFor(() => expect(within(dialogo).getByLabelText("Nº da OC/DP")).toHaveFocus());
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Registrar liberação de Pessoa Um" })).toHaveFocus());
   });
 
   it("quem não é do Financeiro vê a tela fechada, sem buscar valores", async () => {

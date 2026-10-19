@@ -22,7 +22,7 @@ import {
   diasDoPeriodo, validarDadosDoPedido, valorPorDiaria,
 } from "@shared/honorarios-ceno";
 import { useMutacoesDoPedido, type Honorario, type LinhaDoPedido } from "./api";
-import { brl } from "./pecas";
+import { brl, useFocoDeVolta } from "./pecas";
 
 export type AlvoDoFormulario =
   | { modo: "vaga"; linha: LinhaDoPedido }
@@ -82,6 +82,7 @@ export function DetalhesDialog({ alvo, eventId, evento, onClose }: {
   onClose: () => void;
 }) {
   const aberto = alvo !== null;
+  const devolverFoco = useFocoDeVolta(aberto);
   const { criar, editar } = useMutacoesDoPedido();
   const { toast } = useToast();
   const [f, setF] = useState<Form | null>(null);
@@ -150,7 +151,10 @@ export function DetalhesDialog({ alvo, eventId, evento, onClose }: {
   return (
     <>
       <Dialog open={aberto} onOpenChange={(o) => { if (!o) pedirParaFechar(onClose); }}>
-        <DialogContent className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0" onEscapeKeyDown={(e) => { if (salvando) e.preventDefault(); }}>
+        <DialogContent className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0" onEscapeKeyDown={(e) => { if (salvando) e.preventDefault(); }}
+          // Foco no responsável da empreita pelo Radix (sem autoFocus): assim o foco volta ao botão de origem ao fechar.
+          onOpenAutoFocus={(e) => { const nome = document.getElementById("hon-nome"); if (nome) { e.preventDefault(); nome.focus(); } }}
+          onCloseAutoFocus={devolverFoco}>
           <DialogHeader className="space-y-1 border-b border-border px-6 pb-4 pt-5 text-left">
             <DialogTitle className="pr-8 text-base font-semibold">{titulo}</DialogTitle>
             <DialogDescription className="text-xs">{subtitulo}</DialogDescription>
@@ -165,7 +169,7 @@ export function DetalhesDialog({ alvo, eventId, evento, onClose }: {
                 <legend className="sr-only">Quem é a empreita</legend>
                 <div className="space-y-1.5">
                   <Label htmlFor="hon-nome">Responsável ou equipe</Label>
-                  <Input id="hon-nome" autoFocus className={CAMPO} value={f.nome} maxLength={120} placeholder="Ex.: Equipe Horizonte" onChange={(e) => set({ nome: e.target.value })} />
+                  <Input id="hon-nome" className={CAMPO} value={f.nome} maxLength={120} placeholder="Ex.: Equipe Horizonte" onChange={(e) => set({ nome: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="hon-pessoas">Pessoas</Label>

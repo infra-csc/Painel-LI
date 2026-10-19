@@ -11,6 +11,7 @@
  * mudou o pedido antes (a rota responde 409).
  */
 import { and, desc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db";
 import {
   honorariosCeno, honorariosCenoHistorico, honorariosCenoLiberacoes,
@@ -18,6 +19,7 @@ import {
   type HonorarioCeno, type HonorarioCenoHistorico, type HonorarioCenoLiberacao, type InsertHonorarioCeno,
 } from "@shared/schema";
 import { ehCenotecnica } from "@shared/cenotecnica";
+import { avisoDaVaga, type AvisoDaVaga } from "@shared/honorarios-ceno";
 import { ACTIVE_CONFLICT_STATUSES } from "@shared/vaga-status";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -36,7 +38,17 @@ export type HonorarioComContexto = HonorarioCeno & {
   functionName: string | null;
   vagaStatus: string | null;
   vagaExcluida: boolean;
+  /** A escala mudou depois do pedido (troca, cancelamento, exclusão…) — ver shared/honorarios-ceno.ts. */
+  avisoDaVaga: AvisoDaVaga | null;
+  /** Quem está HOJE na vaga (o pedido guarda o nome de quando foi feito). */
+  colaboradorAtualId: string | null;
+  colaboradorAtual: string | null;
+  /** O evento foi excluído (soft delete) depois do pedido. */
+  eventoExcluido: boolean;
 };
+
+/** Colaborador que está hoje na vaga (o `collaborators` sem alias é o do pedido). */
+const colaboradorDaVaga = alias(collaborators, "hon_colaborador_da_vaga");
 
 function selecaoComContexto() {
   return db
@@ -48,12 +60,21 @@ function selecaoComContexto() {
       eventEndDate: events.endDate,
       inclusionNumber: teamInclusions.inclusionNumber,
       functionName: functions.name,
+      eventStatus: events.status,
+      vagaId: teamInclusions.id,
       vagaStatus: teamInclusions.status,
       vagaDeletedAt: teamInclusions.deletedAt,
+      vagaPhase: teamInclusions.phase,
+      vagaFunctionId: teamInclusions.functionId,
+      vagaCollaboratorId: teamInclusions.collaboratorId,
+      vagaEmpreitaEmpresa: teamInclusions.empreitaEmpresa,
+      vagaCollaboratorName: colaboradorDaVaga.fullName,
+      vagaCollaboratorType: colaboradorDaVaga.type,
     })
     .from(honorariosCeno)
     .innerJoin(events, eq(events.id, honorariosCeno.eventId))
     .leftJoin(teamInclusions, eq(teamInclusions.id, honorariosCeno.teamInclusionId))
+    .leftJoin(colaboradorDaVaga, eq(colaboradorDaVaga.id, teamInclusions.collaboratorId))
     .leftJoin(functions, eq(functions.id, honorariosCeno.functionId));
 }
 
@@ -70,6 +91,13 @@ function comContexto(l: LinhaSelecionada): HonorarioComContexto {
     functionName: l.functionName ?? null,
     vagaStatus: l.vagaStatus ?? null,
     vagaExcluida: !!l.vagaDeletedAt,
+    avisoDaVaga: avisoDaVaga(l.h, l.vagaId ? {
+      deletedAt: l.vagaDeletedAt, status: l.vagaStatus ?? null, phase: l.vagaPhase ?? null, functionId: l.vagaFunctionId ?? null,
+      collaboratorId: l.vagaCollaboratorId ?? null, collaboratorType: l.vagaCollaboratorType ?? null, empreitaEmpresa: l.vagaEmpreitaEmpresa ?? null,
+    } : null, ACTIVE_CONFLICT_STATUSES),
+    colaboradorAtualId: l.vagaCollaboratorId ?? null,
+    colaboradorAtual: l.vagaCollaboratorName ?? null,
+    eventoExcluido: l.eventStatus === "excluído" || l.eventStatus === "excluido",
   };
 }
 
@@ -251,7 +279,7 @@ export async function criarHonorario(row: InsertHonorarioCeno, ator: Ator, histo
  */
 export async function atualizarGuardado(
   id: string, versao: number, statusEsperados: readonly string[],
-  set: Partial<InsertHonorarioCeno>, ator: Ator, historico: EntradaDoHistorico | null,
+  set: Partial<InsertHonorarioCeno>, ator: Ator, historico: EntradaDoHistorico | readonly EntradaDoHistorico[] | null,
 ): Promise<HonorarioCeno | null> {
   return db.transaction(async (tx) => {
     const [linha] = await tx.update(honorariosCeno)
@@ -259,7 +287,8 @@ export async function atualizarGuardado(
       .where(and(eq(honorariosCeno.id, id), eq(honorariosCeno.versao, versao), inArray(honorariosCeno.status, [...statusEsperados])))
       .returning();
     if (!linha) return null;
-    if (historico) await registrar(tx, id, ator, historico);
+    const entradas: readonly EntradaDoHistorico[] = historico == null ? [] : Array.isArray(historico) ? historico : [historico as EntradaDoHistorico];
+    for (const e of entradas) await registrar(tx, id, ator, e);
     return linha;
   });
 }

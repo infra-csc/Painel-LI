@@ -65,7 +65,9 @@ export default function ScalingApprovalPage() {
   const f = useApprovalFilters();
   const acessoHonorarios = useAcessoHonorarios(!!user);
   const veHonorarios = !!acessoHonorarios.data?.podeAprovar;
-  const filaHonorarios = useFilaDeAprovacao("pendentes", null, veHonorarios);
+  // Mesmo recorte de evento da aba (e a mesma chave de cache do painel): o
+  // número da aba bate com a lista que ela abre.
+  const filaHonorarios = useFilaDeAprovacao("pendentes", eventId || null, veHonorarios);
   // Link do sino com a tela já aberta (?aba=honorarios&t=…): vai para a aba.
   const busca = useSearch();
   useEffect(() => { if (new URLSearchParams(busca).get("aba") === "honorarios") f.switchTab("honorarios"); }, [busca]); // eslint-disable-line react-hooks/exhaustive-deps

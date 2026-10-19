@@ -8,13 +8,14 @@
  *  - a barra da verba: quanto do aprovado já foi liberado — o número que o
  *    Financeiro e a produção procuram primeiro.
  */
-import type { ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
+import { AlertTriangle } from "lucide-react";
 import { StatusBadge, type Tone } from "@/components/common/status-badge";
 import { formatarMoeda } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  ETAPA_LABEL, POSICAO_CENO_LABEL, SETOR_CENO_LABEL, etapaDoHonorario, ehPosicaoCeno, ehSetorCeno, valorPorDiaria,
-  type EtapaDoHonorario,
+  AVISO_DA_VAGA_LABEL, ETAPA_LABEL, POSICAO_CENO_LABEL, SETOR_CENO_LABEL, etapaDoHonorario, ehPosicaoCeno, ehSetorCeno, valorPorDiaria,
+  type AvisoDaVaga, type EtapaDoHonorario,
 } from "@shared/honorarios-ceno";
 
 export const brl = (c: number | null | undefined) => formatarMoeda(c ?? 0);
@@ -163,4 +164,52 @@ export function OrigemDaLinha({ h }: { h: { tipo: string; pessoas: number | null
       {h.functionName && <> · {h.functionName}</>}
     </span>
   );
+}
+
+/**
+ * A escala mudou depois do pedido (evento excluído, vaga cancelada/excluída,
+ * fora da cenotécnica, da casa, ou com outro colaborador). Aparece nas três
+ * telas — quem aprova e quem libera precisam ver antes de decidir/pagar.
+ */
+export function AvisoDaLinha({ h, className, children }: {
+  h: { avisoDaVaga?: AvisoDaVaga | null; colaboradorAtual?: string | null; eventoExcluido?: boolean };
+  className?: string;
+  /** Ação ao lado do aviso (ex.: "Passar para fulano", de quem pede). */
+  children?: ReactNode;
+}) {
+  const textos: string[] = [];
+  if (h.eventoExcluido) textos.push("O evento foi excluído");
+  if (h.avisoDaVaga) {
+    textos.push(h.avisoDaVaga === "colaborador_trocado" && h.colaboradorAtual
+      ? `${AVISO_DA_VAGA_LABEL.colaborador_trocado} — hoje: ${h.colaboradorAtual}`
+      : AVISO_DA_VAGA_LABEL[h.avisoDaVaga]);
+  }
+  if (textos.length === 0) return null;
+  return (
+    <span className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1", className)} data-testid="hon-aviso-da-vaga">
+      <span role="note" className="inline-flex items-start gap-1 rounded-md bg-warning-soft px-1.5 py-0.5 text-2xs font-medium leading-4 text-warning">
+        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+        <span>{textos.join(" · ")}</span>
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Foco de volta ao fechar (Esc, Cancelar, X). Os diálogos do módulo abrem por
+ * estado, sem <DialogTrigger> — e aí o Radix não tem para onde devolver o foco
+ * e ele cai no <body> (quem usa teclado perde o lugar na lista). Guarda o
+ * elemento focado na abertura e o devolve no `onCloseAutoFocus`.
+ */
+export function useFocoDeVolta(aberto: boolean) {
+  const origem = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (aberto && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) origem.current = document.activeElement;
+  }, [aberto]);
+  return useCallback((e: Event) => {
+    const el = origem.current;
+    origem.current = null;
+    if (el && el.isConnected) { e.preventDefault(); el.focus({ preventScroll: true }); }
+  }, []);
 }

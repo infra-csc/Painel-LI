@@ -27,7 +27,7 @@ import {
   diasDoPeriodo, faltaLiberar, faltaParaEnviar, podeDecidirHonorario, podeDevolverHonorario,
   podeEditarHonorario, podeLiberarHonorario, podeRemoverHonorario, posicaoSugerida, setorSugerido,
   validarAjuste, validarDadosDoPedido, validarLiberacao, validarMotivo, vagaRecebeHonorario, ehAprovado,
-  type HonorarioStatus,
+  vagaSaiuDosHonorarios, AVISO_DA_VAGA_LABEL, type HonorarioStatus,
 } from "@shared/honorarios-ceno";
 import * as dados from "../storage/honorarios-ceno";
 import type { HonorarioComContexto, VagaDeCenotecnica } from "../storage/honorarios-ceno";
@@ -115,11 +115,33 @@ function negar(res: Response, message = SEM_ACESSO) {
 
 // ── Visão do pedido para as telas ───────────────────────────────────────────
 
+/**
+ * Por que o pedido parou do lado de quem pede (null = segue normal): o evento
+ * foi excluído ou a vaga saiu dos honorários (cancelada, excluída, casa,
+ * outra função). Nesses casos não se edita nem se envia — sobra remover o
+ * rascunho; o que já está com o aprovador ele mesmo devolve.
+ */
+function pedidoParado(h: HonorarioComContexto): string | null {
+  if (h.eventoExcluido) return "O evento foi excluído — o pedido não segue.";
+  if (h.avisoDaVaga && vagaSaiuDosHonorarios(h.avisoDaVaga)) return `${AVISO_DA_VAGA_LABEL[h.avisoDaVaga]} — o pedido não segue.`;
+  return null;
+}
+
+/** O que impede o envio além dos dados (null = pode enviar). */
+function bloqueioDoEnvio(h: HonorarioComContexto): string | null {
+  const parado = pedidoParado(h);
+  if (parado) return parado;
+  if (h.avisoDaVaga === "colaborador_trocado") {
+    return `A vaga trocou de colaborador${h.colaboradorAtual ? ` (agora: ${h.colaboradorAtual})` : ""} — confirme na linha antes de enviar.`;
+  }
+  return null;
+}
+
 function visao(a: Acesso, h: HonorarioComContexto) {
   return {
     ...h,
     falta: ehAprovado(h.status) ? faltaLiberar(h.valorAprovado, h.liberado) : 0,
-    podeEditar: pedeNaLinha(a, h) && podeEditarHonorario(h.status),
+    podeEditar: pedeNaLinha(a, h) && podeEditarHonorario(h.status) && !pedidoParado(h),
     podeRemover: pedeNaLinha(a, h) && podeRemoverHonorario(h.status, h.enviadoEm),
     podeDecidir: aprovaNaLinha(a, h) && podeDecidirHonorario(h.status),
     podeDevolver: aprovaNaLinha(a, h) && podeDevolverHonorario(h.status, h.liberado),
@@ -239,7 +261,8 @@ export function registrarHonorariosCeno(app: Express): void {
         if (eAprovadorNaLinha(a, h)) aguardandoMinhaAprovacao++;
         if (aprovaNaLinha(a, h)) aguardandoPodeDecidir++;
       } else if (h.status === "devolvido") {
-        if (pedeNaLinha(a, h) && (h.enviadoPor === user.id || h.criadoPor === user.id)) devolvidosParaMim++;
+        // Devolvido parado (evento excluído, vaga fora): não há o que fazer — não fica no sino.
+        if (pedeNaLinha(a, h) && (h.enviadoPor === user.id || h.criadoPor === user.id) && !pedidoParado(h)) devolvidosParaMim++;
       } else if (a.financeiro && faltaLiberar(h.valorAprovado, h.liberado) > 0) {
         aLiberar++;
       }
@@ -388,6 +411,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
+    if (!podePedir(a)) return negar(res);
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     if (!pedeNaLinha(a, atual)) return negar(res, "Você não responde por esta função de cenotécnica.");
@@ -396,7 +420,14 @@ export function registrarHonorariosCeno(app: Express): void {
     if (!podeEditarHonorario(atual.status)) {
       return res.status(409).json({ message: `Este pedido está "${HONORARIO_STATUS_LABEL[atual.status as HonorarioStatus] ?? atual.status}" e não pode mais ser editado. Para mudar, o aprovador precisa devolver.`, atual: visao(a, atual) });
     }
+    const parado = pedidoParado(atual);
+    if (parado) return res.status(409).json({ message: parado, atual: visao(a, atual) });
     const set: Record<string, unknown> = {};
+    // A vaga trocou de colaborador: qualquer gravação de quem pede (inclusive
+    // a confirmação, um PATCH só com a versão) passa o pedido para quem está
+    // hoje na vaga — e fica no histórico.
+    const trocou = atual.avisoDaVaga === "colaborador_trocado";
+    const nomeAtual = (atual.colaboradorAtual ?? "").trim() || (atual.inclusionNumber != null ? `Vaga #${atual.inclusionNumber}` : atual.nome);
     for (const k of ["nome", "pessoas", "descricao", "setor", "posicao", "inicio", "fim", "diarias", "valorPedido", "observacao"] as const) {
       if (b[k] === undefined) continue;
       if (k === "nome" && atual.tipo !== "empreita") continue; // nome da vaga é o do colaborador
@@ -405,18 +436,20 @@ export function registrarHonorariosCeno(app: Express): void {
       set[k] = typeof v === "string" ? (v.trim() || null) : v;
     }
     if (set.nome === null) delete set.nome;
+    if (trocou) { set.collaboratorId = atual.colaboradorAtualId; set.nome = nomeAtual; }
     const mesclado = { ...atual, ...set } as typeof atual;
     const erro = validarDadosDoPedido({ ...mesclado, tipo: atual.tipo as "vaga" | "empreita" });
     if (erro) return res.status(400).json({ message: erro });
     const mudouValor = set.valorPedido !== undefined && set.valorPedido !== atual.valorPedido;
     // Antes do primeiro envio é rascunho de trabalho: o histórico só registra a
     // renegociação (valor mudado depois de devolvido).
-    const historico = mudouValor && atual.enviadoEm
-      ? { acao: "editado", valorAnterior: atual.valorPedido, valorNovo: set.valorPedido as number, detalhe: "Valor renegociado" }
-      : null;
+    const historico = [
+      ...(trocou ? [{ acao: "colaborador_trocado", valorNovo: atual.valorPedido || null, detalhe: `Vaga trocou de colaborador: ${atual.nome} → ${nomeAtual}` }] : []),
+      ...(mudouValor && atual.enviadoEm ? [{ acao: "editado", valorAnterior: atual.valorPedido, valorNovo: set.valorPedido as number, detalhe: "Valor renegociado" }] : []),
+    ];
     const linha = await dados.atualizarGuardado(atual.id, b.versao, ["rascunho", "devolvido"], set, ator(user), historico);
     if (!linha) return responderCorrida(res, a, atual.id, "Este pedido mudou desde que você abriu.");
-    if (mudouValor && atual.enviadoEm) await createAuditLog("update", "honorario_ceno", linha.id, resumoParaAuditoria(linha), user.id, user.name, resumoParaAuditoria(atual), req);
+    if ((mudouValor && atual.enviadoEm) || trocou) await createAuditLog("update", "honorario_ceno", linha.id, resumoParaAuditoria(linha), user.id, user.name, resumoParaAuditoria(atual), req);
     res.json(visao(a, (await dados.getHonorario(linha.id))!));
   });
 
@@ -425,6 +458,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
+    if (!podePedir(a)) return negar(res);
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     if (!pedeNaLinha(a, atual)) return negar(res, "Você não responde por esta função de cenotécnica.");
@@ -457,7 +491,7 @@ export function registrarHonorariosCeno(app: Express): void {
     for (const item of b.itens) {
       const h = porId.get(item.id);
       if (!h) { recusados.push({ id: item.id, nome: "—", motivo: "Pedido não encontrado." }); continue; }
-      const falta = faltaParaEnviar(h);
+      const falta = faltaParaEnviar(h) ?? bloqueioDoEnvio(h);
       if (falta) { recusados.push({ id: h.id, nome: h.nome, motivo: falta }); continue; }
       const linha = await dados.atualizarGuardado(h.id, item.versao, ["rascunho", "devolvido"], {
         status: "aguardando", enviadoPor: user.id, enviadoPorNome: user.name ?? "Usuário", enviadoEm: agora,
@@ -490,6 +524,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return null;
     const a = await acessoDe(user);
+    if (!podeAprovar(a)) { negar(res); return null; }
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) { res.status(404).json({ message: "Pedido não encontrado." }); return null; }
     if (!aprovaNaLinha(a, atual)) { negar(res, "Apenas o aprovador da escala da cenotécnica, o aprovador padrão ou um administrador decide honorários."); return null; }
@@ -658,6 +693,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
+    if (!podePedir(a) && !podeAprovar(a) && !a.financeiro) return negar(res);
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     if (!veLinha(a, atual)) return negar(res);

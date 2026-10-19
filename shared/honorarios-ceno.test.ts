@@ -4,7 +4,7 @@ import {
   podeDevolverHonorario, podeEditarHonorario, podeLiberarHonorario, podeRemoverHonorario, posicaoSugerida,
   rotuloDoMes, setorSugerido, situacaoDaVerba, somar, totalPorEvento, totalPorMes, totalPorPessoa,
   totalPorSetorEPosicao, vagaRecebeHonorario, validarAjuste, validarDadosDoPedido, validarLiberacao,
-  validarMotivo, valorPorDiaria, type LinhaDoRelatorio,
+  validarMotivo, valorPorDiaria, avisoDaVaga, vagaSaiuDosHonorarios, type LinhaDoRelatorio, type VagaAtual,
 } from "./honorarios-ceno";
 
 const linha = (o: Partial<LinhaDoRelatorio>): LinhaDoRelatorio => ({
@@ -205,5 +205,34 @@ describe("relatórios", () => {
     expect(l[0][3]).toBe("2700,00");
     expect(l[l.length - 1][0]).toBe("Total");
     expect(l[l.length - 1][3]).toBe("7000,00");
+  });
+});
+
+describe("a vaga mudou depois do pedido", () => {
+  const ESCALADOS = ["escalado", "passagem_comprada"];
+  const h = { tipo: "vaga", functionId: "f1", collaboratorId: "c1" };
+  const v = (o: Partial<VagaAtual> = {}): VagaAtual => ({
+    deletedAt: null, status: "escalado", phase: "escalacao", functionId: "f1", collaboratorId: "c1", collaboratorType: "freela", empreitaEmpresa: null, ...o,
+  });
+  it("cada mudança da escala vira um aviso; empreita nunca tem", () => {
+    expect(avisoDaVaga(h, v(), ESCALADOS)).toBeNull();
+    expect(avisoDaVaga(h, null, ESCALADOS)).toBe("excluida");
+    expect(avisoDaVaga(h, v({ deletedAt: new Date() }), ESCALADOS)).toBe("excluida");
+    expect(avisoDaVaga(h, v({ status: "cancelado" }), ESCALADOS)).toBe("fora_da_escala");
+    expect(avisoDaVaga(h, v({ phase: "sugestao" }), ESCALADOS)).toBe("fora_da_escala");
+    expect(avisoDaVaga(h, v({ functionId: "f2" }), ESCALADOS)).toBe("outra_funcao");
+    expect(avisoDaVaga(h, v({ collaboratorId: "c2", collaboratorType: "casa" }), ESCALADOS)).toBe("casa");
+    expect(avisoDaVaga(h, v({ collaboratorId: "c2" }), ESCALADOS)).toBe("colaborador_trocado");
+    expect(avisoDaVaga({ ...h, tipo: "empreita" }, null, ESCALADOS)).toBeNull();
+  });
+  it("só a troca de colaborador deixa o pedido seguir (depois de confirmar)", () => {
+    expect(vagaSaiuDosHonorarios("colaborador_trocado")).toBe(false);
+    expect(vagaSaiuDosHonorarios("fora_da_escala")).toBe(true);
+    expect(vagaSaiuDosHonorarios(null)).toBe(false);
+  });
+  it("valor por diária: 0 diárias não divide; centavos arredondam", () => {
+    expect(valorPorDiaria(100_000, 0)).toBeNull();
+    expect(valorPorDiaria(100_000, 3)).toBe(33_333);
+    expect(valorPorDiaria(100_001, 2)).toBe(50_001);
   });
 });
