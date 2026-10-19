@@ -118,3 +118,16 @@ export function juntarIdaEVolta(
     : total > 0 ? ` Valor: ${reais(total)} — um dos vouchers veio sem valor, confira.` : "";
   return { campos, resumo: `${partes}.${conta}` };
 }
+
+/**
+ * Nota do voucher nas Observações da passagem (19/10 — caso #3913): a conexão
+ * ("Volta com conexão em Fortaleza (FOR), chega 13:25 e sai 14:20.") não tem
+ * campo próprio. Entra no FIM do que já estava escrito, sem apagar nada, e não
+ * se repete quando o mesmo voucher é lido de novo.
+ */
+export function juntarObservacao(atual: unknown, nota: string | null | undefined): string {
+  const antes = String(atual ?? "").trim();
+  const nova = String(nota ?? "").trim();
+  if (!nova || antes.includes(nova)) return antes;
+  return antes ? `${antes}\n${nova}` : nova;
+}

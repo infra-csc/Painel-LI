@@ -13,7 +13,7 @@ import type { TicketFormValues } from "@/lib/ticket-form";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { pontuarSemelhanca } from "./voucher-match";
-import { juntarIdaEVolta } from "./juntar-trechos";
+import { juntarIdaEVolta, juntarObservacao } from "./juntar-trechos";
 
 /** Abaixo disto, tratamos como pessoa diferente e não preenchemos nada. */
 const LIMIAR_MESMA_PESSOA = 0.34;
@@ -28,10 +28,14 @@ interface HospedagemLida {
 interface Leitura {
   arquivo: string;
   tipo: "passagem" | "hospedagem" | "desconhecido";
+  /** Layout reconhecido — vem também quando a leitura foi recusada pela sanidade. */
+  formato?: string;
   campos: Record<string, string>;
   pessoa?: string;
   pessoas?: string[];
   trechoUnico?: boolean;
+  /** Texto para as Observações (19/10): as conexões do voucher. */
+  observacao?: string;
   /** Relatório do hotel: um arquivo com várias reservas. */
   hospedagens?: HospedagemLida[];
   avisos: string[];
@@ -91,9 +95,12 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
         return;
       }
       if (leitura.tipo !== "passagem" && leitura.tipo !== "hospedagem") {
+        // 19/10: layout conhecido com leitura que não fecha (THE→THE) chega com
+        // o formato — o aviso diz o motivo e nada foi preenchido.
         toast({
-          title: "Anexado, mas não reconheci o voucher",
+          title: leitura.formato ? "Anexado, mas não consegui ler este voucher" : "Anexado, mas não reconheci o voucher",
           description: leitura.avisos[0] ?? "Preencha os campos normalmente.",
+          variant: leitura.formato ? "destructive" : undefined,
         });
         return;
       }
@@ -113,6 +120,11 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
 
       let campos = leitura.campos;
       const avisos = [...leitura.avisos];
+      // Conexão (19/10): vai para as Observações, sem apagar o que já está escrito.
+      const comObservacao = <T extends Record<string, unknown>>(c: T): T =>
+        para === "passagem" && leitura.observacao
+          ? { ...c, ticketObservations: juntarObservacao(atual?.ticketObservations, leitura.observacao) }
+          : c;
 
       /**
        * Relatório do hotel: o arquivo traz o evento inteiro. Aqui estamos numa
@@ -141,7 +153,7 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
       if (para === "passagem") {
         const junto = juntarIdaEVolta(atual, { campos, trechoUnico: leitura.trechoUnico });
         if (junto) {
-          onPreencher(junto.campos);
+          onPreencher(comObservacao(junto.campos));
           toast({ title: "Ida e volta juntadas", description: `${junto.resumo} Confira antes de registrar.` });
           return;
         }
@@ -168,7 +180,7 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
         toast({ title: "Anexado", description: "Não consegui extrair campos deste arquivo." });
         return;
       }
-      onPreencher(campos);
+      onPreencher(comObservacao(campos));
       toast({
         title: "Anexado e preenchido pelo voucher",
         description: avisos.length

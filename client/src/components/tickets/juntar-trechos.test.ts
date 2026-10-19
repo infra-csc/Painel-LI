@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { juntarIdaEVolta } from "./juntar-trechos";
+import { juntarIdaEVolta, juntarObservacao } from "./juntar-trechos";
 
 const idaGru = {
   departureAirport: "GRU", destinationAirport: "REC",
@@ -75,5 +75,26 @@ describe("ida e volta em vouchers diferentes (15/09)", () => {
       { ...idaGru, returnOriginAirport: "REC", actualReturnDate: "2026-09-21", purchaseOrderNumber: "A" },
       { campos: { ...voltaLida, purchaseOrderNumber: "B" }, trechoUnico: true },
     )).toBeNull();
+  });
+});
+
+describe("juntarObservacao — conexão do voucher nas Observações (19/10)", () => {
+  const nota = "Volta com conexão em Fortaleza (FOR), chega 13:25 e sai 14:20.";
+
+  it("observação vazia recebe a nota", () => {
+    expect(juntarObservacao(undefined, nota)).toBe(nota);
+    expect(juntarObservacao("  ", nota)).toBe(nota);
+  });
+
+  it("o que já estava escrito fica, e a nota entra no fim", () => {
+    expect(juntarObservacao("Levar crachá.", nota)).toBe(`Levar crachá.\n${nota}`);
+  });
+
+  it("o mesmo voucher lido de novo não repete a nota", () => {
+    expect(juntarObservacao(`Levar crachá.\n${nota}`, nota)).toBe(`Levar crachá.\n${nota}`);
+  });
+
+  it("sem nota, nada muda", () => {
+    expect(juntarObservacao("Levar crachá.", undefined)).toBe("Levar crachá.");
   });
 });

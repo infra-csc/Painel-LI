@@ -15,7 +15,8 @@ import { formatDate, formatBrl, isOneWayTicket, toTitleCase } from "./use-ticket
 import { cn } from "@/lib/utils";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
-import { IndicacaoDaLogistica, ProblemasDaViagem, SugestaoDeTrechoDireto, TrechoDiretoDaVaga } from "./sinais-da-vaga";
+import { IndicacaoDaLogistica, LeituraSuspeita, ProblemasDaViagem, SugestaoDeTrechoDireto, TrechoDiretoDaVaga } from "./sinais-da-vaga";
+import { pernasComOrigemIgualAoDestino } from "@shared/sanidade-da-passagem";
 import { rotuloDaCobertura, reaisDoTerrestre, type CoberturaTerrestre, type ModoTerrestre, type TrechoTerrestre } from "@shared/transporte-terrestre";
 import { AtalhoDoTerrestre, LinhasDoTerrestre } from "./terrestre-na-linha";
 
@@ -137,9 +138,11 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   // A borda esquerda diz de quem é a vez: âmbar = espera você (compra
   // pendente, troca em análise, alteração aprovada para remarcar); verde =
   // comprada; cinza = cancelada.
+  // Leitura do voucher suspeita (19/10, caso #3913): origem igual ao destino na mesma perna.
+  const leituraSuspeita = ticket && !cancelado ? pernasComOrigemIgualAoDestino(ticket) : [];
   // Viagem que cruza outra, data impossível (09/10) ou suspeita (16/10) também esperam alguém de Compras.
   const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado && !terrestreTotal)
-    || (!cancelado && (!!sinal?.cruzaCom?.length || !!sinal?.dataImpossivel || !!sinal?.datasSuspeitas?.length));
+    || (!cancelado && (!!sinal?.cruzaCom?.length || !!sinal?.dataImpossivel || !!sinal?.datasSuspeitas?.length || leituraSuspeita.length > 0));
 
   return (
     <tr
@@ -297,6 +300,10 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
         )}
         <ProblemasDaViagem
           sinal={sinal} inclusionId={inclusion.id}
+          onCorrigir={ticket && canEdit && !locked && !cancelado && onCorrigirPassagem ? () => onCorrigirPassagem(inclusion) : undefined}
+        />
+        <LeituraSuspeita
+          problemas={leituraSuspeita} inclusionId={inclusion.id}
           onCorrigir={ticket && canEdit && !locked && !cancelado && onCorrigirPassagem ? () => onCorrigirPassagem(inclusion) : undefined}
         />
       </td>

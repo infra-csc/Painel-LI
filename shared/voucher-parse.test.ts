@@ -738,3 +738,145 @@ describe("voucher com conexão (18/09)", () => {
   });
 });
 
+
+/**
+ * Caso #3913 (dono, 19/10): São Paulo–Teresina, ida direta e VOLTA COM CONEXÃO
+ * em Fortaleza. Texto montado a partir do print do voucher (mesma agência e
+ * mesmo layout do roteiro da Northtur acima), com nome, localizador e bilhete
+ * trocados por fictícios. Cada trecho ocupa duas linhas — origem/partida e
+ * destino/chegada — e entre eles vêm as linhas de localizador, terminal,
+ * classe, observações e pagamento.
+ *
+ * O app gravou "ida THE→THE 17:35→12:15 / volta FOR→FOR 13:25→14:20": a linha
+ * de Guarulhos sumiu e cada voo pegou a ponta do vizinho.
+ */
+const ROTEIRO_TERESINA_CONEXAO_NA_VOLTA = `SÃO PAULO - TERESINA - SÃO PAULO LOCALIZADOR: ZXQKLM BILHETE: 9570000000001 08/set/2026
+Cia Voo Classe Assento Origem / Destino Partida / Chegada
+LA 3194 Y Aeroporto Internacional de São Paulo-
+Guarulhos (GRU)
+07/out 14:30
+LATAM AIRLINES GROUP Escalas 0 Teresina (THE) 07/out 17:35
+Localizador Cia: ZXQKLM
+Term. Embarque: 3 Classe Reserva: Econômica
+*Confirme o terminal de embarque, com a Cia Aérea antes do voo.
+Observações: Sem Bagagem Despachada / Sem Reembolso / Sem Alteração de Voo
+Pagamento: CARTAO AGENCIA
+LA 3492 Y Teresina (THE) 11/out 12:15
+LATAM AIRLINES GROUP Escalas 0 Aeroporto Internacional Pinto Martins (FOR) 11/out 13:25
+Localizador Cia: ZXQKLM
+Term. Embarque: Classe Reserva: Econômica
+*Confirme o terminal de embarque, com a Cia Aérea antes do voo.
+Observações: Sem Bagagem Despachada / Sem Reembolso / Sem Alteração de Voo
+Pagamento: CARTAO AGENCIA
+LA 3468 Y Aeroporto Internacional Pinto Martins (FOR) 11/out 14:20
+LATAM AIRLINES GROUP Escalas 0 Congonhas (CGH) 11/out 18:00
+Localizador Cia: ZXQKLM
+Term. Embarque: Classe Reserva: Econômica
+*Confirme o terminal de embarque, com a Cia Aérea antes do voo.
+Observações: Sem Bagagem Despachada / Sem Reembolso / Sem Alteração de Voo
+Pagamento: CARTAO AGENCIA
+Data Emissão: 08/set/2026 Valor: BRL 1.234,56 Taxas + Repasse: BRL 65,44 + BRL 0,00 Total: BRL 1.300,00
+FULANO DE TESTE TERESINA O.S. 77
+Agência:NORTHTUR VIAGENS Solicitante: BELTRANO`;
+
+const CELULA_GRU = "LA 3194 Y Aeroporto Internacional de São Paulo-\nGuarulhos (GRU)\n07/out 14:30";
+const CELULA_FOR_CHEGADA = "LATAM AIRLINES GROUP Escalas 0 Aeroporto Internacional Pinto Martins (FOR) 11/out 13:25";
+
+/** A mesma célula de Guarulhos nas ordens em que a extração do PDF já devolveu (ou pode devolver). */
+const ORDENS_DA_CELULA_GRU: [string, string][] = [
+  ["nome em três linhas (como no roteiro da Northtur)", CELULA_GRU],
+  ["tudo numa linha", "LA 3194 Y Aeroporto Internacional de São Paulo-Guarulhos (GRU) 07/out 14:30"],
+  ["data na linha do nome e a sigla embaixo", "LA 3194 Y Aeroporto Internacional de São Paulo-Guarulhos 07/out 14:30\n(GRU)"],
+  ["data ANTES do nome", "07/out 14:30\nLA 3194 Y Aeroporto Internacional de São Paulo-Guarulhos (GRU)"],
+  ["data antes do nome quebrado em duas linhas", "07/out 14:30\nLA 3194 Y Aeroporto Internacional de São Paulo-\nGuarulhos (GRU)"],
+  ["data na linha da cia e o nome quebrado embaixo", "LA 3194 Y 07/out 14:30\nAeroporto Internacional de São Paulo-\nGuarulhos (GRU)"],
+];
+
+describe("caso #3913 — volta com conexão no voucher da agência (19/10)", () => {
+  for (const [ordem, celula] of ORDENS_DA_CELULA_GRU) {
+    it(`${ordem}: ida GRU→THE direta e volta THE→CGH com a conexão em Fortaleza`, () => {
+      const l = lerVoucher(ROTEIRO_TERESINA_CONEXAO_NA_VOLTA.replace(CELULA_GRU, celula));
+      expect(l.tipo).toBe("passagem");
+      expect(l.campos.departureAirport).toBe("GRU");
+      expect(l.campos.destinationAirport).toBe("THE");
+      expect(l.campos.actualDepartureDate).toBe("2026-10-07");
+      expect(l.campos.actualDepartureTime).toBe("14:30");
+      expect(l.campos.actualArrivalTime).toBe("17:35");
+      expect(l.campos.returnOriginAirport).toBe("THE");
+      expect(l.campos.returnDestinationAirport).toBe("CGH");
+      expect(l.campos.actualReturnDate).toBe("2026-10-11");
+      expect(l.campos.actualReturnTime).toBe("12:15");
+      expect(l.campos.returnArrivalTime).toBe("18:00");
+      expect(l.trechoUnico).toBeFalsy();
+    });
+  }
+
+  const l = lerVoucher(ROTEIRO_TERESINA_CONEXAO_NA_VOLTA);
+  it("cidades do roteiro, total, localizador, companhia e passageiro", () => {
+    expect(l.campos.departureCityOrigin).toBe("São Paulo");
+    expect(l.campos.departureCityDestination).toBe("Teresina");
+    expect(l.campos.returnCityOrigin).toBe("Teresina");
+    expect(l.campos.returnCityDestination).toBe("São Paulo");
+    expect(l.campos.value).toBe("1.300,00");
+    expect(l.campos.purchaseOrderNumber).toBe("ZXQKLM");
+    expect(l.campos.purchaseDate).toBe("2026-09-08");
+    expect(l.pessoa).toBe("FULANO DE TESTE TERESINA");
+  });
+
+  it("a conexão sai com a cidade e os dois horários — no aviso e no texto para as Observações", () => {
+    expect(l.avisos.join(" ")).toContain("Volta com conexão em Fortaleza (FOR), chega 13:25 e sai 14:20");
+    expect(l.avisos.join(" ")).not.toMatch(/Ida com conexão/);
+    expect(l.observacao).toBe("Volta com conexão em Fortaleza (FOR), chega 13:25 e sai 14:20.");
+  });
+
+  it("voucher sem conexão não manda nada para as Observações", () => {
+    expect(lerVoucher(PASSAGEM).observacao).toBeUndefined();
+  });
+
+  it("conexão nas duas pernas: as duas vão para as Observações", () => {
+    expect(lerVoucher(ROTEIRO_COM_CONEXAO).observacao)
+      .toBe("Ida com conexão em Brasilia (BSB), chega 07:45 e sai 08:45. Volta com conexão em Brasilia (BSB), chega 06:00 e sai 08:45.");
+  });
+});
+
+describe("sanidade da leitura: layout que o leitor não entende não grava lixo (19/10)", () => {
+  it("uma ponta de voo que não foi lida (o erro do #3913) recusa o voucher inteiro", () => {
+    // A célula de Guarulhos sem data/hora legível: sobram 5 pontas para 3 voos.
+    const l = lerVoucher(ROTEIRO_TERESINA_CONEXAO_NA_VOLTA.replace(CELULA_GRU, "LA 3194 Y Aeroporto Internacional de São Paulo-Guarulhos (GRU)"));
+    expect(l.tipo).toBe("desconhecido");
+    expect(l.campos).toEqual({});
+    expect(l.avisos[0]).toMatch(/^Não consegui ler este voucher, confira: achei 5 pontas de voo/);
+  });
+
+  it("voo que sai e chega no mesmo aeroporto é recusado", () => {
+    const l = lerVoucher(ROTEIRO_TERESINA_CONEXAO_NA_VOLTA.replace(CELULA_FOR_CHEGADA, "LATAM AIRLINES GROUP Escalas 0 Teresina (THE) 11/out 13:25"));
+    expect(l.tipo).toBe("desconhecido");
+    expect(l.avisos[0]).toContain("mesmo aeroporto (THE→THE)");
+  });
+
+  it("voo que pousa antes de decolar é recusado", () => {
+    const l = lerVoucher(ROTEIRO_TERESINA_CONEXAO_NA_VOLTA.replace("Teresina (THE) 07/out 17:35", "Teresina (THE) 07/out 11:35"));
+    expect(l.tipo).toBe("desconhecido");
+    expect(l.avisos[0]).toContain("o voo GRU→THE sairia 07/out 14:30 e chegaria 07/out 11:35");
+  });
+
+  it("vale para os outros layouts também: perna com origem igual ao destino", () => {
+    const l = lerVoucher(RODOVIARIA.replace(
+      "RODOVIÁRIA DE DESEMBARQUE (IDA)\nLondrina, PR - Terminal José Garcia Villar",
+      "RODOVIÁRIA DE DESEMBARQUE (IDA)\nSão Paulo, SP - Barra Funda",
+    ));
+    expect(l.tipo).toBe("desconhecido");
+    expect(l.formato).toBe("Passagem rodoviária");
+    expect(l.avisos[0]).toContain("Ida Barra Funda→Barra Funda: origem igual ao destino");
+  });
+
+  it("e chegada antes da partida sem virada de noite plausível", () => {
+    const l = lerVoucher(ONFLY_UM_TRECHO.replace("04 Oct, 2026 • 09:40", "04 Oct, 2026 • 05:40"));
+    expect(l.tipo).toBe("desconhecido");
+    expect(l.avisos[0]).toContain("Ida sai 06:05 e chega 05:40");
+  });
+
+  it("ônibus noturno que vira o dia continua valendo", () => {
+    expect(lerVoucher(RODOVIARIA).tipo).toBe("passagem");
+  });
+});

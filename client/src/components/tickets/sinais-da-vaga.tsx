@@ -9,6 +9,7 @@
 import { AlertTriangle, CornerDownRight, PencilLine, Route } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
 import { diaEmTextoCompleto as diaCompleto, textoDaIndicacao } from "@shared/janela-de-viagem";
+import { ROTULO_LEITURA_SUSPEITA, type ProblemaNaPerna } from "@shared/sanidade-da-passagem";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
 import { diaCurto } from "./use-sinais-de-viagem";
 
@@ -66,6 +67,41 @@ export function ProblemasDaViagem({ sinal, inclusionId, onCorrigir }: { sinal?: 
           <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
           <span className="truncate">{sinal.dataImpossivel}</span>
         </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Leitura do voucher suspeita (19/10 — caso #3913): passagem gravada com a
+ * origem igual ao destino na mesma perna (THE→THE). Foi o leitor de PDF que
+ * deslocou as linhas; o selo âmbar diz qual perna e o atalho abre a passagem
+ * para corrigir — mesmo padrão da data suspeita.
+ */
+export function LeituraSuspeita({ problemas, inclusionId, onCorrigir }: { problemas: readonly ProblemaNaPerna[]; inclusionId: string; onCorrigir?: () => void }) {
+  if (problemas.length === 0) return null;
+  const detalhe = `${problemas.map((p) => p.texto).join(" · ")}. Confira com o voucher e corrija a passagem.`;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      <span
+        className="inline-flex items-start gap-1 max-w-full px-[7px] py-[3px] rounded-md text-2xs leading-4 font-medium bg-warning-soft text-warning-strong"
+        title={detalhe}
+        data-testid={`ticket-leitura-suspeita-${inclusionId}`}
+      >
+        <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0">{ROTULO_LEITURA_SUSPEITA}<span className="sr-only">. {detalhe}</span></span>
+      </span>
+      {onCorrigir && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onCorrigir(); }}
+          className="pas-alvo inline-flex items-center gap-1 h-[22px] px-[7px] rounded-md border border-warning-strong/40 bg-card text-2xs font-semibold whitespace-nowrap text-warning-strong hover:bg-warning-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={detalhe}
+          data-testid={`corrigir-leitura-suspeita-${inclusionId}`}
+        >
+          <PencilLine className="w-3 h-3 shrink-0" aria-hidden="true" />
+          Corrigir passagem
+        </button>
       )}
     </div>
   );

@@ -159,3 +159,27 @@ describe("VoucherLoteDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+describe("VoucherLoteDialog — conexão nas Observações (19/10, caso #3913)", () => {
+  it("a conexão lida entra nas Observações, depois do que a passagem já tinha", async () => {
+    const conexao = "Volta com conexão em Fortaleza (FOR), chega 13:25 e sai 14:20.";
+    mockarFetch((url) => respostaJson({ leituras: [leitura({ observacao: conexao })] }, 200, url));
+    const { user, input, onRegistrar } = montar({ getPassagemAtual: () => ({ ticketObservations: "Levar crachá." }) });
+    await user.upload(input, pdf());
+    await user.click(await screen.findByRole("button", { name: "Registrar 1" }));
+    await esperarToast("Lote concluído");
+    const [, form] = onRegistrar.mock.calls[0];
+    expect(form.ticketObservations).toBe(`Levar crachá.\n${conexao}`);
+  });
+
+  it("leitura recusada pela sanidade aparece como não aproveitável, com o motivo", async () => {
+    mockarFetch((url) => respostaJson({
+      leituras: [{ arquivo: "the.pdf", tipo: "desconhecido", formato: "Voucher de passagem (agência)", campos: {}, avisos: ["Não consegui ler este voucher, confira: Ida THE→THE: origem igual ao destino. Nada foi preenchido — preencha à mão."] }],
+    }, 200, url));
+    const { user, input } = montar();
+    await user.upload(input, pdf("the.pdf"));
+    const item = await screen.findByRole("listitem");
+    expect(item).toHaveTextContent("Não consegui ler este voucher, confira: Ida THE→THE");
+    expect(screen.getByRole("button", { name: "Registrar" })).toBeDisabled();
+  });
+});

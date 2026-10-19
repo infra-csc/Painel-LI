@@ -26,7 +26,7 @@ import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import type { TicketFormValues } from "@/lib/ticket-form";
 import type { TeamInclusion } from "@shared/schema";
 import { casarVaga } from "./voucher-match";
-import { juntarIdaEVolta, type IdaEVoltaJuntas } from "./juntar-trechos";
+import { juntarIdaEVolta, juntarObservacao, type IdaEVoltaJuntas } from "./juntar-trechos";
 import VagaCombobox, { type VagaOpcao } from "./vaga-combobox";
 
 interface LeituraDoServidor {
@@ -39,6 +39,8 @@ interface LeituraDoServidor {
   pessoas?: string[];
   /** O voucher traz um trecho só (ida OU volta). */
   trechoUnico?: boolean;
+  /** Texto para as Observações (19/10): as conexões do voucher. */
+  observacao?: string;
   avisos: string[];
 }
 
@@ -170,6 +172,8 @@ export default function VoucherLoteDialog({
         } else {
           form = { ...linha.campos };
         }
+        // Conexão (19/10): entra nas Observações, depois do que já estava escrito.
+        if (linha.observacao) form = { ...form, ticketObservations: juntarObservacao(base?.ticketObservations, linha.observacao) };
       }
       try {
         await onRegistrar(vaga, form as TicketFormValues);

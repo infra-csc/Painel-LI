@@ -13,7 +13,13 @@
  *
  * Nada aqui grava: a saída é uma SUGESTÃO. Layout desconhecido devolve
  * `tipo: "desconhecido"` — a tela avisa e o preenchimento segue manual.
+ *
+ * 19/10 (caso #3913): leitura que não passa na sanidade (origem igual ao
+ * destino, chegada antes da partida, ponta de voo sem par) também vira
+ * "desconhecido", com o motivo. Um layout novo nunca grava lixo em silêncio.
  */
+import { AEROPORTOS } from "./aeroportos-do-brasil";
+import { problemasNasPernas } from "./sanidade-da-passagem";
 
 export type VoucherTipo = "passagem" | "hospedagem" | "desconhecido";
 
@@ -41,6 +47,12 @@ export interface VoucherLeitura {
    * recorte escolhido no formulário (ida e volta / só ida / só volta).
    */
   trechoUnico?: boolean;
+  /**
+   * Texto para as Observações da passagem (19/10): hoje, as conexões ("Volta
+   * com conexão em Fortaleza (FOR), chega 13:25 e sai 14:20."). A passagem não
+   * tem campo de conexão; sem isto ela só existia no aviso da leitura.
+   */
+  observacao?: string;
   /** O que o operador precisa checar com o olho. */
   avisos: string[];
 }
@@ -131,10 +143,29 @@ function capitalizar(nome: string): string {
 const SO_DATA_HORA = /^\s*\d{1,2}\/[a-zç]{3}\s+\d{1,2}:\d{2}\s*$/i;
 const TEM_DATA_HORA = /\d{1,2}\/[a-zç]{3}\s+\d{1,2}:\d{2}/i;
 const TEM_SIGLA = /\([A-Z]{3}\)/;
-/** Linha que é só a sigla ("(MCZ)") ou o resto do nome com a sigla ("Guarulhos (GRU)"), sem data. */
-const COMECA_COM_NOME_OU_SIGLA = /^[A-Za-zÀ-ú.\s'-]*\([A-Z]{3}\)\s*$/;
 /** Linha só com o nome do aeroporto: sem sigla, sem data, sem os rótulos do bilhete. */
 const SO_NOME = /^[A-Za-zÀ-ú.\s'-]{4,}$/;
+/** Pedaço do nome do aeroporto: letras, e a sigla entre parênteses. */
+const PEDACO_DE_NOME = /^[A-Za-zÀ-ú.\s'()-]+$/;
+/** O mesmo, aceitando a cia e o número do voo na frente ("LA 3194 Y Aeroporto…"). */
+const PEDACO_COM_VOO = /^[A-Za-zÀ-ú0-9.\s'()-]+$/;
+
+/**
+ * A partir da linha `de`, junta até três linhas SEM data que terminam na sigla
+ * — "Aeroporto Internacional de São Paulo-" / "Guarulhos (GRU)". Devolve o
+ * nome e a última linha usada; sem sigla nessas linhas, null.
+ */
+function nomeAteASigla(linhas: string[], de: number, comVoo: boolean): { texto: string; ultima: number } | null {
+  const partes: string[] = [];
+  for (let j = de; j < linhas.length && j < de + 3; j++) {
+    const l = linhas[j].trim();
+    if (!l || TEM_DATA_HORA.test(l)) return null;
+    if (!(j === de && comVoo ? PEDACO_COM_VOO : PEDACO_DE_NOME).test(l)) return null;
+    partes.push(l);
+    if (TEM_SIGLA.test(l)) return { texto: partes.join(" "), ultima: j };
+  }
+  return null;
+}
 
 export function juntarLinhasQuebradas(linhas: string[]): string[] {
   const out: string[] = [];
@@ -148,11 +179,30 @@ export function juntarLinhasQuebradas(linhas: string[]): string[] {
       // data e a sigla cai sozinha na linha de baixo — "Aeroporto Internacional
       // Zumbi dos Palmares 27/out 22:55" / "(MCZ)". Sem esta regra o trecho de
       // Maceió sumia e o leitor devolvia uma "ida" de Guarulhos a Congonhas.
-      if (TEM_DATA_HORA.test(atual) && !TEM_SIGLA.test(atual) && COMECA_COM_NOME_OU_SIGLA.test(proxima)) {
-        const data = atual.match(TEM_DATA_HORA)![0];
-        atual = `${atual.replace(TEM_DATA_HORA, "").trim()} ${proxima} ${data}`;
-        i++;
-        continue;
+      // 19/10: o nome pode vir quebrado em mais de uma linha abaixo da data
+      // ("LA 3194 Y 07/out 14:30" / "Aeroporto … São Paulo-" / "Guarulhos (GRU)").
+      if (TEM_DATA_HORA.test(atual) && !TEM_SIGLA.test(atual)) {
+        const nome = nomeAteASigla(linhas, i + 1, false);
+        if (nome && !SO_DATA_HORA.test(linhas[nome.ultima + 1] ?? "")) {
+          const data = atual.match(TEM_DATA_HORA)![0];
+          atual = `${atual.replace(TEM_DATA_HORA, "").trim()} ${nome.texto} ${data}`.trim();
+          i = nome.ultima;
+          continue;
+        }
+      }
+      // 19/10 (caso #3913, São Paulo–Teresina com conexão em Fortaleza): a
+      // data e a hora saem ANTES do nome do aeroporto — "07/out 14:30" /
+      // "LA 3194 Y Aeroporto … São Paulo-" / "Guarulhos (GRU)". Sem esta regra
+      // o trecho de Guarulhos sumia, cada voo pegava a ponta do vizinho e a
+      // passagem era gravada "THE → THE, 17:35 → 12:15".
+      if (SO_DATA_HORA.test(atual)) {
+        const nome = nomeAteASigla(linhas, i + 1, true);
+        // Se a sigla achada tem a SUA data logo abaixo, esta data é de outro trecho.
+        if (nome && !SO_DATA_HORA.test(linhas[nome.ultima + 1] ?? "")) {
+          atual = `${nome.texto} ${atual}`;
+          i = nome.ultima;
+          continue;
+        }
       }
       // Nome do aeroporto sozinho e a sigla (com ou sem data) logo abaixo.
       if (!TEM_SIGLA.test(atual) && !TEM_DATA_HORA.test(atual) && SO_NOME.test(atual) && /^\(?[A-Za-zÀ-ú.\s'-]*\(?[A-Z]{3}\)/.test(proxima)) {
@@ -178,6 +228,19 @@ function momentoDoTrecho(t: Trecho, emissaoIso: string | null): number | null {
 
 /** Até quanto tempo entre pousar e decolar ainda é conexão (e não a volta). */
 const CONEXAO_MAX_MIN = 12 * 60;
+
+/** Um voo só (decolagem → pouso) não passa disto; mais é leitura errada. */
+const DURACAO_MAX_VOO_MIN = 16 * 60;
+
+/**
+ * Cidade da conexão para o aviso: o voucher nomeia o AEROPORTO ("Aeroporto
+ * Internacional Pinto Martins"); quando o catálogo conhece a sigla, a cidade
+ * (Fortaleza) é o que quem confere reconhece.
+ */
+function cidadeDaConexao(t: Trecho): string {
+  if (!/aeroporto/i.test(t.cidade) && t.cidade !== t.aeroporto) return t.cidade;
+  return AEROPORTOS[t.aeroporto]?.cidade ?? t.cidade;
+}
 
 /**
  * Junta os voos seguidos em trechos (18/09). Um voo é conexão do anterior se
@@ -282,6 +345,26 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
 
   const trechos = lerTrechos(linhas);
   if (trechos.length < 2) return null; // sem ao menos um par, não é este formato
+
+  // Sanidade (19/10, caso #3913): cada voo é um par saída/chegada. Um número
+  // ímpar de pontas quer dizer que uma linha não foi lida — e aí cada voo pega
+  // a ponta do vizinho. Melhor não preencher nada do que gravar errado.
+  const formato = "Voucher de passagem (agência)";
+  if (trechos.length % 2 !== 0) {
+    return leituraRecusada(formato, `achei ${trechos.length} pontas de voo, e cada voo tem duas — uma linha do voucher não foi lida`);
+  }
+  for (let i = 0; i + 1 < trechos.length; i += 2) {
+    const [saida, chegada] = [trechos[i], trechos[i + 1]];
+    if (saida.aeroporto === chegada.aeroporto) {
+      return leituraRecusada(formato, `um voo sairia e chegaria no mesmo aeroporto (${saida.aeroporto}→${chegada.aeroporto})`);
+    }
+    const decola = momentoDoTrecho(saida, emissao);
+    const pousa = momentoDoTrecho(chegada, emissao);
+    if (decola !== null && pousa !== null && (pousa < decola || pousa - decola > DURACAO_MAX_VOO_MIN)) {
+      return leituraRecusada(formato, `o voo ${saida.aeroporto}→${chegada.aeroporto} sairia ${saida.diaMes} ${saida.horario} e chegaria ${chegada.diaMes} ${chegada.horario}`);
+    }
+  }
+
   const roteiro = cidadesDoRoteiro(texto);
   let umTrechoSo = false;
 
@@ -319,9 +402,19 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
   const grupos = agruparVoos(trechos, emissao);
   const [idaVoos, voltaVoos] = grupos;
   aplicarTrecho(idaVoos[0].saida, idaVoos[idaVoos.length - 1].chegada, false);
-  const conexoes = (g: Voo[]) => g.slice(1).map((v) => `${v.saida.cidade} (${v.saida.aeroporto})`).join(", ");
-  if (idaVoos.length > 1) avisos.push(`Ida com conexão em ${conexoes(idaVoos)} — usei a saída do primeiro voo e a chegada do último.`);
-  if (voltaVoos && voltaVoos.length > 1) avisos.push(`Volta com conexão em ${conexoes(voltaVoos)} — usei a saída do primeiro voo e a chegada do último.`);
+  // 19/10: a conexão diz também quando pousa e quando sai de novo — e vai
+  // para as Observações da passagem, porque a passagem não tem campo de
+  // conexão e o aviso some depois de gravar.
+  const conexoes = (g: Voo[]) => g.slice(1).map((v, i) => `${cidadeDaConexao(v.saida)} (${v.saida.aeroporto}), chega ${g[i].chegada.horario} e sai ${v.saida.horario}`).join("; ");
+  const notas: string[] = [];
+  if (idaVoos.length > 1) {
+    avisos.push(`Ida com conexão em ${conexoes(idaVoos)} — usei a saída do primeiro voo e a chegada do último.`);
+    notas.push(`Ida com conexão em ${conexoes(idaVoos)}.`);
+  }
+  if (voltaVoos && voltaVoos.length > 1) {
+    avisos.push(`Volta com conexão em ${conexoes(voltaVoos)} — usei a saída do primeiro voo e a chegada do último.`);
+    notas.push(`Volta com conexão em ${conexoes(voltaVoos)}.`);
+  }
   if (grupos.length > 2) avisos.push("O voucher tem mais de dois trechos (ida e volta) — confira as datas.");
   if (voltaVoos) {
     aplicarTrecho(voltaVoos[0].saida, voltaVoos[voltaVoos.length - 1].chegada, true);
@@ -343,10 +436,11 @@ export function lerVoucherPassagem(texto: string): VoucherLeitura | null {
 
   return {
     tipo: "passagem",
-    formato: "Voucher de passagem (agência)",
+    formato,
     campos,
     pessoa: pass ? pass[1].trim() : undefined,
     trechoUnico: umTrechoSo,
+    ...(notas.length ? { observacao: notas.join(" ") } : {}),
     avisos,
   };
 }
@@ -939,8 +1033,33 @@ export function lerVoucherRodoviario(texto: string): VoucherLeitura | null {
   };
 }
 
+/**
+ * Layout reconhecido, mas a leitura não fecha: nada é preenchido e a tela
+ * mostra o motivo. Tipo "desconhecido" de propósito — toda tela que lê
+ * voucher já trata esse caso como "preencha à mão".
+ */
+export function leituraRecusada(formato: string | undefined, motivo: string): VoucherLeitura {
+  return {
+    tipo: "desconhecido",
+    formato,
+    campos: {},
+    avisos: [`Não consegui ler este voucher, confira: ${motivo}. Nada foi preenchido — preencha à mão.`],
+  };
+}
+
 /** Reconhece o arquivo e devolve o que der para aproveitar. */
 export function lerVoucher(texto: string): VoucherLeitura {
+  const leitura = lerSemConferir(texto);
+  // Última trava, vale para todo layout de passagem: perna com origem igual
+  // ao destino ou chegada impossível é leitura errada, não passagem.
+  if (leitura.tipo === "passagem") {
+    const problemas = problemasNasPernas(leitura.campos);
+    if (problemas.length) return leituraRecusada(leitura.formato, problemas.map((p) => p.texto).join("; "));
+  }
+  return leitura;
+}
+
+function lerSemConferir(texto: string): VoucherLeitura {
   return (
     // O rodoviário antes do voucher da agência: aquele detecta por
     // "LOCALIZADOR:", que o bilhete de ônibus também tem, e leria a viagem
