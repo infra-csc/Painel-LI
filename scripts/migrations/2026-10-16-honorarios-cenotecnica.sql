@@ -5,7 +5,7 @@
 -- Espelho: shared/schema.ts (honorariosCeno, honorariosCenoHistorico,
 -- honorariosCenoLiberacoes). O server/ensure-schema.ts também cria as tabelas
 -- no boot; este arquivo existe para quem prefere rodar à mão antes de publicar
--- (lembrete: no Replit, db push no Shell ANTES do Republish).
+-- (este app NÃO tem db:push — docs/migracoes.md).
 --   psql "$DATABASE_URL" -f scripts/migrations/2026-10-16-honorarios-cenotecnica.sql
 CREATE TABLE IF NOT EXISTS honorarios_ceno (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -10,9 +10,9 @@
 -- colunas, a consulta responde só pelo índice (index-only scan).
 --
 -- Aditiva e idempotente: só um índice novo, nenhum dado alterado. O mesmo
--- índice está em shared/schema.ts (systemLogs) — no Replit, `db:push` no
--- Shell ANTES do Republish cria este índice; rodar este arquivo à mão é a
--- alternativa. Sem CONCURRENTLY: o índice é pequeno (só logs de criação de
+-- índice está espelhado em shared/schema.ts (systemLogs). Este app NÃO tem
+-- db:push (docs/migracoes.md): rode este arquivo à mão no banco de produção.
+-- O ensure-schema não cria este índice. Sem CONCURRENTLY: o índice é pequeno (só logs de criação de
 -- passagem); se preferir não travar escrita em system_logs, troque por
 -- CREATE INDEX CONCURRENTLY (fora de transação).
 

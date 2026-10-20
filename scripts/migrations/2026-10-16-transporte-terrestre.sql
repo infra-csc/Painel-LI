@@ -4,7 +4,8 @@
 -- Um registro por vaga e perna (ida/volta). A perna terrestre não precisa de
 -- passagem; o valor é só registrado (não entra no Planejado/Realizado).
 -- Aditiva e idempotente. O server/ensure-schema.ts também cria a tabela no
--- boot; o caminho normal é o `npm run db:push` (schema em shared/schema.ts).
+-- boot (o caminho normal é publicar); este arquivo é para rodar à mão antes.
+-- Este app NÃO tem db:push (docs/migracoes.md).
 CREATE TABLE IF NOT EXISTS transportes_terrestres (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
   team_inclusion_id varchar NOT NULL REFERENCES team_inclusions(id) ON DELETE CASCADE,
