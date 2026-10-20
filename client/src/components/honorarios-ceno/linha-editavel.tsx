@@ -1,14 +1,17 @@
 /**
- * Edição na própria linha (16/10) — o jeito da planilha: o valor negociado se
- * digita na célula e grava ao sair dela; setor e posição se escolhem ali
- * mesmo. Cada linha diz o que está acontecendo (salvando → salvo, ou o erro),
- * sem modal e sem botão "Salvar" por linha.
+ * Edição na própria linha (16/10) — o jeito da planilha: o tipo de freela se
+ * escolhe ali mesmo (20/10: no lugar de setor e posição) e, em "Outro valor"
+ * ou na empreita, o valor se digita na célula e grava ao sair dela. Cada
+ * linha diz o que está acontecendo (salvando → salvo, ou o erro), sem modal
+ * e sem botão "Salvar" por linha.
  */
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, parseBrNumber } from "@/lib/utils";
-import { POSICAO_CENO_LABEL, SETORES_CENO, SETOR_CENO_LABEL } from "@shared/honorarios-ceno";
+import { formatarMoeda } from "@/lib/format";
+import { CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
+import type { TabelaDaVaga } from "./api";
 
 export type EstadoDoSalvamento = "parado" | "salvando" | "salvo" | "erro";
 
@@ -75,23 +78,24 @@ export function CampoDeValor({ valor, onSalvar, disabled, rotulo, testId }: {
 
 const SELECT = "val-alvo h-9 w-full rounded-lg border-input bg-card px-2.5 text-xs font-medium data-[placeholder]:text-muted-foreground";
 
-export function SelectDeSetor({ valor, onMudar, disabled, rotulo }: { valor: string | null; onMudar: (v: string) => void; disabled?: boolean; rotulo: string }) {
+/** Tipo de freela na linha: os 4 da tabela (com o valor para os dias da vaga) ou "Outro valor". */
+export function SelectDoTipo({ valor, tabela, onMudar, disabled, rotulo, testId }: {
+  valor: string | null; tabela: TabelaDaVaga | null | undefined; onMudar: (v: string) => void; disabled?: boolean; rotulo: string; testId?: string;
+}) {
   return (
     <Select value={valor ?? undefined} onValueChange={onMudar} disabled={disabled}>
-      <SelectTrigger className={cn(SELECT, !valor && "border-dashed")} aria-label={rotulo}><SelectValue placeholder="Escolher" /></SelectTrigger>
-      <SelectContent>{SETORES_CENO.map((s) => <SelectItem key={s} value={s}>{SETOR_CENO_LABEL[s]}</SelectItem>)}</SelectContent>
-    </Select>
-  );
-}
-
-export function SelectDePosicao({ valor, onMudar, disabled, rotulo }: { valor: string | null; onMudar: (v: string) => void; disabled?: boolean; rotulo: string }) {
-  if (valor === "empreita") return <span className="inline-flex h-9 items-center text-xs font-medium text-slate-600">Empreita</span>;
-  return (
-    <Select value={valor ?? undefined} onValueChange={onMudar} disabled={disabled}>
-      <SelectTrigger className={cn(SELECT, !valor && "border-dashed")} aria-label={rotulo}><SelectValue placeholder="Escolher" /></SelectTrigger>
+      <SelectTrigger className={cn(SELECT, !valor && "border-dashed")} aria-label={rotulo} data-testid={testId}><SelectValue placeholder="Escolher o tipo" /></SelectTrigger>
       <SelectContent>
-        <SelectItem value="freela_local">{POSICAO_CENO_LABEL.freela_local}</SelectItem>
-        <SelectItem value="freela_viagem">{POSICAO_CENO_LABEL.freela_viagem}</SelectItem>
+        {CENO_FREELA_TIPOS.map((t) => {
+          const v = tabela?.valores[t];
+          return (
+            <SelectItem key={t} value={t}>
+              {CENO_FREELA_TIPO_LABELS[t]}
+              <span className="ml-1.5 tabular-nums text-muted-foreground">{v ? formatarMoeda(v.total).replace(/,00$/, "") : "—"}</span>
+            </SelectItem>
+          );
+        })}
+        <SelectItem value="outro">Outro valor <span className="ml-1.5 text-muted-foreground">negociado à parte</span></SelectItem>
       </SelectContent>
     </Select>
   );

@@ -27,9 +27,9 @@ import { isApiError } from "@/lib/queryClient";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
 import { APROVAR_DA_LINHA, ICONE_DA_LINHA, MOLDURA, SOBRE_ESCURO, TH } from "@/components/scaling-approval/tokens";
-import { HONORARIO_TEXTO_MAX, validarAjuste, validarMotivo, valorPorDiaria } from "@shared/honorarios-ceno";
+import { HONORARIO_TEXTO_MAX, rotuloDoValor, validarAjuste, validarMotivo, valorPorDiaria } from "@shared/honorarios-ceno";
 import { useFilaDeAprovacao, useMutacoesDoAprovador, type Honorario } from "./api";
-import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, ValorComDiaria, brl, brlCurto, dataBr, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel, useFocoDeVolta } from "./pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, OrigemDoValor, ValorComDiaria, VagasDaEmpreitaLista, brl, brlCurto, dataBr, diariasTexto, haQuanto, periodoCurto, useFocoDeVolta } from "./pecas";
 import { HistoricoSheet } from "./historico-sheet";
 
 export type SituacaoDaFila = "pendentes" | "decididos";
@@ -82,7 +82,7 @@ function AjusteDialog({ h, onClose }: { h: Honorario | null; onClose: () => void
       <DialogContent className="max-w-lg gap-0 p-0" onCloseAutoFocus={devolverFoco}>
         <DialogHeader className="space-y-1 border-b border-border px-6 pb-4 pt-5 text-left">
           <DialogTitle className="pr-8 text-base font-semibold">Aprovar com ajuste</DialogTitle>
-          <DialogDescription className="text-xs">{h.nome} · {h.eventName} · {setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {diariasTexto(h.diarias)}</DialogDescription>
+          <DialogDescription className="text-xs">{h.nome} · {h.eventName} · {rotuloDoValor(h)} · {diariasTexto(h.diarias)}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4 px-6 py-5" onSubmit={(e) => { e.preventDefault(); void salvar(); }}>
           <div className="grid grid-cols-2 gap-3">
@@ -156,7 +156,8 @@ function LinhaPendente({ h, marcado, onMarcar, onAprovar, onAjustar, onDevolver,
       <td data-primeira className="px-3 py-3">
         <span className="block break-words text-sm font-semibold leading-5 text-foreground">{h.nome}</span>
         <span className="block"><OrigemDaLinha h={h} /></span>
-        <span className="mt-0.5 block text-2xs text-slate-600">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)}</span>
+        <OrigemDoValor h={h} className="mt-0.5" />
+        {h.tipo === "empreita" && <VagasDaEmpreitaLista vagas={h.vagasDaEmpreita ?? []} className="mt-0.5" />}
         <AvisoDaLinha h={h} />
         {h.observacao && (
           <span className="mt-1.5 flex items-start gap-1.5 text-2xs text-slate-600">
@@ -436,7 +437,7 @@ function Decididos({ eventId }: { eventId: string | null }) {
           <li key={h.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
             <span className="min-w-0 flex-1 basis-[220px]">
               <span className="block truncate text-sm font-semibold text-foreground">{h.nome}</span>
-              <span className="block truncate text-2xs text-muted-foreground">{h.eventName} · {setorLabel(h.setor)} · {posicaoLabel(h.posicao)}</span>
+              <span className="block truncate text-2xs text-muted-foreground">{h.eventName} · {rotuloDoValor(h)}</span>
               <AvisoDaLinha h={h} />
             </span>
             <span className="w-[150px] shrink-0"><EtapaBadge h={h} visao="aprovacao" /><span className="mt-1 block text-2xs text-muted-foreground">{h.decididoPorNome} · {haQuanto(h.decididoEm)}</span></span>

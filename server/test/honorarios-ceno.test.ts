@@ -25,6 +25,9 @@ interface Cenario {
   vagaFreela: { id: string };
   vagaCasa: { id: string };
   vagaViagem: { id: string };
+  /** Vaga ABERTA (planejada, sem colaborador) — desde 20/10 também pede. */
+  vagaAberta: { id: string; inclusionNumber: number };
+  funcaoNome: string;
   pede: { agent: TestAgent; user: UsuarioDeTeste };
   aprova: { agent: TestAgent; user: UsuarioDeTeste };
 }
@@ -53,18 +56,19 @@ async function cenario(): Promise<Cenario> {
   const vagaFreela = await criarVaga({ ...base, collaboratorId: freela.id, needsTicket: false });
   const vagaViagem = await criarVaga({ ...base, collaboratorId: viajante.id, needsTicket: true });
   const vagaCasa = await criarVaga({ ...base, collaboratorId: casa.id });
-  // Vaga que NÃO está escalada (planejada) não entra.
-  await criarVaga({ ...base, status: "planejado", phase: "inclusao", collaboratorId: null });
+  // Vaga ABERTA (planejada, sem ninguém): desde 20/10 entra ("não precisa escalar").
+  const vagaAberta = await criarVaga({ ...base, status: "planejado", phase: "inclusao", collaboratorId: null });
   return {
-    eventoId: evento.id, funcaoId: funcao.id, vagaFreela, vagaCasa, vagaViagem,
+    eventoId: evento.id, funcaoId: funcao.id, funcaoNome: funcao.name, vagaFreela, vagaCasa, vagaViagem, vagaAberta,
     pede: { agent: await agenteDe(quemPede), user: quemPede },
     aprova: { agent: await agenteDe(quemAprova), user: quemAprova },
   };
 }
 
+/** Rascunho com "Outro valor" (o valor digitado vale); o tipo de tabela tem teste próprio. */
 async function criarRascunho(c: Cenario, vagaId: string, valorPedido = 120_000) {
   const r = await mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({
-    eventId: c.eventoId, tipo: "vaga", teamInclusionId: vagaId, valorPedido, setor: "montagem",
+    eventId: c.eventoId, tipo: "vaga", teamInclusionId: vagaId, tipoFreela: "outro", valorPedido, observacao: "Negociado à parte",
   });
   expect(r.status, r.text).toBe(201);
   return r.body as { id: string; versao: number; status: string; valorPedido: number };
@@ -87,11 +91,11 @@ describe("Honorários da cenotécnica — fluxo do dono", () => {
     const c = await cenario();
     const vagaAntes = await ctx.storage.getTeamInclusion(c.vagaFreela.id);
 
-    // Quem pede vê as vagas escaladas freela; a da casa vai para a nota de rodapé.
+    // Quem pede vê as vagas freela, escaladas ou abertas; a da casa vai para a nota de rodapé.
     const tela = await c.pede.agent.get(`/api/honorarios-ceno/pedido?eventId=${c.eventoId}`);
     expect(tela.status).toBe(200);
     const ids = tela.body.linhas.map((l: { vaga: { id: string } }) => l.vaga.id).sort();
-    expect(ids).toEqual([c.vagaFreela.id, c.vagaViagem.id].sort());
+    expect(ids).toEqual([c.vagaFreela.id, c.vagaViagem.id, c.vagaAberta.id].sort());
     expect(tela.body.casa.map((v: { id: string }) => v.id)).toEqual([c.vagaCasa.id]);
     const viagem = tela.body.linhas.find((l: { vaga: { id: string } }) => l.vaga.id === c.vagaViagem.id);
     expect(viagem.sugestao.posicao).toBe("freela_viagem");
@@ -498,5 +502,205 @@ describe("Honorários da cenotécnica — a vaga muda depois do pedido", () => {
     expect(linha).toMatchObject({ foraDaEscala: true, honorario: { avisoDaVaga: "casa" } });
     const env = await mutacao(c.pede.agent.post("/api/honorarios-ceno/enviar")).send({ itens: [{ id: p.id, versao: p.versao }] });
     expect(env.status).toBe(409);
+  });
+});
+
+// ── 20/10: vaga aberta, tipo de freela e empreita que agrupa vagas ──────────
+
+describe("Honorários da cenotécnica — vaga ABERTA (dono: \"não precisa escalar\")", () => {
+  const escalar = async (vagaId: string, colaboradorId: string) =>
+    ctx.db.update(ctx.schema.teamInclusions).set({ collaboratorId: colaboradorId, status: "escalado", phase: "escalacao" }).where(eq(ctx.schema.teamInclusions.id, vagaId));
+
+  it("vaga sem colaborador pede e envia; a linha se chama \"Vaga #N sem nome · função\"", async () => {
+    const c = await cenario();
+    const tela = await c.pede.agent.get(`/api/honorarios-ceno/pedido?eventId=${c.eventoId}`);
+    const linha = tela.body.linhas.find((l: { vaga: { id: string } | null }) => l.vaga?.id === c.vagaAberta.id);
+    expect(linha.sugestao).toMatchObject({ nome: `Vaga #${c.vagaAberta.inclusionNumber} sem nome · ${c.funcaoNome}`, semColaborador: true });
+    expect(linha.tabela.dias).toBe(3);
+
+    const p = await criarRascunho(c, c.vagaAberta.id, 95_000);
+    expect(p).toMatchObject({ nome: `Vaga #${c.vagaAberta.inclusionNumber} sem nome · ${c.funcaoNome}`, collaboratorId: null, semColaborador: true, avisoDaVaga: null, podeEditar: true });
+    const env = await enviar(c, [{ id: p.id, versao: p.versao }]);
+    expect(env.enviados).toEqual([p.id]);
+    const fila = await c.aprova.agent.get(`/api/honorarios-ceno/aprovacao?eventId=${c.eventoId}`);
+    expect(fila.body[0]).toMatchObject({ id: p.id, semColaborador: true, nome: expect.stringMatching(/^Vaga #\d+ sem nome/) });
+  });
+
+  it("escalar um FREELA depois: o pedido passa a mostrar o nome, sem aviso de troca e sem travar o envio", async () => {
+    const c = await cenario();
+    const p = await criarRascunho(c, c.vagaAberta.id, 95_000);
+    const freela = await criarColaborador({ fullName: `Escalado Depois ${unico()}` });
+    await escalar(c.vagaAberta.id, freela.id);
+
+    const tela = await c.pede.agent.get(`/api/honorarios-ceno/pedido?eventId=${c.eventoId}`);
+    const linha = tela.body.linhas.find((l: { honorario: { id: string } | null }) => l.honorario?.id === p.id);
+    expect(linha.honorario).toMatchObject({ nome: freela.fullName, collaboratorId: freela.id, avisoDaVaga: null, semColaborador: false, podeEditar: true });
+    // Não é troca: a versão não muda (quem estava com a tela aberta envia normalmente).
+    expect(linha.honorario.versao).toBe(p.versao);
+    const env = await enviar(c, [{ id: p.id, versao: p.versao }]);
+    expect(env.enviados).toEqual([p.id]);
+    const h = await lerPedido(c.pede.agent, p.id);
+    expect(h.historico.map((x) => x.acao)).toContain("colaborador_escalado");
+
+    // Depois disso, trocar a pessoa volta a ser troca (aviso + "Passar o pedido").
+    const outro = await criarColaborador({ fullName: `Outro ${unico()}` });
+    await escalar(c.vagaAberta.id, outro.id);
+    const fila = await c.aprova.agent.get(`/api/honorarios-ceno/aprovacao?eventId=${c.eventoId}`);
+    expect(fila.body[0]).toMatchObject({ avisoDaVaga: "colaborador_trocado", colaboradorAtual: outro.fullName, nome: freela.fullName });
+  });
+
+  it("escalar um funcionário da CASA depois: o pedido para, com o aviso, e não envia", async () => {
+    const c = await cenario();
+    const p = await criarRascunho(c, c.vagaAberta.id, 95_000);
+    const casa = (await ctx.storage.getTeamInclusion(c.vagaCasa.id))!.collaboratorId!;
+    await escalar(c.vagaAberta.id, casa);
+    const tela = await c.pede.agent.get(`/api/honorarios-ceno/pedido?eventId=${c.eventoId}`);
+    const linha = tela.body.linhas.find((l: { honorario: { id: string } | null }) => l.honorario?.id === p.id);
+    expect(linha).toMatchObject({ foraDaEscala: true, honorario: { avisoDaVaga: "casa", podeEditar: false, collaboratorId: null } });
+    const env = await mutacao(c.pede.agent.post("/api/honorarios-ceno/enviar")).send({ itens: [{ id: p.id, versao: p.versao }] });
+    expect(env.status).toBe(409);
+    expect(env.body.recusados[0].motivo).toMatch(/funcionário da casa/);
+  });
+
+  it("vaga cancelada continua fora: não pede", async () => {
+    const c = await cenario();
+    await ctx.db.update(ctx.schema.teamInclusions).set({ status: "cancelado", phase: "cancelado" }).where(eq(ctx.schema.teamInclusions.id, c.vagaAberta.id));
+    const r = await mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({ eventId: c.eventoId, tipo: "vaga", teamInclusionId: c.vagaAberta.id, tipoFreela: "outro", valorPedido: 1 });
+    expect(r.status).toBe(404);
+  });
+});
+
+describe("Honorários da cenotécnica — tipo de freela (tabela) ou outro valor", () => {
+  it("tipo de tabela: o valor é o da tabela pelos dias da vaga (a tela não manda valor); posição e setor saem do tipo e da função", async () => {
+    const c = await cenario();
+    const { cenoEmpreitaTotalCents } = await import("@shared/cenotecnica-empreita");
+    const esperado = cenoEmpreitaTotalCents("local_a", 3)!.totalCents;
+    const r = await mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({ eventId: c.eventoId, tipo: "vaga", teamInclusionId: c.vagaViagem.id, tipoFreela: "local_a", valorPedido: 1 });
+    expect(r.status, r.text).toBe(201);
+    expect(r.body).toMatchObject({ tipoFreela: "local_a", valorPedido: esperado, posicao: "freela_local", setor: "montagem", diarias: 3, inicio: "2099-10-10", fim: "2099-10-12" });
+
+    // Trocar para Freela Viagem recalcula; para "Outro valor" o digitado vale.
+    const viagem = await mutacao(c.pede.agent.patch(`/api/honorarios-ceno/${r.body.id}`)).send({ versao: r.body.versao, tipoFreela: "viagem" });
+    expect(viagem.body).toMatchObject({ tipoFreela: "viagem", valorPedido: cenoEmpreitaTotalCents("viagem", 3)!.totalCents, posicao: "freela_viagem" });
+    const outro = await mutacao(c.pede.agent.patch(`/api/honorarios-ceno/${r.body.id}`)).send({ versao: viagem.body.versao, tipoFreela: "outro", valorPedido: 150_000, observacao: "Montagem noturna" });
+    expect(outro.body).toMatchObject({ tipoFreela: "outro", valorPedido: 150_000, observacao: "Montagem noturna" });
+
+    // Sem tipo não envia; tipo inválido é 400.
+    const semTipo = await mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({ eventId: c.eventoId, tipo: "vaga", teamInclusionId: c.vagaFreela.id, valorPedido: 10_000 });
+    const env = await mutacao(c.pede.agent.post("/api/honorarios-ceno/enviar")).send({ itens: [{ id: semTipo.body.id, versao: semTipo.body.versao }] });
+    expect(env.status).toBe(409);
+    expect(env.body.recusados[0].motivo).toMatch(/tipo de freela/);
+    const invalido = await mutacao(c.pede.agent.patch(`/api/honorarios-ceno/${semTipo.body.id}`)).send({ versao: semTipo.body.versao, tipoFreela: "casa" });
+    expect(invalido.status).toBe(400);
+  });
+
+  it("o período da vaga mudou depois do rascunho: o envio leva o valor da tabela de hoje", async () => {
+    const c = await cenario();
+    const { cenoEmpreitaTotalCents } = await import("@shared/cenotecnica-empreita");
+    const r = await mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({ eventId: c.eventoId, tipo: "vaga", teamInclusionId: c.vagaFreela.id, tipoFreela: "sp" });
+    expect(r.body.valorPedido).toBe(cenoEmpreitaTotalCents("sp", 3)!.totalCents);
+    await ctx.db.update(ctx.schema.teamInclusions).set({ scheduleEndDate: "2099-10-14" }).where(eq(ctx.schema.teamInclusions.id, c.vagaFreela.id));
+    await enviar(c, [{ id: r.body.id, versao: r.body.versao }]);
+    const fila = await c.aprova.agent.get(`/api/honorarios-ceno/aprovacao?eventId=${c.eventoId}`);
+    expect(fila.body[0]).toMatchObject({ status: "aguardando", valorPedido: cenoEmpreitaTotalCents("sp", 5)!.totalCents, diarias: 5 });
+  });
+});
+
+describe("Honorários da cenotécnica — empreita que agrupa vagas", () => {
+  async function criarEmpreita(c: Cenario, vagaIds: string[], extra: Record<string, unknown> = {}) {
+    return mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({ eventId: c.eventoId, tipo: "empreita", nome: "Equipe Horizonte", valorPedido: 400_000, vagaIds, ...extra });
+  }
+
+  it("criar com 2 vagas (aberta e escalada): elas saem das linhas próprias e o nº de pessoas segue as vagas", async () => {
+    const c = await cenario();
+    const r = await criarEmpreita(c, [c.vagaAberta.id, c.vagaFreela.id]);
+    expect(r.status, r.text).toBe(201);
+    expect(r.body).toMatchObject({ tipo: "empreita", posicao: "empreita", pessoas: 2, setor: "montagem" });
+    expect(r.body.vagasDaEmpreita.map((v: { id: string }) => v.id).sort()).toEqual([c.vagaAberta.id, c.vagaFreela.id].sort());
+
+    const tela = await c.pede.agent.get(`/api/honorarios-ceno/pedido?eventId=${c.eventoId}`);
+    const ids = tela.body.linhas.map((l: { vaga: { id: string } | null }) => l.vaga?.id);
+    expect(ids).not.toContain(c.vagaAberta.id);
+    expect(ids).not.toContain(c.vagaFreela.id);
+    const naLista = tela.body.vagasDoEvento.find((v: { id: string }) => v.id === c.vagaFreela.id);
+    expect(naLista.empreita).toMatchObject({ id: r.body.id, nome: "Equipe Horizonte" });
+
+    // A vaga da empreita não tem pedido próprio; nem entra em outra empreita.
+    const proprio = await mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({ eventId: c.eventoId, tipo: "vaga", teamInclusionId: c.vagaFreela.id, tipoFreela: "outro", valorPedido: 1 });
+    expect(proprio.status).toBe(409);
+    expect(proprio.body.message).toMatch(/empreita Equipe Horizonte/);
+    const outra = await criarEmpreita(c, [c.vagaFreela.id], { nome: "Equipe Norte" });
+    expect(outra.status).toBe(409);
+    expect(outra.body.message).toMatch(/já está na empreita/);
+  });
+
+  it("vaga com rascunho próprio: pede confirmação e, confirmado, descarta o rascunho; enviado bloqueia", async () => {
+    const c = await cenario();
+    const rasc = await criarRascunho(c, c.vagaFreela.id, 50_000);
+    const enviado = await criarRascunho(c, c.vagaViagem.id, 60_000);
+    await enviar(c, [{ id: enviado.id, versao: enviado.versao }]);
+
+    const bloqueada = await criarEmpreita(c, [c.vagaViagem.id]);
+    expect(bloqueada.status).toBe(409);
+    expect(bloqueada.body.message).toMatch(/peça para o aprovador devolver/);
+
+    const semConfirmar = await criarEmpreita(c, [c.vagaFreela.id]);
+    expect(semConfirmar.status).toBe(409);
+    expect(semConfirmar.body.precisaConfirmar).toEqual([expect.objectContaining({ id: rasc.id, status: "rascunho" })]);
+
+    const ok = await criarEmpreita(c, [c.vagaFreela.id], { descartarRascunhos: true });
+    expect(ok.status, ok.text).toBe(201);
+    expect((await c.pede.agent.get(`/api/honorarios-ceno/${rasc.id}/historico`)).status).toBe(404);
+    const h = await lerPedido(c.pede.agent, ok.body.id);
+    expect(h.historico.map((x) => x.acao)).toContain("pedido_individual_descartado");
+  });
+
+  it("tirar uma vaga da empreita (PATCH com a lista) devolve a vaga às linhas próprias", async () => {
+    const c = await cenario();
+    const r = await criarEmpreita(c, [c.vagaAberta.id, c.vagaFreela.id]);
+    const ed = await mutacao(c.pede.agent.patch(`/api/honorarios-ceno/${r.body.id}`)).send({ versao: r.body.versao, vagaIds: [c.vagaAberta.id] });
+    expect(ed.status, ed.text).toBe(200);
+    expect(ed.body).toMatchObject({ pessoas: 1 });
+    expect(ed.body.vagasDaEmpreita.map((v: { id: string }) => v.id)).toEqual([c.vagaAberta.id]);
+    const tela = await c.pede.agent.get(`/api/honorarios-ceno/pedido?eventId=${c.eventoId}`);
+    expect(tela.body.linhas.map((l: { vaga: { id: string } | null }) => l.vaga?.id)).toContain(c.vagaFreela.id);
+  });
+
+  it("vaga da empreita cancelada depois: aviso na empreita e o envio fica preso até tirá-la", async () => {
+    const c = await cenario();
+    const r = await criarEmpreita(c, [c.vagaAberta.id, c.vagaFreela.id]);
+    await ctx.db.update(ctx.schema.teamInclusions).set({ status: "cancelado", phase: "cancelado" }).where(eq(ctx.schema.teamInclusions.id, c.vagaFreela.id));
+    const tela = await c.pede.agent.get(`/api/honorarios-ceno/pedido?eventId=${c.eventoId}`);
+    const emp = tela.body.empreitas[0];
+    expect(emp.avisosDaEmpreita).toEqual([expect.stringMatching(/cancelada na escala/)]);
+    const env = await mutacao(c.pede.agent.post("/api/honorarios-ceno/enviar")).send({ itens: [{ id: r.body.id, versao: emp.versao }] });
+    expect(env.status).toBe(409);
+    expect(env.body.recusados[0].motivo).toMatch(/tire-a da empreita/);
+    const ed = await mutacao(c.pede.agent.patch(`/api/honorarios-ceno/${r.body.id}`)).send({ versao: emp.versao, vagaIds: [c.vagaAberta.id] });
+    expect(ed.status, ed.text).toBe(200);
+    expect(ed.body.avisosDaEmpreita).toEqual([]);
+    await enviar(c, [{ id: r.body.id, versao: ed.body.versao }]);
+  });
+
+  it("aprovar → liberar: a empreita é UM pedido com as vagas dela e conta uma vez no relatório", async () => {
+    const { totalPorEvento } = await import("@shared/honorarios-ceno");
+    const c = await cenario();
+    const r = await criarEmpreita(c, [c.vagaAberta.id, c.vagaFreela.id]);
+    await enviar(c, [{ id: r.body.id, versao: r.body.versao }]);
+    const fila = await c.aprova.agent.get(`/api/honorarios-ceno/aprovacao?eventId=${c.eventoId}`);
+    expect(fila.body).toHaveLength(1);
+    expect(fila.body[0].vagasDaEmpreita).toHaveLength(2);
+    const ap = await mutacao(c.aprova.agent.post(`/api/honorarios-ceno/${r.body.id}/aprovar`)).send({ versao: fila.body[0].versao });
+    expect(ap.status).toBe(200);
+    const rh = await agenteLogado("financial");
+    const lib = await mutacao(rh.agent.post(`/api/honorarios-ceno/${r.body.id}/liberacoes`)).send({ versao: ap.body.versao, data: "2099-10-20", oc: "OC-EMP", valor: 400_000 });
+    expect(lib.status, lib.text).toBe(201);
+    const fin = (await rh.agent.get(`/api/honorarios-ceno/financeiro?eventId=${c.eventoId}`)).body;
+    expect(fin).toHaveLength(1);
+    expect(fin[0].vagasDaEmpreita).toHaveLength(2);
+    expect(totalPorEvento(fin)[0]).toMatchObject({ linhas: 1, aprovado: 400_000, liberado: 400_000 });
+    // Empreita enviada não muda de vagas.
+    const ed = await mutacao(c.pede.agent.patch(`/api/honorarios-ceno/${r.body.id}`)).send({ versao: lib.body.versao, vagaIds: [] });
+    expect(ed.status).toBe(409);
   });
 });

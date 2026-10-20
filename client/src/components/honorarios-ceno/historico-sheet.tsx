@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { faltaLiberar, valorPorDiaria } from "@shared/honorarios-ceno";
 import { useHistoricoDoHonorario, type EntradaDoHistorico, type Honorario, type Liberacao } from "./api";
-import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, brl, useFocoDeVolta, dataBr, diariasTexto, periodoCurto, posicaoLabel, setorLabel, type VisaoDaEtapa } from "./pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, OrigemDoValor, VagasDaEmpreitaLista, brl, useFocoDeVolta, dataBr, diariasTexto, periodoCurto, type VisaoDaEtapa } from "./pecas";
 
 const ACOES: Record<string, { rotulo: string; icone: LucideIcon; tom: string }> = {
   criado: { rotulo: "Pedido iniciado", icone: FilePen, tom: "bg-muted text-muted-foreground" },
@@ -26,6 +26,9 @@ const ACOES: Record<string, { rotulo: string; icone: LucideIcon; tom: string }> 
   liberacao: { rotulo: "Verba liberada", icone: Banknote, tom: "bg-success-soft text-success" },
   liberacao_estornada: { rotulo: "Liberação estornada", icone: RotateCcw, tom: "bg-danger-soft text-danger" },
   colaborador_trocado: { rotulo: "Colaborador da vaga trocado", icone: ArrowLeftRight, tom: "bg-warning-soft text-warning" },
+  colaborador_escalado: { rotulo: "Vaga escalada — o nome entrou no pedido", icone: ArrowLeftRight, tom: "bg-muted text-muted-foreground" },
+  vagas_da_empreita: { rotulo: "Vagas da empreita alteradas", icone: Pencil, tom: "bg-brand-soft text-primary" },
+  pedido_individual_descartado: { rotulo: "Pedido próprio da vaga descartado", icone: RotateCcw, tom: "bg-muted text-muted-foreground" },
 };
 
 const quando = (iso: string) => {
@@ -152,9 +155,10 @@ export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", aco
                   </p>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <EtapaBadge h={h} visao={visao} />
-                    <span className="text-2xs text-muted-foreground">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)}</span>
+                    <OrigemDoValor h={h} className="min-w-0 flex-1" />
                   </div>
                   <AvisoDaLinha h={h} />
+                  {h.tipo === "empreita" && <VagasDaEmpreitaLista vagas={h.vagasDaEmpreita ?? []} aberta />}
                 </>
               ) : <span className="text-xs text-muted-foreground">Carregando…</span>}
             </div>

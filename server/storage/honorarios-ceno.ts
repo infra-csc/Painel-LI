@@ -10,19 +10,36 @@
  * dentro de transação, com o histórico gravado junto: zero linhas = alguém
  * mudou o pedido antes (a rota responde 409).
  */
-import { and, desc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db";
 import {
-  honorariosCeno, honorariosCenoHistorico, honorariosCenoLiberacoes,
-  teamInclusions, functions, collaborators, events, scalingFunctionManagers, functionManagers,
+  honorariosCeno, honorariosCenoHistorico, honorariosCenoLiberacoes, honorariosCenoEmpreitaVagas,
+  teamInclusions, functions, collaborators, events, scalingFunctionManagers, functionManagers, USUARIO_SISTEMA,
   type HonorarioCeno, type HonorarioCenoHistorico, type HonorarioCenoLiberacao, type InsertHonorarioCeno,
 } from "@shared/schema";
 import { ehCenotecnica } from "@shared/cenotecnica";
-import { avisoDaVaga, type AvisoDaVaga } from "@shared/honorarios-ceno";
-import { ACTIVE_CONFLICT_STATUSES } from "@shared/vaga-status";
+import { diasEmpreita } from "@shared/calculation-rules";
+import {
+  AVISO_NA_EMPREITA_LABEL, STATUS_DE_VAGA_ATIVA, avisoDaVaga, avisoDaVagaNaEmpreita, type AvisoDaVaga,
+} from "@shared/honorarios-ceno";
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Vaga que faz parte de uma empreita (20/10) — com quem está nela HOJE e o aviso, se mudou. */
+export interface VagaDaEmpreita {
+  id: string;
+  inclusionNumber: number;
+  functionId: string;
+  functionName: string | null;
+  collaboratorId: string | null;
+  collaboratorName: string | null;
+  scheduleStartDate: string | null;
+  scheduleEndDate: string | null;
+  /** Dias de trabalho (os mesmos da tabela de empreita). */
+  dias: number;
+  aviso: Exclude<AvisoDaVaga, "colaborador_trocado"> | null;
+}
 
 /** Liberado = soma das liberações NÃO estornadas (subconsulta por linha). */
 const LIBERADO = sql<number>`coalesce((select sum(${honorariosCenoLiberacoes.valor}) from ${honorariosCenoLiberacoes}
@@ -45,6 +62,12 @@ export type HonorarioComContexto = HonorarioCeno & {
   colaboradorAtual: string | null;
   /** O evento foi excluído (soft delete) depois do pedido. */
   eventoExcluido: boolean;
+  /** Pedido de VAGA ainda sem colaborador (vaga aberta) — "Vaga #N sem nome". */
+  semColaborador: boolean;
+  /** EMPREITA: as vagas que fazem parte dela (vazio na vaga e na equipe sem vaga). */
+  vagasDaEmpreita: VagaDaEmpreita[];
+  /** EMPREITA: o que mudou nas vagas dela ("#5063 cancelada na escala"), para o aviso. */
+  avisosDaEmpreita: string[];
 };
 
 /** Colaborador que está hoje na vaga (o `collaborators` sem alias é o do pedido). */
@@ -94,11 +117,53 @@ function comContexto(l: LinhaSelecionada): HonorarioComContexto {
     avisoDaVaga: avisoDaVaga(l.h, l.vagaId ? {
       deletedAt: l.vagaDeletedAt, status: l.vagaStatus ?? null, phase: l.vagaPhase ?? null, functionId: l.vagaFunctionId ?? null,
       collaboratorId: l.vagaCollaboratorId ?? null, collaboratorType: l.vagaCollaboratorType ?? null, empreitaEmpresa: l.vagaEmpreitaEmpresa ?? null,
-    } : null, ACTIVE_CONFLICT_STATUSES),
+    } : null, STATUS_DE_VAGA_ATIVA),
     colaboradorAtualId: l.vagaCollaboratorId ?? null,
     colaboradorAtual: l.vagaCollaboratorName ?? null,
     eventoExcluido: l.eventStatus === "excluído" || l.eventStatus === "excluido",
+    semColaborador: l.h.tipo === "vaga" && !l.h.collaboratorId,
+    vagasDaEmpreita: [],
+    avisosDaEmpreita: [],
   };
+}
+
+/**
+ * Pedido feito na vaga ABERTA e a vaga ganhou um freela depois (20/10): o
+ * pedido passa a ser dele — grava colaborador e nome (o retrato) e deixa no
+ * histórico. NÃO é troca: não sobe a versão (quem está com a tela aberta
+ * continua podendo salvar e enviar) e não pede confirmação. Idempotente e
+ * seguro em corrida: só grava se o pedido ainda está sem colaborador.
+ */
+async function adotarColaboradorDaVaga(hs: HonorarioComContexto[]): Promise<void> {
+  const alvos = hs.filter((h) => h.tipo === "vaga" && !h.collaboratorId && h.colaboradorAtualId && !h.avisoDaVaga);
+  for (const h of alvos) {
+    const nome = (h.colaboradorAtual ?? "").trim() || h.nome;
+    const gravou = await db.transaction(async (tx) => {
+      const [linha] = await tx.update(honorariosCeno)
+        .set({ collaboratorId: h.colaboradorAtualId, nome })
+        .where(and(eq(honorariosCeno.id, h.id), isNull(honorariosCeno.collaboratorId), eq(honorariosCeno.tipo, "vaga")))
+        .returning({ id: honorariosCeno.id });
+      if (!linha) return false;
+      await registrar(tx, h.id, { id: USUARIO_SISTEMA.id, nome: "Escalação" }, { acao: "colaborador_escalado", detalhe: `Vaga escalada: ${h.nome} → ${nome}` });
+      return true;
+    });
+    if (gravou) { h.collaboratorId = h.colaboradorAtualId; h.nome = nome; h.semColaborador = false; }
+  }
+}
+
+/** Completa a leitura: adota o colaborador da vaga aberta e traz as vagas das empreitas. */
+async function completar(hs: HonorarioComContexto[]): Promise<HonorarioComContexto[]> {
+  if (hs.length === 0) return hs;
+  await adotarColaboradorDaVaga(hs);
+  const empreitas = hs.filter((h) => h.tipo === "empreita");
+  if (empreitas.length) {
+    const porEmpreita = await vagasDasEmpreitas(empreitas.map((h) => h.id));
+    for (const h of empreitas) {
+      h.vagasDaEmpreita = porEmpreita.get(h.id) ?? [];
+      h.avisosDaEmpreita = h.vagasDaEmpreita.filter((v) => v.aviso).map((v) => `#${v.inclusionNumber} ${AVISO_NA_EMPREITA_LABEL[v.aviso!]}`);
+    }
+  }
+  return hs;
 }
 
 export async function listarHonorarios(filtros: SQL[], opts: { limite?: number; ordem?: "decidido" | "evento" } = {}): Promise<HonorarioComContexto[]> {
@@ -108,12 +173,109 @@ export async function listarHonorarios(filtros: SQL[], opts: { limite?: number; 
       ? [desc(honorariosCeno.decididoEm), desc(honorariosCeno.updatedAt)]
       : [desc(events.startDate), honorariosCeno.tipo, honorariosCeno.nome]));
   const linhas = opts.limite ? await q.limit(opts.limite) : await q;
-  return linhas.map(comContexto);
+  return completar(linhas.map(comContexto));
 }
 
 export async function getHonorario(id: string): Promise<HonorarioComContexto | null> {
   const [l] = await selecaoComContexto().where(eq(honorariosCeno.id, id)).limit(1);
-  return l ? comContexto(l) : null;
+  return l ? (await completar([comContexto(l)]))[0] : null;
+}
+
+// ── Empreita que agrupa vagas (20/10) ───────────────────────────────────────
+
+/** As vagas de cada empreita, com quem está nelas hoje e o aviso se a vaga mudou. */
+export async function vagasDasEmpreitas(honorarioIds: string[]): Promise<Map<string, VagaDaEmpreita[]>> {
+  const mapa = new Map<string, VagaDaEmpreita[]>();
+  if (honorarioIds.length === 0) return mapa;
+  const linhas = await db
+    .select({
+      honorarioId: honorariosCenoEmpreitaVagas.honorarioId,
+      id: teamInclusions.id, inclusionNumber: teamInclusions.inclusionNumber, functionId: teamInclusions.functionId,
+      functionName: functions.name, collaboratorId: teamInclusions.collaboratorId, collaboratorName: collaborators.fullName,
+      collaboratorType: collaborators.type, status: teamInclusions.status, phase: teamInclusions.phase, deletedAt: teamInclusions.deletedAt,
+      empreitaEmpresa: teamInclusions.empreitaEmpresa, scheduleStartDate: teamInclusions.scheduleStartDate,
+      scheduleEndDate: teamInclusions.scheduleEndDate, workDays: teamInclusions.workDays, dailyRates: teamInclusions.dailyRates,
+    })
+    .from(honorariosCenoEmpreitaVagas)
+    .innerJoin(teamInclusions, eq(teamInclusions.id, honorariosCenoEmpreitaVagas.teamInclusionId))
+    .leftJoin(functions, eq(functions.id, teamInclusions.functionId))
+    .leftJoin(collaborators, eq(collaborators.id, teamInclusions.collaboratorId))
+    .where(inArray(honorariosCenoEmpreitaVagas.honorarioId, honorarioIds))
+    .orderBy(teamInclusions.inclusionNumber);
+  for (const l of linhas) {
+    const inicio = l.scheduleStartDate ? String(l.scheduleStartDate) : null;
+    const fim = l.scheduleEndDate ? String(l.scheduleEndDate) : null;
+    const v: VagaDaEmpreita = {
+      id: l.id, inclusionNumber: l.inclusionNumber, functionId: l.functionId, functionName: l.functionName ?? null,
+      collaboratorId: l.collaboratorId ?? null, collaboratorName: l.collaboratorName ?? null,
+      scheduleStartDate: inicio, scheduleEndDate: fim,
+      dias: diasEmpreita({ workDays: (l.workDays ?? []).map(String), scheduleStartDate: inicio, scheduleEndDate: fim, dailyRates: l.dailyRates }),
+      aviso: avisoDaVagaNaEmpreita({
+        deletedAt: l.deletedAt, status: l.status ?? null, phase: l.phase ?? null, functionId: l.functionId,
+        collaboratorId: l.collaboratorId ?? null, collaboratorType: l.collaboratorType ?? null, empreitaEmpresa: l.empreitaEmpresa ?? null,
+      }, STATUS_DE_VAGA_ATIVA, ehCenotecnica(l.functionName, { incluiSupCeno: true })),
+    };
+    mapa.set(l.honorarioId, [...(mapa.get(l.honorarioId) ?? []), v]);
+  }
+  return mapa;
+}
+
+/** De que empreita é cada vaga (vagaId → { honorarioId, nome }). */
+export async function empreitasDasVagas(vagaIds: string[]): Promise<Map<string, { honorarioId: string; nome: string; status: string }>> {
+  const mapa = new Map<string, { honorarioId: string; nome: string; status: string }>();
+  if (vagaIds.length === 0) return mapa;
+  const linhas = await db
+    .select({ vagaId: honorariosCenoEmpreitaVagas.teamInclusionId, honorarioId: honorariosCeno.id, nome: honorariosCeno.nome, status: honorariosCeno.status })
+    .from(honorariosCenoEmpreitaVagas)
+    .innerJoin(honorariosCeno, eq(honorariosCeno.id, honorariosCenoEmpreitaVagas.honorarioId))
+    .where(inArray(honorariosCenoEmpreitaVagas.teamInclusionId, vagaIds));
+  for (const l of linhas) mapa.set(l.vagaId, { honorarioId: l.honorarioId, nome: l.nome, status: l.status });
+  return mapa;
+}
+
+/** Pedidos INDIVIDUAIS (tipo vaga) das vagas indicadas. */
+export async function pedidosIndividuaisDasVagas(vagaIds: string[]): Promise<HonorarioCeno[]> {
+  if (vagaIds.length === 0) return [];
+  return db.select().from(honorariosCeno).where(and(eq(honorariosCeno.tipo, "vaga"), inArray(honorariosCeno.teamInclusionId, vagaIds)));
+}
+
+/** Erro de regra dentro da transação (a rota responde 409 com a mensagem). */
+export class ConflitoDoHonorario extends Error {
+  constructor(message: string) { super(message); this.name = "ConflitoDoHonorario"; }
+}
+
+/**
+ * Grava as vagas da empreita (substitui a lista) na transação do pedido. Os
+ * pedidos individuais em rascunho/devolvido dessas vagas são descartados
+ * (quem pede confirmou na tela); se sobrar algum (corrida: alguém enviou no
+ * meio), nada é gravado. Vaga já em outra empreita: o índice único recusa.
+ */
+export async function gravarVagasDaEmpreita(tx: Tx, honorarioId: string, vagaIds: string[], descartar: string[], ator: Ator): Promise<void> {
+  if (descartar.length) {
+    const removidos = await tx.delete(honorariosCeno)
+      .where(and(inArray(honorariosCeno.id, descartar), eq(honorariosCeno.tipo, "vaga"), inArray(honorariosCeno.status, ["rascunho", "devolvido"])))
+      .returning({ id: honorariosCeno.id, nome: honorariosCeno.nome });
+    for (const r of removidos) {
+      await registrar(tx, honorarioId, ator, { acao: "pedido_individual_descartado", detalhe: `Pedido próprio de ${r.nome} descartado — a vaga entrou na empreita` });
+    }
+  }
+  if (vagaIds.length) {
+    const restantes = await tx.select({ id: honorariosCeno.id, nome: honorariosCeno.nome }).from(honorariosCeno)
+      .where(and(eq(honorariosCeno.tipo, "vaga"), inArray(honorariosCeno.teamInclusionId, vagaIds)));
+    if (restantes.length) throw new ConflitoDoHonorario(`${restantes[0].nome} tem pedido próprio — recarregue e tente de novo.`);
+  }
+  await tx.delete(honorariosCenoEmpreitaVagas).where(eq(honorariosCenoEmpreitaVagas.honorarioId, honorarioId));
+  if (vagaIds.length) {
+    await tx.insert(honorariosCenoEmpreitaVagas).values(vagaIds.map((teamInclusionId) => ({ honorarioId, teamInclusionId })));
+  }
+}
+
+/** Na criação do pedido individual: a vaga não pode ter entrado numa empreita no meio. */
+export async function garantirVagaForaDeEmpreita(tx: Tx, vagaId: string): Promise<void> {
+  const [l] = await tx.select({ nome: honorariosCeno.nome }).from(honorariosCenoEmpreitaVagas)
+    .innerJoin(honorariosCeno, eq(honorariosCeno.id, honorariosCenoEmpreitaVagas.honorarioId))
+    .where(eq(honorariosCenoEmpreitaVagas.teamInclusionId, vagaId)).limit(1);
+  if (l) throw new ConflitoDoHonorario(`Esta vaga faz parte da empreita ${l.nome} — o valor dela é o da empreita.`);
 }
 
 export async function getHonorarioDaVaga(teamInclusionId: string): Promise<HonorarioCeno | null> {
@@ -154,7 +316,7 @@ export async function papeisNasFuncoes(userId: string): Promise<{ validador: Set
   };
 }
 
-// ── Vagas escaladas de cenotécnica ──────────────────────────────────────────
+// ── Vagas ativas de cenotécnica ─────────────────────────────────────────────
 
 export interface VagaDeCenotecnica {
   id: string;
@@ -174,20 +336,25 @@ export interface VagaDeCenotecnica {
   empreitaEmpresa: string | null;
   empreitaPessoas: number | null;
   empreitaValor: number | null;
+  /** Dias de trabalho da vaga (os da tabela de empreita: dias marcados, período ou diárias). */
+  dias: number;
 }
 
 /**
- * Vagas ESCALADAS (status de confirmação, inclusive os legados) das funções
- * indicadas, num evento ou em vários. Sem as excluídas e sem a fase de sugestão.
+ * Vagas ATIVAS das funções indicadas, num evento ou em vários: escaladas
+ * (status de confirmação, inclusive os legados) e, desde 20/10, também as
+ * abertas/só salvas — "não precisa escalar". Sem as canceladas, as excluídas
+ * e a fase de sugestão.
  */
-export async function vagasEscaladas(functionIds: string[], eventIds?: string[], vagaId?: string): Promise<VagaDeCenotecnica[]> {
+export async function vagasAtivas(functionIds: string[], eventIds?: string[], vagaId?: string): Promise<VagaDeCenotecnica[]> {
   if (functionIds.length === 0) return [];
   if (eventIds && eventIds.length === 0) return [];
   const condicoes: SQL[] = [
     inArray(teamInclusions.functionId, functionIds),
-    inArray(teamInclusions.status, [...ACTIVE_CONFLICT_STATUSES]),
+    inArray(teamInclusions.status, [...STATUS_DE_VAGA_ATIVA]),
     isNull(teamInclusions.deletedAt),
-    ne(teamInclusions.phase, "sugestao"),
+    // `phase <> 'sugestao'` sozinho deixaria de fora a vaga com fase nula.
+    or(isNull(teamInclusions.phase), ne(teamInclusions.phase, "sugestao"))!,
   ];
   if (eventIds) condicoes.push(inArray(teamInclusions.eventId, eventIds));
   if (vagaId) condicoes.push(eq(teamInclusions.id, vagaId));
@@ -199,24 +366,30 @@ export async function vagasEscaladas(functionIds: string[], eventIds?: string[],
       status: teamInclusions.status, scheduleStartDate: teamInclusions.scheduleStartDate, scheduleEndDate: teamInclusions.scheduleEndDate,
       dailyRates: teamInclusions.dailyRates, cenoFreelaTipo: teamInclusions.cenoFreelaTipo, needsTicket: teamInclusions.needsTicket,
       empreitaEmpresa: teamInclusions.empreitaEmpresa, empreitaPessoas: teamInclusions.empreitaPessoas, empreitaValor: teamInclusions.empreitaValor,
+      workDays: teamInclusions.workDays,
     })
     .from(teamInclusions)
     .innerJoin(functions, eq(functions.id, teamInclusions.functionId))
     .leftJoin(collaborators, eq(collaborators.id, teamInclusions.collaboratorId))
     .where(and(...condicoes))
     .orderBy(functions.name, teamInclusions.inclusionNumber);
-  return linhas.map((l) => ({
-    ...l,
-    collaboratorName: l.collaboratorName ?? null,
-    collaboratorType: l.collaboratorType ?? null,
-    scheduleStartDate: l.scheduleStartDate ? String(l.scheduleStartDate) : null,
-    scheduleEndDate: l.scheduleEndDate ? String(l.scheduleEndDate) : null,
-  }));
+  return linhas.map(({ workDays, ...l }) => {
+    const scheduleStartDate = l.scheduleStartDate ? String(l.scheduleStartDate) : null;
+    const scheduleEndDate = l.scheduleEndDate ? String(l.scheduleEndDate) : null;
+    return {
+      ...l,
+      collaboratorName: l.collaboratorName ?? null,
+      collaboratorType: l.collaboratorType ?? null,
+      scheduleStartDate,
+      scheduleEndDate,
+      dias: diasEmpreita({ workDays: (workDays ?? []).map(String), scheduleStartDate, scheduleEndDate, dailyRates: l.dailyRates }),
+    };
+  });
 }
 
-/** A vaga, se for ESCALADA e de uma das funções indicadas (senão null). */
-export async function getVagaEscalada(id: string, functionIds: string[]): Promise<VagaDeCenotecnica | null> {
-  const [v] = await vagasEscaladas(functionIds, undefined, id);
+/** A vaga, se estiver ATIVA e for de uma das funções indicadas (senão null). */
+export async function getVagaAtiva(id: string, functionIds: string[]): Promise<VagaDeCenotecnica | null> {
+  const [v] = await vagasAtivas(functionIds, undefined, id);
   return v ?? null;
 }
 
@@ -265,10 +438,14 @@ async function registrar(tx: Tx, honorarioId: string, ator: Ator, e: EntradaDoHi
   });
 }
 
-export async function criarHonorario(row: InsertHonorarioCeno, ator: Ator, historico: EntradaDoHistorico): Promise<HonorarioCeno> {
+/** Passo extra na MESMA transação (vagas da empreita, conferência da vaga). Lança para desfazer tudo. */
+export type PassoNaTransacao = (tx: Tx, honorarioId: string) => Promise<void>;
+
+export async function criarHonorario(row: InsertHonorarioCeno, ator: Ator, historico: EntradaDoHistorico, extra?: PassoNaTransacao): Promise<HonorarioCeno> {
   return db.transaction(async (tx) => {
     const [novo] = await tx.insert(honorariosCeno).values(row).returning();
     await registrar(tx, novo.id, ator, historico);
+    if (extra) await extra(tx, novo.id);
     return novo;
   });
 }
@@ -280,6 +457,7 @@ export async function criarHonorario(row: InsertHonorarioCeno, ator: Ator, histo
 export async function atualizarGuardado(
   id: string, versao: number, statusEsperados: readonly string[],
   set: Partial<InsertHonorarioCeno>, ator: Ator, historico: EntradaDoHistorico | readonly EntradaDoHistorico[] | null,
+  extra?: PassoNaTransacao,
 ): Promise<HonorarioCeno | null> {
   return db.transaction(async (tx) => {
     const [linha] = await tx.update(honorariosCeno)
@@ -289,6 +467,7 @@ export async function atualizarGuardado(
     if (!linha) return null;
     const entradas: readonly EntradaDoHistorico[] = historico == null ? [] : Array.isArray(historico) ? historico : [historico as EntradaDoHistorico];
     for (const e of entradas) await registrar(tx, id, ator, e);
+    if (extra) await extra(tx, id);
     return linha;
   });
 }

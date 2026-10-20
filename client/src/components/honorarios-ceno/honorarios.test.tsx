@@ -18,7 +18,7 @@ import { AprovacaoPainel } from "./aprovacao-painel";
 import { AbaHonorarioDaVaga, useHonorarioDaVaga } from "./aba-da-vaga";
 import HonorariosCenoPage from "@/pages/honorarios-ceno";
 import AprovacaoDeHonorariosPage from "@/pages/aprovacao-de-honorarios";
-import type { Honorario, HonorarioDoFinanceiro, PedidoDoEvento } from "./api";
+import type { Honorario, HonorarioDoFinanceiro, PedidoDoEvento, SugestaoDaVaga, TabelaDaVaga, VagaParaEmpreita } from "./api";
 
 const producao = usuarioFake({ id: "u-pede", role: "production", name: "Quem Pede" });
 const aprovador = usuarioFake({ id: "u-aprova", role: "production", name: "Quem Aprova" });
@@ -33,25 +33,45 @@ function honorario(p: Partial<Honorario> = {}): Honorario {
     createdAt: "2099-10-01T10:00:00Z", updatedAt: "2099-10-01T10:00:00Z", liberado: 0, falta: 0, eventName: "Night Run Teste",
     eventStartDate: "2099-10-11", eventEndDate: "2099-10-12", inclusionNumber: 101, functionName: "Cenotécnica", vagaStatus: "escalado",
     vagaExcluida: false, avisoDaVaga: null, colaboradorAtualId: "c1", colaboradorAtual: "Pessoa Um", eventoExcluido: false,
+    tipoFreela: "outro", semColaborador: false, vagasDaEmpreita: [], avisosDaEmpreita: [],
     podeEditar: true, podeRemover: true, podeDecidir: false, podeDevolver: false, podeLiberar: false, eAprovador: false,
     ...p,
   };
 }
 
-const vaga = (id: string, n: number, nome: string) => ({
+const vaga = (id: string, n: number, nome: string, cenoFreelaTipo: string | null = "sp") => ({
   id, eventId: "ev1", inclusionNumber: n, functionId: "f1", functionName: "Cenotécnica", collaboratorId: `c-${id}`, collaboratorName: nome,
   collaboratorType: "freela", status: "escalado", scheduleStartDate: "2099-10-10", scheduleEndDate: "2099-10-12", dailyRates: 3,
-  cenoFreelaTipo: "sp", needsTicket: false, empreitaEmpresa: null, empreitaPessoas: null, empreitaValor: null,
+  cenoFreelaTipo, needsTicket: false, empreitaEmpresa: null, empreitaPessoas: null, empreitaValor: null, dias: 3,
+});
+
+/** Valores da tabela (3 dias) — o servidor manda; aqui, os da tabela do dono. */
+const TABELA: TabelaDaVaga = {
+  dias: 3,
+  valores: { viagem: { total: 125_700, extrapolado: false }, sp: { total: 105_000, extrapolado: false }, local_a: { total: 99_200, extrapolado: false }, local_b: { total: 78_700, extrapolado: false } },
+};
+
+const sugestao = (nome: string, p: Partial<SugestaoDaVaga> = {}): SugestaoDaVaga => ({
+  setor: "montagem", posicao: "freela_local", inicio: "2099-10-10", fim: "2099-10-12", diarias: 3, nome, tipoFreela: null, semColaborador: false, ...p,
+});
+
+const paraEmpreita = (id: string, n: number, nome: string | null, p: Partial<VagaParaEmpreita> = {}): VagaParaEmpreita => ({
+  id, inclusionNumber: n, functionName: "Cenotécnica", collaboratorName: nome, semColaborador: !nome, scheduleStartDate: "2099-10-10",
+  scheduleEndDate: "2099-10-12", dias: 3, empreita: null, pedidoProprio: null, ...p,
 });
 
 function pedido(): PedidoDoEvento {
   return {
     evento: { id: "ev1", name: "Night Run Teste", startDate: "2099-10-11", endDate: "2099-10-12", location: "Curitiba - PR", status: "planejado" },
     linhas: [
-      { vaga: vaga("v1", 101, "Pessoa Um"), sugestao: { setor: "montagem", posicao: "freela_local", inicio: "2099-10-10", fim: "2099-10-12", diarias: 3, nome: "Pessoa Um" }, honorario: honorario(), foraDaEscala: false },
-      { vaga: vaga("v2", 102, "Pessoa Dois"), sugestao: { setor: null, posicao: "freela_local", inicio: "2099-10-10", fim: "2099-10-12", diarias: 3, nome: "Pessoa Dois" }, honorario: null, foraDaEscala: false },
+      { vaga: vaga("v1", 101, "Pessoa Um"), sugestao: sugestao("Pessoa Um", { tipoFreela: "sp" }), tabela: TABELA, honorario: honorario(), foraDaEscala: false },
+      { vaga: vaga("v2", 102, "Pessoa Dois"), sugestao: sugestao("Pessoa Dois", { tipoFreela: "outro" }), tabela: TABELA, honorario: null, foraDaEscala: false },
     ],
     empreitas: [],
+    vagasDoEvento: [
+      paraEmpreita("v1", 101, "Pessoa Um", { pedidoProprio: { id: "h1", status: "rascunho", valorPedido: 120_000 } }),
+      paraEmpreita("v2", 102, "Pessoa Dois"),
+    ],
     casa: [{ id: "v3", inclusionNumber: 103, functionName: "Cenotécnica", collaboratorName: "Funcionário" }],
     funcoes: [{ id: "f1", name: "Cenotécnica" }],
   };
@@ -99,7 +119,8 @@ describe("Honorários — quem pede", () => {
     await user.tab();
     await waitFor(() => expect(chamadas.some((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")).toBe(true));
     const criar = chamadas.find((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")!;
-    expect(criar.corpo).toMatchObject({ eventId: "ev1", tipo: "vaga", teamInclusionId: "v2", valorPedido: 150_000 });
+    // "Outro valor" (o tipo que veio pré-selecionado) vai junto com o valor digitado.
+    expect(criar.corpo).toMatchObject({ eventId: "ev1", tipo: "vaga", teamInclusionId: "v2", tipoFreela: "outro", valorPedido: 150_000 });
 
     await user.click(screen.getByTestId("hon-enviar"));
     const dialogo = await screen.findByRole("alertdialog");
@@ -321,13 +342,56 @@ describe("Honorários — aba Honorário no modal da vaga (Escalação)", () => 
     expect(screen.getByTestId("aba-visivel")).toHaveTextContent("sim");
   });
 
-  it("vaga ABERTA de cenotécnica (dono 20/10: \"cenotécnica não aparece\"): a aba aparece e pede para escalar alguém", async () => {
+  it("vaga ABERTA (dono 20/10: \"não precisa escalar\"): a aba mostra o formulário normal, com a linha de vaga sem colaborador, e envia", async () => {
+    const chamadas: Chamada[] = [];
+    const p = pedido();
+    p.linhas.push({
+      vaga: { ...vaga("v9", 109, "", null), collaboratorId: null, collaboratorName: null, collaboratorType: null },
+      sugestao: sugestao("Vaga #109 sem nome · Cenotécnica", { semColaborador: true, tipoFreela: null }), tabela: TABELA, honorario: null, foraDaEscala: false,
+    });
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(p),
+      "POST /api/honorarios-ceno": () => respostaJson(honorario({ id: "h9", teamInclusionId: "v9", collaboratorId: null, semColaborador: true, nome: "Vaga #109 sem nome · Cenotécnica", tipoFreela: "local_a", valorPedido: 99_200, versao: 1 }), 201),
+      "POST /api/honorarios-ceno/enviar": () => respostaJson({ enviados: ["h9"], recusados: [] }),
+      "PATCH /api/team-inclusions/v9/ceno-freela-tipo": () => respostaJson({}),
+    }, chamadas));
+    const { user } = renderComTudo(<NaVaga vagaId="v9" collaboratorId={null} />, { user: producao });
+    expect(await screen.findByTestId("hon-vaga-form")).toBeInTheDocument();
+    expect(screen.queryByTestId("hon-vaga-sem-linha")).not.toBeInTheDocument();
+    expect(screen.getByTestId("hon-vaga-sem-colaborador")).toHaveTextContent("Vaga ainda sem colaborador — o pedido segue assim mesmo");
+    expect(screen.getByTestId("hon-vaga-falta")).toHaveTextContent("Escolha o tipo de freela");
+
+    // Escolher Freela Local (A): o valor é o da tabela para os 3 dias; a tela não manda valor.
+    await user.click(screen.getByTestId("hon-vaga-tipo-local_a"));
+    expect(screen.getByTestId("hon-vaga-tipo-local_a")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("hon-vaga-valor-do-pedido")).toHaveTextContent(/992,00/);
+    expect(screen.getByTestId("hon-tipo-na-vaga")).toHaveTextContent("a vaga também fica como Freela Local (A)");
+    await user.click(screen.getByTestId("hon-vaga-enviar"));
+    const dialogo = await screen.findByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("Freela Local (A) · tabela");
+    await user.click(within(dialogo).getByRole("button", { name: /^Enviar · / }));
+    await waitFor(() => expect(chamadas.some((c) => c.url === "/api/honorarios-ceno/enviar")).toBe(true));
+    const criar = chamadas.find((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")!;
+    expect(criar.corpo).toEqual({ eventId: "ev1", tipo: "vaga", teamInclusionId: "v9", tipoFreela: "local_a", observacao: null });
+    // A vaga não tinha tipo no Resumo: passa a ter o escolhido (para o Planejado bater).
+    await waitFor(() => expect(chamadas.find((c) => c.url === "/api/team-inclusions/v9/ceno-freela-tipo")?.corpo).toEqual({ cenoFreelaTipo: "local_a" }));
+  });
+
+  it("a vaga já tem OUTRO tipo no Resumo: avisa e NÃO muda a vaga", async () => {
+    const chamadas: Chamada[] = [];
     mockarFetch(roteador({
       "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
       "GET /api/honorarios-ceno/pedido": () => respostaJson(pedido()),
-    }, []));
-    renderComTudo(<NaVaga vagaId="v9" collaboratorId={null} />, { user: producao });
-    expect(await screen.findByTestId("hon-vaga-sem-linha")).toHaveTextContent("Escale alguém para lançar o honorário");
+      "PATCH /api/honorarios-ceno/h1": () => respostaJson(honorario({ versao: 3, tipoFreela: "local_b", valorPedido: 78_700 })),
+    }, chamadas));
+    const { user } = renderComTudo(<NaVaga />, { user: producao });
+    await user.click(await screen.findByTestId("hon-vaga-tipo-local_b"));
+    expect(screen.getByTestId("hon-tipo-diferente")).toHaveTextContent("O tipo da vaga no Resumo é Freela SP");
+    await user.click(screen.getByTestId("hon-vaga-salvar"));
+    await waitFor(() => expect(chamadas.some((c) => c.metodo === "PATCH")).toBe(true));
+    expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toEqual({ versao: 2, tipoFreela: "local_b", observacao: null });
+    expect(chamadas.some((c) => c.url.includes("ceno-freela-tipo"))).toBe(false);
   });
 
   it("rascunho: muda o valor, Enviar grava e manda a versão nova para o aprovador", async () => {
@@ -352,11 +416,11 @@ describe("Honorários — aba Honorário no modal da vaga (Escalação)", () => 
     const dialogo = await screen.findByRole("alertdialog");
     await user.click(within(dialogo).getByRole("button", { name: /^Enviar · R\$\s?2\.000,00/ }));
     await waitFor(() => expect(chamadas.some((c) => c.url === "/api/honorarios-ceno/enviar")).toBe(true));
-    expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toMatchObject({ versao: 2, valorPedido: 200_000, setor: "montagem", posicao: "freela_local", diarias: 3 });
+    expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toEqual({ versao: 2, tipoFreela: "outro", valorPedido: 200_000, observacao: null });
     expect(chamadas.find((c) => c.url === "/api/honorarios-ceno/enviar")!.corpo).toEqual({ itens: [{ id: "h1", versao: 3 }] });
   });
 
-  it("vaga sem pedido: Salvar rascunho cria o pedido da vaga; sem setor o Enviar fica travado com o motivo", async () => {
+  it("vaga sem pedido, \"Outro valor\": sem valor o Enviar fica travado com o motivo; Salvar cria o pedido com o valor digitado", async () => {
     const chamadas: Chamada[] = [];
     mockarFetch(roteador({
       "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
@@ -367,11 +431,14 @@ describe("Honorários — aba Honorário no modal da vaga (Escalação)", () => 
     expect(await screen.findByTestId("hon-vaga-situacao")).toHaveTextContent("Sem pedido");
     expect(screen.getByTestId("hon-vaga-enviar")).toBeDisabled();
     expect(screen.getByTestId("hon-vaga-falta")).toHaveTextContent("Informe o valor negociado.");
+    expect(screen.getByLabelText(/Por que outro valor\?/)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Valor negociado"), "900");
-    expect(screen.getByTestId("hon-vaga-falta")).toHaveTextContent("Escolha o setor.");
+    expect(screen.queryByTestId("hon-vaga-falta")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText(/Por que outro valor\?/), "Montagem noturna");
     await user.click(screen.getByTestId("hon-vaga-salvar"));
     await waitFor(() => expect(chamadas.some((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")).toBe(true));
-    expect(chamadas.find((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")!.corpo).toMatchObject({ eventId: "ev1", tipo: "vaga", teamInclusionId: "v2", valorPedido: 90_000 });
+    expect(chamadas.find((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")!.corpo)
+      .toEqual({ eventId: "ev1", tipo: "vaga", teamInclusionId: "v2", tipoFreela: "outro", valorPedido: 90_000, observacao: "Montagem noturna" });
   });
 
   it("devolvido: mostra o motivo e oferece Reenviar", async () => {
@@ -441,5 +508,117 @@ describe("Honorários — tela Aprovação de honorários", () => {
     const comAcesso = ids({ aprovaHonorarios: true });
     expect(comAcesso).toContain("aprovacao-de-honorarios");
     expect(comAcesso.indexOf("aprovacao-de-honorarios")).toBe(comAcesso.indexOf("scaling-approval") + 1);
+  });
+});
+
+// ── 20/10: tipo de freela na aprovação e a empreita que agrupa vagas ────────
+
+const empreita = (p: Partial<Honorario> = {}): Honorario => honorario({
+  id: "e1", tipo: "empreita", teamInclusionId: null, functionId: null, collaboratorId: null, nome: "Equipe Horizonte", pessoas: 2,
+  setor: "montagem", posicao: "empreita", tipoFreela: null, valorPedido: 400_000, inclusionNumber: null, functionName: null,
+  colaboradorAtualId: null, colaboradorAtual: null,
+  vagasDaEmpreita: [
+    { id: "v1", inclusionNumber: 101, functionId: "f1", functionName: "Cenotécnica", collaboratorId: "c1", collaboratorName: "Pessoa Um", scheduleStartDate: "2099-10-10", scheduleEndDate: "2099-10-12", dias: 3, aviso: null },
+    { id: "v9", inclusionNumber: 109, functionId: "f1", functionName: "Cenotécnica", collaboratorId: null, collaboratorName: null, scheduleStartDate: "2099-10-10", scheduleEndDate: "2099-10-12", dias: 3, aviso: null },
+  ],
+  ...p,
+});
+
+describe("Honorários — empreita que agrupa vagas", () => {
+  it("na gaveta: criar a empreita marcando 2 vagas — o nº de pessoas acompanha e o rascunho próprio pede confirmação para descartar", async () => {
+    const chamadas: Chamada[] = [];
+    let tentativas = 0;
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(pedido()),
+      "POST /api/honorarios-ceno": (c) => {
+        tentativas++;
+        const corpo = c.corpo as { descartarRascunhos?: boolean };
+        if (!corpo.descartarRascunhos) return respostaJson({ message: "A vaga #101 Pessoa Um tem pedido próprio em rascunho — confirme para descartá-lo e colocar na empreita.", precisaConfirmar: [{ id: "h1", nome: "Pessoa Um", status: "rascunho", inclusionNumber: 101 }] }, 409);
+        return respostaJson(empreita(), 201);
+      },
+    }, chamadas));
+    const { user } = renderComTudo(<PedidoPainel eventId="ev1" onEscolherEvento={() => {}} />, { user: producao });
+    await user.click((await screen.findAllByRole("button", { name: /Adicionar empreita/ }))[0]);
+    const dialogo = await screen.findByTestId("hon-detalhes");
+    await user.type(within(dialogo).getByLabelText("Responsável ou equipe"), "Equipe Horizonte");
+    const lista = within(dialogo).getByTestId("hon-vagas");
+    expect(lista).toHaveTextContent("tem pedido próprio em rascunho");
+    await user.click(within(lista).getByRole("checkbox", { name: /#101/ }));
+    await user.click(within(lista).getByRole("checkbox", { name: /#102/ }));
+    expect(within(dialogo).getByLabelText("Pessoas")).toHaveValue("2");
+    await user.type(within(dialogo).getByLabelText("Valor fechado"), "4000");
+    await user.click(within(dialogo).getByTestId("hon-detalhes-salvar"));
+
+    const confirmar = await screen.findByTestId("hon-confirmar-descarte");
+    expect(confirmar).toHaveTextContent("#101 Pessoa Um · rascunho");
+    await user.click(within(confirmar).getByRole("button", { name: "Descartar e salvar" }));
+    await waitFor(() => expect(tentativas).toBe(2));
+    const posts = chamadas.filter((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno");
+    expect(posts[0].corpo).toEqual({ eventId: "ev1", tipo: "empreita", nome: "Equipe Horizonte", pessoas: 2, valorPedido: 400_000, observacao: null, vagaIds: ["v1", "v2"] });
+    expect(posts[1].corpo).toMatchObject({ vagaIds: ["v1", "v2"], descartarRascunhos: true });
+  });
+
+  it("vaga já numa empreita ou com pedido enviado: o checkbox fica travado com o motivo", async () => {
+    const p = pedido();
+    p.vagasDoEvento = [
+      paraEmpreita("v1", 101, "Pessoa Um", { empreita: { id: "e9", nome: "Equipe Norte" } }),
+      paraEmpreita("v2", 102, "Pessoa Dois", { pedidoProprio: { id: "h2", status: "aguardando", valorPedido: 1 } }),
+      paraEmpreita("v9", 109, null),
+    ];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(p),
+    }, []));
+    const { user } = renderComTudo(<PedidoPainel eventId="ev1" onEscolherEvento={() => {}} />, { user: producao });
+    await user.click((await screen.findAllByRole("button", { name: /Adicionar empreita/ }))[0]);
+    const lista = within(await screen.findByTestId("hon-detalhes")).getByTestId("hon-vagas");
+    expect(within(lista).getByRole("checkbox", { name: /#101/ })).toBeDisabled();
+    expect(lista).toHaveTextContent("já está na empreita Equipe Norte");
+    expect(within(lista).getByRole("checkbox", { name: /#102/ })).toBeDisabled();
+    expect(lista).toHaveTextContent("peça para o aprovador devolver");
+    expect(within(lista).getByRole("checkbox", { name: /#109/ })).toBeEnabled();
+    expect(lista).toHaveTextContent("sem nome");
+  });
+
+  it("aba da vaga que está numa empreita: mostra a empreita e “Tirar desta empreita” manda a lista sem ela", async () => {
+    const chamadas: Chamada[] = [];
+    const p = pedido();
+    p.linhas = p.linhas.filter((l) => l.vaga?.id !== "v1");
+    p.empreitas = [empreita()];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(p),
+      "PATCH /api/honorarios-ceno/e1": () => respostaJson(empreita({ versao: 3, vagasDaEmpreita: [empreita().vagasDaEmpreita[1]] })),
+    }, chamadas));
+    const { user } = renderComTudo(<NaVaga vagaId="v1" />, { user: producao });
+    const card = await screen.findByTestId("hon-vaga-na-empreita");
+    expect(card).toHaveTextContent("Faz parte da empreita Equipe Horizonte (R$ 4.000,00, 2 vagas)");
+    expect(screen.queryByTestId("hon-vaga-form")).not.toBeInTheDocument();
+    await user.click(within(card).getByTestId("hon-empreita-vagas-botao"));
+    expect(within(card).getByTestId("hon-empreita-vagas")).toHaveTextContent("#109 sem nome");
+    await user.click(screen.getByTestId("hon-vaga-tirar-da-empreita"));
+    const dialogo = await screen.findByRole("alertdialog");
+    await user.click(within(dialogo).getByRole("button", { name: "Tirar da empreita" }));
+    await waitFor(() => expect(chamadas.some((c) => c.metodo === "PATCH")).toBe(true));
+    expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toEqual({ versao: 2, vagaIds: ["v9"] });
+  });
+
+  it("aprovador vê a origem do valor (tabela × outro valor) e a empreita como um pedido com as vagas", async () => {
+    const pendente = (p: Partial<Honorario>) => honorario({ status: "aguardando", podeEditar: false, podeRemover: false, podeDecidir: true, eAprovador: true, enviadoPorNome: "Quem Pede", enviadoEm: new Date().toISOString(), ...p });
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/aprovacao": () => respostaJson([
+        pendente({ id: "a1", nome: "Pessoa Um", tipoFreela: "local_a" }),
+        pendente({ id: "a2", nome: "Vaga #109 sem nome · Cenotécnica", semColaborador: true, collaboratorId: null, tipoFreela: "outro", observacao: "Montagem noturna" }),
+        { ...empreita({ id: "a3" }), status: "aguardando", podeEditar: false, podeRemover: false, podeDecidir: true, eAprovador: true },
+      ]),
+    }, []));
+    const { user } = renderComTudo(<AprovacaoPainel eventId={null} />, { user: aprovador });
+    const origens = await screen.findAllByTestId("hon-origem-do-valor");
+    expect(origens.map((o) => o.textContent)).toEqual(["Freela Local (A) · tabela", "Outro valor · Montagem noturna", "Valor fechado da equipe · 2 vagas da escala"]);
+    expect(screen.getByText("Vaga #109 sem nome · Cenotécnica")).toBeInTheDocument();
+    expect(screen.getByText("Vaga ainda sem colaborador escalado")).toBeInTheDocument();
+    await user.click(screen.getByTestId("hon-empreita-vagas-botao"));
+    expect(screen.getByTestId("hon-empreita-vagas")).toHaveTextContent("#101 Pessoa Um");
   });
 });

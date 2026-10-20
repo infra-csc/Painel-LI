@@ -12,6 +12,11 @@
  *      Rio (passado)       → aprovados a liberar e liberação parcial + empreita parcial;
  *      BH (em andamento)   → aguardando aprovação + um devolvido para negociar;
  *      Curitiba (futuro)   → rascunhos, vagas sem valor e uma empreita em rascunho.
+ * 20/10: vagas ABERTAS (sem colaborador) de cenotécnica em BH (uma com pedido
+ * aguardando — "Vaga #N sem nome" na aprovação) e em Curitiba (duas sem
+ * pedido, para a aba Honorário e a empreita que agrupa vagas). Os pedidos
+ * de vaga levam o tipo do valor: "Outro valor" nos antigos e a tabela no
+ * rascunho de Curitiba.
  * Nada aqui muda as vagas que o seed principal criou.
  */
 import { and, eq, inArray } from "drizzle-orm";
@@ -31,7 +36,7 @@ const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:0
 
 type Etapa =
   | { s: "sem" }
-  | { s: "rascunho"; valor: number; semSetor?: boolean }
+  | { s: "rascunho"; valor: number; semSetor?: boolean; tipoFreela?: string }
   | { s: "aguardando"; valor: number; obs?: string }
   | { s: "devolvido"; valor: number; motivo: string }
   | { s: "aprovado"; valor: number; libs?: number[] }
@@ -40,7 +45,7 @@ type Etapa =
 interface Plano {
   evento: string;
   statusDaVaga: string;
-  vagas: { funcao: "Cenotécnica" | "Sup Ceno"; tipo: "freela" | "local" | "casa"; viagem?: boolean; setor: "sup_ceno" | "marceneiro" | "montagem"; dias: number; etapa: Etapa }[];
+  vagas: { funcao: "Cenotécnica" | "Sup Ceno"; tipo: "freela" | "local" | "casa" | "aberta"; viagem?: boolean; setor: "sup_ceno" | "marceneiro" | "montagem"; dias: number; etapa: Etapa }[];
   empreitas: { nome: string; pessoas: number; descricao: string; setor: "montagem" | "marceneiro"; dias: number; etapa: Etapa }[];
 }
 
@@ -80,6 +85,7 @@ const PLANOS: Plano[] = [
       { funcao: "Cenotécnica", tipo: "freela", viagem: true, setor: "marceneiro", dias: 4, etapa: { s: "aguardando", valor: 200_000 } },
       { funcao: "Cenotécnica", tipo: "local", setor: "montagem", dias: 3, etapa: { s: "devolvido", valor: 165_000, motivo: "Acima do combinado para 3 diárias — rever com o freela." } },
       { funcao: "Cenotécnica", tipo: "freela", setor: "montagem", dias: 3, etapa: { s: "aguardando", valor: 120_000 } },
+      { funcao: "Cenotécnica", tipo: "aberta", setor: "montagem", dias: 3, etapa: { s: "aguardando", valor: 110_000, obs: "Freela ainda em negociação — valor fechado com a produção." } },
     ],
     empreitas: [
       { nome: "Equipe Carga e Descarga (3x)", pessoas: 3, descricao: "Descarregar na quinta e carregar no domingo", setor: "montagem", dias: 2, etapa: { s: "aguardando", valor: 180_000 } },
@@ -90,10 +96,12 @@ const PLANOS: Plano[] = [
     statusDaVaga: "escalado",
     vagas: [
       { funcao: "Sup Ceno", tipo: "freela", viagem: true, setor: "sup_ceno", dias: 4, etapa: { s: "rascunho", valor: 250_000 } },
-      { funcao: "Cenotécnica", tipo: "freela", viagem: true, setor: "marceneiro", dias: 4, etapa: { s: "rascunho", valor: 185_000 } },
+      { funcao: "Cenotécnica", tipo: "freela", viagem: true, setor: "marceneiro", dias: 4, etapa: { s: "rascunho", valor: 162_500, tipoFreela: "viagem" } },
       { funcao: "Cenotécnica", tipo: "local", setor: "montagem", dias: 3, etapa: { s: "sem" } },
       { funcao: "Cenotécnica", tipo: "freela", setor: "montagem", dias: 3, etapa: { s: "sem" } },
       { funcao: "Cenotécnica", tipo: "casa", setor: "montagem", dias: 3, etapa: { s: "sem" } },
+      { funcao: "Cenotécnica", tipo: "aberta", setor: "montagem", dias: 3, etapa: { s: "sem" } },
+      { funcao: "Cenotécnica", tipo: "aberta", setor: "montagem", dias: 3, etapa: { s: "sem" } },
     ],
     empreitas: [
       { nome: "Equipe Pórtico Norte (2x)", pessoas: 2, descricao: "Montagem do pórtico de largada", setor: "montagem", dias: 2, etapa: { s: "rascunho", valor: 160_000 } },
@@ -145,6 +153,8 @@ export async function semearHonorariosDemo(db: Db): Promise<{ pedidos: number }>
         ...base, inicio, fim, status, valorPedido: etapa.valor, valorAprovado,
         setor: etapa.s === "rascunho" && etapa.semSetor ? null : base.setor,
         observacao: etapa.s === "aguardando" ? etapa.obs ?? null : null,
+        // Vaga: "Outro valor" (o valor negociado do plano), ou o tipo da tabela quando o plano diz.
+        tipoFreela: base.tipo === "vaga" ? (etapa.s === "rascunho" && etapa.tipoFreela ? etapa.tipoFreela : "outro") : null,
         criadoPor: rafael.id, criadoPorNome: rafael.name,
         enviadoPor: enviado ? rafael.id : null, enviadoPorNome: enviado ? rafael.name : null, enviadoEm: enviado ? enviadoEm : null,
         decididoPor: decidido ? marcos.id : null, decididoPorNome: decidido ? marcos.name : null, decididoEm: decidido ? decididoEm : null,
@@ -175,23 +185,28 @@ export async function semearHonorariosDemo(db: Db): Promise<{ pedidos: number }>
 
     for (let i = 0; i < plano.vagas.length; i++) {
       const v = plano.vagas[i];
-      const colab = pegar(v.tipo);
-      if (!colab) continue;
+      const aberta = v.tipo === "aberta";
+      const colab = aberta ? null : pegar(v.tipo);
+      if (!aberta && !colab) continue;
       const fn = funcao(v.funcao);
       const inicio = addDias(inicioEvento, -(v.dias - diasEntre(inicioEvento, fimEvento)));
       const [vaga] = await db.insert(schema.teamInclusions).values({
-        eventId: evento.id, functionId: fn.id, collaboratorId: colab.id, area: fn.responsibleArea, emitsNf: v.tipo !== "casa",
-        cenoFreelaTipo: fn.name === "Cenotécnica" && v.tipo !== "casa" ? (v.viagem ? "viagem" : v.tipo === "local" ? "local_a" : "sp") : null,
+        eventId: evento.id, functionId: fn.id, collaboratorId: colab?.id ?? null, area: fn.responsibleArea, emitsNf: v.tipo !== "casa",
+        cenoFreelaTipo: fn.name === "Cenotécnica" && v.tipo !== "casa" && !aberta ? (v.viagem ? "viagem" : v.tipo === "local" ? "local_a" : "sp") : null,
         rowOrder: 200 + i, scheduleStartDate: inicio, scheduleEndDate: fimEvento,
         needsTicket: !!v.viagem, needsAccommodation: !!v.viagem, dailyRates: v.dias, dailyValue: 0,
-        city: colab.city, status: plano.statusDaVaga, phase: plano.statusDaVaga === "escalado" ? "escalacao" : plano.statusDaVaga === "concluido" || plano.statusDaVaga === "aprovado" ? "aprovacao" : "hospedagem",
+        // Vaga aberta (20/10): planejada, sem ninguém — a "Vaga aberta" da Escalação.
+        city: colab?.city ?? null,
+        status: aberta ? "planejado" : plano.statusDaVaga,
+        phase: aberta ? "inclusao" : plano.statusDaVaga === "escalado" ? "escalacao" : plano.statusDaVaga === "concluido" || plano.statusDaVaga === "aprovado" ? "aprovacao" : "hospedagem",
         userId: rafael.id, updatedBy: rafael.id,
-        approvedByProduction: marcos.id, approvedByProductionAt: em(addDias(inicioEvento, -10)),
+        approvedByProduction: aberta ? null : marcos.id, approvedByProductionAt: aberta ? null : em(addDias(inicioEvento, -10)),
         createdAt: em(addDias(inicioEvento, -20)), updatedAt: em(addDias(inicioEvento, -10)),
       }).returning();
       if (v.tipo === "casa") continue;
       await criarPedido({
-        eventId: evento.id, tipo: "vaga", teamInclusionId: vaga.id, functionId: fn.id, collaboratorId: colab.id, nome: colab.fullName,
+        eventId: evento.id, tipo: "vaga", teamInclusionId: vaga.id, functionId: fn.id, collaboratorId: colab?.id ?? null,
+        nome: colab?.fullName ?? `Vaga #${vaga.inclusionNumber} sem nome · ${fn.name}`,
         setor: v.setor, posicao: v.viagem ? "freela_viagem" : "freela_local", diarias: v.dias,
       }, v.etapa, inicio, fimEvento);
     }

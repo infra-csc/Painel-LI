@@ -8,15 +8,16 @@
  *  - a barra da verba: quanto do aprovado já foi liberado — o número que o
  *    Financeiro e a produção procuram primeiro.
  */
-import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, ChevronDown } from "lucide-react";
 import { StatusBadge, type Tone } from "@/components/common/status-badge";
 import { formatarMoeda } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  AVISO_DA_VAGA_LABEL, ETAPA_LABEL, POSICAO_CENO_LABEL, SETOR_CENO_LABEL, etapaDoHonorario, ehPosicaoCeno, ehSetorCeno, valorPorDiaria,
-  type AvisoDaVaga, type EtapaDoHonorario,
+  AVISO_DA_VAGA_LABEL, AVISO_NA_EMPREITA_LABEL, ETAPA_LABEL, POSICAO_CENO_LABEL, SETOR_CENO_LABEL, etapaDoHonorario, ehPosicaoCeno, ehSetorCeno,
+  ehTipoDeTabela, rotuloDoValor, valorPorDiaria, type AvisoDaVaga, type EtapaDoHonorario,
 } from "@shared/honorarios-ceno";
+import type { VagaDaEmpreita } from "./api";
 
 export const brl = (c: number | null | undefined) => formatarMoeda(c ?? 0);
 
@@ -153,15 +154,75 @@ export function FaixaDeTotais({ itens, className, testId }: {
   );
 }
 
-/** "Empreita · 3 pessoas" / "#1234 · Cenotécnica". */
-export function OrigemDaLinha({ h }: { h: { tipo: string; pessoas: number | null; inclusionNumber: number | null; functionName: string | null } }) {
+/**
+ * "Empreita · 3 pessoas" / "#1234 · Cenotécnica". Na vaga ainda sem
+ * colaborador o nome já é "Vaga #N sem nome · função" — aqui fica o que
+ * falta dizer: ninguém escalado ainda.
+ */
+export function OrigemDaLinha({ h }: { h: { tipo: string; pessoas: number | null; inclusionNumber: number | null; functionName: string | null; semColaborador?: boolean } }) {
   if (h.tipo === "empreita") {
     return <span className="text-2xs text-muted-foreground">Empreita{h.pessoas ? ` · ${h.pessoas} ${h.pessoas === 1 ? "pessoa" : "pessoas"}` : ""}</span>;
   }
+  if (h.semColaborador) return <span className="text-2xs italic text-muted-foreground">Vaga ainda sem colaborador escalado</span>;
   return (
     <span className="text-2xs text-muted-foreground">
       {h.inclusionNumber != null && <span className="font-mono tabular-nums">#{h.inclusionNumber}</span>}
       {h.functionName && <> · {h.functionName}</>}
+    </span>
+  );
+}
+
+/**
+ * De onde vem o valor, para o aprovador e o Financeiro verem na hora:
+ * "Freela Local (A) · tabela" ou "Outro valor · <observação>" (os dois com o
+ * mesmo peso — "nem sempre é o valor de freela"); empreita: valor fechado.
+ */
+export function OrigemDoValor({ h, className }: {
+  h: { tipo: string; tipoFreela?: string | null; observacao?: string | null; setor?: string | null; posicao?: string | null; vagasDaEmpreita?: readonly unknown[] | null };
+  className?: string;
+}) {
+  const tabela = h.tipo === "vaga" && ehTipoDeTabela(h.tipoFreela);
+  const outro = h.tipo === "vaga" && h.tipoFreela === "outro";
+  return (
+    <span className={cn("block text-2xs", tabela || outro ? "font-medium text-slate-700" : "text-slate-600", className)} data-testid="hon-origem-do-valor">
+      {(tabela || outro) && (
+        <span aria-hidden="true" className={cn("mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle", tabela ? "bg-primary" : "bg-warning-strong")} />
+      )}
+      <span className={outro ? "line-clamp-2" : undefined}>{rotuloDoValor(h)}</span>
+    </span>
+  );
+}
+
+/**
+ * As vagas de uma empreita, recolhidas num "N vagas ▾" que abre a lista
+ * (#número, função, quem está hoje ou "sem nome", dias) — aprovador e
+ * Financeiro conferem quem a empreita cobre sem sair da linha.
+ */
+export function VagasDaEmpreitaLista({ vagas, aberta: abertaInicial = false, className }: { vagas: VagaDaEmpreita[]; aberta?: boolean; className?: string }) {
+  const [aberta, setAberta] = useState(abertaInicial);
+  const id = useId();
+  if (vagas.length === 0) return <span className={cn("block text-2xs text-muted-foreground", className)}>Equipe sem vaga na escala</span>;
+  return (
+    <span className={cn("block", className)}>
+      <button type="button" onClick={() => setAberta((x) => !x)} aria-expanded={aberta} aria-controls={id}
+        className="val-alvo -ml-1 inline-flex items-center gap-1 rounded-md px-1 text-2xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        data-testid="hon-empreita-vagas-botao">
+        {vagas.length} {vagas.length === 1 ? "vaga" : "vagas"} na empreita
+        <ChevronDown className={cn("h-3 w-3 transition-transform duration-150", aberta && "rotate-180")} aria-hidden="true" />
+      </button>
+      {aberta && (
+        <ul id={id} className="val-entra mt-1 space-y-0.5 border-l-2 border-border pl-2.5" data-testid="hon-empreita-vagas">
+          {vagas.map((v) => (
+            <li key={v.id} className="text-2xs leading-4 text-slate-700">
+              <span className="font-mono tabular-nums text-muted-foreground">#{v.inclusionNumber}</span>{" "}
+              <span className={v.collaboratorName ? "text-foreground" : "italic text-muted-foreground"}>{v.collaboratorName ?? "sem nome"}</span>
+              {v.functionName && <span className="text-muted-foreground"> · {v.functionName}</span>}
+              <span className="tabular-nums text-muted-foreground"> · {v.dias} {v.dias === 1 ? "dia" : "dias"}</span>
+              {v.aviso && <span className="ml-1 font-medium text-warning">({AVISO_NA_EMPREITA_LABEL[v.aviso]})</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </span>
   );
 }
@@ -172,7 +233,7 @@ export function OrigemDaLinha({ h }: { h: { tipo: string; pessoas: number | null
  * telas — quem aprova e quem libera precisam ver antes de decidir/pagar.
  */
 export function AvisoDaLinha({ h, className, children }: {
-  h: { avisoDaVaga?: AvisoDaVaga | null; colaboradorAtual?: string | null; eventoExcluido?: boolean };
+  h: { avisoDaVaga?: AvisoDaVaga | null; colaboradorAtual?: string | null; eventoExcluido?: boolean; avisosDaEmpreita?: string[] | null };
   className?: string;
   /** Ação ao lado do aviso (ex.: "Passar para fulano", de quem pede). */
   children?: ReactNode;
@@ -180,10 +241,11 @@ export function AvisoDaLinha({ h, className, children }: {
   const textos: string[] = [];
   if (h.eventoExcluido) textos.push("O evento foi excluído");
   if (h.avisoDaVaga) {
-    textos.push(h.avisoDaVaga === "colaborador_trocado" && h.colaboradorAtual
-      ? `${AVISO_DA_VAGA_LABEL.colaborador_trocado} — hoje: ${h.colaboradorAtual}`
+    textos.push(h.avisoDaVaga === "colaborador_trocado"
+      ? h.colaboradorAtual ? `${AVISO_DA_VAGA_LABEL.colaborador_trocado} — hoje: ${h.colaboradorAtual}` : "A vaga ficou sem colaborador"
       : AVISO_DA_VAGA_LABEL[h.avisoDaVaga]);
   }
+  if (h.avisosDaEmpreita?.length) textos.push(`Vaga da empreita mudou: ${h.avisosDaEmpreita.join("; ")}`);
   if (textos.length === 0) return null;
   return (
     <span className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1", className)} data-testid="hon-aviso-da-vaga">

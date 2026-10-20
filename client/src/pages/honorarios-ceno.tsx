@@ -23,12 +23,12 @@ import { campo, useUrlState } from "@/lib/use-url-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { normalizarNomeDeFuncao } from "@shared/cenotecnica";
-import { ETAPA_LABEL, etapaDoHonorario, somar, valorPorDiaria, reaisParaCsv, type TipoDeRelatorio } from "@shared/honorarios-ceno";
+import { ETAPA_LABEL, etapaDoHonorario, rotuloDoValor, somar, valorPorDiaria, reaisParaCsv, type TipoDeRelatorio } from "@shared/honorarios-ceno";
 import { BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
 import { downloadCsv, slugify } from "@/components/scaling-validation/event-view/event-view-shared";
 import { MOLDURA } from "@/components/scaling-approval/tokens";
 import { useAcessoHonorarios, useHonorariosDoFinanceiro, type HonorarioDoFinanceiro, type Liberacao } from "@/components/honorarios-ceno/api";
-import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, OrigemDaLinha, ValorComDiaria, brl, brlCurto, dataBr, diariasTexto, periodoCurto, posicaoLabel, setorLabel } from "@/components/honorarios-ceno/pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, OrigemDaLinha, OrigemDoValor, ValorComDiaria, VagasDaEmpreitaLista, brl, brlCurto, dataBr, diariasTexto, periodoCurto, posicaoLabel, setorLabel } from "@/components/honorarios-ceno/pecas";
 import { HistoricoSheet } from "@/components/honorarios-ceno/historico-sheet";
 import { EstornoDialog, LiberacaoDialog } from "@/components/honorarios-ceno/financeiro-dialogos";
 import { Relatorios, TIPOS_DE_RELATORIO } from "@/components/honorarios-ceno/relatorios";
@@ -51,12 +51,12 @@ function casaBusca(h: HonorarioDoFinanceiro, q: string): boolean {
 }
 
 function exportarLinhas(linhas: HonorarioDoFinanceiro[], sufixo: string) {
-  const cabecalho = ["Evento", "Data do evento", "Nome", "Tipo", "Setor", "Posição", "Início", "Fim", "Diárias", "Valor pedido (R$)", "Valor aprovado (R$)", "Por diária (R$)", "Situação", "Liberado (R$)", "Falta liberar (R$)", "OC/DP", "Pedido por", "Decidido por"];
+  const cabecalho = ["Evento", "Data do evento", "Nome", "Tipo", "Origem do valor", "Vagas da empreita", "Setor", "Posição", "Início", "Fim", "Diárias", "Valor pedido (R$)", "Valor aprovado (R$)", "Por diária (R$)", "Situação", "Liberado (R$)", "Falta liberar (R$)", "OC/DP", "Pedido por", "Decidido por"];
   const linhasCsv = linhas.map((h) => {
     const vigente = h.valorAprovado ?? h.valorPedido;
     const pd = valorPorDiaria(vigente, h.diarias);
     return [
-      h.eventName ?? "", dataBr(h.eventStartDate), h.nome, h.tipo === "empreita" ? "Empreita" : "Vaga", setorLabel(h.setor), posicaoLabel(h.posicao),
+      h.eventName ?? "", dataBr(h.eventStartDate), h.nome, h.tipo === "empreita" ? "Empreita" : h.semColaborador ? "Vaga sem colaborador" : "Vaga", rotuloDoValor(h), (h.vagasDaEmpreita ?? []).map((v) => `#${v.inclusionNumber}`).join(" "), setorLabel(h.setor), posicaoLabel(h.posicao),
       dataBr(h.inicio), dataBr(h.fim), String(h.diarias ?? ""), reaisParaCsv(h.valorPedido), h.valorAprovado != null ? reaisParaCsv(h.valorAprovado) : "",
       pd != null ? reaisParaCsv(pd) : "", ETAPA_LABEL[etapaDoHonorario(h)], reaisParaCsv(h.liberado), reaisParaCsv(h.falta),
       h.liberacoes.filter((l) => !l.estornadaEm).map((l) => l.oc).join(" / "), h.enviadoPorNome ?? h.criadoPorNome, h.decididoPorNome ?? "",
@@ -72,7 +72,9 @@ function LinhaALiberar({ h, onLiberar, onHistorico }: { h: HonorarioDoFinanceiro
       <td data-primeira className="px-3 py-3">
         <span className="block break-words text-sm font-semibold leading-5 text-foreground">{h.nome}</span>
         <span className="block"><OrigemDaLinha h={h} /></span>
-        <span className="mt-0.5 block text-2xs text-slate-600">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {periodoCurto(h.inicio, h.fim)} · {diariasTexto(h.diarias)}</span>
+        <OrigemDoValor h={h} className="mt-0.5" />
+        <span className="block text-2xs text-slate-600">{periodoCurto(h.inicio, h.fim)} · {diariasTexto(h.diarias)}</span>
+        {h.tipo === "empreita" && <VagasDaEmpreitaLista vagas={h.vagasDaEmpreita ?? []} className="mt-0.5" />}
         <AvisoDaLinha h={h} />
       </td>
       <td data-rotulo="Aprovado" className="px-3 py-3"><ValorComDiaria valor={h.valorAprovado} diarias={h.diarias} riscado={h.valorPedido} alinhar="esquerda" className="xl:text-right" /></td>
@@ -115,7 +117,9 @@ function CartaoALiberar({ h, onLiberar, onHistorico }: { h: HonorarioDoFinanceir
           <div className="min-w-0">
             <span className="block break-words text-sm font-semibold leading-5 text-foreground">{h.nome}</span>
             <span className="block"><OrigemDaLinha h={h} /></span>
-            <span className="block text-2xs text-slate-600">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {diariasTexto(h.diarias)}</span>
+            <OrigemDoValor h={h} />
+            <span className="block text-2xs text-slate-600">{diariasTexto(h.diarias)}</span>
+            {h.tipo === "empreita" && <VagasDaEmpreitaLista vagas={h.vagasDaEmpreita ?? []} className="mt-0.5" />}
             <AvisoDaLinha h={h} />
           </div>
           <EtapaBadge h={h} visao="financeiro" />
@@ -179,7 +183,7 @@ function LinhaLiberada({ h, onHistorico }: { h: HonorarioDoFinanceiro; onHistori
     <li className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3">
       <span className="min-w-0 flex-1 basis-[220px]">
         <span className="block truncate text-sm font-semibold text-foreground">{h.nome}</span>
-        <span className="block truncate text-2xs text-muted-foreground">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)} · {diariasTexto(h.diarias)}</span>
+        <span className="block truncate text-2xs text-muted-foreground">{rotuloDoValor(h)} · {diariasTexto(h.diarias)}</span>
         <AvisoDaLinha h={h} />
       </span>
       <span className="min-w-[160px] text-xs text-slate-700">

@@ -56,12 +56,33 @@ export interface Honorario {
   /** Quem está HOJE na vaga (o `nome` é o de quando o pedido foi feito). */
   colaboradorAtual: string | null;
   eventoExcluido: boolean;
+  /** Vaga: 'viagem' | 'sp' | 'local_a' | 'local_b' (tabela) ou 'outro'; null na empreita e nos antigos. */
+  tipoFreela: string | null;
+  /** Pedido de vaga ainda sem colaborador ("Vaga #N sem nome"). */
+  semColaborador: boolean;
+  /** Empreita: as vagas que fazem parte dela (com quem está nelas hoje). */
+  vagasDaEmpreita: VagaDaEmpreita[];
+  /** Empreita: vagas dela que mudaram na escala ("#5063 cancelada na escala"). */
+  avisosDaEmpreita: string[];
   podeEditar: boolean;
   podeRemover: boolean;
   podeDecidir: boolean;
   podeDevolver: boolean;
   podeLiberar: boolean;
   eAprovador: boolean;
+}
+
+export interface VagaDaEmpreita {
+  id: string;
+  inclusionNumber: number;
+  functionId: string;
+  functionName: string | null;
+  collaboratorId: string | null;
+  collaboratorName: string | null;
+  scheduleStartDate: string | null;
+  scheduleEndDate: string | null;
+  dias: number;
+  aviso: Exclude<AvisoDaVaga, "colaborador_trocado"> | null;
 }
 
 export interface Liberacao {
@@ -111,6 +132,8 @@ export interface VagaDoPedido {
   empreitaEmpresa: string | null;
   empreitaPessoas: number | null;
   empreitaValor: number | null;
+  /** Dias de trabalho (os mesmos da tabela de empreita). */
+  dias: number;
 }
 
 export interface SugestaoDaVaga {
@@ -120,19 +143,44 @@ export interface SugestaoDaVaga {
   fim: string | null;
   diarias: number | null;
   nome: string;
+  /** Tipo de freela já escolhido no Resumo da vaga (vem pré-selecionado). */
+  tipoFreela: string | null;
+  semColaborador: boolean;
+}
+
+/** Os 4 valores da tabela da cenotécnica para os dias da vaga (null = sem dias). */
+export interface TabelaDaVaga {
+  dias: number;
+  valores: Record<"viagem" | "sp" | "local_a" | "local_b", { total: number; extrapolado: boolean } | null>;
 }
 
 export interface LinhaDoPedido {
   vaga: VagaDoPedido | null;
   sugestao: SugestaoDaVaga | null;
+  tabela?: TabelaDaVaga | null;
   honorario: Honorario | null;
   foraDaEscala: boolean;
+}
+
+/** Vaga do evento que pode entrar numa empreita (com onde ela está hoje). */
+export interface VagaParaEmpreita {
+  id: string;
+  inclusionNumber: number;
+  functionName: string;
+  collaboratorName: string | null;
+  semColaborador: boolean;
+  scheduleStartDate: string | null;
+  scheduleEndDate: string | null;
+  dias: number;
+  empreita: { id: string; nome: string } | null;
+  pedidoProprio: { id: string; status: string; valorPedido: number } | null;
 }
 
 export interface PedidoDoEvento {
   evento: { id: string; name: string; startDate: string; endDate: string; location: string; status: string };
   linhas: LinhaDoPedido[];
   empreitas: Honorario[];
+  vagasDoEvento?: VagaParaEmpreita[];
   casa: { id: string; inclusionNumber: number; functionName: string; collaboratorName: string | null }[];
   funcoes: { id: string; name: string }[];
 }
@@ -144,6 +192,7 @@ export interface EventoDoPedido {
   endDate: string;
   location: string;
   vagas: number;
+  semColaborador?: number;
   semPedido: number;
   empreitas: number;
   rascunhos: number;
@@ -244,7 +293,15 @@ export interface CamposDoPedido {
   diarias?: number | null;
   valorPedido?: number;
   observacao?: string | null;
+  tipoFreela?: string | null;
+  /** Empreita: as vagas dela (substitui a lista). */
+  vagaIds?: string[];
+  /** Empreita: confirmou descartar o rascunho próprio das vagas que entram. */
+  descartarRascunhos?: boolean;
 }
+
+/** 409 da empreita: vagas com rascunho próprio que precisam de confirmação para descartar. */
+export interface PrecisaConfirmarDescarte { id: string; nome: string; status: string; inclusionNumber: number }
 
 export interface ResultadoDoLote {
   enviados?: string[];
@@ -283,6 +340,23 @@ export function useMutacoesDoPedido() {
     onSettled: invalidar,
   });
   return { criar, editar, remover, enviar };
+}
+
+/**
+ * Grava o tipo de freela NA VAGA (20/10) pela rota da Escalação — usada quando
+ * quem pede escolhe o tipo no honorário e a vaga ainda não tinha, para o
+ * Planejado bater. Nunca troca um tipo que a vaga já tem.
+ */
+export function useGravarTipoNaVaga() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vagaId, tipo }: { vagaId: string; tipo: string }) =>
+      json<unknown>(apiRequest("PATCH", `/api/team-inclusions/${vagaId}/ceno-freela-tipo`, { cenoFreelaTipo: tipo })),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      qc.invalidateQueries({ queryKey: [CHAVE] });
+    },
+  });
 }
 
 export function useMutacoesDoAprovador() {

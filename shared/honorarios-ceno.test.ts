@@ -5,6 +5,8 @@ import {
   rotuloDoMes, setorSugerido, situacaoDaVerba, somar, totalPorEvento, totalPorMes, totalPorPessoa,
   totalPorSetorEPosicao, vagaRecebeHonorario, validarAjuste, validarDadosDoPedido, validarLiberacao,
   validarMotivo, valorPorDiaria, avisoDaVaga, vagaSaiuDosHonorarios, type LinhaDoRelatorio, type VagaAtual,
+  avisoDaVagaNaEmpreita, nomeDaVagaSemColaborador, posicaoDoTipo, posicaoPelaFuncao, rotuloDoValor, setorDaVaga,
+  STATUS_DE_VAGA_ATIVA, CHAVE_DAS_VAGAS_SEM_NOME,
 } from "./honorarios-ceno";
 
 const linha = (o: Partial<LinhaDoRelatorio>): LinhaDoRelatorio => ({
@@ -42,14 +44,15 @@ describe("estados do pedido", () => {
     expect(podeLiberarHonorario("aguardando")).toBe(false);
   });
 
-  it("faltaParaEnviar diz o que falta, na ordem em que a pessoa preenche", () => {
-    const base = { status: "rascunho", valorPedido: 50_000, diarias: 3, setor: "montagem", posicao: "freela_local" };
+  it("faltaParaEnviar (20/10): a vaga pede o tipo (tabela ou outro valor) e um valor; a empreita, o valor fechado", () => {
+    const base = { status: "rascunho", tipo: "vaga", tipoFreela: "local_a", valorPedido: 50_000 };
     expect(faltaParaEnviar(base)).toBeNull();
-    expect(faltaParaEnviar({ ...base, valorPedido: 0 })).toMatch(/valor/);
-    expect(faltaParaEnviar({ ...base, diarias: null })).toMatch(/diárias/);
-    expect(faltaParaEnviar({ ...base, setor: null })).toMatch(/setor/);
-    expect(faltaParaEnviar({ ...base, posicao: "casa" })).toMatch(/posição/);
+    expect(faltaParaEnviar({ ...base, tipoFreela: null })).toMatch(/tipo de freela/);
+    expect(faltaParaEnviar({ ...base, tipoFreela: "outro", valorPedido: 0 })).toMatch(/valor negociado/);
+    expect(faltaParaEnviar({ ...base, valorPedido: 0 })).toMatch(/tabela não tem valor/);
     expect(faltaParaEnviar({ ...base, status: "aguardando" })).toMatch(/já foi enviado/);
+    expect(faltaParaEnviar({ status: "rascunho", tipo: "empreita", valorPedido: 0 })).toMatch(/valor fechado/);
+    expect(faltaParaEnviar({ status: "devolvido", tipo: "empreita", valorPedido: 1 })).toBeNull();
   });
 });
 
@@ -100,18 +103,47 @@ describe("sugestões a partir da vaga", () => {
     expect(posicaoSugerida({ collaboratorType: "freela", needsTicket: false })).toBe("freela_local");
   });
 
-  it("casa (funcionário) não recebe honorário; vaga sem colaborador só se for empreita", () => {
+  it("casa (funcionário) não recebe honorário; vaga ABERTA recebe (20/10: \"não precisa escalar\")", () => {
     expect(vagaRecebeHonorario({ collaboratorId: "c1", collaboratorType: "casa" })).toBe(false);
     expect(vagaRecebeHonorario({ collaboratorId: "c1", collaboratorType: "freela" })).toBe(true);
-    expect(vagaRecebeHonorario({ collaboratorId: null, collaboratorType: null })).toBe(false);
+    expect(vagaRecebeHonorario({ collaboratorId: null, collaboratorType: null })).toBe(true);
     expect(vagaRecebeHonorario({ collaboratorId: null, empreitaEmpresa: "Cenotech" })).toBe(true);
   });
 
-  it("setor pelo nome da função", () => {
+  it("vaga aberta: posição pelo nome da função, se ele disser; senão quem pede escolhe", () => {
+    expect(posicaoSugerida({ collaboratorId: null, functionName: "cenotecnica local" })).toBe("freela_local");
+    expect(posicaoSugerida({ collaboratorId: null, functionName: "Cenotécnica Viagem" })).toBe("freela_viagem");
+    expect(posicaoSugerida({ collaboratorId: null, functionName: "Cenotécnica", needsTicket: true })).toBeNull();
+    expect(posicaoSugerida({ collaboratorId: null, functionName: "Cenotécnica local", cenoFreelaTipo: "viagem" })).toBe("freela_viagem");
+    expect(posicaoPelaFuncao("Localização")).toBeNull();
+    expect(nomeDaVagaSemColaborador(5063, "cenotecnica local")).toBe("Vaga #5063 sem nome · cenotecnica local");
+  });
+
+  it("setor pelo nome da função (a cenotécnica genérica fica em Montagem no pedido)", () => {
     expect(setorSugerido("Sup Ceno")).toBe("sup_ceno");
     expect(setorSugerido("Cenotécnica Marcenaria")).toBe("marceneiro");
     expect(setorSugerido("Ceno Montagem")).toBe("montagem");
     expect(setorSugerido("Cenotécnica")).toBeNull();
+    expect(setorDaVaga("Cenotécnica")).toBe("montagem");
+    expect(setorDaVaga("Sup Ceno")).toBe("sup_ceno");
+  });
+
+  it("tipo de freela → posição e o rótulo que o aprovador e o Financeiro leem", () => {
+    expect(posicaoDoTipo("viagem")).toBe("freela_viagem");
+    expect(posicaoDoTipo("sp")).toBe("freela_local");
+    expect(posicaoDoTipo("local_b")).toBe("freela_local");
+    expect(posicaoDoTipo("outro")).toBeNull();
+    expect(rotuloDoValor({ tipo: "vaga", tipoFreela: "local_a" })).toBe("Freela Local (A) · tabela");
+    expect(rotuloDoValor({ tipo: "vaga", tipoFreela: "outro", observacao: "Montagem noturna" })).toBe("Outro valor · Montagem noturna");
+    expect(rotuloDoValor({ tipo: "vaga", tipoFreela: "outro" })).toBe("Outro valor");
+    expect(rotuloDoValor({ tipo: "vaga", tipoFreela: null, setor: "montagem", posicao: "freela_local" })).toBe("Montagem · Freela local");
+    expect(rotuloDoValor({ tipo: "empreita", vagasDaEmpreita: [1, 2] })).toBe("Valor fechado da equipe · 2 vagas da escala");
+  });
+
+  it("vaga ativa: escaladas e abertas; cancelada e sugestão fora", () => {
+    expect(STATUS_DE_VAGA_ATIVA).toEqual(expect.arrayContaining(["escalado", "planejado", "escalacao", "reaberto", "aguardando_producao"]));
+    expect(STATUS_DE_VAGA_ATIVA).not.toContain("cancelado");
+    expect(STATUS_DE_VAGA_ATIVA).not.toContain("sugestao_pendente");
   });
 });
 
@@ -192,6 +224,19 @@ describe("relatórios", () => {
     expect(r[0].detalhe).toBe("Empreita · 1 evento");
   });
 
+  it("por pessoa: as vagas ainda sem colaborador somam numa linha \"Vagas sem nome\", no fim", () => {
+    const comSemNome = [
+      ...linhas,
+      linha({ nome: "Vaga #5063 sem nome · Cenotécnica", status: "aprovado", valorPedido: 500_000, valorAprovado: 500_000, semColaborador: true }),
+      linha({ nome: "Vaga #5064 sem nome · Cenotécnica", eventId: "ev9", status: "aguardando", valorPedido: 10_000, semColaborador: true }),
+    ];
+    const r = totalPorPessoa(comSemNome);
+    const ultima = r[r.length - 1];
+    expect(ultima).toMatchObject({ chave: CHAVE_DAS_VAGAS_SEM_NOME, rotulo: "Vagas sem nome", aprovado: 500_000, pedido: 510_000 });
+    expect(ultima.detalhe).toBe("Ainda sem colaborador · 2 vagas · 2 eventos");
+    expect(r.filter((g) => g.rotulo.startsWith("Vaga #"))).toHaveLength(0);
+  });
+
   it("por setor e posição", () => {
     const r = totalPorSetorEPosicao(linhas);
     const sup = r.find((g) => g.rotulo === "Sup Ceno")!;
@@ -224,6 +269,20 @@ describe("a vaga mudou depois do pedido", () => {
     expect(avisoDaVaga(h, v({ collaboratorId: "c2", collaboratorType: "casa" }), ESCALADOS)).toBe("casa");
     expect(avisoDaVaga(h, v({ collaboratorId: "c2" }), ESCALADOS)).toBe("colaborador_trocado");
     expect(avisoDaVaga({ ...h, tipo: "empreita" }, null, ESCALADOS)).toBeNull();
+  });
+  it("pedido da vaga ABERTA: ganhar um freela não é troca; ganhar um da casa para; X → ninguém é troca", () => {
+    const aberta = { ...h, collaboratorId: null };
+    expect(avisoDaVaga(aberta, v({ collaboratorId: null, collaboratorType: null }), ESCALADOS)).toBeNull();
+    expect(avisoDaVaga(aberta, v({ collaboratorId: "c9" }), ESCALADOS)).toBeNull();
+    expect(avisoDaVaga(aberta, v({ collaboratorId: "c9", collaboratorType: "casa" }), ESCALADOS)).toBe("casa");
+    expect(avisoDaVaga(h, v({ collaboratorId: null, collaboratorType: null }), ESCALADOS)).toBe("colaborador_trocado");
+  });
+  it("vaga dentro da empreita: só importa estar ativa, na cenotécnica e não ser da casa", () => {
+    expect(avisoDaVagaNaEmpreita(v({ collaboratorId: "c7" }), ESCALADOS, true)).toBeNull();
+    expect(avisoDaVagaNaEmpreita(v({ status: "cancelado" }), ESCALADOS, true)).toBe("fora_da_escala");
+    expect(avisoDaVagaNaEmpreita(v(), ESCALADOS, false)).toBe("outra_funcao");
+    expect(avisoDaVagaNaEmpreita(v({ collaboratorType: "casa" }), ESCALADOS, true)).toBe("casa");
+    expect(avisoDaVagaNaEmpreita(null, ESCALADOS, true)).toBe("excluida");
   });
   it("só a troca de colaborador deixa o pedido seguir (depois de confirmar)", () => {
     expect(vagaSaiuDosHonorarios("colaborador_trocado")).toBe(false);

@@ -8,9 +8,11 @@
  * (na-escalacao.tsx) — a vaga uma a uma também se pede no modal dela, aba
  * Honorário (aba-da-vaga.tsx).
  *
- * Sem evento: a lista dos eventos com cenotécnica escalada (próximos primeiro).
- * Com evento: uma linha por vaga escalada freela, com o valor digitado na
- * célula (grava ao sair), as empreitas abaixo e "Enviar para aprovação" em
+ * Sem evento: a lista dos eventos com cenotécnica (próximos primeiro).
+ * Com evento: uma linha por vaga freela — escalada OU ainda aberta, "Vaga #N
+ * sem nome" (20/10) — com o tipo de freela escolhido na linha (o valor da
+ * tabela) ou "Outro valor" digitado na célula (grava ao sair); as empreitas
+ * abaixo, cada uma com as vagas que agrupa; e "Enviar para aprovação" em
  * lote. A vaga da casa (funcionário) fica numa nota: não recebe honorário.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -27,13 +29,15 @@ import { apiErrorMessage, cn } from "@/lib/utils";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { AcaoDoEstado, BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
 import { ICONE_DA_LINHA, MOLDURA, TH } from "@/components/scaling-approval/tokens";
-import { faltaParaEnviar, valorPorDiaria } from "@shared/honorarios-ceno";
+import { isCenotecnicaFunction } from "@shared/alimentacao";
+import { isCenoFreelaTipo } from "@shared/cenotecnica-empreita";
+import { ehTipoDeTabela, faltaParaEnviar, rotuloDoValor, valorPorDiaria } from "@shared/honorarios-ceno";
 import {
-  useAcessoHonorarios, useEventosDoPedido, useMutacoesDoPedido, usePedidoDoEvento,
-  type CamposDoPedido, type EventoDoPedido, type Honorario, type LinhaDoPedido,
+  useAcessoHonorarios, useEventosDoPedido, useGravarTipoNaVaga, useMutacoesDoPedido, usePedidoDoEvento,
+  type CamposDoPedido, type EventoDoPedido, type Honorario, type LinhaDoPedido, type TabelaDaVaga,
 } from "./api";
-import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, ValorComDiaria, brl, brlCurto, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel } from "./pecas";
-import { CampoDeValor, IndicadorDeSalvamento, SelectDePosicao, SelectDeSetor, useSalvamento } from "./linha-editavel";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, ValorComDiaria, VagasDaEmpreitaLista, brl, brlCurto, diariasTexto, haQuanto, periodoCurto } from "./pecas";
+import { CampoDeValor, IndicadorDeSalvamento, SelectDoTipo, useSalvamento } from "./linha-editavel";
 import { DetalhesDialog, type AlvoDoFormulario } from "./detalhes-dialog";
 import { HistoricoSheet } from "./historico-sheet";
 
@@ -71,7 +75,7 @@ function LinhaDoEvento({ e, onEscolher }: { e: EventoDoPedido; onEscolher: (id: 
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
             <span>{periodoCurto(e.startDate, e.endDate)}</span>
             <span aria-hidden="true">·</span>
-            <span>{e.vagas} {e.vagas === 1 ? "vaga escalada" : "vagas escaladas"}{e.semPedido > 0 ? ` · ${e.semPedido} sem valor` : ""}</span>
+            <span>{e.vagas} {e.vagas === 1 ? "vaga" : "vagas"}{e.semColaborador ? ` (${e.semColaborador} sem nome)` : ""}{e.semPedido > 0 ? ` · ${e.semPedido} sem valor` : ""}</span>
             {e.empreitas > 0 && <><span aria-hidden="true">·</span><span>{e.empreitas} {e.empreitas === 1 ? "empreita" : "empreitas"}</span></>}
           </span>
           {contadores.length > 0 && (
@@ -103,8 +107,8 @@ function EventosDoPedido({ onEscolher }: { onEscolher: (id: string) => void }) {
   const lista = q.data ?? [];
   if (lista.length === 0) {
     return (
-      <EstadoDaValidacao icone={<HardHat aria-hidden="true" />} titulo="Nenhum evento com cenotécnica escalada"
-        texto="Quando uma vaga de cenotécnica freela for escalada, o evento aparece aqui para você lançar o valor negociado."
+      <EstadoDaValidacao icone={<HardHat aria-hidden="true" />} titulo="Nenhum evento com vaga de cenotécnica"
+        texto="Quando o evento tiver vaga de cenotécnica (escalada ou ainda aberta), ele aparece aqui para você lançar o honorário."
         testId="hon-eventos-vazio" />
     );
   }
@@ -118,7 +122,7 @@ function EventosDoPedido({ onEscolher }: { onEscolher: (id: string) => void }) {
   );
   return (
     <div className="val-entra space-y-5" data-testid="hon-eventos">
-      <p className="text-sm text-muted-foreground">Escolha o evento para lançar o valor negociado de cada vaga escalada da cenotécnica.</p>
+      <p className="text-sm text-muted-foreground">Escolha o evento para lançar o honorário de cada vaga da cenotécnica — escalada ou ainda sem nome.</p>
       {bloco("Próximos e em andamento", proximos)}
       {bloco("Já aconteceram", passados)}
     </div>
@@ -158,7 +162,7 @@ function useSalvarLinha(eventId: string, linha: { vaga: LinhaDoPedido["vaga"]; s
       const h = atual.current;
       const novo = h
         ? await editar.mutateAsync({ id: h.id, versao: h.versao, ...campos })
-        : await criar.mutateAsync({ eventId, tipo: linha.vaga ? "vaga" : "empreita", teamInclusionId: linha.vaga?.id, setor: linha.sugestao?.setor, posicao: linha.sugestao?.posicao, ...campos });
+        : await criar.mutateAsync({ eventId, tipo: linha.vaga ? "vaga" : "empreita", teamInclusionId: linha.vaga?.id, ...campos });
       atual.current = novo;
     }, mensagemDoErro));
   };
@@ -200,7 +204,7 @@ function AcoesDaLinha({ h, editavel, onDetalhes, onHistorico, onRemover, nome }:
   return (
     <span className="inline-flex items-center gap-0.5">
       {editavel && (
-        <button type="button" className={cn(ICONE_DA_LINHA, "hover:bg-brand-soft hover:text-primary")} onClick={onDetalhes} aria-label={`Editar detalhes de ${nome}`} title="Período, diárias e observação">
+        <button type="button" className={cn(ICONE_DA_LINHA, "hover:bg-brand-soft hover:text-primary")} onClick={onDetalhes} aria-label={`Editar detalhes de ${nome}`} title="Abrir o pedido (tipo, valor e observação)">
           <Pencil className="h-4 w-4" aria-hidden="true" />
         </button>
       )}
@@ -235,8 +239,10 @@ interface DadosDaLinha {
   avisos: ReactNode;
   h: Honorario | null;
   editavel: boolean;
-  setor: string | null;
-  posicao: string | null;
+  /** Vaga: o tipo de freela (tabela) ou "outro"; empreita: null. */
+  tipo: string | null;
+  tabela: TabelaDaVaga | null;
+  empreita: boolean;
   periodo: string;
   diarias: number | null;
   valor: number;
@@ -254,9 +260,30 @@ function PorDiariaOuStatus({ d }: { d: DadosDaLinha }) {
 }
 
 function CampoDoValor({ d, alinhar = "direita" }: { d: DadosDaLinha; alinhar?: "direita" | "esquerda" }) {
-  if (!d.editavel) {
+  const digitavel = d.editavel && (d.empreita || d.tipo === "outro");
+  if (!digitavel) {
     const h = d.h;
-    return <ValorComDiaria valor={h?.valorAprovado ?? h?.valorPedido} diarias={d.diarias} riscado={h?.valorAprovado != null ? h.valorPedido : null} alinhar={alinhar} />;
+    // Tipo de tabela ainda sem pedido: mostra o valor da tabela que vai entrar.
+    const daTabela = !h && ehTipoDeTabela(d.tipo) ? d.tabela?.valores[d.tipo]?.total ?? null : null;
+    if (d.editavel && !d.tipo && !d.empreita) {
+      return <span className={cn("block text-2xs text-muted-foreground", alinhar === "direita" ? "text-right" : "text-left")}>Escolha o tipo</span>;
+    }
+    return (
+      <>
+        <ValorComDiaria valor={h ? h.valorAprovado ?? h.valorPedido : daTabela} diarias={d.diarias} riscado={h?.valorAprovado != null ? h.valorPedido : null} alinhar={alinhar} />
+        {d.editavel && (
+          <span className={cn("mt-0.5 flex min-h-4 text-2xs text-muted-foreground", alinhar === "direita" ? "justify-end" : "justify-start")}>
+            {d.estado !== "parado" ? <IndicadorDeSalvamento estado={d.estado} erro={d.erro} />
+              : !h && d.tipo ? (
+                // Tipo que veio do Resumo, ainda sem pedido: um clique lança o valor da tabela.
+                <button type="button" onClick={() => d.salvar({ tipoFreela: d.tipo })} className="val-alvo rounded font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-testid={`hon-lancar-${d.testId}`}>
+                  Lançar o valor da tabela
+                </button>
+              ) : "da tabela"}
+          </span>
+        )}
+      </>
+    );
   }
   return (
     <>
@@ -266,21 +293,23 @@ function CampoDoValor({ d, alinhar = "direita" }: { d: DadosDaLinha; alinhar?: "
   );
 }
 
-function CampoSetorPosicao({ d }: { d: DadosDaLinha }) {
-  const setor = d.editavel
-    ? <SelectDeSetor valor={d.setor} onMudar={(x) => d.salvar({ setor: x })} rotulo={`Setor de ${d.nome}`} />
-    : <span className="inline-flex h-9 items-center text-xs text-slate-700">{setorLabel(d.setor)}</span>;
-  const posicao = d.posicao === "empreita"
-    ? <span className="inline-flex h-9 items-center text-xs font-medium text-slate-600">Empreita</span>
-    : d.editavel
-      ? <SelectDePosicao valor={d.posicao} onMudar={(x) => d.salvar({ posicao: x })} rotulo={`Posição de ${d.nome}`} />
-      : <span className="inline-flex h-9 items-center text-xs text-slate-700">{posicaoLabel(d.posicao)}</span>;
-  return (
-    <span className="grid grid-cols-2 gap-2">
-      <span className="min-w-0">{setor}</span>
-      <span className="min-w-0">{posicao}</span>
-    </span>
-  );
+/** Coluna "Tipo": o tipo de freela da vaga (escolhido na linha) ou o resumo da empreita. */
+function CampoTipo({ d }: { d: DadosDaLinha }) {
+  if (d.empreita) {
+    return (
+      <span className="block pt-1.5">
+        <span className="block text-xs font-medium text-slate-700">Empreita · valor fechado</span>
+        <VagasDaEmpreitaLista vagas={d.h?.vagasDaEmpreita ?? []} className="mt-0.5" />
+      </span>
+    );
+  }
+  if (d.editavel) {
+    return (
+      <SelectDoTipo valor={d.tipo} tabela={d.tabela} rotulo={`Tipo de freela de ${d.nome}`} testId={`hon-tipo-${d.testId}`}
+        onMudar={(x) => d.salvar({ tipoFreela: x })} />
+    );
+  }
+  return <span className="inline-flex min-h-9 items-center text-xs text-slate-700">{d.h ? rotuloDoValor({ ...d.h, observacao: null }) : "—"}</span>;
 }
 
 function Linha({ d, modo }: { d: DadosDaLinha; modo: ModoDaLista }) {
@@ -299,7 +328,7 @@ function Linha({ d, modo }: { d: DadosDaLinha; modo: ModoDaLista }) {
             <span className="shrink-0"><Situacao h={d.h} compacta /></span>
           </div>
           {d.avisos}
-          <CampoSetorPosicao d={d} />
+          <CampoTipo d={d} />
           <div className="grid grid-cols-[1fr_auto] items-start gap-3">
             <div className="min-w-0">
               <span className="block text-2xs text-muted-foreground">{d.rotuloDoValor}</span>
@@ -323,7 +352,7 @@ function Linha({ d, modo }: { d: DadosDaLinha; modo: ModoDaLista }) {
         <span className="mt-0.5 block text-2xs tabular-nums text-slate-600">Montagem {d.periodo} · {diariasTexto(d.diarias)}</span>
         {d.avisos}
       </td>
-      <td className="px-3 py-3"><CampoSetorPosicao d={d} /></td>
+      <td className="px-3 py-3"><CampoTipo d={d} /></td>
       <td className="px-3 py-3 text-right"><CampoDoValor d={d} /></td>
       <td className="px-3 py-3"><Situacao h={d.h} /></td>
       <td className="whitespace-nowrap py-2.5 pl-1 pr-2 text-right">{d.acoes}</td>
@@ -337,13 +366,26 @@ function useDadosDaVaga(linha: LinhaDoPedido, eventId: string, cb: Callbacks): D
   const s = linha.sugestao;
   const editavel = h ? h.podeEditar : !linha.foraDaEscala;
   const sv = useSalvarLinha(eventId, linha);
+  const gravarTipo = useGravarTipoNaVaga();
   const nome = h?.nome ?? s?.nome ?? "Vaga";
   const numero = v?.inclusionNumber ?? h?.inclusionNumber;
+  const semColaborador = h ? h.semColaborador : !!s?.semColaborador;
+  const tipo = h ? h.tipoFreela : s?.tipoFreela ?? null;
+  /** Escolheu um tipo da tabela e a vaga não tinha: a vaga também passa a ter (o Planejado usa). */
+  const salvar = (c: CamposDoPedido) => {
+    // Primeira gravação da linha: leva o tipo pré-selecionado (o do Resumo) junto.
+    sv.salvar(!h && c.tipoFreela === undefined && tipo ? { tipoFreela: tipo, ...c } : c);
+    if (v && !v.cenoFreelaTipo && isCenoFreelaTipo(c.tipoFreela) && isCenotecnicaFunction(v.functionName)) {
+      gravarTipo.mutate({ vagaId: v.id, tipo: c.tipoFreela });
+    }
+  };
   return {
     chave: v?.id ?? h?.id ?? nome,
     testId: String(numero ?? h?.id ?? nome),
     nome,
-    sub: (
+    sub: semColaborador ? (
+      <span className="italic">Vaga ainda sem colaborador — o pedido segue assim mesmo</span>
+    ) : (
       <>
         {numero != null && <span className="font-mono tabular-nums">#{numero}</span>}
         {numero != null && " · "}
@@ -360,7 +402,7 @@ function useDadosDaVaga(linha: LinhaDoPedido, eventId: string, cb: Callbacks): D
               <button type="button" onClick={() => sv.salvar({})} disabled={sv.estado === "salvando"}
                 className="val-alvo inline-flex items-center rounded-md px-1 text-2xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                 data-testid={`hon-confirmar-troca-${numero ?? h.id}`}>
-                Passar o pedido para {h.colaboradorAtual ?? "quem está na vaga"}
+                Passar o pedido para {h.colaboradorAtual ?? "a vaga sem nome"}
               </button>
             )}
           </AvisoDaLinha>
@@ -374,13 +416,14 @@ function useDadosDaVaga(linha: LinhaDoPedido, eventId: string, cb: Callbacks): D
     ),
     h,
     editavel,
-    setor: h?.setor ?? s?.setor ?? null,
-    posicao: h?.posicao ?? s?.posicao ?? null,
+    tipo,
+    tabela: linha.tabela ?? null,
+    empreita: false,
     periodo: periodoCurto(h?.inicio ?? s?.inicio, h?.fim ?? s?.fim),
     diarias: h?.diarias ?? s?.diarias ?? null,
     valor: h?.valorPedido ?? 0,
     rotuloDoValor: "Valor negociado",
-    salvar: sv.salvar,
+    salvar,
     estado: sv.estado,
     erro: sv.erro,
     acoes: <AcoesDaLinha h={h} editavel={editavel && !!v} nome={nome} onDetalhes={() => cb.onDetalhes(linha)} onHistorico={cb.onHistorico} onRemover={cb.onRemover} />,
@@ -395,11 +438,12 @@ function useDadosDaEmpreita(h: Honorario, eventId: string, cb: Callbacks): Dados
     nome: h.nome,
     icone: true,
     sub: <>{h.pessoas ? `${h.pessoas} ${h.pessoas === 1 ? "pessoa" : "pessoas"}` : "Empreita"}{h.descricao ? ` · ${h.descricao}` : ""}</>,
-    avisos: <AvisoDevolvido h={h} />,
+    avisos: <><AvisoDaLinha h={h} /><AvisoDevolvido h={h} /></>,
     h,
     editavel: h.podeEditar,
-    setor: h.setor,
-    posicao: "empreita",
+    tipo: null,
+    tabela: null,
+    empreita: true,
     periodo: periodoCurto(h.inicio, h.fim),
     diarias: h.diarias,
     valor: h.valorPedido,
@@ -426,7 +470,7 @@ function LinhaDaEmpreita({ h, eventId, cb, modo }: { h: Honorario; eventId: stri
 }
 
 /** A lista: tabela no desktop largo, cartões abaixo de 1280px. */
-function ListaDoPedido({ modo, valorRotulo, legenda, children }: { modo: ModoDaLista; valorRotulo: string; legenda: string; children: ReactNode }) {
+function ListaDoPedido({ modo, valorRotulo, colunaTipo = "Tipo de freela", legenda, children }: { modo: ModoDaLista; valorRotulo: string; colunaTipo?: string; legenda: string; children: ReactNode }) {
   if (modo === "cartao") return <ul className="grid gap-2.5 md:grid-cols-2" aria-label={legenda}>{children}</ul>;
   return (
     <div className={cn(MOLDURA, "overflow-hidden")}>
@@ -434,8 +478,8 @@ function ListaDoPedido({ modo, valorRotulo, legenda, children }: { modo: ModoDaL
         <caption className="sr-only">{legenda}</caption>
         <thead className="border-b border-border bg-surface-muted">
           <tr>
-            <th scope="col" className={TH}>Pessoa</th>
-            <th scope="col" className={cn(TH, "w-[296px] 2xl:w-[340px]")}>Setor · posição</th>
+            <th scope="col" className={TH}>Pessoa / vaga</th>
+            <th scope="col" className={cn(TH, "w-[296px] 2xl:w-[340px]")}>{colunaTipo}</th>
             <th scope="col" className={cn(TH, "w-[172px] text-right")}>{valorRotulo}</th>
             <th scope="col" className={cn(TH, "w-[168px]")}>Situação</th>
             <th scope="col" className={cn(TH, "w-[112px] text-right")}><span className="sr-only">Ações</span></th>
@@ -494,7 +538,7 @@ function EnviarDialog({ aberto, onOpenChange, prontos, incompletos, evento }: {
               <Checkbox checked={!desmarcados.has(p.id)} onCheckedChange={() => setDesmarcados((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })} aria-label={`Enviar ${p.nome}`} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-foreground">{p.nome}</span>
-                <span className="block text-2xs text-muted-foreground">{setorLabel(p.setor)} · {posicaoLabel(p.posicao)} · {diariasTexto(p.diarias)}{p.status === "devolvido" ? " · reenvio" : ""}</span>
+                <span className="block text-2xs text-muted-foreground">{rotuloDoValor({ ...p, observacao: null })} · {diariasTexto(p.diarias)}{p.status === "devolvido" ? " · reenvio" : ""}</span>
               </span>
               <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">{brlCurto(p.valorPedido)}</span>
             </label>
@@ -534,7 +578,9 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
   ], [d]);
   const editaveis = todas.filter((h) => h.podeEditar);
   /** O que ainda segura a linha (dados ou a troca de colaborador sem confirmar). */
-  const pendencia = (h: Honorario) => faltaParaEnviar(h) ?? (h.avisoDaVaga === "colaborador_trocado" ? "A vaga trocou de colaborador — confirme na linha." : null);
+  const pendencia = (h: Honorario) => faltaParaEnviar(h)
+    ?? (h.avisoDaVaga === "colaborador_trocado" ? "A vaga trocou de colaborador — confirme na linha." : null)
+    ?? (h.avisosDaEmpreita?.length ? "Vaga da empreita mudou na escala — tire-a da empreita." : null);
   const prontos = editaveis.filter((h) => !pendencia(h));
   const incompletos = [
     ...editaveis.filter((h) => pendencia(h)).map((h) => ({ nome: h.nome, motivo: pendencia(h)! })),
@@ -567,12 +613,13 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
   const vagas = d.linhas;
   const cb: Callbacks = {
     onDetalhes: (x) => setAlvo({ modo: "vaga", linha: x }),
-    onEditarEmpreita: (x) => setAlvo({ modo: "empreita", honorario: x }),
+    onEditarEmpreita: (x) => setAlvo({ modo: "empreita", honorario: x, vagasDoEvento: d.vagasDoEvento ?? [] }),
     onHistorico: setHistoricoId,
     onRemover: setRemovendo,
   };
   const semNada = vagas.length === 0 && d.empreitas.length === 0;
-  const motivoSemEnvio = prontos.length === 0 ? (editaveis.length === 0 && incompletos.length === 0 ? "Nada a enviar" : "Preencha valor, setor e posição antes de enviar") : null;
+  const semNome = vagas.filter((l) => l.honorario ? l.honorario.semColaborador : l.sugestao?.semColaborador).length;
+  const motivoSemEnvio = prontos.length === 0 ? (editaveis.length === 0 && incompletos.length === 0 ? "Nada a enviar" : "Escolha o tipo de freela (ou outro valor) antes de enviar") : null;
 
   return (
     <div className="val-entra space-y-4" data-testid="hon-pedido">
@@ -583,12 +630,12 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
           </button>
           <h2 className="text-sm font-semibold text-foreground">{d.evento.name}</h2>
           <p className="text-xs text-muted-foreground">
-            {vagas.length} {vagas.length === 1 ? "vaga escalada" : "vagas escaladas"} · {d.empreitas.length} {d.empreitas.length === 1 ? "empreita" : "empreitas"}
+            {vagas.length} {vagas.length === 1 ? "vaga" : "vagas"}{semNome ? ` (${semNome} sem nome)` : ""} · {d.empreitas.length} {d.empreitas.length === 1 ? "empreita" : "empreitas"}
             {d.casa.length ? ` · ${d.casa.length} da casa (sem honorário)` : ""}
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <Button type="button" variant="outline" className="val-alvo flex-1 sm:flex-none" onClick={() => setAlvo({ modo: "empreita", honorario: null })}>
+          <Button type="button" variant="outline" className="val-alvo flex-1 sm:flex-none" onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}>
             <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar empreita
           </Button>
           <Button type="button" className="val-alvo flex-1 sm:flex-none" onClick={() => setEnviando(true)} disabled={!!motivoSemEnvio}
@@ -616,18 +663,18 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
       )}
 
       {semNada ? (
-        <EstadoDaValidacao icone={<Inbox aria-hidden="true" />} titulo="Nenhuma vaga de cenotécnica freela escalada neste evento"
-          texto={d.casa.length ? `Há ${d.casa.length} ${d.casa.length === 1 ? "vaga da casa" : "vagas da casa"} (funcionário), que não recebem honorário. Equipes terceirizadas entram como empreita.` : "Quando a escalação da cenotécnica for confirmada, as vagas aparecem aqui. Equipes terceirizadas entram como empreita."}
-          acao={<AcaoDoEstado onClick={() => setAlvo({ modo: "empreita", honorario: null })}><Plus className="h-4 w-4" aria-hidden="true" /> Adicionar empreita</AcaoDoEstado>}
+        <EstadoDaValidacao icone={<Inbox aria-hidden="true" />} titulo="Nenhuma vaga de cenotécnica freela neste evento"
+          texto={d.casa.length ? `Há ${d.casa.length} ${d.casa.length === 1 ? "vaga da casa" : "vagas da casa"} (funcionário), que não recebem honorário. Equipes terceirizadas entram como empreita.` : "Quando houver vaga de cenotécnica neste evento (escalada ou ainda aberta), ela aparece aqui. Equipes terceirizadas entram como empreita."}
+          acao={<AcaoDoEstado onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}><Plus className="h-4 w-4" aria-hidden="true" /> Adicionar empreita</AcaoDoEstado>}
           testId="hon-pedido-vazio" />
       ) : (
         <>
           {vagas.length > 0 && (
             <section aria-labelledby="hon-vagas" className="space-y-2">
               <h3 id="hon-vagas" className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-foreground">
-                Vagas escaladas <span className="font-normal text-muted-foreground">· {vagas.length} {vagas.length === 1 ? "pessoa" : "pessoas"} · o valor grava ao sair do campo</span>
+                Vagas <span className="font-normal text-muted-foreground">· {vagas.length}{semNome ? `, ${semNome} sem nome` : ""} · escolha o tipo de freela ou digite outro valor</span>
               </h3>
-              <ListaDoPedido modo={modo} valorRotulo="Valor negociado" legenda="Vagas escaladas da cenotécnica e o valor negociado de cada uma">
+              <ListaDoPedido modo={modo} valorRotulo="Valor negociado" legenda="Vagas da cenotécnica e o honorário de cada uma">
                 {vagas.map((l) => <LinhaDaVaga key={l.vaga?.id ?? l.honorario?.id} linha={l} eventId={eventId} cb={cb} modo={modo} />)}
               </ListaDoPedido>
             </section>
@@ -636,21 +683,21 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
           <section aria-labelledby="hon-empreitas" className="space-y-2 pt-2">
             <div className="flex items-center justify-between gap-2">
               <h3 id="hon-empreitas" className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-foreground">
-                Empreitas <span className="font-normal text-muted-foreground">· equipes terceirizadas com valor fechado</span>
+                Empreitas <span className="font-normal text-muted-foreground">· equipe com valor fechado, com as vagas da escala que ela cobre</span>
               </h3>
               {d.empreitas.length > 0 && (
-                <Button type="button" variant="ghost" size="sm" className="val-alvo text-primary hover:bg-brand-soft hover:text-primary" onClick={() => setAlvo({ modo: "empreita", honorario: null })}>
+                <Button type="button" variant="ghost" size="sm" className="val-alvo text-primary hover:bg-brand-soft hover:text-primary" onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}>
                   <Plus className="h-4 w-4" aria-hidden="true" /> Nova
                 </Button>
               )}
             </div>
             {d.empreitas.length === 0 ? (
-              <button type="button" onClick={() => setAlvo({ modo: "empreita", honorario: null })}
+              <button type="button" onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-card px-4 py-4 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-brand-soft/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar uma empreita (responsável, nº de pessoas e valor fechado)
+                <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar uma empreita (responsável, vagas da escala e valor fechado)
               </button>
             ) : (
-              <ListaDoPedido modo={modo} valorRotulo="Valor fechado" legenda="Empreitas do evento">
+              <ListaDoPedido modo={modo} valorRotulo="Valor fechado" colunaTipo="Vagas" legenda="Empreitas do evento">
                 {d.empreitas.map((h) => <LinhaDaEmpreita key={h.id} h={h} eventId={eventId} cb={cb} modo={modo} />)}
               </ListaDoPedido>
             )}

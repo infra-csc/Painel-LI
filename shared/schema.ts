@@ -1293,6 +1293,13 @@ export const honorariosCeno = pgTable("honorarios_ceno", {
   valorPedido: integer("valor_pedido").notNull().default(0), // centavos
   valorAprovado: integer("valor_aprovado"), // centavos; null até a aprovação
   observacao: text("observacao"),
+  /**
+   * 20/10 (dono: "ele só coloca qual tipo de freela ou um valor à parte"):
+   * de onde vem o valor de um pedido de VAGA — 'viagem' | 'sp' | 'local_a' |
+   * 'local_b' (tabela fechada da cenotécnica, shared/cenotecnica-empreita.ts)
+   * ou 'outro' (negociado à parte). Nulo na empreita e nos pedidos antigos.
+   */
+  tipoFreela: text("tipo_freela"),
   status: text("status").notNull().default("rascunho"),
   /** Trava de corrida: toda mutação exige a versão lida e soma 1. */
   versao: integer("versao").notNull().default(1),
@@ -1357,6 +1364,25 @@ export const honorariosCenoLiberacoes = pgTable("honorarios_ceno_liberacoes", {
 ]);
 
 export type HonorarioCenoLiberacao = typeof honorariosCenoLiberacoes.$inferSelect;
+
+/**
+ * 20/10 — a EMPREITA agrupa vagas (dono: "selecionar quais escalações estão
+ * nessa empreita"). Uma vaga está em no máximo UMA empreita (UNIQUE) e, nela,
+ * não tem pedido individual (a rota garante). A vaga só é lida — nada aqui
+ * muda a escala. Migração: scripts/migrations/2026-10-20-honorarios-empreita-
+ * e-tipo-de-freela.sql; o boot também cria (server/ensure-schema.ts).
+ */
+export const honorariosCenoEmpreitaVagas = pgTable("honorarios_ceno_empreita_vagas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  honorarioId: varchar("honorario_id").notNull().references(() => honorariosCeno.id, { onDelete: "cascade" }),
+  teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("honorarios_ceno_empreita_vagas_honorario_idx").on(t.honorarioId),
+  uniqueIndex("honorarios_ceno_empreita_vagas_vaga_uq").on(t.teamInclusionId),
+]);
+
+export type HonorarioCenoEmpreitaVaga = typeof honorariosCenoEmpreitaVagas.$inferSelect;
 
 // ===== BUSCA DE PASSAGENS NA INTERNET (09/10) =====
 // Cache COMPARTILHADO das consultas ao fornecedor (Ignav) e o registro de

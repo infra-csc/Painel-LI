@@ -12,10 +12,16 @@
  * (honorarios_ceno, _historico, _liberacoes — ver shared/schema.ts).
  *
  * Linhas do pedido:
- *  - VAGA: cada vaga ESCALADA de cenotécnica (inclui Sup Ceno) com colaborador
- *    freela (local ou viagem). Casa (funcionário) não entra.
- *  - EMPREITA: equipe terceirizada que NÃO é vaga do app — responsável, nº de
- *    pessoas, descrição e valor fechado ("EQUIPE (3x)").
+ *  - VAGA: cada vaga ATIVA de cenotécnica (inclui Sup Ceno) — escalada com
+ *    freela (local ou viagem) OU ainda aberta, sem colaborador (dono, 20/10:
+ *    "não precisa escalar"). Casa (funcionário) e vaga cancelada não entram.
+ *    O valor é o da TABELA do tipo de freela (Viagem, SP, Local A, Local B —
+ *    shared/cenotecnica-empreita.ts) ou "Outro valor", negociado à parte
+ *    (dono, 20/10: "ele só coloca qual tipo de freela ou um valor à parte").
+ *  - EMPREITA: equipe com valor fechado — responsável, nº de pessoas e, desde
+ *    20/10, as VAGAS do evento que fazem parte dela (uma vaga em uma empreita
+ *    só; nela, a vaga não tem pedido próprio). Pode não ter vaga nenhuma
+ *    (equipe terceirizada que não está na escala).
  *
  * Fluxo (estados do pedido):
  *   rascunho ──enviar──▶ aguardando ──aprovar──────────▶ aprovado ─┐
@@ -28,6 +34,8 @@
  * Dinheiro sempre em CENTAVOS inteiros.
  */
 import { ehSupervisorDeCenotecnica, normalizarNomeDeFuncao } from "./cenotecnica";
+import { CENO_FREELA_TIPOS, CENO_FREELA_TIPO_LABELS, isCenoFreelaTipo, type CenoFreelaTipo } from "./cenotecnica-empreita";
+import { ACTIVE_CONFLICT_STATUSES, STATUS_QUE_PODEM_CONFIRMAR } from "./vaga-status";
 
 // ── Domínios ────────────────────────────────────────────────────────────────
 
@@ -62,6 +70,60 @@ export const POSICAO_CENO_LABEL: Record<PosicaoCeno, string> = {
   freela_viagem: "Freela viagem",
   empreita: "Empreita",
 };
+
+/**
+ * De onde vem o valor de um pedido de VAGA (20/10): um dos 4 tipos de freela
+ * da tabela fechada ou "Outro valor" (negociado à parte — "nem sempre é o
+ * valor de freela": vale tanto quanto o da tabela, não é exceção).
+ */
+export const TIPOS_DO_VALOR = [...CENO_FREELA_TIPOS, "outro"] as const;
+export type TipoDoValor = CenoFreelaTipo | "outro";
+export const TIPO_DO_VALOR_LABEL: Record<TipoDoValor, string> = { ...CENO_FREELA_TIPO_LABELS, outro: "Outro valor" };
+export const ehTipoDoValor = (v: unknown): v is TipoDoValor => v === "outro" || isCenoFreelaTipo(v);
+/** O valor sai da tabela (não se digita). */
+export const ehTipoDeTabela = (v: unknown): v is CenoFreelaTipo => isCenoFreelaTipo(v);
+
+/**
+ * Posição que o tipo implica: Freela Viagem → viagem; SP e Local A/B → local.
+ * "Outro valor" não diz nada (null — quem chama usa a sugestão da vaga).
+ */
+export function posicaoDoTipo(t: string | null | undefined): PosicaoCeno | null {
+  if (t === "viagem") return "freela_viagem";
+  if (t === "sp" || t === "local_a" || t === "local_b") return "freela_local";
+  return null;
+}
+
+/**
+ * Como o aprovador e o Financeiro leem a origem do valor, numa linha:
+ * "Freela Local (A) · tabela", "Outro valor · <observação>", "Empreita · 3
+ * vagas". Pedido antigo (sem tipo) cai no setor · posição de antes.
+ */
+export function rotuloDoValor(h: { tipo: string; tipoFreela?: string | null; observacao?: string | null; setor?: string | null; posicao?: string | null; vagasDaEmpreita?: readonly unknown[] | null; pessoas?: number | null }): string {
+  if (h.tipo === "empreita") {
+    const n = h.vagasDaEmpreita?.length ?? 0;
+    return `Valor fechado da equipe${n ? ` · ${n} ${n === 1 ? "vaga" : "vagas"} da escala` : " · sem vaga na escala"}`;
+  }
+  if (ehTipoDeTabela(h.tipoFreela)) return `${CENO_FREELA_TIPO_LABELS[h.tipoFreela]} · tabela`;
+  if (h.tipoFreela === "outro") {
+    const obs = (h.observacao ?? "").trim();
+    return `Outro valor${obs ? ` · ${obs}` : ""}`;
+  }
+  const setor = ehSetorCeno(h.setor) ? SETOR_CENO_LABEL[h.setor] : "Sem setor";
+  const posicao = ehPosicaoCeno(h.posicao) ? POSICAO_CENO_LABEL[h.posicao] : "Sem posição";
+  return `${setor} · ${posicao}`;
+}
+
+/**
+ * Status de vaga ATIVA para os honorários (20/10): as escaladas (confirmadas,
+ * com os legados) e as só salvas/abertas (planejado, reaberto, escalacao…).
+ * Fora: cancelado e a etapa de sugestão (Validação de escala).
+ */
+export const STATUS_DE_VAGA_ATIVA: readonly string[] = Array.from(new Set([...ACTIVE_CONFLICT_STATUSES, ...STATUS_QUE_PODEM_CONFIRMAR]));
+
+/** Nome da linha de uma vaga ainda sem colaborador: "Vaga #5063 sem nome · Cenotécnica local". */
+export function nomeDaVagaSemColaborador(numero: number | null | undefined, funcao: string | null | undefined): string {
+  return `Vaga${numero != null ? ` #${numero}` : ""} sem nome${funcao ? ` · ${funcao}` : ""}`;
+}
 
 export const ehStatusDeHonorario = (v: unknown): v is HonorarioStatus =>
   typeof v === "string" && (HONORARIO_STATUS as readonly string[]).includes(v);
@@ -193,34 +255,55 @@ export function diasDoPeriodo(inicio: string | null | undefined, fim: string | n
 
 // ── Sugestões a partir da vaga (o pedido pode mudar tudo) ───────────────────
 
+/** Posição pelo NOME da função ("Cenotécnica Local" → local; "… Viagem" → viagem); null se não diz. */
+export function posicaoPelaFuncao(nomeDaFuncao: string | null | undefined): PosicaoCeno | null {
+  const n = ` ${normalizarNomeDeFuncao(nomeDaFuncao).replace(/[^a-z0-9]+/g, " ")} `;
+  if (n.includes(" viagem ")) return "freela_viagem";
+  if (n.includes(" local ")) return "freela_local";
+  return null;
+}
+
 /**
- * Posição sugerida para a vaga escalada. Ordem de confiança:
+ * Posição sugerida para a vaga. Ordem de confiança:
  *  1. empreita por empresa na vaga → empreita;
  *  2. modalidade de freela escolhida na Escalação (`ceno_freela_tipo`):
  *     viagem → freela viagem; SP / Local A / Local B → freela local;
- *  3. colaborador "local" → freela local;
- *  4. vaga que precisa de passagem → freela viagem; senão freela local.
+ *  3. vaga ABERTA (sem colaborador, 20/10): pelo nome da função, se ele
+ *     disser ("cenotécnica local" → local); senão null — quem pede escolhe;
+ *  4. colaborador "local" → freela local;
+ *  5. vaga que precisa de passagem → freela viagem; senão freela local.
  * Casa devolve null (não entra no honorário).
  */
 export function posicaoSugerida(v: {
+  collaboratorId?: string | null;
   collaboratorType?: string | null;
   cenoFreelaTipo?: string | null;
   needsTicket?: boolean | null;
   empreitaEmpresa?: string | null;
+  functionName?: string | null;
 }): PosicaoCeno | null {
   if (v.empreitaEmpresa && v.empreitaEmpresa.trim()) return "empreita";
   if (v.collaboratorType === "casa") return null;
-  if (v.cenoFreelaTipo === "viagem") return "freela_viagem";
-  if (v.cenoFreelaTipo === "sp" || v.cenoFreelaTipo === "local_a" || v.cenoFreelaTipo === "local_b") return "freela_local";
+  const peloTipo = posicaoDoTipo(v.cenoFreelaTipo);
+  if (peloTipo) return peloTipo;
+  if (v.collaboratorId === null) return posicaoPelaFuncao(v.functionName);
   if (v.collaboratorType === "local") return "freela_local";
   return v.needsTicket ? "freela_viagem" : "freela_local";
 }
 
-/** A vaga escalada entra no honorário? Casa (funcionário) fica de fora. */
+/**
+ * A vaga entra no honorário? Casa (funcionário) fica de fora. Vaga ABERTA,
+ * sem colaborador, entra (dono, 20/10: "não precisa escalar").
+ */
 export function vagaRecebeHonorario(v: { collaboratorType?: string | null; empreitaEmpresa?: string | null; collaboratorId?: string | null }): boolean {
   if (v.empreitaEmpresa && v.empreitaEmpresa.trim()) return true;
-  if (!v.collaboratorId) return false;
+  if (!v.collaboratorId) return true;
   return v.collaboratorType !== "casa";
+}
+
+/** A vaga ainda não tem ninguém (nem colaborador, nem empreita por empresa). */
+export function vagaSemColaborador(v: { collaboratorId?: string | null; empreitaEmpresa?: string | null }): boolean {
+  return !v.collaboratorId && !(v.empreitaEmpresa && v.empreitaEmpresa.trim());
 }
 
 // ── A vaga mudou depois do pedido ───────────────────────────────────────────
@@ -231,14 +314,19 @@ export function vagaRecebeHonorario(v: { collaboratorType?: string | null; empre
  * para outra função ou para um funcionário da casa — o pedido não pode seguir
  * calado: quem pede não envia, e quem aprova/libera vê o aviso.
  *  - colaborador_trocado: a vaga continua valendo, com OUTRA pessoa (quem pede
- *    confirma e o pedido passa a ser dela);
+ *    confirma e o pedido passa a ser dela) — ou ficou sem ninguém de novo;
  *  - os demais: a vaga saiu dos honorários (nada a enviar ou editar).
+ *
+ * Vaga ABERTA que ganha um freela depois do pedido (20/10) NÃO é troca: o
+ * pedido era da vaga, não de uma pessoa. O storage grava o nome no pedido na
+ * próxima leitura (storage/honorarios-ceno.ts · adotarColaboradorDaVaga) e
+ * aqui não há aviso. Se a vaga ganha um funcionário da casa, vale "casa".
  */
 export type AvisoDaVaga = "excluida" | "fora_da_escala" | "outra_funcao" | "casa" | "colaborador_trocado";
 
 export const AVISO_DA_VAGA_LABEL: Record<AvisoDaVaga, string> = {
   excluida: "A vaga foi excluída da escala",
-  fora_da_escala: "A vaga não está mais escalada",
+  fora_da_escala: "A vaga foi cancelada na escala",
   outra_funcao: "A vaga saiu da cenotécnica",
   casa: "A vaga passou para um funcionário da casa",
   colaborador_trocado: "A vaga trocou de colaborador",
@@ -265,9 +353,36 @@ export function avisoDaVaga(
   if (!vaga.status || !statusEscalados.includes(vaga.status) || vaga.phase === "sugestao") return "fora_da_escala";
   if (h.functionId && vaga.functionId !== h.functionId) return "outra_funcao";
   if (!vagaRecebeHonorario(vaga)) return "casa";
+  // Pedido feito na vaga aberta e a vaga ganhou um freela: o pedido acompanha (não é troca).
+  if (!h.collaboratorId && vaga.collaboratorId) return null;
   if ((vaga.collaboratorId ?? null) !== (h.collaboratorId ?? null)) return "colaborador_trocado";
   return null;
 }
+
+/**
+ * Aviso de uma vaga DENTRO de uma empreita (20/10). Na empreita a pessoa da
+ * vaga pode mudar à vontade (o valor é da equipe); o que importa é a vaga
+ * continuar ativa, de cenotécnica e não ser de funcionário da casa.
+ */
+export function avisoDaVagaNaEmpreita(
+  vaga: VagaAtual | null,
+  statusAtivos: readonly string[],
+  funcaoEhDeCenotecnica: boolean,
+): Exclude<AvisoDaVaga, "colaborador_trocado"> | null {
+  if (!vaga || vaga.deletedAt) return "excluida";
+  if (!vaga.status || !statusAtivos.includes(vaga.status) || vaga.phase === "sugestao") return "fora_da_escala";
+  if (!funcaoEhDeCenotecnica) return "outra_funcao";
+  if (!vagaRecebeHonorario(vaga)) return "casa";
+  return null;
+}
+
+/** Rótulo curto do aviso de uma vaga da empreita ("#5063 cancelada"). */
+export const AVISO_NA_EMPREITA_LABEL: Record<Exclude<AvisoDaVaga, "colaborador_trocado">, string> = {
+  excluida: "excluída da escala",
+  fora_da_escala: "cancelada na escala",
+  outra_funcao: "saiu da cenotécnica",
+  casa: "passou para um funcionário da casa",
+};
 
 /** A vaga saiu dos honorários (o pedido fica parado: não se edita nem se envia). */
 export const vagaSaiuDosHonorarios = (a: AvisoDaVaga | null | undefined) => !!a && a !== "colaborador_trocado";
@@ -295,6 +410,7 @@ export interface DadosDoPedido {
   diarias?: number | null;
   valorPedido?: number | null;
   observacao?: string | null;
+  tipoFreela?: string | null;
 }
 
 /** Validação do que se GRAVA (rascunho aceita campos em branco; o envio exige tudo). */
@@ -307,6 +423,7 @@ export function validarDadosDoPedido(d: DadosDoPedido): string | null {
       return `Número de pessoas entre 1 e ${HONORARIO_PESSOAS_MAX}.`;
     }
   }
+  if (d.tipoFreela != null && d.tipoFreela !== "" && (d.tipo === "empreita" || !ehTipoDoValor(d.tipoFreela))) return "Tipo de freela inválido.";
   if (d.setor != null && d.setor !== "" && !ehSetorCeno(d.setor)) return "Setor inválido.";
   if (d.posicao != null && d.posicao !== "" && !ehPosicaoCeno(d.posicao)) return "Posição inválida.";
   if (d.inicio != null && d.inicio !== "" && !ehDataIso(d.inicio)) return "Data de início inválida.";
@@ -323,14 +440,28 @@ export function validarDadosDoPedido(d: DadosDoPedido): string | null {
   return null;
 }
 
-/** O que falta para a linha poder ir para a aprovação (null = pode enviar). */
-export function faltaParaEnviar(h: { status: string; valorPedido: number; diarias: number | null; setor: string | null; posicao: string | null }): string | null {
+/**
+ * O que falta para a linha poder ir para a aprovação (null = pode enviar).
+ * 20/10: setor, posição e diárias saíram do formulário (vêm da vaga e do
+ * tipo) — a VAGA pede o tipo (um dos 4 da tabela ou "Outro valor") e um
+ * valor; a EMPREITA, o valor fechado.
+ */
+export function faltaParaEnviar(h: { status: string; tipo?: string; tipoFreela?: string | null; valorPedido: number }): string | null {
   if (!podeEditarHonorario(h.status)) return "Este pedido já foi enviado.";
-  if (!h.valorPedido || h.valorPedido <= 0) return "Informe o valor negociado.";
-  if (!h.diarias || h.diarias <= 0) return "Informe as diárias.";
-  if (!ehSetorCeno(h.setor)) return "Escolha o setor.";
-  if (!ehPosicaoCeno(h.posicao)) return "Escolha a posição.";
+  if (h.tipo === "empreita") {
+    if (!h.valorPedido || h.valorPedido <= 0) return "Informe o valor fechado da empreita.";
+    return null;
+  }
+  if (!ehTipoDoValor(h.tipoFreela)) return "Escolha o tipo de freela ou “Outro valor”.";
+  if (!h.valorPedido || h.valorPedido <= 0) {
+    return h.tipoFreela === "outro" ? "Informe o valor negociado." : "A tabela não tem valor para os dias desta vaga — confira o período na vaga ou use “Outro valor”.";
+  }
   return null;
+}
+
+/** Setor da vaga para o relatório: pela função; a cenotécnica genérica é Montagem. */
+export function setorDaVaga(nomeDaFuncao: string | null | undefined): SetorCeno {
+  return setorSugerido(nomeDaFuncao) ?? "montagem";
 }
 
 export function validarMotivo(motivo: string | null | undefined, rotulo = "o motivo"): string | null {
@@ -377,6 +508,8 @@ export interface LinhaDoRelatorio {
   valorPedido: number;
   valorAprovado: number | null;
   liberado: number;
+  /** Pedido de vaga ainda sem colaborador (20/10) — no "por pessoa" vai para "Vagas sem nome". */
+  semColaborador?: boolean;
 }
 
 export interface Totais {
@@ -480,24 +613,42 @@ export function totalPorMes(linhas: readonly LinhaDoRelatorio[]): GrupoDoRelator
     .sort((a, b) => b.ordem.localeCompare(a.ordem));
 }
 
-/** Por pessoa e empreita — mesmo nome em eventos diferentes soma junto. Maior aprovado primeiro. */
+export const CHAVE_DAS_VAGAS_SEM_NOME = "sem-nome|";
+
+/**
+ * Por pessoa e empreita — mesmo nome em eventos diferentes soma junto. Maior
+ * aprovado primeiro. Os pedidos de vaga ainda SEM colaborador (20/10) não são
+ * de ninguém: somam numa linha só, "Vagas sem nome", que vai para o fim — é o
+ * valor que o Financeiro ainda não sabe a quem paga. (Uma linha por vaga
+ * espalharia "Vaga #5063 sem nome", "Vaga #5064 sem nome"… no meio das
+ * pessoas, e o nº da vaga já está na lista do Financeiro.)
+ */
 export function totalPorPessoa(linhas: readonly LinhaDoRelatorio[]): GrupoDoRelatorio[] {
   const eventos = new Map<string, Set<string>>();
+  const pedidos = new Map<string, number>();
   const grupos = agrupar(linhas, (l) => {
+    const semNome = l.tipo !== "empreita" && !!l.semColaborador;
     const tipo = l.tipo === "empreita" ? "empreita" : "pessoa";
-    const chave = `${tipo}|${normalizarNomeDeFuncao(l.nome)}`;
+    const chave = semNome ? CHAVE_DAS_VAGAS_SEM_NOME : `${tipo}|${normalizarNomeDeFuncao(l.nome)}`;
     const set = eventos.get(chave) ?? new Set<string>();
     set.add(l.eventId);
     eventos.set(chave, set);
-    return { chave, rotulo: l.nome.trim(), ordem: l.nome };
+    pedidos.set(chave, (pedidos.get(chave) ?? 0) + 1);
+    return semNome ? { chave, rotulo: "Vagas sem nome", ordem: "~" } : { chave, rotulo: l.nome.trim(), ordem: l.nome };
   });
   return grupos
     .map((g) => {
       const n = eventos.get(g.chave)?.size ?? 0;
+      const ev = `${n} ${n === 1 ? "evento" : "eventos"}`;
+      if (g.chave === CHAVE_DAS_VAGAS_SEM_NOME) {
+        const p = pedidos.get(g.chave) ?? 0;
+        return { ...g, detalhe: `Ainda sem colaborador · ${p} ${p === 1 ? "vaga" : "vagas"} · ${ev}` };
+      }
       const tipo = g.chave.startsWith("empreita|") ? "Empreita" : "Pessoa";
-      return { ...g, detalhe: `${tipo} · ${n} ${n === 1 ? "evento" : "eventos"}` };
+      return { ...g, detalhe: `${tipo} · ${ev}` };
     })
-    .sort((a, b) => b.aprovado - a.aprovado || b.pedido - a.pedido || a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    .sort((a, b) => Number(a.chave === CHAVE_DAS_VAGAS_SEM_NOME) - Number(b.chave === CHAVE_DAS_VAGAS_SEM_NOME)
+      || b.aprovado - a.aprovado || b.pedido - a.pedido || a.rotulo.localeCompare(b.rotulo, "pt-BR"));
 }
 
 /** Por setor × posição (Sup Ceno · Freela viagem…). Maior pedido primeiro. */

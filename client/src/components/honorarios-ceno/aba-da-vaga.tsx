@@ -3,39 +3,44 @@
  * escalação e chegar para o aprovador em outra tela".
  *
  * A aba "Honorário" do modal da vaga — ao lado de Passagem e Hospedagem, com
- * o mesmo ponto de pendência. Aparece só quando a vaga é de cenotécnica,
- * recebe honorário (freela local/viagem ou empreita na escala; casa não) e a
- * pessoa pode pedir por aquela função — exatamente as linhas que
- * GET /api/honorarios-ceno/pedido devolve para ela. Vaga de outra função ou
- * usuário sem cadastro: a aba não existe (e nenhuma consulta de valores sai).
+ * o mesmo ponto de pendência. Aparece quando a vaga é de cenotécnica e a
+ * pessoa pode pedir por aquela função. Vaga de outra função ou usuário sem
+ * cadastro: a aba não existe (e nenhuma consulta de valores sai).
  *
- * Por que aba e não bloco do Resumo: o Resumo é a escala (quem vai, a vaga, o
- * pedido de ajuste) e o rodapé do modal salva a VAGA. Honorário é dinheiro, à
- * parte da escala — numa aba própria o rodapé do modal passa a ser o DELE
- * ("Salvar rascunho", "Enviar para aprovação", sempre à vista em 1366×800),
- * sem um "Salvar alterações" da vaga ao lado para confundir; e o ponto na aba
- * avisa o que falta sem empurrar o Resumo para baixo.
+ * O que a aba mostra (20/10):
+ *  - vaga ativa (escalada OU ainda aberta — "não precisa escalar"): o
+ *    formulário do pedido (tipo de freela da tabela ou "Outro valor"). Na
+ *    vaga aberta, uma linha discreta diz que o pedido segue sem colaborador;
+ *  - vaga que faz parte de uma EMPREITA: "Faz parte da empreita X (R$ Y, N
+ *    vagas)", com "Abrir a empreita" e "Tirar desta empreita" — a vaga não
+ *    tem pedido próprio;
+ *  - vaga da casa ou cancelada: `SemHonorario` explica por que não há pedido.
  *
- * Tudo aqui usa as rotas de sempre (nenhuma regra nova): o formulário é o
- * mesmo do diálogo de detalhes, o envio é o POST /enviar com um item.
+ * Por que aba e não bloco do Resumo: o Resumo é a escala e o rodapé do modal
+ * salva a VAGA. Honorário é dinheiro, à parte — numa aba própria o rodapé do
+ * modal passa a ser o DELE ("Salvar rascunho", "Enviar para aprovação").
  */
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, CheckCircle2, CircleDollarSign, History, Loader2, Save, Send, Undo2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, CircleDollarSign, History, Loader2, Save, Send, Undo2, UserRound, Users } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
 import { ehCenotecnica } from "@shared/cenotecnica";
-import { faltaParaEnviar, valorPorDiaria } from "@shared/honorarios-ceno";
+import { faltaParaEnviar, rotuloDoValor } from "@shared/honorarios-ceno";
 import { TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/status-badge";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { isApiError } from "@/lib/queryClient";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { Secao, useTelaLarga } from "@/components/scaling/inclusion-details/details-shared";
-import { useAcessoHonorarios, useHistoricoDoHonorario, useMutacoesDoPedido, usePedidoDoEvento, type Honorario, type LinhaDoPedido } from "./api";
-import { AvisoDaLinha, EtapaBadge, brl, dataBr, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel } from "./pecas";
-import { CamposDoPedido, useFormularioDoPedido } from "./detalhes-dialog";
-import { LinhaDoTempo, ResumoDosValores } from "./historico-sheet";
+import {
+  useAcessoHonorarios, useHistoricoDoHonorario, useMutacoesDoPedido, usePedidoDoEvento,
+  type Honorario, type LinhaDoPedido, type PedidoDoEvento, type PrecisaConfirmarDescarte,
+} from "./api";
+import { AvisoDaLinha, EtapaBadge, VagasDaEmpreitaLista, brl, dataBr, diariasTexto, haQuanto, periodoCurto } from "./pecas";
+import { CamposDoPedido, ConfirmarDescarteDasVagas, DetalhesDialog, useFormularioDoPedido, type AlvoDoFormulario } from "./detalhes-dialog";
+import { HistoricoSheet, LinhaDoTempo, ResumoDosValores } from "./historico-sheet";
 
 /**
  * A linha de honorário desta vaga, para quem pode pedir. Só consulta quando a
@@ -48,26 +53,30 @@ export function useHonorarioDaVaga(inclusion: TeamInclusion | null, nomeDaFuncao
   const podePedir = ceno && !!acesso.data?.podePedir;
   const q = usePedidoDoEvento(inclusion?.eventId ?? null, podePedir);
   const linha = (inclusion && q.data?.linhas.find((l) => l.vaga?.id === inclusion.id || l.honorario?.teamInclusionId === inclusion.id)) || null;
+  const empreita = (inclusion && q.data?.empreitas.find((e) => e.vagasDaEmpreita?.some((v) => v.id === inclusion.id))) || null;
   const h = linha?.honorario ?? null;
   return {
     /**
      * A aba existe para esta vaga e esta pessoa: toda vaga de cenotécnica de
-     * quem pede (20/10, dono: "cenotécnica não aparece" — na vaga ABERTA a aba
-     * sumia). Sem linha no pedido (vaga sem nome, casa…) a aba explica por quê.
+     * quem pede. Sem linha no pedido (casa, cancelada) a aba explica por quê.
      */
     visivel: podePedir,
     /** Ainda não se sabe (acesso ou pedido carregando). */
     carregando: ceno && (acesso.isLoading || (podePedir && q.isLoading)),
     linha,
+    /** A empreita de que esta vaga faz parte (então ela não tem pedido próprio). */
+    empreita,
+    pedido: q.data ?? null,
     evento: q.data?.evento ?? null,
     /** O ponto na aba: falta lançar, está em rascunho ou voltou para negociar. */
-    pendente: !!linha && (h ? h.podeEditar : !linha.foraDaEscala),
+    pendente: !empreita && !!linha && (h ? h.podeEditar : !linha.foraDaEscala),
   };
 }
 
 export type HonorarioDaVaga = ReturnType<typeof useHonorarioDaVaga>;
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+const LINK = "val-alvo inline-flex items-center rounded-md px-1 text-2xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
 
 /** O que a etapa significa para quem pede, numa frase. */
 function Situacao({ h, linha }: { h: Honorario | null; linha: LinhaDoPedido }) {
@@ -76,7 +85,7 @@ function Situacao({ h, linha }: { h: Honorario | null; linha: LinhaDoPedido }) {
       <div className="space-y-2" data-testid="hon-vaga-situacao">
         <StatusBadge tone="neutral" dot className="bg-transparent ring-1 ring-inset ring-border">Sem pedido</StatusBadge>
         <p className="text-sm text-slate-700">
-          {linha.foraDaEscala ? "A vaga saiu da escala — não há o que pedir." : "Lance o valor que você negociou. Fica como rascunho até você enviar para o aprovador."}
+          {linha.foraDaEscala ? "A vaga saiu da escala — não há o que pedir." : "Escolha o tipo de freela (valor da tabela) ou outro valor. Fica como rascunho até você enviar para o aprovador."}
         </p>
       </div>
     );
@@ -102,7 +111,6 @@ function Situacao({ h, linha }: { h: Honorario | null; linha: LinhaDoPedido }) {
       )}
       {aprovado && h.valorAprovado != null && (
         <>
-          {/* O valor numa frase; a grade (pedido · aprovado · liberado · falta) e a barra ficam no cartão do pedido. */}
           <p className="text-sm text-slate-700">
             <span className="font-semibold tabular-nums text-foreground" data-testid="hon-vaga-valor-aprovado">{brl(h.valorAprovado)}</span>
             {h.valorAprovado !== h.valorPedido && <span className="tabular-nums text-muted-foreground"> (pedido {brl(h.valorPedido)})</span>}
@@ -137,7 +145,7 @@ function PedidoSoLeitura({ h }: { h: Honorario }) {
     <div className="space-y-3">
       <ResumoDosValores h={h} />
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div><dt className="text-2xs text-muted-foreground">Setor · posição</dt><dd className="text-foreground">{setorLabel(h.setor)} · {posicaoLabel(h.posicao)}</dd></div>
+        <div><dt className="text-2xs text-muted-foreground">Origem do valor</dt><dd className="text-foreground">{rotuloDoValor({ ...h, observacao: null })}</dd></div>
         <div><dt className="text-2xs text-muted-foreground">Montagem</dt><dd className="tabular-nums text-foreground">{periodoCurto(h.inicio, h.fim)} · {diariasTexto(h.diarias)}</dd></div>
       </dl>
       {h.observacao && <p className="text-xs leading-relaxed text-slate-700"><span className="font-semibold text-foreground">Observação: </span>{h.observacao}</p>}
@@ -145,22 +153,179 @@ function PedidoSoLeitura({ h }: { h: Honorario }) {
   );
 }
 
-/** A vaga de cenotécnica ainda não entra no pedido: diz o que falta. */
-function SemHonorario({ inclusion }: { inclusion: TeamInclusion }) {
-  const aberta = !inclusion.collaboratorId && !inclusion.empreitaEmpresa?.trim();
+/** Vaga da casa ou cancelada: não há pedido. (A vaga ABERTA pede normalmente desde 20/10.) */
+function SemHonorario() {
   return (
     <TabsContent value="honorario" className="esc-entra m-0 p-3 sm:p-5">
       <Secao titulo="Pedido de honorário" icone={<CircleDollarSign className="text-muted-foreground" aria-hidden="true" />} testId="hon-vaga-sem-linha" corpo="p-4 space-y-2">
-        <p className="m-0 text-sm text-foreground font-medium">
-          {aberta ? "Escale alguém para lançar o honorário." : "Esta vaga não recebe honorário."}
-        </p>
+        <p className="m-0 text-sm font-medium text-foreground">Esta vaga não recebe honorário.</p>
         <p className="m-0 text-xs leading-relaxed text-muted-foreground">
-          {aberta
-            ? "O honorário é do freela (local ou viagem) ou da empreita escalada nesta vaga. Escolha o colaborador ou a empreita no Resumo e volte aqui para lançar o valor negociado."
-            : "Só freela (local ou viagem) e empreita recebem honorário — colaborador da casa (CLT) não. Se a vaga foi cancelada, também não há o que pedir."}
+          Colaborador da casa (CLT) não recebe honorário, e vaga cancelada não tem o que pedir. Freela (local ou viagem), vaga ainda sem colaborador e empreita recebem.
         </p>
       </Secao>
     </TabsContent>
+  );
+}
+
+/** Abre a empreita no diálogo (editável) ou no histórico (já enviada). */
+function useAbrirEmpreita(pedido: PedidoDoEvento | null) {
+  const [alvo, setAlvo] = useState<AlvoDoFormulario | null>(null);
+  const [historicoId, setHistoricoId] = useState<string | null>(null);
+  const abrir = (e: Honorario | null, vagaInicial?: string) => {
+    if (e && !e.podeEditar) { setHistoricoId(e.id); return; }
+    setAlvo({ modo: "empreita", honorario: e, vagasDoEvento: pedido?.vagasDoEvento ?? [], vagaInicial: vagaInicial ?? null });
+  };
+  const dialogos = pedido ? (
+    <>
+      <DetalhesDialog alvo={alvo} eventId={pedido.evento.id} evento={pedido.evento} onClose={() => setAlvo(null)} />
+      <HistoricoSheet id={historicoId} aberto={!!historicoId} onOpenChange={(o) => { if (!o) setHistoricoId(null); }} visao="pedido" />
+    </>
+  ) : null;
+  return { abrir, dialogos };
+}
+
+/** A vaga faz parte de uma empreita: não tem pedido próprio — mostra a empreita. */
+function NaEmpreita({ inclusion, empreita, hon, rodape, onFechar }: { inclusion: TeamInclusion; empreita: Honorario; hon: HonorarioDaVaga; rodape: HTMLElement | null; onFechar: () => void }) {
+  const { toast } = useToast();
+  const { editar } = useMutacoesDoPedido();
+  const [tirando, setTirando] = useState(false);
+  const { abrir, dialogos } = useAbrirEmpreita(hon.pedido);
+  const n = empreita.vagasDaEmpreita.length;
+  const valor = empreita.valorAprovado ?? empreita.valorPedido;
+  const tirar = async () => {
+    try {
+      await editar.mutateAsync({ id: empreita.id, versao: empreita.versao, vagaIds: empreita.vagasDaEmpreita.map((v) => v.id).filter((id) => id !== inclusion.id) });
+      toast({ title: "Vaga tirada da empreita", description: "Agora ela pode ter pedido próprio." });
+      setTirando(false);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Não foi possível tirar a vaga", description: apiErrorMessage(e, "Tente de novo.") });
+      setTirando(false);
+    }
+  };
+  const barra = (
+    <div className="flex items-center justify-end gap-2 px-4 py-3 sm:px-6" data-testid="hon-vaga-rodape">
+      <Button type="button" variant="outline" onClick={onFechar} className="h-9 rounded-lg border-border bg-card px-4 text-sm font-medium text-slate-700 hover:bg-muted">Fechar</Button>
+    </div>
+  );
+  return (
+    <TabsContent value="honorario" className="esc-entra m-0 p-3 sm:p-5" data-testid="hon-vaga-na-empreita">
+      {rodape ? createPortal(barra, rodape) : null}
+      <Secao titulo="Faz parte de uma empreita" icone={<Users aria-hidden="true" />} corpo="p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="m-0 text-sm text-slate-700">
+              Faz parte da empreita <span className="font-semibold text-foreground">{empreita.nome}</span>{" "}
+              (<span className="tabular-nums">{brl(valor)}</span>, {plural(n, "vaga", "vagas")}).
+            </p>
+            <p className="m-0 mt-1 text-xs text-muted-foreground">O valor desta vaga é o da empreita — ela não tem pedido próprio.</p>
+          </div>
+          <EtapaBadge h={empreita} visao="pedido" />
+        </div>
+        <AvisoDaLinha h={empreita} />
+        <VagasDaEmpreitaLista vagas={empreita.vagasDaEmpreita} />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-3">
+          <button type="button" className={LINK} onClick={() => abrir(empreita)} data-testid="hon-vaga-abrir-empreita">Abrir a empreita</button>
+          {empreita.podeEditar ? (
+            <button type="button" className={cn(LINK, "text-slate-600")} onClick={() => setTirando(true)} disabled={editar.isPending} data-testid="hon-vaga-tirar-da-empreita">Tirar desta empreita</button>
+          ) : (
+            <span className="text-2xs text-muted-foreground">A empreita já foi enviada — para tirar a vaga, peça para o aprovador devolver.</span>
+          )}
+        </div>
+      </Secao>
+      <ConfirmDialog
+        open={tirando}
+        onOpenChange={(o) => { if (!editar.isPending) setTirando(o); }}
+        title="Tirar a vaga desta empreita?"
+        description={`A empreita ${empreita.nome} fica com ${plural(n - 1, "vaga", "vagas")}; o valor fechado não muda sozinho. A vaga volta a poder ter pedido próprio.`}
+        cancelLabel="Manter"
+        confirmLabel={editar.isPending ? "Tirando…" : "Tirar da empreita"}
+        pending={editar.isPending}
+        onConfirm={() => { void tirar(); }}
+        testId="hon-vaga-tirar-dialogo"
+      />
+      {dialogos}
+    </TabsContent>
+  );
+}
+
+/**
+ * "Esta vaga faz parte de uma empreita": escolhe uma empreita do evento (que
+ * ainda se edita) ou cria uma com esta vaga. Pedido próprio em rascunho é
+ * descartado com confirmação; enviado bloqueia (o servidor diz o porquê).
+ */
+function ColocarEmEmpreita({ inclusion, hon, h }: { inclusion: TeamInclusion; hon: HonorarioDaVaga; h: Honorario | null }) {
+  const { toast } = useToast();
+  const { editar } = useMutacoesDoPedido();
+  const [aberto, setAberto] = useState(false);
+  const [confirmar, setConfirmar] = useState<{ empreita: Honorario; lista: PrecisaConfirmarDescarte[] } | null>(null);
+  const { abrir, dialogos } = useAbrirEmpreita(hon.pedido);
+  const editaveis = (hon.pedido?.empreitas ?? []).filter((e) => e.podeEditar);
+  const enviado = !!h && !h.podeRemover && h.status !== "devolvido";
+  const colocar = async (e: Honorario, descartarRascunhos = false) => {
+    try {
+      await editar.mutateAsync({ id: e.id, versao: e.versao, vagaIds: [...e.vagasDaEmpreita.map((v) => v.id), inclusion.id], ...(descartarRascunhos ? { descartarRascunhos: true } : {}) });
+      toast({ variant: "success", title: "Vaga colocada na empreita", description: `${e.nome} — o valor desta vaga passa a ser o da empreita.` });
+      setConfirmar(null);
+      setAberto(false);
+    } catch (err) {
+      if (isApiError(err) && err.status === 409 && Array.isArray(err.body?.precisaConfirmar)) {
+        setConfirmar({ empreita: e, lista: err.body.precisaConfirmar as PrecisaConfirmarDescarte[] });
+        return;
+      }
+      toast({ variant: "destructive", title: "Não foi possível colocar na empreita", description: apiErrorMessage(err, "Tente de novo.") });
+    }
+  };
+  if (!hon.pedido) return null;
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-card px-4 py-3" data-testid="hon-vaga-empreita">
+      {!aberto ? (
+        <button type="button" className={cn(LINK, "-ml-1 text-xs")} onClick={() => setAberto(true)} data-testid="hon-vaga-parte-de-empreita">
+          <Users className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Esta vaga faz parte de uma empreita
+        </button>
+      ) : (
+        <div className="space-y-2.5">
+          <p className="m-0 text-xs font-semibold text-foreground">Em qual empreita?</p>
+          {enviado ? (
+            <p className="m-0 text-2xs text-muted-foreground">Esta vaga já tem pedido próprio enviado — peça para o aprovador devolver antes de colocá-la numa empreita.</p>
+          ) : (
+            <>
+              {editaveis.length > 0 && (
+                <ul className="space-y-1.5">
+                  {editaveis.map((e) => (
+                    <li key={e.id}>
+                      <button type="button" disabled={editar.isPending} onClick={() => void colocar(e)}
+                        className="flex w-full items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                        data-testid={`hon-vaga-empreita-${e.id}`}>
+                        <span className="min-w-0"><span className="block truncate font-semibold text-foreground">{e.nome}</span><span className="block text-2xs text-muted-foreground">{plural(e.vagasDaEmpreita.length, "vaga", "vagas")} · {brl(e.valorPedido)}</span></span>
+                        <span className="shrink-0 text-2xs font-semibold text-primary">Colocar aqui</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex flex-wrap items-center gap-x-3">
+                <button type="button" className={cn(LINK, "-ml-1")} onClick={() => abrir(null, inclusion.id)} data-testid="hon-vaga-criar-empreita">Criar uma empreita com esta vaga</button>
+                <button type="button" className={cn(LINK, "text-slate-600")} onClick={() => setAberto(false)}>Cancelar</button>
+              </div>
+              {h && <p className="m-0 text-2xs text-muted-foreground">O pedido próprio desta vaga ({h.status === "rascunho" ? "rascunho" : "devolvido"}) será descartado — a tela pede confirmação.</p>}
+            </>
+          )}
+        </div>
+      )}
+      <ConfirmDialog
+        open={!!confirmar}
+        onOpenChange={(o) => { if (!o && !editar.isPending) setConfirmar(null); }}
+        title="Descartar o pedido próprio?"
+        description="Numa empreita, a vaga não tem pedido próprio — o valor é o da empreita. Nada disso foi aprovado; fica registrado no histórico da empreita."
+        tone="danger"
+        cancelLabel="Voltar"
+        confirmLabel={editar.isPending ? "Salvando…" : "Descartar e colocar"}
+        pending={editar.isPending}
+        onConfirm={() => { if (confirmar) void colocar(confirmar.empreita, true); }}
+        testId="hon-vaga-confirmar-descarte"
+      />
+      {dialogos}
+    </div>
   );
 }
 
@@ -171,7 +336,7 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
   rodape: HTMLElement | null;
   onFechar: () => void;
 }) {
-  const { linha, evento } = hon;
+  const { linha } = hon;
   const { toast } = useToast();
   const { enviar, editar } = useMutacoesDoPedido();
   const h = linha?.honorario ?? null;
@@ -180,16 +345,16 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
   const form = useFormularioDoPedido({
     alvo,
     // Volta ao gravado quando muda a vaga, o pedido ou a versão dele — não a cada refetch.
-    chave: `${inclusion.id}|${h?.id ?? "novo"}|${h?.versao ?? 0}|${editavel}`,
+    chave: `${inclusion.id}|${h?.id ?? "novo"}|${h?.versao ?? 0}|${editavel}|${linha?.tabela?.dias ?? ""}`,
     eventId: inclusion.eventId,
-    evento: evento ?? { startDate: "", endDate: "" },
   });
   const [confirmando, setConfirmando] = useState(false);
   const telaLarga = useTelaLarga();
   // Navegar para outra vaga com o diálogo de envio aberto não o leva junto.
   useEffect(() => { setConfirmando(false); }, [inclusion.id]);
 
-  if (!hon.carregando && !linha) return <SemHonorario inclusion={inclusion} />;
+  if (!hon.carregando && hon.empreita) return <NaEmpreita inclusion={inclusion} empreita={hon.empreita} hon={hon} rodape={rodape} onFechar={onFechar} />;
+  if (!hon.carregando && !linha) return <SemHonorario />;
   if (hon.carregando || !linha) {
     return (
       <TabsContent value="honorario" className="esc-entra m-0 p-3 sm:p-5">
@@ -202,14 +367,9 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
   }
 
   const trocado = h?.avisoDaVaga === "colaborador_trocado";
+  const semColaborador = !!linha.vaga && !!linha.sugestao?.semColaborador;
   const f = form.f;
-  const prontoParaEnviar = f ? faltaParaEnviar({
-    status: h?.status ?? "rascunho",
-    valorPedido: f.valor,
-    diarias: f.diarias ? Number(f.diarias) : null,
-    setor: f.setor || null,
-    posicao: f.posicao || null,
-  }) : "Carregando…";
+  const prontoParaEnviar = f ? faltaParaEnviar({ status: h?.status ?? "rascunho", tipo: "vaga", tipoFreela: f.tipo || null, valorPedido: form.valorEfetivo }) : "Carregando…";
   const motivoSemEnvio = trocado ? "A vaga trocou de colaborador — confirme a troca antes de enviar." : prontoParaEnviar;
   const ocupado = form.salvando || enviar.isPending || editar.isPending;
 
@@ -222,7 +382,7 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
     if (!h) return;
     try {
       await editar.mutateAsync({ id: h.id, versao: h.versao });
-      toast({ title: "Pedido passado para quem está na vaga", description: h.colaboradorAtual ? `Agora o pedido é de ${h.colaboradorAtual}.` : undefined });
+      toast({ title: "Pedido passado para quem está na vaga", description: h.colaboradorAtual ? `Agora o pedido é de ${h.colaboradorAtual}.` : "O pedido volta a ser da vaga, sem nome." });
     } catch (e) {
       toast({ variant: "destructive", title: "Não foi possível confirmar a troca", description: apiErrorMessage(e, "Tente de novo.") });
     }
@@ -246,9 +406,7 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
     }
   };
 
-  const valorDoEnvio = f?.valor ?? h?.valorPedido ?? 0;
-  const diariasDoEnvio = f?.diarias ? Number(f.diarias) : h?.diarias ?? null;
-  const porDiaDoEnvio = valorPorDiaria(valorDoEnvio, diariasDoEnvio);
+  const valorDoEnvio = form.valorEfetivo || h?.valorPedido || 0;
 
   const situacao = (
     <Secao titulo="Situação do pedido" icone={<CircleDollarSign aria-hidden="true" />} tom={h?.status === "devolvido" ? "decisao" : "neutro"} testId="hon-vaga-situacao-card">
@@ -256,10 +414,8 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
       {h && (h.avisoDaVaga || h.eventoExcluido) && (
         <AvisoDaLinha h={h} className="mt-3">
           {trocado && h.podeEditar && (
-            <button type="button" onClick={() => void confirmarTroca()} disabled={ocupado}
-              className="val-alvo inline-flex items-center rounded-md px-1 text-2xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-              data-testid="hon-vaga-confirmar-troca">
-              Passar o pedido para {h.colaboradorAtual ?? "quem está na vaga"}
+            <button type="button" onClick={() => void confirmarTroca()} disabled={ocupado} className={LINK} data-testid="hon-vaga-confirmar-troca">
+              Passar o pedido para {h.colaboradorAtual ?? "a vaga sem nome"}
             </button>
           )}
         </AvisoDaLinha>
@@ -310,6 +466,9 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
     </div>
   );
 
+  // Só enquanto o pedido próprio é de quem pede (sem pedido, rascunho, devolvido): enviado, só o aprovador devolvendo.
+  const podeIrParaEmpreita = !!linha.vaga && (!h || h.podeEditar);
+
   return (
     <TabsContent value="honorario" className="esc-entra m-0 p-3 sm:p-5" data-testid="hon-vaga">
       {rodape ? createPortal(barra, rodape) : null}
@@ -333,6 +492,12 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
               corpo="p-0"
               testId="hon-vaga-form"
             >
+              {semColaborador && (
+                <p className="m-0 flex items-center gap-1.5 border-b border-border px-4 py-2 text-2xs text-muted-foreground" data-testid="hon-vaga-sem-colaborador">
+                  <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  Vaga ainda sem colaborador — o pedido segue assim mesmo. Quando alguém for escalado, o nome entra sozinho.
+                </p>
+              )}
               <form className="space-y-5 p-4" noValidate onSubmit={(e) => { e.preventDefault(); void salvarRascunho(); }}>
                 <CamposDoPedido form={form} prefixo="hon-vaga" />
                 <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
@@ -343,6 +508,8 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
               <PedidoSoLeitura h={h} />
             </Secao>
           ) : null}
+
+          {podeIrParaEmpreita && <ColocarEmEmpreita inclusion={inclusion} hon={hon} h={h} />}
 
           {h && !telaLarga && (
             <Secao titulo="Histórico" icone={<History aria-hidden="true" />}>
@@ -365,13 +532,15 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
         onConfirm={() => { void enviarAgora(); }}
         testId="hon-vaga-enviar-dialogo"
       >
-        <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border bg-border text-xs">
-          {[["Valor", brl(valorDoEnvio)], ["Diárias", diariasDoEnvio ? plural(diariasDoEnvio, "diária", "diárias") : "—"], ["Por diária", porDiaDoEnvio != null ? brl(porDiaDoEnvio) : "—"]].map(([r, v]) => (
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border text-xs">
+          {[["Valor", brl(valorDoEnvio)], ["Origem", f ? rotuloDoValor({ tipo: "vaga", tipoFreela: f.tipo || null, observacao: null }) : "—"]].map(([r, v]) => (
             <div key={r} className="bg-card px-3 py-2"><dt className="text-2xs text-muted-foreground">{r}</dt><dd className="font-semibold tabular-nums text-foreground">{v}</dd></div>
           ))}
         </dl>
+        <p className="text-2xs text-muted-foreground">{diariasTexto(form.dias || null)} · {form.porDia != null ? `${brl(form.porDia)}/diária` : "—"}</p>
         {form.erro && <p role="alert" className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">{form.erro}</p>}
       </ConfirmDialog>
+      <ConfirmarDescarteDasVagas form={form} onConfirmar={() => { void form.gravar({ descartarRascunhos: true }); }} />
     </TabsContent>
   );
 }

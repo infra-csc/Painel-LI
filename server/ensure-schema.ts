@@ -271,6 +271,30 @@ const PASSOS: Passo[] = [
     descricao: "índice honorarios_ceno_liberacoes_idx",
     sql: `CREATE INDEX IF NOT EXISTS honorarios_ceno_liberacoes_idx ON honorarios_ceno_liberacoes (honorario_id)`,
   },
+  // 20/10 — tipo de freela no pedido e empreita que agrupa vagas. O select
+  // do módulo lê a coluna nova e as rotas leem a tabela de ligação: sem elas,
+  // os honorários caem. Aditivas — seguras em prod.
+  {
+    descricao: "honorarios_ceno.tipo_freela (tabela da cenotécnica ou outro valor)",
+    sql: `ALTER TABLE honorarios_ceno ADD COLUMN IF NOT EXISTS tipo_freela text`,
+  },
+  {
+    descricao: "tabela honorarios_ceno_empreita_vagas (vagas de cada empreita)",
+    sql: `CREATE TABLE IF NOT EXISTS honorarios_ceno_empreita_vagas (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      honorario_id varchar NOT NULL REFERENCES honorarios_ceno(id) ON DELETE CASCADE,
+      team_inclusion_id varchar NOT NULL REFERENCES team_inclusions(id),
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    descricao: "índice honorarios_ceno_empreita_vagas_honorario_idx",
+    sql: `CREATE INDEX IF NOT EXISTS honorarios_ceno_empreita_vagas_honorario_idx ON honorarios_ceno_empreita_vagas (honorario_id)`,
+  },
+  {
+    descricao: "índice honorarios_ceno_empreita_vagas_vaga_uq (uma vaga em uma empreita só)",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS honorarios_ceno_empreita_vagas_vaga_uq ON honorarios_ceno_empreita_vagas (team_inclusion_id)`,
+  },
   // 09/10 — trecho direto entre eventos e viagem de uma perna (caso Alonso:
   // Aracaju → João Pessoa). O `select` explícito do storage lista as colunas
   // da vaga e o GET de passagens lê todas as de tickets: sem elas, as duas
