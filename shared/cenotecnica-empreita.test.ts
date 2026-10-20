@@ -18,15 +18,15 @@ describe("tabela do slide (19/08) — valor FECHADO por nº de dias", () => {
     expect(total("viagem", 2)?.totalCents).toBe(89000); // 890,13 → 890 (sem centavos, dono 10/09)
     expect(total("viagem", 6)?.totalCents).toBe(236000);
   });
-  it("Freela SP: 2 dias = R$ 700,35 e 6 dias = R$ 2.101,05", () => {
+  it("Freela SP: 2 dias = R$ 700 e 6 dias = R$ 2.101 (tabela do dono, 20/10)", () => {
     expect(total("sp", 2)?.totalCents).toBe(70000);
     expect(total("sp", 6)?.totalCents).toBe(210100);
   });
-  it("Freela Local (A): 2 dias = R$ 677,25", () => {
+  it("Freela Local (A): 2 dias = R$ 677", () => {
     expect(total("local_a", 2)?.totalCents).toBe(67700);
   });
-  it("Freela Local (B): 6 dias = R$ 1.537,50", () => {
-    expect(total("local_b", 6)?.totalCents).toBe(153800); // 1.537,50 → 1.538
+  it("Freela Local (B): 6 dias = R$ 1.537 (era 1.537,50 → 1.538 até 20/10)", () => {
+    expect(total("local_b", 6)?.totalCents).toBe(153700);
   });
   it("dias de 2 a 6 nunca são marcados como extrapolados e batem com a tabela", () => {
     for (const tipo of CENO_FREELA_TIPOS) {
@@ -38,7 +38,7 @@ describe("tabela do slide (19/08) — valor FECHADO por nº de dias", () => {
     }
   });
   it("não é diária × dias — 4 dias ≠ 2 × (2 dias)", () => {
-    expect(total("viagem", 4)!.totalCents).not.toBe(2 * 89013);
+    expect(total("viagem", 4)!.totalCents).not.toBe(2 * 89000);
   });
 });
 
@@ -46,20 +46,20 @@ describe("extrapolação fora da faixa 2..6 dias", () => {
   it("Viagem 7 dias = 6 dias + incremento (367,50)", () => {
     const r = total("viagem", 7)!;
     expect(r.incrementoCents).toBe(36750);
-    expect(r.totalCents).toBe(272800); // 2.727,63 → 2.728
+    expect(r.totalCents).toBe(272800); // 2.727,50 → 2.728
     expect(r.extrapolado).toBe(true);
   });
-  it("SP 7 dias = 6 dias + incremento arredondado (350,18)", () => {
+  it("SP 7 dias = 6 dias + incremento (350,25)", () => {
     const r = total("sp", 7)!;
-    expect(r.incrementoCents).toBe(35018); // (210105 − 70035) / 4 = 35017,5 → 35018
-    expect(r.totalCents).toBe(245100); // 2.451,23 → 2.451
+    expect(r.incrementoCents).toBe(35025); // (210100 − 70000) / 4
+    expect(r.totalCents).toBe(245100); // 2.451,25 → 2.451
     expect(r.extrapolado).toBe(true);
   });
   it("1 dia = base de 2 dias − incremento", () => {
     const r = total("viagem", 1)!;
-    expect(r.totalCents).toBe(52300); // 522,63 → 523
+    expect(r.totalCents).toBe(52300); // 522,50 → 523
     expect(r.extrapolado).toBe(true);
-    expect(total("local_b", 1)!.totalCents).toBe(28800);
+    expect(total("local_b", 1)!.totalCents).toBe(28700);
   });
   it("nunca negativo: incremento maior que a base de 2 dias → 0", () => {
     const settings = { ceno_empreita_viagem_2d: 1000, ceno_empreita_viagem_6d: 401000 };
@@ -97,17 +97,17 @@ describe("Valores Padrão vencem a tabela default", () => {
     expect(total("sp", 3, { ceno_empreita_sp_3d: "88888" })!.totalCents).toBe(88900);
   });
   it("valor inválido ou negativo cai no default", () => {
-    expect(total("sp", 3, { ceno_empreita_sp_3d: "abc" })!.totalCents).toBe(105100);
-    expect(total("sp", 3, { ceno_empreita_sp_3d: -100 })!.totalCents).toBe(105100);
-    expect(total("sp", 3, {})!.totalCents).toBe(105100);
+    expect(total("sp", 3, { ceno_empreita_sp_3d: "abc" })!.totalCents).toBe(105000);
+    expect(total("sp", 3, { ceno_empreita_sp_3d: -100 })!.totalCents).toBe(105000);
+    expect(total("sp", 3, {})!.totalCents).toBe(105000);
   });
   it("chave de outra modalidade não contamina", () => {
-    expect(total("viagem", 3, { ceno_empreita_sp_3d: 1 })!.totalCents).toBe(125800);
+    expect(total("viagem", 3, { ceno_empreita_sp_3d: 1 })!.totalCents).toBe(125700);
   });
   it("cenoEmpreitaRow aplica as chaves editadas na linha inteira", () => {
     const row = cenoEmpreitaRow("local_b", { ceno_empreita_local_b_2d: 60000 });
     expect(row[2]).toBe(60000);
-    expect(row[6]).toBe(153750);
+    expect(row[6]).toBe(153700);
   });
 });
 
@@ -121,8 +121,8 @@ describe("chaves do Valores Padrão", () => {
     expect(new Set(CENO_EMPREITA_SETTING_KEYS).size).toBe(20);
     const map = cenoEmpreitaDefaultsMap();
     expect(Object.keys(map)).toHaveLength(20);
-    expect(map["ceno_empreita_viagem_2d"]).toBe(89013);
-    expect(map["ceno_empreita_local_b_6d"]).toBe(153750);
+    expect(map["ceno_empreita_viagem_2d"]).toBe(89000);
+    expect(map["ceno_empreita_local_b_6d"]).toBe(153700);
     for (const k of CENO_EMPREITA_SETTING_KEYS) expect(map[k]).toBeGreaterThan(0);
   });
 });

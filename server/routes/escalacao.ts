@@ -851,8 +851,9 @@ export function registrarEscalacao(app: Express): void {
     const actor = await requireRoles(req, res, ['admin', 'financial', 'production', 'purchasing', 'function_area']);
     if (!actor) return;
     try {
-      const { cenoFreelaTipo } = req.body as { cenoFreelaTipo?: string };
-      if (!isCenoFreelaTipo(cenoFreelaTipo)) {
+      const { cenoFreelaTipo } = req.body as { cenoFreelaTipo?: string | null };
+      // null = tirar o tipo (dono, 20/10: "coloquei errado, não consigo desfazer").
+      if (cenoFreelaTipo !== null && !isCenoFreelaTipo(cenoFreelaTipo)) {
         return res.status(400).json({ message: "Tipo inválido — use Freela Viagem, Freela SP, Freela Local (A) ou Freela Local (B)." });
       }
       const current = await storage.getTeamInclusion(req.params.id);

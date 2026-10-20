@@ -279,8 +279,8 @@ describe("Honorários — Financeiro", () => {
 
 // ── 20/10: pedir na Escalação (modal da vaga) e aprovar em tela própria ─────
 
-function NaVaga({ vagaId = "v1", funcao = "Cenotécnica" }: { vagaId?: string; funcao?: string }) {
-  const inclusion = { id: vagaId, eventId: "ev1", functionId: "f1" } as unknown as TeamInclusion;
+function NaVaga({ vagaId = "v1", funcao = "Cenotécnica", collaboratorId = "c1" }: { vagaId?: string; funcao?: string; collaboratorId?: string | null }) {
+  const inclusion = { id: vagaId, eventId: "ev1", functionId: "f1", collaboratorId } as unknown as TeamInclusion;
   const hon = useHonorarioDaVaga(inclusion, funcao, true);
   const [rodape, setRodape] = useState<HTMLDivElement | null>(null);
   return (
@@ -311,15 +311,23 @@ describe("Honorários — aba Honorário no modal da vaga (Escalação)", () => 
     expect(chamadas.some((c) => c.url.includes("/pedido"))).toBe(false);
   });
 
-  it("vaga da casa (fora das linhas do pedido): a aba não existe", async () => {
-    const chamadas: Chamada[] = [];
+  it("vaga da casa (fora das linhas do pedido): a aba aparece e explica que não recebe honorário (20/10)", async () => {
     mockarFetch(roteador({
       "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
       "GET /api/honorarios-ceno/pedido": () => respostaJson(pedido()),
-    }, chamadas));
+    }, []));
     renderComTudo(<NaVaga vagaId="v3" />, { user: producao });
-    await waitFor(() => expect(chamadas.some((c) => c.url.includes("/pedido"))).toBe(true));
-    expect(screen.getByTestId("aba-visivel")).toHaveTextContent("nao");
+    expect(await screen.findByTestId("hon-vaga-sem-linha")).toHaveTextContent("Esta vaga não recebe honorário");
+    expect(screen.getByTestId("aba-visivel")).toHaveTextContent("sim");
+  });
+
+  it("vaga ABERTA de cenotécnica (dono 20/10: \"cenotécnica não aparece\"): a aba aparece e pede para escalar alguém", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(pedido()),
+    }, []));
+    renderComTudo(<NaVaga vagaId="v9" collaboratorId={null} />, { user: producao });
+    expect(await screen.findByTestId("hon-vaga-sem-linha")).toHaveTextContent("Escale alguém para lançar o honorário");
   });
 
   it("rascunho: muda o valor, Enviar grava e manda a versão nova para o aprovador", async () => {

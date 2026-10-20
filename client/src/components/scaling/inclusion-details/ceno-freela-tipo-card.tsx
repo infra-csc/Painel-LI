@@ -30,7 +30,17 @@ export function CenoFreelaTipoCard({ inclusion, systemSettings, canEdit, isCasa,
       titulo="Tipo de freela (cenotécnica)"
       icone={<Hammer className={atual ? "text-muted-foreground" : "text-warning-strong"} aria-hidden="true" />}
       tom={atual ? "neutro" : "atencao"}
-      acessorio={!atual && (
+      acessorio={atual ? (canEdit && (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => mutation.mutate({ id: inclusion.id, cenoFreelaTipo: null })}
+          className="pas-alvo text-2xs font-semibold text-muted-foreground hover:text-foreground underline-offset-2 hover:underline disabled:opacity-60"
+          data-testid="btn-ceno-freela-limpar"
+        >
+          Tirar o tipo
+        </button>
+      )) : (
         <span className="px-2 py-0.5 rounded-full bg-warning-soft text-warning text-2xs font-semibold ring-1 ring-warning/30" data-testid="badge-ceno-freela-definir">
           definir o tipo
         </span>
@@ -55,7 +65,8 @@ export function CenoFreelaTipoCard({ inclusion, systemSettings, canEdit, isCasa,
                   aria-checked={ativo}
                   disabled={!canEdit || saving}
                   data-testid={`btn-ceno-freela-${t}`}
-                  onClick={() => { if (!ativo) mutation.mutate({ id: inclusion.id, cenoFreelaTipo: t }); }}
+                  title={ativo ? "Clique de novo para tirar o tipo" : undefined}
+                  onClick={() => mutation.mutate({ id: inclusion.id, cenoFreelaTipo: ativo ? null : t })}
                   className={`w-full px-2 py-2 rounded-lg text-xs font-semibold border text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 disabled:cursor-not-allowed ${ativo ? "bg-primary text-primary-foreground border-primary shadow-1" : "bg-card text-slate-700 border-border hover:border-primary/40 hover:bg-brand-soft"}`}
                 >
                   {CENO_FREELA_TIPO_LABELS[t]}

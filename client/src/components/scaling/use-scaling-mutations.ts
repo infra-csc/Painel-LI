@@ -170,17 +170,16 @@ export function useScalingMutations(opts: {
   // na hora pela rota dedicada (espelho de /percurseiro-tipo) — não espera o
   // Salvar do modal, para o Planejado já ver o valor fechado.
   const setCenoFreelaTipo = useMutation({
-    mutationFn: async ({ id, cenoFreelaTipo }: { id: string; cenoFreelaTipo: CenoFreelaTipo }) => {
+    mutationFn: async ({ id, cenoFreelaTipo }: { id: string; cenoFreelaTipo: CenoFreelaTipo | null }) => {
       const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/ceno-freela-tipo`, { cenoFreelaTipo });
       return r.json() as Promise<TeamInclusion>;
     },
     onSuccess: (updated: TeamInclusion, vars) => {
       setSelectedInclusion(prev => (prev && prev.id === updated.id ? updated : prev));
       invalidateAndRefetchInclusions();
-      toast({
-        title: "Tipo de freela definido",
-        description: `${CENO_FREELA_TIPO_LABELS[vars.cenoFreelaTipo]} — o Planejado passa a usar o valor fechado desta modalidade.`,
-      });
+      toast(vars.cenoFreelaTipo
+        ? { title: "Tipo de freela definido", description: `${CENO_FREELA_TIPO_LABELS[vars.cenoFreelaTipo]} — o Planejado passa a usar o valor fechado desta modalidade.` }
+        : { title: "Tipo de freela removido", description: "A vaga volta a ficar sem tipo definido." });
     },
     onError: async (err: unknown) => {
       // O 403 pode ser falta de permissão OU evento encerrado — a mensagem do

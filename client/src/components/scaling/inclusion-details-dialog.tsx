@@ -49,7 +49,8 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
 
   /** Na aba Honorário o rodapé é o do pedido de honorário (a aba se desenha nele por portal). */
   const [rodapeDoHonorario, setRodapeDoHonorario] = useState<HTMLDivElement | null>(null);
-  const naAbaHonorario = activeTab === "honorario" && hon.visivel;
+  // Sem linha no pedido (vaga aberta, casa) a aba só explica: o rodapé continua o da vaga.
+  const naAbaHonorario = activeTab === "honorario" && hon.visivel && !!hon.linha;
 
   const nome = inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : inclusion?.empreitaEmpresa ? `Empreita · ${inclusion.empreitaEmpresa}` : "Vaga sem nome";
   const renderAttachments = (ids: string[] | null | undefined, label: string) => <AttachmentList ids={ids} label={label} openAttachment={openAttachment} />;

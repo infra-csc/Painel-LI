@@ -643,6 +643,14 @@ async function aplicarAjustesDeDados(): Promise<void> {
   } catch (erro) {
     console.error("[estrutura] falhou: prazos da escala do processo do dono —", erro instanceof Error ? erro.message : erro);
   }
+  try {
+    const { aplicarTabelaCenoDoDono } = await import("./tabela-ceno-do-dono");
+    if ((await aplicarTabelaCenoDoDono()) === "aplicado") {
+      console.warn("[estrutura] tabela de empreita da cenotécnica do dono (20/10) aplicada");
+    }
+  } catch (erro) {
+    console.error("[estrutura] falhou: tabela da cenotécnica do dono —", erro instanceof Error ? erro.message : erro);
+  }
 }
 
 async function reporEstruturaAusente(): Promise<void> {

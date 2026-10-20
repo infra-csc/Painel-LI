@@ -33,13 +33,22 @@ export const CENO_FREELA_TIPO_LABELS: Record<CenoFreelaTipo, string> = {
 export const CENO_EMPREITA_TABLE_DAYS = [2, 3, 4, 5, 6] as const;
 export type CenoEmpreitaTableDay = (typeof CENO_EMPREITA_TABLE_DAYS)[number];
 
-/** Valores do slide, em CENTAVOS, por modalidade e nº de dias. */
+/**
+ * Valores em CENTAVOS, por modalidade e nº de dias. 20/10 (dono, "valores
+ * corretos, cenotécnica"): os valores FECHADOS que se pagam, sem centavos —
+ * antes eram os do slide com centavos (R$ 1.257,63, R$ 537,50…) arredondados
+ * na tela, o que dava R$ 1.258 / R$ 538 em vez de R$ 1.257 / R$ 537.
+ */
 export const CENO_EMPREITA_DEFAULTS: Record<CenoFreelaTipo, Record<CenoEmpreitaTableDay, number>> = {
-  viagem:  { 2: 89013, 3: 125763, 4: 162513, 5: 199263, 6: 236013 },
-  sp:      { 2: 70035, 3: 105053, 4: 140070, 5: 175088, 6: 210105 },
-  local_a: { 2: 67725, 3: 99225,  4: 130725, 5: 162225, 6: 193725 },
-  local_b: { 2: 53750, 3: 78750,  4: 103750, 5: 128750, 6: 153750 },
+  viagem:  { 2: 89000, 3: 125700, 4: 162500, 5: 199200, 6: 236000 },
+  sp:      { 2: 70000, 3: 105000, 4: 140000, 5: 175000, 6: 210100 },
+  local_a: { 2: 67700, 3: 99200,  4: 130700, 5: 162200, 6: 193700 },
+  local_b: { 2: 53700, 3: 78700,  4: 103700, 5: 128700, 6: 153700 },
 };
+
+/** Versão da tabela acima gravada em system_settings pelo passo único (server/tabela-ceno-do-dono.ts). */
+export const VERSAO_DA_TABELA_CENO = "2026-10-20";
+export const CHAVE_DA_VERSAO_DA_TABELA_CENO = "ceno_empreita_versao";
 
 /** Chave do Valores Padrão para uma célula da tabela (ex.: ceno_empreita_viagem_3d). */
 export function cenoEmpreitaSettingKey(tipo: CenoFreelaTipo, dias: CenoEmpreitaTableDay): string {

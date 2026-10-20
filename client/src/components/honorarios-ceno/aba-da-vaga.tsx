@@ -50,8 +50,12 @@ export function useHonorarioDaVaga(inclusion: TeamInclusion | null, nomeDaFuncao
   const linha = (inclusion && q.data?.linhas.find((l) => l.vaga?.id === inclusion.id || l.honorario?.teamInclusionId === inclusion.id)) || null;
   const h = linha?.honorario ?? null;
   return {
-    /** A aba existe para esta vaga e esta pessoa. */
-    visivel: !!linha,
+    /**
+     * A aba existe para esta vaga e esta pessoa: toda vaga de cenotécnica de
+     * quem pede (20/10, dono: "cenotécnica não aparece" — na vaga ABERTA a aba
+     * sumia). Sem linha no pedido (vaga sem nome, casa…) a aba explica por quê.
+     */
+    visivel: podePedir,
     /** Ainda não se sabe (acesso ou pedido carregando). */
     carregando: ceno && (acesso.isLoading || (podePedir && q.isLoading)),
     linha,
@@ -141,6 +145,25 @@ function PedidoSoLeitura({ h }: { h: Honorario }) {
   );
 }
 
+/** A vaga de cenotécnica ainda não entra no pedido: diz o que falta. */
+function SemHonorario({ inclusion }: { inclusion: TeamInclusion }) {
+  const aberta = !inclusion.collaboratorId && !inclusion.empreitaEmpresa?.trim();
+  return (
+    <TabsContent value="honorario" className="esc-entra m-0 p-3 sm:p-5">
+      <Secao titulo="Pedido de honorário" icone={<CircleDollarSign className="text-muted-foreground" aria-hidden="true" />} testId="hon-vaga-sem-linha" corpo="p-4 space-y-2">
+        <p className="m-0 text-sm text-foreground font-medium">
+          {aberta ? "Escale alguém para lançar o honorário." : "Esta vaga não recebe honorário."}
+        </p>
+        <p className="m-0 text-xs leading-relaxed text-muted-foreground">
+          {aberta
+            ? "O honorário é do freela (local ou viagem) ou da empreita escalada nesta vaga. Escolha o colaborador ou a empreita no Resumo e volte aqui para lançar o valor negociado."
+            : "Só freela (local ou viagem) e empreita recebem honorário — colaborador da casa (CLT) não. Se a vaga foi cancelada, também não há o que pedir."}
+        </p>
+      </Secao>
+    </TabsContent>
+  );
+}
+
 export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
   inclusion: TeamInclusion;
   hon: HonorarioDaVaga;
@@ -166,6 +189,7 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
   // Navegar para outra vaga com o diálogo de envio aberto não o leva junto.
   useEffect(() => { setConfirmando(false); }, [inclusion.id]);
 
+  if (!hon.carregando && !linha) return <SemHonorario inclusion={inclusion} />;
   if (hon.carregando || !linha) {
     return (
       <TabsContent value="honorario" className="esc-entra m-0 p-3 sm:p-5">
