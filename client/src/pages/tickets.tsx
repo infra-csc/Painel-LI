@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useCallback, useDeferredValue, useRef, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { AlertCircle, Stamp, FileUp, Layers, Lock, RotateCw, X, PlaneTakeoff } from "lucide-react";
+import { AlertCircle, Stamp, FileUp, Layers, Lock, RotateCw, X, PlaneTakeoff, Car } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { PageHeader } from "@/components/common/page-header";
@@ -935,10 +935,21 @@ export default function Tickets() {
                     <PlaneTakeoff className="w-4 h-4" aria-hidden="true" />Buscar preços
                   </button>
                 )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => { handlers.onFieldChange("quick", "transportType", "terrestre"); abrirLote(); }}
+                    title="Carro (só o valor), van ou ônibus (empresa e valor) para as vagas marcadas — sem passagem a comprar"
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
+                    data-testid="terrestre-selecao"
+                  >
+                    <Car className="w-4 h-4" aria-hidden="true" />Vai de carro/van ({nSel})
+                  </button>
+                )}
                 {canEdit && !batchExpanded && (
                   <button
                     type="button"
-                    onClick={abrirLote}
+                    onClick={() => { if (ticketData["quick"]?.transportType === "terrestre") handlers.onFieldChange("quick", "transportType", "aereo"); abrirLote(); }}
                     className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
                   >
                     <Layers className="w-4 h-4" aria-hidden="true" />Preencher dados em lote
