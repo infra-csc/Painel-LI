@@ -48,6 +48,8 @@ import { ScalingHeaderBar } from "@/components/scaling/scaling-page/scaling-head
 import { ScalingQueue } from "@/components/scaling/scaling-page/scaling-queue";
 import { AcessoNegado, BotaoTentarDeNovo, EsqueletoDaLista, EstadoVazio } from "@/components/scaling/scaling-page/estados-da-pagina";
 import { queryClient } from "@/lib/queryClient";
+// Honorários da cenotécnica (20/10): pedidos na Escalação — gaveta do evento + link do sino.
+import { BotaoHonorariosDoEvento, HonorariosDoEventoSheet, useHonorariosNaEscalacao } from "@/components/honorarios-ceno/na-escalacao";
 
 export default function Scaling() {
   usePageTitle("Escalação");
@@ -81,6 +83,7 @@ export default function Scaling() {
   const exportar = useScalingExport({ aba, canExport, visibleRows: r.visibleRows, data, details: modal.details, toast });
   const rapido = useConfirmarRapido({ queueContext: r.queueContext, getCollaboratorName, getFunctionName, toast, setSentToProductionInfo: modal.setSentToProductionInfo });
   const sel = useScalingSelection(data);
+  const hon = useHonorariosNaEscalacao({ teamInclusions, openInclusion: modal.openInclusion, verVagasDoEvento: filtros.verVagasDoEvento });
 
   // Permissão de acesso à tela — depois de todos os hooks
   if (!hasPermission(user, "canAccessScreen2")) return <AcessoNegado />;
@@ -127,6 +130,7 @@ export default function Scaling() {
       <ScalingHeaderBar
         resumoTopo={r.resumoTopo} aba={aba} onAba={filtros.setAba} canExport={canExport} onExportar={exportar.abrirExportar}
         estado={isErrorInclusions && !teamInclusions ? "erro" : isLoading && !teamInclusions ? "carregando" : "pronta"}
+        acoes={<BotaoHonorariosDoEvento eventId={eventosMarcados.length === 1 ? eventosMarcados[0] : null} onAbrir={() => hon.abrirPainel(eventosMarcados[0] ?? null)} />}
       />
 
       {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}
@@ -232,6 +236,8 @@ export default function Scaling() {
         onSave={modal.handleSave}
         onConfirm={modal.handleConfirm}
       />
+
+      {hon.podePedir && <HonorariosDoEventoSheet aberto={hon.painel.aberto} onOpenChange={hon.onPainelOpenChange} eventId={hon.painel.eventId} />}
 
       <ExportColumnsDialog
         open={exportar.exportOpen}

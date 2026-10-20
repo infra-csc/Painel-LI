@@ -1,7 +1,10 @@
 /**
- * Honorários — a aba do APROVADOR na Aprovação de escala (16/10). "Em outra
- * aba, pois é financeiro": as vagas e os pedidos da escala ficam nas abas
- * deles; aqui só dinheiro.
+ * Honorários — o lado do APROVADOR (16/10). "Em outra aba, pois é
+ * financeiro": aqui só dinheiro, nada da escala.
+ *
+ * 20/10 (dono: "chegar para o aprovador em outra tela"): saiu da Aprovação de
+ * escala e virou a tela própria Aprovação de honorários
+ * (/aprovacao-de-honorarios), com o seletor de evento e os totais.
  *
  * Aguardando: os pedidos por evento, com o total do evento, o valor por
  * diária e as três decisões — aprovar, aprovar com ajuste (valor novo +
@@ -10,7 +13,7 @@
  */
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCheck, CheckCircle2, CircleDollarSign, CloudOff, History, Inbox, Loader2, MessageSquareText, Pencil, Undo2, X } from "lucide-react";
+import { CheckCheck, CheckCircle2, CloudOff, History, Inbox, Loader2, MessageSquareText, Pencil, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,7 +32,7 @@ import { useFilaDeAprovacao, useMutacoesDoAprovador, type Honorario } from "./ap
 import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, ValorComDiaria, brl, brlCurto, dataBr, diariasTexto, haQuanto, periodoCurto, posicaoLabel, setorLabel, useFocoDeVolta } from "./pecas";
 import { HistoricoSheet } from "./historico-sheet";
 
-type Situacao = "pendentes" | "decididos";
+export type SituacaoDaFila = "pendentes" | "decididos";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
@@ -300,7 +303,7 @@ function Pendentes({ eventId }: { eventId: string | null }) {
                   <h3 className="truncate text-sm font-semibold text-foreground">{g.nome}</h3>
                   <p className="text-2xs text-muted-foreground">{dataBr(g.inicio)}{g.fim && g.fim !== g.inicio ? ` a ${dataBr(g.fim)}` : ""} · {plural(g.linhas.length, "pedido", "pedidos")} · {plural(diarias, "diária", "diárias")}</p>
                 </div>
-                <p className="text-right">
+                <p className="sm:text-right">
                   <span className="block text-2xs text-muted-foreground">Total do evento</span>
                   <span className="block text-base font-semibold tabular-nums text-foreground" data-testid="hon-apr-total-evento">{brl(total)}</span>
                 </p>
@@ -479,36 +482,13 @@ function Decididos({ eventId }: { eventId: string | null }) {
   );
 }
 
-export function AprovacaoPainel({ eventId }: { eventId: string | null }) {
-  const [situacao, setSituacao] = useState<Situacao>("pendentes");
-  const pend = useFilaDeAprovacao("pendentes", eventId);
-  const n = pend.data?.length ?? 0;
-  const total = (pend.data ?? []).reduce((s, h) => s + h.valorPedido, 0);
-  const seg = (v: Situacao, rotulo: string, cont?: number) => (
-    <button type="button" role="radio" aria-checked={situacao === v} onClick={() => setSituacao(v)}
-      className={cn("val-alvo inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-[color,background-color,box-shadow] duration-150",
-        situacao === v ? "bg-card font-semibold text-primary shadow-1 ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>
-      {rotulo}
-      {cont !== undefined && cont > 0 && <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-warning-soft px-1.5 text-2xs font-semibold tabular-nums text-warning">{cont}</span>}
-    </button>
-  );
+/**
+ * O conteúdo de uma aba da tela Aprovação de honorários. A tela (pages/
+ * aprovacao-de-honorarios.tsx) cuida do evento, dos totais e das abas.
+ */
+export function AprovacaoPainel({ eventId, situacao = "pendentes" }: { eventId: string | null; situacao?: SituacaoDaFila }) {
   return (
     <div className="space-y-4" data-testid="hon-aprovacao">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-1">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success-soft text-success" aria-hidden="true"><CircleDollarSign className="h-[18px] w-[18px]" /></span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">Honorários da cenotécnica</p>
-            <p className="text-2xs text-muted-foreground">
-              {pend.isLoading ? "Carregando…" : n ? `${plural(n, "pedido aguardando", "pedidos aguardando")} · ${brl(total)}` : "Nada aguardando a sua decisão"}
-            </p>
-          </div>
-        </div>
-        <div role="radiogroup" aria-label="Situação dos honorários" className="inline-flex gap-0.5 rounded-lg border border-border bg-background p-[3px]">
-          {seg("pendentes", "Aguardando", n)}
-          {seg("decididos", "Decididos")}
-        </div>
-      </div>
       {situacao === "pendentes" ? <Pendentes eventId={eventId} /> : <Decididos eventId={eventId} />}
     </div>
   );

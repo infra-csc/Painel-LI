@@ -10,7 +10,8 @@ import type { ModalData } from "../scaling-utils";
 import type { ScalingData, InclusionDetails, ScalingUser } from "../use-scaling-data";
 import type { ScalingMutations } from "../use-scaling-mutations";
 
-export type DetailsTab = "resumo" | "passagem" | "hospedagem" | "comentarios";
+/** `honorario` (20/10): só existe na vaga de cenotécnica, para quem pede honorário. */
+export type DetailsTab = "resumo" | "passagem" | "hospedagem" | "honorario" | "comentarios";
 
 export interface InclusionDetailsDialogProps {
   open: boolean;

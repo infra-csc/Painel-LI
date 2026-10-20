@@ -180,18 +180,25 @@ export function useAcessoHonorarios(enabled = true) {
   });
 }
 
+/** Chaves e leituras do lado de quem pede — as mesmas no hook e no `fetchQuery` do link do sino. */
+export const chaveDosEventos = () => [CHAVE, "eventos"] as const;
+export const chaveDoPedido = (eventId: string | null) => [CHAVE, "pedido", eventId] as const;
+export const buscarEventosDoPedido = (signal?: AbortSignal) => fetchJson<EventoDoPedido[]>("/api/honorarios-ceno/eventos", signal);
+export const buscarPedidoDoEvento = (eventId: string, signal?: AbortSignal) =>
+  fetchJson<PedidoDoEvento>(`/api/honorarios-ceno/pedido?eventId=${encodeURIComponent(eventId)}`, signal);
+
 export function useEventosDoPedido(enabled: boolean) {
   return useQuery<EventoDoPedido[]>({
-    queryKey: [CHAVE, "eventos"],
-    queryFn: ({ signal }) => fetchJson<EventoDoPedido[]>("/api/honorarios-ceno/eventos", signal),
+    queryKey: [...chaveDosEventos()],
+    queryFn: ({ signal }) => buscarEventosDoPedido(signal),
     enabled,
   });
 }
 
 export function usePedidoDoEvento(eventId: string | null, enabled = true) {
   return useQuery<PedidoDoEvento>({
-    queryKey: [CHAVE, "pedido", eventId],
-    queryFn: ({ signal }) => fetchJson<PedidoDoEvento>(`/api/honorarios-ceno/pedido?eventId=${encodeURIComponent(eventId ?? "")}`, signal),
+    queryKey: [...chaveDoPedido(eventId)],
+    queryFn: ({ signal }) => buscarPedidoDoEvento(eventId ?? "", signal),
     enabled: enabled && !!eventId,
   });
 }

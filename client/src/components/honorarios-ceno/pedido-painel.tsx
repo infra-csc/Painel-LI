@@ -1,7 +1,12 @@
 /**
- * Honorários — a aba de QUEM PEDE (cenotécnica), dentro da Validação de escala
- * (16/10). "O pessoal de cenotécnica entra, coloca um valor que negociou e
- * manda para a aprovação" — sem mexer em nada da escala.
+ * Honorários — o painel de QUEM PEDE (cenotécnica), por evento (16/10). "O
+ * pessoal de cenotécnica entra, coloca um valor que negociou e manda para a
+ * aprovação" — sem mexer em nada da escala.
+ *
+ * 20/10 (dono: "eles têm que pedir aqui na escalação"): saiu da Validação de
+ * escala. Mora na Escalação, na gaveta "Honorários do evento"
+ * (na-escalacao.tsx) — a vaga uma a uma também se pede no modal dela, aba
+ * Honorário (aba-da-vaga.tsx).
  *
  * Sem evento: a lista dos eventos com cenotécnica escalada (próximos primeiro).
  * Com evento: uma linha por vaga escalada freela, com o valor digitado na
@@ -576,7 +581,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
           <button type="button" onClick={onTrocarEvento} className="val-alvo -ml-1 inline-flex h-7 items-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> Todos os eventos
           </button>
-          <h2 className="text-sm font-semibold text-foreground">Honorários do evento</h2>
+          <h2 className="text-sm font-semibold text-foreground">{d.evento.name}</h2>
           <p className="text-xs text-muted-foreground">
             {vagas.length} {vagas.length === 1 ? "vaga escalada" : "vagas escaladas"} · {d.empreitas.length} {d.empreitas.length === 1 ? "empreita" : "empreitas"}
             {d.casa.length ? ` · ${d.casa.length} da casa (sem honorário)` : ""}

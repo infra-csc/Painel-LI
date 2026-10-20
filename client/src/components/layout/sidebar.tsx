@@ -33,6 +33,7 @@ import { initials } from "@/lib/format";
 import { getRoleLabel, type UserRole } from "@/lib/role-utils";
 import { useShellMode } from "./use-shell-mode";
 import { useShellData } from "./use-shell-data";
+import { useAcessoHonorarios } from "@/components/honorarios-ceno/api";
 import { visibleGroups, tabById, subgroupEdges, classeDeCorDaTela, type NavTab } from "./nav-items";
 import { getFavorites, setFavorites, getClosedGroups, setClosedGroups, SHELL_PREFS_EVENT } from "./shell-prefs";
 import { combo } from "./shortcuts";
@@ -132,7 +133,9 @@ export default function Sidebar() {
   const roleLabel = getRoleLabel((user?.role || "production") as UserRole);
   const currentPath = location.split("?")[0];
 
-  const groups = useMemo(() => visibleGroups(user), [user]);
+  // Aprovação de honorários (20/10): só para quem aprova — o servidor sabe quem é.
+  const aprovaHonorarios = !!useAcessoHonorarios(!!user).data?.podeAprovar;
+  const groups = useMemo(() => visibleGroups(user, { aprovaHonorarios }), [user, aprovaHonorarios]);
 
   // ── Preferências locais (favoritos e grupos recolhidos) ──
   const [favorites, setFavs] = useState<string[]>(() => getFavorites(user?.id));

@@ -46,6 +46,7 @@ const BaggageControlPage     = lazy(() => import("@/pages/baggage-control"));
 const ScalingSuggestionPage  = lazy(() => import("@/pages/scaling-suggestion"));
 const ScalingValidationPage  = lazy(() => import("@/pages/scaling-validation"));
 const ScalingApprovalPage    = lazy(() => import("@/pages/scaling-approval"));
+const AprovacaoDeHonorariosPage = lazy(() => import("@/pages/aprovacao-de-honorarios"));
 const ScalingEventViewPage   = lazy(() => import("@/pages/scaling-event-view"));
 const SimulationPage         = lazy(() => import("@/pages/simulation"));
 const PendenciasPage         = lazy(() => import("@/pages/pendencias"));
@@ -79,6 +80,8 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/scaling-suggestion", permission: "canAccessScalingSuggestion" },
   { path: "/scaling-validation", permission: "canAccessScalingValidation" },
   { path: "/scaling-approval",  permission: "canAccessScalingApproval"  },
+  // 20/10: tela própria dos honorários da cenotécnica; quem decide é o servidor (GET /api/honorarios-ceno/acesso).
+  { path: "/aprovacao-de-honorarios", permission: "canAccessScalingApproval" },
   { path: "/scaling-event-view", permission: "canAccessScalingEventView" },
   { path: "/team-inclusion",    permission: "canAccessScreen1"       },
   { path: "/scaling",           permission: "canAccessScreen2"       },
@@ -160,6 +163,11 @@ function Router() {
             <Route path="/scaling-approval">
               <ProtectedRoute permission="canAccessScalingApproval">
                 <ScalingApprovalPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/aprovacao-de-honorarios">
+              <ProtectedRoute permission="canAccessScalingApproval">
+                <AprovacaoDeHonorariosPage />
               </ProtectedRoute>
             </Route>
             <Route path="/scaling-event-view">

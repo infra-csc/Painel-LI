@@ -20,7 +20,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
-  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins,
+  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins, CircleDollarSign,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -31,6 +31,17 @@ export interface NavTab {
   /** Componente lucide (renderizado por quem desenha: menu, topo, paleta). */
   icon: LucideIcon;
   permission: keyof RolePermissions;
+  /**
+   * Além do papel, depende de um cadastro que só o servidor conhece (20/10:
+   * a Aprovação de honorários só aparece para quem aprova honorário). Sem o
+   * dado (`AcessoExtra`), o item fica escondido.
+   */
+  soCom?: keyof AcessoExtra;
+}
+
+/** O que o menu sabe além do papel — vem de GET /api/honorarios-ceno/acesso. */
+export interface AcessoExtra {
+  aprovaHonorarios?: boolean;
 }
 
 export interface NavGroup {
@@ -57,6 +68,7 @@ export const ALL_TABS: NavTab[] = [
   { id: "scaling-suggestion", path: "/scaling-suggestion", label: "Sugestão de escala",   icon: ListPlus,          permission: "canAccessScalingSuggestion" },
   { id: "scaling-validation", path: "/scaling-validation", label: "Validação de escala",  icon: ClipboardCheck,    permission: "canAccessScalingValidation" },
   { id: "scaling-approval",   path: "/scaling-approval",   label: "Aprovação de escala",  icon: Stamp,             permission: "canAccessScalingApproval" },
+  { id: "aprovacao-de-honorarios", path: "/aprovacao-de-honorarios", label: "Aprovação de honorários", icon: CircleDollarSign, permission: "canAccessScalingApproval", soCom: "aprovaHonorarios" },
   { id: "scaling-event-view", path: "/scaling-event-view", label: "Histórico da escala",  icon: History,           permission: "canAccessScalingEventView" },
   { id: "team-inclusion",     path: "/team-inclusion",     label: "Inclusão de equipe",   icon: UserRoundPlus,     permission: "canAccessScreen1" },
   { id: "scaling",            path: "/scaling",            label: "Escalação",            icon: ClipboardList,     permission: "canAccessScreen2" },
@@ -98,12 +110,12 @@ export const MENU_GROUPS: NavGroup[] = [
     title: "Operacional",
     tone: "info",
     // Módulo de Escala na ordem do fluxo: Sugestão → Validação → Aprovação → Histórico
-    ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view", "team-inclusion", "scaling", "tickets", "busca-de-passagens", "accommodations", "operational-mirror", "baggage-control"],
+    ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "aprovacao-de-honorarios", "scaling-event-view", "team-inclusion", "scaling", "tickets", "busca-de-passagens", "accommodations", "operational-mirror", "baggage-control"],
     // O fluxo da Escala é um módulo à parte do operacional antigo (Inclusão,
     // Escalação, Passagens…): o sub-rótulo e o separador fino dizem isso.
     subgroup: {
       label: "Escala",
-      ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "scaling-event-view"],
+      ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "aprovacao-de-honorarios", "scaling-event-view"],
     },
   },
   { title: "Financeiro", tone: "success", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "honorarios-ceno", "calculation-rules", "system-settings"] },
@@ -129,8 +141,8 @@ export function tabByPath(path: string): NavTab | undefined {
 }
 
 /** Todas as telas que ESTE usuário pode abrir, na ordem do menu. */
-export function visibleTabs(user: User | null): NavTab[] {
-  return ALL_TABS.filter((t) => hasPermission(user, t.permission));
+export function visibleTabs(user: User | null, extra: AcessoExtra = {}): NavTab[] {
+  return ALL_TABS.filter((t) => hasPermission(user, t.permission) && (!t.soCom || !!extra[t.soCom]));
 }
 
 export interface ResolvedGroup {
@@ -139,8 +151,8 @@ export interface ResolvedGroup {
 }
 
 /** Grupos do menu já filtrados por permissão (grupos vazios somem). */
-export function visibleGroups(user: User | null): ResolvedGroup[] {
-  const allowed = new Set(visibleTabs(user).map((t) => t.id));
+export function visibleGroups(user: User | null, extra: AcessoExtra = {}): ResolvedGroup[] {
+  const allowed = new Set(visibleTabs(user, extra).map((t) => t.id));
   return MENU_GROUPS.map((group) => ({
     group,
     items: group.ids.map((id) => TAB_BY_ID.get(id)).filter((t): t is NavTab => !!t && allowed.has(t.id)),

@@ -1,16 +1,18 @@
 /**
- * Honorários da cenotécnica (16/10) — o fluxo inteiro, em série, sobre o seed
- * de server/dev/demo-seed-honorarios.ts:
+ * Honorários da cenotécnica — o fluxo inteiro, em série, sobre o seed de
+ * server/dev/demo-seed-honorarios.ts (20/10: "eles têm que pedir aqui na
+ * escalação e chegar para o aprovador em outra tela"):
  *
- *   Rafael (production, valida a cenotécnica) lança o valor de uma vaga sem
- *   valor da Corrida Noturna de Curitiba e envia → Marcos (aprovador) aprova
- *   com ajuste → Patrícia (RH) libera parte da verba → o relatório por evento
- *   mostra pedido, aprovado, liberado e a liberar.
+ *   Rafael (production, valida a cenotécnica) abre, na Escalação, o modal de
+ *   uma vaga sem valor da Corrida Noturna de Curitiba, lança setor e valor na
+ *   aba Honorário e envia → Marcos (aprovador) aprova com ajuste na tela
+ *   Aprovação de honorários → Patrícia (RH) libera parte da verba → o
+ *   relatório por evento mostra pedido, aprovado, liberado e a liberar.
  *
  * Só toca em honorários (tabelas próprias) — nenhuma vaga muda.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { api, confirmacao, entrarComo, esperarToast } from "./helpers/demo";
+import { abrirModalDaVaga, api, confirmacao, entrarComo, esperarToast, type Vaga } from "./helpers/demo";
 
 test.describe.configure({ mode: "serial" });
 
@@ -25,7 +27,7 @@ async function idDoEvento(page: Page): Promise<string> {
   return e!.id;
 }
 
-test("quem pede: lança setor e valor na linha e envia para aprovação", async ({ page }) => {
+test("quem pede: lança setor e valor na aba Honorário do modal da vaga e envia", async ({ page }) => {
   await entrarComo(page, "production");
   eventId = await idDoEvento(page);
   const pedido = (await (await api(page).get(`/api/honorarios-ceno/pedido?eventId=${eventId}`)).json()) as {
@@ -35,46 +37,51 @@ test("quem pede: lança setor e valor na linha e envia para aprovação", async 
   expect(linha, "uma vaga escalada sem valor em Curitiba").toBeTruthy();
   alvo = { numero: linha!.vaga!.inclusionNumber, nome: linha!.vaga!.collaboratorName!, vagaId: linha!.vaga!.id, statusDaVaga: linha!.vaga!.status };
 
-  await page.goto(`/scaling-validation?aba=honorarios&eventId=${eventId}`);
-  await expect(page.getByRole("tab", { name: /Honorários/ })).toHaveAttribute("aria-selected", "true");
-  const linhaNaTela = page.getByTestId(`hon-linha-${alvo.numero}`);
-  await expect(linhaNaTela).toBeVisible();
+  // A Validação de escala não tem mais a troca "Escala | Honorários".
+  await page.goto("/scaling-validation");
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByTestId("seletor-de-secao")).toHaveCount(0);
 
-  await linhaNaTela.getByRole("combobox", { name: `Setor de ${alvo.nome}` }).click();
+  const modal = await abrirModalDaVaga(page, { id: alvo.vagaId, inclusionNumber: alvo.numero } as Vaga);
+  await modal.getByTestId("aba-honorario").click();
+  await expect(modal.getByTestId("hon-vaga-situacao")).toContainText("Sem pedido");
+  // Sem valor nem setor, o envio fica travado e diz o que falta.
+  await expect(modal.getByTestId("hon-vaga-enviar")).toBeDisabled();
+  await expect(modal.getByTestId("hon-vaga-falta")).toBeVisible();
+
+  await modal.getByRole("combobox", { name: "Setor" }).click();
   await page.getByRole("option", { name: "Montagem" }).click();
-  await expect(linhaNaTela.getByRole("status")).toContainText("Salvo");
+  await modal.getByLabel("Valor negociado").fill("1900");
+  await expect(modal.getByTestId("hon-vaga-salvo")).toContainText("Alterações não salvas");
 
-  const valor = page.getByTestId(`hon-valor-${alvo.numero}`);
-  await valor.fill("1.900,00");
-  await valor.press("Enter");
-  await expect(linhaNaTela.getByRole("status")).toContainText("Salvo");
-  await expect(linhaNaTela).not.toContainText("— /diária");
-
-  await page.getByTestId("hon-enviar").click();
+  await modal.getByTestId("hon-vaga-enviar").click();
   const dialogo = confirmacao(page);
-  await expect(dialogo).toContainText(alvo.nome);
-  // Só o nosso: desmarca os outros rascunhos do seed.
-  for (const caixa of await dialogo.getByRole("checkbox").all()) {
-    const rotulo = await caixa.getAttribute("aria-label");
-    if (rotulo !== `Enviar ${alvo.nome}`) await caixa.click();
-  }
   await dialogo.getByRole("button", { name: /^Enviar · R\$\s?1\.900,00/ }).click();
-  await esperarToast(page, /1 pedido enviado ao aprovador/);
-  await expect(linhaNaTela).toContainText("Aguardando aprovação");
+  await esperarToast(page, "Enviado ao aprovador");
+  await expect(modal.getByTestId("hon-vaga-situacao")).toContainText("Aguardando aprovação");
+  await expect(modal.getByTestId("hon-vaga-enviar")).toHaveCount(0);
 });
 
-test("aprovador: aprova com ajuste (valor novo + motivo) na aba Honorários", async ({ page }) => {
+test("aprovador: aprova com ajuste (valor novo + motivo) na tela Aprovação de honorários", async ({ page }) => {
   await entrarComo(page, "aprovador");
-  await page.goto("/scaling-approval?aba=honorarios");
+  await page.goto("/scaling-approval");
+  // A aba "Honorários" saiu da Aprovação de escala; o item próprio está no menu.
+  await expect(page.getByRole("tab", { name: /Honorários/ })).toHaveCount(0);
+  await page.getByRole("link", { name: /Aprovação de honorários/ }).first().click();
+  await expect(page).toHaveURL(/\/aprovacao-de-honorarios/);
   await expect(page.getByTestId("hon-aprovacao")).toBeVisible();
+  await expect(page.getByTestId("hon-apr-totais")).toBeVisible();
+
   await page.getByRole("button", { name: `Aprovar ${alvo.nome} com ajuste` }).click();
   const dialogo = page.getByRole("dialog");
-  const valor = dialogo.getByLabel("Valor aprovado");
-  await valor.fill("1700");
+  await dialogo.getByLabel("Valor aprovado").fill("1700");
   await dialogo.getByLabel(/Motivo do ajuste/).fill("E2E: fechado em R$ 1.700 com a produção");
   await dialogo.getByRole("button", { name: /^Aprovar R\$\s?1\.700,00/ }).click();
   await esperarToast(page, "Aprovado com ajuste");
   await expect(page.getByRole("button", { name: `Aprovar ${alvo.nome} com ajuste` })).toHaveCount(0);
+
+  await page.getByRole("tab", { name: /Decididos/ }).click();
+  await expect(page.getByTestId("hon-decididos")).toContainText(alvo.nome);
 });
 
 test("Financeiro: libera parte da verba e o relatório por evento soma tudo", async ({ page }) => {
@@ -97,4 +104,12 @@ test("Financeiro: libera parte da verba e o relatório por evento soma tudo", as
   // A escala não mudou: a vaga continua como estava.
   const vaga = (await (await api(page).get(`/api/team-inclusions/${alvo.vagaId}`)).json()) as { status: string };
   expect(vaga.status).toBe(alvo.statusDaVaga);
+});
+
+test("quem pede vê o resultado na vaga: aprovado com o valor ajustado", async ({ page }) => {
+  await entrarComo(page, "production");
+  const modal = await abrirModalDaVaga(page, { id: alvo.vagaId, inclusionNumber: alvo.numero } as Vaga);
+  await modal.getByTestId("aba-honorario").click();
+  await expect(modal.getByTestId("hon-vaga-valor-aprovado")).toHaveText(/R\$\s?1\.700,00/);
+  await expect(modal.getByTestId("hon-vaga-situacao")).toContainText("Liberado parcial");
 });

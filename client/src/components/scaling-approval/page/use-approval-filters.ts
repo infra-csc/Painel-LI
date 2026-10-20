@@ -19,11 +19,7 @@ export type QuickFilter = "pendentes" | "ajuste" | "inclusao" | "exclusao";
  * dono, 26/08); "aprovacao" (vagas validadas pela área) fica a um clique, na
  * própria aba e no tile "Aguardando aprovação".
  */
-export type ApprovalTab = "aprovacao" | "fila" | "paradas" | "decididas" | "honorarios";
-
-/** `?aba=honorarios` (link do sino, 16/10) abre direto na aba dos honorários da cenotécnica. */
-const abaInicialDaUrl = (): ApprovalTab | null =>
-  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("aba") === "honorarios" ? "honorarios" : null;
+export type ApprovalTab = "aprovacao" | "fila" | "paradas" | "decididas";
 
 export function useApprovalFilters() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(ALL);
@@ -31,9 +27,9 @@ export function useApprovalFilters() {
   const [search, setSearch] = useState("");
   const [lateOnly, setLateOnly] = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
-  const [tab, setTab] = useState<ApprovalTab>(() => abaInicialDaUrl() ?? "fila");
+  const [tab, setTab] = useState<ApprovalTab>("fila");
   /** Marca que o usuário escolheu a aba (o deep-link de pedido também usa). */
-  const tabPickedByUser = useRef(abaInicialDaUrl() !== null);
+  const tabPickedByUser = useRef(false);
 
   const hasActiveFilters = search.trim() !== "" || typeFilter !== ALL || statusFilter !== CHANGE_REQUEST_STATUS.PENDENTE || lateOnly || mineOnly;
   const clearFilters = () => { setSearch(""); setTypeFilter(ALL); setStatusFilter(CHANGE_REQUEST_STATUS.PENDENTE); setLateOnly(false); setMineOnly(false); };

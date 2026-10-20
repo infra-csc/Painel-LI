@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import { Search, CalendarDays, SearchX, Loader2 } from "lucide-react";
 import { visibleTabs, groupOf, classeDeCorDaTela, SCALING_MODULE_PATHS } from "./nav-items";
+import { useAcessoHonorarios } from "@/components/honorarios-ceno/api";
 import { Kbd } from "./kbd";
 import { FOCO } from "./shell-styles";
 
@@ -58,7 +59,8 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
 
   useEffect(() => { if (!open) setQuery(""); }, [open]);
 
-  const tabs = useMemo(() => visibleTabs(user), [user]);
+  const aprovaHonorarios = !!useAcessoHonorarios(!!user).data?.podeAprovar;
+  const tabs = useMemo(() => visibleTabs(user, { aprovaHonorarios }), [user, aprovaHonorarios]);
 
   /** Telas do módulo de Escala que este usuário abre — destino dos eventos. */
   const scalingTargets = useMemo(

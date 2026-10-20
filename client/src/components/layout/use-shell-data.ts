@@ -304,7 +304,9 @@ export function useShellData() {
 
   /**
    * Honorários da cenotécnica (16/10): ao enviar, avisa o aprovador; ao
-   * aprovar, o Financeiro; ao devolver, quem pediu. Contado no servidor; quem
+   * aprovar, o Financeiro; ao devolver, quem pediu. 20/10: o aviso de envio
+   * leva à Aprovação de honorários; o de devolvido, à Escalação (abre a vaga
+   * na aba Honorário quando é uma só). Contado no servidor; quem
    * não participa do módulo recebe zeros (nunca 403).
    */
   const { data: honorarios } = useQuery<PendenciasHonorarios>({
@@ -381,8 +383,8 @@ export function useShellData() {
     entrada(precosQueMudaram, "precos-acompanhados", `${precosQueMudaram} ${precosQueMudaram === 1 ? "preço acompanhado mudou" : "preços acompanhados mudaram"}`, "Caiu o suficiente para avisar ou a tendência virou “subir”", "Busca de passagens", "/busca-de-passagens?acompanhando=1", BellRing, AMBAR);
     // Honorários da cenotécnica (16/10).
     const honorario = (n: number) => `${n} ${n === 1 ? "honorário" : "honorários"}`;
-    entrada(honAprovar, "hon-aprovar", `${honorario(honAprovar)} aguardando sua aprovação`, "Valor negociado pela cenotécnica", "Aprovação de escala", "/scaling-approval?aba=honorarios", CircleDollarSign, "bg-brand-soft text-primary");
-    entrada(honDevolvidos, "hon-devolvidos", `${honorario(honDevolvidos)} ${honDevolvidos === 1 ? "devolvido" : "devolvidos"} para negociar`, "O aprovador pediu para rever o valor", "Validação de escala", "/scaling-validation?aba=honorarios", Undo2, "bg-brand-soft text-primary");
+    entrada(honAprovar, "hon-aprovar", `${honorario(honAprovar)} aguardando sua aprovação`, "Valor negociado pela cenotécnica", "Aprovação de honorários", "/aprovacao-de-honorarios", CircleDollarSign, "bg-brand-soft text-primary");
+    entrada(honDevolvidos, "hon-devolvidos", `${honorario(honDevolvidos)} ${honDevolvidos === 1 ? "devolvido" : "devolvidos"} para negociar`, "O aprovador pediu para rever o valor", "Escalação", "/scaling?honorarios=devolvidos", Undo2, "bg-brand-soft text-primary");
     entrada(honLiberar, "hon-liberar", `${honorario(honLiberar)} ${honLiberar === 1 ? "aprovado" : "aprovados"} a liberar`, "Registre a data, a OC/DP e o valor liberado", "Honorários da cenotécnica", "/honorarios-ceno", HandCoins, AMBAR);
     entrada(datasImpossiveis, "datas-impossiveis", `${datasImpossiveis} ${datasImpossiveis === 1 ? "passagem com data impossível" : "passagens com data impossível"}`, "Volta antes da ida ou ano fora do esperado", "Passagens", "/tickets?conflito=data", CalendarX2, VERMELHO);
 
@@ -415,12 +417,13 @@ export function useShellData() {
     // + viagens que se cruzam e datas impossíveis (09/10, admin e Compras).
     tickets: ticketSwapCount + avisosPassagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis,
     accommodations: accommodationSwapCount + avisosHospedagem,
-    // Trocas + cenotécnica aguardando o gestor (15/09).
-    scaling: (isPurchasing ? scalingSwapCount : myScalingSwapsCount) + aguardandoGestorCount,
+    // Trocas + cenotécnica aguardando o gestor (15/09) + honorários que voltaram para quem pediu (20/10).
+    scaling: (isPurchasing ? scalingSwapCount : myScalingSwapsCount) + aguardandoGestorCount + honDevolvidos,
     // Tudo que espera ação do aprovador: pedidos + vagas validadas aguardando ele.
-    // + honorários da cenotécnica que esta pessoa decide / que voltaram para ela (16/10).
-    "scaling-approval": (canSeeApprovals ? pedidosQuePodeDecidir.length + myAwaitingApprovalCount : 0) + honPodeDecidir,
-    "scaling-validation": myAwaitingValidationCount + honDevolvidos,
+    "scaling-approval": canSeeApprovals ? pedidosQuePodeDecidir.length + myAwaitingApprovalCount : 0,
+    "scaling-validation": myAwaitingValidationCount,
+    // Honorários da cenotécnica que esta pessoa decide (tela própria desde 20/10).
+    "aprovacao-de-honorarios": honPodeDecidir,
     // Preços acompanhados que mudaram (09/10).
     "busca-de-passagens": precosQueMudaram,
     // Honorários da cenotécnica (16/10).

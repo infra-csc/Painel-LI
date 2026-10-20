@@ -1,16 +1,23 @@
 /**
- * Honorários da cenotécnica — testes das três telas (16/10): quem pede (aba
- * da Validação), o aprovador (aba da Aprovação) e o Financeiro (página).
+ * Honorários da cenotécnica — testes das telas: quem pede (desde 20/10 na
+ * Escalação — o painel do evento e a aba Honorário do modal da vaga), o
+ * aprovador (tela Aprovação de honorários) e o Financeiro (página).
  * O fetch é mockado por URL; o que importa é o que a tela manda ao servidor
  * e o que ela mostra em cada estado.
  */
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
+import type { TeamInclusion } from "@shared/schema";
+import { Tabs } from "@/components/ui/tabs";
 import { renderComTudo } from "@/test/render";
 import { mockarFetch, respostaJson, usuarioFake, type RoteadorDeFetch } from "@/test/fixtures";
+import { visibleTabs } from "@/components/layout/nav-items";
 import { PedidoPainel } from "./pedido-painel";
 import { AprovacaoPainel } from "./aprovacao-painel";
+import { AbaHonorarioDaVaga, useHonorarioDaVaga } from "./aba-da-vaga";
 import HonorariosCenoPage from "@/pages/honorarios-ceno";
+import AprovacaoDeHonorariosPage from "@/pages/aprovacao-de-honorarios";
 import type { Honorario, HonorarioDoFinanceiro, PedidoDoEvento } from "./api";
 
 const producao = usuarioFake({ id: "u-pede", role: "production", name: "Quem Pede" });
@@ -267,5 +274,164 @@ describe("Honorários — Financeiro", () => {
     renderComTudo(<HonorariosCenoPage />, { user: producao, rota: "/honorarios-ceno" });
     expect(await screen.findByTestId("hon-fin-sem-acesso")).toBeInTheDocument();
     expect(chamadas.some((c) => c.url.includes("/financeiro"))).toBe(false);
+  });
+});
+
+// ── 20/10: pedir na Escalação (modal da vaga) e aprovar em tela própria ─────
+
+function NaVaga({ vagaId = "v1", funcao = "Cenotécnica" }: { vagaId?: string; funcao?: string }) {
+  const inclusion = { id: vagaId, eventId: "ev1", functionId: "f1" } as unknown as TeamInclusion;
+  const hon = useHonorarioDaVaga(inclusion, funcao, true);
+  const [rodape, setRodape] = useState<HTMLDivElement | null>(null);
+  return (
+    <Tabs value="honorario">
+      <span data-testid="aba-visivel">{hon.visivel ? "sim" : "nao"}</span>
+      {hon.visivel && <AbaHonorarioDaVaga inclusion={inclusion} hon={hon} rodape={rodape} onFechar={() => {}} />}
+      <div ref={setRodape} />
+    </Tabs>
+  );
+}
+
+describe("Honorários — aba Honorário no modal da vaga (Escalação)", () => {
+  it("vaga que não é da cenotécnica: nenhuma consulta de honorário e nada aparece", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({ "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }) }, chamadas));
+    renderComTudo(<NaVaga funcao="Ativação" />, { user: producao });
+    expect(await screen.findByTestId("aba-visivel")).toHaveTextContent("nao");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(chamadas.some((c) => c.url.includes("/api/honorarios-ceno"))).toBe(false);
+  });
+
+  it("quem não pede honorário não vê a aba (e não busca os valores do evento)", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({ "GET /api/honorarios-ceno/acesso": ACESSO({ podeAprovar: true }) }, chamadas));
+    renderComTudo(<NaVaga />, { user: aprovador });
+    await waitFor(() => expect(chamadas.some((c) => c.url.includes("/acesso"))).toBe(true));
+    expect(screen.getByTestId("aba-visivel")).toHaveTextContent("nao");
+    expect(chamadas.some((c) => c.url.includes("/pedido"))).toBe(false);
+  });
+
+  it("vaga da casa (fora das linhas do pedido): a aba não existe", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(pedido()),
+    }, chamadas));
+    renderComTudo(<NaVaga vagaId="v3" />, { user: producao });
+    await waitFor(() => expect(chamadas.some((c) => c.url.includes("/pedido"))).toBe(true));
+    expect(screen.getByTestId("aba-visivel")).toHaveTextContent("nao");
+  });
+
+  it("rascunho: muda o valor, Enviar grava e manda a versão nova para o aprovador", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(pedido()),
+      "GET /api/honorarios-ceno/h1/historico": () => respostaJson({ honorario: honorario(), historico: [], liberacoes: [] }),
+      "PATCH /api/honorarios-ceno/h1": (c) => respostaJson(honorario({ versao: 3, valorPedido: (c.corpo as { valorPedido: number }).valorPedido })),
+      "POST /api/honorarios-ceno/enviar": () => respostaJson({ enviados: ["h1"], recusados: [] }),
+    }, chamadas));
+    const { user } = renderComTudo(<NaVaga />, { user: producao });
+
+    expect(await screen.findByTestId("hon-vaga-situacao")).toHaveTextContent("Rascunho");
+    const valor = screen.getByLabelText("Valor negociado");
+    await user.clear(valor);
+    await user.type(valor, "2000");
+    expect(screen.getByTestId("hon-vaga-salvo")).toHaveTextContent("Alterações não salvas");
+    expect(screen.getByTestId("hon-vaga-por-diaria")).toHaveTextContent(/666,67/);
+
+    await user.click(screen.getByTestId("hon-vaga-enviar"));
+    const dialogo = await screen.findByRole("alertdialog");
+    await user.click(within(dialogo).getByRole("button", { name: /^Enviar · R\$\s?2\.000,00/ }));
+    await waitFor(() => expect(chamadas.some((c) => c.url === "/api/honorarios-ceno/enviar")).toBe(true));
+    expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toMatchObject({ versao: 2, valorPedido: 200_000, setor: "montagem", posicao: "freela_local", diarias: 3 });
+    expect(chamadas.find((c) => c.url === "/api/honorarios-ceno/enviar")!.corpo).toEqual({ itens: [{ id: "h1", versao: 3 }] });
+  });
+
+  it("vaga sem pedido: Salvar rascunho cria o pedido da vaga; sem setor o Enviar fica travado com o motivo", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(pedido()),
+      "POST /api/honorarios-ceno": () => respostaJson(honorario({ id: "h2", teamInclusionId: "v2", nome: "Pessoa Dois" }), 201),
+    }, chamadas));
+    const { user } = renderComTudo(<NaVaga vagaId="v2" />, { user: producao });
+    expect(await screen.findByTestId("hon-vaga-situacao")).toHaveTextContent("Sem pedido");
+    expect(screen.getByTestId("hon-vaga-enviar")).toBeDisabled();
+    expect(screen.getByTestId("hon-vaga-falta")).toHaveTextContent("Informe o valor negociado.");
+    await user.type(screen.getByLabelText("Valor negociado"), "900");
+    expect(screen.getByTestId("hon-vaga-falta")).toHaveTextContent("Escolha o setor.");
+    await user.click(screen.getByTestId("hon-vaga-salvar"));
+    await waitFor(() => expect(chamadas.some((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")).toBe(true));
+    expect(chamadas.find((c) => c.metodo === "POST" && c.url === "/api/honorarios-ceno")!.corpo).toMatchObject({ eventId: "ev1", tipo: "vaga", teamInclusionId: "v2", valorPedido: 90_000 });
+  });
+
+  it("devolvido: mostra o motivo e oferece Reenviar", async () => {
+    const p = pedido();
+    p.linhas[0] = { ...p.linhas[0], honorario: honorario({ status: "devolvido", enviadoEm: "2099-10-02T10:00:00Z", decididoPorNome: "Quem Aprova", decididoEm: new Date().toISOString(), motivoDecisao: "Acima do combinado", podeRemover: false }) };
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(p),
+    }, []));
+    renderComTudo(<NaVaga />, { user: producao });
+    expect(await screen.findByTestId("hon-vaga-motivo")).toHaveTextContent("Acima do combinado");
+    expect(screen.getByTestId("hon-vaga-enviar")).toHaveTextContent("Reenviar para aprovação");
+  });
+
+  it("aguardando: só leitura (sem Salvar/Enviar); aprovado com ajuste mostra o valor aprovado", async () => {
+    const p = pedido();
+    p.linhas[0] = { ...p.linhas[0], honorario: honorario({ status: "aguardando", podeEditar: false, podeRemover: false, enviadoPorNome: "Quem Pede", enviadoEm: new Date().toISOString() }) };
+    p.linhas[1] = { ...p.linhas[1], honorario: honorario({ id: "h2", teamInclusionId: "v2", status: "aprovado_ajuste", valorPedido: 120_000, valorAprovado: 100_000, falta: 100_000, podeEditar: false, podeRemover: false, decididoPorNome: "Quem Aprova", decididoEm: "2099-10-05T10:00:00Z", motivoDecisao: "3 diárias" }) };
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(p),
+    }, []));
+    const { unmount } = renderComTudo(<NaVaga />, { user: producao });
+    expect(await screen.findByTestId("hon-vaga-situacao")).toHaveTextContent("Aguardando aprovação");
+    expect(screen.getByTestId("hon-vaga-pedido")).toBeInTheDocument();
+    expect(screen.queryByTestId("hon-vaga-enviar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hon-vaga-salvar")).not.toBeInTheDocument();
+    unmount();
+    renderComTudo(<NaVaga vagaId="v2" />, { user: producao });
+    expect(await screen.findByTestId("hon-vaga-valor-aprovado")).toHaveTextContent("R$ 1.000,00");
+    expect(screen.getByTestId("hon-vaga-situacao")).toHaveTextContent("3 diárias");
+  });
+});
+
+describe("Honorários — tela Aprovação de honorários", () => {
+  const pendente = (p: Partial<Honorario>) => honorario({ status: "aguardando", podeEditar: false, podeRemover: false, podeDecidir: true, eAprovador: true, enviadoPorNome: "Quem Pede", enviadoEm: new Date().toISOString(), ...p });
+
+  it("totais, aba Aguardando com o contador e a troca para Decididos", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podeAprovar: true }),
+      "GET /api/honorarios-ceno/aprovacao": (c) => respostaJson(c.url.includes("decididos")
+        ? [honorario({ id: "d1", nome: "Já Aprovado", status: "aprovado", valorAprovado: 50_000, valorPedido: 50_000, falta: 50_000, podeEditar: false, decididoPorNome: "Quem Aprova", decididoEm: new Date().toISOString() })]
+        : [pendente({ id: "a1", valorPedido: 120_000 }), pendente({ id: "a2", nome: "Pessoa Dois", valorPedido: 80_000 })]),
+    }, []));
+    const { user } = renderComTudo(<AprovacaoDeHonorariosPage />, { user: aprovador, rota: "/aprovacao-de-honorarios" });
+    const totais = await screen.findByTestId("hon-apr-totais");
+    expect(totais).toHaveTextContent("R$ 2.000");
+    expect(totais).toHaveTextContent("R$ 500");
+    expect(screen.getByRole("tab", { name: /Aguardando/ })).toHaveTextContent("2");
+    expect(await screen.findByTestId("hon-apr-total-evento")).toHaveTextContent("R$ 2.000,00");
+    await user.click(screen.getByRole("tab", { name: /Decididos/ }));
+    expect(await screen.findByTestId("hon-decididos")).toHaveTextContent("Já Aprovado");
+  });
+
+  it("quem não aprova honorário vê a tela fechada, sem buscar a fila", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({ "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }) }, chamadas));
+    renderComTudo(<AprovacaoDeHonorariosPage />, { user: producao, rota: "/aprovacao-de-honorarios" });
+    expect(await screen.findByTestId("hon-apr-sem-acesso")).toBeInTheDocument();
+    expect(chamadas.some((c) => c.url.includes("/aprovacao"))).toBe(false);
+  });
+
+  it("o item do menu só aparece para quem aprova honorário, logo depois da Aprovação de escala", () => {
+    const ids = (extra?: { aprovaHonorarios?: boolean }) => visibleTabs(aprovador, extra).map((t) => t.id);
+    expect(ids()).not.toContain("aprovacao-de-honorarios");
+    expect(ids({ aprovaHonorarios: false })).not.toContain("aprovacao-de-honorarios");
+    const comAcesso = ids({ aprovaHonorarios: true });
+    expect(comAcesso).toContain("aprovacao-de-honorarios");
+    expect(comAcesso.indexOf("aprovacao-de-honorarios")).toBe(comAcesso.indexOf("scaling-approval") + 1);
   });
 });

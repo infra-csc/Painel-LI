@@ -1,12 +1,14 @@
 /**
  * Modal "Detalhes da escalação" — 4 abas (Resumo, Passagem, Hospedagem,
- * Comentários e Histórico), header com navegação ‹ › pela lista atual e
+ * Comentários e Histórico) + "Honorário" na vaga de cenotécnica de quem
+ * pede (20/10, honorarios-ceno/aba-da-vaga), header com navegação ‹ › pela lista atual e
  * footer com Fechar / Salvar / Salvar e próxima / Confirmar.
  *
  * Desde 25/09 este arquivo só monta o modal: o estado vive em
  * `inclusion-details/use-inclusion-dialog-state.ts` e cada parte (cabeçalho,
  * Resumo em cartões, rodapé, anexos) em `inclusion-details/*`. Tinha 1.270 linhas.
  */
+import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -20,6 +22,7 @@ import { DetailsHeader } from "./inclusion-details/details-header";
 import { DetailsFooter } from "./inclusion-details/details-footer";
 import { ResumoTab } from "./inclusion-details/resumo-tab";
 import { AttachmentList } from "./inclusion-details/attachments";
+import { AbaHonorarioDaVaga, useHonorarioDaVaga } from "@/components/honorarios-ceno/aba-da-vaga";
 import { conflitosUnicos, doneBadge, pendingBadge, tabTrigger, type InclusionDetailsDialogProps } from "./inclusion-details/details-shared";
 
 export type { DetailsTab, InclusionDetailsDialogProps } from "./inclusion-details/details-shared";
@@ -36,6 +39,17 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
   } = st;
   const { collaborators, getEventName, getFunctionName, getCollaboratorName, getCollaboratorConflicts } = data;
   const { comments, historico } = details;
+
+  // Honorário da cenotécnica (20/10): a aba só existe para a vaga e a pessoa que pedem.
+  const hon = useHonorarioDaVaga(inclusion, inclusion ? getFunctionName(inclusion.functionId) : "", open);
+  // Chegou pedindo a aba (link do sino) e ela não existe para esta vaga: volta ao Resumo.
+  useEffect(() => {
+    if (activeTab === "honorario" && !hon.carregando && !hon.visivel) setActiveTab("resumo");
+  }, [activeTab, hon.carregando, hon.visivel, setActiveTab]);
+
+  /** Na aba Honorário o rodapé é o do pedido de honorário (a aba se desenha nele por portal). */
+  const [rodapeDoHonorario, setRodapeDoHonorario] = useState<HTMLDivElement | null>(null);
+  const naAbaHonorario = activeTab === "honorario" && hon.visivel;
 
   const nome = inclusion?.collaboratorId ? getCollaboratorName(inclusion.collaboratorId) : inclusion?.empreitaEmpresa ? `Empreita · ${inclusion.empreitaEmpresa}` : "Vaga sem nome";
   const renderAttachments = (ids: string[] | null | undefined, label: string) => <AttachmentList ids={ids} label={label} openAttachment={openAttachment} />;
@@ -79,6 +93,12 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                     Hospedagem
                     {accommodation ? doneBadge : inclusion.needsAccommodation ? pendingBadge : null}
                   </TabsTrigger>
+                  {hon.visivel && (
+                    <TabsTrigger value="honorario" className={tabTrigger} data-testid="aba-honorario">
+                      Honorário
+                      {hon.pendente ? pendingBadge : null}
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="comentarios" className={tabTrigger}>
                     Histórico
                     {comments && comments.length > 0 && (
@@ -94,6 +114,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
                 <ResumoTab inclusion={inclusion} props={props} st={st} />
                 <PassagemTab inclusion={inclusion} ticket={selectedTicket} renderAttachments={renderAttachments} />
                 <HospedagemTab inclusion={inclusion} accommodation={accommodation} renderAttachments={renderAttachments} />
+                {(hon.visivel || (activeTab === "honorario" && hon.carregando)) && <AbaHonorarioDaVaga key={inclusion.id} inclusion={inclusion} hon={hon} rodape={naAbaHonorario ? rodapeDoHonorario : null} onFechar={() => onOpenChange(false)} />}
                 <ComentariosTab
                   comments={comments}
                   historico={historico}
@@ -114,12 +135,16 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               </div>
             </Tabs>
 
-            <DetailsFooter
+            {naAbaHonorario ? (
+              <div ref={setRodapeDoHonorario} className="shrink-0 border-t border-border bg-card" data-testid="rodape-honorario" />
+            ) : (
+              <DetailsFooter
               inclusion={inclusion} modalData={modalData} data={data} mutations={mutations} user={user}
               eventLocked={eventLocked} requestLockReason={requestLockReason} mostrarPedirAjuste={mostrarPedirAjusteNoRodape}
               onPedirAjuste={() => setPedirAjusteAberto(true)} onReativar={() => setShowReactivateConfirm(true)}
               onClose={() => onOpenChange(false)} onSave={onSave} onConfirm={onConfirm}
-            />
+              />
+            )}
 
             {/* Sub-dialogs */}
             <SwapRequestDialog

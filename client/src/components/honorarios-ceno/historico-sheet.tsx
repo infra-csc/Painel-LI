@@ -88,7 +88,17 @@ function LinhaDaLiberacao({ l, onEstornar }: { l: Liberacao; onEstornar?: (l: Li
   );
 }
 
-function Resumo({ h }: { h: Honorario }) {
+/** A linha do tempo do pedido — na gaveta e na aba "Honorário" do modal da vaga (20/10). */
+export function LinhaDoTempo({ historico }: { historico: EntradaDoHistorico[] }) {
+  return (
+    <ol className="pl-0.5">
+      {historico.map((e, i) => <Entrada key={e.id} e={e} ultima={i === historico.length - 1} />)}
+    </ol>
+  );
+}
+
+/** Pedido · aprovado · liberado · falta, com a barra da verba. */
+export function ResumoDosValores({ h }: { h: Honorario }) {
   const aprovado = h.valorAprovado;
   const falta = faltaLiberar(aprovado, h.liberado);
   const porDia = valorPorDiaria(aprovado ?? h.valorPedido, h.diarias);
@@ -103,7 +113,7 @@ function Resumo({ h }: { h: Honorario }) {
     <section aria-label="Valores" className="space-y-2.5">
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border">
         {celula("Pedido", brl(h.valorPedido), diariasTexto(h.diarias))}
-        {celula(h.status === "aprovado_ajuste" ? "Aprovado (com ajuste)" : "Aprovado", aprovado != null ? brl(aprovado) : "—", porDia != null ? `${brl(porDia)}/diária` : undefined)}
+        {celula(h.status === "aprovado_ajuste" ? "Aprovado (com ajuste)" : "Aprovado", aprovado != null ? brl(aprovado) : "—", aprovado != null && porDia != null ? `${brl(porDia)}/diária` : undefined)}
         {celula("Liberado", brl(h.liberado))}
         {celula("Falta liberar", aprovado != null ? brl(falta) : "—")}
       </dl>
@@ -168,7 +178,7 @@ export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", aco
             </div>
           ) : (
             <>
-              <Resumo h={h} />
+              <ResumoDosValores h={h} />
               {(h.status === "devolvido" || h.status === "aprovado_ajuste") && h.motivoDecisao && (
                 <p className={cn("rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed", h.status === "devolvido" ? "border-primary/20 bg-brand-soft text-slate-700" : "border-success/20 bg-success-soft/60 text-slate-700")}>
                   <span className="block text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
@@ -193,9 +203,7 @@ export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", aco
               )}
               <section aria-labelledby="hon-hist" className="space-y-2.5">
                 <h3 id="hon-hist" className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Histórico</h3>
-                <ol className="pl-0.5">
-                  {q.data!.historico.map((e, i) => <Entrada key={e.id} e={e} ultima={i === q.data!.historico.length - 1} />)}
-                </ol>
+                <LinhaDoTempo historico={q.data!.historico} />
               </section>
             </>
           )}
