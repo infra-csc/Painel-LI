@@ -1698,6 +1698,61 @@ export const hotelRoomGroupMembers = pgTable("hotel_room_group_members", {
   index("hotel_room_group_members_group_idx").on(t.hotelRoomGroupId), // 23/09
 ]);
 
+/**
+ * Valores do hotel na aba Quartos (20/10). Tabelas próprias — nenhuma coluna
+ * de `hotel_room_groups` muda — e todas em CENTAVOS. Regra do cálculo em
+ * shared/custo-dos-quartos.ts. Migração: scripts/migrations/2026-10-20-valores-do-hotel.sql
+ * (também criadas no boot por server/ensure-schema.ts).
+ *
+ * Tarifa do evento por pessoa por noite e tipo de apartamento + o valor total
+ * pago ao hotel (fatura). Uma linha por evento (hotel único por evento).
+ */
+export const hotelTarifasEvento = pgTable("hotel_tarifas_evento", {
+  eventId: varchar("event_id").primaryKey().references(() => events.id, { onDelete: "cascade" }),
+  individualCentavos: integer("individual_centavos"),
+  duploCentavos: integer("duplo_centavos"),
+  triploCentavos: integer("triplo_centavos"),
+  faturaCentavos: integer("fatura_centavos"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+export type HotelTarifasEvento = typeof hotelTarifasEvento.$inferSelect;
+
+/**
+ * Diária própria (por pessoa por noite) e valor pago de UM quarto. Sai junto
+ * com o quarto (cascade): o "Refazer sugestões" recria os quartos não
+ * confirmados — e com eles estes valores.
+ */
+export const hotelValoresQuarto = pgTable("hotel_valores_quarto", {
+  hotelRoomGroupId: varchar("hotel_room_group_id").primaryKey().references(() => hotelRoomGroups.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  diariaPropriaCentavos: integer("diaria_propria_centavos"),
+  valorPagoCentavos: integer("valor_pago_centavos"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+}, (t) => [
+  index("hotel_valores_quarto_evento_idx").on(t.eventId),
+]);
+export type HotelValoresQuarto = typeof hotelValoresQuarto.$inferSelect;
+
+/**
+ * Late check-out por PESSOA no evento (não por ocupante de quarto: sobrevive
+ * a mover de quarto e ao recálculo). Sem linha, vale a caixa "Late check-out"
+ * da hospedagem da vaga. `valor_centavos` nulo = igual à diária da pessoa.
+ */
+export const hotelLateCheckouts = pgTable("hotel_late_checkouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  ativo: boolean("ativo").notNull().default(true),
+  valorCentavos: integer("valor_centavos"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+}, (t) => [
+  uniqueIndex("hotel_late_checkouts_evento_pessoa_uq").on(t.eventId, t.collaboratorId),
+]);
+export type HotelLateCheckout = typeof hotelLateCheckouts.$inferSelect;
+
 export const insertLogisticsExtraCostSchema = createInsertSchema(logisticsExtraCosts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUberGroupSchema = createInsertSchema(uberGroups).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   // Horas "HH:MM" (25/09) — o cálculo do carro (shared/uber-routing.ts) lê `time`.

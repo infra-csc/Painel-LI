@@ -204,7 +204,7 @@ export function PlacarDeBlocos({ resumo, totals, blocoFiltro, setBlocoFiltro, de
         <p className="text-2xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Custo do evento</p>
         <p className="mt-1 text-xl font-semibold leading-6 tabular-nums tracking-[-0.02em] text-foreground" data-testid="mirror-total-geral">{brl(totals.grand)}</p>
         <p className="mt-1.5 text-2xs leading-4 text-muted-foreground">
-          {derivedHotelCount > 0 ? "Hospedagem calculada por diária × noites" : "Soma dos cinco blocos"}
+          {derivedHotelCount > 0 ? "Inclui hotel calculado" : "Soma dos cinco blocos"}
         </p>
       </div>
     </div>

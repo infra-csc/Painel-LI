@@ -22,6 +22,13 @@
  * evento" no topo (hotel-do-evento.tsx) aplica o hotel a todos os quartos; o
  * cabeçalho de cada bloco mostra o hotel discreto e "trocar só este" vira a
  * exceção, em vez de pedir "Definir hotel…" quarto a quarto.
+ *
+ * 20/10, dono: "colocar o preço total e de cada quarto no Espelho". Abaixo do
+ * hotel do evento, o painel "Valores do hotel" (valores-do-hotel.tsx: tarifas
+ * por pessoa por noite, distribuição, calculado × pago); em cada bloco, o
+ * rodapé com a conta das noites e o total do quarto, e em cada ocupante o
+ * valor dele e o late check-out (valores-do-quarto.tsx). As datas usadas na
+ * conta são as MESMAS da tela (periodoNoQuarto, shared/custo-dos-quartos.ts).
  */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangle, Building2, CheckCheck, Loader2, Moon, Pencil, RefreshCw, BedDouble, Scissors, StickyNote } from "lucide-react";
@@ -31,10 +38,14 @@ import { seloDaOrigem } from "@shared/datas-do-quarto";
 import { observacaoDeDatas, PREFIXO_DATAS_DIFERENTES } from "@shared/room-pairing";
 import { ocupacaoPorNoite, rotuloDoTipo, type TipoDoTrecho } from "@shared/ocupacao-por-noite";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, type QuartoDaRoomingList } from "@shared/rooming-list";
+import { chaveDoOcupante, custoDoHotel, entradaDoCustoDoHotel, periodoNoQuarto, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
+import { fonteDoHotel } from "@shared/operational-mirror-types";
 import { HotelDoEvento } from "./hotel-do-evento";
+import { PainelDeValoresDoHotel, useValoresDoHotel } from "./valores-do-hotel";
+import { ValorDaPessoa, ValoresDoQuarto } from "./valores-do-quarto";
 import { MoverPara } from "./mover-para";
 import { RoomingListPdf } from "./rooming-list-pdf";
-import { diaSemana, fmtDate, memberInfo, type GroupViewProps } from "./mirror-shared";
+import { brl, diaSemana, fmtDate, memberInfo, type GroupViewProps } from "./mirror-shared";
 
 /** A cor do TIPO é detalhe (o ponto do selo), não o separador entre quartos. */
 const COR_DO_TIPO: Record<TipoDoTrecho, string> = {
@@ -193,9 +204,15 @@ export type QuartosViewProps = GroupViewProps<RoomGroup> & {
   recalcPending?: boolean;
   /** Evento do espelho — com ele aparece "PDF para o hotel" (rooming list). */
   evento?: MirrorEvent;
+  /**
+   * Valores do hotel gravados (20/10). `undefined` = servidor antigo (nada de
+   * valores na tela); `null` = tabelas ainda não criadas no banco.
+   */
+  valores?: ValoresDoHotelSalvos | null;
 };
 
-export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onSeparar, onMover, pendingId, onPatchMembro, onRecalc, recalcPending, evento }: QuartosViewProps) {
+export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onSeparar, onMover, pendingId, onPatchMembro, onRecalc, recalcPending, evento, valores }: QuartosViewProps) {
+  const mutacoesDeValores = useValoresDoHotel(evento?.id ?? "");
   const refazer = canEdit && onRecalc ? (
     <button type="button" onClick={onRecalc} disabled={recalcPending}
       className="esp-alvo inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-3 text-xs font-medium text-slate-700 shadow-1 transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
@@ -231,12 +248,14 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
     const r = m.id ? rowByCollab.get(m.id) : undefined;
     // Estadia DESTA pessoa, quando ela difere do grupo (montagem,
     // desmontagem). Vazio = segue o quarto.
-    const bruto = (g.members || [])[mi] as { id?: string; checkInDate?: string | null; checkOutDate?: string | null } | undefined;
+    const bruto = (g.members || [])[mi] as { id?: string; collaboratorId?: string | null; checkInDate?: string | null; checkOutDate?: string | null } | undefined;
     // Sem estadia própria, vale a regra da passagem (09/10); servidor antigo
-    // sem `datasDoQuarto` cai na ordem de antes.
+    // sem `datasDoQuarto` cai na ordem de antes. A mesma regra que a conta
+    // dos valores do hotel usa (periodoNoQuarto).
     const dq = r?.datasDoQuarto;
-    const ini = bruto?.checkInDate || dq?.checkIn || r?.accommodation?.checkInDate || r?.schedule.startDate || g.checkInDate;
-    const fim = bruto?.checkOutDate || dq?.checkOut || r?.accommodation?.checkOutDate || r?.schedule.endDate || g.checkOutDate;
+    const { checkIn: ini, checkOut: fim } = periodoNoQuarto(bruto, r, g);
+    /** Identidade da pessoa na conta dos valores (shared/custo-dos-quartos.ts). */
+    const chave = chaveDoOcupante(bruto ?? {}, mi, g.id);
     /** De onde veio cada data — o selo discreto embaixo dela, e o motivo da noite a mais. */
     const origem = (qual: "entrada" | "saida"): { base: string; extra?: string } | null => {
       if (qual === "entrada" ? bruto?.checkInDate : bruto?.checkOutDate) return { base: "ajustada no quarto" };
@@ -247,7 +266,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
       if (qual === "saida" && dq.diariaExtraNaVolta) return { base, extra: `+1 diária · volta ${dq.diariaExtraNaVolta.horario}` };
       return { base };
     };
-    return { m, r, bruto, ini, fim, mi, origem, divergencia: dq?.divergencia?.texto ?? null };
+    return { m, r, bruto, ini, fim, mi, origem, chave, divergencia: dq?.divergencia?.texto ?? null };
   });
   type Ocupante = ReturnType<typeof ocupantes>[number];
 
@@ -264,6 +283,18 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
     const manual = g.notes && !g.notes.startsWith(PREFIXO_DATAS_DIFERENTES) ? g.notes : null;
     return { g, numero: gi + 1, lista, trechos, divergenciaComum, notas: [auto, manual].filter((x): x is string => !!x) };
   });
+
+  /* Valores do hotel (20/10): a mesma conta do servidor, com as datas desta tela. */
+  const comPainel = !!evento && valores !== undefined;
+  const custo = custoDoHotel(entradaDoCustoDoHotel(groups, rows, valores ?? null));
+  const comValores = comPainel && custo.temValores;
+  const numeroDoQuarto = new Map(quartos.map((q) => [q.g.id, q.numero]));
+  const escolhasDeLate = new Set((valores?.lateCheckouts ?? []).map((l) => l.collaboratorId));
+  /** "R$ 138,00 por pessoa" do trecho — no título do selo de ocupação. */
+  const tarifaDoTrecho = (quartoId: string, de: string) => {
+    const t = comValores ? custo.porQuarto.get(quartoId)?.trechos.find((x) => x.de === de) : undefined;
+    return t?.tarifaCentavos != null ? ` · ${brl(t.tarifaCentavos)} por pessoa` : "";
+  };
 
   const nomeDoOcupante = (g: RoomGroup, o: Ocupante) => (
     // Nome inteiro, nunca cortado: se não couber com os selos, ele quebra em
@@ -323,7 +354,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
             const nomes = t.ocupantes.map((x) => x.o.m.name.split(" ")[0]).join(", ");
             return (
               <span key={t.de} role="listitem" className="esp-trecho"
-                title={`${ddmm(t.de)} a ${ddmm(t.ate)} · ${t.noites} ${t.noites === 1 ? "noite" : "noites"} · ${nomes}`}>
+                title={`${ddmm(t.de)} a ${ddmm(t.ate)} · ${t.noites} ${t.noites === 1 ? "noite" : "noites"} · ${nomes}${tarifaDoTrecho(q.g.id, t.de)}`}>
                 <i className="esp-trecho-ponto" style={{ background: COR_DO_TIPO[t.tipo] }} aria-hidden="true" />
                 <span className="tabular-nums text-muted-foreground">{ddmm(t.de)}→{ddmm(t.ate)}</span>
                 <span className="font-semibold text-foreground">{rotuloDoTipo(t.tipo)}</span>
@@ -403,11 +434,19 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
   };
 
   // Dados da rooming list: as MESMAS datas que a tela mostra.
-  const quartosParaPdf: QuartoDaRoomingList[] = quartos.map((q) => ({
-    hotelName: q.g.hotelName,
-    observacao: q.g.notes && !q.g.notes.startsWith(PREFIXO_DATAS_DIFERENTES) ? q.g.notes : null,
-    hospedes: q.lista.map((o) => ({ collaboratorId: o.m.id ?? null, nome: o.m.name, checkIn: dia(o.ini), checkOut: dia(o.fim) })),
-  }));
+  // Os valores só vão no PDF "com valores (uso interno)" — o do hotel sai sem.
+  const quartosParaPdf: QuartoDaRoomingList[] = quartos.map((q) => {
+    const cq = comValores ? custo.porQuarto.get(q.g.id) : undefined;
+    return {
+      hotelName: q.g.hotelName,
+      observacao: q.g.notes && !q.g.notes.startsWith(PREFIXO_DATAS_DIFERENTES) ? q.g.notes : null,
+      hospedes: q.lista.map((o) => ({
+        collaboratorId: o.m.id ?? null, nome: o.m.name, checkIn: dia(o.ini), checkOut: dia(o.fim),
+        ...(cq ? { valorCentavos: cq.pessoas.find((p) => p.chave === o.chave)?.totalCentavos ?? null } : {}),
+      })),
+      ...(cq ? { valorCentavos: cq.totalCentavos, valorCompleto: cq.completo } : {}),
+    };
+  });
 
   return (
     <section data-testid="quartos-view">
@@ -419,7 +458,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         </p>
         <p className="hidden text-xs text-muted-foreground xl:block">· mesmas datas primeiro, depois a mesma função</p>
         <span className="ml-auto flex flex-wrap items-center gap-2">
-          {evento && <RoomingListPdf evento={evento} quartos={quartosParaPdf} />}
+          {evento && <RoomingListPdf evento={evento} quartos={quartosParaPdf} comValoresDisponivel={comValores} />}
           {refazer}
         </span>
       </header>
@@ -431,14 +470,19 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         <HotelDoEvento eventId={evento.id} canEdit={canEdit} listaDeSugestoes={listaDeHoteis}
           quartos={groups.map((g) => ({ id: g.id, hotelName: g.hotelName, confirmed: g.confirmed }))} />
       )}
+      {comPainel && evento && (
+        <PainelDeValoresDoHotel eventId={evento.id} canEdit={canEdit} valores={valores ?? null} custo={custo}
+          numeroDoQuarto={numeroDoQuarto} totalDeQuartos={groups.length} mutacoes={mutacoesDeValores} />
+      )}
 
-      <div className="esp-quartos-lista">
+      <div className="esp-quartos-lista" data-valores={comValores || undefined}>
         {/* Uma régua de colunas para todos os blocos — a mesma grade das linhas. */}
         <div className="esp-quartos-colunas" aria-hidden="true">
           <span className="esp-col-nome">Ocupante<span className="esp-so-medio"> · departamento</span></span>
           <span className="esp-col-dep">Departamento</span>
           <span className="esp-col-ent">Entrada</span>
           <span className="esp-col-sai">Saída</span>
+          {comValores && <span className="esp-col-val">Valor</span>}
         </div>
 
         {quartos.map((q) => {
@@ -482,9 +526,18 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
                     </div>
                     {data(o, "entrada")}
                     {data(o, "saida")}
+                    {comValores && (
+                      <ValorDaPessoa pessoa={custo.porQuarto.get(g.id)?.pessoas.find((p) => p.chave === o.chave)} nome={o.m.name}
+                        collaboratorId={o.m.id ?? null} temEscolhaSalva={!!o.m.id && escolhasDeLate.has(o.m.id)} lateNaHospedagem={!!o.r?.accommodation?.lateCheckout}
+                        lancadoCentavos={o.r && fonteDoHotel(o.r) === "lancado" ? o.r.accommodation?.totalCents ?? null : null}
+                        canEdit={canEdit} mutacoes={mutacoesDeValores} />
+                    )}
                   </li>
                 ))}
               </ul>
+              {comValores && custo.porQuarto.get(g.id) && (
+                <ValoresDoQuarto quarto={custo.porQuarto.get(g.id)!} canEdit={canEdit} mutacoes={mutacoesDeValores} />
+              )}
             </article>
           );
         })}

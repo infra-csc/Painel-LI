@@ -65,7 +65,7 @@ const ACC_FIELDS: FieldDef[] = [
   { field: "accommodation.nightsCount", label: "Noites", type: "int", group: "Período" },
   { field: "accommodation.lateCheckout", label: "Late check-out", type: "bool", group: "Período" },
   { field: "accommodation.dailyRate", label: "Valor da diária", type: "money", group: "Valores" },
-  { field: "accommodation.totalCents", label: "Total do hotel", type: "money", group: "Valores", hint: "Em branco, o total é diária × noites." },
+  { field: "accommodation.totalCents", label: "Total do hotel", type: "money", group: "Valores", hint: "Em branco, vale o calculado na aba Quartos (tarifas do hotel) ou diária × noites." },
   { field: "accommodation.paymentCompany", label: "Empresa de pagamento", type: "text", group: "Valores" },
   { field: "accommodation.hotelOc", label: "OC", type: "text", group: "Valores" },
   { field: "accommodation.checkIn4", label: "Conferência", type: "text", span: 2, group: "Valores", hint: "Quem conferiu esta hospedagem no fechamento." },

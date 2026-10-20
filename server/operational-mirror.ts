@@ -17,6 +17,9 @@ import {
   uberGroupMembers,
   hotelRoomGroups,
   hotelRoomGroupMembers,
+  hotelTarifasEvento,
+  hotelValoresQuarto,
+  hotelLateCheckouts,
   systemSettings,
   type Ticket,
 } from "@shared/schema";
@@ -32,6 +35,7 @@ import {
   type RoomGroup,
   type UberGroup,
 } from "@shared/operational-mirror-types";
+import { custoDoHotel, entradaDoCustoDoHotel, linhaPorColaborador, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
 
 // ---------- Tipos do espelho operacional ----------
 // O contrato (MirrorRow, MirrorTotals, MirrorResponse...) vive em
@@ -413,15 +417,44 @@ function indexarExtras(extras: ExtraCost[]) {
   };
 }
 
+/**
+ * Valores do hotel gravados na aba Quartos (20/10). Tolerante: as tabelas são
+ * criadas no boot (ensure-schema, em segundo plano) — enquanto não existem, o
+ * Espelho abre como antes (`null`) em vez de cair inteiro.
+ */
+export async function carregarValoresDoHotel(eventId: string, exec: Exec = db): Promise<ValoresDoHotelSalvos | null> {
+  try {
+    const [[tarifas], quartos, lates] = await Promise.all([
+      exec.select().from(hotelTarifasEvento).where(eq(hotelTarifasEvento.eventId, eventId)),
+      exec.select().from(hotelValoresQuarto).where(eq(hotelValoresQuarto.eventId, eventId)),
+      exec.select().from(hotelLateCheckouts).where(eq(hotelLateCheckouts.eventId, eventId)),
+    ]);
+    return {
+      tarifas: {
+        single: tarifas?.individualCentavos ?? null,
+        double: tarifas?.duploCentavos ?? null,
+        triple: tarifas?.triploCentavos ?? null,
+      },
+      faturaCentavos: tarifas?.faturaCentavos ?? null,
+      quartos: quartos.map((q) => ({ quartoId: q.hotelRoomGroupId, diariaPropriaCentavos: q.diariaPropriaCentavos, valorPagoCentavos: q.valorPagoCentavos })),
+      lateCheckouts: lates.map((l) => ({ collaboratorId: l.collaboratorId, ativo: l.ativo, valorCentavos: l.valorCentavos })),
+    };
+  } catch (erro) {
+    console.error("[espelho] valores do hotel indisponíveis (tabelas ainda não criadas?) —", erro instanceof Error ? erro.message : erro);
+    return null;
+  }
+}
+
 // ---------- Buscar dados consolidados ----------
 export async function getOperationalMirror(eventId: string): Promise<MirrorResponse | null> {
-  const [base, extras, uberGroupRows, roomGroupRows, uberMemberRows, roomMemberRows] = await Promise.all([
+  const [base, extras, uberGroupRows, roomGroupRows, uberMemberRows, roomMemberRows, valoresDoHotel] = await Promise.all([
     carregarBaseDoEvento(eventId),
     db.select().from(logisticsExtraCosts).where(eq(logisticsExtraCosts.eventId, eventId)),
     db.select().from(uberGroups).where(eq(uberGroups.eventId, eventId)).orderBy(asc(uberGroups.createdAt), asc(uberGroups.id)),
     db.select().from(hotelRoomGroups).where(eq(hotelRoomGroups.eventId, eventId)).orderBy(asc(hotelRoomGroups.createdAt), asc(hotelRoomGroups.id)),
     membrosDeUberDoEvento(db, eventId),
     membrosDeQuartoDoEvento(db, eventId),
+    carregarValoresDoHotel(eventId),
   ]);
   if (!base) return null;
   const { event, inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga } = base;
@@ -540,6 +573,23 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     };
   });
 
+  // ----- Hotel calculado pela aba Quartos (20/10) -----
+  // As MESMAS entradas que a tela monta (shared/custo-dos-quartos.ts): cada
+  // pessoa recebe o custo das noites dela × a tarifa do tipo da noite (ou a
+  // diária própria do quarto) + late check-out. Com duas vagas no evento, o
+  // custo vai para a linha que a aba Quartos mostra (a última).
+  if (valoresDoHotel) {
+    const custo = custoDoHotel(entradaDoCustoDoHotel(roomGroupsWithMembers, rows, valoresDoHotel));
+    if (custo.temValores) {
+      const daPessoa = linhaPorColaborador(rows);
+      for (const r of rows) {
+        const id = r.collaborator.id;
+        const c = id && daPessoa.get(id) === r ? custo.porPessoa.get(id) : undefined;
+        r.hotelDosQuartos = c && c.noites > 0 ? { totalCentavos: c.totalCentavos, noites: c.noites, completo: c.completo } : null;
+      }
+    }
+  }
+
   // ----- Totais -----
   let totalTickets = 0, totalHotel = 0, totalBaggage = 0, totalUber = 0, totalCarRental = 0;
   // Passagem da linha + passagens de histórico da mesma vaga (troca aprovada).
@@ -631,6 +681,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     pendingCount,
     suggestedRoomCount: roomGroupRows.length,
     suggestedUberCount: uberGroupRows.length,
+    valoresDoHotel,
   };
 }
 
@@ -1431,6 +1482,10 @@ function lerCampoDaLinha(r: MirrorRow, campo: string): unknown {
   if (grupo === "baggage" && chave === "amountCents") return r.baggage.extraCents;
   if (grupo === "uber" && chave === "amountCents") return r.uber.totalCents;
   if (grupo === "carRental" && chave === "amountCents") return r.carRental.totalCents;
+  // "HOTEL TT R$" sai na planilha com o total EFETIVO (lançado, ou calculado
+  // pela aba Quartos / diária × noites). Comparar com ele: reimportar a mesma
+  // planilha não pode transformar o calculado em valor lançado à mão (20/10).
+  if (grupo === "accommodation" && chave === "totalCents") return hotelTotalCents(r) || null;
   const bloco = (r as unknown as Record<string, unknown>)[grupo] as Record<string, unknown> | null;
   return bloco ? bloco[chave] : null;
 }

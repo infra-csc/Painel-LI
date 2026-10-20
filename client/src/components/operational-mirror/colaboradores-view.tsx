@@ -75,7 +75,7 @@ export function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage, pen
                   <span className="capitalize">{r.function.area || r.function.name || "Sem função"}</span>{meta ? ` · ${meta}` : ""}
                 </p>
               </div>
-              <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground xl:hidden" title={hotelDerived ? "Inclui hospedagem calculada por diária × noites" : undefined}>{brl(indivTotal)}</p>
+              <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground xl:hidden" title={hotelDerived ? "Inclui hospedagem calculada (aba Quartos ou diária × noites)" : undefined}>{brl(indivTotal)}</p>
               {canEdit && (
                 <button type="button" onClick={() => openDrawer(usaPassagem ? "ticket" : "accommodation", r)} aria-label={`Editar ${r.collaborator.fullName}`}
                   className="esp-alvo -mr-1.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:hidden">
@@ -105,7 +105,7 @@ export function ColaboradoresView({ rows, openDrawer, canEdit, emptyMessage, pen
               {r.observations && <p className="col-span-2 text-xs text-muted-foreground lg:col-span-4"><span className="font-medium text-slate-600">Obs.:</span> {r.observations}</p>}
             </div>
             <div className="hidden items-center gap-2 xl:flex">
-              <p className="min-w-[92px] text-right text-sm font-semibold tabular-nums text-foreground" title={hotelDerived ? "Inclui hospedagem calculada por diária × noites" : undefined}>{brl(indivTotal)}</p>
+              <p className="min-w-[92px] text-right text-sm font-semibold tabular-nums text-foreground" title={hotelDerived ? "Inclui hospedagem calculada (aba Quartos ou diária × noites)" : undefined}>{brl(indivTotal)}</p>
               {canEdit && (
                 <button type="button" onClick={() => openDrawer(usaPassagem ? "ticket" : "accommodation", r)} aria-label={`Editar ${r.collaborator.fullName}`}
                   className="esp-alvo inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

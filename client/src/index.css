@@ -3576,6 +3576,165 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .esp-hotel-evento-situacao { flex: 1 1 0; min-width: 160px; }
 }
 
+/* ══ Espelho · Quartos · Valores do hotel (20/10) ═════════════════════════════
+ * Dono: "colocar o valor total que estou pagando e ele distribuir". Um painel
+ * abaixo do hotel do evento (tarifas | calculado × pago, e a distribuição por
+ * tipo embaixo); em cada bloco, um rodapé com a conta das noites; em cada
+ * ocupante, a coluna Valor. Números sempre tabulares; cor só para significado
+ * (falta tarifa = âmbar, diferença acima/abaixo, o ponto de cada tipo). */
+.esp-valores {
+  margin-bottom: 12px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--card); box-shadow: var(--elevation-1);
+}
+.esp-valores-cab {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px;
+  padding: 8px 10px 8px 16px; border-bottom: 1px solid var(--border);
+}
+.esp-valores-titulo {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0;
+  font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted-foreground); white-space: nowrap;
+}
+.esp-valores-corpo { display: grid; gap: 16px; padding: 14px 16px; }
+.esp-valores-tarifas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.esp-valores-tarifa, .esp-valores-celula { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.esp-valores-rotulo {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted-foreground);
+}
+.esp-valores-ponto { width: 7px; height: 7px; border-radius: 999px; flex-shrink: 0; }
+.esp-valores-dica { font-size: 11px; line-height: 16px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.esp-valores-numero { display: flex; align-items: center; min-height: 36px; font-size: 14px; font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.esp-valores-total { display: flex; align-items: center; min-height: 36px; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.esp-valores-tarifa[data-falta] .esp-dinheiro { border-color: color-mix(in srgb, var(--warning-strong) 45%, var(--input)); }
+/* Calculado em cima, Pago | Diferença embaixo no celular; três colunas do tablet em diante. */
+.esp-valores-fechamento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.esp-valores-fechamento > :first-child { grid-column: 1 / -1; }
+.esp-dif-ok { color: var(--success); }
+.esp-dif-acima { color: var(--warning); }
+.esp-dif-abaixo { color: var(--info); }
+
+.esp-valores-distribuicao { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--border); }
+.esp-valores-barra { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; background: var(--muted); }
+.esp-valores-barra > span { flex-basis: 0; min-width: 3px; transition: flex-grow 220ms ease; }
+.esp-valores-legenda { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; padding: 0; list-style: none; font-size: 12px; line-height: 18px; }
+.esp-valores-legenda > li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.esp-valores-vazio { margin: 0; padding: 12px 16px 14px; border-top: 1px solid var(--border); font-size: 13px; line-height: 20px; color: var(--muted-foreground); }
+.esp-valores-avisos { display: flex; flex-direction: column; gap: 4px; padding: 0 16px 12px; }
+.esp-valores-aviso { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 17px; }
+.esp-valores-aviso > svg { margin-top: 1px; }
+.esp-valores > .esp-valores-aviso { padding: 10px 16px 0; }
+@media (min-width: 640px) {
+  .esp-valores-fechamento { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .esp-valores-fechamento > :first-child { grid-column: auto; }
+}
+@media (min-width: 1100px) {
+  .esp-valores-corpo { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 0; padding: 14px 0; }
+  .esp-valores-tarifas { padding: 0 20px 0 16px; }
+  .esp-valores-fechamento { padding: 0 16px 0 20px; border-left: 1px solid var(--border); }
+}
+
+/* Campo de dinheiro editável no lugar: "R$" fixo, número à direita dele, o
+   estado (salvando/salvo/erro) no fim do campo e o erro escrito embaixo. */
+.esp-dinheiro-campo { display: inline-flex; flex-direction: column; gap: 3px; min-width: 0; }
+.esp-dinheiro {
+  display: flex; align-items: center; height: 36px; min-width: 0; width: 100%;
+  border: 1px solid var(--input); border-radius: 8px; background: var(--card); box-shadow: var(--elevation-1);
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+.esp-dinheiro:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--input)); }
+.esp-dinheiro:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent); }
+.esp-dinheiro[data-estado="erro"] { border-color: var(--danger); }
+.esp-dinheiro[data-estado="salvo"] { animation: esp-dinheiro-salvo 1.2s ease-out; }
+.esp-dinheiro-moeda { padding-left: 10px; font-size: 12px; color: var(--muted-foreground); user-select: none; }
+.esp-dinheiro input {
+  flex: 1 1 auto; width: 100%; min-width: 0; height: 100%; padding: 0 2px 0 5px; border: 0; background: transparent;
+  font-size: 14px; font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; outline: none;
+}
+.esp-dinheiro input::placeholder { font-weight: 400; color: var(--muted-foreground); }
+.esp-dinheiro input:disabled { cursor: not-allowed; opacity: .6; }
+.esp-dinheiro-estado { display: inline-flex; width: 22px; flex-shrink: 0; justify-content: center; padding-right: 4px; }
+.esp-dinheiro-erro { font-size: 11px; line-height: 15px; font-weight: 500; color: var(--danger); }
+/* Parado, o espaço do ícone de estado encolhe: no celular cada centavo de largura conta. */
+.esp-dinheiro[data-estado="ocioso"] .esp-dinheiro-estado { width: 6px; padding-right: 0; }
+.esp-dinheiro[data-estado="ocioso"] .esp-dinheiro-estado:empty { width: 6px; }
+@media (max-width: 479px) {
+  .esp-valores-tarifas { gap: 8px; }
+  .esp-valores-tarifas .esp-dinheiro-moeda { padding-left: 8px; font-size: 11px; }
+  .esp-valores-tarifas .esp-dinheiro input { padding-left: 3px; font-size: 13px; }
+}
+.esp-dinheiro-largo { width: 100%; }
+@keyframes esp-dinheiro-salvo {
+  0% { background: color-mix(in srgb, var(--success-strong) 14%, var(--card)); border-color: var(--success-strong); }
+  100% { background: var(--card); }
+}
+
+/* Rodapé de valores do quarto: a conta à esquerda, o total à direita; diária
+   própria e valor pago numa segunda faixa, só para quem edita (ou quando há). */
+.esp-quarto-valores {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: color-mix(in srgb, var(--muted) 45%, var(--card));
+}
+.esp-quarto[data-confirmado] .esp-quarto-valores { background: color-mix(in srgb, var(--success-soft) 35%, var(--card)); }
+.esp-qv-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.esp-qv-conta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: 12px; line-height: 18px; min-width: 0; }
+.esp-qv-trecho { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.esp-qv-total { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; white-space: nowrap; }
+.esp-qv-rotulo { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); white-space: nowrap; }
+.esp-qv-ajustes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
+.esp-qv-campo { display: inline-flex; align-items: center; gap: 8px; }
+.esp-qv-campo .esp-dinheiro-campo { width: 128px; }
+.esp-qv-campo .esp-dinheiro { height: 30px; box-shadow: none; }
+.esp-qv-campo .esp-dinheiro input { font-size: 13px; }
+.esp-qv-dif { font-size: 12px; line-height: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.esp-quarto-valores[data-propria] .esp-qv-total .text-sm { color: var(--primary); }
+
+/* Coluna Valor do ocupante: no celular, uma faixa embaixo das datas; do tablet
+   em diante, a última coluna, alinhada à direita (números se comparam assim). */
+.esp-oc-val { grid-area: val; margin-top: 8px; min-width: 0; }
+.esp-oc-late {
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px;
+  background: var(--warning-soft); color: var(--warning); font-size: 11px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.esp-oc-late-botao { display: inline-flex; padding: 0; border: 0; background: none; border-radius: 999px; cursor: pointer; }
+.esp-oc-late-botao:hover .esp-oc-late { background: color-mix(in srgb, var(--warning-strong) 22%, var(--warning-soft)); }
+.esp-oc-late-botao:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.esp-col-val { grid-area: val; }
+.esp-quartos-lista[data-valores] .esp-ocupante { grid-template-areas: "quem quem" "ent sai" "val val"; }
+/* Tablet com valores: quatro colunas apertavam o nome em três linhas. Aqui o
+   nome ganha a linha inteira e Entra | Sai | Valor ficam embaixo, com rótulo
+   (a régua de colunas sai, porque não há mais colunas a alinhar). */
+@container (min-width: 620px) and (max-width: 959px) {
+  .esp-quartos-lista[data-valores] .esp-ocupante {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 9rem;
+    grid-template-areas: "quem quem quem" "ent sai val";
+  }
+  .esp-quartos-lista[data-valores] .esp-quartos-colunas { display: none; }
+  .esp-quartos-lista[data-valores] .esp-oc-rotulo { display: block; }
+  .esp-quartos-lista[data-valores] .esp-oc-ent,
+  .esp-quartos-lista[data-valores] .esp-oc-sai,
+  .esp-quartos-lista[data-valores] .esp-oc-val { margin-top: 8px; }
+}
+@container (min-width: 620px) {
+  .esp-oc-val { text-align: right; }
+  .esp-oc-val > span { justify-content: flex-end; }
+  .esp-col-val { text-align: right; }
+}
+@container (min-width: 960px) {
+  .esp-quartos-lista[data-valores] .esp-ocupante,
+  .esp-quartos-lista[data-valores] .esp-quartos-colunas {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.7fr) 12.25rem 12.25rem 9.25rem;
+    grid-template-areas: "nome dep ent sai val" "aviso aviso . . .";
+  }
+  .esp-quartos-lista[data-valores] .esp-quartos-colunas { grid-template-areas: "nome dep ent sai val"; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .esp-dinheiro, .esp-valores-barra > span { transition: none; }
+  .esp-dinheiro[data-estado="salvo"] { animation: none; }
+}
+
 /* ══ Passagens · Busca de passagens (pas- busca) — tela nova 09/10 ═════════════
  * Família Passagens (pas-osso, pas-entra, pas-sobe, pas-alvo). Aqui só o que é
  * da busca: a linha da escalação que vira cartão no estreito, a chegada dos

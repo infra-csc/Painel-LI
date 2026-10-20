@@ -6,7 +6,7 @@
 import { memo } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { MirrorRow } from "@shared/operational-mirror-types";
+import { fonteDoHotel, hotelTotalCents, type MirrorRow } from "@shared/operational-mirror-types";
 import { estadoDaCelula } from "@shared/mirror-cell-state";
 import { contextoDaLinha, type GruposConfirmados } from "@shared/mirror-pendencia";
 import { ROOM_TYPE_OPTIONS, type DrawerKind } from "./drawers";
@@ -36,6 +36,11 @@ export const GradeRow = memo(function GradeRow({ r, hiddenBlocks, compact, saveC
   const ctx = contextoDaLinha(r, confirmados);
   const { abertos } = pendenciaDe(r);
   const est = (campo: string, valor: unknown) => estadoDaCelula(campo, valor, ctx);
+  // Total do hotel vazio mas calculado (aba Quartos ou diária × noites): a célula mostra o calculado.
+  const fonte = fonteDoHotel(r);
+  const hotelCalculado = fonte === "quartos" || fonte === "diaria"
+    ? { valor: hotelTotalCents(r), dica: fonte === "quartos" ? "Calculado na aba Quartos (tarifas do hotel). Escreva um valor para lançar à mão." : "Calculado: diária × noites. Escreva um valor para lançar à mão." }
+    : null;
   const g = r.collaborator.gender && r.collaborator.gender !== "unknown" ? genderLabel[r.collaborator.gender] : null;
   const uf = r.collaborator.state || null;
   return (
@@ -76,7 +81,7 @@ export const GradeRow = memo(function GradeRow({ r, hiddenBlocks, compact, saveC
         <EditableCell rowId={r.teamInclusionId} field="accommodation.roomType" value={a.roomType} estado={est("accommodation.roomType", a.roomType)} aoConfirmar={() => irParaVisao("quartos")} type="select" options={ROOM_TYPE_OPTIONS} onSave={saveCell} compact={compact} editMode={editMode} variant="room" />
         <EditableCell rowId={r.teamInclusionId} field="accommodation.dailyRate" value={a.dailyRate} estado={est("accommodation.dailyRate", a.dailyRate)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
         <EditableCell rowId={r.teamInclusionId} field="accommodation.lateCheckout" value={a.lateCheckout} estado={est("accommodation.lateCheckout", a.lateCheckout)} type="bool" onSave={saveCell} compact={compact} editMode={editMode} align="center" />
-        <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} estado={est("accommodation.totalCents", a.totalCents)} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
+        <EditableCell rowId={r.teamInclusionId} field="accommodation.totalCents" value={a.totalCents} estado={est("accommodation.totalCents", a.totalCents)} calculado={hotelCalculado} type="money" onSave={saveCell} compact={compact} editMode={editMode} align="right" />
         <EditableCell rowId={r.teamInclusionId} field="accommodation.paymentCompany" value={a.paymentCompany} estado={est("accommodation.paymentCompany", a.paymentCompany)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
         <EditableCell rowId={r.teamInclusionId} field="accommodation.hotelOc" value={a.hotelOc} estado={est("accommodation.hotelOc", a.hotelOc)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
         <EditableCell rowId={r.teamInclusionId} field="accommodation.checkIn4" value={a.checkIn4} estado={est("accommodation.checkIn4", a.checkIn4)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />

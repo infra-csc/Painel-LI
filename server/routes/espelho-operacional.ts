@@ -17,6 +17,9 @@ import {
   uberGroupMembers as uberGroupMembersTable,
   logisticsExtraCosts as logisticsExtraCostsTable,
   collaborators as collaboratorsTable,
+  hotelTarifasEvento as hotelTarifasEventoTable,
+  hotelValoresQuarto as hotelValoresQuartoTable,
+  hotelLateCheckouts as hotelLateCheckoutsTable,
   insertLogisticsExtraCostSchema,
   type InsertHotelRoomGroup,
   type InsertUberGroup,
@@ -37,6 +40,7 @@ import {
 import { tipoPorOcupantes } from "@shared/room-pairing";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, planoDoHotelDoEvento } from "@shared/rooming-list";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
+import { LIMITE_DA_DIARIA_CENTAVOS, LIMITE_DO_VALOR_PAGO_CENTAVOS } from "@shared/custo-dos-quartos";
 import { createAuditLog, upload, requireRoles, LOGISTICA_ROLES, TODOS_OS_PAPEIS } from "./_compartilhado";
 
 export function registrarEspelhoOperacional(app: Express): void {
@@ -184,6 +188,8 @@ export function registrarEspelhoOperacional(app: Express): void {
       const hotel = !semHotel && typeof req.body?.hotel === "string" ? req.body.hotel.trim() : "";
       const nomeNoPdf = semHotel && typeof req.body?.nomeDoHotelNoPdf === "string" ? nomeDeHotelLimpo(req.body.nomeDoHotelNoPdf).slice(0, 120) : "";
       const incluirCpf = req.body?.incluirCpf === true;
+      // "Com valores (uso interno)" (20/10): o PDF que NÃO vai ao hotel — só fica registrado.
+      const comValores = req.body?.comValores === true;
       if (!hotel && !semHotel) return res.status(400).json({ message: "Escolha o hotel." });
       if (incluirCpf && !hasRoleIn(ator.role, ROLE_GROUPS.dadosPessoais)) {
         return res.status(403).json({ message: "Seu perfil não vê CPF de colaboradores — exporte sem CPF." });
@@ -215,7 +221,7 @@ export function registrarEspelhoOperacional(app: Express): void {
       await createAuditLog("export", "operational_mirror", req.params.eventId, {
         eventId: req.params.eventId, acao: "rooming list (PDF)",
         hotel: semHotel ? null : hotel, ...(semHotel ? { semHotelDefinido: true, nomeNoPdf: nomeNoPdf || null } : {}),
-        quartos: grupos.length, hospedes: ids.length, incluiuCpf: incluirCpf,
+        quartos: grupos.length, hospedes: ids.length, incluiuCpf: incluirCpf, ...(comValores ? { comValores: true } : {}),
       }, ator.id, ator.name, undefined, req);
       res.set("Cache-Control", "no-store");
       res.json({ cpfs });
@@ -277,6 +283,157 @@ export function registrarEspelhoOperacional(app: Express): void {
     } catch (error) {
       console.error("erro ao aplicar o hotel do evento:", error);
       res.status(500).json({ message: "Não foi possível aplicar o hotel aos quartos." });
+    }
+  });
+
+  // ===== Valores do hotel (20/10) — aba Quartos =====
+  // Tarifas por pessoa por noite (Individual/Duplo/Triplo), fatura do hotel,
+  // diária própria e valor pago de um quarto, late check-out por pessoa. Regra
+  // do cálculo em shared/custo-dos-quartos.ts; o resultado entra no "Hotel" do
+  // custo do Espelho (hotelTotalCents), NÃO no Planejado/Realizado. Mesma
+  // permissão da edição de quartos (logística) e mesma trava de evento encerrado.
+
+  /**
+   * Lê um valor em centavos do corpo: chave ausente → `undefined` (não mexe);
+   * `null`/"" → `null` (apaga); inteiro 0..limite → o valor; o resto → erro.
+   */
+  const lerCentavos = (corpo: Record<string, unknown>, chave: string, limite: number, nome: string):
+    { valor: number | null | undefined } | { erro: string } => {
+    if (!(chave in corpo)) return { valor: undefined };
+    const v = corpo[chave];
+    if (v === null || v === "") return { valor: null };
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return { erro: `${nome}: informe um valor em reais válido.` };
+    if (v > limite) return { erro: `${nome}: valor alto demais — confira a digitação.` };
+    return { valor: v };
+  };
+
+  /**
+   * PUT /api/events/:eventId/operational-mirror/hotel-valores — tarifas do
+   * evento e fatura. Só as chaves enviadas mudam; `null` apaga.
+   */
+  app.put("/api/events/:eventId/operational-mirror/hotel-valores", async (req, res) => {
+    const ator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ator) return;
+    try {
+      const { eventId } = req.params;
+      const corpo = (req.body ?? {}) as Record<string, unknown>;
+      const campos = {
+        individualCentavos: lerCentavos(corpo, "individualCentavos", LIMITE_DA_DIARIA_CENTAVOS, "Diária individual"),
+        duploCentavos: lerCentavos(corpo, "duploCentavos", LIMITE_DA_DIARIA_CENTAVOS, "Diária do duplo"),
+        triploCentavos: lerCentavos(corpo, "triploCentavos", LIMITE_DA_DIARIA_CENTAVOS, "Diária do triplo"),
+        faturaCentavos: lerCentavos(corpo, "faturaCentavos", LIMITE_DO_VALOR_PAGO_CENTAVOS, "Valor pago ao hotel"),
+      };
+      const erro = Object.values(campos).find((c): c is { erro: string } => "erro" in c);
+      if (erro) return res.status(400).json({ message: erro.erro });
+      const mudancas = Object.fromEntries(
+        Object.entries(campos).map(([k, c]) => [k, (c as { valor: number | null | undefined }).valor]).filter(([, v]) => v !== undefined),
+      ) as Partial<Record<keyof typeof campos, number | null>>;
+      if (Object.keys(mudancas).length === 0) return res.status(400).json({ message: "Nada para salvar." });
+      if (!await assertEventEditable(eventId, ator, res)) return;
+
+      const [anterior] = await db.select().from(hotelTarifasEventoTable).where(eq(hotelTarifasEventoTable.eventId, eventId));
+      const agora = new Date();
+      const [linha] = await db.insert(hotelTarifasEventoTable)
+        .values({ eventId, ...mudancas, updatedAt: agora, updatedBy: ator.id })
+        .onConflictDoUpdate({ target: hotelTarifasEventoTable.eventId, set: { ...mudancas, updatedAt: agora, updatedBy: ator.id } })
+        .returning();
+      await createAuditLog("update", "hotel_valores", eventId, { eventId, acao: "tarifas do hotel", ...mudancas }, ator.id, ator.name, anterior, req);
+      res.json(linha);
+    } catch (error) {
+      console.error("erro ao salvar as tarifas do hotel:", error);
+      res.status(500).json({ message: "Não foi possível salvar os valores do hotel." });
+    }
+  });
+
+  /**
+   * PUT /api/hotel-room-groups/:id/valores — diária própria (por pessoa por
+   * noite) e valor pago de UM quarto. Os dois `null` → volta ao padrão.
+   */
+  app.put("/api/hotel-room-groups/:id/valores", async (req, res) => {
+    const ator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ator) return;
+    try {
+      const corpo = (req.body ?? {}) as Record<string, unknown>;
+      const diaria = lerCentavos(corpo, "diariaPropriaCentavos", LIMITE_DA_DIARIA_CENTAVOS, "Diária do quarto");
+      const pago = lerCentavos(corpo, "valorPagoCentavos", LIMITE_DO_VALOR_PAGO_CENTAVOS, "Valor pago do quarto");
+      if ("erro" in diaria) return res.status(400).json({ message: diaria.erro });
+      if ("erro" in pago) return res.status(400).json({ message: pago.erro });
+      if (diaria.valor === undefined && pago.valor === undefined) return res.status(400).json({ message: "Nada para salvar." });
+      const grupo = await grupoDeQuarto(req.params.id);
+      if (!grupo) return res.status(404).json({ message: "Quarto não encontrado" });
+      if (!await assertEventEditable(grupo.eventId, ator, res)) return;
+
+      const [anterior] = await db.select().from(hotelValoresQuartoTable).where(eq(hotelValoresQuartoTable.hotelRoomGroupId, grupo.id));
+      const final = {
+        diariaPropriaCentavos: diaria.valor === undefined ? anterior?.diariaPropriaCentavos ?? null : diaria.valor,
+        valorPagoCentavos: pago.valor === undefined ? anterior?.valorPagoCentavos ?? null : pago.valor,
+      };
+      let linha: unknown = null;
+      if (final.diariaPropriaCentavos === null && final.valorPagoCentavos === null) {
+        // Nada próprio: o quarto volta a seguir o evento — sem linha vazia guardada.
+        await db.delete(hotelValoresQuartoTable).where(eq(hotelValoresQuartoTable.hotelRoomGroupId, grupo.id));
+      } else {
+        const agora = new Date();
+        [linha] = await db.insert(hotelValoresQuartoTable)
+          .values({ hotelRoomGroupId: grupo.id, eventId: grupo.eventId, ...final, updatedAt: agora, updatedBy: ator.id })
+          .onConflictDoUpdate({ target: hotelValoresQuartoTable.hotelRoomGroupId, set: { ...final, updatedAt: agora, updatedBy: ator.id } })
+          .returning();
+      }
+      await createAuditLog("update", "hotel_room_group", grupo.id, { eventId: grupo.eventId, acao: "valores do quarto", ...final }, ator.id, ator.name, anterior, req);
+      res.json(linha ?? { hotelRoomGroupId: grupo.id, ...final });
+    } catch (error) {
+      console.error("erro ao salvar os valores do quarto:", error);
+      res.status(500).json({ message: "Não foi possível salvar os valores do quarto." });
+    }
+  });
+
+  /**
+   * PUT /api/events/:eventId/operational-mirror/late-checkout — late check-out
+   * de UMA pessoa do evento. `ativo: true|false` grava a escolha (vence a caixa
+   * da hospedagem); `ativo: null` apaga a escolha (volta a seguir a hospedagem).
+   * `valorCentavos: null` = igual à diária da pessoa.
+   */
+  app.put("/api/events/:eventId/operational-mirror/late-checkout", async (req, res) => {
+    const ator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ator) return;
+    try {
+      const { eventId } = req.params;
+      const corpo = (req.body ?? {}) as Record<string, unknown>;
+      const collaboratorId = typeof corpo.collaboratorId === "string" ? corpo.collaboratorId : "";
+      if (!collaboratorId) return res.status(400).json({ message: "Informe a pessoa." });
+      if (!("ativo" in corpo) || (corpo.ativo !== null && typeof corpo.ativo !== "boolean")) {
+        return res.status(400).json({ message: "Diga se a pessoa tem late check-out." });
+      }
+      const valor = lerCentavos(corpo, "valorCentavos", LIMITE_DA_DIARIA_CENTAVOS, "Late check-out");
+      if ("erro" in valor) return res.status(400).json({ message: valor.erro });
+      if (!await assertEventEditable(eventId, ator, res)) return;
+
+      const [noQuarto] = await db.select({ id: hotelRoomGroupMembersTable.id }).from(hotelRoomGroupMembersTable)
+        .innerJoin(hotelRoomGroupsTable, eq(hotelRoomGroupsTable.id, hotelRoomGroupMembersTable.hotelRoomGroupId))
+        .where(and(eq(hotelRoomGroupsTable.eventId, eventId), eq(hotelRoomGroupMembersTable.collaboratorId, collaboratorId)))
+        .limit(1);
+      if (!noQuarto) return res.status(400).json({ message: "Esta pessoa não está em nenhum quarto deste evento." });
+
+      const onde = and(eq(hotelLateCheckoutsTable.eventId, eventId), eq(hotelLateCheckoutsTable.collaboratorId, collaboratorId));
+      const [anterior] = await db.select().from(hotelLateCheckoutsTable).where(onde);
+      let linha: unknown = null;
+      if (corpo.ativo === null) {
+        await db.delete(hotelLateCheckoutsTable).where(onde);
+      } else {
+        const agora = new Date();
+        const dados = { ativo: corpo.ativo as boolean, valorCentavos: corpo.ativo ? valor.valor ?? null : null, updatedAt: agora, updatedBy: ator.id };
+        [linha] = await db.insert(hotelLateCheckoutsTable)
+          .values({ eventId, collaboratorId, ...dados })
+          .onConflictDoUpdate({ target: [hotelLateCheckoutsTable.eventId, hotelLateCheckoutsTable.collaboratorId], set: dados })
+          .returning();
+      }
+      await createAuditLog("update", "hotel_valores", eventId, {
+        eventId, acao: "late check-out", collaboratorId, ativo: corpo.ativo, valorCentavos: valor.valor ?? null,
+      }, ator.id, ator.name, anterior, req);
+      res.json(linha ?? { eventId, collaboratorId, ativo: null });
+    } catch (error) {
+      console.error("erro ao salvar o late check-out:", error);
+      res.status(500).json({ message: "Não foi possível salvar o late check-out." });
     }
   });
 

@@ -10,6 +10,10 @@
  * O tipo de cada quarto vem da ocupação noite a noite: um quarto pode ser
  * Single até o colega chegar e Duplo depois.
  *
+ * Valores (20/10): o documento do HOTEL nunca leva valores. Com `comValores`
+ * sai a versão de USO INTERNO (conferência/fechamento): valor por hóspede e
+ * por quarto, total e "Uso interno" no cabeçalho e no nome do arquivo.
+ *
  * Hotel do evento (15/10, dono: "todos ficam no mesmo hotel por evento"): não
  * há coluna própria — é o hotel comum aos quartos (`hotelDoEvento`). Aplicá-lo
  * a todos segue `planoDoHotelDoEvento`: quarto confirmado fica como está, e
@@ -25,6 +29,8 @@ export interface HospedeDaRoomingList {
   checkOut: string | null;
   /** Só chega aqui quando a pessoa pediu "Incluir CPF" e tem CPF no cadastro. */
   cpf?: string | null;
+  /** Custo calculado da pessoa neste quarto (centavos) — só sai no PDF de uso interno. */
+  valorCentavos?: number | null;
 }
 
 export interface QuartoDaRoomingList {
@@ -32,6 +38,9 @@ export interface QuartoDaRoomingList {
   /** Observação escrita no quarto (a automática de datas não vai: os trechos já dizem). */
   observacao?: string | null;
   hospedes: HospedeDaRoomingList[];
+  /** Total calculado do quarto (centavos) e se todas as noites têm tarifa — só no uso interno. */
+  valorCentavos?: number | null;
+  valorCompleto?: boolean;
 }
 
 export interface EntradaDaRoomingList {
@@ -45,6 +54,8 @@ export interface EntradaDaRoomingList {
   evento: { nome: string; local: string | null; inicio: string | null; fim: string | null };
   quartos: QuartoDaRoomingList[];
   incluirCpf: boolean;
+  /** Versão de USO INTERNO, com valores (20/10). O PDF do hotel nunca tem. */
+  comValores?: boolean;
   geradoEm: Date;
   contato: { nome: string; email: string | null };
 }
@@ -53,9 +64,11 @@ export interface LinhaDaRoomingList {
   numero: number;
   /** "Duplo" ou "13/11→14/11 Single; 14/11→16/11 Duplo". */
   tipo: string;
-  hospedes: { nome: string; cpf: string | null; checkIn: string; checkOut: string }[];
+  hospedes: { nome: string; cpf: string | null; checkIn: string; checkOut: string; valor: string | null }[];
   diarias: number;
   observacao: string | null;
+  /** "R$ 1.092,00" (uso interno); `null` no PDF do hotel. */
+  valor: string | null;
 }
 
 export interface RoomingList {
@@ -79,6 +92,12 @@ export interface RoomingList {
   totalDeDiarias: number;
   linhas: LinhaDaRoomingList[];
   incluiCpf: boolean;
+  /** Versão de uso interno, com valores. */
+  comValores: boolean;
+  /** Soma dos quartos do documento (uso interno); `null` no PDF do hotel. */
+  totalDosValores: string | null;
+  /** Algum quarto tem noite sem tarifa: o total é parcial. */
+  valoresParciais: boolean;
   geradoEm: string;
   contato: string;
   nomeDoArquivo: string;
@@ -201,13 +220,19 @@ export function dataHoraDeSaoPaulo(d: Date): string {
 }
 
 /** Nome de arquivo seguro em qualquer sistema. Sem hotel definido (`null`): só o evento. */
-export function nomeDoArquivoDaRoomingList(hotel: string | null, evento: string): string {
+export function nomeDoArquivoDaRoomingList(hotel: string | null, evento: string, opcoes: { comValores?: boolean } = {}): string {
   const limpo = (s: string) => s.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
-  return hotel ? `Rooming list - ${limpo(hotel)} - ${limpo(evento)}.pdf` : `Rooming list - ${limpo(evento)}.pdf`;
+  const base = opcoes.comValores ? "USO INTERNO - Rooming list com valores" : "Rooming list";
+  return hotel ? `${base} - ${limpo(hotel)} - ${limpo(evento)}.pdf` : `${base} - ${limpo(evento)}.pdf`;
 }
+
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+/** Centavos → "R$ 1.234,56" (o mesmo formato da tela). */
+export const reaisDosCentavos = (c: number): string => BRL.format(Math.round(c) / 100);
 
 export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
   const semHotel = e.hotel === null;
+  const comValores = e.comValores === true;
   const chave = chaveDoHotel(e.hotel);
   const doHotel = e.quartos.filter((q) => q.hospedes.length > 0
     && (semHotel ? !chaveDoHotel(q.hotelName) : !!chave && chaveDoHotel(q.hotelName) === chave));
@@ -240,9 +265,11 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
         cpf: e.incluirCpf ? cpfFormatado(h.cpf) : null,
         checkIn: ddmmaaaa(h.checkIn),
         checkOut: ddmmaaaa(h.checkOut),
+        valor: comValores && typeof h.valorCentavos === "number" ? reaisDosCentavos(h.valorCentavos) : null,
       })),
       diarias: diariasDosTrechos(trechos),
       observacao: q.observacao?.trim() || null,
+      valor: comValores && typeof q.valorCentavos === "number" ? reaisDosCentavos(q.valorCentavos) : null,
     };
   });
 
@@ -265,10 +292,13 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
     totalDeDiarias: linhas.reduce((n, l) => n + l.diarias, 0),
     linhas,
     incluiCpf: e.incluirCpf,
+    comValores,
+    totalDosValores: comValores ? reaisDosCentavos(doHotel.reduce((s, q) => s + (q.valorCentavos ?? 0), 0)) : null,
+    valoresParciais: comValores && doHotel.some((q) => q.valorCompleto === false),
     geradoEm: dataHoraDeSaoPaulo(e.geradoEm),
     contato: e.contato.email ? `${e.contato.nome} · ${e.contato.email}` : e.contato.nome,
     // Sem hotel definido o arquivo leva só o evento — o nome digitado no
     // diálogo vale para o cabeçalho, não para o arquivo.
-    nomeDoArquivo: nomeDoArquivoDaRoomingList(semHotel ? null : hotel, e.evento.nome),
+    nomeDoArquivo: nomeDoArquivoDaRoomingList(semHotel ? null : hotel, e.evento.nome, { comValores }),
   };
 }

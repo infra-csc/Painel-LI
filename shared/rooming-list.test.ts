@@ -47,7 +47,7 @@ describe("montarRoomingList", () => {
     expect(r.totalDeDiarias).toBe(8);
     expect(r.periodoDoEvento).toBe("24/04/2026 a 26/04/2026");
     expect(r.periodoDaHospedagem).toBe("22/04/2026 a 27/04/2026");
-    expect(r.linhas[0].hospedes[0]).toEqual({ nome: "Mauricio Souza", cpf: null, checkIn: "22/04/2026", checkOut: "27/04/2026" });
+    expect(r.linhas[0].hospedes[0]).toEqual({ nome: "Mauricio Souza", cpf: null, checkIn: "22/04/2026", checkOut: "27/04/2026", valor: null });
     expect(r.linhas[0].observacao).toBe("Pedir andar alto");
     expect(r.geradoEm).toBe("09/10/2026 14:05");
     expect(r.contato).toBe("Helena Martins · admin@demo.local");
@@ -152,5 +152,36 @@ describe("apoio", () => {
     expect(dataHoraDeSaoPaulo(new Date("2026-01-01T02:30:00Z"))).toBe("31/12/2025 23:30");
     expect(nomeDoArquivoDaRoomingList("Hotel A/B", "Evento: 1")).toBe("Rooming list - Hotel A B - Evento 1.pdf");
     expect(nomeDoArquivoDaRoomingList(null, "Evento: 1")).toBe("Rooming list - Evento 1.pdf");
+  });
+});
+
+describe("valores (20/10): o PDF do hotel nunca leva; o de uso interno leva", () => {
+  const comValores = (extra: Partial<EntradaDaRoomingList> = {}) => {
+    const b = base(extra);
+    return {
+      ...b,
+      quartos: b.quartos.map((q, i) => ({
+        ...q, valorCentavos: 100000 + i, valorCompleto: i !== 1,
+        hospedes: q.hospedes.map((h) => ({ ...h, valorCentavos: 50000 })),
+      })),
+    };
+  };
+
+  it("sem `comValores`: nenhum valor no documento, mesmo que a tela mande", () => {
+    const r = montarRoomingList(comValores());
+    expect(r.comValores).toBe(false);
+    expect(r.totalDosValores).toBeNull();
+    expect(r.linhas.every((l) => l.valor === null && l.hospedes.every((h) => h.valor === null))).toBe(true);
+    expect(r.nomeDoArquivo).toBe("Rooming list - Hotel Atlântico Rio - Night Run 1ª Etapa Rio.pdf");
+  });
+
+  it("com `comValores`: valor por hóspede e por quarto, total, parcial e nome de uso interno", () => {
+    const r = montarRoomingList({ ...comValores(), comValores: true });
+    const sp = (s: string | null) => String(s).replace(/ /g, " ");
+    expect(sp(r.linhas[0].valor)).toBe("R$ 1.000,00");
+    expect(sp(r.linhas[0].hospedes[0].valor)).toBe("R$ 500,00");
+    expect(sp(r.totalDosValores)).toBe("R$ 2.000,01");
+    expect(r.valoresParciais).toBe(true);
+    expect(r.nomeDoArquivo).toBe("USO INTERNO - Rooming list com valores - Hotel Atlântico Rio - Night Run 1ª Etapa Rio.pdf");
   });
 });

@@ -10,6 +10,7 @@ import type {
   UberGroupMember,
 } from "./schema";
 import type { DatasDoQuarto } from "./datas-do-quarto";
+import type { ValoresDoHotelSalvos } from "./custo-dos-quartos";
 
 export interface MirrorCollaborator {
   id: string | null;
@@ -90,6 +91,13 @@ export interface MirrorRow {
    * reservada diverge. Opcional porque servidores antigos não mandam.
    */
   datasDoQuarto?: DatasDoQuarto;
+  /**
+   * Hotel desta pessoa calculado pela aba Quartos (20/10): noites × tarifa por
+   * pessoa do tipo de cada noite (ou a diária própria do quarto) + late
+   * check-out — shared/custo-dos-quartos.ts. `null`/ausente: a pessoa não está
+   * em quarto ou o evento não tem tarifa. `completo` falso = há noite sem tarifa.
+   */
+  hotelDosQuartos?: { totalCentavos: number; noites: number; completo: boolean } | null;
   pendencies: string[];
 }
 
@@ -147,25 +155,51 @@ export interface MirrorResponse {
   pendingCount: number;
   suggestedRoomCount: number;
   suggestedUberCount: number;
+  /**
+   * Valores do hotel gravados na aba Quartos (tarifas, fatura, diária própria e
+   * valor pago por quarto, late check-out por pessoa). Opcional: servidor antigo
+   * não manda; `null` quando as tabelas ainda não existem no banco.
+   */
+  valoresDoHotel?: ValoresDoHotelSalvos | null;
 }
 
 /**
- * Regra ÚNICA do total de hotel de uma linha:
- *   totalCents informado, senão dailyRate × diárias
- *   (diárias = nightsCount informado, senão dailyRates da escala).
+ * Regra ÚNICA do total de hotel de uma linha (manual × calculado):
+ *   1. totalCents informado (o "HOTEL TT" lançado à mão) — vence sempre;
+ *   2. senão, o calculado pela aba Quartos (20/10), quando todas as noites da
+ *      pessoa têm tarifa — `row.hotelDosQuartos`;
+ *   3. senão, dailyRate × diárias (diárias = nightsCount informado, senão
+ *      dailyRates da escala).
  * Usada pelo servidor (KPIs/subtotais/Excel) e pelo cliente (cards/rodapé).
+ * Não entra no Planejado/Realizado: é o custo de logística do Espelho.
  */
-export function hotelTotalCents(row: Pick<MirrorRow, "accommodation" | "schedule">): number {
+export type LinhaDoHotel = Pick<MirrorRow, "accommodation" | "schedule"> & Partial<Pick<MirrorRow, "hotelDosQuartos">>;
+
+export type FonteDoHotel = "lancado" | "quartos" | "diaria";
+
+const diariaVezesNoites = (row: LinhaDoHotel): number => {
   const acc = row.accommodation;
   if (!acc) return 0;
-  if (acc.totalCents) return acc.totalCents;
-  const nights = acc.nightsCount || row.schedule?.dailyRates || 0;
-  return (acc.dailyRate || 0) * nights || 0;
+  return (acc.dailyRate || 0) * (acc.nightsCount || row.schedule?.dailyRates || 0) || 0;
+};
+
+/** De onde vem o total de hotel da linha (`null` = sem valor). */
+export function fonteDoHotel(row: LinhaDoHotel): FonteDoHotel | null {
+  if (row.accommodation?.totalCents) return "lancado";
+  const q = row.hotelDosQuartos;
+  if (q && q.completo && q.totalCentavos > 0) return "quartos";
+  return diariaVezesNoites(row) > 0 ? "diaria" : null;
 }
 
-/** true quando o total NÃO foi informado e está sendo derivado de diária × diárias. */
-export function isHotelTotalDerived(row: Pick<MirrorRow, "accommodation" | "schedule">): boolean {
-  const acc = row.accommodation;
-  if (!acc || acc.totalCents) return false;
-  return hotelTotalCents(row) > 0;
+export function hotelTotalCents(row: LinhaDoHotel): number {
+  const fonte = fonteDoHotel(row);
+  if (fonte === "lancado") return row.accommodation?.totalCents ?? 0;
+  if (fonte === "quartos") return row.hotelDosQuartos?.totalCentavos ?? 0;
+  return diariaVezesNoites(row);
+}
+
+/** true quando o total NÃO foi informado e está sendo calculado (aba Quartos ou diária × diárias). */
+export function isHotelTotalDerived(row: LinhaDoHotel): boolean {
+  const fonte = fonteDoHotel(row);
+  return fonte === "quartos" || fonte === "diaria";
 }

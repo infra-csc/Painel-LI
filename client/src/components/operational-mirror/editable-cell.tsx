@@ -55,10 +55,16 @@ export interface EditableCellProps {
   etapa?: string;
   /** type === "select": opções permitidas */
   options?: { value: string; label: string }[];
+  /**
+   * Valor calculado mostrado quando a célula está vazia (20/10 — total do hotel
+   * vindo da aba Quartos ou de diária × noites): em itálico e cinza, para não
+   * ser lido como lançado. Digitar algo na célula passa a valer no lugar dele.
+   */
+  calculado?: { valor: number; dica: string } | null;
 }
 
 export function EditableCell({
-  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa, estado = "preenchido", aoConfirmar,
+  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa, estado = "preenchido", aoConfirmar, calculado,
 }: EditableCellProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -92,6 +98,7 @@ export function EditableCell({
     if (estado === "nao_usa") return <span className="text-muted-foreground">não usa</span>;
     if (type === "bool") return value ? <Check className="h-3.5 w-3.5 text-success mx-auto" aria-hidden="true" /> : <span className="text-muted-foreground">·</span>;
     if (value === null || value === undefined || value === "") {
+      if (calculado) return <span className="pr-0.5 italic text-muted-foreground" title={calculado.dica} data-testid="celula-calculada">{brl(calculado.valor)}</span>;
       // "falta preencher" e "não se aplica" tinham o mesmo travessão cinza: a
       // grade não respondia o que ainda precisa ser comprado.
       return estado === "falta"

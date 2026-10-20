@@ -13,9 +13,14 @@
  * ou "Todos os quartos", quando nenhum tem hotel — e esse PDF sai com o
  * cabeçalho do evento e "Hotel: a definir"; dá para escrever um nome só para
  * o cabeçalho do arquivo, sem gravar nos quartos.
+ *
+ * 20/10 (valores do hotel): a rooming list do hotel NUNCA leva valores. Quando
+ * há tarifas, uma caixa separada — "Com valores (uso interno)", desligada por
+ * padrão — gera a versão de conferência, marcada "uso interno" no topo e no
+ * nome do arquivo.
  */
 import { useMemo, useState } from "react";
-import { Building2, FileDown, Info, Loader2 } from "lucide-react";
+import { AlertTriangle, Building2, FileDown, Info, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -35,13 +40,20 @@ const SEM_HOTEL = "__sem_hotel__";
 
 const quartosTxt = (n: number) => `${n} ${n === 1 ? "quarto" : "quartos"}`;
 
-export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quartos: QuartoDaRoomingList[] }) {
+export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false }: {
+  evento: MirrorEvent;
+  quartos: QuartoDaRoomingList[];
+  /** Há valores calculados (tarifas definidas): oferece a versão de uso interno. */
+  comValoresDisponivel?: boolean;
+}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [aberto, setAberto] = useState(false);
   const [escolhido, setEscolhido] = useState<string | null>(null);
   const [nomeNoPdf, setNomeNoPdf] = useState("");
   const [incluirCpf, setIncluirCpf] = useState(false);
+  const [comValoresMarcado, setComValores] = useState(false);
+  const comValores = comValoresDisponivel && comValoresMarcado;
   const [gerando, setGerando] = useState(false);
   const podeCpf = hasRole(user, ...ROLE_GROUPS.dadosPessoais);
 
@@ -59,7 +71,7 @@ export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quart
   const hotel = doSemHotel ? null : valor;
 
   const entrada = (extra: { incluirCpf: boolean; contato: { nome: string; email: string | null }; quartos: QuartoDaRoomingList[] }) => ({
-    hotel, nomeDoHotelNoPdf: doSemHotel ? nomeNoPdf : null, geradoEm: new Date(),
+    hotel, nomeDoHotelNoPdf: doSemHotel ? nomeNoPdf : null, geradoEm: new Date(), comValores,
     evento: { nome: evento.name, local: evento.location, inicio: evento.startDate, fim: evento.endDate },
     ...extra,
   });
@@ -69,7 +81,7 @@ export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quart
 
   const abrir = (v: boolean) => {
     setAberto(v);
-    if (v) { setIncluirCpf(false); setNomeNoPdf(""); setEscolhido(null); }
+    if (v) { setIncluirCpf(false); setComValores(false); setNomeNoPdf(""); setEscolhido(null); }
   };
 
   const gerar = async () => {
@@ -79,8 +91,8 @@ export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quart
       // 1) auditoria + CPF (se pedido) — 2) PDF desenhado aqui, com as datas da tela.
       const res = await apiRequest("POST", `/api/events/${evento.id}/operational-mirror/rooming-list`,
         doSemHotel
-          ? { semHotel: true, nomeDoHotelNoPdf: nomeNoPdf.trim() || undefined, incluirCpf: incluirCpf && podeCpf }
-          : { hotel, incluirCpf: incluirCpf && podeCpf });
+          ? { semHotel: true, nomeDoHotelNoPdf: nomeNoPdf.trim() || undefined, incluirCpf: incluirCpf && podeCpf, ...(comValores ? { comValores: true } : {}) }
+          : { hotel, incluirCpf: incluirCpf && podeCpf, ...(comValores ? { comValores: true } : {}) });
       const { cpfs } = (await res.json()) as { cpfs: Record<string, string> };
       const lista = montarRoomingList(entrada({
         incluirCpf: incluirCpf && podeCpf,
@@ -92,7 +104,7 @@ export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quart
       }));
       const { baixarRoomingListPdf } = await import("@/lib/rooming-list-pdf");
       await baixarRoomingListPdf(lista);
-      toast({ title: "PDF gerado", description: lista.nomeDoArquivo });
+      toast({ title: comValores ? "PDF de uso interno gerado" : "PDF gerado", description: lista.nomeDoArquivo });
       setAberto(false);
     } catch (e) {
       toast({ title: "Não foi possível gerar o PDF", description: (e as Error)?.message || "Tente novamente em instantes.", variant: "destructive" });
@@ -117,9 +129,11 @@ export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quart
       <Dialog open={aberto} onOpenChange={(v) => { if (!gerando) abrir(v); }}>
         <DialogContent className="max-w-[480px] gap-0 overflow-hidden rounded-xl p-0" data-testid="dialogo-rooming-list">
           <DialogHeader className="px-5 pb-3 pt-5">
-            <DialogTitle className="pr-6 text-base">PDF para o hotel</DialogTitle>
+            <DialogTitle className="pr-6 text-base">{comValores ? "PDF de uso interno" : "PDF para o hotel"}</DialogTitle>
             <DialogDescription className="text-sm leading-relaxed">
-              Rooming list com cada quarto, os hóspedes e a entrada e saída de cada um — pronta para enviar ao hotel.
+              {comValores
+                ? "Rooming list com o valor de cada hóspede e de cada quarto — para conferência e fechamento, não para o hotel."
+                : "Rooming list com cada quarto, os hóspedes e a entrada e saída de cada um — pronta para enviar ao hotel."}
             </DialogDescription>
           </DialogHeader>
 
@@ -183,6 +197,11 @@ export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quart
                 <p className="mt-1 text-sm tabular-nums text-foreground">
                   {quartosTxt(previa.totalDeQuartos)} · {previa.totalDeHospedes} {previa.totalDeHospedes === 1 ? "hóspede" : "hóspedes"} · {previa.totalDeDiarias} {previa.totalDeDiarias === 1 ? "diária" : "diárias"}
                 </p>
+                {previa.comValores && previa.totalDosValores && (
+                  <p className="mt-0.5 text-sm tabular-nums text-foreground" data-testid="rooming-previa-valores">
+                    Total calculado: <span className="font-semibold">{previa.totalDosValores}</span>{previa.valoresParciais ? <span className="text-warning"> · parcial</span> : null}
+                  </p>
+                )}
                 {previa.periodoDaHospedagem && <p className="mt-0.5 text-xs text-muted-foreground">Hospedagem de {previa.periodoDaHospedagem}</p>}
               </div>
             )}
@@ -196,13 +215,31 @@ export function RoomingListPdf({ evento, quartos }: { evento: MirrorEvent; quart
                 </span>
               </label>
             )}
+
+            {comValoresDisponivel && opcoes.length > 0 && (
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+                  <Checkbox checked={comValoresMarcado} onCheckedChange={(v) => setComValores(v === true)} className="mt-0.5" data-testid="rooming-com-valores" />
+                  <span>
+                    <span className="font-medium text-foreground">Com valores (uso interno)</span>
+                    <span className="block text-xs leading-snug text-muted-foreground">Valor de cada hóspede e de cada quarto, para conferência e fechamento.</span>
+                  </span>
+                </label>
+                {comValores && (
+                  <p className="pas-entra flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs leading-snug text-danger" data-testid="rooming-aviso-uso-interno">
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    Este arquivo NÃO é para o hotel: sai marcado “uso interno” no topo e no nome. Para o hotel, desmarque.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2 border-t bg-surface-muted px-5 py-3 sm:gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => abrir(false)} disabled={gerando}>Cancelar</Button>
             <Button type="button" size="sm" onClick={gerar} disabled={!valor || !previa?.totalDeQuartos || gerando} data-testid="rooming-baixar">
               {gerando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <FileDown className="mr-1.5 h-4 w-4" aria-hidden="true" />}
-              {gerando ? "Gerando…" : "Baixar PDF"}
+              {gerando ? "Gerando…" : comValores ? "Baixar PDF interno" : "Baixar PDF"}
             </Button>
           </DialogFooter>
         </DialogContent>

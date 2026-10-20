@@ -108,7 +108,7 @@ function EspelhoOperacional() {
 
   const pedirRecalculo = () => setConfirmar({
     titulo: "Refazer as sugestões deste evento?",
-    texto: "Os agrupamentos e horários voltam a ser calculados a partir dos voos. Quartos e carros já confirmados são preservados — o resto é sobrescrito, inclusive ajustes feitos à mão.",
+    texto: "Os agrupamentos e horários voltam a ser calculados a partir dos voos. Quartos e carros já confirmados são preservados — o resto é sobrescrito, inclusive ajustes feitos à mão (como a diária própria e o valor pago de um quarto). Tarifas do evento e late check-out ficam.",
     rotulo: "Refazer sugestões",
     acao: () => m.recalc.mutate(),
   });
@@ -224,7 +224,7 @@ function EspelhoOperacional() {
                       {view === "grade" && !estreito && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={m.saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} confirmados={confirmados} pendenciaDe={pendenciaDe} irParaVisao={setView} totalDoEvento={rows.length} />}
                       {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} totalDoEvento={rows.length} />}
                       {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} verNaGrade={(dep) => { filtros.setDeptFilter(dep); setView("grade"); }} />}
-                      {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} evento={data.event}
+                      {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} evento={data.event} valores={data.valoresDoHotel}
                         onMover={(c, de, para) => m.mover.mutate({ tipo: "quarto", corpo: { collaboratorId: c, deGrupoId: de, paraGrupoId: para } })}
                         onSeparar={pedirSeparacao} canEdit={canEditMirror}
                         onPatch={(id, campos) => {

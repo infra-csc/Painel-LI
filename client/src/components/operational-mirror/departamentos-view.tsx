@@ -113,7 +113,7 @@ export function DepartamentosView({ rows, totals, collapsed, setCollapsed, openD
                         <Valor icone={<Plane className="h-3 w-3 text-primary" aria-hidden="true" />} rotulo="Passagem" valor={brl(r.ticket?.value)}
                           onClick={canEdit ? () => openDrawer("ticket" as DrawerKind, r) : undefined} pessoa={r.collaborator.fullName} />
                         <Valor icone={<BedDouble className="h-3 w-3 text-success-strong" aria-hidden="true" />} rotulo="Hotel" valor={brl(hotelTotalCents(r))}
-                          italico={derivado} dica={derivado ? "Valor derivado: diária × diárias" : undefined}
+                          italico={derivado} dica={derivado ? "Valor calculado: aba Quartos ou diária × diárias" : undefined}
                           onClick={canEdit ? () => openDrawer("accommodation", r) : undefined} pessoa={r.collaborator.fullName} />
                         <Valor icone={<Luggage className="h-3 w-3 text-warning-strong" aria-hidden="true" />} rotulo="Extras" valor={brl((r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0))}
                           onClick={canEdit ? () => openDrawer("extras", r) : undefined} pessoa={r.collaborator.fullName} />

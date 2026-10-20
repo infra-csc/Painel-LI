@@ -313,6 +313,53 @@ const PASSOS: Passo[] = [
     descricao: "índice transportes_terrestres_vaga_trecho_uq",
     sql: `CREATE UNIQUE INDEX IF NOT EXISTS transportes_terrestres_vaga_trecho_uq ON transportes_terrestres (team_inclusion_id, trecho)`,
   },
+  // 20/10 — valores do hotel na aba Quartos do Espelho (tarifas por pessoa por
+  // noite, fatura, diária própria e valor pago do quarto, late check-out por
+  // pessoa). Tabelas novas, nenhuma coluna existente muda. O Espelho lê estas
+  // tabelas com tolerância (sem elas, o custo segue a regra de antes).
+  {
+    descricao: "tabela hotel_tarifas_evento (tarifas do hotel e fatura do evento)",
+    sql: `CREATE TABLE IF NOT EXISTS hotel_tarifas_evento (
+      event_id varchar PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+      individual_centavos integer,
+      duplo_centavos integer,
+      triplo_centavos integer,
+      fatura_centavos integer,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by varchar REFERENCES users(id)
+    )`,
+  },
+  {
+    descricao: "tabela hotel_valores_quarto (diária própria e valor pago do quarto)",
+    sql: `CREATE TABLE IF NOT EXISTS hotel_valores_quarto (
+      hotel_room_group_id varchar PRIMARY KEY REFERENCES hotel_room_groups(id) ON DELETE CASCADE,
+      event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      diaria_propria_centavos integer,
+      valor_pago_centavos integer,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by varchar REFERENCES users(id)
+    )`,
+  },
+  {
+    descricao: "índice hotel_valores_quarto_evento_idx",
+    sql: `CREATE INDEX IF NOT EXISTS hotel_valores_quarto_evento_idx ON hotel_valores_quarto (event_id)`,
+  },
+  {
+    descricao: "tabela hotel_late_checkouts (late check-out por pessoa no evento)",
+    sql: `CREATE TABLE IF NOT EXISTS hotel_late_checkouts (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      collaborator_id varchar NOT NULL REFERENCES collaborators(id),
+      ativo boolean NOT NULL DEFAULT true,
+      valor_centavos integer,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by varchar REFERENCES users(id)
+    )`,
+  },
+  {
+    descricao: "índice hotel_late_checkouts_evento_pessoa_uq",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS hotel_late_checkouts_evento_pessoa_uq ON hotel_late_checkouts (event_id, collaborator_id)`,
+  },
   {
     descricao: "scaling_change_requests.grupo_id (pedido de ajuste em par)",
     sql: `ALTER TABLE scaling_change_requests ADD COLUMN IF NOT EXISTS grupo_id varchar`,

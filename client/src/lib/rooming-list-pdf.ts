@@ -9,6 +9,10 @@
  *
  * As fontes-padrão do PDF (Helvetica) só têm o alfabeto latino ocidental: a
  * seta "→" dos trechos vira "–" aqui (acentos, "ª" e "·" saem normalmente).
+ *
+ * 20/10: a versão "com valores (uso interno)" (`r.comValores`) acrescenta a
+ * coluna Valor, o total de cada quarto e o total do documento, e avisa no topo
+ * que NÃO é para enviar ao hotel. A rooming list do hotel continua sem valores.
  */
 import type { RoomingList } from "@shared/rooming-list";
 
@@ -21,6 +25,15 @@ const COR = {
   fundo: [248, 250, 252] as RGB,     // --surface-muted
   cabecalho: [241, 245, 249] as RGB, // --neutral-soft
   marca: [0, 51, 204] as RGB,        // --primary #0033CC
+  alerta: [185, 28, 28] as RGB,      // --danger #B91C1C
+};
+
+/** Largura (mm) de cada coluna da tabela — o Hóspede fica com o resto (A4 retrato: 178 mm úteis). */
+const LARGURAS: Record<"simples" | "cpf" | "valores" | "ambos", Record<string, number>> = {
+  simples: { Quarto: 15, Tipo: 36, "Check-in": 22, "Check-out": 22, "Observação": 34 },
+  cpf: { Quarto: 14, Tipo: 30, CPF: 27, "Check-in": 20, "Check-out": 20, "Observação": 26 },
+  valores: { Quarto: 13, Tipo: 32, "Check-in": 20, "Check-out": 20, Valor: 23, "Observação": 24 },
+  ambos: { Quarto: 12, Tipo: 27, CPF: 25, "Check-in": 19, "Check-out": 19, Valor: 22, "Observação": 18 },
 };
 
 /** Só caracteres que a Helvetica do PDF desenha. */
@@ -36,7 +49,7 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   const M = 16;
   const util = W - 2 * M;
   doc.setProperties({
-    title: r.hotelDefinido ? `Rooming list — ${r.hotel} — ${r.evento}` : `Rooming list — ${r.evento}`,
+    title: `${r.comValores ? "USO INTERNO — " : ""}${r.hotelDefinido ? `Rooming list — ${r.hotel} — ${r.evento}` : `Rooming list — ${r.evento}`}`,
     subject: "Rooming list", creator: "Painel de Logística Interna",
   });
 
@@ -47,8 +60,8 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   let y = M + 2;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.setTextColor(...COR.marca);
-  doc.text("ROOMING LIST", M, y, { charSpace: 0.6 });
+  doc.setTextColor(...(r.comValores ? COR.alerta : COR.marca));
+  doc.text(r.comValores ? "ROOMING LIST COM VALORES  ·  USO INTERNO — NÃO ENVIAR AO HOTEL" : "ROOMING LIST", M, y, { charSpace: 0.6 });
   y += 8;
   doc.setFontSize(19);
   doc.setTextColor(...COR.texto);
@@ -103,7 +116,9 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
 
   // ── Tabela: uma linha por hóspede; quarto, tipo e observação por quarto ──
   const comCpf = r.incluiCpf;
-  const head = [["Quarto", "Tipo", "Hóspede", ...(comCpf ? ["CPF"] : []), "Check-in", "Check-out", "Observação"]];
+  const comValores = r.comValores;
+  const colunas = ["Quarto", "Tipo", "Hóspede", ...(comCpf ? ["CPF"] : []), "Check-in", "Check-out", ...(comValores ? ["Valor"] : []), "Observação"];
+  const head = [colunas];
   type Celula = { content: string; rowSpan?: number; styles?: Record<string, unknown> };
   const body: Celula[][] = [];
   const primeiraDoQuarto = new Set<number>();
@@ -114,12 +129,14 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
       if (i === 0) {
         const span = l.hospedes.length;
         linha.push({ content: String(l.numero), rowSpan: span, styles: { fontStyle: "bold", fontSize: 10 } });
-        linha.push({ content: pdfTexto(l.tipo).split("; ").join("\n"), rowSpan: span });
+        const tipo = pdfTexto(l.tipo).split("; ").join("\n");
+        linha.push({ content: comValores && l.valor ? `${tipo}\nTotal ${l.valor}` : tipo, rowSpan: span });
       }
       linha.push({ content: h.nome, styles: { fontStyle: "bold" } });
       if (comCpf) linha.push({ content: h.cpf ?? "—" });
       linha.push({ content: h.checkIn });
       linha.push({ content: h.checkOut });
+      if (comValores) linha.push({ content: h.valor ?? "—", styles: { halign: "right" } });
       if (i === 0) linha.push({ content: l.observacao ?? "", rowSpan: l.hospedes.length, styles: { textColor: COR.suave } });
       body.push(linha);
     });
@@ -145,10 +162,12 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
     rowPageBreak: "avoid",
     styles: { font: "helvetica", fontSize: 8.6, textColor: COR.texto, cellPadding: { top: 2.4, bottom: 2.4, left: 2.2, right: 2.2 }, lineColor: COR.linha, lineWidth: { bottom: 0.15 }, valign: "top", overflow: "linebreak" },
     headStyles: { fillColor: COR.cabecalho, textColor: COR.suave, fontStyle: "bold", fontSize: 7.2, cellPadding: { top: 2.6, bottom: 2.6, left: 2.2, right: 2.2 }, lineWidth: 0 },
-    columnStyles: comCpf
-      ? { 0: { cellWidth: 14 }, 1: { cellWidth: 30 }, 3: { cellWidth: 27 }, 4: { cellWidth: 20 }, 5: { cellWidth: 20 }, 6: { cellWidth: 26 } }
-      : { 0: { cellWidth: 15 }, 1: { cellWidth: 36 }, 3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 34 } },
+    // Larguras por nome de coluna (o Hóspede fica com o que sobra). Sem CPF e
+    // sem valores, as de sempre; com eles, apertam um pouco.
+    columnStyles: Object.fromEntries(colunas.map((c, i) => [i, { cellWidth: LARGURAS[comCpf && comValores ? "ambos" : comCpf ? "cpf" : comValores ? "valores" : "simples"][c] ?? "auto" }])),
     didParseCell: (d) => {
+      // Valor alinhado à direita também no cabeçalho (números se comparam assim).
+      if (d.section === "head" && colunas[d.column.index] === "Valor") d.cell.styles.halign = "right";
       // Um quarto começa com um fio mais forte: dá para ver onde cada um termina.
       if (d.section === "body" && primeiraDoQuarto.has(d.row.index) && d.row.index > 0) {
         d.cell.styles.lineWidth = { top: 0.35, bottom: 0.15 };
@@ -159,7 +178,22 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   });
 
   // Nota final curta: como ler o "Tipo" em trechos.
-  const fimDaTabela = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y;
+  let fimDaTabela = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y;
+  // Uso interno: o total do documento logo abaixo da tabela (página nova se não couber).
+  if (comValores && r.totalDosValores) {
+    if (fimDaTabela + 16 > H - 20) { doc.addPage(); rodape(); fimDaTabela = M; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...COR.texto);
+    doc.text(`Total calculado: ${r.totalDosValores}`, W - M, fimDaTabela + 8, { align: "right" });
+    if (r.valoresParciais) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.6);
+      doc.setTextColor(...COR.alerta);
+      doc.text("Parcial: há noites sem tarifa definida.", W - M, fimDaTabela + 12.5, { align: "right" });
+    }
+    fimDaTabela += r.valoresParciais ? 13 : 9;
+  }
   if (r.linhas.some((l) => l.tipo.includes(";")) && fimDaTabela + 12 < H - 20) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.6);
