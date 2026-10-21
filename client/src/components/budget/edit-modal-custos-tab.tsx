@@ -18,6 +18,7 @@ import { FUNCAO_LOCAL_RAZAO, PERCURSEIRO_TIPOS, percurseiroDiariaCents, type Def
 import { CENO_FREELA_TIPO_LABELS, type CenoEmpreitaValor } from "@shared/cenotecnica-empreita";
 import type { ControladorDoModalDeEdicao } from "@/hooks/use-budget-edit-modal";
 import { formatCurrency, formatSegmentsMemo, type BudgetEdit, type EditingBudgetInfo } from "./types";
+import { fonteDoHonorario, textoDaDiferenca } from "./honorario-no-planejado";
 
 // 08/10: o campo da família — borda visível, anel de foco, número tabular; travado fica cinza.
 export const inputCls = "h-9 w-[104px] px-2.5 text-sm text-right font-semibold tabular-nums rounded-lg border border-border bg-card outline-none transition-[border-color,box-shadow] focus:border-primary focus:ring-[3px] focus:ring-primary/12 focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100";
@@ -31,6 +32,10 @@ export interface CustosTabProps {
   deflatedSegments: DeflationSegment[];
   empreitaModal: CenoEmpreitaValor | null;
   empreitaEditadaModal: boolean;
+  /** Honorário aprovado (21/10) com a diária editada à mão (o ajuste vence o aprovado). */
+  honorarioEditadoModal?: boolean;
+  /** A diária do honorário (valor ÷ dias) — "Usar o honorário aprovado" volta a ela. */
+  diariaDoHonorario?: number | null;
   diasDiariaModal: number;
   noWeekdays: boolean;
   noWeekends: boolean;
@@ -66,6 +71,10 @@ export function CabecalhoDoBloco({ icone: Icone, cor, titulo, sub, total, extra 
 function DiariasBlock(p: CustosTabProps) {
   const { ctrl, editingBudget, info, totalDiarias, deflatedSegments, empreitaModal, empreitaEditadaModal, diasDiariaModal } = p;
   const { systemSettings, savingTipo, modalViewMode, pendingAtendimentoTipo, pendingPercurseiroTipo, setEditingBudget } = ctrl;
+  // Honorário APROVADO (21/10): a mão de obra da vaga é o aprovado.
+  const hon = info.honorarioAprovado && info.honorario ? info.honorario : null;
+  const diasDaLinha = hon ? (info.diasHonorario ?? diasDiariaModal) : empreitaModal ? empreitaModal.dias : diasDiariaModal;
+  const diariaDoHonorario = p.diariaDoHonorario ?? null;
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <CabecalhoDoBloco icone={Calendar} cor="text-primary" titulo="Diárias" total={totalDiarias} />
@@ -148,7 +157,31 @@ function DiariasBlock(p: CustosTabProps) {
       )}
       {/* Cenotécnica EMPREITA: valor FECHADO por nº de dias.
           A modalidade é escolhida na ESCALAÇÃO — aqui é só leitura. */}
-      {info.cenoEmpreitaVaga && (
+      {hon && (
+        <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-success-soft/60 border-b border-success/20" data-testid="modal-honorario-aprovado">
+          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Honorário aprovado</span>
+          <span className="text-2xs font-semibold text-success">{fonteDoHonorario(hon)}</span>
+          <span className="w-full text-2xs text-muted-foreground tabular-nums">
+            Mão de obra: <b>{formatCurrency(hon.valorCents)}</b> ({diasDaLinha} {diasDaLinha === 1 ? "dia" : "dias"}) — substitui a tabela e a diária. Alimentação e mobilidade seguem as regras normais. Editar a diária aqui substitui o aprovado.
+          </span>
+          {p.honorarioEditadoModal && (
+            <span className="w-full flex flex-wrap items-center gap-2 text-2xs text-warning">
+              <span className="font-semibold">{textoDaDiferenca(hon)}</span>
+              {!modalViewMode && diariaDoHonorario != null && (
+                <button
+                  type="button"
+                  onClick={() => setEditingBudget(prev => prev ? { ...prev, valorDiaria: diariaDoHonorario, valorDiariaUtil: diariaDoHonorario, valorDiariaFds: diariaDoHonorario } : prev)}
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-md font-semibold text-warning hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="modal-usar-honorario"
+                >
+                  <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />Usar o honorário aprovado
+                </button>
+              )}
+            </span>
+          )}
+        </div>
+      )}
+      {info.cenoEmpreitaVaga && !hon && (
         <div className="flex items-center gap-2 flex-wrap px-4 py-2.5 bg-warning-soft/50 border-b border-warning/20">
           <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Empreita cenotécnica</span>
           {info.cenoFreelaTipo ? (
@@ -181,11 +214,11 @@ function DiariasBlock(p: CustosTabProps) {
         <div className="flex flex-wrap items-center px-4 py-2.5 gap-x-3 gap-y-2">
           <div className="flex items-center gap-1.5 flex-1 flex-wrap max-sm:basis-full">
             <Briefcase className="w-3 h-3 text-muted-foreground shrink-0" aria-hidden="true" />
-            <span className="text-xs font-medium text-slate-700">{empreitaModal ? "Diárias (empreita)" : "Diária"}</span>
+            <span className="text-xs font-medium text-slate-700">{hon ? "Diárias (honorário)" : empreitaModal ? "Diárias (empreita)" : "Diária"}</span>
             <span className="text-2xs text-muted-foreground">
               {/* Empreita: mostra os dias da EMPREITA (dias efetivamente
                   trabalhados), que são os multiplicados acima */}
-              × {empreitaModal ? empreitaModal.dias : diasDiariaModal} {(empreitaModal ? empreitaModal.dias : diasDiariaModal) === 1 ? "dia" : "dias"}
+              × {diasDaLinha} {diasDaLinha === 1 ? "dia" : "dias"}
               {info.regraDiaria === "fds" && " (só fins de semana)"}
               {info.regraDiaria === "nenhuma" && " (cenotécnica CLT: sem diária)"}
               {info.isPercurso && " (percurso — pacote por dia trabalhado)"}

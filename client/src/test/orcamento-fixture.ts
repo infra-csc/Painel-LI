@@ -8,6 +8,7 @@
  */
 import { calcularPlanejadoDaVaga, type OverrideDoPlanejado } from "@shared/budget-engine";
 import type { TeamInclusion } from "@shared/schema";
+import type { HonorarioNaVaga } from "@shared/honorarios-ceno";
 import type { CalculatedBudget } from "@/components/budget/types";
 import { formatarMoeda } from "@/lib/format";
 import { colaboradorFake, vagaFake } from "./fixtures-dominio";
@@ -43,6 +44,9 @@ export interface OpcoesDoOrcamento {
   override?: OverrideDoPlanejado | null;
   collaboratorType?: "casa" | "freela" | "local";
   nome?: string;
+  /** Função da vaga (padrão "Produção"); "Cenotécnica" para os honorários (21/10). */
+  functionName?: string;
+  honorario?: HonorarioNaVaga | null;
 }
 
 export function orcamentoFake(opcoes: OpcoesDoOrcamento = {}): CalculatedBudget {
@@ -50,11 +54,12 @@ export function orcamentoFake(opcoes: OpcoesDoOrcamento = {}): CalculatedBudget 
   const tipo = opcoes.collaboratorType ?? "freela";
   const resultado = calcularPlanejadoDaVaga({
     vaga,
-    functionName: "Produção",
+    functionName: opcoes.functionName ?? "Produção",
     collaboratorType: tipo,
     functionValue: VALORES_DA_FUNCAO,
     settings: {},
     override: opcoes.override ?? null,
+    honorario: opcoes.honorario ?? null,
   });
   return {
     ...resultado,

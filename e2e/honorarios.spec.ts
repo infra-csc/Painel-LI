@@ -11,7 +11,9 @@
  *   uma vaga aberta da Corrida Noturna de Curitiba, escolhe Freela Local (A) e
  *   envia; numa segunda vaga aberta cria uma empreita marcando também uma vaga
  *   escalada e a envia pela gaveta "Honorários do evento" → Marcos (aprovador)
- *   aprova os dois na tela Aprovação de honorários → Patrícia (RH) libera a
+ *   aprova os dois na tela Aprovação de honorários → no Planejado (21/10) a
+ *   vaga escalada da empreita mostra a parte dela (R$ 3.000 ÷ 2) como a mão
+ *   de obra → Patrícia (RH) libera a
  *   empreita → o relatório por evento soma tudo, a empreita uma vez só.
  *
  * Só toca em honorários (tabelas próprias) e no tipo de freela da vaga que
@@ -139,6 +141,25 @@ test("aprovador: vê \"Vaga #N sem nome\" com a origem do valor e a empreita com
   await page.getByRole("button", { name: `Aprovar ${EMPREITA}`, exact: true }).click();
   await confirmacao(page).getByRole("button", { name: /^Aprovar/ }).click();
   await esperarToast(page, "Honorário aprovado");
+});
+
+test("Planejado (21/10): o honorário aprovado vira a mão de obra da vaga — a escalada recebe a parte da empreita", async ({ page }) => {
+  await entrarComo(page, "financial");
+  // A empreita aprovada (R$ 3.000) tem 2 vagas: a escalada aparece no Planejado com a metade.
+  const lidos = (await (await api(page).get(`/api/budget-planned/honorarios?eventId=${eventId}`)).json()) as { nome: string; status: string; vagas: { id: string; ativa: boolean }[] }[];
+  const emp = lidos.find((h) => h.nome === EMPREITA);
+  expect(emp).toMatchObject({ status: "aprovado" });
+  expect(emp!.vagas.filter((v) => v.ativa)).toHaveLength(2);
+
+  await page.goto(`/budget-planned?event=${eventId}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Planejado" })).toBeVisible();
+  await page.getByPlaceholder("Buscar colaborador").fill(escaladaDaEmpreita.collaboratorName!);
+  const card = page.locator(`article[data-card-id="${escaladaDaEmpreita.id}"]`);
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("planejado-honorario-aprovado")).toContainText("Empreita aprovada");
+  await expect(card.getByTestId("planejado-fonte-honorario")).toContainText(new RegExp(`parte da empreita ${EMPREITA} \\(R\\$\\s?3\\.000,00 ÷ 2\\)`));
+  await expect(card.getByTestId("planejado-fonte-honorario")).toContainText("aprovada por");
+  await expect(card.locator(".pla-lancamento").first()).toContainText(/R\$\s?1\.500,00/);
 });
 
 test("Financeiro: libera a empreita inteira e o relatório por evento conta a empreita uma vez", async ({ page }) => {

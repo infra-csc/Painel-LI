@@ -167,6 +167,9 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
       cenoEmpreitaVaga: budget.cenoEmpreitaVaga,
       cenoFreelaTipo: budget.cenoFreelaTipo,
       cenoEmpreita: budget.cenoEmpreita,
+      honorario: budget.honorario,
+      honorarioAprovado: budget.honorarioAprovado,
+      diasHonorario: budget.honorarioAprovado ? (budget.deflationSegments[0]?.days ?? budget.diasComDiaria) : undefined,
       inclusionId: budget.inclusion.id,
     });
     setPendingAtendimentoTipo(null);

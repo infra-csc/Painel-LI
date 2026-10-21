@@ -9,6 +9,7 @@ import { memo } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
 import type { CalculatedBudget } from "./types";
+import { fonteDoHonorario } from "./honorario-no-planejado";
 
 export const SheetRowDiasCell = memo(function SheetRowDiasCell({ budget }: { budget: CalculatedBudget }) {
   return (
@@ -48,6 +49,11 @@ export const SheetRowDiasCell = memo(function SheetRowDiasCell({ budget }: { bud
               {budget.isPercurso && (
                 <span className="text-muted-foreground mt-0.5">
                   Percurso: {budget.diasComDiaria} {budget.diasComDiaria === 1 ? "diária" : "diárias"} · pacote por dia trabalhado (pacote fechado por diária)
+                </span>
+              )}
+              {budget.honorarioAprovado && budget.honorario && (
+                <span className="text-muted-foreground mt-0.5">
+                  Mão de obra pelo honorário aprovado ({budget.deflationSegments[0]?.days ?? budget.diasComDiaria} dias de trabalho) — {fonteDoHonorario(budget.honorario)}
                 </span>
               )}
               {budget.cenoEmpreita && (

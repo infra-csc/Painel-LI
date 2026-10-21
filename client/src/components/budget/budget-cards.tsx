@@ -45,6 +45,8 @@ export interface BudgetCardsProps {
   onSend: (id: string) => void;
   onNotAttended: (s: NotAttendedModalState) => void;
   onRestore: (s: RestoreModalState) => void;
+  /** "Usar o honorário aprovado" (21/10): limpa o ajuste manual da mão de obra da vaga. */
+  onUsarHonorario?: (id: string) => void;
   /** Selecionáveis visíveis (pendentes) — base do "selecionar todos". */
   selectableCount?: number;
   allSelected?: boolean;
@@ -222,6 +224,7 @@ export function BudgetCards(p: BudgetCardsProps) {
                     onSend={p.onSend}
                     onNotAttended={p.onNotAttended}
                     onRestore={p.onRestore}
+                    onUsarHonorario={p.onUsarHonorario}
                   />
                 );
               })}

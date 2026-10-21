@@ -7,6 +7,7 @@ import {
   validarMotivo, valorPorDiaria, avisoDaVaga, vagaSaiuDosHonorarios, type LinhaDoRelatorio, type VagaAtual,
   avisoDaVagaNaEmpreita, nomeDaVagaSemColaborador, posicaoDoTipo, posicaoPelaFuncao, rotuloDoValor, setorDaVaga,
   STATUS_DE_VAGA_ATIVA, CHAVE_DAS_VAGAS_SEM_NOME,
+  ratearEmpreita, honorariosNasVagas, valorDoHonorarioNaVaga, type HonorarioParaPlanejado, type HonorarioNaVaga,
 } from "./honorarios-ceno";
 
 const linha = (o: Partial<LinhaDoRelatorio>): LinhaDoRelatorio => ({
@@ -293,5 +294,100 @@ describe("a vaga mudou depois do pedido", () => {
     expect(valorPorDiaria(100_000, 0)).toBeNull();
     expect(valorPorDiaria(100_000, 3)).toBe(33_333);
     expect(valorPorDiaria(100_001, 2)).toBe(50_001);
+  });
+});
+
+// ── No Planejado (21/10) ────────────────────────────────────────────────────
+describe("Planejado: ratearEmpreita", () => {
+  it("R$ 1.000,00 em 3 vagas: os centavos que sobram vão para a primeira e a soma bate", () => {
+    const partes = ratearEmpreita(100_000, 3);
+    expect(partes).toEqual([33_334, 33_333, 33_333]);
+    expect(partes.reduce((a, b) => a + b, 0)).toBe(100_000);
+  });
+  it("divisão exata, uma vaga só e nenhuma vaga", () => {
+    expect(ratearEmpreita(90_000, 3)).toEqual([30_000, 30_000, 30_000]);
+    expect(ratearEmpreita(90_000, 1)).toEqual([90_000]);
+    expect(ratearEmpreita(90_000, 0)).toEqual([]);
+  });
+});
+
+describe("Planejado: honorariosNasVagas", () => {
+  const pedido = (o: Partial<HonorarioParaPlanejado>): HonorarioParaPlanejado => ({
+    id: "h", tipo: "vaga", nome: "Fulano", status: "aprovado", valorPedido: 120_000, valorAprovado: 120_000,
+    decididoPorNome: "Marcos Vieira", decididoEm: "2026-10-21T13:00:00.000Z", teamInclusionId: "v1", avisoDaVaga: null, vagas: [], ...o,
+  });
+
+  it("vaga com a tabela aprovada com ajuste: vale o aprovado, com quem aprovou e quando", () => {
+    const m = honorariosNasVagas([pedido({ status: "aprovado_ajuste", valorPedido: 125_700, valorAprovado: 100_000 })]);
+    expect(m.get("v1")).toMatchObject({ situacao: "aprovado", tipo: "vaga", valorCents: 100_000, aprovadoPor: "Marcos Vieira", empreita: null });
+  });
+
+  it("\"Outro valor\" aprovado sem ajuste: vale o valor do pedido", () => {
+    const m = honorariosNasVagas([pedido({ status: "aprovado", valorPedido: 150_000, valorAprovado: 150_000 })]);
+    expect(m.get("v1")?.valorCents).toBe(150_000);
+  });
+
+  it("aguardando, rascunho e devolvido: pendente, com o valor pedido e sem aprovador", () => {
+    for (const status of ["aguardando", "rascunho", "devolvido"]) {
+      const h = honorariosNasVagas([pedido({ status, valorAprovado: null, decididoPorNome: status === "devolvido" ? "Marcos" : null })]).get("v1");
+      expect(h).toMatchObject({ situacao: "pendente", status, valorCents: 120_000, aprovadoPor: null, aprovadoEm: null });
+    }
+  });
+
+  it("empreita aprovada de 3 vagas com centavos: cada vaga com a sua parte, a primeira (menor nº) com o resto", () => {
+    const m = honorariosNasVagas([pedido({
+      id: "e1", tipo: "empreita", nome: "Equipe Sul", teamInclusionId: null, valorPedido: 100_000, valorAprovado: 100_000,
+      vagas: [{ id: "c", inclusionNumber: 30, ativa: true }, { id: "a", inclusionNumber: 10, ativa: true }, { id: "b", inclusionNumber: 20, ativa: true }],
+    })]);
+    expect(m.get("a")).toMatchObject({ tipo: "empreita", valorCents: 33_334, empreita: { totalCents: 100_000, vagas: 3, primeira: true } });
+    expect(m.get("b")).toMatchObject({ valorCents: 33_333, empreita: { primeira: false } });
+    expect(m.get("c")?.valorCents).toBe(33_333);
+    expect(["a", "b", "c"].reduce((s, id) => s + m.get(id)!.valorCents, 0)).toBe(100_000);
+  });
+
+  it("vaga que saiu da empreita (cancelada, ou tirada da lista): não recebe parte e o rateio é entre as que ficaram", () => {
+    const m = honorariosNasVagas([pedido({
+      id: "e1", tipo: "empreita", teamInclusionId: null, valorPedido: 90_000, valorAprovado: 90_000,
+      vagas: [{ id: "a", inclusionNumber: 1, ativa: true }, { id: "b", inclusionNumber: 2, ativa: false }, { id: "c", inclusionNumber: 3, ativa: true }],
+    })]);
+    expect(m.has("b")).toBe(false);
+    expect(m.get("a")?.valorCents).toBe(45_000);
+    expect(m.get("c")?.empreita?.vagas).toBe(2);
+    // Empreita sem nenhuma vaga ativa (equipe fora da escala) não toca o Planejado.
+    expect(honorariosNasVagas([pedido({ tipo: "empreita", teamInclusionId: null, vagas: [] })]).size).toBe(0);
+  });
+
+  it("honorário de vaga cancelada, excluída, de outra função ou da casa não entra; troca de colaborador entra com o aviso", () => {
+    for (const aviso of ["fora_da_escala", "excluida", "outra_funcao", "casa"] as const) {
+      expect(honorariosNasVagas([pedido({ avisoDaVaga: aviso })]).size).toBe(0);
+    }
+    expect(honorariosNasVagas([pedido({ avisoDaVaga: "colaborador_trocado" })]).get("v1")?.colaboradorTrocado).toBe(true);
+  });
+
+  it("status desconhecido não entra", () => {
+    expect(honorariosNasVagas([pedido({ status: "liberado" })]).size).toBe(0);
+  });
+});
+
+describe("Planejado: valorDoHonorarioNaVaga", () => {
+  const aprovado: HonorarioNaVaga = {
+    honorarioId: "h", tipo: "vaga", nome: "Fulano", status: "aprovado", situacao: "aprovado", valorCents: 100_000,
+    empreita: null, aprovadoPor: "Marcos", aprovadoEm: null, colaboradorTrocado: false,
+  };
+
+  it("sem honorário: a regra de hoje", () => {
+    expect(valorDoHonorarioNaVaga({ regraCents: 125_700 })).toMatchObject({ subtotalCents: 125_700, fonte: "regra", aprovadoCents: null });
+  });
+  it("aprovado: o aprovado substitui a tabela", () => {
+    expect(valorDoHonorarioNaVaga({ honorario: aprovado, regraCents: 125_700 })).toMatchObject({ subtotalCents: 100_000, fonte: "honorario", difereDoAprovado: false });
+  });
+  it("aguardando: o valor não muda, o pedido fica no selo", () => {
+    const r = valorDoHonorarioNaVaga({ honorario: { ...aprovado, situacao: "pendente", status: "aguardando" }, regraCents: 125_700 });
+    expect(r).toMatchObject({ subtotalCents: 125_700, fonte: "regra", aprovadoCents: null, pendenteCents: 100_000 });
+  });
+  it("ajuste manual vence o aprovado e avisa quando difere", () => {
+    expect(valorDoHonorarioNaVaga({ honorario: aprovado, regraCents: 125_700, ajusteCents: 120_000 }))
+      .toMatchObject({ subtotalCents: 120_000, fonte: "ajuste", aprovadoCents: 100_000, difereDoAprovado: true });
+    expect(valorDoHonorarioNaVaga({ honorario: aprovado, regraCents: 125_700, ajusteCents: 100_000 }).difereDoAprovado).toBe(false);
   });
 });

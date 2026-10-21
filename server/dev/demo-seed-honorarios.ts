@@ -17,6 +17,10 @@
  * pedido, para a aba Honorário e a empreita que agrupa vagas). Os pedidos
  * de vaga levam o tipo do valor: "Outro valor" nos antigos e a tabela no
  * rascunho de Curitiba.
+ * 21/10 (o honorário aprovado entra no Planejado): BH ganha duas vagas com
+ * honorário APROVADO (uma com ajuste) e uma empreita aprovada que agrupa 3
+ * vagas escaladas (R$ 5.000,00 ÷ 3 — rateio com centavos), para o Planejado
+ * do evento mostrar aprovado, aguardando e empreita rateada juntos.
  * Nada aqui muda as vagas que o seed principal criou.
  */
 import { and, eq, inArray } from "drizzle-orm";
@@ -46,7 +50,8 @@ interface Plano {
   evento: string;
   statusDaVaga: string;
   vagas: { funcao: "Cenotécnica" | "Sup Ceno"; tipo: "freela" | "local" | "casa" | "aberta"; viagem?: boolean; setor: "sup_ceno" | "marceneiro" | "montagem"; dias: number; etapa: Etapa }[];
-  empreitas: { nome: string; pessoas: number; descricao: string; setor: "montagem" | "marceneiro"; dias: number; etapa: Etapa }[];
+  /** `vagas` (21/10): quantas vagas escaladas de Cenotécnica a empreita agrupa (sem = equipe fora da escala). */
+  empreitas: { nome: string; pessoas: number; descricao: string; setor: "montagem" | "marceneiro"; dias: number; etapa: Etapa; vagas?: number }[];
 }
 
 const PLANOS: Plano[] = [
@@ -86,9 +91,13 @@ const PLANOS: Plano[] = [
       { funcao: "Cenotécnica", tipo: "local", setor: "montagem", dias: 3, etapa: { s: "devolvido", valor: 165_000, motivo: "Acima do combinado para 3 diárias — rever com o freela." } },
       { funcao: "Cenotécnica", tipo: "freela", setor: "montagem", dias: 3, etapa: { s: "aguardando", valor: 120_000 } },
       { funcao: "Cenotécnica", tipo: "aberta", setor: "montagem", dias: 3, etapa: { s: "aguardando", valor: 110_000, obs: "Freela ainda em negociação — valor fechado com a produção." } },
+      // 21/10: aprovados — no Planejado a mão de obra destas vagas é o aprovado.
+      { funcao: "Cenotécnica", tipo: "freela", viagem: true, setor: "marceneiro", dias: 4, etapa: { s: "ajuste", valor: 200_000, aprovado: 175_000, motivo: "Fechado em R$ 1.750 — sem o dia de desmontagem." } },
+      { funcao: "Cenotécnica", tipo: "local", setor: "montagem", dias: 3, etapa: { s: "aprovado", valor: 140_000 } },
     ],
     empreitas: [
       { nome: "Equipe Carga e Descarga (3x)", pessoas: 3, descricao: "Descarregar na quinta e carregar no domingo", setor: "montagem", dias: 2, etapa: { s: "aguardando", valor: 180_000 } },
+      { nome: "Equipe Pórtico BH (3x)", pessoas: 3, descricao: "Montagem do pórtico de largada e chegada", setor: "montagem", dias: 3, vagas: 3, etapa: { s: "aprovado", valor: 500_000 } },
     ],
   },
   {
@@ -143,8 +152,8 @@ export async function semearHonorariosDemo(db: Db): Promise<{ pedidos: number }>
     const enviadoEm = passado ? em(addDias(fimEvento, 1), "09:40") : em(addDias(new Date().toISOString().slice(0, 10), -1), "11:15");
     const decididoEm = passado ? em(addDias(fimEvento, 3), "15:20") : em(new Date().toISOString().slice(0, 10), "08:50");
 
-    const criarPedido = async (base: Omit<schema.InsertHonorarioCeno, "criadoPor" | "criadoPorNome" | "status" | "valorPedido">, etapa: Etapa, inicio: string, fim: string) => {
-      if (etapa.s === "sem") return;
+    const criarPedido = async (base: Omit<schema.InsertHonorarioCeno, "criadoPor" | "criadoPorNome" | "status" | "valorPedido">, etapa: Etapa, inicio: string, fim: string): Promise<string | null> => {
+      if (etapa.s === "sem") return null;
       const valorAprovado = etapa.s === "aprovado" ? etapa.valor : etapa.s === "ajuste" ? etapa.aprovado : null;
       const status = etapa.s === "ajuste" ? "aprovado_ajuste" : etapa.s;
       const enviado = etapa.s !== "rascunho";
@@ -181,6 +190,7 @@ export async function semearHonorariosDemo(db: Db): Promise<{ pedidos: number }>
         hist.push({ honorarioId: h.id, acao: "liberacao", valorNovo: valor, detalhe: `OC/DP ${oc} · ${acumulado >= total ? "verba liberada por completo" : "liberação parcial"}`, porId: patricia.id, porNome: patricia.name, em: em(data, "14:30") });
       }
       await db.insert(schema.honorariosCenoHistorico).values(hist);
+      return h.id;
     };
 
     for (let i = 0; i < plano.vagas.length; i++) {
@@ -211,10 +221,28 @@ export async function semearHonorariosDemo(db: Db): Promise<{ pedidos: number }>
       }, v.etapa, inicio, fimEvento);
     }
     for (const e of plano.empreitas) {
-      await criarPedido({
+      const inicio = addDias(fimEvento, -(e.dias - 1));
+      const id = await criarPedido({
         eventId: evento.id, tipo: "empreita", teamInclusionId: null, functionId: null, collaboratorId: null, nome: e.nome,
         pessoas: e.pessoas, descricao: e.descricao, setor: e.setor, posicao: "empreita", diarias: e.dias,
-      }, e.etapa, addDias(fimEvento, -(e.dias - 1)), fimEvento);
+      }, e.etapa, inicio, fimEvento);
+      // 21/10: a empreita agrupa vagas escaladas da Cenotécnica (a vaga não tem pedido próprio).
+      if (!id || !e.vagas) continue;
+      const fn = funcao("Cenotécnica");
+      for (let i = 0; i < e.vagas; i++) {
+        const colab = pegar("freela");
+        if (!colab) break;
+        const [vaga] = await db.insert(schema.teamInclusions).values({
+          eventId: evento.id, functionId: fn.id, collaboratorId: colab.id, area: fn.responsibleArea, emitsNf: true,
+          cenoFreelaTipo: "local_a", rowOrder: 260 + i, scheduleStartDate: inicio, scheduleEndDate: fimEvento,
+          needsTicket: false, needsAccommodation: false, dailyRates: e.dias, dailyValue: 0, city: colab.city ?? null,
+          status: plano.statusDaVaga,
+          phase: plano.statusDaVaga === "escalado" ? "escalacao" : plano.statusDaVaga === "concluido" || plano.statusDaVaga === "aprovado" ? "aprovacao" : "hospedagem",
+          userId: rafael.id, updatedBy: rafael.id, approvedByProduction: marcos.id, approvedByProductionAt: em(addDias(inicioEvento, -10)),
+          createdAt: em(addDias(inicioEvento, -20)), updatedAt: em(addDias(inicioEvento, -10)),
+        }).returning();
+        await db.insert(schema.honorariosCenoEmpreitaVagas).values({ honorarioId: id, teamInclusionId: vaga.id });
+      }
     }
   }
   return { pedidos };

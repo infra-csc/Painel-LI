@@ -704,3 +704,93 @@ describe("Honorários da cenotécnica — empreita que agrupa vagas", () => {
     expect(ed.status).toBe(409);
   });
 });
+
+// ── No Planejado (21/10): "a aprovação do honorário tem que afetar o planejado" ──
+describe("Honorários da cenotécnica — no Planejado (21/10)", () => {
+  type ParaPlanejado = import("@shared/honorarios-ceno").HonorarioParaPlanejado;
+  const lerNoPlanejado = async (agent: TestAgent, eventoId: string) => {
+    const r = await agent.get(`/api/budget-planned/honorarios?eventId=${eventoId}`);
+    expect(r.status, r.text).toBe(200);
+    return r.body as ParaPlanejado[];
+  };
+
+  it("só quem vê o Planejado lê; o aguardando não muda nada e o aprovado c/ ajuste vira a mão de obra (tela e Atualizar padrões)", async () => {
+    const { honorariosNasVagas } = await import("@shared/honorarios-ceno");
+    const { calcularPlanejadoDaVaga, linhaDoPlanejado } = await import("@shared/budget-engine");
+    const c = await cenario();
+    const rascunho = await criarRascunho(c, c.vagaFreela.id, 120_000);
+    await enviar(c, [{ id: rascunho.id, versao: rascunho.versao }]);
+
+    // Mesma permissão do Planejado: Produção (quem pede/aprova) não lê; sem evento → 400.
+    expect((await c.pede.agent.get(`/api/budget-planned/honorarios?eventId=${c.eventoId}`)).status).toBe(403);
+    const rh = await agenteLogado("financial");
+    expect((await rh.agent.get("/api/budget-planned/honorarios")).status).toBe(400);
+
+    const aguardando = honorariosNasVagas(await lerNoPlanejado(rh.agent, c.eventoId)).get(c.vagaFreela.id);
+    expect(aguardando).toMatchObject({ situacao: "pendente", status: "aguardando", valorCents: 120_000 });
+
+    const fila = await c.aprova.agent.get(`/api/honorarios-ceno/aprovacao?eventId=${c.eventoId}`);
+    const ajuste = await mutacao(c.aprova.agent.post(`/api/honorarios-ceno/${rascunho.id}/aprovar-com-ajuste`))
+      .send({ versao: fila.body[0].versao, valor: 100_000, motivo: "Fechado em R$ 1.000" });
+    expect(ajuste.status, ajuste.text).toBe(200);
+    const lidos = await lerNoPlanejado(rh.agent, c.eventoId);
+    const aprovado = honorariosNasVagas(lidos).get(c.vagaFreela.id);
+    expect(aprovado).toMatchObject({ situacao: "aprovado", status: "aprovado_ajuste", valorCents: 100_000, aprovadoPor: c.aprova.user.name });
+    expect(aprovado?.aprovadoEm).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    // "Atualizar padrões" grava o aprovado como a mão de obra (mesmo motor da tela).
+    const vaga = (await ctx.storage.getTeamInclusion(c.vagaFreela.id))!;
+    const planejado = await ctx.storage.createBudgetPlanned({ eventId: c.eventoId, collaboratorId: vaga.collaboratorId, functionId: vaga.functionId, collaboratorType: "freela", totalValue: 0 } as any);
+    const admin = await agenteLogado("admin");
+    const ap = await mutacao(admin.agent.post("/api/budget-planned/apply-defaults")).send({ eventId: c.eventoId });
+    expect(ap.status, ap.text).toBe(200);
+    const cfg: Record<string, number> = {};
+    for (const st of await ctx.storage.getSystemSettings()) { const v = parseInt(st.value, 10); if (Number.isFinite(v)) cfg[st.key] = v; }
+    const resultado = calcularPlanejadoDaVaga({
+      vaga, functionName: c.funcaoNome, collaboratorType: "freela", functionValue: null, settings: cfg, eventLocation: "São Paulo - SP", ticket: null, honorario: aprovado,
+    });
+    expect(resultado.subtotalDiarias).toBe(100_000);
+    const gravado = (await ctx.storage.getBudgetPlanned(c.eventoId)).find((p) => p.id === planejado.id)!;
+    expect(gravado.totalValue).toBe(linhaDoPlanejado(resultado).totalValue);
+
+    // E nada disso mexe na escala.
+    expect((await ctx.storage.getTeamInclusion(c.vagaFreela.id))?.updatedAt).toEqual(vaga.updatedAt);
+  });
+
+  it("empreita aprovada com 3 vagas: rateio com os centavos na primeira; a vaga cancelada sai e o rateio refaz", async () => {
+    const { honorariosNasVagas } = await import("@shared/honorarios-ceno");
+    const c = await cenario();
+    const vagas = [c.vagaAberta.id, c.vagaFreela.id, c.vagaViagem.id];
+    const r = await mutacao(c.pede.agent.post("/api/honorarios-ceno")).send({ eventId: c.eventoId, tipo: "empreita", nome: "Equipe Rateio", valorPedido: 100_000, vagaIds: vagas });
+    expect(r.status, r.text).toBe(201);
+    await enviar(c, [{ id: r.body.id, versao: r.body.versao }]);
+    const fila = await c.aprova.agent.get(`/api/honorarios-ceno/aprovacao?eventId=${c.eventoId}`);
+    expect((await mutacao(c.aprova.agent.post(`/api/honorarios-ceno/${r.body.id}/aprovar`)).send({ versao: fila.body[0].versao })).status).toBe(200);
+
+    const rh = await agenteLogado("financial");
+    const porVaga = honorariosNasVagas(await lerNoPlanejado(rh.agent, c.eventoId));
+    const numeros = await Promise.all(vagas.map(async (id) => ({ id, n: (await ctx.storage.getTeamInclusion(id))!.inclusionNumber })));
+    const [primeira, ...demais] = numeros.sort((a, b) => a.n - b.n);
+    expect(porVaga.get(primeira.id)).toMatchObject({ tipo: "empreita", valorCents: 33_334, empreita: { totalCents: 100_000, vagas: 3, primeira: true } });
+    for (const v of demais) expect(porVaga.get(v.id)?.valorCents).toBe(33_333);
+
+    // A vaga cancelada depois sai do rateio: as duas que ficam dividem o aprovado.
+    await ctx.db.update(ctx.schema.teamInclusions).set({ status: "cancelado", phase: "cancelado" }).where(eq(ctx.schema.teamInclusions.id, demais[0].id));
+    const depois = honorariosNasVagas(await lerNoPlanejado(rh.agent, c.eventoId));
+    expect(depois.has(demais[0].id)).toBe(false);
+    expect(depois.get(primeira.id)?.valorCents).toBe(50_000);
+    expect(depois.get(demais[1].id)?.valorCents).toBe(50_000);
+  });
+
+  it("pedido de vaga cancelada não entra no Planejado", async () => {
+    const { honorariosNasVagas } = await import("@shared/honorarios-ceno");
+    const c = await cenario();
+    const p = await criarRascunho(c, c.vagaViagem.id, 90_000);
+    await enviar(c, [{ id: p.id, versao: p.versao }]);
+    await ctx.db.update(ctx.schema.teamInclusions).set({ status: "cancelado", phase: "cancelado" }).where(eq(ctx.schema.teamInclusions.id, c.vagaViagem.id));
+    const rh = await agenteLogado("financial");
+    const lidos = await lerNoPlanejado(rh.agent, c.eventoId);
+    expect(lidos.find((h) => h.id === p.id)?.avisoDaVaga).toBe("fora_da_escala");
+    expect(honorariosNasVagas(lidos).has(c.vagaViagem.id)).toBe(false);
+  });
+});

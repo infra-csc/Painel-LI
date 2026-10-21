@@ -46,6 +46,7 @@ import { EnviarParaRealizadoBar } from "@/components/budget/enviar-para-realizad
 import { TEXTO_RASCUNHO_LOCAL } from "@/components/budget/selo-do-rascunho";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ddmm, nomeDaVaga as nomeDaVagaDe, type CalculatedBudget } from "@/components/budget/types";
+import { usarHonorarioAprovado } from "@/components/budget/honorario-no-planejado";
 
 /** "09/10 – 11/10/2026" (ou só o dia de início). */
 function periodoDoEvento(e: Event | undefined): string {
@@ -91,6 +92,7 @@ export default function BudgetPlannedPage() {
 
   const q = useBudgetQueries(selectedEventId, {
     planned: true, actual: true, inclusions: true, notes: "planned", functionValues: true, tickets: true, settings: true,
+    honorarios: true,
   });
   const { events, functions, collaborators, functionValues, systemSettings, selectedEvent, getCollaboratorName, getFunctionName, functionNameById, ticketByInclusion } = q;
   // Evento em foco que não existe mais (excluído) é descartado assim que a lista chega (23/09).
@@ -129,7 +131,7 @@ export default function BudgetPlannedPage() {
   const motor = useBudgetEngine({
     teamInclusions: q.teamInclusions, functionValues, collaborators, functionNamesById: functionNameById, systemSettings,
     ticketByInclusion, eventLocation: selectedEvent?.location ?? null, budgetOverrides,
-    allBudgetPlanned: q.budgetPlanned, existingActuals: q.budgetActual,
+    allBudgetPlanned: q.budgetPlanned, existingActuals: q.budgetActual, honorarios: q.honorarios,
   });
   const { calculatedBudgets, sentToActual, notAttendedKeys, isCardNotAttended, plannedByCollabFunc, actualsByCollabFunc, totalGeral, stats } = motor;
 
@@ -161,6 +163,13 @@ export default function BudgetPlannedPage() {
   const enviarUm = useCallback((id: string) => setConfirmSend({ ids: [id], source: "single" }), [setConfirmSend]);
 
   const isSending = sendToActualMutation.isPending || sendSelectedToActualMutation.isPending;
+
+  // "Usar o honorário aprovado" (21/10): tira só o ajuste da mão de obra — o
+  // override do usuário vence o honorário até ele escolher voltar.
+  const usarHonorario = useCallback((id: string) => {
+    setBudgetOverrides(prev => usarHonorarioAprovado(prev, id));
+    setDraftRestored(false);
+  }, [setBudgetOverrides, setDraftRestored]);
 
   // Estados da lista: TODAS as consultas que a conta usa (antes só escalações
   // e valores — com o Planejado/Realizado fora do ar a tela mostrava tudo
@@ -370,6 +379,7 @@ export default function BudgetPlannedPage() {
             onSend={enviarUm}
             onNotAttended={acoes.setNotAttendedModal}
             onRestore={acoes.setRestoreModal}
+            onUsarHonorario={usarHonorario}
             selectableCount={selectableFiltered.length}
             allSelected={allSelected}
             onSelectAll={(v) => (v ? filtros.selectAllCards() : filtros.clearSelection())}

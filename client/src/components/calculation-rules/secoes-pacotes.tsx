@@ -3,6 +3,8 @@
  * Regras de `shared/cenotecnica-empreita.ts` (cenoEmpreitaTotalCents,
  * arredondarReais) e `shared/calculation-rules.ts` (percurseiroDiariaCents,
  * diasPercurseiro, diasEmpreita).
+ * 21/10: o honorário aprovado da cenotécnica substitui a mão de obra
+ * (shared/honorarios-ceno.ts · honorariosNasVagas; shared/budget-engine.ts).
  */
 import { AlertTriangle } from "lucide-react";
 import { CENO_EMPREITA_TABLE_DAYS, CENO_EMPREITA_DEFAULTS, cenoEmpreitaTotalCents, arredondarReais } from "@shared/cenotecnica-empreita";
@@ -71,6 +73,9 @@ export function SecaoEmpreita({ r, settings }: { r: RegrasVigentes; settings?: S
             { chave: "casa", titulo: "Cenotécnico da casa (CLT)", texto: "continua sem diária: a tabela vale só para quem não é da casa." },
             { chave: "fora-do-valor", titulo: "Alimentação e mobilidade", texto: "seguem as regras normais e não estão dentro do valor fechado, que cobre só a mão de obra." },
             { chave: "empresa", titulo: "Empreita por empresa", texto: "vale o valor total informado na Escalação, sem diária, alimentação ou mobilidade por pessoa." },
+            { chave: "honorario", titulo: "Honorário aprovado", texto: "quando o honorário da vaga é aprovado (com ou sem ajuste), a mão de obra no Planejado passa a ser o valor aprovado — no lugar da tabela, da diária ou da empreita por empresa. Alimentação e mobilidade continuam pelas regras normais. Antes da aprovação vale a tabela, com o pedido num selo." },
+            { chave: "honorario-empreita", titulo: "Empreita do honorário", texto: "o valor aprovado é dividido igualmente entre as vagas dela que continuam valendo, e os centavos que sobram vão para a primeira vaga — a soma do evento bate com o aprovado." },
+            { chave: "honorario-ajuste", titulo: "Ajuste manual", texto: "o ajuste feito no Planejado continua valendo sobre o honorário, com o aviso de que difere do aprovado e a opção de voltar a ele." },
           ]}
         />
       </div>

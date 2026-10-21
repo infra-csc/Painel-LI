@@ -130,7 +130,7 @@ export function SecaoQuemRecebe({ r }: { r: RegrasVigentes }) {
       chave: "empreita",
       celulas: [
         <span key="r"><span className="block">Cenotécnico empreita</span><span className="block text-2xs font-normal text-muted-foreground">cenotécnica que não é da casa</span></span>,
-        <Celula key="d" marca="parcial">Valor fechado por nº de dias</Celula>,
+        <Celula key="d" marca="parcial">Valor fechado por nº de dias — ou o honorário aprovado</Celula>,
         <Celula key="c" marca="sim">Dias trabalhados</Celula>,
         <Celula key="f" marca="nao">Não</Celula>,
         <Celula key="a" marca="parcial">Pela regra do tipo (freela não recebe)</Celula>,

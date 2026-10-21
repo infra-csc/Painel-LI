@@ -9,6 +9,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import type { BudgetActual, BudgetPlanned as BudgetPlannedRow, Collaborator, FunctionValue, TeamInclusion, Ticket } from "@shared/schema";
 import { calcularPlanejadoDaVaga, type VagaParaPlanejado } from "@shared/budget-engine";
+import { honorariosNasVagas, type HonorarioNaVaga, type HonorarioParaPlanejado } from "@shared/honorarios-ceno";
 import { indexarPorId } from "@/lib/indices";
 import { collabFuncKey, isCasaType, type BudgetOverrides, type CalculatedBudget } from "@/components/budget/types";
 
@@ -23,6 +24,8 @@ export interface EntradaDoMotor {
   budgetOverrides: BudgetOverrides;
   allBudgetPlanned: BudgetPlannedRow[] | undefined;
   existingActuals: BudgetActual[] | undefined;
+  /** Honorários da cenotécnica do evento (21/10): o aprovado é a mão de obra da vaga. */
+  honorarios?: HonorarioParaPlanejado[] | undefined;
 }
 
 export interface EstatisticasDoPlanejado {
@@ -61,8 +64,12 @@ const STATUS_CONFIRMADOS = new Set([
 export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
   const {
     teamInclusions, functionValues, collaborators, functionNamesById, systemSettings,
-    ticketByInclusion, eventLocation, budgetOverrides, allBudgetPlanned, existingActuals,
+    ticketByInclusion, eventLocation, budgetOverrides, allBudgetPlanned, existingActuals, honorarios,
   } = e;
+
+  // Honorário de cada vaga (aprovado, parte da empreita ou pendente) — a mesma
+  // função que o servidor usa em "Atualizar padrões".
+  const honorarioPorVaga = useMemo(() => honorariosNasVagas(honorarios ?? []), [honorarios]);
 
   // Índices O(1) (23/09): `collaborators?.find` e `functionValues?.find` rodavam
   // dentro do `.map` do cálculo — O(n·m) a cada render.
@@ -114,7 +121,8 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
       const fnName = functionNamesById.get(inclusion.functionId) ?? null;
       const ticket = ticketByInclusion.get(inclusion.id) ?? null;
       const override = budgetOverrides[id];
-      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, fv, systemSettings, eventLocation, ticket, override];
+      const honorario: HonorarioNaVaga | null = honorarioPorVaga.get(id) ?? null;
+      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, fv, systemSettings, eventLocation, ticket, override, honorario];
       const hit = anterior.get(id);
       const reaproveita = !!hit && hit.chave.length === chave.length && hit.chave.every((v, i) => v === chave[i]);
       const result: CalculatedBudget = reaproveita
@@ -129,6 +137,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
               eventLocation,
               ticket,
               override,
+              honorario,
             }),
             inclusion,
             collaborator: collab,
@@ -139,7 +148,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
     });
     cacheOrcamentosRef.current = proximo;
     return out;
-  }, [confirmedInclusions, functionValues, collaboratorById, functionValueByFunctionId, functionNamesById, systemSettings, ticketByInclusion, eventLocation, budgetOverrides]);
+  }, [confirmedInclusions, functionValues, collaboratorById, functionValueByFunctionId, functionNamesById, systemSettings, ticketByInclusion, eventLocation, budgetOverrides, honorarioPorVaga]);
 
   // Set de chaves "collaboratorId|functionId" para cards marcados como "não participou"
   const notAttendedKeys = useMemo(() => {

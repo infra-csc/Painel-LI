@@ -19,6 +19,8 @@ import { eq, inArray, sql as drizzleSql } from "drizzle-orm";
 import { isEventBlockedForActor } from "../event-guard";
 import { isEventPast } from "@shared/event-window";
 import { calcularPlanejadoDaVaga, linhaDoPlanejado } from "@shared/budget-engine";
+import { honorariosNasVagas } from "@shared/honorarios-ceno";
+import { honorariosParaPlanejado } from "../storage/honorarios-ceno";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
 import { z } from "zod";
 
@@ -52,7 +54,7 @@ export function registrarOrcamentoPlanejado(app: Express): void {
   /** Reaplica os valores de sistema aos planejados NÃO enviados de um evento. */
   async function reaplicarPadroesNoEvento(event: Evento, user: User, req: Request): Promise<number> {
     const eventId = event.id;
-    const [allPlanned, allActual, inclusions, allFunctionValues, rawSettings, functionsList, tickets] = await Promise.all([
+    const [allPlanned, allActual, inclusions, allFunctionValues, rawSettings, functionsList, tickets, honorarios] = await Promise.all([
       storage.getBudgetPlanned(eventId),
       storage.getBudgetActual(eventId),
       storage.getTeamInclusions(false, undefined, { eventId }),
@@ -60,7 +62,10 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       storage.getSystemSettings(),
       storage.getFunctions(),
       storage.getTickets(eventId),
+      // 21/10: o honorário aprovado da cenotécnica é a mão de obra da vaga.
+      honorariosParaPlanejado(eventId),
     ]);
+    const honorarioPorVaga = honorariosNasVagas(honorarios);
     const collaboratorIds = Array.from(new Set(allPlanned.map((p) => p.collaboratorId).filter((v): v is string => !!v)));
     const collaboratorsById = new Map(
       (await db.select().from(collaboratorsTable).where(collaboratorIds.length > 0 ? inArray(collaboratorsTable.id, collaboratorIds) : drizzleSql`false`))
@@ -89,6 +94,7 @@ export function registrarOrcamentoPlanejado(app: Express): void {
         settings: cfg,
         eventLocation: event.location ?? null,
         ticket: ticketByInclusion.get(inc.id) ?? null,
+        honorario: honorarioPorVaga.get(inc.id) ?? null,
       });
       updates.push({ id: planned.id, patch: linhaDoPlanejado(resultado) });
     }
@@ -223,6 +229,27 @@ export function registrarOrcamentoPlanejado(app: Express): void {
     } catch (error) {
       console.error("Error deleting planned draft:", error);
       res.status(500).json({ message: "Erro ao apagar o rascunho do planejado" });
+    }
+  });
+
+  /**
+   * GET /api/budget-planned/honorarios?eventId= — os honorários da
+   * cenotécnica do evento (21/10), para o Planejado aplicar o aprovado e
+   * mostrar o pendente. Só leitura e com a MESMA permissão de quem vê o
+   * Planejado (requireFinSession: admin e Financeiro/RH). A regra por vaga
+   * (aprovado vale, rateio da empreita) é feita no cliente e no servidor pela
+   * mesma função (shared/honorarios-ceno.ts · honorariosNasVagas).
+   * Registrada ANTES de "/api/budget-planned/:id".
+   */
+  app.get("/api/budget-planned/honorarios", async (req, res) => {
+    if (!await requireFinSession(req, res)) return;
+    const eventId = eventoDoRascunho(req.query.eventId);
+    if (!eventId) return res.status(400).json({ message: "Informe o evento (eventId)." });
+    try {
+      res.json(await honorariosParaPlanejado(eventId));
+    } catch (error) {
+      console.error("Error fetching honorarios for planned:", error);
+      res.status(500).json({ message: "Erro ao buscar os honorários do evento" });
     }
   });
 

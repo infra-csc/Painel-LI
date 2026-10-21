@@ -10,6 +10,7 @@ import type { DeflationSegment, PercurseiroDiaria, PercurseiroTipo, RegraDiaria 
 import type { AtendimentoTipo } from "@shared/atendimento";
 import type { CenoEmpreitaValor, CenoFreelaTipo } from "@shared/cenotecnica-empreita";
 import type { ResultadoDoPlanejado } from "@shared/budget-engine";
+import type { HonorarioNaVaga } from "@shared/honorarios-ceno";
 import { formatarMoeda } from "@/lib/format";
 
 export interface BudgetEdit {
@@ -84,6 +85,10 @@ export interface EditingBudgetInfo {
   cenoEmpreitaVaga?: boolean;
   cenoFreelaTipo?: CenoFreelaTipo | null;
   cenoEmpreita?: CenoEmpreitaValor | null;
+  /** Honorário da cenotécnica (21/10): o aprovado é a mão de obra; diasHonorario = dias do "valor ÷ dias". */
+  honorario?: HonorarioNaVaga | null;
+  honorarioAprovado?: boolean;
+  diasHonorario?: number;
   inclusionId?: string;
 }
 

@@ -7,9 +7,19 @@
  * outra aba, pois é financeiro. Depois o Financeiro tem que ter relatórios,
  * principalmente total por evento, e colocar quando liberar a verba."
  *
- * É um módulo À PARTE da escala: NADA aqui lê ou grava status de vaga, o
+ * É um módulo À PARTE da escala: NADA aqui grava status de vaga, o
  * Planejado/Realizado ou qualquer cálculo existente. As tabelas são próprias
  * (honorarios_ceno, _historico, _liberacoes — ver shared/schema.ts).
+ *
+ * 21/10 (dono: "a aprovação do honorário tem que afetar o planejado"): o
+ * Planejado passa a LER os pedidos do evento. Vaga com honorário aprovado tem
+ * a mão de obra (subtotal de diárias) = o valor aprovado, no lugar da tabela
+ * ou da diária; a empreita aprovada é rateada entre as vagas dela. Antes da
+ * aprovação o Planejado só mostra o selo do pedido. Regra em
+ * `honorariosNasVagas` / `valorDoHonorarioNaVaga` (fim deste arquivo),
+ * aplicada por shared/budget-engine.ts. Continua só leitura: o honorário não
+ * grava nada no Planejado; o valor entra no cálculo da tela e no "Atualizar
+ * padrões".
  *
  * Linhas do pedido:
  *  - VAGA: cada vaga ATIVA de cenotécnica (inclui Sup Ceno) — escalada com
@@ -692,4 +702,156 @@ export function somarGrupos(grupos: readonly Totais[]): Totais {
     linhas: acc.linhas + g.linhas, pedido: acc.pedido + g.pedido, aguardando: acc.aguardando + g.aguardando,
     aprovado: acc.aprovado + g.aprovado, liberado: acc.liberado + g.liberado, aLiberar: acc.aLiberar + g.aLiberar, emNegociacao: acc.emNegociacao + g.emNegociacao,
   }), { ...ZERO });
+}
+
+// ── No Planejado (21/10) ────────────────────────────────────────────────────
+//
+// Dono: "a aprovação do honorário tem que afetar o planejado". O Planejado lê
+// os pedidos do evento (GET /api/budget-planned/honorarios) e, por vaga:
+//  - APROVADO (aprovado ou aprovado c/ ajuste): a mão de obra da vaga é o
+//    valor aprovado — substitui a tabela, a diária e a empreita por empresa.
+//    Alimentação e mobilidade seguem as regras normais (o valor fechado cobre
+//    só a mão de obra — regra de 18/08, shared/cenotecnica-empreita.ts);
+//  - EMPREITA aprovada: o valor é RATEADO igualmente entre as vagas dela que
+//    continuam valendo, para a soma do evento bater com o aprovado; os
+//    centavos que sobram vão para a primeira vaga (menor nº);
+//  - ANTES da aprovação (rascunho, aguardando, devolvido): o valor de hoje
+//    continua; o pedido só aparece num selo;
+//  - o ajuste manual do Planejado continua vencendo, com o aviso de que difere.
+// Fora: pedido de vaga que saiu dos honorários (cancelada, excluída, outra
+// função, casa) e, na empreita, as vagas com aviso.
+
+/** Vaga de uma empreita, como o Planejado recebe: `ativa` = sem aviso (continua valendo). */
+export interface VagaDaEmpreitaParaPlanejado {
+  id: string;
+  inclusionNumber: number;
+  ativa: boolean;
+}
+
+/** Um pedido do evento, como o Planejado recebe (só leitura). */
+export interface HonorarioParaPlanejado {
+  id: string;
+  tipo: string;
+  nome: string;
+  status: string;
+  valorPedido: number;
+  valorAprovado: number | null;
+  decididoPorNome: string | null;
+  /** ISO (timestamp) da decisão. */
+  decididoEm: string | null;
+  /** VAGA: a vaga do pedido. */
+  teamInclusionId: string | null;
+  /** VAGA: a escala mudou depois do pedido (null = vale como está). */
+  avisoDaVaga: AvisoDaVaga | null;
+  /** EMPREITA: as vagas dela, em ordem de nº. */
+  vagas: VagaDaEmpreitaParaPlanejado[];
+}
+
+/** O honorário de UMA vaga no Planejado (já rateado na empreita). */
+export interface HonorarioNaVaga {
+  honorarioId: string;
+  tipo: HonorarioTipo;
+  /** Nome do pedido (colaborador, "Vaga #N sem nome" ou a equipe da empreita). */
+  nome: string;
+  status: HonorarioStatus;
+  /** aprovado = vale no Planejado; pendente = rascunho, aguardando ou devolvido (só o selo). */
+  situacao: "aprovado" | "pendente";
+  /** O valor desta vaga: o aprovado (ou o pedido, se pendente), já rateado na empreita. */
+  valorCents: number;
+  /** EMPREITA: total e nº de vagas do rateio; `primeira` = recebeu os centavos que sobraram. */
+  empreita: { totalCents: number; vagas: number; primeira: boolean } | null;
+  aprovadoPor: string | null;
+  aprovadoEm: string | null;
+  /** O pedido de VAGA era de outra pessoa (a vaga trocou de colaborador depois). */
+  colaboradorTrocado: boolean;
+}
+
+/**
+ * Rateio igual de `totalCents` entre `n` vagas, em centavos inteiros: a soma
+ * bate com o total e o que sobra da divisão vai para a primeira.
+ * Ex.: R$ 1.000,00 ÷ 3 → [333,34; 333,33; 333,33].
+ */
+export function ratearEmpreita(totalCents: number, n: number): number[] {
+  if (!Number.isInteger(n) || n <= 0) return [];
+  const total = Math.max(0, Math.round(totalCents));
+  const base = Math.floor(total / n);
+  const resto = total - base * n;
+  return Array.from({ length: n }, (_, i) => (i === 0 ? base + resto : base));
+}
+
+/**
+ * Os honorários do evento por vaga (id da vaga → honorário da vaga). Vaga que
+ * saiu dos honorários não entra; na empreita só contam as vagas ativas. Se uma
+ * vaga aparece em dois pedidos (não deveria — a rota impede), vale a empreita,
+ * que descarta o pedido próprio.
+ */
+export function honorariosNasVagas(hs: readonly HonorarioParaPlanejado[]): Map<string, HonorarioNaVaga> {
+  const mapa = new Map<string, HonorarioNaVaga>();
+  const base = (h: HonorarioParaPlanejado, status: HonorarioStatus) => {
+    const aprovado = ehAprovado(status);
+    return {
+      honorarioId: h.id,
+      nome: h.nome,
+      status,
+      situacao: aprovado ? "aprovado" as const : "pendente" as const,
+      valor: aprovado ? valorVigente(h) : h.valorPedido,
+      aprovadoPor: aprovado ? h.decididoPorNome : null,
+      aprovadoEm: aprovado ? h.decididoEm : null,
+    };
+  };
+  for (const h of hs) {
+    if (h.tipo !== "vaga" || !ehStatusDeHonorario(h.status) || !h.teamInclusionId) continue;
+    if (vagaSaiuDosHonorarios(h.avisoDaVaga)) continue;
+    const { valor, ...b } = base(h, h.status);
+    mapa.set(h.teamInclusionId, { ...b, tipo: "vaga", valorCents: valor, empreita: null, colaboradorTrocado: h.avisoDaVaga === "colaborador_trocado" });
+  }
+  for (const h of hs) {
+    if (h.tipo !== "empreita" || !ehStatusDeHonorario(h.status)) continue;
+    const ativas = [...h.vagas].filter((v) => v.ativa).sort((a, b) => a.inclusionNumber - b.inclusionNumber);
+    if (ativas.length === 0) continue;
+    const { valor, ...b } = base(h, h.status);
+    const partes = ratearEmpreita(valor, ativas.length);
+    ativas.forEach((v, i) => {
+      mapa.set(v.id, {
+        ...b, tipo: "empreita", valorCents: partes[i],
+        empreita: { totalCents: valor, vagas: ativas.length, primeira: i === 0 },
+        colaboradorTrocado: false,
+      });
+    });
+  }
+  return mapa;
+}
+
+/** A mão de obra da vaga no Planejado, e de onde ela veio. */
+export interface MaoDeObraDaVaga {
+  subtotalCents: number;
+  /** regra = tabela/diária de hoje; honorario = o aprovado; ajuste = o ajuste manual do Planejado. */
+  fonte: "regra" | "honorario" | "ajuste";
+  /** O aprovado que vale para a vaga (null sem honorário aprovado). */
+  aprovadoCents: number | null;
+  /** O pedido ainda sem aprovação (rascunho, aguardando, devolvido) — só para o selo. */
+  pendenteCents: number | null;
+  /** Há ajuste manual e ele difere do aprovado → "difere do honorário aprovado". */
+  difereDoAprovado: boolean;
+}
+
+/**
+ * A regra, numa linha: ajuste manual > honorário aprovado > regra de hoje.
+ * `regraCents` é a mão de obra pela tabela/diária (sem ajuste); `ajusteCents`
+ * é a mão de obra com o ajuste manual da diária (null = sem ajuste).
+ */
+export function valorDoHonorarioNaVaga(e: {
+  honorario?: HonorarioNaVaga | null;
+  regraCents: number;
+  ajusteCents?: number | null;
+}): MaoDeObraDaVaga {
+  const h = e.honorario ?? null;
+  const aprovadoCents = h?.situacao === "aprovado" ? h.valorCents : null;
+  const pendenteCents = h?.situacao === "pendente" ? h.valorCents : null;
+  const ajuste = e.ajusteCents ?? null;
+  if (ajuste != null) {
+    return { subtotalCents: ajuste, fonte: "ajuste", aprovadoCents, pendenteCents, difereDoAprovado: aprovadoCents != null && ajuste !== aprovadoCents };
+  }
+  if (aprovadoCents != null) return { subtotalCents: aprovadoCents, fonte: "honorario", aprovadoCents, pendenteCents, difereDoAprovado: false };
+  return { subtotalCents: e.regraCents, fonte: "regra", aprovadoCents, pendenteCents, difereDoAprovado: false };
 }

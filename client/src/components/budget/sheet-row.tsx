@@ -21,6 +21,7 @@ import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
 import type { BudgetActual } from "@shared/schema";
 import { MemoriaCalculoPopover } from "./memoria-calculo-popover";
 import { SheetRowDiasCell } from "./sheet-row-dias-cell";
+import { SeloDoHonorario, fonteDoHonorario, textoDaDiferenca } from "./honorario-no-planejado";
 import { ddmm, formatCurrency, isCasaType, type BudgetOverride, type CalculatedBudget, type SheetField } from "./types";
 
 export interface SheetRowProps {
@@ -82,7 +83,7 @@ function SheetRowCollaboratorCell({ budget, name, funcName, isSent, isNotAttende
         {/* Função · período · situação */}
         <div className="flex items-center gap-x-1.5 gap-y-0.5 flex-wrap mt-0.5 text-xs text-muted-foreground">
           <span className={cn(isNotAttended && "line-through")}>{funcName}</span>
-          {budget.cenoEmpreitaVaga && (
+          {budget.cenoEmpreitaVaga && (budget.cenoFreelaTipo || !budget.honorarioAprovado) && (
             budget.cenoFreelaTipo ? (
               <span className="text-2xs font-medium text-warning bg-warning-soft px-1.5 rounded shrink-0"
                 title="Modalidade da empreita cenotécnica — definida na tela de Escalação (somente leitura aqui)">
@@ -94,6 +95,14 @@ function SheetRowCollaboratorCell({ budget, name, funcName, isSent, isNotAttende
                 definir tipo na Escalação
               </span>
             )
+          )}
+          {/* Honorário da cenotécnica (21/10): aprovado ou pedido aguardando */}
+          <SeloDoHonorario budget={budget} compacto />
+          {budget.honorarioDifere && !isSent && budget.honorario && (
+            <span className="inline-flex items-center h-[18px] px-1.5 rounded text-2xs font-medium bg-warning-soft text-warning shrink-0 tabular-nums"
+              title="O ajuste manual da diária vence o honorário aprovado. O ↩ da diária volta ao aprovado.">
+              {textoDaDiferenca(budget.honorario)}
+            </span>
           )}
           {budget.inclusion.scheduleStartDate && (
             <span className="tabular-nums whitespace-nowrap">
@@ -287,7 +296,11 @@ export const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(func
               </TooltipTrigger>
               {!disabled && (
                 <TooltipContent side="top" className="text-xs">
-                  {vdiaEdited ? `Editado · regra atual: ${formatCurrency(defaultVDia)}` : `Diária plana pela regra atual (${funcName})`}
+                  {budget.honorarioAprovado && budget.honorario
+                    ? (vdiaEdited
+                        ? `Editado · ${textoDaDiferenca(budget.honorario)} — o ↩ volta ao aprovado`
+                        : `${fonteDoHonorario(budget.honorario)} · valor ÷ dias`)
+                    : vdiaEdited ? `Editado · regra atual: ${formatCurrency(defaultVDia)}` : `Diária plana pela regra atual (${funcName})`}
                 </TooltipContent>
               )}
             </Tooltip>

@@ -63,8 +63,16 @@ export function BudgetEditModal({ ctrl }: BudgetEditModalProps) {
           const empreitaModal = editingBudgetInfo.cenoEmpreita ?? null;
           const empreitaEditadaModal = !!empreitaModal && !!defaultBudgetValues
             && editingBudget.valorDiaria !== defaultBudgetValues.valorDiaria;
+          // Honorário APROVADO (21/10): a mão de obra é o aprovado; editar a
+          // diária substitui (valor × dias) — a mesma conta do motor.
+          const honorarioModal = editingBudgetInfo.honorarioAprovado && editingBudgetInfo.honorario ? editingBudgetInfo.honorario : null;
+          const diasHonorarioModal = editingBudgetInfo.diasHonorario ?? diasDiariaModal;
+          const honorarioEditadoModal = !!honorarioModal && !!defaultBudgetValues
+            && editingBudget.valorDiaria !== defaultBudgetValues.valorDiaria;
           // Mesma conta do card: diária plana COM deflação por período
-          const deflatedModal = editingBudgetInfo.isPercurso
+          const deflatedModal = honorarioModal
+            ? { totalCents: honorarioEditadoModal ? editingBudget.valorDiaria * diasHonorarioModal : honorarioModal.valorCents, segments: [] as DeflationSegment[] }
+            : editingBudgetInfo.isPercurso
             ? { totalCents: editingBudget.valorDiaria * diasDiariaModal, segments: [] as DeflationSegment[] } // pacote fechado: sem deflação
             : empreitaModal
             // Empreita: os dias são os da EMPREITA (`empreitaModal.dias`,
@@ -183,6 +191,8 @@ export function BudgetEditModal({ ctrl }: BudgetEditModalProps) {
                 deflatedSegments={deflatedModal.segments}
                 empreitaModal={empreitaModal}
                 empreitaEditadaModal={empreitaEditadaModal}
+                honorarioEditadoModal={honorarioEditadoModal}
+                diariaDoHonorario={defaultBudgetValues?.valorDiaria ?? null}
                 diasDiariaModal={diasDiariaModal}
                 noWeekdays={noWeekdays}
                 noWeekends={noWeekends}

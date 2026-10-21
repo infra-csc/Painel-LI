@@ -27,6 +27,10 @@ import type {
   BudgetActual, BudgetComparison, BudgetNote, BudgetPlanned, Collaborator, Event, Function, FunctionValue,
   TeamInclusion, Ticket,
 } from "@shared/schema";
+import type { HonorarioParaPlanejado } from "@shared/honorarios-ceno";
+
+/** Mesmo prefixo das consultas do módulo de honorários (components/honorarios-ceno/api.ts · CHAVE). */
+const CHAVE_DOS_HONORARIOS = "honorarios-ceno";
 
 export interface OpcoesDasConsultasDeOrcamento {
   /** Registros do Planejado do evento. */
@@ -47,6 +51,8 @@ export interface OpcoesDasConsultasDeOrcamento {
   functionValues?: boolean;
   tickets?: boolean;
   settings?: boolean;
+  /** Honorários da cenotécnica do evento (21/10) — o aprovado é a mão de obra da vaga no Planejado. */
+  honorarios?: boolean;
   /** Texto quando o colaborador não é encontrado (Planejado/Realizado: "Não definido"; Comparativo: "-"). */
   fallbackColaborador?: string;
 }
@@ -71,6 +77,7 @@ export interface ConsultasDeOrcamento {
   qInclusions: UseQueryResult<TeamInclusion[]>;
   qNotes: UseQueryResult<BudgetNote[]>;
   qPlannedLogs: UseQueryResult<ActivityLog[]>;
+  qHonorarios: UseQueryResult<HonorarioParaPlanejado[]>;
 
   events: Event[] | undefined;
   functions: Function[] | undefined;
@@ -85,6 +92,8 @@ export interface ConsultasDeOrcamento {
   /** Sempre uma lista (vazia enquanto carrega). */
   eventNotes: BudgetNote[];
   plannedLogs: ActivityLog[];
+  /** Honorários da cenotécnica do evento (undefined até chegar ou com a consulta desligada). */
+  honorarios: HonorarioParaPlanejado[] | undefined;
   /** Evento em foco dentro de `events` (undefined até a lista chegar). */
   selectedEvent: Event | undefined;
 
@@ -156,6 +165,14 @@ export function useBudgetQueries(eventId: string, opcoes: OpcoesDasConsultasDeOr
     enabled: temEvento && !!opcoes.plannedLogs,
     staleTime: 60_000,
   });
+  // Honorários (21/10): a chave começa com a do módulo ("honorarios-ceno"),
+  // então aprovar, devolver ou editar um pedido em qualquer tela invalida o
+  // Planejado junto (components/honorarios-ceno/api.ts · useInvalidarModulo).
+  const qHonorarios = useQuery<HonorarioParaPlanejado[]>({
+    queryKey: [CHAVE_DOS_HONORARIOS, "planejado", eventId],
+    queryFn: () => getJson<HonorarioParaPlanejado[]>(`/api/budget-planned/honorarios?eventId=${eventId}`),
+    enabled: temEvento && !!opcoes.honorarios,
+  });
 
   const events = qEvents.data;
   const functions = qFunctions.data;
@@ -199,11 +216,13 @@ export function useBudgetQueries(eventId: string, opcoes: OpcoesDasConsultasDeOr
     ...(opcoes.actual ? [qActual] : []),
     ...(opcoes.inclusions ? [qInclusions] : []),
     ...(opcoes.comparison ? [qComparison] : []),
+    // Sem os honorários a mão de obra da cenotécnica sairia errada: entra no aviso de erro.
+    ...(opcoes.honorarios ? [qHonorarios] : []),
   ]);
 
   return {
     qEvents, qFunctions, qCollaborators, qFunctionValues, qTickets, qSettings,
-    qPlanned, qActual, qComparison, qInclusions, qNotes, qPlannedLogs,
+    qPlanned, qActual, qComparison, qInclusions, qNotes, qPlannedLogs, qHonorarios,
     events, functions, collaborators,
     functionValues: qFunctionValues.data,
     allTickets,
@@ -214,6 +233,7 @@ export function useBudgetQueries(eventId: string, opcoes: OpcoesDasConsultasDeOr
     teamInclusions: qInclusions.data,
     eventNotes: qNotes.data ?? NOTAS_VAZIAS,
     plannedLogs: qPlannedLogs.data ?? LOGS_VAZIOS,
+    honorarios: qHonorarios.data,
     selectedEvent,
     collaboratorNameById, functionNameById, getCollaboratorName, getFunctionName, ticketByInclusion,
     estado,

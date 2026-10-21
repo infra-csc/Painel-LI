@@ -350,6 +350,7 @@ a vaga sem permissão/estado entra em `skipped`.
 | Valores por função: escrever | `POST /api/function-values`, `PATCH /:id`, `POST /generate-defaults` | ✅ | ✅ | ❌ | — |
 | Eventos com planejado | `GET /api/events-with-planned` | 👁 | 👁 | 👁 | qualquer sessão |
 | Planejado: ler | `GET /api/budget-planned[?eventId=]`, `/:id` | 👁 | 👁 | ❌ | — |
+| Planejado: honorários do evento (21/10) | `GET /api/budget-planned/honorarios?eventId=` | 👁 | 👁 | ❌ | só leitura; o aprovado vira a mão de obra da vaga |
 | Planejado: criar/editar/excluir | `POST`, `PATCH /:id`, `DELETE /:id` | ✅ | ✅ | ❌ | `status`/`didNotAttend` só por rota dedicada |
 | Planejado: não participou | `POST /api/budget-planned/:id/toggle-not-attended` | ✅ | ✅ | ❌ | — |
 | Reaplicar valores padrão | `POST /api/budget-planned/apply-defaults?eventId=` | ✅ | ✅🕓 | ❌ | evento encerrado só admin |

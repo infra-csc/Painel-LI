@@ -3,7 +3,9 @@
  * shared/honorarios-ceno.ts; autorização e HTTP em server/routes/honorarios-ceno.ts.
  *
  * Fica fora do objeto `storage` (como trocas e espelho): o módulo é à parte
- * e só as rotas dele leem estas funções. NADA aqui grava em team_inclusions —
+ * e só as rotas dele leem estas funções — mais o Planejado, desde 21/10, que
+ * lê os pedidos do evento por `honorariosParaPlanejado` (só leitura). NADA
+ * aqui grava em team_inclusions nem no Planejado —
  * a vaga é só lida (para listar as escaladas e tirar o snapshot do nome).
  *
  * Toda mudança de estado usa UPDATE guardado (id + versao + status esperado)
@@ -22,6 +24,7 @@ import { ehCenotecnica } from "@shared/cenotecnica";
 import { diasEmpreita } from "@shared/calculation-rules";
 import {
   AVISO_NA_EMPREITA_LABEL, STATUS_DE_VAGA_ATIVA, avisoDaVaga, avisoDaVagaNaEmpreita, type AvisoDaVaga,
+  type HonorarioParaPlanejado,
 } from "@shared/honorarios-ceno";
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -411,6 +414,32 @@ export async function eventosPorIds(ids: string[]): Promise<{ id: string; name: 
 export async function honorariosDosEventos(eventIds: string[]): Promise<HonorarioComContexto[]> {
   if (eventIds.length === 0) return [];
   return listarHonorarios([inArray(honorariosCeno.eventId, eventIds)]);
+}
+
+/**
+ * Os pedidos do evento como o PLANEJADO lê (21/10) — SÓ LEITURA: não passa
+ * por `completar` (que grava o colaborador da vaga aberta no pedido); o aviso
+ * de cada vaga sai do mesmo `avisoDaVaga`/`avisoDaVagaNaEmpreita` das telas do
+ * módulo. A regra (aprovado vale, rateio da empreita) fica em
+ * shared/honorarios-ceno.ts · honorariosNasVagas.
+ */
+export async function honorariosParaPlanejado(eventId: string): Promise<HonorarioParaPlanejado[]> {
+  const linhas = (await selecaoComContexto().where(eq(honorariosCeno.eventId, eventId))).map(comContexto);
+  const empreitas = linhas.filter((h) => h.tipo === "empreita").map((h) => h.id);
+  const vagasPorEmpreita = await vagasDasEmpreitas(empreitas);
+  return linhas.map((h) => ({
+    id: h.id,
+    tipo: h.tipo,
+    nome: h.nome,
+    status: h.status,
+    valorPedido: h.valorPedido,
+    valorAprovado: h.valorAprovado,
+    decididoPorNome: h.decididoPorNome,
+    decididoEm: h.decididoEm ? new Date(h.decididoEm).toISOString() : null,
+    teamInclusionId: h.teamInclusionId,
+    avisoDaVaga: h.avisoDaVaga,
+    vagas: (vagasPorEmpreita.get(h.id) ?? []).map((v) => ({ id: v.id, inclusionNumber: v.inclusionNumber, ativa: !v.aviso })),
+  }));
 }
 
 /** Eventos que têm pedido de honorário (qualquer status). */

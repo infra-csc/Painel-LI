@@ -13,6 +13,7 @@ import { toTitleCase } from "@/lib/format";
 import { PERCURSEIRO_TIPOS } from "@shared/calculation-rules";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
 import { ddmm, formatCurrency, type CalculatedBudget } from "./types";
+import { dicaDoHonorarioPendente, fonteDoHonorario, textoDaDiferenca, textoDoHonorarioPendente } from "./honorario-no-planejado";
 
 export interface MemoriaCalculoPopoverProps {
   sid: string;
@@ -28,6 +29,9 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
 ) {
   const alimTotal = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
   const totalDias = budget.weekdays + budget.weekends;
+  // Honorário (21/10): aprovado = a origem da mão de obra; pendente = só a nota.
+  const hon = budget.honorario;
+  const honAprovado = budget.honorarioAprovado && hon ? hon : null;
   return (
     <div
       id={`subtotal-popover-${sid}`}
@@ -57,6 +61,7 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
         {budget.regraDiaria === "fds" && ` · diária em ${budget.diasComDiaria} (só fins de semana — CLT)`}
         {budget.regraDiaria === "nenhuma" && ` · sem diária (cenotécnica CLT)`}
         {budget.isPercurso && ` · ${budget.diasComDiaria} ${budget.diasComDiaria === 1 ? "diária" : "diárias"} · pacote por dia trabalhado (percurso, pacote fechado)`}
+        {honAprovado && ` · mão de obra pelo honorário aprovado`}
         {budget.cenoEmpreita && ` · empreita ${CENO_FREELA_TIPO_LABELS[budget.cenoEmpreita.tipo]} — valor fechado por ${budget.cenoEmpreita.dias} ${budget.cenoEmpreita.dias === 1 ? "dia" : "dias"}`}
         {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && ` · ${ddmm(budget.inclusion.scheduleStartDate)} → ${ddmm(budget.inclusion.scheduleEndDate)}`}
       </div>
@@ -82,7 +87,9 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
           )}
           <tr>
             <td className="pb-2 text-muted-foreground text-2xs pl-3">
-              {budget.isPercurso
+              {honAprovado
+                ? (budget.honorarioDifere ? `Diárias (ajuste manual · ${textoDaDiferenca(honAprovado)})` : `Diárias (${fonteDoHonorario(honAprovado)})`)
+                : budget.isPercurso
                 ? `Diárias (pacote fechado — ${PERCURSEIRO_TIPOS.find(t => t.value === (budget.percurseiroTipo ?? "tipo_1"))?.label}${budget.percurseiroTipo ? "" : " provisório"})`
                 : budget.cenoEmpreita
                 ? `Diárias (empreita — ${CENO_FREELA_TIPO_LABELS[budget.cenoEmpreita.tipo]} · ${budget.cenoEmpreita.dias} ${budget.cenoEmpreita.dias === 1 ? "dia" : "dias"} · valor fechado)`
@@ -96,6 +103,20 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
           {budget.isPercurso && (
             <tr>
               <td colSpan={2} className="pb-1.5 text-muted-foreground text-2xs pl-2">Alimentação e mobilidade: incluídas no pacote do percurseiro</td>
+            </tr>
+          )}
+          {honAprovado && !budget.honorarioDifere && budget.maoDeObraPelaRegra != null && budget.maoDeObraPelaRegra !== budget.subtotalDiarias && (
+            <tr>
+              <td colSpan={2} className="pb-1.5 text-muted-foreground text-2xs pl-3 tabular-nums">
+                Substitui {formatCurrency(budget.maoDeObraPelaRegra)} da regra de hoje · alimentação e mobilidade seguem as regras normais
+              </td>
+            </tr>
+          )}
+          {hon && hon.situacao === "pendente" && (
+            <tr>
+              <td colSpan={2} className="pb-1.5 text-muted-foreground text-2xs pl-3 tabular-nums" title={dicaDoHonorarioPendente(hon)} data-testid="memoria-honorario-pendente">
+                {textoDoHonorarioPendente(hon)} — ainda não entra na conta
+              </td>
             </tr>
           )}
           {alimTotal > 0 && (

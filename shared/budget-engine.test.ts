@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { calcularPlanejadoDaVaga, contarDiasDoPeriodo, linhaDoPlanejado } from "./budget-engine";
 import { FREELA_DEFAULTS_CENTS, CASA_DEFAULTS_CENTS } from "./calculation-rules";
 import { MOBILIDADE_TRECHO_PADRAO_CENTS } from "./atendimento";
+import type { HonorarioNaVaga } from "./honorarios-ceno";
 
 // 2026-09-01 é terça; 2026-09-06 é domingo.
 const semana = { scheduleStartDate: "2026-09-01", scheduleEndDate: "2026-09-06" };
@@ -278,5 +279,85 @@ describe("linhaDoPlanejado — o que vai para budget_planned", () => {
     expect(r.diasComDiaria).toBe(0);
     expect(linhaDoPlanejado(r).dailyQuantity).toBe(0);
     expect(linhaDoPlanejado(r).dailyValue).toBe(r.valorDiaria);
+  });
+});
+
+// ── Honorário aprovado da cenotécnica (21/10) ───────────────────────────────
+describe("calcularPlanejadoDaVaga — honorário da cenotécnica (21/10)", () => {
+  // Ter–qui: 3 dias de trabalho, freela de cenotécnica em viagem, fora de SP.
+  const cenoViagem = {
+    vaga: { scheduleStartDate: "2026-09-01", scheduleEndDate: "2026-09-03", needsTicket: true, dailyRates: 3, dailyValue: 0, cenoFreelaTipo: "viagem" },
+    functionName: "Cenotécnica",
+    collaboratorType: "freela",
+    settings: {},
+    eventLocation: "Recife - PE",
+  } as const;
+  const honorario = (situacao: "aprovado" | "pendente", valorCents: number, extra: Partial<HonorarioNaVaga> = {}): HonorarioNaVaga => ({
+    honorarioId: "h1", tipo: "vaga", nome: "Fulano", status: situacao === "aprovado" ? "aprovado_ajuste" : "aguardando", situacao,
+    valorCents, empreita: null, aprovadoPor: situacao === "aprovado" ? "Marcos Vieira" : null, aprovadoEm: situacao === "aprovado" ? "2026-10-21T13:00:00.000Z" : null,
+    colaboradorTrocado: false, ...extra,
+  });
+
+  it("vaga com a tabela (Freela Viagem, 3 dias) → aprovado com ajuste: a mão de obra vira o aprovado; alimentação e mobilidade não mudam", () => {
+    const tabela = calcularPlanejadoDaVaga(cenoViagem);
+    expect(tabela.subtotalDiarias).toBe(125_700);
+    expect(tabela.cenoEmpreita?.totalCents).toBe(125_700);
+    const r = calcularPlanejadoDaVaga({ ...cenoViagem, honorario: honorario("aprovado", 100_000) });
+    expect(r.subtotalDiarias).toBe(100_000);
+    expect(r.honorarioAprovado).toBe(true);
+    expect(r.maoDeObraPelaRegra).toBe(125_700);
+    expect(r.cenoEmpreita).toBeNull(); // a tabela não vale mais para a vaga
+    expect(r.sysValorDiaria).toBe(Math.round(100_000 / 3));
+    expect(r.deflationSegments).toEqual([expect.objectContaining({ days: 3, factor: 1, totalCents: 100_000, label: "honorário aprovado" })]);
+    expect(r.mobilidade).toBe(tabela.mobilidade);
+    expect(r.ajudaCusto).toBe(tabela.ajudaCusto);
+    expect(r.totalFinal).toBe(tabela.totalFinal - 125_700 + 100_000);
+  });
+
+  it("\"Outro valor\" aprovado numa vaga sem tipo de freela: o aprovado substitui a diária com deflação", () => {
+    const semTipo = { ...cenoViagem, vaga: { ...cenoViagem.vaga, cenoFreelaTipo: null } };
+    const diaria = calcularPlanejadoDaVaga(semTipo);
+    const r = calcularPlanejadoDaVaga({ ...semTipo, honorario: honorario("aprovado", 150_000, { status: "aprovado" }) });
+    expect(r.subtotalDiarias).toBe(150_000);
+    expect(r.maoDeObraPelaRegra).toBe(diaria.subtotalDiarias);
+    expect(r.totalFinal).toBe(diaria.ajudaCusto + 150_000);
+  });
+
+  it("aguardando aprovação não muda o valor: só leva o honorário para o selo", () => {
+    const tabela = calcularPlanejadoDaVaga(cenoViagem);
+    const r = calcularPlanejadoDaVaga({ ...cenoViagem, honorario: honorario("pendente", 90_000) });
+    expect(r.subtotalDiarias).toBe(tabela.subtotalDiarias);
+    expect(r.totalFinal).toBe(tabela.totalFinal);
+    expect(r.honorarioAprovado).toBe(false);
+    expect(r.honorario?.valorCents).toBe(90_000);
+    expect(r.maoDeObraPelaRegra).toBeNull();
+  });
+
+  it("ajuste manual da diária vence o aprovado e marca a diferença; igual à diária do honorário não é diferença", () => {
+    const h = honorario("aprovado", 100_000);
+    const ajustado = calcularPlanejadoDaVaga({ ...cenoViagem, honorario: h, override: { valorDiaria: 40_000 } });
+    expect(ajustado.subtotalDiarias).toBe(120_000);
+    expect(ajustado.honorarioAprovado).toBe(true);
+    expect(ajustado.honorarioDifere).toBe(true);
+    expect(ajustado.hasOverride).toBe(true);
+    const igual = calcularPlanejadoDaVaga({ ...cenoViagem, honorario: h, override: { valorDiaria: Math.round(100_000 / 3) } });
+    expect(igual.subtotalDiarias).toBe(100_000);
+    expect(igual.honorarioDifere).toBe(false);
+  });
+
+  it("parte de uma empreita: vale a parte rateada; empreita por EMPRESA na escala também cede ao aprovado", () => {
+    const parte = honorario("aprovado", 33_334, { tipo: "empreita", nome: "Equipe Sul", empreita: { totalCents: 100_000, vagas: 3, primeira: true } });
+    expect(calcularPlanejadoDaVaga({ ...cenoViagem, honorario: parte }).subtotalDiarias).toBe(33_334);
+    const empresa = {
+      ...cenoViagem,
+      vaga: { ...cenoViagem.vaga, empreitaEmpresa: "Cenotech", empreitaPessoas: 4, empreitaValor: 1_200_000 },
+      collaboratorType: null,
+    };
+    const r = calcularPlanejadoDaVaga({ ...empresa, honorario: honorario("aprovado", 900_000) });
+    expect(r.subtotalDiarias).toBe(900_000);
+    expect(r.maoDeObraPelaRegra).toBe(1_200_000);
+    // A regra da empresa continua: sem alimentação e sem mobilidade por pessoa.
+    expect(r.ajudaCusto).toBe(0);
+    expect(r.totalFinal).toBe(900_000);
   });
 });

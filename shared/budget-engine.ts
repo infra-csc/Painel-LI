@@ -41,6 +41,7 @@ import {
 import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction } from "./alimentacao";
 import { cenoEmpreitaTotalCents, usaEmpreitaCenotecnica, vagaComEmpreita, type CenoFreelaTipo, type CenoEmpreitaValor } from "./cenotecnica-empreita";
 import { listarDiasDeTrabalho } from "./dias-de-trabalho";
+import { valorDoHonorarioNaVaga, type HonorarioNaVaga } from "./honorarios-ceno";
 
 /** Só o que o cálculo lê da vaga (estrutural: vale para a linha do banco e para o tipo do client). */
 export interface VagaParaPlanejado {
@@ -112,6 +113,12 @@ export interface EntradaDoPlanejado {
   eventLocation?: string | null;
   ticket?: PassagemParaPlanejado | null;
   override?: OverrideDoPlanejado | null;
+  /**
+   * Honorário da cenotécnica desta vaga (21/10) — `honorariosNasVagas`
+   * (shared/honorarios-ceno.ts). Aprovado: a mão de obra passa a ser o valor
+   * aprovado (já rateado na empreita); pendente: nada muda (só o selo).
+   */
+  honorario?: HonorarioNaVaga | null;
 }
 
 export interface ResultadoDoPlanejado {
@@ -163,6 +170,14 @@ export interface ResultadoDoPlanejado {
   sysJantarSemana: number;
   sysAlmocoFds: number;
   sysJantarFds: number;
+  /** Honorário da vaga (aprovado ou pendente), para os textos da tela — null sem pedido. */
+  honorario: HonorarioNaVaga | null;
+  /** O honorário APROVADO é a mão de obra da vaga (com ou sem ajuste manual por cima). */
+  honorarioAprovado: boolean;
+  /** Há ajuste manual da diária e ele difere do honorário aprovado. */
+  honorarioDifere: boolean;
+  /** Mão de obra que a regra de hoje daria (tabela/diária, sem ajuste) — só com honorário aprovado. */
+  maoDeObraPelaRegra: number | null;
 }
 
 /** Dia da semana de "YYYY-MM-DD" em UTC (0 = domingo) — não depende do fuso do processo. */
@@ -269,14 +284,43 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   const fvDaily = fvDailyWd > 0 ? fvDailyWd : (fvDailyWe > 0 ? fvDailyWe : 0);
   const freelaVal = !collabIsCasa ? freelaDailyCents(fnName, !!inclusion.needsTicket, ss) : null;
   const casaVal = collabIsCasa ? casaDailyCents(fnName, ss) : null;
-  const sysValorDiaria = percursoVal ?? cenoEmpreitaDiaria ?? atendVal
+  const sysValorDiariaPelaRegra = percursoVal ?? cenoEmpreitaDiaria ?? atendVal
     ?? freelaVal ?? casaVal ?? (fvDaily > 0 ? fvDaily : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
-  const valorDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds ?? sysValorDiaria;
+
+  // Honorário APROVADO da cenotécnica (21/10): a mão de obra é o valor
+  // aprovado (a parte da vaga, na empreita) pelos dias trabalhados — a diária
+  // mostrada é o valor ÷ dias. Vence a tabela, a diária e a empreita por
+  // empresa; o ajuste manual continua vencendo (abaixo).
+  const honorario = e.honorario ?? null;
+  const honorarioAprovado = honorario?.situacao === "aprovado" ? honorario : null;
+  const diasHonorario = honorarioAprovado ? Math.max(1, diasEmpreita(inclusion) || diasComDiaria) : 0;
+  const diariaDoHonorario = honorarioAprovado ? Math.round(honorarioAprovado.valorCents / diasHonorario) : null;
+  const sysValorDiaria = diariaDoHonorario ?? sysValorDiariaPelaRegra;
+  const overrideDiaria = override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds;
+  const valorDiaria = overrideDiaria ?? sysValorDiaria;
 
   // Deflação por período (percurso e empreita: sem deflação)
-  const empreitaEditada = !!cenoEmpreita &&
-    (override?.valorDiaria ?? override?.valorDiariaUtil ?? override?.valorDiariaFds) !== undefined;
-  const deflated = isPercurso
+  const empreitaEditada = !!cenoEmpreita && overrideDiaria !== undefined;
+  // Mão de obra pela regra de hoje, sem ajuste — só calculada com honorário
+  // aprovado, para a tela dizer o que o aprovado substituiu.
+  const maoDeObraPelaRegra = !honorarioAprovado ? null
+    : isPercurso ? sysValorDiariaPelaRegra * diasComDiaria
+    : cenoEmpreita ? cenoEmpreita.totalCents
+    : calcDeflatedDailies(sysValorDiariaPelaRegra, diasComDiaria, deflationFactorsFromSettings(ss as Record<string, number | string | undefined> | undefined)).totalCents;
+  const maoDeObra = honorarioAprovado
+    ? valorDoHonorarioNaVaga({
+        honorario: honorarioAprovado,
+        regraCents: maoDeObraPelaRegra ?? 0,
+        // Ajuste igual à diária do honorário (valor ÷ dias) não é diferença:
+        // vale o aprovado exato, sem o resto do arredondamento.
+        ajusteCents: overrideDiaria === undefined ? null
+          : overrideDiaria === diariaDoHonorario ? honorarioAprovado.valorCents
+          : overrideDiaria * diasHonorario,
+      })
+    : null;
+  const deflated = maoDeObra
+    ? { totalCents: maoDeObra.subtotalCents, segments: [{ days: diasHonorario, factor: 1, dailyCents: valorDiaria, totalCents: maoDeObra.subtotalCents, label: maoDeObra.fonte === "ajuste" ? "ajuste manual" : "honorário aprovado" }] as DeflationSegment[] }
+    : isPercurso
     ? { totalCents: valorDiaria * diasComDiaria, segments: [{ days: diasComDiaria, factor: 1, dailyCents: valorDiaria, totalCents: valorDiaria * diasComDiaria, label: "pacote fechado" }] as DeflationSegment[] }
     : cenoEmpreita
     ? (() => {
@@ -361,11 +405,17 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     ajudaCusto, totalFinal,
     hasOverride: !!override,
     isPercurso, funcaoLocal, percurseiroTipo, percurseiro,
-    cenoEmpreitaVaga, cenoFreelaTipo, cenoEmpreita,
+    // Com honorário aprovado a tabela não vale mais para a vaga: o valor dela
+    // fica em `maoDeObraPelaRegra` (o que o aprovado substituiu).
+    cenoEmpreitaVaga, cenoFreelaTipo, cenoEmpreita: maoDeObra ? null : cenoEmpreita,
     vooPartidaIda, vooChegadaIda, vooPartidaVolta, fonteVoo, alimEstimada,
     deflationSegments: deflated.segments,
     sysValorDiaria, sysMobilidade: sysMob, sysMobilidadeIda: sysMobIda, sysMobilidadeVolta: sysMobVolta,
     sysAlmocoSemana: calcAlmSem, sysJantarSemana: calcJanSem, sysAlmocoFds: calcAlmFds, sysJantarFds: calcJanFds,
+    honorario,
+    honorarioAprovado: !!maoDeObra,
+    honorarioDifere: !!maoDeObra?.difereDoAprovado,
+    maoDeObraPelaRegra,
   };
 }
 

@@ -25,6 +25,7 @@ import { BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { FUNCAO_LOCAL_RAZAO, PERCURSEIRO_TIPOS } from "@shared/calculation-rules";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
+import { AvisosDoHonorario, SeloDoHonorario, fonteDoHonorario } from "./honorario-no-planejado";
 import type { BudgetActual, BudgetNote, BudgetPlanned as BudgetPlannedRow } from "@shared/schema";
 import {
   ddmmLocal, formatCurrency, formatSegmentsMemo, isCasaType,
@@ -51,6 +52,8 @@ export interface BudgetCardProps {
   onSend: (id: string) => void;
   onNotAttended: (s: NotAttendedModalState) => void;
   onRestore: (s: RestoreModalState) => void;
+  /** "Usar o honorário aprovado" (21/10): limpa o ajuste manual da mão de obra. */
+  onUsarHonorario?: (id: string) => void;
 }
 
 // `info` e `perigo` (08/10) são do Realizado (em revisão, recusado), que reaproveita o Chip.
@@ -104,9 +107,29 @@ export function Conta({ rotulo, valor, title }: { rotulo: React.ReactNode; valor
 /** Corpo colapsável: Diárias, Alimentação e Mobilidade. */
 function BudgetCardBody({ budget, isNotAttended }: { budget: CalculatedBudget; isNotAttended: boolean }) {
   const alimTotal = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
+  // Honorário APROVADO (21/10): a mão de obra é o aprovado — a conta diz de onde veio.
+  const hon = budget.honorarioAprovado ? budget.honorario : null;
+  const dias = budget.deflationSegments[0]?.days ?? budget.diasComDiaria;
+  // Diária por dia (útil/fds) só quando não há valor fechado (percurso, tabela ou honorário).
+  const porDiaria = !budget.isPercurso && !budget.cenoEmpreita && !hon;
+  const origemDaRegra = budget.inclusion.empreitaEmpresa ? "empreita da escala" : budget.cenoFreelaTipo ? "tabela" : "diárias";
   return (
     <dl className={cn("pla-extrato m-0 px-4 py-1", isNotAttended && "opacity-50 grayscale select-none")}>
       <Lancamento rotulo="Diárias" cor="bg-primary" valor={budget.subtotalDiarias} riscado={isNotAttended}>
+        {hon && (
+          budget.honorarioDifere ? (
+            <Conta rotulo={`Ajuste manual · ${dias} ${dias === 1 ? "dia" : "dias"}`} valor={formatCurrency(budget.valorDiaria)} title={fonteDoHonorario(hon)} />
+          ) : (
+            <>
+              <span className="text-success font-medium" data-testid="planejado-fonte-honorario">{fonteDoHonorario(hon)}</span>
+              {budget.maoDeObraPelaRegra != null && budget.maoDeObraPelaRegra !== budget.subtotalDiarias && (
+                <span className="tabular-nums" title="O honorário aprovado substitui a mão de obra da regra de hoje; alimentação e mobilidade seguem as regras normais.">
+                  no lugar de {formatCurrency(budget.maoDeObraPelaRegra)} ({origemDaRegra})
+                </span>
+              )}
+            </>
+          )
+        )}
         {/* Percurso: pacote fechado × dias trabalhados (regra 15/10) */}
         {budget.isPercurso && (
           <>
@@ -135,18 +158,18 @@ function BudgetCardBody({ budget, isNotAttended }: { budget: CalculatedBudget; i
             )}
           </>
         )}
-        {!budget.isPercurso && !budget.cenoEmpreita && budget.regraDiaria === "nenhuma" && (budget.weekdays > 0 || budget.weekends > 0) && (
+        {porDiaria && budget.regraDiaria === "nenhuma" && (budget.weekdays > 0 || budget.weekends > 0) && (
           <Conta title="Cenotécnica da casa (CLT): não recebe diária (nem em fim de semana)" rotulo="sem diária (cenotécnica CLT)" />
         )}
-        {!budget.isPercurso && !budget.cenoEmpreita && budget.regraDiaria !== "nenhuma" && budget.weekdays > 0 && (
+        {porDiaria && budget.regraDiaria !== "nenhuma" && budget.weekdays > 0 && (
           budget.regraDiaria === "fds"
             ? <Conta rotulo={formatDiasUteis(budget.weekdays)} valor="sem diária (CLT)" title="Colaborador da casa (CLT): em dia útil já é assalariado — diária só nos fins de semana" />
             : <Conta rotulo={formatDiasUteis(budget.weekdays)} valor={formatCurrency(budget.valorDiariaUtil)} />
         )}
-        {!budget.isPercurso && !budget.cenoEmpreita && budget.regraDiaria !== "nenhuma" && budget.weekends > 0 && (
+        {porDiaria && budget.regraDiaria !== "nenhuma" && budget.weekends > 0 && (
           <Conta rotulo={formatFds(budget.weekends)} valor={formatCurrency(budget.valorDiariaFds)} />
         )}
-        {!budget.isPercurso && !budget.cenoEmpreita && budget.weekdays === 0 && budget.weekends === 0 && <span>—</span>}
+        {porDiaria && budget.weekdays === 0 && budget.weekends === 0 && <span>—</span>}
         {/* Memória da deflação por período (>4 dias) */}
         {budget.deflationSegments.length > 1 && (
           <span className="tabular-nums text-primary" title="Deflação por período: 100% até o 4º dia; fatores reduzidos nas faixas seguintes">
@@ -287,12 +310,13 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
                     ? <Chip tom="marca" title="Tipo do percurseiro (pacote fechado) — troque no modal de edição">{PERCURSEIRO_TIPOS.find(t => t.value === budget.percurseiroTipo)?.label}</Chip>
                     : <Chip tom="alerta" title="Defina Tipo 1 ou Tipo 2 no modal de edição — Tipo 1 usado provisoriamente">definir tipo</Chip>
                 )}
-                {budget.cenoEmpreitaVaga && (
+                {budget.cenoEmpreitaVaga && (budget.cenoFreelaTipo || !budget.honorarioAprovado) && (
                   budget.cenoFreelaTipo
                     ? <Chip tom="alerta" title="Modalidade da empreita cenotécnica — definida na tela de Escalação (somente leitura aqui)">{CENO_FREELA_TIPO_LABELS[budget.cenoFreelaTipo]}</Chip>
                     : <Chip tom="alerta" title="Sem modalidade de empreita: o cálculo segue a diária padrão. A escolha é feita na tela de Escalação (somente leitura aqui)">definir tipo na Escalação</Chip>
                 )}
                 {budget.funcaoLocal && !budget.isPercurso && <Chip title={FUNCAO_LOCAL_RAZAO}>só diária</Chip>}
+                <SeloDoHonorario budget={budget} />
                 {budget.hasOverride && !isSent && (
                   <Chip tom="alerta" title="Valores personalizados"><PencilLine className="w-3 h-3" aria-hidden="true" />Ajuste manual</Chip>
                 )}
@@ -309,6 +333,17 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
           </p>
         </div>
       </header>
+
+      {!isNotAttended && (
+        <AvisosDoHonorario
+          budget={budget}
+          actual={cardActual}
+          isSent={isSent}
+          podeEditar={canEdit}
+          onUsarHonorario={p.onUsarHonorario}
+          className="flex flex-col gap-1.5 px-4 pb-2"
+        />
+      )}
 
       {!isCollapsed && <BudgetCardBody budget={budget} isNotAttended={isNotAttended} />}
 
