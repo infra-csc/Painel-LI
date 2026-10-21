@@ -70,9 +70,9 @@ export function ocupacaoPorNoite<T extends PeriodoDoOcupante>(ocupantes: readonl
   return trechos;
 }
 
-/** "Single" · "Duplo" · "Triplo" — o rótulo que a tela e o PDF usam. */
+/** "Individual" · "Duplo" · "Triplo" — o rótulo que a tela e o PDF usam (21/10: era "Single"; o dono chama de apartamento Individual). */
 export function rotuloDoTipo(tipo: TipoDoTrecho): string {
-  return tipo === "single" ? "Single" : tipo === "double" ? "Duplo" : "Triplo";
+  return tipo === "single" ? "Individual" : tipo === "double" ? "Duplo" : "Triplo";
 }
 
 /** Total de diárias de quarto (room-nights) dos trechos. */

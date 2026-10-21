@@ -94,7 +94,7 @@ describe("QuartosView — blocos, datas do quarto e ocupação por noite", () =>
     expect(within(caio).getAllByText("sugerida")).toHaveLength(2);
     expect(screen.queryByTestId("room-divergencia-q1-2")).toBeNull();
 
-    expect(within(screen.getByTestId("room-card-q2")).getByText("Single")).toBeInTheDocument();
+    expect(within(screen.getByTestId("room-card-q2")).getByText("Individual")).toBeInTheDocument();
   });
 
   it("ocupação por noite: Triplo até 26/04, Single na noite a mais — e sem a frase de datas diferentes", () => {
@@ -103,7 +103,7 @@ describe("QuartosView — blocos, datas do quarto e ocupação por noite", () =>
     // A observação gravada é de antes da regra da passagem: não aparece.
     montar([grupo("q1", ["a", "b", "c"], "Datas diferentes entre os ocupantes — 9 noites em comum. Confirme entrada/saída com o hotel.")], rows);
     const trechos = within(screen.getByTestId("room-trechos-q1")).getAllByRole("listitem");
-    expect(trechos.map((t) => t.textContent)).toEqual(["22/04→26/04Triplo", "26/04→27/04Single"]);
+    expect(trechos.map((t) => t.textContent)).toEqual(["22/04→26/04Triplo", "26/04→27/04Individual"]);
     expect(trechos[1]).toHaveAttribute("title", "26/04 a 27/04 · 1 noite · Bruno");
     expect(screen.queryByTestId("room-obs-q1")).toBeNull();
   });

@@ -4,10 +4,12 @@
  * com cada [apartamento]").
  *
  * Um painel logo abaixo do "Hotel do evento", em três partes:
- *  1. TARIFAS por pessoa por noite — Individual, Duplo, Triplo — editáveis no
- *     lugar (salvam ao sair do campo; Esc desfaz);
+ *  1. TARIFAS por APARTAMENTO por noite — Individual, Duplo, Triplo —
+ *     divididas entre quem dorme no quarto (21/10, dono: "o duplo é uma vez
+ *     só"; antes eram lidas por pessoa); editáveis no lugar (salvam ao sair
+ *     do campo; Esc desfaz);
  *  2. a DISTRIBUIÇÃO do custo por tipo de apartamento (barra + legenda com
- *     diárias e valor) e o custo médio por pessoa;
+ *     diárias de apartamento e valor) e o custo médio por pessoa;
  *  3. CALCULADO × PAGO: o total calculado, o valor pago ao hotel (a fatura) e
  *     a diferença — só comparada; nada é redistribuído sem alguém pedir.
  *
@@ -210,11 +212,11 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
 
   // ── 1. Tarifas ───────────────────────────────────────────────────────────
   const tarifas = (
-    <div className="esp-valores-tarifas" role="group" aria-label="Tarifas por pessoa por noite">
+    <div className="esp-valores-tarifas" role="group" aria-label="Tarifas por apartamento por noite">
       {TIPOS_DE_APARTAMENTO.map((t) => {
         const r = porTipo.get(t)!;
         // Âmbar só quando já há valores e ESTE tipo ficou sem: no vazio, é só o convite.
-        const falta = custo.temValores && r.diariasSemTarifa > 0;
+        const falta = custo.temValores && r.noitesSemTarifa > 0;
         const idDica = `tarifa-${t}-${eventId}`;
         return (
           <div key={t} className="esp-valores-tarifa" data-falta={falta || undefined} data-testid={`tarifa-${t}`}>
@@ -223,14 +225,14 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
               {rotuloDoApartamento(t)}
             </span>
             {canEdit ? (
-              <CampoDeDinheiro valor={tarifa(t)} rotulo={`Tarifa ${rotuloDoApartamento(t)} por pessoa por noite`} limite={LIMITE_DA_DIARIA_CENTAVOS}
+              <CampoDeDinheiro valor={tarifa(t)} rotulo={`Tarifa ${rotuloDoApartamento(t)} por apartamento por noite`} limite={LIMITE_DA_DIARIA_CENTAVOS}
                 desabilitado={indisponivel} testid={`tarifa-${t}-campo`} descricao={idDica}
                 aoSalvar={(v) => salvarEvento({ [CAMPO_DO_TIPO[t]]: v })} />
             ) : (
               <span className={`esp-valores-numero ${tarifa(t) === null ? "text-muted-foreground" : ""}`}>{tarifa(t) === null ? "—" : brl(tarifa(t))}</span>
             )}
             <span id={idDica} className={`esp-valores-dica ${falta ? "text-warning" : ""}`}>
-              {falta ? `${diariasTxt(r.diariasSemTarifa)} sem tarifa` : r.diarias > 0 ? diariasTxt(r.diarias) : "nenhuma noite"}
+              {falta ? `${diariasTxt(r.noitesSemTarifa)} sem tarifa` : r.noitesDeQuarto > 0 ? diariasTxt(r.noitesDeQuarto) : "nenhuma noite"}
             </span>
           </div>
         );
@@ -298,13 +300,13 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
         </div>
       )}
       <ul className="esp-valores-legenda">
-        {custo.porTipo.filter((t) => t.diarias > 0).map((t) => (
+        {custo.porTipo.filter((t) => t.noitesDeQuarto > 0).map((t) => (
           <li key={t.tipo} data-testid={`distribuicao-${t.tipo}`}>
             <i className="esp-valores-ponto" style={{ background: COR_DO_APARTAMENTO[t.tipo] }} aria-hidden="true" />
             <span className="font-medium text-foreground">{rotuloDoApartamento(t.tipo)}</span>
             <span className="tabular-nums text-foreground">{brl(t.centavos)}</span>
-            <span className="tabular-nums text-muted-foreground" title={`${t.noitesDeQuarto} ${t.noitesDeQuarto === 1 ? "noite" : "noites"} de quarto`}>
-              {diariasTxt(t.diarias)}{t.diariasSemTarifa > 0 ? ` · ${t.diariasSemTarifa} sem tarifa` : ""}
+            <span className="tabular-nums text-muted-foreground" title={`${diariasTxt(t.noitesDeQuarto)} de apartamento · ${t.pessoasNoite} ${t.pessoasNoite === 1 ? "pessoa-noite" : "pessoas-noite"}`}>
+              {diariasTxt(t.noitesDeQuarto)}{t.noitesSemTarifa > 0 ? ` · ${t.noitesSemTarifa} sem tarifa` : ""}
             </span>
           </li>
         ))}
@@ -342,7 +344,7 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
         <h4 id={`valores-titulo-${eventId}`} className="esp-valores-titulo">
           <CircleDollarSign className="h-4 w-4 text-muted-foreground" aria-hidden="true" />Valores do hotel
         </h4>
-        <span id={idAjuda} className="text-xs text-muted-foreground">por pessoa, por noite · o tipo de cada noite segue quantas pessoas dormem no quarto</span>
+        <span id={idAjuda} className="text-xs text-muted-foreground">por apartamento, por noite — dividido entre quem dorme no quarto</span>
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" data-testid="valores-como-calcula" className="esp-alvo ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -351,8 +353,9 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
           </PopoverTrigger>
           <PopoverContent align="end" className="w-[340px] space-y-2 text-xs leading-relaxed text-muted-foreground">
             <p className="text-sm font-semibold text-foreground">Como o valor é calculado</p>
-            <p>Cada pessoa paga, em cada noite, a tarifa do tipo daquela noite: sozinha no quarto é <b className="text-foreground">Individual</b>, com mais uma é <b className="text-foreground">Duplo</b>, com mais duas é <b className="text-foreground">Triplo</b>. No duplo em que um chega antes, as noites dele sozinho são Individual.</p>
-            <p>Quarto com <b className="text-foreground">diária própria</b> usa a dele em todas as noites. O <b className="text-foreground">late check-out</b> soma no valor de quem tem — igual à diária, se ninguém escrever outro valor.</p>
+            <p>A tarifa é o preço do <b className="text-foreground">apartamento por noite</b>. Em cada noite o quarto custa a tarifa do tipo daquela noite — uma pessoa é <b className="text-foreground">Individual</b>, duas é <b className="text-foreground">Duplo</b>, três é <b className="text-foreground">Triplo</b> — e o valor é dividido entre quem dorme nele: Duplo de R$ 200 dá R$ 100 para cada um.</p>
+            <p>No duplo em que um chega antes, as noites dele sozinho são Individual, e ele paga o apartamento inteiro. Centavos que não dividem certo ficam com os primeiros da lista; a soma sempre bate com o quarto.</p>
+            <p>Quarto com <b className="text-foreground">diária própria</b> usa o preço dele em todas as noites, dividido do mesmo jeito. O <b className="text-foreground">late check-out</b> é por pessoa e soma no valor de quem tem — igual à parte dela na última noite, se ninguém escrever outro valor.</p>
             <p>O total entra no “Hotel” do custo do Espelho, a menos que o total de hotel da pessoa tenha sido lançado à mão na grade. O valor pago ao hotel só é comparado; nada é redistribuído.</p>
           </PopoverContent>
         </Popover>

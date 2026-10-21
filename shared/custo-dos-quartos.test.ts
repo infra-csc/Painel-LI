@@ -1,16 +1,59 @@
 import { describe, expect, it } from "vitest";
 import {
-  custoDoHotel, entradaDoCustoDoHotel, lateCheckoutsEfetivos, periodoNoQuarto, rotuloDoApartamento,
-  type LateCheckoutDaPessoa, type LinhaParaCusto, type TarifasDoHotel,
+  custoDoHotel, dividirCentavos, entradaDoCustoDoHotel, lateCheckoutsEfetivos, periodoNoQuarto, rotuloDoApartamento,
+  type CustoDoHotel, type LateCheckoutDaPessoa, type LinhaParaCusto, type TarifasDoHotel,
 } from "./custo-dos-quartos";
 
-// A planilha do dono: duplo R$ 138 e triplo R$ 132 por pessoa por noite; o
-// individual (single) não aparece nela — R$ 180 aqui é só o exemplo.
-const TARIFAS: TarifasDoHotel = { single: 18000, double: 13800, triple: 13200 };
+// 21/10: a tarifa é o preço do APARTAMENTO por noite, dividido entre quem dorme
+// nele ("o duplo é uma vez só, pois é duas pessoas em um quarto duplo"). Os
+// valores do print de produção: Individual R$ 100, Duplo R$ 200; o Triplo de
+// R$ 270 divide certo por 3 (o de R$ 100, que não divide, tem teste próprio).
+const TARIFAS: TarifasDoHotel = { single: 10000, double: 20000, triple: 27000 };
 const late = (valorCentavos: number | null = null): LateCheckoutDaPessoa => ({ ativo: true, valorCentavos, origem: "quartos" });
 
-describe("custoDoHotel — o tipo de cada noite vem da ocupação", () => {
-  it("duplo com chegada escalonada (caso da planilha): Individual até o Edney chegar, Duplo com os dois, Individual depois", () => {
+/** A soma das partes bate EXATAMENTE com o total — em cada trecho, cada quarto e no evento. */
+function conferirSomas(r: CustoDoHotel) {
+  for (const q of r.quartos) {
+    for (const t of q.trechos) {
+      if (t.partesCentavos) expect(t.partesCentavos.reduce((s, x) => s + x, 0)).toBe(t.totalCentavos);
+    }
+    expect(q.pessoas.reduce((s, p) => s + p.totalCentavos, 0)).toBe(q.totalCentavos);
+  }
+  expect(Array.from(r.porPessoa.values()).reduce((s, p) => s + p.totalCentavos, 0)).toBe(r.totalCentavos);
+}
+
+describe("dividirCentavos", () => {
+  it("divide sem perder centavo: o resto vai para os primeiros", () => {
+    expect(dividirCentavos(10000, 3)).toEqual([3334, 3333, 3333]);
+    expect(dividirCentavos(20000, 3)).toEqual([6667, 6667, 6666]);
+    expect(dividirCentavos(100000, 2)).toEqual([50000, 50000]);
+    expect(dividirCentavos(27000, 4)).toEqual([6750, 6750, 6750, 6750]);
+    expect(dividirCentavos(1, 3)).toEqual([1, 0, 0]);
+    expect(dividirCentavos(0, 2)).toEqual([0, 0]);
+    expect(dividirCentavos(500, 0)).toEqual([]);
+  });
+});
+
+describe("custoDoHotel — tarifa por APARTAMENTO, dividida entre quem dorme no quarto", () => {
+  it("Quarto 3 do print: Duplo, 2 pessoas, 21/10→26/10 = 5 × R$ 200 = R$ 1.000, R$ 500 cada", () => {
+    const r = custoDoHotel({
+      tarifas: TARIFAS,
+      quartos: [{ id: "q3", ocupantes: [
+        { chave: "a", checkIn: "2026-10-21", checkOut: "2026-10-26" },
+        { chave: "b", checkIn: "2026-10-21", checkOut: "2026-10-26" },
+      ] }],
+    });
+    const q = r.porQuarto.get("q3")!;
+    expect(q.trechos).toHaveLength(1);
+    expect(q.trechos[0]).toMatchObject({ tipo: "double", noites: 5, pessoas: 2, tarifaCentavos: 20000, totalCentavos: 100000, partesCentavos: [50000, 50000] });
+    expect(q.totalCentavos).toBe(100000);
+    expect(q.pessoas.map((p) => p.totalCentavos)).toEqual([50000, 50000]);
+    expect(r.porTipo.find((t) => t.tipo === "double")).toMatchObject({ noitesDeQuarto: 5, pessoasNoite: 10, centavos: 100000, noitesSemTarifa: 0 });
+    expect(r.custoMedioPorPessoaCentavos).toBe(50000);
+    conferirSomas(r);
+  });
+
+  it("duplo com chegada escalonada: sozinho é Individual e ele paga o apartamento Individual inteiro", () => {
     const r = custoDoHotel({
       tarifas: TARIFAS,
       quartos: [{ id: "q1", ocupantes: [
@@ -19,46 +62,84 @@ describe("custoDoHotel — o tipo de cada noite vem da ocupação", () => {
       ] }],
     });
     const q = r.porQuarto.get("q1")!;
-    expect(q.trechos.map((t) => [t.de, t.ate, t.tipo, t.tarifaCentavos, t.totalCentavos])).toEqual([
-      ["2026-04-22", "2026-04-24", "single", 18000, 36000],
-      ["2026-04-24", "2026-04-26", "double", 13800, 55200],
-      ["2026-04-26", "2026-04-27", "single", 18000, 18000],
+    expect(q.trechos.map((t) => [t.de, t.ate, t.tipo, t.tarifaCentavos, t.totalCentavos, t.partesCentavos])).toEqual([
+      ["2026-04-22", "2026-04-24", "single", 10000, 20000, [20000]],
+      ["2026-04-24", "2026-04-26", "double", 20000, 40000, [20000, 20000]],
+      ["2026-04-26", "2026-04-27", "single", 10000, 10000, [10000]],
     ]);
-    expect(r.porPessoa.get("mauricio")).toMatchObject({ noites: 5, totalCentavos: 36000 + 27600 + 18000, completo: true });
-    expect(r.porPessoa.get("edney")).toMatchObject({ noites: 2, totalCentavos: 27600, completo: true });
-    expect(q.totalCentavos).toBe(109200);
-    expect(r.porTipo.find((t) => t.tipo === "single")).toMatchObject({ diarias: 3, noitesDeQuarto: 3, centavos: 54000 });
-    expect(r.porTipo.find((t) => t.tipo === "double")).toMatchObject({ diarias: 4, noitesDeQuarto: 2, centavos: 55200 });
-    expect(r.custoMedioPorPessoaCentavos).toBe(54600);
+    expect(r.porPessoa.get("mauricio")).toMatchObject({ noites: 5, totalCentavos: 20000 + 20000 + 10000, completo: true });
+    expect(r.porPessoa.get("edney")).toMatchObject({ noites: 2, totalCentavos: 20000, completo: true });
+    expect(q.totalCentavos).toBe(70000);
+    expect(q).toMatchObject({ noitesDeQuarto: 5, pessoasNoite: 7 });
+    expect(r.porTipo.find((t) => t.tipo === "single")).toMatchObject({ noitesDeQuarto: 3, pessoasNoite: 3, centavos: 30000 });
+    expect(r.porTipo.find((t) => t.tipo === "double")).toMatchObject({ noitesDeQuarto: 2, pessoasNoite: 4, centavos: 40000 });
+    expect(r.custoMedioPorPessoaCentavos).toBe(35000);
+    conferirSomas(r);
   });
 
-  it("triplo: três pessoas, três noites, R$ 132 cada", () => {
+  it("triplo que divide certo: R$ 270 o apartamento, 3 noites = R$ 810, R$ 270 cada", () => {
     const r = custoDoHotel({
       tarifas: TARIFAS,
       quartos: [{ id: "q1", ocupantes: ["a", "b", "c"].map((chave) => ({ chave, checkIn: "2026-05-10", checkOut: "2026-05-13" })) }],
     });
-    expect(r.porQuarto.get("q1")!.trechos).toHaveLength(1);
-    expect(r.porQuarto.get("q1")!.trechos[0]).toMatchObject({ tipo: "triple", pessoas: 3, totalCentavos: 3 * 3 * 13200 });
-    for (const c of ["a", "b", "c"]) expect(r.porPessoa.get(c)!.totalCentavos).toBe(39600);
-    expect(r.totalCentavos).toBe(118800);
+    expect(r.porQuarto.get("q1")!.trechos[0]).toMatchObject({ tipo: "triple", pessoas: 3, totalCentavos: 81000, partesCentavos: [27000, 27000, 27000] });
+    for (const c of ["a", "b", "c"]) expect(r.porPessoa.get(c)!.totalCentavos).toBe(27000);
+    expect(r.totalCentavos).toBe(81000);
+    conferirSomas(r);
   });
 
-  it("late check-out: sem valor escrito vale a diária da última noite; com valor, o valor", () => {
+  it("triplo de R$ 100 (não divide por 3): os primeiros ficam com +1 centavo e a soma bate com o quarto", () => {
+    const tarifas: TarifasDoHotel = { single: 10000, double: 10000, triple: 10000 };
+    const tres = (checkOut: string) => custoDoHotel({
+      tarifas,
+      quartos: [{ id: "q1", ocupantes: ["a", "b", "c"].map((chave) => ({ chave, checkIn: "2026-05-10", checkOut })) }],
+    });
+    const uma = tres("2026-05-11");
+    expect(uma.porQuarto.get("q1")!.pessoas.map((p) => p.totalCentavos)).toEqual([3334, 3333, 3333]);
+    expect(uma.totalCentavos).toBe(10000);
+    conferirSomas(uma);
+
+    // Duas noites: o trecho (R$ 200) é que é dividido — 6.667 + 6.667 + 6.666.
+    const duas = tres("2026-05-12");
+    expect(duas.porQuarto.get("q1")!.pessoas.map((p) => p.totalCentavos)).toEqual([6667, 6667, 6666]);
+    expect(duas.totalCentavos).toBe(20000);
+    conferirSomas(duas);
+
+    // Três noites: R$ 300 ÷ 3 divide certo.
+    const todas = tres("2026-05-13");
+    expect(todas.porQuarto.get("q1")!.pessoas.map((p) => p.totalCentavos)).toEqual([10000, 10000, 10000]);
+    conferirSomas(todas);
+  });
+
+  it("late check-out: sem valor escrito vale a parte da pessoa na última noite; com valor, o valor (por pessoa)", () => {
     const r = custoDoHotel({
       tarifas: TARIFAS,
       quartos: [{ id: "q1", ocupantes: [
         { chave: "a", checkIn: "2026-05-10", checkOut: "2026-05-12" },
         { chave: "b", checkIn: "2026-05-10", checkOut: "2026-05-12" },
       ] }],
-      lateCheckouts: new Map([["a", late()], ["b", late(10000)]]),
+      lateCheckouts: new Map([["a", late()], ["b", late(5000)]]),
     });
     const [a, b] = r.porQuarto.get("q1")!.pessoas;
-    expect(a.lateCheckout).toEqual({ valorCentavos: 13800, sugerido: true, origem: "quartos" });
-    expect(a.totalCentavos).toBe(2 * 13800 + 13800); // o "Hotel TT" da planilha: diárias + late
-    expect(b.lateCheckout).toEqual({ valorCentavos: 10000, sugerido: false, origem: "quartos" });
-    expect(b.totalCentavos).toBe(2 * 13800 + 10000);
-    expect(r.lateCheckout).toEqual({ pessoas: 2, centavos: 23800 });
-    expect(r.totalCentavos).toBe(4 * 13800 + 23800);
+    expect(a.parteDaUltimaNoiteCentavos).toBe(10000);
+    expect(a.lateCheckout).toEqual({ valorCentavos: 10000, sugerido: true, origem: "quartos" });
+    expect(a.totalCentavos).toBe(20000 + 10000); // o "Hotel TT" da planilha: a parte nas noites + late
+    expect(b.lateCheckout).toEqual({ valorCentavos: 5000, sugerido: false, origem: "quartos" });
+    expect(b.totalCentavos).toBe(20000 + 5000);
+    expect(r.lateCheckout).toEqual({ pessoas: 2, centavos: 15000 });
+    expect(r.totalCentavos).toBe(40000 + 15000);
+    conferirSomas(r);
+  });
+
+  it("late check-out sugerido num triplo que não divide: a parte DELA na última noite (com o centavo, se for a primeira)", () => {
+    const r = custoDoHotel({
+      tarifas: { single: null, double: null, triple: 10000 },
+      quartos: [{ id: "q1", ocupantes: ["a", "b", "c"].map((chave) => ({ chave, checkIn: "2026-05-10", checkOut: "2026-05-11" })) }],
+      lateCheckouts: new Map([["a", late()], ["c", late()]]),
+    });
+    const [a, , c] = r.porQuarto.get("q1")!.pessoas;
+    expect(a.lateCheckout?.valorCentavos).toBe(3334);
+    expect(c.lateCheckout?.valorCentavos).toBe(3333);
   });
 
   it("late check-out sem tarifa nem valor: entra como incompleto (não vira zero calado)", () => {
@@ -72,7 +153,7 @@ describe("custoDoHotel — o tipo de cada noite vem da ocupação", () => {
     expect(r.completo).toBe(false);
   });
 
-  it("quarto com diária própria: vale em todas as noites dele, inclusive as de quem fica sozinho", () => {
+  it("diária própria: preço do apartamento em todas as noites, dividido entre os ocupantes de cada noite", () => {
     const r = custoDoHotel({
       tarifas: TARIFAS,
       quartos: [
@@ -85,13 +166,19 @@ describe("custoDoHotel — o tipo de cada noite vem da ocupação", () => {
     });
     const q1 = r.porQuarto.get("q1")!;
     expect(q1.usaDiariaPropria).toBe(true);
-    expect(q1.trechos.map((t) => [t.tipo, t.origem, t.tarifaCentavos])).toEqual([["single", "quarto", 15000], ["double", "quarto", 15000]]);
-    expect(q1.totalCentavos).toBe(15000 + 2 * 2 * 15000);
-    expect(r.porQuarto.get("q2")!.trechos[0]).toMatchObject({ origem: "evento", tarifaCentavos: 18000 });
+    expect(q1.trechos.map((t) => [t.tipo, t.origem, t.tarifaCentavos, t.totalCentavos, t.partesCentavos])).toEqual([
+      ["single", "quarto", 15000, 15000, [15000]],
+      ["double", "quarto", 15000, 30000, [15000, 15000]],
+    ]);
+    expect(q1.totalCentavos).toBe(15000 + 2 * 15000);
+    expect(r.porPessoa.get("a")!.totalCentavos).toBe(30000);
+    expect(r.porPessoa.get("b")!.totalCentavos).toBe(15000);
+    expect(r.porQuarto.get("q2")!.trechos[0]).toMatchObject({ origem: "evento", tarifaCentavos: 10000, totalCentavos: 10000 });
     expect(r.temValores).toBe(true);
+    conferirSomas(r);
   });
 
-  it("pessoa que troca de quarto: o custo dela soma os dois quartos; o late check-out fica no quarto de onde ela sai", () => {
+  it("pessoa que troca de quarto: o custo dela soma a parte nos dois quartos; o late check-out fica no quarto de onde ela sai", () => {
     const r = custoDoHotel({
       tarifas: TARIFAS,
       quartos: [
@@ -104,28 +191,30 @@ describe("custoDoHotel — o tipo de cada noite vem da ocupação", () => {
       lateCheckouts: new Map([["a", late()]]),
     });
     expect(r.porPessoa.get("a")).toMatchObject({
-      noites: 4, quartos: ["q1", "q2"], lateCheckoutCentavos: 18000,
-      totalCentavos: 2 * 13800 + 2 * 18000 + 18000,
+      noites: 4, quartos: ["q1", "q2"], lateCheckoutCentavos: 10000,
+      totalCentavos: 20000 + 20000 + 10000,
     });
     expect(r.porQuarto.get("q1")!.pessoas[0].lateCheckout).toBeNull();
-    expect(r.porQuarto.get("q2")!.pessoas[0].lateCheckout).toMatchObject({ valorCentavos: 18000 });
+    expect(r.porQuarto.get("q2")!.pessoas[0].lateCheckout).toMatchObject({ valorCentavos: 10000 });
     expect(r.pessoas).toBe(2);
+    conferirSomas(r);
   });
 
-  it("noite com 4 pessoas: usa a tarifa do Triplo e vira aviso", () => {
+  it("noite com 4 pessoas: o apartamento Triplo ÷ 4, e vira aviso", () => {
     const r = custoDoHotel({
       tarifas: TARIFAS,
       quartos: [{ id: "q1", ocupantes: ["a", "b", "c", "d"].map((chave) => ({ chave, checkIn: "2026-05-10", checkOut: "2026-05-11" })) }],
     });
     const q = r.porQuarto.get("q1")!;
-    expect(q.trechos[0]).toMatchObject({ tipo: "triple", pessoas: 4, acimaDoTriplo: true, tarifaCentavos: 13200, totalCentavos: 4 * 13200 });
+    expect(q.trechos[0]).toMatchObject({ tipo: "triple", pessoas: 4, acimaDoTriplo: true, tarifaCentavos: 27000, totalCentavos: 27000, partesCentavos: [6750, 6750, 6750, 6750] });
     expect(q.acimaDoTriplo).toBe(true);
     expect(r.noitesAcimaDoTriplo).toEqual([{ quartoId: "q1", de: "2026-05-10", ate: "2026-05-11", pessoas: 4 }]);
+    conferirSomas(r);
   });
 
   it("tarifa faltando para um tipo: as noites desse tipo ficam sem valor e o tipo é apontado", () => {
     const r = custoDoHotel({
-      tarifas: { single: null, double: 13800, triple: null },
+      tarifas: { single: null, double: 20000, triple: null },
       quartos: [{ id: "q1", ocupantes: [
         { chave: "a", checkIn: "2026-05-10", checkOut: "2026-05-13" },
         { chave: "b", checkIn: "2026-05-11", checkOut: "2026-05-13" },
@@ -134,8 +223,10 @@ describe("custoDoHotel — o tipo de cada noite vem da ocupação", () => {
     const q = r.porQuarto.get("q1")!;
     expect(q.noitesSemTarifa).toBe(1);
     expect(q.completo).toBe(false);
-    expect(r.porPessoa.get("a")).toMatchObject({ completo: false, totalCentavos: 2 * 13800 });
-    expect(r.porPessoa.get("b")).toMatchObject({ completo: true, totalCentavos: 2 * 13800 });
+    expect(q.trechos[0]).toMatchObject({ tipo: "single", totalCentavos: null, partesCentavos: null });
+    expect(r.porPessoa.get("a")).toMatchObject({ completo: false, totalCentavos: 20000 });
+    expect(r.porPessoa.get("b")).toMatchObject({ completo: true, totalCentavos: 20000 });
+    expect(r.porTipo.find((t) => t.tipo === "single")).toMatchObject({ noitesDeQuarto: 1, noitesSemTarifa: 1, centavos: 0 });
     expect(r.tiposSemTarifa).toEqual(["single"]);
   });
 
@@ -149,26 +240,27 @@ describe("custoDoHotel — o tipo de cada noite vem da ocupação", () => {
 
 describe("custoDoHotel — calculado × pago (sem redistribuir nada)", () => {
   const quartos = [
-    { id: "q1", valorPagoCentavos: 60000, ocupantes: [
+    { id: "q1", valorPagoCentavos: 50000, ocupantes: [
       { chave: "a", checkIn: "2026-05-10", checkOut: "2026-05-12" },
       { chave: "b", checkIn: "2026-05-10", checkOut: "2026-05-12" },
     ] },
     { id: "q2", ocupantes: [{ chave: "c", checkIn: "2026-05-10", checkOut: "2026-05-12" }] },
   ];
 
-  it("fatura do evento: diferença e percentual sobre o calculado", () => {
-    const r = custoDoHotel({ tarifas: TARIFAS, quartos, faturaCentavos: 100000 });
-    expect(r.totalCentavos).toBe(4 * 13800 + 2 * 18000); // 91.200
-    expect(r.fatura).toEqual({ pagoCentavos: 100000, diferencaCentavos: 8800, percentual: 8800 / 91200 });
+  it("fatura do evento: diferença e percentual sobre o calculado; média = total ÷ pessoas", () => {
+    const r = custoDoHotel({ tarifas: TARIFAS, quartos, faturaCentavos: 70000 });
+    expect(r.totalCentavos).toBe(2 * 20000 + 2 * 10000); // 60.000
+    expect(r.fatura).toEqual({ pagoCentavos: 70000, diferencaCentavos: 10000, percentual: 10000 / 60000 });
     // O valor de cada pessoa NÃO muda por causa da fatura.
-    expect(r.porPessoa.get("a")!.totalCentavos).toBe(27600);
+    expect(r.porPessoa.get("a")!.totalCentavos).toBe(20000);
+    expect(r.custoMedioPorPessoaCentavos).toBe(20000);
   });
 
   it("valor pago por quarto: diferença do quarto e soma só dos quartos lançados", () => {
     const r = custoDoHotel({ tarifas: TARIFAS, quartos });
-    expect(r.porQuarto.get("q1")).toMatchObject({ valorPagoCentavos: 60000, diferencaCentavos: 60000 - 55200 });
+    expect(r.porQuarto.get("q1")).toMatchObject({ valorPagoCentavos: 50000, diferencaCentavos: 50000 - 40000 });
     expect(r.porQuarto.get("q2")).toMatchObject({ valorPagoCentavos: null, diferencaCentavos: null });
-    expect(r.pagoPorQuarto).toEqual({ quartos: 1, pagoCentavos: 60000, calculadoCentavos: 55200, diferencaCentavos: 4800 });
+    expect(r.pagoPorQuarto).toEqual({ quartos: 1, pagoCentavos: 50000, calculadoCentavos: 40000, diferencaCentavos: 10000 });
     expect(r.fatura).toBeNull();
   });
 

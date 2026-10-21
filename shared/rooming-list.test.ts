@@ -39,11 +39,11 @@ describe("montarRoomingList", () => {
     expect(r.totalDeQuartos).toBe(2);
     expect(r.totalDeHospedes).toBe(5);
     expect(r.linhas.map((l) => [l.numero, l.tipo, l.diarias])).toEqual([
-      [1, "22/04→24/04 Single; 24/04→26/04 Duplo; 26/04→27/04 Single", 5],
+      [1, "22/04→24/04 Individual; 24/04→26/04 Duplo; 26/04→27/04 Individual", 5],
       [2, "Triplo", 3],
     ]);
     expect(r.quartosPorTipo).toEqual([{ tipo: "Duplo", quantidade: 1 }, { tipo: "Triplo", quantidade: 1 }]);
-    expect(r.diariasPorTipo).toEqual([{ tipo: "Single", quantidade: 3 }, { tipo: "Duplo", quantidade: 2 }, { tipo: "Triplo", quantidade: 3 }]);
+    expect(r.diariasPorTipo).toEqual([{ tipo: "Individual", quantidade: 3 }, { tipo: "Duplo", quantidade: 2 }, { tipo: "Triplo", quantidade: 3 }]);
     expect(r.totalDeDiarias).toBe(8);
     expect(r.periodoDoEvento).toBe("24/04/2026 a 26/04/2026");
     expect(r.periodoDaHospedagem).toBe("22/04/2026 a 27/04/2026");
@@ -73,7 +73,7 @@ describe("montarRoomingList", () => {
     expect(r.hotel).toBe("a definir");
     expect(r.totalDeQuartos).toBe(1);
     expect(r.linhas[0].hospedes.map((h) => h.nome)).toEqual(["Yara"]);
-    expect(r.linhas[0].tipo).toBe("Single");
+    expect(r.linhas[0].tipo).toBe("Individual");
     expect(r.periodoDaHospedagem).toBe("23/04/2026 a 25/04/2026");
     expect(r.nomeDoArquivo).toBe("Rooming list - Night Run 1ª Etapa Rio.pdf");
   });

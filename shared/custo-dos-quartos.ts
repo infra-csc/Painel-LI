@@ -3,24 +3,41 @@
  * é colocar o valor total que estou pagando e ele distribuir, para saber
  * quanto estamos gastando com cada [apartamento]".
  *
- * Regras (respostas do dono):
- *  - a tarifa é POR PESSOA, POR NOITE e por tipo de apartamento (Individual,
- *    Duplo, Triplo) — a planilha deles: duplo R$ 138, triplo R$ 132;
+ * 21/10 — MUDANÇA DE REGRA (dono, com print de produção: "o duplo é uma vez
+ * só, pois é duas pessoas em um quarto duplo"). Até o dia 20 a tarifa era
+ * lida POR PESSOA (Duplo R$ 200 → R$ 200 de cada um, R$ 400 o quarto por
+ * noite); agora ela é o preço do APARTAMENTO por noite, DIVIDIDO entre quem
+ * dorme nele. Nada foi migrado: os valores já gravados (ex.: R$ 200 no Duplo)
+ * passam a ser lidos como preço do apartamento, que é o que o dono quis dizer.
+ *
+ * Regras:
+ *  - a tarifa de cada tipo (Individual, Duplo, Triplo) é o preço do
+ *    APARTAMENTO por noite. O custo do quarto numa noite é a tarifa do tipo
+ *    daquela noite; cada pessoa paga tarifa ÷ pessoas da noite;
  *  - o tipo de cada NOITE vem de quantas pessoas dormem no quarto naquela
  *    noite (shared/ocupacao-por-noite.ts): no duplo em que um chega antes, as
- *    noites sozinho usam a tarifa Individual ("tem single até o Edney chegar");
- *  - um quarto pode ter a SUA diária por pessoa (negociada à parte): ela vale
- *    para todas as noites daquele quarto, qualquer que seja a ocupação;
- *  - late check-out é um valor POR PESSOA marcada; sem valor escrito, vale a
- *    diária da última noite dela (a sugestão do dono: "igual à diária");
- *  - custo da pessoa = Σ noites × tarifa da noite (ou a do quarto) + late
- *    check-out — o "Hotel TT" da planilha;
+ *    noites sozinho são Individual — e ele paga o apartamento Individual
+ *    inteiro ("tem single até o Edney chegar");
+ *  - um quarto pode ter a SUA diária (negociada à parte): é o preço DAQUELE
+ *    apartamento por noite, em todas as noites dele, qualquer que seja a
+ *    ocupação, dividido entre os ocupantes de cada noite. É um valor só (não
+ *    um por tipo) porque é o mesmo apartamento alugado por um preço fechado —
+ *    e assim o que já está gravado continua valendo sem migração;
  *  - noite com 4+ pessoas (o limite é 3, 09/10) não tem tarifa própria: usa a
- *    do Triplo e vira AVISO, para alguém conferir o quarto.
+ *    do Triplo (o apartamento) ÷ o número real de pessoas e vira AVISO;
+ *  - late check-out é um valor POR PESSOA marcada; sem valor escrito, vale a
+ *    PARTE dela na última noite (tarifa ÷ ocupantes) — "igual à diária";
+ *  - custo da pessoa = Σ a parte dela em cada trecho + late check-out — o
+ *    "Hotel TT" da planilha.
  *
- * Tudo em CENTAVOS inteiros (tarifa × pessoas × noites nunca arredonda). O
- * valor pago ao hotel (fatura do evento e, opcionalmente, de cada quarto) só
- * é COMPARADO com o calculado — nada é redistribuído aqui.
+ * Centavos que não dividem certo (triplo de R$ 100 = 10.000 ÷ 3): a divisão é
+ * feita no total do TRECHO (tarifa × noites) e o resto vai, 1 centavo cada,
+ * para os primeiros da lista do trecho (a ordem dos ocupantes no quarto). A
+ * soma das partes bate EXATAMENTE com o total do quarto.
+ *
+ * Tudo em CENTAVOS inteiros. O valor pago ao hotel (fatura do evento e,
+ * opcionalmente, de cada quarto) só é COMPARADO com o calculado — nada é
+ * redistribuído aqui.
  *
  * Puro e compartilhado: o servidor usa para o "Hotel" de cada pessoa no custo
  * do Espelho (`hotelTotalCents`) e a tela, para o detalhe de cada quarto — as
@@ -35,7 +52,7 @@ export function rotuloDoApartamento(tipo: TipoDoTrecho): string {
   return tipo === "single" ? "Individual" : tipo === "double" ? "Duplo" : "Triplo";
 }
 
-/** Tarifa por pessoa por noite de cada tipo, em centavos (`null` = não definida). */
+/** Tarifa de cada tipo = preço do APARTAMENTO por noite, em centavos (`null` = não definida). */
 export type TarifasDoHotel = Record<TipoDoTrecho, number | null>;
 export const SEM_TARIFAS: TarifasDoHotel = { single: null, double: null, triple: null };
 
@@ -47,9 +64,21 @@ export const LIMITE_DO_VALOR_PAGO_CENTAVOS = 1_000_000_000;
 /** Centavos válidos: inteiro, ≥ 0. Zero vale (cortesia); `null`/lixo = não definido. */
 export const centavosValidos = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
+/**
+ * Divide `total` centavos entre `partes` pessoas sem perder nem criar
+ * centavo: cada um fica com a divisão inteira e o resto vai, 1 centavo cada,
+ * para os PRIMEIROS. 10.000 ÷ 3 → [3.334, 3.333, 3.333]. Soma = total, sempre.
+ */
+export function dividirCentavos(total: number, partes: number): number[] {
+  if (partes <= 0) return [];
+  const base = Math.floor(total / partes);
+  const resto = total - base * partes;
+  return Array.from({ length: partes }, (_, i) => base + (i < resto ? 1 : 0));
+}
+
 export interface LateCheckoutDaPessoa {
   ativo: boolean;
-  /** `null` = igual à diária da última noite da pessoa. */
+  /** `null` = igual à parte da pessoa na última noite (tarifa ÷ ocupantes). */
   valorCentavos: number | null;
   /** "quartos": marcado na aba Quartos; "hospedagem": vem da hospedagem da vaga (grade). */
   origem: "quartos" | "hospedagem";
@@ -64,7 +93,7 @@ export interface OcupanteParaCusto {
 
 export interface QuartoParaCusto {
   id: string;
-  /** Diária por pessoa só deste quarto — vence a tarifa do evento em todas as noites dele. */
+  /** Preço deste apartamento por noite (negociado à parte) — vence a tarifa do evento em todas as noites dele. */
   diariaPropriaCentavos?: number | null;
   /** O que o hotel cobrou por este quarto (opcional) — só para comparar. */
   valorPagoCentavos?: number | null;
@@ -88,23 +117,25 @@ export interface TrechoComValor {
   tipo: TipoDoTrecho;
   pessoas: number;
   chaves: string[];
-  /** Por pessoa por noite; `null` = sem tarifa para este tipo. */
+  /** Preço do APARTAMENTO por noite; `null` = sem tarifa para este tipo. */
   tarifaCentavos: number | null;
   origem: "quarto" | "evento" | null;
-  /** 4 ou mais pessoas na mesma noite: tarifa do Triplo e aviso. */
+  /** 4 ou mais pessoas na mesma noite: tarifa do Triplo (o apartamento) ÷ pessoas, e aviso. */
   acimaDoTriplo: boolean;
-  /** tarifa × pessoas × noites; `null` sem tarifa. */
+  /** tarifa × noites (o apartamento no trecho); `null` sem tarifa. */
   totalCentavos: number | null;
+  /** Parte de cada pessoa no trecho, alinhada com `chaves` (soma = total); `null` sem tarifa. */
+  partesCentavos: number[] | null;
 }
 
 export interface CustoDaPessoaNoQuarto {
   chave: string;
   noites: number;
-  /** Só as noites com tarifa. */
+  /** A parte dela nas noites com tarifa. */
   diariasCentavos: number;
   noitesSemTarifa: number;
-  /** Tarifa da última noite dela neste quarto — a sugestão do late check-out. */
-  ultimaDiariaCentavos: number | null;
+  /** Parte dela na última noite neste quarto (tarifa ÷ ocupantes) — a sugestão do late check-out. */
+  parteDaUltimaNoiteCentavos: number | null;
   lateCheckout: { valorCentavos: number | null; sugerido: boolean; origem: LateCheckoutDaPessoa["origem"] } | null;
   totalCentavos: number;
   /** Todas as noites (e o late check-out, se houver) têm valor. */
@@ -119,9 +150,11 @@ export interface CustoDoQuarto {
   lateCheckoutCentavos: number;
   totalCentavos: number;
   completo: boolean;
-  /** Noites de quarto (room-nights) sem tarifa. */
+  /** Noites de apartamento (room-nights) sem tarifa. */
   noitesSemTarifa: number;
   noitesDeQuarto: number;
+  /** Σ pessoas × noites — só informação (a tarifa é por apartamento). */
+  pessoasNoite: number;
   usaDiariaPropria: boolean;
   diariaPropriaCentavos: number | null;
   acimaDoTriplo: boolean;
@@ -142,12 +175,14 @@ export interface CustoDaPessoa {
 
 export interface ResumoDoTipo {
   tipo: TipoDoTrecho;
-  /** Diárias por pessoa (pessoas × noites) — a unidade da tarifa. */
-  diarias: number;
+  /** Diárias de APARTAMENTO (room-nights) deste tipo — a unidade da tarifa. */
   noitesDeQuarto: number;
+  /** Pessoas × noites deste tipo — só informação. */
+  pessoasNoite: number;
+  /** Soma dos quartos neste tipo. */
   centavos: number;
-  /** Diárias deste tipo sem tarifa definida. */
-  diariasSemTarifa: number;
+  /** Noites de apartamento deste tipo sem tarifa definida. */
+  noitesSemTarifa: number;
 }
 
 export interface CustoDoHotel {
@@ -184,6 +219,8 @@ function custoDoQuartoSemLate(q: QuartoParaCusto, tarifas: TarifasDoHotel) {
   const propria = centavosValidos(q.diariaPropriaCentavos) ? q.diariaPropriaCentavos : null;
   const trechos: TrechoComValor[] = ocupacaoPorNoite(ocupantes).map((t) => {
     const tarifa = propria ?? (centavosValidos(tarifas[t.tipo]) ? (tarifas[t.tipo] as number) : null);
+    // O apartamento no trecho = tarifa × noites; dividido entre quem dorme nele.
+    const total = tarifa === null ? null : tarifa * t.noites;
     return {
       de: t.de, ate: t.ate, noites: t.noites, tipo: t.tipo,
       pessoas: t.ocupantes.length,
@@ -191,20 +228,26 @@ function custoDoQuartoSemLate(q: QuartoParaCusto, tarifas: TarifasDoHotel) {
       tarifaCentavos: tarifa,
       origem: propria !== null ? "quarto" : tarifa !== null ? "evento" : null,
       acimaDoTriplo: t.ocupantes.length > 3,
-      totalCentavos: tarifa === null ? null : tarifa * t.ocupantes.length * t.noites,
+      totalCentavos: total,
+      partesCentavos: total === null ? null : dividirCentavos(total, t.ocupantes.length),
     };
   });
   const pessoas = ocupantes.map((o) => {
     let noites = 0, diarias = 0, semTarifa = 0;
-    let ultimo: TrechoComValor | null = null;
+    let ultimo: { trecho: TrechoComValor; indice: number } | null = null;
     for (const t of trechos) {
-      if (!t.chaves.includes(o.chave)) continue;
+      const k = t.chaves.indexOf(o.chave);
+      if (k < 0) continue;
       noites += t.noites;
-      if (t.tarifaCentavos === null) semTarifa += t.noites;
-      else diarias += t.tarifaCentavos * t.noites;
-      if (!ultimo || t.ate > ultimo.ate) ultimo = t;
+      if (t.partesCentavos === null) semTarifa += t.noites;
+      else diarias += t.partesCentavos[k];
+      if (!ultimo || t.ate > ultimo.trecho.ate) ultimo = { trecho: t, indice: k };
     }
-    return { chave: o.chave, checkOut: dia(o.checkOut), noites, diarias, semTarifa, ultimaDiaria: ultimo ? (ultimo as TrechoComValor).tarifaCentavos : null };
+    // Sugestão do late check-out: a parte dela em UMA noite do último trecho
+    // (mesma regra do resto: os primeiros da lista ficam com o centavo a mais).
+    const u = ultimo as { trecho: TrechoComValor; indice: number } | null;
+    const parteDaUltima = u && u.trecho.tarifaCentavos !== null ? dividirCentavos(u.trecho.tarifaCentavos, u.trecho.pessoas)[u.indice] : null;
+    return { chave: o.chave, checkOut: dia(o.checkOut), noites, diarias, semTarifa, parteDaUltima };
   });
   return { id: q.id, propria, trechos, pessoas, pago: centavosValidos(q.valorPagoCentavos) ? q.valorPagoCentavos : null };
 }
@@ -228,13 +271,13 @@ export function custoDoHotel(e: EntradaDoCustoDoHotel): CustoDoHotel {
     const pessoas: CustoDaPessoaNoQuarto[] = q.pessoas.map((p) => {
       const late = lateNoQuarto.get(p.chave) === q.id ? e.lateCheckouts?.get(p.chave) ?? null : null;
       const explicito = late && centavosValidos(late.valorCentavos) ? late.valorCentavos : null;
-      const valorDoLate = late ? explicito ?? p.ultimaDiaria : null;
+      const valorDoLate = late ? explicito ?? p.parteDaUltima : null;
       return {
         chave: p.chave,
         noites: p.noites,
         diariasCentavos: p.diarias,
         noitesSemTarifa: p.semTarifa,
-        ultimaDiariaCentavos: p.ultimaDiaria,
+        parteDaUltimaNoiteCentavos: p.parteDaUltima,
         lateCheckout: late ? { valorCentavos: valorDoLate, sugerido: explicito === null, origem: late.origem } : null,
         totalCentavos: p.diarias + (valorDoLate ?? 0),
         completo: p.semTarifa === 0 && (!late || valorDoLate !== null),
@@ -253,6 +296,7 @@ export function custoDoHotel(e: EntradaDoCustoDoHotel): CustoDoHotel {
       completo: pessoas.every((p) => p.completo) && q.trechos.every((t) => t.tarifaCentavos !== null),
       noitesSemTarifa: q.trechos.reduce((s, t) => s + (t.tarifaCentavos === null ? t.noites : 0), 0),
       noitesDeQuarto: q.trechos.reduce((s, t) => s + t.noites, 0),
+      pessoasNoite: q.trechos.reduce((s, t) => s + t.pessoas * t.noites, 0),
       usaDiariaPropria: q.propria !== null,
       diariaPropriaCentavos: q.propria,
       acimaDoTriplo: q.trechos.some((t) => t.acimaDoTriplo),
@@ -276,13 +320,13 @@ export function custoDoHotel(e: EntradaDoCustoDoHotel): CustoDoHotel {
   }
 
   const porTipo: ResumoDoTipo[] = TIPOS_DE_APARTAMENTO.map((tipo) => {
-    const r: ResumoDoTipo = { tipo, diarias: 0, noitesDeQuarto: 0, centavos: 0, diariasSemTarifa: 0 };
+    const r: ResumoDoTipo = { tipo, noitesDeQuarto: 0, pessoasNoite: 0, centavos: 0, noitesSemTarifa: 0 };
     for (const q of quartos) {
       for (const t of q.trechos) {
         if (t.tipo !== tipo) continue;
-        r.diarias += t.pessoas * t.noites;
         r.noitesDeQuarto += t.noites;
-        if (t.totalCentavos === null) r.diariasSemTarifa += t.pessoas * t.noites;
+        r.pessoasNoite += t.pessoas * t.noites;
+        if (t.totalCentavos === null) r.noitesSemTarifa += t.noites;
         else r.centavos += t.totalCentavos;
       }
     }
@@ -307,7 +351,7 @@ export function custoDoHotel(e: EntradaDoCustoDoHotel): CustoDoHotel {
     completo: quartos.every((q) => q.completo),
     pessoas,
     custoMedioPorPessoaCentavos: pessoas > 0 && totalCentavos > 0 ? Math.round(totalCentavos / pessoas) : null,
-    tiposSemTarifa: porTipo.filter((t) => t.diariasSemTarifa > 0).map((t) => t.tipo),
+    tiposSemTarifa: porTipo.filter((t) => t.noitesSemTarifa > 0).map((t) => t.tipo),
     noitesAcimaDoTriplo: quartos.flatMap((q) => q.trechos.filter((t) => t.acimaDoTriplo).map((t) => ({ quartoId: q.id, de: t.de, ate: t.ate, pessoas: t.pessoas }))),
     temValores: TIPOS_DE_APARTAMENTO.some((t) => centavosValidos(e.tarifas[t])) || quartos.some((q) => q.usaDiariaPropria),
     fatura: fatura === null ? null : {
@@ -384,7 +428,7 @@ export const chaveDoOcupante = (m: MembroParaCusto, indice: number, grupoId: str
 /**
  * Late check-out efetivo: o marcado na aba Quartos vence; sem marcação lá, a
  * caixa "Late check-out" da hospedagem da vaga (grade) conta, com o valor
- * igual à diária.
+ * igual à parte da pessoa na última noite.
  */
 export function lateCheckoutsEfetivos(
   linhas: readonly LinhaParaCusto[],

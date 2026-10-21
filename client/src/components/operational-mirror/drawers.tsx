@@ -34,7 +34,7 @@ interface FieldDef {
 
 /** Tipos de quarto aceitos pelo servidor (server/operational-mirror.ts). */
 export const ROOM_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "single", label: "Single" },
+  { value: "single", label: "Individual" },
   { value: "double", label: "Duplo" },
   { value: "triple", label: "Triplo" },
 ];

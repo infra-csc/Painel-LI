@@ -575,9 +575,10 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
 
   // ----- Hotel calculado pela aba Quartos (20/10) -----
   // As MESMAS entradas que a tela monta (shared/custo-dos-quartos.ts): cada
-  // pessoa recebe o custo das noites dela × a tarifa do tipo da noite (ou a
-  // diária própria do quarto) + late check-out. Com duas vagas no evento, o
-  // custo vai para a linha que a aba Quartos mostra (a última).
+  // pessoa recebe a PARTE dela em cada noite — a tarifa do apartamento do tipo
+  // da noite (ou a diária própria do quarto) ÷ quem dorme nele (21/10) — +
+  // late check-out. Com duas vagas no evento, o custo vai para a linha que a
+  // aba Quartos mostra (a última).
   if (valoresDoHotel) {
     const custo = custoDoHotel(entradaDoCustoDoHotel(roomGroupsWithMembers, rows, valoresDoHotel));
     if (custo.temValores) {

@@ -25,10 +25,11 @@
  *
  * 20/10, dono: "colocar o preço total e de cada quarto no Espelho". Abaixo do
  * hotel do evento, o painel "Valores do hotel" (valores-do-hotel.tsx: tarifas
- * por pessoa por noite, distribuição, calculado × pago); em cada bloco, o
- * rodapé com a conta das noites e o total do quarto, e em cada ocupante o
- * valor dele e o late check-out (valores-do-quarto.tsx). As datas usadas na
+ * por apartamento por noite, distribuição, calculado × pago); em cada bloco,
+ * o rodapé com a conta das noites e o total do quarto, e em cada ocupante a
+ * parte dele e o late check-out (valores-do-quarto.tsx). As datas usadas na
  * conta são as MESMAS da tela (periodoNoQuarto, shared/custo-dos-quartos.ts).
+ * 21/10: a tarifa é do APARTAMENTO, dividida entre quem dorme no quarto.
  */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangle, Building2, CheckCheck, Loader2, Moon, Pencil, RefreshCw, BedDouble, Scissors, StickyNote } from "lucide-react";
@@ -38,11 +39,11 @@ import { seloDaOrigem } from "@shared/datas-do-quarto";
 import { observacaoDeDatas, PREFIXO_DATAS_DIFERENTES } from "@shared/room-pairing";
 import { ocupacaoPorNoite, rotuloDoTipo, type TipoDoTrecho } from "@shared/ocupacao-por-noite";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, type QuartoDaRoomingList } from "@shared/rooming-list";
-import { chaveDoOcupante, custoDoHotel, entradaDoCustoDoHotel, periodoNoQuarto, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
+import { chaveDoOcupante, custoDoHotel, dividirCentavos, entradaDoCustoDoHotel, periodoNoQuarto, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
 import { fonteDoHotel } from "@shared/operational-mirror-types";
 import { HotelDoEvento } from "./hotel-do-evento";
 import { PainelDeValoresDoHotel, useValoresDoHotel } from "./valores-do-hotel";
-import { ValorDaPessoa, ValoresDoQuarto } from "./valores-do-quarto";
+import { partesTxt, ValorDaPessoa, ValoresDoQuarto } from "./valores-do-quarto";
 import { MoverPara } from "./mover-para";
 import { RoomingListPdf } from "./rooming-list-pdf";
 import { brl, diaSemana, fmtDate, memberInfo, type GroupViewProps } from "./mirror-shared";
@@ -290,10 +291,17 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
   const comValores = comPainel && custo.temValores;
   const numeroDoQuarto = new Map(quartos.map((q) => [q.g.id, q.numero]));
   const escolhasDeLate = new Set((valores?.lateCheckouts ?? []).map((l) => l.collaboratorId));
-  /** "R$ 138,00 por pessoa" do trecho — no título do selo de ocupação. */
+  /** "R$ 200,00 a noite (R$ 100,00 para cada um)" do trecho — no título do selo de ocupação. */
   const tarifaDoTrecho = (quartoId: string, de: string) => {
     const t = comValores ? custo.porQuarto.get(quartoId)?.trechos.find((x) => x.de === de) : undefined;
-    return t?.tarifaCentavos != null ? ` · ${brl(t.tarifaCentavos)} por pessoa` : "";
+    if (t?.tarifaCentavos == null) return "";
+    return ` · ${brl(t.tarifaCentavos)} a noite${t.pessoas > 1 ? ` (${partesTxt(dividirCentavos(t.tarifaCentavos, t.pessoas))} para cada um)` : ""}`;
+  };
+  /** Nome curto de cada ocupante para a conta do quarto: o primeiro nome; o inteiro se repetir no quarto. */
+  const nomesDaConta = (lista: Ocupante[]) => {
+    const primeiro = (o: Ocupante) => o.m.name.trim().split(/\s+/)[0] || o.m.name;
+    const repetidos = new Set(lista.map(primeiro).filter((n, i, a) => a.indexOf(n) !== i));
+    return new Map(lista.map((o) => [o.chave, repetidos.has(primeiro(o)) ? o.m.name : primeiro(o)]));
   };
 
   const nomeDoOcupante = (g: RoomGroup, o: Ocupante) => (
@@ -369,7 +377,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
       <span className="esp-trechos">
         <span className="esp-trecho">
           <i className="esp-trecho-ponto" style={{ background: COR_DO_TIPO[chave] }} aria-hidden="true" />
-          <span className="font-semibold text-foreground">{n === 1 ? "Single" : n === 2 ? "Duplo" : n === 3 ? "Triplo" : `${n} pessoas`}</span>
+          <span className="font-semibold text-foreground">{n === 1 ? "Individual" : n === 2 ? "Duplo" : n === 3 ? "Triplo" : `${n} pessoas`}</span>
           <span className="text-muted-foreground" aria-hidden="true">·</span>
           <span className="tabular-nums text-muted-foreground">{n} {n === 1 ? "pessoa" : "pessoas"}</span>
         </span>
@@ -536,7 +544,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
                 ))}
               </ul>
               {comValores && custo.porQuarto.get(g.id) && (
-                <ValoresDoQuarto quarto={custo.porQuarto.get(g.id)!} canEdit={canEdit} mutacoes={mutacoesDeValores} />
+                <ValoresDoQuarto quarto={custo.porQuarto.get(g.id)!} nomes={nomesDaConta(q.lista)} canEdit={canEdit} mutacoes={mutacoesDeValores} />
               )}
             </article>
           );

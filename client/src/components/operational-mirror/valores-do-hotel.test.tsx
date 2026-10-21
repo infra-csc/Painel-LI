@@ -41,9 +41,11 @@ function duplo(id = "q1", membros: { c: string; de: string; ate: string }[] = [
   } as unknown as RoomGroup;
 }
 
+// 21/10: tarifa = preço do APARTAMENTO por noite (os valores do print do dono).
 const TARIFAS: ValoresDoHotelSalvos = {
-  tarifas: { single: 18000, double: 13800, triple: 13200 }, faturaCentavos: null, quartos: [], lateCheckouts: [],
+  tarifas: { single: 10000, double: 20000, triple: 27000 }, faturaCentavos: null, quartos: [], lateCheckouts: [],
 };
+const textoDasLinhas = (el: HTMLElement) => within(el).getAllByRole("listitem").map((li) => sp(li.textContent).replace(/\s+/g, " ").trim());
 
 function montar({ groups = [duplo()], rows = [linha("mau", "Mauricio Alves"), linha("edn", "Edney Souza")], valores = TARIFAS as ValoresDoHotelSalvos | null, semValores = false, canEdit = true } = {}) {
   const collabById = new Map<string, MirrorCollaborator>(rows.map((r) => [r.collaborator.id as string, r.collaborator]));
@@ -94,25 +96,49 @@ describe("Valores do hotel na aba Quartos", () => {
     expect(screen.queryAllByTestId("valor-da-pessoa")).toHaveLength(0);
   });
 
-  it("duplo com chegada escalonada: conta por noite, valor de cada pessoa, total do quarto e distribuição", () => {
+  it("duplo com chegada escalonada: uma frase por trecho, a parte de cada pessoa, total do quarto e distribuição", () => {
     montar();
-    const conta = screen.getByTestId("quarto-conta-q1");
-    expect(within(conta).getAllByRole("listitem").map((li) => sp(li.textContent))).toEqual([
-      "2 noitesIndividual1 × R$ 180,00 = R$ 360,00",
-      "2 noitesDuplo2 × R$ 138,00 = R$ 552,00",
-      "1 noiteIndividual1 × R$ 180,00 = R$ 180,00",
+    // Antes (20/10): "2 noites Individual 1 × R$ 180,00" — o "1 ×" confundia (dono, 21/10).
+    expect(textoDasLinhas(screen.getByTestId("quarto-conta-q1"))).toEqual([
+      "22/04 → 24/04 · 2 noites em Individual · R$ 100,00 a noite = R$ 200,00 — Mauricio paga o quarto inteiro",
+      "24/04 → 26/04 · 2 noites em Duplo · R$ 200,00 a noite = R$ 400,00 — R$ 200,00 para cada um",
+      "26/04 → 27/04 · 1 noite em Individual · R$ 100,00 a noite = R$ 100,00 — Mauricio paga o quarto inteiro",
     ]);
-    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 1.092,00");
+    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 700,00");
+    expect(sp(screen.getByTestId("quarto-cada-um-q1").textContent).replace(/\s+/g, " ").trim()).toBe("Cada um Mauricio R$ 500,00 · Edney R$ 200,00");
     const [mau, edn] = screen.getAllByTestId("valor-da-pessoa");
-    expect(mau).toHaveTextContent("R$ 816,00");
+    expect(mau).toHaveTextContent("R$ 500,00");
     expect(mau).toHaveTextContent("5 noites");
-    expect(edn).toHaveTextContent("R$ 276,00");
-    expect(screen.getByTestId("distribuicao-single")).toHaveTextContent("IndividualR$ 540,003 diárias");
-    expect(screen.getByTestId("distribuicao-double")).toHaveTextContent("DuploR$ 552,004 diárias");
+    expect(edn).toHaveTextContent("R$ 200,00");
+    expect(screen.getByTestId("distribuicao-single")).toHaveTextContent("IndividualR$ 300,003 diárias");
+    expect(screen.getByTestId("distribuicao-double")).toHaveTextContent("DuploR$ 400,002 diárias");
     expect(screen.queryByTestId("distribuicao-triple")).toBeNull();
-    expect(screen.getByTestId("valores-calculado")).toHaveTextContent("R$ 1.092,00");
+    expect(screen.getByTestId("valores-calculado")).toHaveTextContent("R$ 700,00");
+    expect(screen.getByTestId("valores-calculado").parentElement).toHaveTextContent("média de R$ 350,00 por pessoa · 2 pessoas");
     // O preço da noite também no título do selo de ocupação.
-    expect(sp(within(screen.getByTestId("room-trechos-q1")).getAllByRole("listitem")[1].getAttribute("title"))).toContain("R$ 138,00 por pessoa");
+    expect(sp(within(screen.getByTestId("room-trechos-q1")).getAllByRole("listitem")[1].getAttribute("title"))).toContain("R$ 200,00 a noite (R$ 100,00 para cada um)");
+  });
+
+  it("Quarto 3 do print do dono: Duplo de 5 noites = R$ 1.000,00, R$ 500,00 para cada um", () => {
+    const q3 = duplo("q3", [{ c: "mau", de: "2026-10-21", ate: "2026-10-26" }, { c: "edn", de: "2026-10-21", ate: "2026-10-26" }]);
+    montar({ groups: [q3] });
+    expect(textoDasLinhas(screen.getByTestId("quarto-conta-q3"))).toEqual([
+      "21/10 → 26/10 · 5 noites em Duplo · R$ 200,00 a noite = R$ 1.000,00 — R$ 500,00 para cada um",
+    ]);
+    expect(screen.getByTestId("quarto-total-q3")).toHaveTextContent("R$ 1.000,00");
+    const [mau, edn] = screen.getAllByTestId("valor-da-pessoa");
+    expect(mau).toHaveTextContent("R$ 500,00");
+    expect(edn).toHaveTextContent("R$ 500,00");
+  });
+
+  it("triplo de R$ 100: a faixa real por pessoa, e cada um com o nome inteiro quando o primeiro nome repete", () => {
+    const tri = duplo("q5", ["a", "b", "c"].map((c) => ({ c, de: "2026-04-24", ate: "2026-04-25" })));
+    montar({ groups: [tri], rows: ["a", "b", "c"].map((c) => linha(c, `Pessoa ${c.toUpperCase()}`)), valores: { ...TARIFAS, tarifas: { single: 10000, double: 10000, triple: 10000 } } });
+    expect(textoDasLinhas(screen.getByTestId("quarto-conta-q5"))).toEqual([
+      "24/04 → 25/04 · 1 noite em Triplo · R$ 100,00 a noite = R$ 100,00 — R$ 33,33 a R$ 33,34 para cada um",
+    ]);
+    expect(sp(screen.getByTestId("quarto-cada-um-q5").textContent).replace(/\s+/g, " ").trim()).toBe("Cada um Pessoa A R$ 33,34 · Pessoa B R$ 33,33 · Pessoa C R$ 33,33");
+    expect(screen.getByTestId("quarto-total-q5")).toHaveTextContent("R$ 100,00");
   });
 
   it("tarifa digitada salva em centavos ao sair do campo; inválida mostra o erro no campo e não grava", async () => {
@@ -134,8 +160,8 @@ describe("Valores do hotel na aba Quartos", () => {
   });
 
   it("fatura do evento: mostra a diferença do calculado", () => {
-    montar({ valores: { ...TARIFAS, faturaCentavos: 120000 } });
-    expect(screen.getByTestId("valores-diferenca")).toHaveTextContent("+R$ 108,00");
+    montar({ valores: { ...TARIFAS, faturaCentavos: 75000 } });
+    expect(screen.getByTestId("valores-diferenca")).toHaveTextContent("+R$ 50,00");
     expect(screen.getByTestId("valores-fechamento")).toHaveTextContent("o hotel cobrou a mais");
   });
 
@@ -149,8 +175,10 @@ describe("Valores do hotel na aba Quartos", () => {
     unmount();
 
     const outro = mockarFetch(() => respostaJson({}));
-    montar({ valores: { ...TARIFAS, quartos: [{ quartoId: "q1", diariaPropriaCentavos: 15000, valorPagoCentavos: 100000 }] } });
-    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 1.050,00"); // 7 diárias × 150
+    montar({ valores: { ...TARIFAS, quartos: [{ quartoId: "q1", diariaPropriaCentavos: 15000, valorPagoCentavos: 70000 }] } });
+    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 750,00"); // 5 noites de apartamento × 150
+    expect(textoDasLinhas(screen.getByTestId("quarto-conta-q1"))[1]).toBe("24/04 → 26/04 · 2 noites em Duplo · R$ 150,00 a noite = R$ 300,00 — R$ 150,00 para cada um");
+    expect(screen.getByTestId("quarto-diaria-q1")).toHaveTextContent("a noite, em vez da tarifa do evento");
     expect(screen.getByTestId("quarto-diferenca-q1")).toHaveTextContent("−R$ 50,00");
     await user.click(screen.getByTestId("quarto-diaria-padrao-q1"));
     await waitFor(() => expect(outro.mock.calls.some(([u, i]) => String(u).endsWith("/q1/valores") && corpo(i).diariaPropriaCentavos === null)).toBe(true));
@@ -170,10 +198,12 @@ describe("Valores do hotel na aba Quartos", () => {
   it("late check-out marcado: selo na linha e soma no valor e no quarto", () => {
     montar({ valores: { ...TARIFAS, lateCheckouts: [{ collaboratorId: "mau", ativo: true, valorCentavos: null }] } });
     const [mau] = screen.getAllByTestId("valor-da-pessoa");
-    expect(within(mau).getByTestId("late-checkout-selo")).toHaveTextContent("late +R$ 180,00");
-    expect(mau).toHaveTextContent("R$ 996,00");
-    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 1.272,00");
-    expect(screen.getByTestId("distribuicao-late")).toHaveTextContent("Late check-outR$ 180,001 pessoa");
+    // Sugestão: a parte dele na última noite (sozinho no Individual = R$ 100).
+    expect(within(mau).getByTestId("late-checkout-selo")).toHaveTextContent("late +R$ 100,00");
+    expect(mau).toHaveTextContent("R$ 600,00");
+    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 800,00");
+    expect(sp(screen.getByTestId("quarto-late-q1").textContent).replace(/\s+/g, " ").trim()).toBe("Late check-out de Mauricio: + R$ 100,00");
+    expect(screen.getByTestId("distribuicao-late")).toHaveTextContent("Late check-outR$ 100,001 pessoa");
   });
 
   it("total lançado à mão na grade: o calculado fica riscado e o lançado aparece", () => {
@@ -190,13 +220,18 @@ describe("Valores do hotel na aba Quartos", () => {
   });
 
   it("quem só consulta vê os valores, sem campos nem late check-out para marcar", () => {
-    montar({ canEdit: false, valores: { ...TARIFAS, faturaCentavos: 109200 } });
+    montar({ canEdit: false, valores: { ...TARIFAS, faturaCentavos: 70000 } });
     expect(screen.queryByTestId("tarifa-double-campo")).toBeNull();
-    expect(screen.getByTestId("tarifa-double")).toHaveTextContent("R$ 138,00");
+    expect(screen.getByTestId("tarifa-double")).toHaveTextContent("R$ 200,00");
     expect(screen.getByTestId("valores-fechamento")).toHaveTextContent("Bate com o calculado");
     expect(screen.queryByTestId("quarto-diaria-definir-q1")).toBeNull();
     expect(screen.queryByTestId("late-checkout-marcar")).toBeNull();
-    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 1.092,00");
+    expect(screen.getByTestId("quarto-total-q1")).toHaveTextContent("R$ 700,00");
+  });
+
+  it("quem só consulta vê a diária própria em frase", () => {
+    montar({ canEdit: false, valores: { ...TARIFAS, quartos: [{ quartoId: "q1", diariaPropriaCentavos: 15000, valorPagoCentavos: null }] } });
+    expect(sp(screen.getByTestId("quarto-diaria-q1").textContent)).toBe("Diária deste quarto: R$ 150,00 a noite (em vez da tarifa do evento)");
   });
 
   it("tabelas ainda não criadas (valores null): painel avisa e os campos ficam desligados", () => {

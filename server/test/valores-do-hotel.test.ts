@@ -55,23 +55,23 @@ describe("tarifas do evento → custo de cada pessoa no Espelho", () => {
     expect(antes.corpo.totals.hotel).toBe(0);
 
     const put = await mutacao(agent.put(`/api/events/${evento.id}/operational-mirror/hotel-valores`))
-      .send({ individualCentavos: 18000, duploCentavos: 13800, triploCentavos: 13200 });
+      .send({ individualCentavos: 10000, duploCentavos: 20000, triploCentavos: 27000 });
     expect(put.status).toBe(200);
     const fatura = await mutacao(agent.put(`/api/events/${evento.id}/operational-mirror/hotel-valores`)).send({ faturaCentavos: 80000 });
     expect(fatura.status).toBe(200);
-    expect(fatura.body).toMatchObject({ individualCentavos: 18000, duploCentavos: 13800, faturaCentavos: 80000 });
+    expect(fatura.body).toMatchObject({ individualCentavos: 10000, duploCentavos: 20000, faturaCentavos: 80000 });
 
     const depois = await espelho(agent, evento.id);
-    expect(depois.corpo.valoresDoHotel).toMatchObject({ tarifas: { single: 18000, double: 13800, triple: 13200 }, faturaCentavos: 80000 });
-    // A: 1 noite sozinho (Individual) + 2 noites de duplo; B: 2 noites de duplo.
-    expect(depois.linha(vagaA.id).hotelDosQuartos).toEqual({ totalCentavos: 18000 + 2 * 13800, noites: 3, completo: true });
-    expect(depois.linha(vagaB.id).hotelDosQuartos).toEqual({ totalCentavos: 2 * 13800, noites: 2, completo: true });
-    expect(depois.corpo.totals.hotel).toBe(45600 + 27600);
+    expect(depois.corpo.valoresDoHotel).toMatchObject({ tarifas: { single: 10000, double: 20000, triple: 27000 }, faturaCentavos: 80000 });
+    // 21/10: tarifa por APARTAMENTO. A: 1 noite sozinho (o Individual inteiro) + metade de 2 noites de Duplo; B: a outra metade.
+    expect(depois.linha(vagaA.id).hotelDosQuartos).toEqual({ totalCentavos: 10000 + 2 * 20000 / 2, noites: 3, completo: true });
+    expect(depois.linha(vagaB.id).hotelDosQuartos).toEqual({ totalCentavos: 2 * 20000 / 2, noites: 2, completo: true });
+    expect(depois.corpo.totals.hotel).toBe(30000 + 20000);
 
     // HOTEL TT lançado à mão para B vence o calculado.
     await ctx.db.insert(ctx.schema.accommodations).values({ teamInclusionId: vagaB.id, totalCents: 50000 });
     const manual = await espelho(agent, evento.id);
-    expect(manual.corpo.totals.hotel).toBe(45600 + 50000);
+    expect(manual.corpo.totals.hotel).toBe(30000 + 50000);
 
     const { systemLogs } = ctx.schema;
     const logs = await ctx.db.select().from(systemLogs).where(and(eq(systemLogs.entityType, "hotel_valores"), eq(systemLogs.entityId, evento.id)));
@@ -111,16 +111,16 @@ describe("tarifas do evento → custo de cada pessoa no Espelho", () => {
 });
 
 describe("diária própria e valor pago do quarto", () => {
-  it("diária própria vale em todas as noites do quarto; os dois nulos voltam ao padrão (sem linha)", async () => {
+  it("diária própria (o apartamento) vale em todas as noites do quarto, dividida entre quem dorme nele; os dois nulos voltam ao padrão (sem linha)", async () => {
     const { evento, vagaA, vagaB, quarto } = await eventoComDuplo();
     const { agent } = await agenteLogado("production");
-    await mutacao(agent.put(`/api/events/${evento.id}/operational-mirror/hotel-valores`)).send({ individualCentavos: 18000, duploCentavos: 13800 });
+    await mutacao(agent.put(`/api/events/${evento.id}/operational-mirror/hotel-valores`)).send({ individualCentavos: 10000, duploCentavos: 20000 });
 
     const r = await mutacao(agent.put(`/api/hotel-room-groups/${quarto.id}/valores`)).send({ diariaPropriaCentavos: 15000, valorPagoCentavos: 80000 });
     expect(r.status).toBe(200);
     const comPropria = await espelho(agent, evento.id);
-    expect(comPropria.linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(3 * 15000);
-    expect(comPropria.linha(vagaB.id).hotelDosQuartos?.totalCentavos).toBe(2 * 15000);
+    expect(comPropria.linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(15000 + 2 * 15000 / 2);
+    expect(comPropria.linha(vagaB.id).hotelDosQuartos?.totalCentavos).toBe(2 * 15000 / 2);
     expect(comPropria.corpo.valoresDoHotel.quartos).toEqual([{ quartoId: quarto.id, diariaPropriaCentavos: 15000, valorPagoCentavos: 80000 }]);
 
     // Só o pago muda; a diária fica.
@@ -132,7 +132,7 @@ describe("diária própria e valor pago do quarto", () => {
     await mutacao(agent.put(`/api/hotel-room-groups/${quarto.id}/valores`)).send({ diariaPropriaCentavos: null });
     [linha] = await ctx.db.select().from(hotelValoresQuarto).where(eq(hotelValoresQuarto.hotelRoomGroupId, quarto.id));
     expect(linha).toBeUndefined();
-    expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(18000 + 2 * 13800);
+    expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(10000 + 2 * 20000 / 2);
   });
 
   it("quarto apagado leva os valores junto (cascade — é o que o Refazer sugestões faz com os não confirmados)", async () => {
@@ -157,15 +157,16 @@ describe("diária própria e valor pago do quarto", () => {
 });
 
 describe("late check-out por pessoa", () => {
-  it("marca com a diária da última noite, com valor próprio, desmarca e volta a seguir a hospedagem", async () => {
+  it("marca com a parte da pessoa na última noite, com valor próprio, desmarca e volta a seguir a hospedagem", async () => {
     const { evento, a, vagaA } = await eventoComDuplo();
     const { agent } = await agenteLogado("purchasing");
-    await mutacao(agent.put(`/api/events/${evento.id}/operational-mirror/hotel-valores`)).send({ individualCentavos: 18000, duploCentavos: 13800 });
+    await mutacao(agent.put(`/api/events/${evento.id}/operational-mirror/hotel-valores`)).send({ individualCentavos: 10000, duploCentavos: 20000 });
     const url = `/api/events/${evento.id}/operational-mirror/late-checkout`;
-    const base = 18000 + 2 * 13800;
+    const base = 10000 + 2 * 20000 / 2;
+    const parteDaUltimaNoite = 20000 / 2; // Duplo dividido por 2
 
     expect((await mutacao(agent.put(url)).send({ collaboratorId: a.id, ativo: true })).status).toBe(200);
-    expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(base + 13800);
+    expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(base + parteDaUltimaNoite);
 
     expect((await mutacao(agent.put(url)).send({ collaboratorId: a.id, ativo: true, valorCentavos: 9000 })).status).toBe(200);
     expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(base + 9000);
@@ -176,7 +177,7 @@ describe("late check-out por pessoa", () => {
     // …mas "não tem" escolhido na aba Quartos vence.
     expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(base);
     expect((await mutacao(agent.put(url)).send({ collaboratorId: a.id, ativo: null })).status).toBe(200);
-    expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(base + 13800);
+    expect((await espelho(agent, evento.id)).linha(vagaA.id).hotelDosQuartos?.totalCentavos).toBe(base + parteDaUltimaNoite);
     const { hotelLateCheckouts } = ctx.schema;
     expect(await ctx.db.select().from(hotelLateCheckouts).where(eq(hotelLateCheckouts.eventId, evento.id))).toEqual([]);
   });

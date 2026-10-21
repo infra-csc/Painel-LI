@@ -3670,17 +3670,27 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   100% { background: var(--card); }
 }
 
-/* Rodapé de valores do quarto: a conta à esquerda, o total à direita; diária
-   própria e valor pago numa segunda faixa, só para quem edita (ou quando há). */
+/* Rodapé de valores do quarto (21/10): a conta, uma frase por trecho de
+   ocupação ("07/11 → 10/11 · 3 noites em Duplo · R$ 200,00 a noite =
+   R$ 600,00 — R$ 300,00 para cada um"); embaixo, quanto cada um paga e o
+   total do quarto; diária própria e valor pago numa terceira faixa, só para
+   quem edita (ou quando há). Cada pedaço da frase quebra inteiro. */
 .esp-quarto-valores {
   display: flex; flex-direction: column; gap: 8px; padding: 10px 16px;
   border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   background: color-mix(in srgb, var(--muted) 45%, var(--card));
 }
 .esp-quarto[data-confirmado] .esp-quarto-valores { background: color-mix(in srgb, var(--success-soft) 35%, var(--card)); }
-.esp-qv-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
-.esp-qv-conta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: 12px; line-height: 18px; min-width: 0; }
-.esp-qv-trecho { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.esp-qv-conta { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 20px; color: var(--muted-foreground); min-width: 0; }
+.esp-qv-trecho { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; min-width: 0; }
+.esp-qv-pedaco { white-space: nowrap; }
+.esp-qv-sep { color: var(--muted-foreground); opacity: .55; }
+.esp-qv-fecho {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
+}
+.esp-qv-cada { display: flex; flex-wrap: wrap; column-gap: 6px; margin: 0; font-size: 13px; line-height: 20px; color: var(--muted-foreground); min-width: 0; }
+.esp-qv-cada .esp-qv-sep { margin-right: 2px; }
 .esp-qv-total { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; white-space: nowrap; }
 .esp-qv-rotulo { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); white-space: nowrap; }
 .esp-qv-ajustes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }

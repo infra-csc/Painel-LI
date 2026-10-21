@@ -49,6 +49,6 @@ describe("ocupacaoPorNoite", () => {
   });
 
   it("rótulos", () => {
-    expect([rotuloDoTipo("single"), rotuloDoTipo("double"), rotuloDoTipo("triple")]).toEqual(["Single", "Duplo", "Triplo"]);
+    expect([rotuloDoTipo("single"), rotuloDoTipo("double"), rotuloDoTipo("triple")]).toEqual(["Individual", "Duplo", "Triplo"]);
   });
 });
