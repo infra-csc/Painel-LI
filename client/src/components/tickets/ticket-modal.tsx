@@ -456,7 +456,7 @@ export default function TicketModal({
                       {onTerrestre && !ticket && !dis && (
                         <p className="m-0 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600" data-testid={`dica-terrestre-${sid}`}>
                           <Car className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
-                          Vai de carro, van ou ônibus em vez de avião?
+                          Vai de carro ou van em vez de avião?
                           <button type="button" onClick={onTerrestre} className="font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm" data-testid={`abrir-terrestre-do-modal-${sid}`}>
                             Registrar sem passagem
                           </button>

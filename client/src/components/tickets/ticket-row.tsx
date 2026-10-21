@@ -17,7 +17,7 @@ import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
 import { IndicacaoDaLogistica, LeituraSuspeita, ProblemasDaViagem, SugestaoDeTrechoDireto, TrechoDiretoDaVaga } from "./sinais-da-vaga";
 import { pernasComOrigemIgualAoDestino } from "@shared/sanidade-da-passagem";
-import { rotuloDaCobertura, reaisDoTerrestre, type CoberturaTerrestre, type ModoTerrestre, type TrechoTerrestre } from "@shared/transporte-terrestre";
+import { rotuloDaCobertura, reaisDoTerrestre, type CoberturaTerrestre, type ModoDeRegistro, type PernaDaViagem, type TrechoTerrestre } from "@shared/transporte-terrestre";
 import { AtalhoDoTerrestre, LinhasDoTerrestre } from "./terrestre-na-linha";
 
 export interface TicketRowProps {
@@ -60,7 +60,7 @@ export interface TicketRowProps {
   terrestres?: readonly TrechoTerrestre[];
   cobertura?: CoberturaTerrestre;
   /** "Vai de carro/van": registrar/editar o terrestre (sem permissão: ausente). */
-  onTerrestre?: (inclusion: TeamInclusion, modo?: ModoTerrestre) => void;
+  onTerrestre?: (inclusion: TeamInclusion, modo?: ModoDeRegistro, pernas?: PernaDaViagem[]) => void;
 }
 
 const transportLabel = (t: Ticket) => (t.transportType === "van" ? "Van" : t.transportType === "rodoviario" ? "Rodoviário" : "Aéreo");
@@ -131,10 +131,12 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   const voltaVazia = !hasSuggestionValue(suggestion.retorno);
   const summary = ticket ? ticketSummaryLine(ticket) : "";
   const rodo = ticket?.transportType === "rodoviario";
-  // Vai de carro/van/ônibus em TODAS as pernas e sem passagem (16/10): não há o que comprar.
+  // Vai de carro ou van em TODAS as pernas e sem passagem (16/10): não há o que comprar.
   const terrestreTotal = !ticket && !!cobertura?.cobreTudo;
   const podeTerrestre = !!onTerrestre && canEdit && !locked && !cancelado;
-  const editarTerrestre = podeTerrestre ? () => onTerrestre!(inclusion) : undefined;
+  const editarTerrestre = podeTerrestre ? (pernas?: PernaDaViagem[]) => onTerrestre!(inclusion, undefined, pernas) : undefined;
+  // A perna que falta também pode ir de carro/van (ida de van, volta de carro — 21/10).
+  const registrarFalta = podeTerrestre ? (pernas: PernaDaViagem[]) => onTerrestre!(inclusion, undefined, pernas) : undefined;
   // A borda esquerda diz de quem é a vez: âmbar = espera você (compra
   // pendente, troca em análise, alteração aprovada para remarcar); verde =
   // comprada; cinza = cancelada.
@@ -284,7 +286,7 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
             </div>
           )
         ) : terrestres.length > 0 ? (
-          <LinhasDoTerrestre terrestres={terrestres} cobertura={cobertura} inclusionId={inclusion.id} onEditar={editarTerrestre} mostrarFalta />
+          <LinhasDoTerrestre terrestres={terrestres} cobertura={cobertura} inclusionId={inclusion.id} onEditar={editarTerrestre} onRegistrarFalta={registrarFalta} mostrarFalta />
         ) : (
           <>
             <span className="text-xs text-muted-foreground italic whitespace-nowrap">Não comprada</span>

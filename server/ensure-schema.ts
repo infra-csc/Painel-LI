@@ -337,6 +337,17 @@ const PASSOS: Passo[] = [
     descricao: "índice transportes_terrestres_vaga_trecho_uq",
     sql: `CREATE UNIQUE INDEX IF NOT EXISTS transportes_terrestres_vaga_trecho_uq ON transportes_terrestres (team_inclusion_id, trecho)`,
   },
+  // 21/10 — grupo do total dividido (a van que leva várias vagas). Todo SELECT
+  // da tabela lê a coluna: sem ela, Passagens cai — por isso entra aqui.
+  // Nula e aditiva.
+  {
+    descricao: "transportes_terrestres.grupo_id (total da van dividido entre vagas)",
+    sql: `ALTER TABLE transportes_terrestres ADD COLUMN IF NOT EXISTS grupo_id varchar`,
+  },
+  {
+    descricao: "índice transportes_terrestres_grupo_idx",
+    sql: `CREATE INDEX IF NOT EXISTS transportes_terrestres_grupo_idx ON transportes_terrestres (grupo_id)`,
+  },
   // 20/10 — valores do hotel na aba Quartos do Espelho (tarifas por pessoa por
   // noite, fatura, diária própria e valor pago do quarto, late check-out por
   // pessoa). Tabelas novas, nenhuma coluna existente muda. O Espelho lê estas

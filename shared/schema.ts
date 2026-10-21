@@ -398,15 +398,20 @@ export const transportesTerrestres = pgTable("transportes_terrestres", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id, { onDelete: "cascade" }),
   trecho: text("trecho").notNull(), // 'ida' | 'volta'
-  modo: text("modo").notNull(), // 'carro' | 'van' | 'onibus'
+  modo: text("modo").notNull(), // 'carro' | 'van' (21/10: só esses se registram; 'onibus' = registro antigo)
   empresa: text("empresa"), // van/ônibus: obrigatória; carro: null
   valorCentavos: integer("valor_centavos").notNull(),
+  // 21/10 — o total dividido entre várias vagas (a van de R$ 1.200 que leva
+  // 8): as linhas de todas elas levam o mesmo grupo. Nulo = valor só da vaga.
+  // scripts/migrations/2026-10-21-transporte-terrestre-grupo.sql (o boot também cria).
+  grupoId: varchar("grupo_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
 }, (t) => [
   uniqueIndex("transportes_terrestres_vaga_trecho_uq").on(t.teamInclusionId, t.trecho),
+  index("transportes_terrestres_grupo_idx").on(t.grupoId),
 ]);
 export type TransporteTerrestre = typeof transportesTerrestres.$inferSelect;
 export type InsertTransporteTerrestre = typeof transportesTerrestres.$inferInsert;
@@ -1267,9 +1272,10 @@ export type RascunhoDoPlanejado = typeof rascunhosDoPlanejado.$inferSelect;
 
 // ===== HONORÁRIOS DA CENOTÉCNICA (16/10) =====
 // Valor negociado pela cenotécnica → aprovação (mesmo aprovador da escala) →
-// liberação da verba pelo Financeiro. Módulo À PARTE da escala: nada aqui é
-// lido pelo Planejado/Realizado nem muda team_inclusions (a vaga é só uma
-// referência opcional — a linha de EMPREITA não tem vaga). Regras em
+// liberação da verba pelo Financeiro. Módulo À PARTE da escala: nada aqui
+// muda team_inclusions nem o Planejado/Realizado (a vaga é só uma referência
+// opcional — a linha de EMPREITA não tem vaga). Desde 21/10 o Planejado LÊ o
+// honorário aprovado como a mão de obra da vaga (shared/budget-engine.ts). Regras em
 // shared/honorarios-ceno.ts. Migração: scripts/migrations/2026-10-16-
 // honorarios-cenotecnica.sql; o boot também cria (server/ensure-schema.ts).
 export const honorariosCeno = pgTable("honorarios_ceno", {

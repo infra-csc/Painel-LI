@@ -1,10 +1,12 @@
 // "Carro / van" no painel Aplicar em lote (16/10).
 //
-// Caso do print do dono: várias vagas do mesmo evento vão na mesma van. O
-// valor pode ser o de CADA vaga ou o TOTAL da van, dividido entre as vagas
-// marcadas (os centavos que sobram vão para as primeiras) — guardar o total
-// em cada vaga somaria a van oito vezes.
-import { useRef, useState } from "react";
+// Caso do print do dono: várias vagas do mesmo evento vão na mesma van.
+// 21/10 ("aqui só carro e van, e na van tem que ter um valor total da van e
+// não só por trecho"): na van, um campo só — o VALOR TOTAL DA VAN —, dividido
+// entre as vagas marcadas e, em cada vaga, entre os trechos dela; a soma bate
+// exatamente com o total. Carro: o valor de cada vaga (padrão) ou o total
+// dividido. O total dividido vai num pedido só (tudo ou nada) e vira um grupo.
+import { useMemo, useRef, useState } from "react";
 import { Check, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,54 +18,41 @@ import {
   FORMULARIO_TERRESTRE_VAZIO,
   NOME_DO_MODO,
   itensDoFormulario,
+  ordenarParaRateio,
   pernasDaVaga,
+  planoDoValor,
   reaisDoTerrestre,
   type CampoDoFormulario,
   type FormularioTerrestre,
   type ItemTerrestre,
-  type PernaDaViagem,
+  type VagaDoRateio,
 } from "@shared/transporte-terrestre";
 import type { TeamInclusion } from "@shared/schema";
-import CamposDoTerrestre from "./campos-do-terrestre";
+import CamposDoTerrestre, { type PreviaDoValor } from "./campos-do-terrestre";
 import { useTerrestreMutations } from "./use-transporte-terrestre";
 
-/** O formulário de UMA perna, no formato que `itensDoFormulario` lê. */
-function formDaPerna(f: FormularioTerrestre, p: PernaDaViagem): FormularioTerrestre {
-  if (p === "ida") return { ...f, ida: true, volta: false };
-  if (f.ida && !f.voltaIgual) return { ...f, ida: false, volta: true, modo: f.modoVolta, empresa: f.empresaVolta, valor: f.valorVolta };
-  return { ...f, ida: false, volta: true };
-}
+/** As vagas do lote na ordem do rateio, com as pernas que cada uma tem. */
+const vagasDoLote = (vagas: readonly TeamInclusion[]): VagaDoRateio[] =>
+  ordenarParaRateio(vagas).map((v) => ({ id: v.id, pernas: pernasDaVaga(v) }));
 
 /**
  * Itens do lote: cada perna só nas vagas que a têm ("só ida" não ganha
- * volta), e o "dividir" reparte entre as vagas que recebem aquela perna.
+ * volta); a van (e o carro "dividido") reparte o total entre as vagas que
+ * recebem e, em cada uma, entre os trechos dela.
  */
-export function itensDoLote(f: FormularioTerrestre, vagas: readonly TeamInclusion[]): {
-  itens: ItemTerrestre[];
-  semPerna: TeamInclusion[];
-  /** Erro de uma perna que só aparece no recorte dela (ex.: total alto demais para menos vagas). */
-  erros?: Partial<Record<CampoDoFormulario, string>>;
-} {
-  const itens: ItemTerrestre[] = [];
-  let erros: Partial<Record<CampoDoFormulario, string>> | undefined;
-  for (const p of ["ida", "volta"] as const) {
-    if (!(p === "ida" ? f.ida : f.volta)) continue;
-    const ids = vagas.filter((v) => pernasDaVaga(v).includes(p)).map((v) => v.id);
-    if (ids.length === 0) continue;
-    const r = itensDoFormulario(formDaPerna(f, p), ids);
-    // Nunca descartar a perna calado (revisão 16/10): o erro sobe para a tela.
-    if (r.ok) itens.push(...r.itens);
-    else if (p === "volta" && f.ida && !f.voltaIgual) {
-      // A volta própria foi lida nos campos da ida (formDaPerna): o erro volta para os campos dela.
-      const daVolta: Partial<Record<CampoDoFormulario, string>> = {};
-      for (const [k, msg] of Object.entries(r.erros) as Array<[CampoDoFormulario, string]>) {
-        daVolta[k === "modo" ? "modoVolta" : k === "empresa" ? "empresaVolta" : k === "valor" ? "valorVolta" : k] = msg;
-      }
-      erros = { ...erros, ...daVolta };
-    } else erros = { ...erros, ...r.erros };
-  }
-  const comItem = new Set(itens.map((i) => i.teamInclusionId));
-  return { itens, semPerna: vagas.filter((v) => !comItem.has(v.id)), ...(erros ? { erros } : {}) };
+export function itensDoLote(f: FormularioTerrestre, vagas: readonly TeamInclusion[]) {
+  return itensDoFormulario(f, vagasDoLote(vagas));
+}
+
+/** O que o valor vira enquanto a pessoa digita ("R$ 150,00 por vaga · 8 vagas · total R$ 1.200,00"). */
+export function previaDoLote(f: FormularioTerrestre, vagas: readonly TeamInclusion[]): PreviaDoValor | null {
+  if (!f.modo) return null;
+  const plano = planoDoValor(f, vagasDoLote(vagas));
+  if (!plano || plano.receptoras.length === 0) return null;
+  return {
+    porVagaMin: plano.porVagaMin, porVagaMax: plano.porVagaMax, totalCentavos: plano.totalCentavos,
+    vagas: plano.receptoras.length, dividir: plano.dividir, fora: plano.foraDoTrecho.length,
+  };
 }
 
 export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido }: {
@@ -78,31 +67,21 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
   const { registrar } = useTerrestreMutations();
   const [form, setForm] = useState<FormularioTerrestre>({ ...FORMULARIO_TERRESTRE_VAZIO });
   const [erros, setErros] = useState<Partial<Record<CampoDoFormulario, string>>>({});
-  const [confirmar, setConfirmar] = useState<{ itens: ItemTerrestre[]; semPerna: TeamInclusion[]; dividir: boolean } | null>(null);
+  const [confirmar, setConfirmar] = useState<{ itens: ItemTerrestre[]; fora: string[]; agrupar: boolean } | null>(null);
   const n = vagas.length;
+  const previa = useMemo(() => previaDoLote(form, vagas), [form, vagas]);
 
   const aplicar = () => {
     if (n === 0) return;
-    const r = itensDoFormulario(form, vagas.map((v) => v.id));
+    const r = itensDoLote(form, vagas);
     if (!r.ok) { setErros(r.erros); return; }
-    const { erros: errosDaPerna, ...plano } = itensDoLote(form, vagas);
-    if (errosDaPerna) { setErros(errosDaPerna); return; }
-    // Revisão 16/10: nenhuma vaga marcada tem o trecho escolhido (todas "só
-    // volta" com só a ida marcada…). Antes abria a confirmação com "R$ ∞" e o
-    // "Confirmar" não fazia nada.
-    if (plano.itens.length === 0) {
-      const outra = form.ida && form.volta ? "" : ` Marque a ${form.ida ? "volta" : "ida"}.`;
-      setErros({ pernas: `${n === 1 ? "A vaga marcada não tem" : "Nenhuma das vagas marcadas tem"} o trecho escolhido.${outra}` });
-      return;
-    }
-    const dividir = form.divisao === "dividir" && n > 1;
     // O total dividido vai num pedido só (tudo ou nada) — e a rota aceita 400 itens.
-    if (dividir && plano.itens.length > 400) {
+    if (r.agrupar && r.itens.length > 400) {
       setErros({ valor: "Para dividir o total, marque no máximo 200 vagas por vez." });
       return;
     }
     setErros({});
-    setConfirmar({ ...plano, dividir });
+    setConfirmar({ itens: r.itens, fora: r.foraDoTrecho, agrupar: r.agrupar });
   };
 
   const executar = async () => {
@@ -112,12 +91,12 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
     const gravadas: string[] = [];
     const falhas: string[] = [];
     // 400 itens por pedido (200 vagas × ida e volta) — o limite da rota. O
-    // total dividido vai inteiro e com `tudoOuNada`: gravar só parte das vagas
-    // deixaria a soma diferente do total digitado (revisão 16/10).
+    // total dividido vai inteiro, com `tudoOuNada` e `agrupar`: gravar só parte
+    // das vagas deixaria a soma diferente do total digitado (revisão 16/10).
     for (let i = 0; i < plano.itens.length; i += 400) {
       const fatia = plano.itens.slice(i, i + 400);
       try {
-        const res = await registrar.mutateAsync(plano.dividir ? { itens: fatia, tudoOuNada: true } : fatia);
+        const res = await registrar.mutateAsync(plano.agrupar ? { itens: fatia, tudoOuNada: true, agrupar: true } : fatia);
         const falharam = new Set(res.falhas.map((f) => f.teamInclusionId));
         for (const id of Array.from(new Set(fatia.map((x) => x.teamInclusionId)))) if (!falharam.has(id)) gravadas.push(id);
         falhas.push(...res.falhas.map((f) => `#${f.numero ?? "?"}: ${f.mensagem}`));
@@ -140,7 +119,10 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
         else falhas.push(apiErrorMessage(erro, "Não foi possível registrar o lote."));
       }
     }
-    for (const v of plano.semPerna) falhas.push(`#${v.inclusionNumber ?? "?"}: a vaga não tem o trecho marcado`);
+    for (const id of plano.fora) {
+      const v = vagas.find((x) => x.id === id);
+      falhas.push(`#${v?.inclusionNumber ?? "?"}: a vaga não tem o trecho marcado`);
+    }
     if (gravadas.length > 0) {
       onConcluido(Array.from(new Set(gravadas)));
       toast({ variant: "success", title: `Transporte terrestre registrado em ${new Set(gravadas).size} ${new Set(gravadas).size === 1 ? "vaga" : "vagas"}`, description: "Elas saíram da fila Comprar." });
@@ -163,17 +145,18 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
     for (const i of confirmar.itens) porVaga.set(i.teamInclusionId, (porVaga.get(i.teamInclusionId) ?? 0) + i.valorCentavos);
     const total = confirmar.itens.reduce((s, i) => s + i.valorCentavos, 0);
     const pernas = Array.from(new Set(confirmar.itens.map((i) => i.trecho)));
-    const modos = Array.from(new Set(confirmar.itens.map((i) => `${NOME_DO_MODO[i.modo]}${i.empresa ? ` · ${i.empresa}` : ""}`)));
-    const valores = Array.from(new Set(porVaga.values()));
+    const primeiro = confirmar.itens[0];
+    const valores = Array.from(porVaga.values());
+    const van = primeiro.modo === "van";
     return {
       linhas: [
         ["Trechos", pernas.length === 2 ? "Ida e volta" : pernas[0] === "ida" ? "Só a ida" : "Só a volta"],
-        ["Transporte", modos.join(" / ")],
-        ["Por vaga", valores.length === 1 ? reaisDoTerrestre(valores[0]) : `${reaisDoTerrestre(Math.min(...valores))} a ${reaisDoTerrestre(Math.max(...valores))}`],
-        ["Total", reaisDoTerrestre(total)],
+        ["Transporte", `${NOME_DO_MODO[primeiro.modo]}${primeiro.empresa ? ` · ${primeiro.empresa}` : ""}`],
+        [confirmar.agrupar ? (van ? "Total da van" : "Total do carro") : "Total do lote", reaisDoTerrestre(total)],
+        ["Por vaga", `${Math.min(...valores) === Math.max(...valores) ? reaisDoTerrestre(valores[0]) : `${reaisDoTerrestre(Math.min(...valores))} a ${reaisDoTerrestre(Math.max(...valores))}`}${confirmar.agrupar ? ` (dividido entre ${porVaga.size})` : ""}`],
       ] as Array<[string, string]>,
-      nomes: vagas.filter((v) => porVaga.has(v.id)).map(nomeDaVaga),
-      semPerna: confirmar.semPerna.length,
+      nomes: ordenarParaRateio(vagas).filter((v) => porVaga.has(v.id)).map((v) => `${nomeDaVaga(v)} · ${reaisDoTerrestre(porVaga.get(v.id)!)}`),
+      fora: confirmar.fora.length,
     };
   })();
   const ultimoResumo = useRef(resumoAtual);
@@ -190,21 +173,34 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
             setErros((e) => {
               const resto = { ...e };
               for (const k of Object.keys(patch)) delete resto[(k === "ida" || k === "volta" ? "pernas" : k) as CampoDoFormulario];
+              // Os trechos e o modo mudam a divisão: o erro do valor pode não valer mais.
+              if ("ida" in patch || "volta" in patch || "modo" in patch || "divisao" in patch) delete resto.valor;
               return resto;
             });
           }}
           erros={erros}
           pernas={["ida", "volta"]}
+          contexto="lote"
           nVagas={n}
+          previa={previa}
           idBase="lote-terrestre"
           disabled={!canEdit}
         />
         {/* No celular a explicação sai: o botão de registrar fica perto dos campos. */}
-        <aside className="hidden sm:block rounded-xl border border-border bg-surface-muted/60 p-3 text-xs leading-relaxed text-slate-700 self-start space-y-2">
+        <aside className="hidden sm:block rounded-xl border border-border bg-surface-muted/60 p-3 text-xs leading-relaxed text-slate-700 self-start space-y-2" data-testid="lote-terrestre-como-fica">
           <p className="m-0 font-semibold text-foreground">Como fica</p>
           <p className="m-0">Cada vaga marcada ganha o transporte nos trechos escolhidos e sai da fila <span className="font-medium">Comprar</span>. Vaga “só ida” recebe só a ida.</p>
-          <p className="m-0">Van de R$ 1.200 que leva 8 pessoas: digite 1.200,00 e escolha <span className="font-medium">“o total, dividido”</span> — cada vaga fica com R$ 150,00.</p>
-          <p className="m-0 text-muted-foreground">Não entra no Planejado nem no Realizado. Dá para editar ou desfazer na linha da vaga.</p>
+          {form.modo === "carro" ? (
+            <>
+              <p className="m-0">Cada um com seu carro: digite o valor do carro de uma vaga — vale para cada uma, na viagem toda.</p>
+              <p className="m-0">Um carro para todos: escolha <span className="font-medium">“o total, dividido”</span> e digite o valor do carro inteiro.</p>
+            </>
+          ) : (
+            <p className="m-0">
+              Van de R$ 1.200 que leva 8 pessoas na ida e na volta: digite <span className="font-medium">1.200,00</span> no <span className="font-medium">Valor total da van</span> — cada vaga fica com R$ 150,00 (R$ 75,00 na ida e R$ 75,00 na volta). O centavo que não divide exato vai para as primeiras vagas; a soma bate com o total.
+            </p>
+          )}
+          <p className="m-0 text-muted-foreground">Não entra no Planejado nem no Realizado. Dá para editar ou desfazer na linha da vaga — só ela ou a van inteira.</p>
         </aside>
       </div>
 
@@ -248,12 +244,12 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
                   </div>
                 ))}
               </dl>
-              {resumo.semPerna > 0 && (
+              {resumo.fora > 0 && (
                 <p className="m-0 text-xs text-warning-strong">
-                  {resumo.semPerna} {resumo.semPerna === 1 ? "vaga não tem" : "vagas não têm"} o trecho marcado e {resumo.semPerna === 1 ? "fica" : "ficam"} de fora.
+                  {resumo.fora} {resumo.fora === 1 ? "vaga não tem" : "vagas não têm"} o trecho marcado e {resumo.fora === 1 ? "fica" : "ficam"} de fora.
                 </p>
               )}
-              <ul className="m-0 p-0 list-none max-h-32 overflow-y-auto rounded-xl border border-border px-3 py-2 text-xs text-slate-700 space-y-0.5">
+              <ul className="m-0 p-0 list-none max-h-32 overflow-y-auto rounded-xl border border-border px-3 py-2 text-xs text-slate-700 space-y-0.5 tabular-nums">
                 {resumo.nomes.map((nm, i) => <li key={i}>{nm}</li>)}
               </ul>
             </div>

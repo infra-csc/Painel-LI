@@ -140,9 +140,9 @@ export default function Tickets() {
   const [terrestreAberto, setTerrestreAberto] = useState<AberturaDoTerrestre | null>(null);
   // A última vaga aberta fica guardada: o diálogo some com animação e não pode esvaziar no meio dela.
   const [vagaDoTerrestre, setVagaDoTerrestre] = useState<TeamInclusion | null>(null);
-  const abrirTerrestre = useCallback((inclusion: TeamInclusion, modo?: AberturaDoTerrestre["modo"]) => {
+  const abrirTerrestre = useCallback((inclusion: TeamInclusion, modo?: AberturaDoTerrestre["modo"], pernas?: AberturaDoTerrestre["pernas"]) => {
     setVagaDoTerrestre(inclusion);
-    setTerrestreAberto({ inclusion, modo });
+    setTerrestreAberto({ inclusion, modo, pernas });
   }, []);
   const [modalActiveTab, setModalActiveTab] = useState("resumo");
 
@@ -923,7 +923,8 @@ export default function Tickets() {
                   </p>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* min-w-0 (21/10): com shrink-0 os botões não quebravam linha e a barra alargava a página no celular. */}
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 {podeBuscarPrecos && (
                   <button
                     type="button"
@@ -939,7 +940,7 @@ export default function Tickets() {
                   <button
                     type="button"
                     onClick={() => { handlers.onFieldChange("quick", "transportType", "terrestre"); abrirLote(); }}
-                    title="Carro (só o valor), van ou ônibus (empresa e valor) para as vagas marcadas — sem passagem a comprar"
+                    title="Carro (só o valor) ou van (empresa e valor total da van) para as vagas marcadas — sem passagem a comprar"
                     className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
                     data-testid="terrestre-selecao"
                   >

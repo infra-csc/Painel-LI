@@ -10,6 +10,7 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { ordenarParaRateio, pernasDaVaga, ratearTotal } from "@shared/transporte-terrestre";
 import {
   agenteLogado,
   criarApp,
@@ -105,9 +106,27 @@ describe("POST /api/transportes-terrestres", () => {
     const volta = await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "volta", modo: "carro", valorCentavos: 1_000 }]);
     expect(volta.status).toBe(409);
     expect(volta.body.message).toMatch(/não tem volta/);
-    const ida = await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "ida", modo: "onibus", empresa: "Cometa", valorCentavos: 9_000 }]);
+    const ida = await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "ida", modo: "van", empresa: "Cometa", valorCentavos: 9_000 }]);
     expect(ida.status).toBe(200);
     expect(await statusDa(vaga.id)).toBe("passagem_comprada");
+  });
+
+  it("ônibus saiu das opções (21/10): 400 no campo modo, nada gravado", async () => {
+    const { agent, vaga } = await vagaDeCampinas();
+    const res = await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "ida", modo: "onibus", empresa: "Cometa", valorCentavos: 9_000 }]);
+    expect(res.status).toBe(400);
+    expect(res.body.erros.modo).toBe("Escolha carro ou van.");
+    expect(await terrestresDa(vaga.id)).toHaveLength(0);
+  });
+
+  it("ônibus antigo (gravado antes de 21/10) continua aparecendo e pode ser trocado por van ou desfeito", async () => {
+    const { agent, vaga, evento } = await vagaDeCampinas({ trechos: "so_ida" });
+    await ctx.db.insert(ctx.schema.transportesTerrestres).values({ teamInclusionId: vaga.id, trecho: "ida", modo: "onibus", empresa: "Cometa", valorCentavos: 9_000 });
+    const lista = await agent.get(`/api/transportes-terrestres?eventId=${evento.id}`);
+    expect(lista.body).toEqual([expect.objectContaining({ modo: "onibus", grupoId: null, grupoTotalCentavos: null, grupoVagas: null })]);
+    expect((await registrar(agent, [{ teamInclusionId: vaga.id, trecho: "ida", modo: "van", empresa: "Cometa", valorCentavos: 9_000 }])).status).toBe(200);
+    expect((await terrestresDa(vaga.id)).map((l) => l.modo)).toEqual(["van"]);
+    expect((await desfazer(agent, vaga.id)).status).toBe(200);
   });
 
   it("registrar de novo a mesma perna substitui (editar), sem duplicar", async () => {
@@ -276,5 +295,100 @@ describe("revisão 16/10 — lote dividido, permissão, desfazer e PATCH da pass
     expect(patch.body.code).toBe("perna_terrestre");
     // Editar o LOC continua livre.
     expect((await mutacao(agent.patch(`/api/tickets/${criada.body.id}`)).send({ purchaseOrderNumber: "LOC10" })).status).toBe(200);
+  });
+});
+
+// ── 21/10: o valor total da van, dividido entre as vagas (grupo) ───────────
+
+describe("21/10 — a van inteira: total dividido, grupo, editar e desfazer", () => {
+  async function vanDeTres() {
+    const a = await vagaDeCampinas();
+    const b = await vagaDeCampinas();
+    const c = await vagaDeCampinas({ trechos: "so_ida" });
+    const vagas = ordenarParaRateio([a.vaga, b.vaga, c.vaga]);
+    const partes = ratearTotal(100_001, vagas.map((v) => ({ id: v.id, pernas: pernasDaVaga(v.id === c.vaga.id ? { trechosSugeridos: "so_ida" } : {}) })));
+    const res = await mutacao(a.agent.post("/api/transportes-terrestres")).send({
+      agrupar: true,
+      itens: partes.map((p) => ({ ...p, modo: "van", empresa: "Transluz" })),
+    });
+    return { agent: a.agent, a, b, c, res, partes };
+  }
+  const somaDe = async (ids: string[]) => {
+    let s = 0;
+    for (const id of ids) for (const l of await terrestresDa(id)) s += l.valorCentavos;
+    return s;
+  };
+
+  it("agrupar: as 5 linhas (3 vagas, uma só ida) levam o mesmo grupo e o GET devolve o total e as vagas do grupo", async () => {
+    const { agent, a, b, c, res } = await vanDeTres();
+    expect(res.status).toBe(200);
+    expect(res.body.gravados).toBe(5);
+    const linhas = [...await terrestresDa(a.vaga.id), ...await terrestresDa(b.vaga.id), ...await terrestresDa(c.vaga.id)];
+    expect(new Set(linhas.map((l) => l.grupoId)).size).toBe(1);
+    expect(linhas[0].grupoId).toBe(res.body.grupoId);
+    expect(await somaDe([a.vaga.id, b.vaga.id, c.vaga.id])).toBe(100_001);
+    // O recorte de um evento só não encolhe a van: o resumo conta a tabela inteira.
+    const lista = await agent.get(`/api/transportes-terrestres?eventId=${c.evento.id}`);
+    expect(lista.body).toEqual([expect.objectContaining({ trecho: "ida", grupoTotalCentavos: 100_001, grupoVagas: 3 })]);
+  });
+
+  it("a van inteira com outro total: dividido de novo nas mesmas vagas e trechos, soma exata, nova empresa", async () => {
+    const { agent, a, b, c, res } = await vanDeTres();
+    const put = await mutacao(agent.put(`/api/transportes-terrestres/grupos/${res.body.grupoId}`)).send({ modo: "van", empresa: "Rápido Campinas", totalCentavos: 90_002 });
+    expect(put.status).toBe(200);
+    expect(put.body).toEqual({ atualizados: 5, vagas: 3 });
+    expect(await somaDe([a.vaga.id, b.vaga.id, c.vaga.id])).toBe(90_002);
+    expect((await terrestresDa(c.vaga.id)).map((l) => [l.trecho, l.empresa])).toEqual([["ida", "Rápido Campinas"]]);
+  });
+
+  it("só esta vaga: registrar a vaga de novo sem agrupar tira ela do grupo; o grupo fica com as outras", async () => {
+    const { agent, a, b, res } = await vanDeTres();
+    const so = await registrar(agent, [
+      { teamInclusionId: a.vaga.id, trecho: "ida", modo: "van", empresa: "Transluz", valorCentavos: 10_000 },
+      { teamInclusionId: a.vaga.id, trecho: "volta", modo: "van", empresa: "Transluz", valorCentavos: 10_000 },
+    ]);
+    expect(so.status).toBe(200);
+    expect((await terrestresDa(a.vaga.id)).map((l) => l.grupoId)).toEqual([null, null]);
+    const lista = (await agent.get(`/api/transportes-terrestres?eventId=${b.evento.id}`)).body as Array<{ grupoId: string; grupoVagas: number }>;
+    expect(lista.every((l) => l.grupoId === res.body.grupoId && l.grupoVagas === 2)).toBe(true);
+  });
+
+  it("desfazer a van inteira: todas as linhas saem e todas as vagas voltam para a fila", async () => {
+    const { agent, a, b, c, res } = await vanDeTres();
+    expect(await statusDa(a.vaga.id)).toBe("passagem_comprada");
+    const del = await mutacao(agent.delete(`/api/transportes-terrestres/grupos/${res.body.grupoId}`));
+    expect(del.status).toBe(200);
+    expect(del.body).toMatchObject({ removidos: 5, vagas: 3 });
+    for (const v of [a.vaga, b.vaga, c.vaga]) {
+      expect(await terrestresDa(v.id)).toEqual([]);
+      expect(await statusDa(v.id)).toBe("escalado");
+    }
+    expect((await mutacao(agent.delete(`/api/transportes-terrestres/grupos/${res.body.grupoId}`))).status).toBe(404);
+  });
+
+  it("agrupar é tudo ou nada: uma vaga recusada, nada gravado", async () => {
+    const a = await vagaDeCampinas();
+    const b = await vagaDeCampinas({ status: "cancelado" });
+    const res = await mutacao(a.agent.post("/api/transportes-terrestres")).send({
+      agrupar: true,
+      itens: [
+        { teamInclusionId: a.vaga.id, trecho: "ida", modo: "van", empresa: "X", valorCentavos: 500 },
+        { teamInclusionId: b.vaga.id, trecho: "ida", modo: "van", empresa: "X", valorCentavos: 500 },
+      ],
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("lote_dividido_incompleto");
+    expect(await terrestresDa(a.vaga.id)).toEqual([]);
+  });
+
+  it("grupo: ônibus → 400, grupo que não existe → 404, a área → 403", async () => {
+    const { agent, res } = await vanDeTres();
+    expect((await mutacao(agent.put(`/api/transportes-terrestres/grupos/${res.body.grupoId}`)).send({ modo: "onibus", empresa: "X", totalCentavos: 1_000 })).status).toBe(400);
+    expect((await mutacao(agent.put("/api/transportes-terrestres/grupos/nao-existe")).send({ modo: "van", empresa: "X", totalCentavos: 1_000 })).status).toBe(404);
+    // Total menor que o número de trechos: algum trecho ficaria com R$ 0,00.
+    expect((await mutacao(agent.put(`/api/transportes-terrestres/grupos/${res.body.grupoId}`)).send({ modo: "van", empresa: "X", totalCentavos: 4 })).status).toBe(400);
+    const { agent: area } = await agenteLogado("function_area");
+    expect((await mutacao(area.put(`/api/transportes-terrestres/grupos/${res.body.grupoId}`)).send({ modo: "van", empresa: "X", totalCentavos: 1_000 })).status).toBe(403);
+    expect((await mutacao(area.delete(`/api/transportes-terrestres/grupos/${res.body.grupoId}`))).status).toBe(403);
   });
 });

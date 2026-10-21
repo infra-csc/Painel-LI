@@ -1,9 +1,10 @@
 // Campos do transporte terrestre (16/10) — os mesmos no modal da vaga e no lote.
 //
 // Regra do dono: van pede o nome da empresa e o valor; carro, só o valor.
-// Ônibus fretado entra como a van. O valor é SEMPRE por trecho (ida ou volta)
-// e a tela soma o total embaixo — "R$ 300" sem dizer se é ida e volta virava
-// dúvida na primeira conferência.
+// 21/10 ("aqui só carro e van, e na van tem que ter um valor total da van e
+// não só por trecho"): só Carro e Van, e o valor é UM só, da viagem toda (os
+// trechos marcados) — na van do lote, o total da van, dividido entre as vagas.
+// Sem "por trecho" e sem "volta igual à ida": o valor já cobre ida e volta.
 import { Car, Truck, BusFront, Check } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -11,19 +12,31 @@ import { Label } from "@/components/ui/label";
 import { RequiredMark } from "@/components/forms/required-mark";
 import { cn } from "@/lib/utils";
 import {
-  MODOS_TERRESTRES,
+  MODOS_DE_REGISTRO,
   NOME_DO_MODO,
-  centavosDoTexto,
-  dividirCentavos,
-  modoPedeEmpresa,
   reaisDoTerrestre,
+  textoDasPernas,
   type CampoDoFormulario,
   type FormularioTerrestre,
+  type ModoDeRegistro,
   type ModoTerrestre,
   type PernaDaViagem,
 } from "@shared/transporte-terrestre";
 
+/** Ícone de cada modo — o ônibus fica para os registros antigos (16 a 21/10). */
 export const ICONE_DO_MODO: Record<ModoTerrestre, LucideIcon> = { carro: Car, van: Truck, onibus: BusFront };
+
+/** O que o valor digitado vira, ao vivo (lote e van inteira). */
+export interface PreviaDoValor {
+  porVagaMin: number;
+  porVagaMax: number;
+  totalCentavos: number;
+  vagas: number;
+  /** O total foi dividido entre as vagas (senão, o valor é de cada vaga). */
+  dividir: boolean;
+  /** Vagas marcadas sem nenhum dos trechos marcados (ficam de fora). */
+  fora?: number;
+}
 
 interface CamposDoTerrestreProps {
   valor: FormularioTerrestre;
@@ -32,8 +45,14 @@ interface CamposDoTerrestreProps {
   /** Pernas que a vaga tem; as que já têm passagem vêm em `bloqueadas`. */
   pernas: readonly PernaDaViagem[];
   bloqueadas?: Partial<Record<PernaDaViagem, string>>;
-  /** Lote: quantas vagas recebem (liga o "dividir o total"). */
+  /** "vaga" = o diálogo de uma vaga; "lote" = Aplicar em lote; "grupo" = a van inteira (no diálogo). */
+  contexto: "vaga" | "lote" | "grupo";
+  /** Lote: quantas vagas estão marcadas (liga o "De cada vaga | O total, dividido" do carro). */
   nVagas?: number;
+  /** Lote e grupo: "R$ X por vaga" e o total, enquanto digita. */
+  previa?: PreviaDoValor | null;
+  /** Van inteira: os trechos de cada vaga não mudam aqui. */
+  travarPernas?: boolean;
   /** Prefixo dos ids (dois formulários na tela não podem repetir id). */
   idBase: string;
   disabled?: boolean;
@@ -46,19 +65,19 @@ function Erro({ msg, id }: { msg?: string; id: string }) {
   return msg ? <p id={id} className="m-0 mt-1 text-2xs leading-snug text-danger-strong" role="alert">{msg}</p> : null;
 }
 
-/** Carro | Van | Ônibus — botões de rádio (um clique, sem abrir lista). */
-function EscolhaDoModo({ valor, onEscolher, rotulo, erro, idBase, disabled }: {
-  valor: ModoTerrestre | ""; onEscolher: (m: ModoTerrestre) => void; rotulo: string; erro?: string; idBase: string; disabled?: boolean;
+/** Carro | Van — botões de rádio (um clique, sem abrir lista). */
+function EscolhaDoModo({ valor, onEscolher, erro, idBase, disabled }: {
+  valor: ModoDeRegistro | ""; onEscolher: (m: ModoDeRegistro) => void; erro?: string; idBase: string; disabled?: boolean;
 }) {
   return (
     <div>
-      <p id={`${idBase}-rotulo`} className={ROTULO}>{rotulo}<RequiredMark /></p>
+      <p id={`${idBase}-rotulo`} className={ROTULO}>Como vai<RequiredMark /></p>
       <div
         role="radiogroup" aria-labelledby={`${idBase}-rotulo`} aria-invalid={!!erro || undefined}
         aria-describedby={erro ? `${idBase}-erro` : undefined}
-        className={cn("grid grid-cols-3 gap-1 rounded-lg border bg-surface-muted p-1", erro ? "border-danger-strong" : "border-border")}
+        className={cn("grid grid-cols-2 gap-1 rounded-lg border bg-surface-muted p-1 sm:max-w-[320px]", erro ? "border-danger-strong" : "border-border")}
       >
-        {MODOS_TERRESTRES.map((m) => {
+        {MODOS_DE_REGISTRO.map((m) => {
           const Icone = ICONE_DO_MODO[m];
           const ativo = valor === m;
           return (
@@ -81,69 +100,27 @@ function EscolhaDoModo({ valor, onEscolher, rotulo, erro, idBase, disabled }: {
   );
 }
 
-/** Empresa (van/ônibus) + valor de UMA perna (ou das duas, quando iguais). */
-function BlocoDaPerna({ modo, empresa, valor, onEmpresa, onValor, erroEmpresa, erroValor, idBase, rotuloValor, disabled }: {
-  modo: ModoTerrestre | ""; empresa: string; valor: string; onEmpresa: (v: string) => void; onValor: (v: string) => void;
-  erroEmpresa?: string; erroValor?: string; idBase: string; rotuloValor: string; disabled?: boolean;
-}) {
-  const pedeEmpresa = modoPedeEmpresa(modo);
-  return (
-    <div className={cn("grid gap-3", pedeEmpresa ? "sm:grid-cols-[minmax(0,1fr)_168px]" : "sm:grid-cols-[168px]")}>
-      {pedeEmpresa && (
-        <div>
-          <Label htmlFor={`${idBase}-empresa`} className={ROTULO}>Nome da empresa<RequiredMark /></Label>
-          <Input
-            id={`${idBase}-empresa`} value={empresa} disabled={disabled} maxLength={120}
-            onChange={(e) => onEmpresa(e.target.value)}
-            placeholder={modo === "van" ? "Ex.: Transluz Transportes" : "Ex.: Viação Cometa"}
-            aria-invalid={!!erroEmpresa || undefined} aria-required="true"
-            aria-describedby={erroEmpresa ? `${idBase}-empresa-erro` : undefined}
-            className={cn("h-9", erroEmpresa && ERRO)}
-            data-testid={`${idBase}-empresa`}
-          />
-          <Erro msg={erroEmpresa} id={`${idBase}-empresa-erro`} />
-        </div>
-      )}
-      <div>
-        <Label htmlFor={`${idBase}-valor`} className={ROTULO}>{rotuloValor}<RequiredMark /></Label>
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground" aria-hidden="true">R$</span>
-          <Input
-            id={`${idBase}-valor`} value={valor} disabled={disabled} inputMode="decimal" placeholder="0,00"
-            onChange={(e) => onValor(e.target.value)}
-            aria-invalid={!!erroValor || undefined} aria-required="true"
-            aria-describedby={erroValor ? `${idBase}-valor-erro` : undefined}
-            className={cn("h-9 pl-9 tabular-nums", erroValor && ERRO)}
-            data-testid={`${idBase}-valor`}
-          />
-        </div>
-        <Erro msg={erroValor} id={`${idBase}-valor-erro`} />
-      </div>
-    </div>
-  );
+/** O rótulo do valor e a frase que diz o que ele cobre. */
+function textosDoValor(f: FormularioTerrestre, contexto: CamposDoTerrestreProps["contexto"], dividirCarro: boolean, nGrupo: number) {
+  const cobre = textoDasPernas(f) || "a viagem";
+  if (f.modo === "van") {
+    if (contexto === "lote") return { rotulo: "Valor total da van", dica: `Um valor só para a van inteira: cobre ${cobre} e é dividido entre as vagas marcadas.` };
+    if (contexto === "grupo") return { rotulo: "Valor total da van", dica: `A van inteira, dividida entre as ${nGrupo} vagas — cada uma nos trechos que já tem.` };
+    return { rotulo: "Valor da van", dica: `O valor da van para esta vaga: cobre ${cobre}.` };
+  }
+  if (contexto === "grupo") return { rotulo: "Valor total do carro", dica: `O carro inteiro, dividido entre as ${nGrupo} vagas.` };
+  if (contexto === "lote" && dividirCarro) return { rotulo: "Valor total do carro", dica: `Um carro para todos: cobre ${cobre} e é dividido entre as vagas marcadas.` };
+  if (contexto === "lote") return { rotulo: "Valor do carro", dica: `De cada vaga (cada um com seu carro): cobre ${cobre}.` };
+  return { rotulo: "Valor do carro", dica: `A viagem toda: cobre ${cobre}.` };
 }
 
-export default function CamposDoTerrestre({ valor: f, onChange, erros, pernas, bloqueadas = {}, nVagas, idBase, disabled }: CamposDoTerrestreProps) {
-  const lote = typeof nVagas === "number";
-  const dividir = lote && f.divisao === "dividir" && (nVagas ?? 0) > 1;
-  const ambas = f.ida && f.volta;
-  const voltaPropria = ambas && !f.voltaIgual;
-  // O bloco principal é a ida — ou a volta, quando só ela está marcada.
-  const nomeDoBloco = voltaPropria ? "Ida" : null;
-  const rotuloValor = (modo: ModoTerrestre | "") =>
-    `${dividir ? "Total" : modo === "carro" ? "Valor do carro" : "Valor"} por trecho`;
-
-  // Total: o que a vaga (ou o lote) soma com o que está digitado.
-  const vIda = centavosDoTexto(f.valor) ?? 0;
-  const vVolta = voltaPropria ? (centavosDoTexto(f.valorVolta) ?? 0) : vIda;
-  const porPerna: Array<[string, number]> = [];
-  if (f.ida) porPerna.push(["ida", vIda]);
-  if (f.volta) porPerna.push(["volta", f.ida ? vVolta : vIda]);
-  const totalDigitado = porPerna.reduce((s, [, v]) => s + v, 0);
-  const n = nVagas ?? 1;
-  const porVaga = dividir ? porPerna.reduce((s, [, v]) => s + (dividirCentavos(v, n)[n - 1] ?? 0), 0) : totalDigitado;
-  const totalDoLote = dividir ? totalDigitado : totalDigitado * n;
-  const divisaoInexata = dividir && porPerna.some(([, v]) => v % n !== 0);
+export default function CamposDoTerrestre({
+  valor: f, onChange, erros, pernas, bloqueadas = {}, contexto, nVagas, previa, travarPernas, idBase, disabled,
+}: CamposDoTerrestreProps) {
+  const escolheDivisao = contexto === "lote" && f.modo === "carro" && (nVagas ?? 0) > 1;
+  const dividirCarro = escolheDivisao && f.divisao === "dividir";
+  const textos = f.modo ? textosDoValor(f, contexto, dividirCarro, previa?.vagas ?? 0) : null;
+  const pedeEmpresa = f.modo === "van";
 
   const alternarPerna = (p: PernaDaViagem) => onChange(p === "ida" ? { ida: !f.ida } : { volta: !f.volta });
 
@@ -159,13 +136,13 @@ export default function CamposDoTerrestre({ valor: f, onChange, erros, pernas, b
             const marcado = p === "ida" ? f.ida : f.volta;
             return (
               <button
-                key={p} type="button" aria-pressed={marcado} disabled={disabled || !!motivo}
+                key={p} type="button" aria-pressed={marcado} disabled={disabled || travarPernas || !!motivo}
                 onClick={() => alternarPerna(p)} title={motivo}
                 data-testid={`${idBase}-perna-${p}`}
                 className={cn(
                   "pas-alvo inline-flex items-center gap-1.5 h-8 pl-2 pr-3 rounded-lg border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed",
                   marcado ? "border-primary/40 bg-brand-soft text-primary" : "border-border bg-card text-slate-600 hover:bg-surface-muted",
-                  motivo && "opacity-50",
+                  (motivo || travarPernas) && "opacity-60",
                 )}
               >
                 <span className={cn("inline-flex items-center justify-center w-4 h-4 rounded border", marcado ? "bg-primary border-primary text-primary-foreground" : "border-slate-300 bg-card")} aria-hidden="true">
@@ -179,99 +156,98 @@ export default function CamposDoTerrestre({ valor: f, onChange, erros, pernas, b
         </div>
         {(bloqueadas.ida || bloqueadas.volta) && (
           <p className="m-0 mt-1 text-2xs text-muted-foreground">
-            {bloqueadas.ida ? "A ida" : "A volta"} já tem passagem registrada — só a outra perna pode ser terrestre.
+            {[bloqueadas.ida, bloqueadas.volta].filter(Boolean).join(" · ")}.
           </p>
         )}
+        {travarPernas && <p className="m-0 mt-1 text-2xs text-muted-foreground">Os trechos de cada vaga continuam como estão.</p>}
         <Erro msg={erros.pernas} id={`${idBase}-pernas-erro`} />
       </div>
 
-      {/* Bloco principal (ida, ou a perna marcada) */}
       <fieldset className="m-0 p-0 border-0 space-y-3" disabled={disabled}>
-        {nomeDoBloco && <legend className="text-2xs font-semibold uppercase tracking-[0.06em] text-primary mb-2">{nomeDoBloco}</legend>}
         <EscolhaDoModo
-          valor={f.modo} onEscolher={(m) => onChange({ modo: m, ...(f.voltaIgual ? { modoVolta: m } : {}) })}
-          rotulo="Como vai" erro={erros.modo} idBase={`${idBase}-modo`} disabled={disabled}
+          valor={f.modo} onEscolher={(m) => onChange({ modo: m })}
+          erro={erros.modo} idBase={`${idBase}-modo`} disabled={disabled}
         />
-        {f.modo && (
-          <BlocoDaPerna
-            modo={f.modo} empresa={f.empresa} valor={f.valor}
-            onEmpresa={(v) => onChange({ empresa: v })} onValor={(v) => onChange({ valor: v })}
-            erroEmpresa={erros.empresa} erroValor={erros.valor} idBase={`${idBase}-ida`}
-            rotuloValor={rotuloValor(f.modo)} disabled={disabled}
-          />
+
+        {/* Lote de carro: cada um com seu carro (padrão) ou um carro para todos. */}
+        {escolheDivisao && (
+          <div>
+            <p id={`${idBase}-divisao-rotulo`} className={ROTULO}>O valor digitado é</p>
+            <div role="radiogroup" aria-labelledby={`${idBase}-divisao-rotulo`} className="inline-flex flex-wrap rounded-lg border border-border bg-surface-muted p-0.5">
+              {([
+                { chave: "cada", rotulo: "De cada vaga" },
+                { chave: "dividir", rotulo: `O total, dividido entre ${nVagas}` },
+              ] as const).map((op) => (
+                <button
+                  key={op.chave} type="button" role="radio" aria-checked={f.divisao === op.chave} disabled={disabled}
+                  onClick={() => onChange({ divisao: op.chave })}
+                  data-testid={`${idBase}-divisao-${op.chave}`}
+                  className={cn(
+                    "pas-alvo h-8 px-3 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    f.divisao === op.chave ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700",
+                  )}
+                >
+                  {op.rotulo}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {textos && (
+          <div className="space-y-1.5">
+            <div className={cn("grid gap-3", pedeEmpresa ? "sm:grid-cols-[minmax(0,1fr)_184px]" : "sm:grid-cols-[184px]")}>
+              {pedeEmpresa && (
+                <div>
+                  <Label htmlFor={`${idBase}-empresa`} className={ROTULO}>Nome da empresa<RequiredMark /></Label>
+                  <Input
+                    id={`${idBase}-empresa`} value={f.empresa} disabled={disabled} maxLength={120}
+                    onChange={(e) => onChange({ empresa: e.target.value })}
+                    placeholder="Ex.: Transluz Transportes"
+                    aria-invalid={!!erros.empresa || undefined} aria-required="true"
+                    aria-describedby={erros.empresa ? `${idBase}-empresa-erro` : undefined}
+                    className={cn("h-9", erros.empresa && ERRO)}
+                    data-testid={`${idBase}-empresa`}
+                  />
+                  <Erro msg={erros.empresa} id={`${idBase}-empresa-erro`} />
+                </div>
+              )}
+              <div>
+                <Label htmlFor={`${idBase}-valor`} className={ROTULO}>{textos.rotulo}<RequiredMark /></Label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground" aria-hidden="true">R$</span>
+                  <Input
+                    id={`${idBase}-valor`} value={f.valor} disabled={disabled} inputMode="decimal" placeholder="0,00"
+                    onChange={(e) => onChange({ valor: e.target.value })}
+                    aria-invalid={!!erros.valor || undefined} aria-required="true"
+                    aria-describedby={[`${idBase}-valor-dica`, erros.valor ? `${idBase}-valor-erro` : ""].filter(Boolean).join(" ")}
+                    className={cn("h-9 pl-9 tabular-nums", erros.valor && ERRO)}
+                    data-testid={`${idBase}-valor`}
+                  />
+                </div>
+                <Erro msg={erros.valor} id={`${idBase}-valor-erro`} />
+              </div>
+            </div>
+            <p id={`${idBase}-valor-dica`} className="m-0 text-2xs leading-snug text-muted-foreground" data-testid={`${idBase}-valor-dica`}>{textos.dica}</p>
+          </div>
         )}
       </fieldset>
 
-      {ambas && (
-        <label className="pas-alvo flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none w-fit">
-          <input
-            type="checkbox" checked={f.voltaIgual} disabled={disabled}
-            // Desmarcar começa a volta com o que a ida tem — só o que muda é digitado.
-            onChange={(e) => onChange({
-              voltaIgual: e.target.checked,
-              ...(e.target.checked ? {} : { modoVolta: f.modoVolta || f.modo, empresaVolta: f.empresaVolta || f.empresa, valorVolta: f.valorVolta || f.valor }),
-            })}
-            className="w-4 h-4 rounded border-slate-300 accent-primary"
-            data-testid={`${idBase}-volta-igual`}
-          />
-          Volta igual à ida (mesmo transporte e valor)
-        </label>
-      )}
-
-      {voltaPropria && (
-        <fieldset className="m-0 p-0 border-0 space-y-3 pt-3 border-t border-border" disabled={disabled}>
-          <legend className="text-2xs font-semibold uppercase tracking-[0.06em] text-warning mb-2">Volta</legend>
-          <EscolhaDoModo valor={f.modoVolta} onEscolher={(m) => onChange({ modoVolta: m })} rotulo="Como volta" erro={erros.modoVolta} idBase={`${idBase}-modo-volta`} disabled={disabled} />
-          {f.modoVolta && (
-            <BlocoDaPerna
-              modo={f.modoVolta} empresa={f.empresaVolta} valor={f.valorVolta}
-              onEmpresa={(v) => onChange({ empresaVolta: v })} onValor={(v) => onChange({ valorVolta: v })}
-              erroEmpresa={erros.empresaVolta} erroValor={erros.valorVolta} idBase={`${idBase}-volta`}
-              rotuloValor={rotuloValor(f.modoVolta)} disabled={disabled}
-            />
+      {/* Ao vivo: quanto fica cada vaga e o total. */}
+      {previa && previa.totalCentavos > 0 && (
+        <p className="m-0 rounded-lg bg-surface-muted px-3 py-2 text-xs leading-relaxed text-slate-700 tabular-nums" aria-live="polite" data-testid={`${idBase}-total`}>
+          <span className="font-semibold text-foreground whitespace-nowrap">
+            {previa.porVagaMin === previa.porVagaMax ? reaisDoTerrestre(previa.porVagaMin) : `${reaisDoTerrestre(previa.porVagaMin)} a ${reaisDoTerrestre(previa.porVagaMax)}`}
+          </span> por vaga
+          {" · "}<span className="font-semibold text-foreground">{previa.vagas}</span> {previa.vagas === 1 ? "vaga" : "vagas"}
+          {" · "}<span className="whitespace-nowrap">{previa.dividir ? "total" : "total do lote"}</span> <span className="font-semibold text-foreground whitespace-nowrap">{reaisDoTerrestre(previa.totalCentavos)}</span>
+          {previa.dividir && previa.porVagaMin !== previa.porVagaMax && (
+            <span className="block text-2xs text-muted-foreground">O centavo que não divide exato vai para as primeiras vagas; a soma bate com o total.</span>
           )}
-        </fieldset>
-      )}
-
-      {/* Lote: o valor digitado é de cada vaga ou o total a dividir? */}
-      {lote && (nVagas ?? 0) > 1 && (
-        <div>
-          <p id={`${idBase}-divisao-rotulo`} className={ROTULO}>O valor digitado é</p>
-          <div role="radiogroup" aria-labelledby={`${idBase}-divisao-rotulo`} className="inline-flex flex-wrap rounded-lg border border-border bg-surface-muted p-0.5">
-            {([
-              { chave: "cada", rotulo: "De cada vaga" },
-              { chave: "dividir", rotulo: `O total, dividido entre ${nVagas}` },
-            ] as const).map((op) => (
-              <button
-                key={op.chave} type="button" role="radio" aria-checked={f.divisao === op.chave} disabled={disabled}
-                onClick={() => onChange({ divisao: op.chave })}
-                data-testid={`${idBase}-divisao-${op.chave}`}
-                className={cn(
-                  "pas-alvo h-8 px-3 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  f.divisao === op.chave ? "bg-card text-primary shadow-1" : "text-muted-foreground hover:text-slate-700",
-                )}
-              >
-                {op.rotulo}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Total ao vivo */}
-      {totalDigitado > 0 && (
-        <p className="m-0 rounded-lg bg-surface-muted px-3 py-2 text-xs text-slate-700 tabular-nums" aria-live="polite" data-testid={`${idBase}-total`}>
-          {lote ? (
-            <>
-              <span className="font-semibold text-foreground">{reaisDoTerrestre(porVaga)}</span> por vaga
-              {divisaoInexata && <span className="text-muted-foreground"> (os centavos que sobram vão para as primeiras vagas)</span>}
-              {" · "}total do lote <span className="font-semibold text-foreground">{reaisDoTerrestre(totalDoLote)}</span>
-            </>
-          ) : (
-            <>
-              Total da vaga: <span className="font-semibold text-foreground">{reaisDoTerrestre(totalDigitado)}</span>
-              {porPerna.length > 1 && <span className="text-muted-foreground"> (ida {reaisDoTerrestre(porPerna[0][1])} + volta {reaisDoTerrestre(porPerna[1][1])})</span>}
-            </>
+          {!!previa.fora && (
+            <span className="block text-2xs text-warning-strong">
+              {previa.fora} {previa.fora === 1 ? "vaga marcada não tem" : "vagas marcadas não têm"} o trecho escolhido e {previa.fora === 1 ? "fica" : "ficam"} de fora.
+            </span>
           )}
         </p>
       )}

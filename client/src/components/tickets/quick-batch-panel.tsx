@@ -59,7 +59,7 @@ export default function QuickBatchPanel({
   const q = quick;
   const transportType = q?.transportType || "aereo";
   // 16/10: "Carro / van" troca a passagem de van (só empresa) pelo transporte
-  // terrestre da vaga (carro, van ou ônibus, com valor, por perna).
+  // terrestre da vaga (21/10: só carro ou van, com o valor da viagem toda — na van, o total da van).
   const terrestre = transportType === "terrestre";
   const isOneWay = !!q?.isOneWay;
   const tituloRef = useRef<HTMLHeadingElement>(null);
@@ -125,7 +125,7 @@ export default function QuickBatchPanel({
         <div className="min-w-0">
           <h3 id="titulo-lote-passagens" ref={tituloRef} tabIndex={-1} className="m-0 text-sm font-semibold text-foreground outline-none">Aplicar em lote</h3>
           <p className="m-0 text-xs text-muted-foreground mt-0.5">
-            {terrestre ? "Carro, van ou ônibus para todas as vagas marcadas na lista — sem passagem a comprar." : "Os mesmos dados da compra para todas as passagens marcadas na lista."}
+            {terrestre ? "Carro ou van para todas as vagas marcadas na lista — sem passagem a comprar." : "Os mesmos dados da compra para todas as passagens marcadas na lista."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

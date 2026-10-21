@@ -146,6 +146,7 @@ export const CAMPOS_OCULTOS = new Set([
   "id", "createdAt", "updatedAt", "updatedBy", "rowOrder", "userId", "password", "resetToken",
   "resetTokenExpiry", "fileUrl", "splitParentId", "inclusionIds", "itemIds", "resolvedInclusionId",
   "reviewedBy", "requestedBy", "plannedId", "rhAdjustedFields", "teamInclusionId",
+  "grupoId", // id técnico de grupo (pedido em par, van dividida — 21/10)
 ]);
 
 export const ROTULO_DO_CAMPO: Record<string, string> = {

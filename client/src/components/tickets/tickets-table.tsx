@@ -21,7 +21,7 @@ import TicketRow from "./ticket-row";
 import type { TicketsData } from "./use-tickets-data";
 import type { TicketFilters } from "./types";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
-import type { ModoTerrestre } from "@shared/transporte-terrestre";
+import type { ModoDeRegistro, PernaDaViagem } from "@shared/transporte-terrestre";
 
 /**
  * Abaixo disto a tabela não cabe sem espremer coluna e vira cartão.
@@ -65,7 +65,7 @@ interface TicketsTableProps {
   /** Vagas que precisam de passagem sem recorte nenhum — o "de M" do rodapé. */
   total?: number;
   /** "Vai de carro/van" (16/10): abre o transporte terrestre da vaga (com o tipo da Sugestão). */
-  onTerrestre?: (inclusion: TeamInclusion, modo?: ModoTerrestre) => void;
+  onTerrestre?: (inclusion: TeamInclusion, modo?: ModoDeRegistro, pernas?: PernaDaViagem[]) => void;
 }
 
 // 11px/600 com tracking curto — era 10px `font-black` com 0.15em, caixa alta

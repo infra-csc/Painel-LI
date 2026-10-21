@@ -8,21 +8,28 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, fetchJson } from "@/lib/queryClient";
 import { aplicarStatusDaVagaNoCache, TEAM_INCLUSIONS_KEY } from "@/hooks/use-vaga-acoes";
 import type { TransporteTerrestre } from "@shared/schema";
-import type { ItemTerrestre, PernaDaViagem, TrechoTerrestre } from "@shared/transporte-terrestre";
+import type { ItemTerrestre, ModoDeRegistro, PernaDaViagem, ResumoDoGrupo, TrechoTerrestre } from "@shared/transporte-terrestre";
 
-export const comoTrechoTerrestre = (r: TransporteTerrestre): TrechoTerrestre => ({
+/** Linha do GET: as colunas + o resumo do grupo (21/10). */
+export type TerrestreLido = TransporteTerrestre & Partial<ResumoDoGrupo>;
+
+export const comoTrechoTerrestre = (r: TerrestreLido): TrechoTerrestre => ({
   trecho: r.trecho as PernaDaViagem,
   modo: r.modo as TrechoTerrestre["modo"],
   empresa: r.empresa ?? null,
   valorCentavos: r.valorCentavos,
+  // Grupo com uma vaga só (as outras saíram) não é grupo: o servidor já manda null.
+  grupo: r.grupoId && r.grupoTotalCentavos != null && (r.grupoVagas ?? 0) > 1
+    ? { id: r.grupoId, totalCentavos: r.grupoTotalCentavos, vagas: r.grupoVagas! }
+    : null,
 });
 
 /** Mesmo recorte das passagens: um evento, só os que não terminaram, ou tudo. */
 export function useTerrestres(recorte: { eventId?: string; futuros?: boolean }) {
   const { eventId, futuros } = recorte;
-  const { data } = useQuery<TransporteTerrestre[]>({
+  const { data } = useQuery<TerrestreLido[]>({
     queryKey: eventId ? ["/api/tickets", "terrestres", { eventId }] : futuros ? ["/api/tickets", "terrestres", { futuros: true }] : ["/api/tickets", "terrestres"],
-    queryFn: ({ signal }) => fetchJson<TransporteTerrestre[]>(
+    queryFn: ({ signal }) => fetchJson<TerrestreLido[]>(
       eventId ? `/api/transportes-terrestres?eventId=${encodeURIComponent(eventId)}` : futuros ? "/api/transportes-terrestres?futuros=1" : "/api/transportes-terrestres",
       signal,
     ),
@@ -46,7 +53,7 @@ export interface RespostaDoRegistro {
   statusPorVaga: Record<string, string>;
 }
 
-/** Registrar (um ou vários) e desfazer. Os erros sobem para quem chamou (o formulário mostra). */
+/** Registrar (um ou vários), desfazer, e a van inteira. Os erros sobem para quem chamou (o formulário mostra). */
 export function useTerrestreMutations() {
   const queryClient = useQueryClient();
   const recarregar = () => {
@@ -56,7 +63,8 @@ export function useTerrestreMutations() {
   };
   const registrar = useMutation({
     // `tudoOuNada` (lote com o total dividido): o servidor grava todos os itens ou nenhum.
-    mutationFn: async (entrada: ItemTerrestre[] | { itens: ItemTerrestre[]; tudoOuNada?: boolean }) => {
+    // `agrupar` (21/10): o total foi dividido entre as vagas — as linhas viram um grupo.
+    mutationFn: async (entrada: ItemTerrestre[] | { itens: ItemTerrestre[]; tudoOuNada?: boolean; agrupar?: boolean }) => {
       const corpo = Array.isArray(entrada) ? { itens: entrada } : entrada;
       return (await apiRequest("POST", "/api/transportes-terrestres", corpo)).json() as Promise<RespostaDoRegistro>;
     },
@@ -73,5 +81,18 @@ export function useTerrestreMutations() {
       recarregar();
     },
   });
-  return { registrar, desfazer };
+  const editarGrupo = useMutation({
+    mutationFn: async ({ grupoId, ...corpo }: { grupoId: string; modo: ModoDeRegistro; empresa: string | null; totalCentavos: number }) =>
+      (await apiRequest("PUT", `/api/transportes-terrestres/grupos/${encodeURIComponent(grupoId)}`, corpo)).json() as Promise<{ atualizados: number; vagas: number }>,
+    onSuccess: recarregar,
+  });
+  const desfazerGrupo = useMutation({
+    mutationFn: async ({ grupoId }: { grupoId: string }) =>
+      (await apiRequest("DELETE", `/api/transportes-terrestres/grupos/${encodeURIComponent(grupoId)}`)).json() as Promise<{ removidos: number; vagas: number; statusPorVaga: Record<string, string> }>,
+    onSuccess: (res) => {
+      for (const [id, status] of Object.entries(res.statusPorVaga ?? {})) aplicarStatusDaVagaNoCache(queryClient, id, status);
+      recarregar();
+    },
+  });
+  return { registrar, desfazer, editarGrupo, desfazerGrupo };
 }
