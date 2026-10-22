@@ -310,6 +310,12 @@ export function registrarEspelhoOperacional(app: Express): void {
   /**
    * PUT /api/events/:eventId/operational-mirror/hotel-valores — tarifas do
    * evento e fatura. Só as chaves enviadas mudam; `null` apaga.
+   *
+   * 22/10 — também `temDuplo`/`temTriplo` (booleanos): o hotel do evento tem
+   * esses apartamentos? Individual sempre tem. Mudar a opção NÃO refaz os
+   * quartos: a aba avisa dos que excedem e oferece "Refazer sugestões" (que
+   * também refaz os carros não confirmados e desfaz ajustes à mão — por isso
+   * não roda sozinho). A tarifa gravada do tipo desmarcado fica guardada.
    */
   app.put("/api/events/:eventId/operational-mirror/hotel-valores", async (req, res) => {
     const ator = await requireRoles(req, res, LOGISTICA_ROLES);
@@ -325,9 +331,18 @@ export function registrarEspelhoOperacional(app: Express): void {
       };
       const erro = Object.values(campos).find((c): c is { erro: string } => "erro" in c);
       if (erro) return res.status(400).json({ message: erro.erro });
-      const mudancas = Object.fromEntries(
-        Object.entries(campos).map(([k, c]) => [k, (c as { valor: number | null | undefined }).valor]).filter(([, v]) => v !== undefined),
-      ) as Partial<Record<keyof typeof campos, number | null>>;
+      const tipos: { temDuplo?: boolean; temTriplo?: boolean } = {};
+      for (const [chave, nome] of [["temDuplo", "Duplo"], ["temTriplo", "Triplo"]] as const) {
+        if (!(chave in corpo)) continue;
+        if (typeof corpo[chave] !== "boolean") return res.status(400).json({ message: `${nome}: informe se o hotel tem (sim ou não).` });
+        tipos[chave] = corpo[chave] as boolean;
+      }
+      const mudancas = {
+        ...Object.fromEntries(
+          Object.entries(campos).map(([k, c]) => [k, (c as { valor: number | null | undefined }).valor]).filter(([, v]) => v !== undefined),
+        ) as Partial<Record<keyof typeof campos, number | null>>,
+        ...tipos,
+      };
       if (Object.keys(mudancas).length === 0) return res.status(400).json({ message: "Nada para salvar." });
       if (!await assertEventEditable(eventId, ator, res)) return;
 
@@ -337,7 +352,9 @@ export function registrarEspelhoOperacional(app: Express): void {
         .values({ eventId, ...mudancas, updatedAt: agora, updatedBy: ator.id })
         .onConflictDoUpdate({ target: hotelTarifasEventoTable.eventId, set: { ...mudancas, updatedAt: agora, updatedBy: ator.id } })
         .returning();
-      await createAuditLog("update", "hotel_valores", eventId, { eventId, acao: "tarifas do hotel", ...mudancas }, ator.id, ator.name, anterior, req);
+      await createAuditLog("update", "hotel_valores", eventId,
+        { eventId, acao: Object.keys(tipos).length && Object.keys(mudancas).length === Object.keys(tipos).length ? "apartamentos do hotel" : "tarifas do hotel", ...mudancas },
+        ator.id, ator.name, anterior, req);
       res.json(linha);
     } catch (error) {
       console.error("erro ao salvar as tarifas do hotel:", error);
@@ -551,6 +568,12 @@ export function registrarEspelhoOperacional(app: Express): void {
    * (ou a chave global de triplo ligada). O tipo dos dois quartos passa a
    * seguir quantas pessoas ficam em cada um (1 single, 2 duplo, 3 triplo) —
    * antes o rótulo continuava o antigo.
+   *
+   * Hotel do evento (22/10): o DESTINO não pode virar um tipo que o hotel não
+   * tem (sem duplo, ninguém junta dois; sem triplo, três) — 400 com o motivo.
+   * A ORIGEM pode ficar num tipo que o hotel não tem (tirar um de um triplo
+   * num hotel sem duplo): é o passo do meio de uma troca, e a aba marca o
+   * quarto até ele ser completado ou separado.
    */
   app.post("/api/hotel-room-groups/mover", async (req, res) => {
     const ator = await requireRoles(req, res, LOGISTICA_ROLES);

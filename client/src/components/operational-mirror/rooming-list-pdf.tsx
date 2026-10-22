@@ -34,17 +34,20 @@ import { hasRole } from "@/lib/role-utils";
 import { ROLE_GROUPS } from "@shared/roles";
 import type { MirrorEvent } from "@shared/operational-mirror-types";
 import { chaveDoHotel, hoteisDosQuartos, hotelDoEvento, montarRoomingList, type QuartoDaRoomingList } from "@shared/rooming-list";
+import type { TiposDoHotel } from "@shared/room-pairing";
 
 /** Valor da opção "quartos sem hotel definido" no seletor (nenhum hotel tem esse nome). */
 const SEM_HOTEL = "__sem_hotel__";
 
 const quartosTxt = (n: number) => `${n} ${n === 1 ? "quarto" : "quartos"}`;
 
-export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false }: {
+export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false, tiposDoHotel }: {
   evento: MirrorEvent;
   quartos: QuartoDaRoomingList[];
   /** Há valores calculados (tarifas definidas): oferece a versão de uso interno. */
   comValoresDisponivel?: boolean;
+  /** Apartamentos que o hotel tem (22/10): o PDF usa o tipo que o hotel usa e avisa do quarto que excede. */
+  tiposDoHotel?: TiposDoHotel;
 }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -71,7 +74,7 @@ export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false }
   const hotel = doSemHotel ? null : valor;
 
   const entrada = (extra: { incluirCpf: boolean; contato: { nome: string; email: string | null }; quartos: QuartoDaRoomingList[] }) => ({
-    hotel, nomeDoHotelNoPdf: doSemHotel ? nomeNoPdf : null, geradoEm: new Date(), comValores,
+    hotel, nomeDoHotelNoPdf: doSemHotel ? nomeNoPdf : null, geradoEm: new Date(), comValores, tiposDoHotel,
     evento: { nome: evento.name, local: evento.location, inicio: evento.startDate, fim: evento.endDate },
     ...extra,
   });
@@ -204,6 +207,14 @@ export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false }
                 )}
                 {previa.periodoDaHospedagem && <p className="mt-0.5 text-xs text-muted-foreground">Hospedagem de {previa.periodoDaHospedagem}</p>}
               </div>
+            )}
+
+            {/* 22/10: o documento não deve pedir ao hotel um tipo que ele não tem. */}
+            {previa && previa.quartosQueOHotelNaoTem > 0 && (
+              <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-xs leading-snug text-warning" data-testid="rooming-aviso-excede">
+                <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {previa.quartosQueOHotelNaoTem === 1 ? "1 quarto deste documento é de um tipo" : `${previa.quartosQueOHotelNaoTem} quartos deste documento são de um tipo`} que o hotel não tem. Refaça as sugestões ou ajuste os quartos antes de enviar.
+              </p>
             )}
 
             {podeCpf && opcoes.length > 0 && (

@@ -32,6 +32,60 @@ export interface RoomPairingConfig {
   requireSameGenderForSharedRoom: boolean;
   /** Prioriza juntar gente da mesma função (pedido do dono). */
   sameFunctionPriority: boolean;
+  /** Apartamentos que o hotel do evento tem (22/10). Ausente = tem todos. */
+  tiposDoHotel?: Partial<TiposDoHotel> | null;
+}
+
+/**
+ * Apartamentos que o hotel do evento tem (22/10, dono: "no espelho ter a
+ * opção de colocar se o hotel não tem duplo ou triplo"). Individual sempre
+ * existe. Gravado por evento em hotel_tarifas_evento (tem_duplo, tem_triplo —
+ * os dois verdadeiros por padrão).
+ */
+export interface TiposDoHotel {
+  duplo: boolean;
+  triplo: boolean;
+}
+export const HOTEL_COM_TODOS_OS_TIPOS: Readonly<TiposDoHotel> = Object.freeze({ duplo: true, triplo: true });
+
+/** O que vier (nulo, parcial, servidor antigo) vira os dois tipos; só `false` explícito tira um tipo. */
+export const tiposDoHotelOuPadrao = (t?: Partial<TiposDoHotel> | null): TiposDoHotel =>
+  ({ duplo: t?.duplo !== false, triplo: t?.triplo !== false });
+
+/** O hotel tem este tipo de apartamento? Individual: sempre. */
+export function hotelTemOTipo(tipo: "single" | "double" | "triple", tipos?: Partial<TiposDoHotel> | null): boolean {
+  const t = tiposDoHotelOuPadrao(tipos);
+  return tipo === "single" ? true : tipo === "double" ? t.duplo : t.triplo;
+}
+
+/**
+ * O apartamento em que o hotel põe N pessoas numa noite: o MENOR tipo que ele
+ * tem e que comporta. Num hotel sem duplo, as duas pessoas que sobram num
+ * triplo (a terceira já saiu) continuam no apartamento Triplo. 4+ conta como
+ * 3 (o limite, 09/10). `null` = o hotel não tem apartamento para tanta gente.
+ */
+export function apartamentoParaPessoas(n: number, tipos?: Partial<TiposDoHotel> | null): "single" | "double" | "triple" | null {
+  const t = tiposDoHotelOuPadrao(tipos);
+  if (n <= 1) return "single";
+  if (n === 2 && t.duplo) return "double";
+  return t.triplo ? "triple" : null;
+}
+
+/**
+ * O tipo que um quarto com N ocupantes vira e o hotel NÃO tem — o que a tela
+ * marca no quarto ("o hotel não tem triplo"). `null` = o hotel tem.
+ */
+export function tipoQueOHotelNaoTem(n: number, tipos?: Partial<TiposDoHotel> | null): "double" | "triple" | null {
+  const t = tiposDoHotelOuPadrao(tipos);
+  if (n === 2 && !t.duplo) return "double";
+  if (n === 3 && !t.triplo) return "triple";
+  return null;
+}
+
+/** "O hotel não tem apartamento duplo." — o motivo de um Mover recusado. */
+export function motivoDoTipoQueOHotelNaoTem(n: number, tipos?: Partial<TiposDoHotel> | null): string | null {
+  const falta = tipoQueOHotelNaoTem(n, tipos);
+  return falta ? `O hotel não tem apartamento ${falta === "double" ? "duplo" : "triplo"}.` : null;
 }
 
 export interface SuggestedRoom {
@@ -116,11 +170,17 @@ export function tipoPorOcupantes(n: number): "single" | "double" | "triple" {
 
 /**
  * Por que estes ocupantes NÃO podem ficar num mesmo quarto (null = podem).
- * Usado pelo "Mover" — a sugestão já monta dentro do limite.
+ * Usado pelo "Mover" — a sugestão já monta dentro do limite. Desde 22/10 vale
+ * também o que o hotel tem: sem duplo, ninguém junta dois; sem triplo, três.
  */
-export function motivoDeLotacao(funcoes: (string | null | undefined)[], allowTripleRoom: boolean): string | null {
+export function motivoDeLotacao(
+  funcoes: (string | null | undefined)[], allowTripleRoom: boolean, tiposDoHotel?: Partial<TiposDoHotel> | null,
+): string | null {
   const n = funcoes.length;
   if (n >= 4) return "Um quarto comporta no máximo 3 pessoas.";
+  // 22/10: o hotel não tem o apartamento que o quarto viraria.
+  const falta = motivoDoTipoQueOHotelNaoTem(n, tiposDoHotel);
+  if (falta) return falta;
   if (n === 3 && capacidadeDoQuarto(funcoes, allowTripleRoom) < 3) {
     return "Quarto triplo só para a equipe de cenotécnica — os três ocupantes precisam ser de cenotécnica.";
   }
@@ -172,6 +232,19 @@ function deixariaAlguemSozinho(
   return !restantes.some((y) => y !== sobra && podemDividir(sobra, y, config));
 }
 
+/** Hotel sem duplo: os dois parceiros que fecham um triplo com `a` (na ordem de preferência), ou null. */
+function primeiroTrio(a: RoomCandidate, parceiros: RoomCandidate[], config: RoomPairingConfig): [RoomCandidate, RoomCandidate] | null {
+  for (let x = 0; x < parceiros.length; x++) {
+    for (let y = x + 1; y < parceiros.length; y++) {
+      const [p, q] = [parceiros[x], parceiros[y]];
+      if (!podemDividir(p, q, config)) continue;
+      if (capacidadeDoQuarto([a, p, q].map((m) => m.functionName), config.allowTripleRoom) < 3) continue;
+      return [p, q];
+    }
+  }
+  return null;
+}
+
 /**
  * Monta os quartos. Quem não encontra parceiro fica em individual — o que é
  * um resultado legítimo, não uma falha.
@@ -179,16 +252,25 @@ function deixariaAlguemSozinho(
  * Cenotécnica (09/10): fecha triplo quando os três são de cenotécnica, mesmo
  * com a chave global desligada — mas sem deixar alguém sozinho por causa
  * disso: 3 → 3, 4 → 2+2, 5 → 3+2, 6 → 3+3, 7 → 3+2+2.
+ *
+ * Hotel do evento (22/10, `tiposDoHotel`): sem triplo, ninguém passa de 2
+ * (5 cenotécnicos → 2+2+1); sem duplo, só individual e triplo (5 → 3+1+1);
+ * sem os dois, um quarto por pessoa.
  */
 export function sugerirQuartos(candidatos: RoomCandidate[], config: RoomPairingConfig): SuggestedRoom[] {
   const usados = new Set<string>();
   const quartos: SuggestedRoom[] = [];
+  // 22/10: o que o hotel do evento tem. Sem triplo, o quarto para em 2 (a
+  // cenotécnica cai em duplo + individual pela regra de pares); sem duplo,
+  // ou fecha um triplo inteiro ou cada um fica no seu individual.
+  const tipos = tiposDoHotelOuPadrao(config.tiposDoHotel);
+  const maximo = tipos.triplo ? 3 : tipos.duplo ? 2 : 1;
 
   for (let i = 0; i < candidatos.length; i++) {
     const a = candidatos[i];
     if (usados.has(a.collaboratorId)) continue;
 
-    const parceiros = candidatos
+    const parceiros = maximo === 1 ? [] : candidatos
       .slice(i + 1)
       .filter((b) => !usados.has(b.collaboratorId) && podemDividir(a, b, config))
       .sort((x, y) => {
@@ -207,8 +289,13 @@ export function sugerirQuartos(candidatos: RoomCandidate[], config: RoomPairingC
       });
 
     const membros = [a];
-    for (const p of parceiros) {
-      if (membros.length >= 3) break;
+    if (!tipos.duplo) {
+      // Sem duplo: o primeiro PAR de parceiros (na mesma ordem de preferência)
+      // que se aceita e fecha um triplo; sem par assim, individual.
+      const trio = maximo === 3 ? primeiroTrio(a, parceiros, config) : null;
+      for (const p of trio ?? []) { membros.push(p); usados.add(p.collaboratorId); }
+    } else for (const p of parceiros) {
+      if (membros.length >= maximo) break;
       // Um triplo só fecha se TODOS se aceitam entre si.
       if (!membros.every((m) => m === a || podemDividir(m, p, config))) continue;
       if (membros.length === 2) {

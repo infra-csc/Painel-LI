@@ -13,6 +13,9 @@
  *  3. CALCULADO × PAGO: o total calculado, o valor pago ao hotel (a fatura) e
  *     a diferença — só comparada; nada é redistribuído sem alguém pedir.
  *
+ * 22/10: tipo que o hotel não tem (tipos-do-hotel.tsx) fica cinza nas tarifas
+ * ("o hotel não tem") e não aparece na distribuição.
+ *
  * A conta é shared/custo-dos-quartos.ts (a mesma do servidor). Quem edita é
  * quem já edita os quartos (logística); quem só consulta vê os valores.
  */
@@ -28,6 +31,7 @@ import {
   rotuloDoApartamento, TIPOS_DE_APARTAMENTO, LIMITE_DA_DIARIA_CENTAVOS, LIMITE_DO_VALOR_PAGO_CENTAVOS,
   type CustoDoHotel, type ValoresDoHotelSalvos,
 } from "@shared/custo-dos-quartos";
+import { hotelTemOTipo } from "@shared/room-pairing";
 import { brl } from "./mirror-shared";
 import { mirrorQueryKey } from "./use-mirror-data";
 
@@ -155,8 +159,10 @@ export function CampoDeDinheiro({ valor, aoSalvar, rotulo, placeholder, limite, 
   );
 }
 
-type CamposDoEvento = Partial<Record<"individualCentavos" | "duploCentavos" | "triploCentavos" | "faturaCentavos", number | null>>;
-const CAMPO_DO_TIPO: Record<TipoDoTrecho, keyof CamposDoEvento> = { single: "individualCentavos", double: "duploCentavos", triple: "triploCentavos" };
+type CamposDoEvento = Partial<Record<"individualCentavos" | "duploCentavos" | "triploCentavos" | "faturaCentavos", number | null>>
+  /** 22/10 — o hotel tem apartamento Duplo/Triplo (tipos-do-hotel.tsx). */
+  & { temDuplo?: boolean; temTriplo?: boolean };
+const CAMPO_DO_TIPO: Record<TipoDoTrecho, "individualCentavos" | "duploCentavos" | "triploCentavos"> ={ single: "individualCentavos", double: "duploCentavos", triple: "triploCentavos" };
 
 /** Mutações dos valores do hotel. Todas atualizam a MESMA resposta do Espelho. */
 export function useValoresDoHotel(eventId: string) {
@@ -209,12 +215,29 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
   const salvarEvento = (campos: CamposDoEvento) => mutacoes.evento.mutateAsync(campos);
   const tarifa = (t: TipoDoTrecho) => valores?.tarifas[t] ?? null;
   const porTipo = new Map(custo.porTipo.map((t) => [t.tipo, t]));
+  /** 22/10 — tipo que o hotel não tem fica cinza aqui e some da distribuição. */
+  const tem = (t: TipoDoTrecho) => hotelTemOTipo(t, valores?.tipos);
 
   // ── 1. Tarifas ───────────────────────────────────────────────────────────
   const tarifas = (
     <div className="esp-valores-tarifas" role="group" aria-label="Tarifas por apartamento por noite">
       {TIPOS_DE_APARTAMENTO.map((t) => {
         const r = porTipo.get(t)!;
+        if (!tem(t)) {
+          // A tarifa gravada fica guardada (volta se marcarem de novo), mas não aparece nem entra na conta.
+          return (
+            <div key={t} className="esp-valores-tarifa" data-sem-tipo data-testid={`tarifa-${t}`}>
+              <span className="esp-valores-rotulo">
+                <i className="esp-valores-ponto" style={{ background: "var(--border)" }} aria-hidden="true" />
+                {rotuloDoApartamento(t)}
+              </span>
+              <span className="esp-valores-numero esp-valores-sem-tipo" data-testid={`tarifa-${t}-sem-tipo`}>o hotel não tem</span>
+              <span className={`esp-valores-dica ${r.noitesDeQuarto > 0 ? "text-warning" : ""}`}>
+                {r.noitesDeQuarto > 0 ? `${diariasTxt(r.noitesDeQuarto)} em quarto que excede` : "fora das sugestões"}
+              </span>
+            </div>
+          );
+        }
         // Âmbar só quando já há valores e ESTE tipo ficou sem: no vazio, é só o convite.
         const falta = custo.temValores && r.noitesSemTarifa > 0;
         const idDica = `tarifa-${t}-${eventId}`;
@@ -288,7 +311,7 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
 
   // ── 2. Distribuição ──────────────────────────────────────────────────────
   const fatias = [
-    ...custo.porTipo.filter((t) => t.centavos > 0).map((t) => ({ chave: t.tipo as string, cor: COR_DO_APARTAMENTO[t.tipo], centavos: t.centavos })),
+    ...custo.porTipo.filter((t) => t.centavos > 0 && tem(t.tipo)).map((t) => ({ chave: t.tipo as string, cor: COR_DO_APARTAMENTO[t.tipo], centavos: t.centavos })),
     ...(custo.lateCheckout.centavos > 0 ? [{ chave: "late", cor: COR_DO_LATE, centavos: custo.lateCheckout.centavos }] : []),
   ];
   const distribuicao = (
@@ -300,7 +323,7 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
         </div>
       )}
       <ul className="esp-valores-legenda">
-        {custo.porTipo.filter((t) => t.noitesDeQuarto > 0).map((t) => (
+        {custo.porTipo.filter((t) => t.noitesDeQuarto > 0 && tem(t.tipo)).map((t) => (
           <li key={t.tipo} data-testid={`distribuicao-${t.tipo}`}>
             <i className="esp-valores-ponto" style={{ background: COR_DO_APARTAMENTO[t.tipo] }} aria-hidden="true" />
             <span className="font-medium text-foreground">{rotuloDoApartamento(t.tipo)}</span>
@@ -355,6 +378,9 @@ export function PainelDeValoresDoHotel({ eventId, canEdit, valores, custo, numer
             <p className="text-sm font-semibold text-foreground">Como o valor é calculado</p>
             <p>A tarifa é o preço do <b className="text-foreground">apartamento por noite</b>. Em cada noite o quarto custa a tarifa do tipo daquela noite — uma pessoa é <b className="text-foreground">Individual</b>, duas é <b className="text-foreground">Duplo</b>, três é <b className="text-foreground">Triplo</b> — e o valor é dividido entre quem dorme nele: Duplo de R$ 200 dá R$ 100 para cada um.</p>
             <p>No duplo em que um chega antes, as noites dele sozinho são Individual, e ele paga o apartamento inteiro. Centavos que não dividem certo ficam com os primeiros da lista; a soma sempre bate com o quarto.</p>
+            {(!tem("double") || !tem("triple")) && (
+              <p data-testid="valores-como-calcula-tipos">Este hotel não tem {!tem("double") && !tem("triple") ? "duplo nem triplo" : !tem("double") ? "duplo: a noite de duas pessoas num triplo é cobrada como Triplo" : "triplo"}. Tipo que o hotel não tem fica sem tarifa — o quarto aparece marcado.</p>
+            )}
             <p>Quarto com <b className="text-foreground">diária própria</b> usa o preço dele em todas as noites, dividido do mesmo jeito. O <b className="text-foreground">late check-out</b> é por pessoa e soma no valor de quem tem — igual à parte dela na última noite, se ninguém escrever outro valor.</p>
             <p>O total entra no “Hotel” do custo do Espelho, a menos que o total de hotel da pessoa tenha sido lançado à mão na grade. O valor pago ao hotel só é comparado; nada é redistribuído.</p>
           </PopoverContent>

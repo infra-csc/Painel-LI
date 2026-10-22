@@ -19,7 +19,8 @@
  * a todos segue `planoDoHotelDoEvento`: quarto confirmado fica como está, e
  * quarto em OUTRO hotel (exceção feita à mão) só muda se a pessoa pedir.
  */
-import { diariasDosTrechos, ocupacaoPorNoite, rotuloDoTipo, type TipoDoTrecho } from "./ocupacao-por-noite";
+import { diariasDosTrechos, ocupacaoPorNoite, rotuloDoTipo, trechosPorApartamento, type TipoDoTrecho } from "./ocupacao-por-noite";
+import { apartamentoParaPessoas, tipoPorOcupantes, tipoQueOHotelNaoTem, type TiposDoHotel } from "./room-pairing";
 
 export interface HospedeDaRoomingList {
   collaboratorId: string | null;
@@ -56,6 +57,12 @@ export interface EntradaDaRoomingList {
   incluirCpf: boolean;
   /** Versão de USO INTERNO, com valores (20/10). O PDF do hotel nunca tem. */
   comValores?: boolean;
+  /**
+   * Apartamentos que o hotel tem (22/10). O tipo de cada quarto e os totais
+   * por tipo saem pelo apartamento que o hotel usa (sem duplo, a noite de
+   * duas pessoas num triplo é Triplo). Ausente = todos.
+   */
+  tiposDoHotel?: Partial<TiposDoHotel> | null;
   geradoEm: Date;
   contato: { nome: string; email: string | null };
 }
@@ -98,6 +105,8 @@ export interface RoomingList {
   totalDosValores: string | null;
   /** Algum quarto tem noite sem tarifa: o total é parcial. */
   valoresParciais: boolean;
+  /** Quartos deste documento com um tipo que o hotel não tem (22/10) — a tela avisa antes de baixar. */
+  quartosQueOHotelNaoTem: number;
   geradoEm: string;
   contato: string;
   nomeDoArquivo: string;
@@ -241,13 +250,17 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
   const diariasPorTipo = new Map<TipoDoTrecho, number>();
   let primeiraEntrada: string | null = null;
   let ultimaSaida: string | null = null;
+  let quartosQueOHotelNaoTem = 0;
 
   const linhas: LinhaDaRoomingList[] = doHotel.map((q, i) => {
-    const trechos = ocupacaoPorNoite(q.hospedes);
+    const porNoite = ocupacaoPorNoite(q.hospedes);
+    // Pelo apartamento que o hotel usa (22/10) — com todos os tipos, os mesmos trechos.
+    const trechos = trechosPorApartamento(porNoite, e.tiposDoHotel);
     for (const t of trechos) diariasPorTipo.set(t.tipo, (diariasPorTipo.get(t.tipo) ?? 0) + t.noites);
     // Pico: o maior número de pessoas numa mesma noite (sem datas, quem está no quarto).
-    const pico = trechos.length ? Math.max(...trechos.map((t) => t.ocupantes.length)) : q.hospedes.length;
-    const tipoDoPico: TipoDoTrecho = pico <= 1 ? "single" : pico === 2 ? "double" : "triple";
+    const pico = porNoite.length ? Math.max(...porNoite.map((t) => t.ocupantes.length)) : q.hospedes.length;
+    const tipoDoPico: TipoDoTrecho = apartamentoParaPessoas(Math.min(pico, 3), e.tiposDoHotel) ?? tipoPorOcupantes(pico);
+    if (tipoQueOHotelNaoTem(q.hospedes.length, e.tiposDoHotel)) quartosQueOHotelNaoTem += 1;
     quartosPorTipo.set(tipoDoPico, (quartosPorTipo.get(tipoDoPico) ?? 0) + 1);
     for (const h of q.hospedes) {
       const ini = ymd(h.checkIn); const fim = ymd(h.checkOut);
@@ -295,6 +308,7 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
     comValores,
     totalDosValores: comValores ? reaisDosCentavos(doHotel.reduce((s, q) => s + (q.valorCentavos ?? 0), 0)) : null,
     valoresParciais: comValores && doHotel.some((q) => q.valorCompleto === false),
+    quartosQueOHotelNaoTem,
     geradoEm: dataHoraDeSaoPaulo(e.geradoEm),
     contato: e.contato.email ? `${e.contato.nome} · ${e.contato.email}` : e.contato.nome,
     // Sem hotel definido o arquivo leva só o evento — o nome digitado no

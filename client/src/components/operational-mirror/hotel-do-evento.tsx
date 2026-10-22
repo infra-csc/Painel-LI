@@ -10,7 +10,7 @@
  * (`hotelDoEvento`, shared/rooming-list.ts). A regra do que muda em cada
  * quarto é a mesma no cliente (prévia) e no servidor (`planoDoHotelDoEvento`).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, Loader2 } from "lucide-react";
 import {
@@ -40,12 +40,14 @@ export function avisoDoQueFicou(r: Pick<Resposta, "confirmadosMantidos" | "outro
   return partes.length ? `${partes.join(" · ")}.` : undefined;
 }
 
-export function HotelDoEvento({ eventId, quartos, listaDeSugestoes, canEdit }: {
+export function HotelDoEvento({ eventId, quartos, listaDeSugestoes, canEdit, children }: {
   eventId: string;
   quartos: QuartoParaOHotelDoEvento[];
   /** id do <datalist> com os hotéis já usados no evento. */
   listaDeSugestoes: string;
   canEdit: boolean;
+  /** Embaixo, na mesma faixa: "O hotel tem: Individual · Duplo · Triplo" (22/10, tipos-do-hotel.tsx). */
+  children?: ReactNode;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -99,6 +101,7 @@ export function HotelDoEvento({ eventId, quartos, listaDeSugestoes, canEdit }: {
         <span className="esp-hotel-evento-rotulo"><Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />Hotel do evento</span>
         <span className={`text-sm ${atual ? "font-medium text-foreground" : "text-muted-foreground"}`}>{atual ?? "a definir"}</span>
         <span className="esp-hotel-evento-situacao">{atual ? situacao : null}</span>
+        {children}
       </div>
     );
   }
@@ -128,6 +131,7 @@ export function HotelDoEvento({ eventId, quartos, listaDeSugestoes, canEdit }: {
           ? `Vai para ${quartosTxt(plano.aplicar.length + n)}${plano.confirmadosMantidos ? ` · ${plano.confirmadosMantidos === 1 ? "1 confirmado fica" : `${plano.confirmadosMantidos} confirmados ficam`} como está` : ""}`
           : situacao}
       </p>
+      {children}
 
       <AlertDialog open={perguntar} onOpenChange={setPerguntar}>
         <AlertDialogContent className="max-w-[460px]" data-testid="hotel-do-evento-dialogo">

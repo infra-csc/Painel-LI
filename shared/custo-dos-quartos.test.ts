@@ -324,3 +324,45 @@ describe("montagem a partir do Espelho", () => {
     expect(["single", "double", "triple"].map((t) => rotuloDoApartamento(t as "single"))).toEqual(["Individual", "Duplo", "Triplo"]);
   });
 });
+
+describe("hotel sem duplo ou sem triplo (22/10)", () => {
+  const triploQueEsvazia = [
+    { chave: "a", checkIn: "2026-04-22", checkOut: "2026-04-26" },
+    { chave: "b", checkIn: "2026-04-22", checkOut: "2026-04-26" },
+    { chave: "c", checkIn: "2026-04-22", checkOut: "2026-04-24" },
+  ];
+
+  it("sem duplo: as noites de dois num triplo pagam o Triplo (o apartamento é o mesmo)", () => {
+    const r = custoDoHotel({ tarifas: TARIFAS, tipos: { duplo: false, triplo: true }, quartos: [{ id: "q", ocupantes: triploQueEsvazia }] });
+    const q = r.porQuarto.get("q")!;
+    expect(q.trechos.map((t) => [t.tipo, t.noites, t.pessoas, t.tarifaCentavos, t.hotelNaoTem])).toEqual([
+      ["triple", 2, 3, 27000, false],
+      ["triple", 2, 2, 27000, false],
+    ]);
+    expect(q.totalCentavos).toBe(4 * 27000);
+    expect(r.porTipo.find((t) => t.tipo === "double")?.noitesDeQuarto).toBe(0);
+    expect(r.completo).toBe(true);
+    conferirSomas(r);
+  });
+
+  it("sem triplo: o triplo que sobrou fica sem tarifa (a gravada não conta) e aparece como noite que o hotel não tem", () => {
+    const r = custoDoHotel({ tarifas: TARIFAS, tipos: { duplo: true, triplo: false }, quartos: [{ id: "q", ocupantes: triploQueEsvazia }] });
+    const q = r.porQuarto.get("q")!;
+    expect(q.trechos.map((t) => [t.tipo, t.tarifaCentavos, t.hotelNaoTem])).toEqual([["triple", null, true], ["double", 20000, false]]);
+    expect(q.completo).toBe(false);
+    expect(r.porTipo.find((t) => t.tipo === "triple")).toMatchObject({ noitesDeQuarto: 2, noitesSemTarifa: 2, centavos: 0 });
+    expect(q.totalCentavos).toBe(2 * 20000);
+    conferirSomas(r);
+  });
+
+  it("tarifa só de tipo que o hotel não tem não conta como valor", () => {
+    const r = custoDoHotel({ tarifas: { single: null, double: null, triple: 27000 }, tipos: { duplo: true, triplo: false }, quartos: [] });
+    expect(r.temValores).toBe(false);
+  });
+
+  it("entradaDoCustoDoHotel leva os tipos gravados", () => {
+    const e = entradaDoCustoDoHotel([], [], { tarifas: TARIFAS, faturaCentavos: null, quartos: [], lateCheckouts: [], tipos: { duplo: false, triplo: true } });
+    expect(e.tipos).toEqual({ duplo: false, triplo: true });
+    expect(entradaDoCustoDoHotel([], [], null).tipos).toBeNull();
+  });
+});

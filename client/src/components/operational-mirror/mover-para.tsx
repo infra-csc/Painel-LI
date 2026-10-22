@@ -15,7 +15,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 export interface MoverParaProps {
   pessoa: string;
   grupoAtual: string;
-  destinos: { id: string; descricao: string }[];
+  /**
+   * `bloqueio` (22/10): por que este destino não serve (ex.: "O hotel não tem
+   * apartamento duplo.") — o botão fica desabilitado, com o motivo embaixo.
+   */
+  destinos: { id: string; descricao: string; bloqueio?: string | null }[];
   rotuloNovo: string;
   onMover: (paraGrupoId: string | null) => void;
   /** O que muda ao mover — dito no diálogo, antes da escolha. */
@@ -52,12 +56,16 @@ export function MoverPara({ pessoa, grupoAtual, destinos, rotuloNovo, onMover, c
                 key={d.id}
                 type="button"
                 onClick={() => escolher(d.id)}
-                className="group/destino flex w-full items-center gap-2 rounded-lg px-3.5 py-2.5 text-left transition-colors hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                disabled={!!d.bloqueio}
+                aria-describedby={d.bloqueio ? `mover-bloqueio-${d.id}` : undefined}
+                data-testid={d.bloqueio ? `mover-destino-bloqueado-${d.id}` : `mover-destino-${d.id}`}
+                className="group/destino flex w-full items-center gap-2 rounded-lg px-3.5 py-2.5 text-left transition-colors hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:hover:bg-transparent"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{d.descricao}</span>
+                  <span className={`block truncate text-sm font-medium ${d.bloqueio ? "text-muted-foreground" : ""}`}>{d.descricao}</span>
+                  {d.bloqueio && <span id={`mover-bloqueio-${d.id}`} className="block text-xs text-warning">{d.bloqueio}</span>}
                 </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover/destino:translate-x-0.5 group-hover/destino:text-primary motion-reduce:transition-none" aria-hidden="true" />
+                {!d.bloqueio && <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover/destino:translate-x-0.5 group-hover/destino:text-primary motion-reduce:transition-none" aria-hidden="true" />}
               </button>
             ))}
             {destinos.length > 0 && <div className="mx-3.5 my-1.5 h-px bg-border" aria-hidden="true" />}

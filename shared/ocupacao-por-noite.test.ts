@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diariasDosTrechos, ocupacaoPorNoite, rotuloDoTipo } from "./ocupacao-por-noite";
+import { diariasDosTrechos, ocupacaoPorNoite, rotuloDoTipo, trechosPorApartamento } from "./ocupacao-por-noite";
 
 const p = (nome: string, checkIn: string | null, checkOut: string | null) => ({ nome, checkIn, checkOut });
 const resumo = (ts: ReturnType<typeof ocupacaoPorNoite<ReturnType<typeof p>>>) =>
@@ -50,5 +50,36 @@ describe("ocupacaoPorNoite", () => {
 
   it("rótulos", () => {
     expect([rotuloDoTipo("single"), rotuloDoTipo("double"), rotuloDoTipo("triple")]).toEqual(["Individual", "Duplo", "Triplo"]);
+  });
+});
+
+describe("trechosPorApartamento (22/10 — o apartamento que o hotel usa)", () => {
+  const casoDoDono = () => ocupacaoPorNoite([p("Mauricio", "2026-04-22", "2026-04-27"), p("Edney", "2026-04-24", "2026-04-26")]);
+  const triploQueEsvazia = () => ocupacaoPorNoite([
+    p("A", "2026-04-22", "2026-04-26"), p("B", "2026-04-22", "2026-04-26"), p("C", "2026-04-22", "2026-04-24"),
+  ]);
+
+  it("com todos os tipos, os trechos vêm como estão (nem trechos vizinhos de Individual se juntam)", () => {
+    expect(resumo(trechosPorApartamento(casoDoDono(), null))).toEqual(resumo(casoDoDono()));
+    const vizinhos = ocupacaoPorNoite([p("A", "2026-04-22", "2026-04-24"), p("B", "2026-04-24", "2026-04-26")]);
+    expect(resumo(trechosPorApartamento(vizinhos, { duplo: false, triplo: true }))).toEqual(resumo(vizinhos));
+  });
+
+  it("sem duplo: as noites de dois num triplo são Triplo — e viram um trecho só", () => {
+    expect(resumo(trechosPorApartamento(triploQueEsvazia(), { duplo: false, triplo: true }))).toEqual([
+      "2026-04-22→2026-04-26 triple 4 [A,B,C]",
+    ]);
+  });
+
+  it("sem duplo: Individual · Triplo · Individual (os tipos diferentes não se juntam)", () => {
+    expect(resumo(trechosPorApartamento(casoDoDono(), { duplo: false, triplo: true }))).toEqual([
+      "2026-04-22→2026-04-24 single 2 [Mauricio]",
+      "2026-04-24→2026-04-26 triple 2 [Mauricio,Edney]",
+      "2026-04-26→2026-04-27 single 1 [Mauricio]",
+    ]);
+  });
+
+  it("sem apartamento possível (dois sem duplo nem triplo), fica o tipo da ocupação", () => {
+    expect(resumo(trechosPorApartamento(casoDoDono(), { duplo: false, triplo: false }))).toEqual(resumo(casoDoDono()));
   });
 });

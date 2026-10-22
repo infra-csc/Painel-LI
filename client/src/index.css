@@ -3576,6 +3576,50 @@ body:has(.cfg-barra):not(:has([role="dialog"][data-state="open"])) .casca-toasts
   .esp-hotel-evento-situacao { flex: 1 1 0; min-width: 160px; }
 }
 
+/* "O hotel tem: Individual · Duplo · Triplo" (22/10) — embaixo do hotel do
+   evento, na mesma faixa. Chip marcado = tom da marca com ✓; desmarcado =
+   neutro, riscado, com "–". Individual é fixo. Sozinho (sem quartos ainda),
+   a faixa só tem os chips. */
+.esp-hotel-tipos {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; flex-basis: 100%;
+  margin-top: 4px; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.esp-hotel-tipos:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+/* Celular: o rótulo em cima (como "Hotel do evento") e os três chips numa linha. */
+.esp-hotel-tipos-rotulo { margin-right: 2px; }
+@media (min-width: 768px) { .esp-hotel-tipos-rotulo { flex-basis: auto; } }
+.esp-apto {
+  display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px 0 8px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card);
+  font-size: 12px; line-height: 16px; font-weight: 500; color: var(--muted-foreground); white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.esp-apto .esp-apto-nome { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted-foreground) 60%, transparent); }
+.esp-apto[data-tem] { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); background: var(--brand-soft); color: var(--primary); }
+.esp-apto[data-tem] .esp-apto-nome { text-decoration: none; }
+.esp-apto[data-fixo] { cursor: default; opacity: .85; }
+button.esp-apto { cursor: pointer; }
+button.esp-apto:hover:not(:disabled) { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); }
+button.esp-apto:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+button.esp-apto:disabled { cursor: not-allowed; opacity: .6; }
+.esp-hotel-tipos-regra { flex: 1 1 220px; min-width: 0; font-size: 12px; line-height: 16px; color: var(--muted-foreground); }
+.esp-hotel-tipos-regra:empty { display: none; }
+
+/* Quartos que excedem o que o hotel tem: aviso no topo e selo no bloco. */
+.esp-excede {
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; margin-bottom: 12px; padding: 10px 12px 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning-strong) 40%, var(--border)); border-radius: 12px;
+  background: var(--warning-soft);
+}
+.esp-excede > div { flex: 1 1 240px; }
+.esp-selo-excede {
+  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px;
+  background: var(--warning-soft); color: var(--warning); font-size: 11px; line-height: 16px; font-weight: 600; white-space: nowrap;
+}
+.esp-quarto[data-excede] { border-color: color-mix(in srgb, var(--warning-strong) 45%, var(--border)); }
+.esp-valores-sem-tipo { font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
+.esp-valores-tarifa[data-sem-tipo] .esp-valores-rotulo { opacity: .7; }
+
 /* ══ Espelho · Quartos · Valores do hotel (20/10) ═════════════════════════════
  * Dono: "colocar o valor total que estou pagando e ele distribuir". Um painel
  * abaixo do hotel do evento (tarifas | calculado × pago, e a distribuição por

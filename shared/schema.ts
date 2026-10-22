@@ -1745,6 +1745,10 @@ export const hotelTarifasEvento = pgTable("hotel_tarifas_evento", {
   duploCentavos: integer("duplo_centavos"),
   triploCentavos: integer("triplo_centavos"),
   faturaCentavos: integer("fatura_centavos"),
+  // 22/10 — o hotel tem apartamento Duplo/Triplo? (Individual sempre tem.)
+  // Regra em shared/room-pairing.ts. Migração: scripts/migrations/2026-10-22-tipos-de-apartamento-do-hotel.sql.
+  temDuplo: boolean("tem_duplo").notNull().default(true),
+  temTriplo: boolean("tem_triplo").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
 });

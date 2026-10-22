@@ -95,7 +95,7 @@ export function timeToMinutes(t: string | null | undefined): number | null {
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
-import { sugerirQuartos, observacaoDeDatas, motivoDeLotacao, ehCenotecnica } from "@shared/room-pairing";
+import { sugerirQuartos, observacaoDeDatas, motivoDeLotacao, ehCenotecnica, HOTEL_COM_TODOS_OS_TIPOS, type TiposDoHotel } from "@shared/room-pairing";
 import { hotelDoEvento } from "@shared/rooming-list";
 import { datasDoQuarto, type DatasDoQuarto } from "@shared/datas-do-quarto";
 import { inferirGenero } from "@shared/gender-inference";
@@ -127,12 +127,15 @@ function datasDoQuartoDaVaga(
 /**
  * Estes colaboradores podem ficar juntos num quarto do evento? Devolve o
  * motivo quando não (09/10, "Mover"): no máximo 3, e 3 só se todos forem de
- * cenotécnica — ou com a chave global `allow_triple_room` ligada.
+ * cenotécnica — ou com a chave global `allow_triple_room` ligada. Desde 22/10,
+ * também o que o hotel do evento tem: sem duplo, ninguém junta dois; sem
+ * triplo, três.
  */
 export async function motivoDeLotacaoDoQuarto(eventId: string, collaboratorIds: string[], exec: Exec = db): Promise<string | null> {
-  if (collaboratorIds.length < 3) return null;
-  const [config, vagas] = await Promise.all([
+  if (collaboratorIds.length < 2) return null;
+  const [config, tipos, vagas] = await Promise.all([
     getLogisticsConfig(),
+    carregarTiposDoHotel(eventId, exec),
     exec.select({ collaboratorId: teamInclusions.collaboratorId, functionName: functions.name, deletedAt: teamInclusions.deletedAt, phase: teamInclusions.phase })
       .from(teamInclusions)
       .leftJoin(functions, eq(functions.id, teamInclusions.functionId))
@@ -144,7 +147,7 @@ export async function motivoDeLotacaoDoQuarto(eventId: string, collaboratorIds: 
     const nomes = vagas.filter((v) => v.collaboratorId === cid && !v.deletedAt && v.phase !== "sugestao").map((v) => v.functionName);
     return nomes.find((n) => ehCenotecnica(n)) ?? nomes[0] ?? null;
   });
-  return motivoDeLotacao(funcoes, config.allowTripleRoom);
+  return motivoDeLotacao(funcoes, config.allowTripleRoom, tipos);
 }
 
 // ---------- Passagens: ida e volta em linhas separadas ----------
@@ -436,12 +439,30 @@ export async function carregarValoresDoHotel(eventId: string, exec: Exec = db): 
         triple: tarifas?.triploCentavos ?? null,
       },
       faturaCentavos: tarifas?.faturaCentavos ?? null,
+      // 22/10 — sem linha gravada, o hotel tem todos os tipos.
+      tipos: { duplo: tarifas?.temDuplo ?? true, triplo: tarifas?.temTriplo ?? true },
       quartos: quartos.map((q) => ({ quartoId: q.hotelRoomGroupId, diariaPropriaCentavos: q.diariaPropriaCentavos, valorPagoCentavos: q.valorPagoCentavos })),
       lateCheckouts: lates.map((l) => ({ collaboratorId: l.collaboratorId, ativo: l.ativo, valorCentavos: l.valorCentavos })),
     };
   } catch (erro) {
     console.error("[espelho] valores do hotel indisponíveis (tabelas ainda não criadas?) —", erro instanceof Error ? erro.message : erro);
     return null;
+  }
+}
+
+/**
+ * Apartamentos que o hotel do evento tem (22/10) — para as sugestões e o
+ * "Mover". Tolerante como os valores: sem a tabela/colunas (boot ainda
+ * preparando o banco) ou sem linha gravada, o hotel tem todos os tipos.
+ */
+export async function carregarTiposDoHotel(eventId: string, exec: Exec = db): Promise<TiposDoHotel> {
+  try {
+    const [linha] = await exec.select({ temDuplo: hotelTarifasEvento.temDuplo, temTriplo: hotelTarifasEvento.temTriplo })
+      .from(hotelTarifasEvento).where(eq(hotelTarifasEvento.eventId, eventId));
+    return { duplo: linha?.temDuplo ?? true, triplo: linha?.temTriplo ?? true };
+  } catch (erro) {
+    console.error("[espelho] tipos de apartamento do hotel indisponíveis —", erro instanceof Error ? erro.message : erro);
+    return { ...HOTEL_COM_TODOS_OS_TIPOS };
   }
 }
 
@@ -1037,6 +1058,9 @@ async function inserirEmLotes<T>(inserir: (lote: T[]) => Promise<unknown>, linha
 
 export async function recalculateLogisticsSuggestions(eventId: string) {
   const config = await getLogisticsConfig();
+  // Fora da transação: a leitura é tolerante (sem as colunas ainda, todos os
+  // tipos) e um erro dentro da transação a abortaria inteira.
+  const tiposDoHotel = await carregarTiposDoHotel(eventId);
 
   /**
    * Uma transação por evento, travada por advisory lock (23/09). Antes eram
@@ -1129,6 +1153,8 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
         allowTripleRoom: config.allowTripleRoom,
         requireSameGenderForSharedRoom: config.requireSameGenderForSharedRoom,
         sameFunctionPriority: config.sameFunctionPriority,
+        // 22/10 — sem duplo/triplo no hotel do evento, a montagem respeita.
+        tiposDoHotel,
       },
     );
     // Ids gerados aqui: o INSERT multi-linha não promete devolver o RETURNING

@@ -30,19 +30,28 @@
  * parte dele e o late check-out (valores-do-quarto.tsx). As datas usadas na
  * conta são as MESMAS da tela (periodoNoQuarto, shared/custo-dos-quartos.ts).
  * 21/10: a tarifa é do APARTAMENTO, dividida entre quem dorme no quarto.
+ *
+ * 22/10, dono: "no espelho ter a opção de colocar se o hotel não tem duplo ou
+ * triplo". Na faixa do hotel do evento, "O hotel tem: Individual · Duplo ·
+ * Triplo" (tipos-do-hotel.tsx). Mudar a opção não refaz nada sozinho: quarto
+ * que excede o que o hotel tem ganha um selo ("o hotel não tem triplo") e o
+ * topo mostra um aviso com "Refazer sugestões" — refazer sozinho também
+ * refaria os carros não confirmados e desfaria os ajustes à mão nos quartos
+ * não confirmados. O "Mover" não deixa juntar num tipo que o hotel não tem.
  */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangle, Building2, CheckCheck, Loader2, Moon, Pencil, RefreshCw, BedDouble, Scissors, StickyNote } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MirrorEvent, RoomGroup } from "@shared/operational-mirror-types";
 import { seloDaOrigem } from "@shared/datas-do-quarto";
-import { observacaoDeDatas, PREFIXO_DATAS_DIFERENTES } from "@shared/room-pairing";
-import { ocupacaoPorNoite, rotuloDoTipo, type TipoDoTrecho } from "@shared/ocupacao-por-noite";
+import { motivoDoTipoQueOHotelNaoTem, observacaoDeDatas, PREFIXO_DATAS_DIFERENTES, tipoQueOHotelNaoTem, tiposDoHotelOuPadrao } from "@shared/room-pairing";
+import { ocupacaoPorNoite, rotuloDoTipo, trechosPorApartamento, type TipoDoTrecho } from "@shared/ocupacao-por-noite";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, type QuartoDaRoomingList } from "@shared/rooming-list";
 import { chaveDoOcupante, custoDoHotel, dividirCentavos, entradaDoCustoDoHotel, periodoNoQuarto, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
 import { fonteDoHotel } from "@shared/operational-mirror-types";
 import { HotelDoEvento } from "./hotel-do-evento";
 import { PainelDeValoresDoHotel, useValoresDoHotel } from "./valores-do-hotel";
+import { AvisoDeQuartosQueExcedem, TiposDoHotelChips } from "./tipos-do-hotel";
 import { partesTxt, ValorDaPessoa, ValoresDoQuarto } from "./valores-do-quarto";
 import { MoverPara } from "./mover-para";
 import { RoomingListPdf } from "./rooming-list-pdf";
@@ -214,7 +223,12 @@ export type QuartosViewProps = GroupViewProps<RoomGroup> & {
 
 export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onSeparar, onMover, pendingId, onPatchMembro, onRecalc, recalcPending, evento, valores }: QuartosViewProps) {
   const mutacoesDeValores = useValoresDoHotel(evento?.id ?? "");
-  const refazer = canEdit && onRecalc ? (
+  /* Apartamentos que o hotel tem (22/10). Servidor antigo / sem tabelas: todos. */
+  const tiposDoHotel = tiposDoHotelOuPadrao(valores?.tipos);
+  const chipsDosTipos = evento && valores !== undefined ? (
+    <TiposDoHotelChips tipos={tiposDoHotel} canEdit={canEdit} indisponivel={valores === null} mutacoes={mutacoesDeValores} />
+  ) : null;
+  const refazer =canEdit && onRecalc ? (
     <button type="button" onClick={onRecalc} disabled={recalcPending}
       className="esp-alvo inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-3 text-xs font-medium text-slate-700 shadow-1 transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
       {recalcPending ? <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -223,6 +237,9 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
   ) : null;
   if (groups.length === 0) {
     return (
+      <>
+      {/* A opção vale para a primeira sugestão também: à vista antes de gerar. */}
+      {chipsDosTipos && <div className="esp-hotel-evento">{chipsDosTipos}</div>}
       <div className="flex flex-col items-center rounded-xl border border-border bg-card px-6 py-14 text-center" data-testid="quartos-vazio">
         <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden="true"><BedDouble className="h-5 w-5" /></span>
         <h2 className="m-0 text-base font-semibold text-foreground">Nenhuma sugestão de quarto ainda</h2>
@@ -231,6 +248,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         </p>
         {refazer && <div className="mt-4">{refazer}</div>}
       </div>
+      </>
     );
   }
   const rowByCollab = new Map(rows.filter((r) => r.collaborator.id).map((r) => [r.collaborator.id as string, r]));
@@ -239,6 +257,16 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
     const nomes = (g.members || []).map((m) => memberInfo(m, collabById).name.split(" ")[0]);
     // 3 é o máximo (09/10): o destino cheio já se anuncia antes da escolha.
     return nomes.length ? `Com ${nomes.join(", ")}${nomes.length >= 3 ? " · lotado (máx. 3)" : ""}` : "Quarto vazio";
+  };
+  /**
+   * Por que não dá para juntar alguém a este quarto (22/10): lotado, ou o
+   * hotel não tem o tipo que ele viraria. A cenotécnica do triplo continua
+   * sendo conferida no servidor (o motivo volta no aviso de erro).
+   */
+  const bloqueioDoDestino = (g: RoomGroup): string | null => {
+    const n = (g.members || []).length + 1;
+    if (n >= 4) return "Lotado — um quarto comporta no máximo 3 pessoas.";
+    return motivoDoTipoQueOHotelNaoTem(n, tiposDoHotel);
   };
   const confirmados = groups.filter((g) => g.confirmed).length;
   const pessoas = groups.reduce((n, g) => n + (g.members || []).length, 0);
@@ -274,7 +302,8 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
   /** Tudo o que um quarto mostra, calculado uma vez por render. */
   const quartos = groups.map((g, gi) => {
     const lista = ocupantes(g);
-    const trechos = ocupacaoPorNoite(lista.map((o) => ({ checkIn: dia(o.ini), checkOut: dia(o.fim), o })));
+    // Pelo apartamento que o hotel usa (22/10): sem duplo, a noite de dois num triplo é Triplo.
+    const trechos = trechosPorApartamento(ocupacaoPorNoite(lista.map((o) => ({ checkIn: dia(o.ini), checkOut: dia(o.fim), o }))), tiposDoHotel);
     // Divergência de hospedagem igual para TODOS → um aviso do quarto; senão, na linha de quem tem.
     const divs = lista.map((o) => o.divergencia);
     const divergenciaComum = divs.length > 0 && divs.every((d) => d && d === divs[0]) ? divs[0] : null;
@@ -282,8 +311,11 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
     // por noite à vista, a frase não diz nada a mais — só fica sem ela.
     const auto = trechos.length > 1 ? null : observacaoDeDatas(lista.map((o) => ({ checkIn: dia(o.ini), checkOut: dia(o.fim) })));
     const manual = g.notes && !g.notes.startsWith(PREFIXO_DATAS_DIFERENTES) ? g.notes : null;
-    return { g, numero: gi + 1, lista, trechos, divergenciaComum, notas: [auto, manual].filter((x): x is string => !!x) };
+    // Tipo que o quarto virou e o hotel não tem (22/10) — selo no bloco e aviso no topo.
+    const excede = tipoQueOHotelNaoTem(lista.length, tiposDoHotel);
+    return { g, numero: gi + 1, lista, trechos, divergenciaComum, excede, notas: [auto, manual].filter((x): x is string => !!x) };
   });
+  const excedentes = quartos.filter((q) => q.excede).map((q) => ({ tipo: q.excede as "double" | "triple", confirmed: !!q.g.confirmed }));
 
   /* Valores do hotel (20/10): a mesma conta do servidor, com as datas desta tela. */
   const comPainel = !!evento && valores !== undefined;
@@ -318,7 +350,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
       {canEdit && o.m.id && (
         <MoverPara pessoa={o.m.name} grupoAtual={g.id} rotuloNovo="Quarto individual"
           consequencia="O tipo de cada quarto passa a seguir quantas pessoas sobram nele — e a hotelaria do evento muda junto."
-          destinos={groups.filter((x) => x.id !== g.id).map((x) => ({ id: x.id, descricao: descreve(x) }))}
+          destinos={groups.filter((x) => x.id !== g.id).map((x) => ({ id: x.id, descricao: descreve(x), bloqueio: bloqueioDoDestino(x) }))}
           onMover={(para) => onMover(o.m.id as string, g.id, para)} />
       )}
     </span>
@@ -466,7 +498,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         </p>
         <p className="hidden text-xs text-muted-foreground xl:block">· mesmas datas primeiro, depois a mesma função</p>
         <span className="ml-auto flex flex-wrap items-center gap-2">
-          {evento && <RoomingListPdf evento={evento} quartos={quartosParaPdf} comValoresDisponivel={comValores} />}
+          {evento && <RoomingListPdf evento={evento} quartos={quartosParaPdf} comValoresDisponivel={comValores} tiposDoHotel={tiposDoHotel} />}
           {refazer}
         </span>
       </header>
@@ -476,8 +508,11 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
       </datalist>
       {evento && (
         <HotelDoEvento eventId={evento.id} canEdit={canEdit} listaDeSugestoes={listaDeHoteis}
-          quartos={groups.map((g) => ({ id: g.id, hotelName: g.hotelName, confirmed: g.confirmed }))} />
+          quartos={groups.map((g) => ({ id: g.id, hotelName: g.hotelName, confirmed: g.confirmed }))}>
+          {chipsDosTipos}
+        </HotelDoEvento>
       )}
+      <AvisoDeQuartosQueExcedem excedentes={excedentes} canEdit={canEdit} onRecalc={onRecalc} recalcPending={recalcPending} />
       {comPainel && evento && (
         <PainelDeValoresDoHotel eventId={evento.id} canEdit={canEdit} valores={valores ?? null} custo={custo}
           numeroDoQuarto={numeroDoQuarto} totalDeQuartos={groups.length} mutacoes={mutacoesDeValores} />
@@ -497,11 +532,19 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
           const { g } = q;
           return (
             <article key={g.id} className="esp-quarto group/quarto" data-confirmado={g.confirmed ? "true" : undefined}
-              aria-label={`Quarto ${q.numero}`} data-testid={`room-card-${g.id}`}>
+              data-excede={q.excede ?? undefined}
+              aria-label={`Quarto ${q.numero}${q.excede ? ` — o hotel não tem ${q.excede === "double" ? "duplo" : "triplo"}` : ""}`} data-testid={`room-card-${g.id}`}>
               <div className="esp-quarto-cab">
                 <span className="esp-quarto-id flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
                   <h4 className="whitespace-nowrap text-sm font-semibold tabular-nums text-foreground">Quarto {q.numero}</h4>
                   {tipo(q)}
+                  {q.excede && (
+                    <span className="esp-selo-excede" data-testid={`room-excede-${g.id}`}
+                      title={g.confirmed ? "Confirmado: o recálculo não mexe neste quarto — reabra ou separe à mão." : "“Refazer sugestões” remonta este quarto com o que o hotel tem."}>
+                      <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      o hotel não tem {q.excede === "double" ? "duplo" : "triplo"}
+                    </span>
+                  )}
                 </span>
                 {hotel(g)}
                 <span className="esp-quarto-acoes flex items-center gap-1.5">

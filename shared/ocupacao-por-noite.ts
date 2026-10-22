@@ -12,7 +12,7 @@
  * data, ou com saída que não é depois da entrada, fica de fora do cálculo.
  * Noites em que ninguém está no quarto não viram trecho.
  */
-import { tipoPorOcupantes } from "./room-pairing";
+import { apartamentoParaPessoas, tipoPorOcupantes, tiposDoHotelOuPadrao, type TiposDoHotel } from "./room-pairing";
 
 export type TipoDoTrecho = "single" | "double" | "triple";
 
@@ -68,6 +68,37 @@ export function ocupacaoPorNoite<T extends PeriodoDoOcupante>(ocupantes: readonl
     }
   }
   return trechos;
+}
+
+/**
+ * Os trechos pelo APARTAMENTO que o hotel usa (22/10): num hotel sem duplo, a
+ * noite com duas pessoas de um triplo é noite de Triplo. Trechos vizinhos que
+ * passam a ter o mesmo apartamento por causa disso viram um só (para a tela e
+ * o PDF não dizerem "Triplo · Triplo"); os ocupantes se somam, sem repetir.
+ * Com o hotel tendo todos os tipos, devolve os trechos como vieram. Noite sem
+ * apartamento possível (3 pessoas num hotel sem triplo) fica com o tipo da
+ * ocupação — é o quarto que a tela marca como "o hotel não tem".
+ */
+export function trechosPorApartamento<T extends PeriodoDoOcupante>(
+  trechos: readonly TrechoDeOcupacao<T>[], tiposDoHotel?: Partial<TiposDoHotel> | null,
+): TrechoDeOcupacao<T>[] {
+  const tipos = tiposDoHotelOuPadrao(tiposDoHotel);
+  if (tipos.duplo && tipos.triplo) return trechos.slice();
+  const out: (TrechoDeOcupacao<T> & { trocado: boolean })[] = [];
+  for (const t of trechos) {
+    const tipo = apartamentoParaPessoas(t.ocupantes.length, tipos) ?? t.tipo;
+    const trocado = tipo !== t.tipo;
+    const anterior = out[out.length - 1];
+    if (anterior && anterior.ate === t.de && anterior.tipo === tipo && (anterior.trocado || trocado)) {
+      anterior.ate = t.ate;
+      anterior.noites += t.noites;
+      for (const o of t.ocupantes) if (!anterior.ocupantes.includes(o)) anterior.ocupantes.push(o);
+      anterior.trocado = true;
+    } else {
+      out.push({ ...t, tipo, ocupantes: t.ocupantes.slice(), trocado });
+    }
+  }
+  return out.map(({ trocado: _t, ...t }) => t);
 }
 
 /** "Individual" · "Duplo" · "Triplo" — o rótulo que a tela e o PDF usam (21/10: era "Single"; o dono chama de apartamento Individual). */

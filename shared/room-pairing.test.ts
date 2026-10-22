@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   sugerirQuartos, podemDividir, noitesEmComum, noitesEmComumDeTodos, observacaoDeDatas, ehCenotecnica,
   capacidadeDoQuarto, motivoDeLotacao, tipoPorOcupantes, type RoomCandidate, type RoomPairingConfig,
+  apartamentoParaPessoas, hotelTemOTipo, motivoDoTipoQueOHotelNaoTem, tipoQueOHotelNaoTem, tiposDoHotelOuPadrao,
 } from "./room-pairing";
 
 const CFG: RoomPairingConfig = { allowTripleRoom: false, requireSameGenderForSharedRoom: true, sameFunctionPriority: true };
@@ -250,5 +251,98 @@ describe("lotação no Mover", () => {
     expect(motivoDeLotacao(["Kit", "Kit", "Kit"], true)).toBeNull();
     expect(motivoDeLotacao(["Cenotécnica", "Cenotécnica", "Cenotécnica", "Cenotécnica"], true)).toBe("Um quarto comporta no máximo 3 pessoas.");
     expect(capacidadeDoQuarto(["Cenotécnica"], false)).toBe(3);
+  });
+});
+
+describe("hotel do evento sem duplo ou sem triplo (22/10)", () => {
+  const ceno = (id: string, o: Partial<RoomCandidate> = {}) => p({
+    collaboratorId: id, checkIn: "2026-04-22", checkOut: "2026-04-26", gender: "male",
+    functionId: "ceno", functionName: "Cenotécnica", ...o,
+  });
+  const kit = (id: string, o: Partial<RoomCandidate> = {}) => p({ collaboratorId: id, gender: "male", ...o });
+  const tamanhos = (qs: ReturnType<typeof sugerirQuartos>) => qs.map((q) => q.members.length).sort((x, y) => y - x);
+  const SEM_TRIPLO = { ...CFG, tiposDoHotel: { duplo: true, triplo: false } };
+  const SEM_DUPLO = { ...CFG, tiposDoHotel: { duplo: false, triplo: true } };
+  const SEM_OS_DOIS = { ...CFG, tiposDoHotel: { duplo: false, triplo: false } };
+
+  it("o padrão é ter os dois; só `false` explícito tira um tipo; Individual sempre existe", () => {
+    expect(tiposDoHotelOuPadrao(null)).toEqual({ duplo: true, triplo: true });
+    expect(tiposDoHotelOuPadrao({ duplo: false })).toEqual({ duplo: false, triplo: true });
+    expect(hotelTemOTipo("single", { duplo: false, triplo: false })).toBe(true);
+    expect(hotelTemOTipo("double", { duplo: false, triplo: true })).toBe(false);
+    expect(hotelTemOTipo("triple", undefined)).toBe(true);
+  });
+
+  it("apartamento da noite: o menor tipo que o hotel tem e que comporta", () => {
+    expect(apartamentoParaPessoas(1, { duplo: false, triplo: false })).toBe("single");
+    expect(apartamentoParaPessoas(2, null)).toBe("double");
+    expect(apartamentoParaPessoas(2, { duplo: false, triplo: true })).toBe("triple");
+    expect(apartamentoParaPessoas(2, { duplo: false, triplo: false })).toBeNull();
+    expect(apartamentoParaPessoas(3, { duplo: true, triplo: false })).toBeNull();
+    expect(apartamentoParaPessoas(4, null)).toBe("triple");
+  });
+
+  it("tipo que o quarto vira e o hotel não tem", () => {
+    expect(tipoQueOHotelNaoTem(2, { duplo: false, triplo: true })).toBe("double");
+    expect(tipoQueOHotelNaoTem(3, { duplo: true, triplo: false })).toBe("triple");
+    expect(tipoQueOHotelNaoTem(3, { duplo: false, triplo: true })).toBeNull();
+    expect(tipoQueOHotelNaoTem(1, { duplo: false, triplo: false })).toBeNull();
+    expect(motivoDoTipoQueOHotelNaoTem(2, { duplo: false, triplo: true })).toBe("O hotel não tem apartamento duplo.");
+    expect(motivoDoTipoQueOHotelNaoTem(3, { duplo: true, triplo: false })).toBe("O hotel não tem apartamento triplo.");
+  });
+
+  it("sem triplo: a cenotécnica cai em duplo + individual pela regra de pares (5 → 2+2+1, 3 → 2+1)", () => {
+    const cinco = sugerirQuartos(["a", "b", "c", "d", "e"].map((id) => ceno(id)), SEM_TRIPLO);
+    expect(tamanhos(cinco)).toEqual([2, 2, 1]);
+    expect(cinco.some((q) => q.roomType === "triple")).toBe(false);
+    expect(tamanhos(sugerirQuartos(["a", "b", "c"].map((id) => ceno(id)), SEM_TRIPLO))).toEqual([2, 1]);
+    // Nem com a chave global de triplo ligada.
+    const kits = ["a", "b", "c"].map((id) => kit(id));
+    expect(tamanhos(sugerirQuartos(kits, { ...SEM_TRIPLO, allowTripleRoom: true }))).toEqual([2, 1]);
+  });
+
+  it("sem triplo: os pares seguem a preferência de sempre (mesmas datas primeiro)", () => {
+    const qs = sugerirQuartos([
+      ceno("qui1", { checkIn: "2026-04-23" }), ceno("sex1", { checkIn: "2026-04-24" }),
+      ceno("qui2", { checkIn: "2026-04-23" }), ceno("sex2", { checkIn: "2026-04-24" }),
+    ], SEM_TRIPLO);
+    expect(qs.map((q) => q.members.slice().sort())).toEqual([["qui1", "qui2"], ["sex1", "sex2"]]);
+  });
+
+  it("sem duplo: um quarto por pessoa, e triplo só de cenotécnica (5 → 3+1+1, 4 → 3+1)", () => {
+    const cinco = sugerirQuartos(["a", "b", "c", "d", "e"].map((id) => ceno(id)), SEM_DUPLO);
+    expect(tamanhos(cinco)).toEqual([3, 1, 1]);
+    expect(cinco.some((q) => q.roomType === "double")).toBe(false);
+    expect(tamanhos(sugerirQuartos(["a", "b", "c", "d"].map((id) => ceno(id)), SEM_DUPLO))).toEqual([3, 1]);
+    // Dois do Kit com as mesmas datas: cada um no seu individual.
+    expect(tamanhos(sugerirQuartos([kit("a"), kit("b")], SEM_DUPLO))).toEqual([1, 1]);
+  });
+
+  it("sem duplo: o trio precisa se aceitar entre si (gênero, Sup Ceno fora)", () => {
+    const qs = sugerirQuartos([ceno("a"), ceno("m", { gender: "female" }), ceno("b"), ceno("c")], SEM_DUPLO);
+    expect(qs.find((q) => q.members.includes("a"))?.members.slice().sort()).toEqual(["a", "b", "c"]);
+    expect(qs.find((q) => q.members.includes("m"))?.roomType).toBe("single");
+    const comSup = sugerirQuartos([ceno("a"), ceno("b"), ceno("sup", { functionId: "sup", functionName: "Sup Ceno" })], SEM_DUPLO);
+    expect(tamanhos(comSup)).toEqual([1, 1, 1]);
+  });
+
+  it("sem duplo e sem triplo: só individual, até para a cenotécnica", () => {
+    const qs = sugerirQuartos([...["a", "b", "c"].map((id) => ceno(id)), kit("k1"), kit("k2")], SEM_OS_DOIS);
+    expect(qs).toHaveLength(5);
+    expect(qs.every((q) => q.roomType === "single" && q.members.length === 1)).toBe(true);
+  });
+
+  it("com os dois tipos (padrão), nada muda: 5 cenotécnicos → 3+2", () => {
+    const cinco = ["a", "b", "c", "d", "e"].map((id) => ceno(id));
+    expect(tamanhos(sugerirQuartos(cinco, { ...CFG, tiposDoHotel: { duplo: true, triplo: true } }))).toEqual([3, 2]);
+    expect(tamanhos(sugerirQuartos(cinco, CFG))).toEqual([3, 2]);
+  });
+
+  it("Mover: não junta num tipo que o hotel não tem", () => {
+    expect(motivoDeLotacao(["Kit", "Kit"], false, { duplo: false, triplo: true })).toBe("O hotel não tem apartamento duplo.");
+    expect(motivoDeLotacao(["Cenotécnica", "Cenotécnica", "Cenotécnica"], false, { duplo: true, triplo: false })).toBe("O hotel não tem apartamento triplo.");
+    expect(motivoDeLotacao(["Cenotécnica", "Cenotécnica", "Cenotécnica"], false, { duplo: false, triplo: true })).toBeNull();
+    expect(motivoDeLotacao(["Kit"], false, { duplo: false, triplo: false })).toBeNull();
+    expect(motivoDeLotacao(["Kit", "Kit", "Kit", "Kit"], true, { duplo: false, triplo: false })).toBe("Um quarto comporta no máximo 3 pessoas.");
   });
 });

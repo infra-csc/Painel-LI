@@ -185,3 +185,18 @@ describe("valores (20/10): o PDF do hotel nunca leva; o de uso interno leva", ()
     expect(r.nomeDoArquivo).toBe("USO INTERNO - Rooming list com valores - Hotel Atlântico Rio - Night Run 1ª Etapa Rio.pdf");
   });
 });
+
+describe("hotel sem duplo ou sem triplo (22/10)", () => {
+  it("sem duplo: o tipo sai pelo apartamento que o hotel usa e o quarto de dois é contado como excedente", () => {
+    const r = montarRoomingList(base({ tiposDoHotel: { duplo: false, triplo: true } }));
+    expect(r.linhas.map((l) => l.tipo)).toEqual(["22/04→24/04 Individual; 24/04→26/04 Triplo; 26/04→27/04 Individual", "Triplo"]);
+    expect(r.quartosPorTipo).toEqual([{ tipo: "Triplo", quantidade: 2 }]);
+    expect(r.diariasPorTipo.map((d) => d.tipo)).not.toContain("Duplo");
+    expect(r.quartosQueOHotelNaoTem).toBe(1);
+  });
+
+  it("sem triplo: o triplo é o excedente; com todos os tipos, nada excede", () => {
+    expect(montarRoomingList(base({ tiposDoHotel: { duplo: true, triplo: false } })).quartosQueOHotelNaoTem).toBe(1);
+    expect(montarRoomingList(base()).quartosQueOHotelNaoTem).toBe(0);
+  });
+});

@@ -364,6 +364,17 @@ const PASSOS: Passo[] = [
       updated_by varchar REFERENCES users(id)
     )`,
   },
+  // 22/10 — o hotel do evento tem Duplo/Triplo? Todo SELECT da tabela lê as
+  // colunas (Espelho, valores do hotel): sem elas, os valores somem da aba.
+  // Aditivas, padrão verdadeiro (o comportamento de antes).
+  {
+    descricao: "hotel_tarifas_evento.tem_duplo (o hotel tem apartamento duplo)",
+    sql: `ALTER TABLE hotel_tarifas_evento ADD COLUMN IF NOT EXISTS tem_duplo boolean NOT NULL DEFAULT true`,
+  },
+  {
+    descricao: "hotel_tarifas_evento.tem_triplo (o hotel tem apartamento triplo)",
+    sql: `ALTER TABLE hotel_tarifas_evento ADD COLUMN IF NOT EXISTS tem_triplo boolean NOT NULL DEFAULT true`,
+  },
   {
     descricao: "tabela hotel_valores_quarto (diária própria e valor pago do quarto)",
     sql: `CREATE TABLE IF NOT EXISTS hotel_valores_quarto (
