@@ -2,7 +2,7 @@
 // + rodapé. Queries e mutations que dependem da inclusão selecionada vivem aqui.
 import { useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Edit, CheckCircle, FileText, Bus, Truck, Lock, Loader2, Settings2, Car } from "lucide-react";
+import { Plane, Edit, CheckCircle, FileText, Bus, Truck, Lock, Loader2, Settings2, Car, Stamp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +44,8 @@ import type { SinalDeViagem } from "./use-sinais-de-viagem";
 import { TrechoDiretoCampo, BloqueioDeViagemAviso, SegueDiretoAviso, type BloqueioDeViagem } from "./trecho-direto-campo";
 import { TrechoDiretoDaVaga } from "./sinais-da-vaga";
 import { JustificativaDoPrecoHost } from "./justificativa-do-preco";
+import { AvisoSoCarimbo } from "./aviso-so-carimbo";
+import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
 
 /**
  * Moldura do modal (07/10): 1100px no computador; no celular ocupa a tela
@@ -81,12 +83,15 @@ interface TicketModalProps {
   onBuscarPrecos?: () => void;
   /** "Vai de carro/van" (16/10): troca este modal pelo do transporte terrestre. */
   onTerrestre?: () => void;
+  /** "Desfazer emissão" da passagem que é só o carimbo (22/10): só admin e Compras. */
+  onDesfazerEmissao?: () => void;
+  desfazendoEmissao?: boolean;
 }
 
 export default function TicketModal({
   open, inclusion, data, user, form, helpers, handlers, editingTicketId, activeTab, onTabChange,
   showCommentsModal, onShowCommentsModal, onRequestClose, onStartEdit, onCancelEdit, onSubmit, isSubmitting, sinal, bloqueioDeViagem,
-  avisoDosDados, onBuscarPrecos, onTerrestre,
+  avisoDosDados, onBuscarPrecos, onTerrestre, onDesfazerEmissao, desfazendoEmissao,
 }: TicketModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -198,10 +203,13 @@ export default function TicketModal({
   const canEditTicket = hasPermission(user, "canRegisterTickets");
   const isEditing = editingTicketId === sid;
   const isFormMode = !ticket || isEditing;
+  // Linha criada só pelo "Marcar como emitida" e nunca preenchida (22/10, #4724):
+  // não é uma passagem aérea comprada — o modal diz isso e não finge dados.
+  const soCarimbo = !!ticket && passagemSoComCarimbo(ticket);
   const suggestion = extractTravelSuggestion(inclusion);
   const dis = roMode || !canEditTicket;
   const tabTrigger = "relative shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 sm:px-4 pb-2.5 pt-2.5 text-sm font-medium shadow-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
-  const ModoIcone = ticket?.transportType === "van" ? Truck : ticket?.transportType === "rodoviario" ? Bus : Plane;
+  const ModoIcone = soCarimbo ? Stamp : ticket?.transportType === "van" ? Truck : ticket?.transportType === "rodoviario" ? Bus : Plane;
   const contexto = [data.getFunctionName(inclusion.functionId), data.getEventName(inclusion.eventId)].filter(Boolean);
 
   const onTransportChange = (value: string) => {
@@ -266,6 +274,10 @@ export default function TicketModal({
                     className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-warning-soft text-warning text-2xs font-medium rounded-md"
                     title={eventLocked ? PAST_EVENT_BLOCK_MSG : undefined}
                   ><Lock className="w-3 h-3" aria-hidden="true" />Somente leitura</span>
+                ) : soCarimbo && !isEditing ? (
+                  <span className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-warning-soft text-warning text-2xs font-medium rounded-md" data-testid={`modal-sem-dados-${sid}`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-warning-strong" aria-hidden="true" />Sem dados
+                  </span>
                 ) : ticket && !isEditing ? (
                   <span className="inline-flex items-center gap-1.5 h-[22px] px-2 bg-success-soft text-success text-2xs font-medium rounded-md">
                     <span className="w-1.5 h-1.5 rounded-full bg-success-strong" aria-hidden="true" />Comprada
@@ -295,6 +307,17 @@ export default function TicketModal({
           {/* Alteração aprovada depois do registro (07/10): o que mudou + "Já atuei". */}
           <AvisoDaVaga tipo="passagem" teamInclusionId={inclusion.id} className="shrink-0 max-h-[34vh] overflow-y-auto" />
 
+          {/* Só o carimbo, sem dado nenhum (22/10, #4724): o que é e as saídas. */}
+          {soCarimbo && (
+            <AvisoSoCarimbo
+              sid={sid}
+              className="shrink-0"
+              onTerrestre={!roMode && onTerrestre ? onTerrestre : undefined}
+              onDesfazer={!roMode && onDesfazerEmissao ? onDesfazerEmissao : undefined}
+              desfazendo={desfazendoEmissao}
+            />
+          )}
+
           <PastEventBanner show={eventLocked} message={eventLock.bannerMessage(inclusion.eventId)} className="mx-5 sm:mx-6 mt-3 shrink-0" />
 
           {/* ABAS */}
@@ -304,7 +327,7 @@ export default function TicketModal({
                 <TabsTrigger value="resumo" className={tabTrigger}>Resumo</TabsTrigger>
                 <TabsTrigger value="dados" className={tabTrigger}>
                   Dados da passagem
-                  {ticket && !isEditing
+                  {ticket && !isEditing && !soCarimbo
                     ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-success-soft text-success text-2xs font-bold leading-none" title="Registrada">✓</span>
                     : <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-warning-soft text-warning text-2xs font-bold leading-none" title="A preencher">!</span>}
                 </TabsTrigger>
@@ -338,7 +361,14 @@ export default function TicketModal({
               <TabsContent value="dados" className="m-0 p-4 sm:p-6 pas-entra">
                 {/* Vaga anterior de um trecho direto: sem volta própria (09/10). */}
                 <SegueDiretoAviso sinal={sinal} sid={sid} />
-                {ticket && !isEditing ? (
+                {ticket && !isEditing && soCarimbo ? (
+                  // Sem "Passagem aérea" com LOC e valor vazios: não há passagem preenchida.
+                  <div className="rounded-xl border border-dashed border-border bg-surface-muted px-4 py-8 text-center" data-testid={`dados-so-carimbo-${sid}`}>
+                    <Stamp className="mx-auto mb-2 h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                    <p className="m-0 text-sm font-semibold text-foreground">Nenhum dado da passagem foi preenchido</p>
+                    <p className="m-0 mt-1 text-xs text-muted-foreground">Sem modalidade, trechos, LOC ou valor — só o carimbo de emitida.</p>
+                  </div>
+                ) : ticket && !isEditing ? (
                   <>
                     {sinal?.vemDiretoDe?.confirmado && <div className="mb-3"><TrechoDiretoDaVaga sinal={sinal} inclusionId={sid} /></div>}
                     <TicketViewDetails ticket={ticket} inclusion={inclusion} />
@@ -401,8 +431,10 @@ export default function TicketModal({
                       <div className="flex items-end gap-6 flex-wrap">
                         <div className="flex-1 min-w-[180px]">
                           <Label className="text-xs font-medium text-slate-600 mb-1.5 block">Modalidade<RequiredMark /></Label>
-                          <Select value={form.transportType || "aereo"} onValueChange={onTransportChange}>
-                            <SelectTrigger data-testid={`select-transport-type-${sid}`}><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          {/* "" = ninguém escolheu (a passagem que era só o carimbo, 22/10):
+                              mostra "Escolha" em vez de fingir "Aérea" — nada é gravado sozinho. */}
+                          <Select value={form.transportType === "" ? "" : form.transportType || "aereo"} onValueChange={onTransportChange}>
+                            <SelectTrigger data-testid={`select-transport-type-${sid}`} aria-invalid={form.transportType === "" ? true : undefined}><SelectValue placeholder="Escolha a modalidade" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="aereo"><span className="inline-flex items-center gap-2"><Plane className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Aérea</span></SelectItem>
                               <SelectItem value="rodoviario"><span className="inline-flex items-center gap-2"><Bus className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />Rodoviária</span></SelectItem>
@@ -535,7 +567,7 @@ export default function TicketModal({
                 <Button variant="outline" onClick={onRequestClose} className="h-9 rounded-lg px-4 text-sm font-medium">Fechar</Button>
                 {!roMode && canEditTicket && ticket && (
                   <Button onClick={() => onStartEdit(ticket)} className="h-9 flex items-center gap-2 rounded-lg px-4 text-sm font-medium bg-primary hover:bg-primary-hover text-primary-foreground">
-                    <Edit className="w-4 h-4" aria-hidden="true" />Editar Passagem
+                    <Edit className="w-4 h-4" aria-hidden="true" />{soCarimbo ? "Preencher dados" : "Editar Passagem"}
                   </Button>
                 )}
               </>

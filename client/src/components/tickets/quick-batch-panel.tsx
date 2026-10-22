@@ -5,7 +5,7 @@
 // tela, fechada, saiu — o painel abre pelo botão da barra da tela ou pela barra
 // de seleção ("Preencher dados em lote"). Aberto, ele é o mesmo: os mesmos
 // campos, o progresso, o status da operação e o rodapé com o "Aplicar".
-import { useEffect, useRef, type ReactNode } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Plane, Bus, Car, X, Paperclip, NotebookPen, ClipboardCheck, Users, Check } from "lucide-react";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { getMissingRequiredFields, hasUnsavedTicketInput, type TicketFormValues, type PlannedImpactContext } from "@/lib/ticket-form";
 import type { Event, TeamInclusion } from "@shared/schema";
 import TicketFormFields, { fieldTestIdSlug } from "./ticket-form-fields";
-import TerrestreLote from "./terrestre-lote";
+import TerrestreLote, { type LoteTerrestreHandle } from "./terrestre-lote";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import type { FormFieldHelpers, TicketFormHandlers } from "./types";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +35,9 @@ interface QuickBatchPanelProps {
   /** "Carro / van" (16/10): as vagas marcadas, o nome de cada uma e o aviso de concluído. */
   vagasSelecionadas?: TeamInclusion[];
   nomeDaVaga?: (v: TeamInclusion) => string;
-  onTerrestreConcluido?: (ids: string[]) => void;
+  onTerrestreConcluido?: (ids: string[], resultado: { todas: boolean }) => void;
+  /** O lote de carro/van (22/10): a barra de seleção registra por ele. */
+  terrestreRef?: RefObject<LoteTerrestreHandle>;
 }
 
 const quickTestId = (name: string) => `input-quick-${fieldTestIdSlug(name)}`;
@@ -52,10 +55,23 @@ function Secao({ icone: Icone, titulo, children }: { icone: typeof Paperclip; ti
   );
 }
 
-export default function QuickBatchPanel({
+/** O que a página pede ao painel: fechar pelo botão da barra da tela, com a mesma pergunta do X. */
+export interface PainelDeLoteHandle { pedirFechar: () => void }
+
+const QuickBatchPanel = forwardRef<PainelDeLoteHandle, QuickBatchPanelProps>(function QuickBatchPanel({
   expanded, onToggle, quick, helpers, handlers, filteredEvent, impactCtx, selectedCount, canEdit, isPending, onClear, onApply,
-  vagasSelecionadas = [], nomeDaVaga = (v) => `#${v.inclusionNumber ?? "?"}`, onTerrestreConcluido,
-}: QuickBatchPanelProps) {
+  vagasSelecionadas = [], nomeDaVaga = (v) => `#${v.inclusionNumber ?? "?"}`, onTerrestreConcluido, terrestreRef,
+}, ref) {
+  const refInterno = useRef<LoteTerrestreHandle>(null);
+  const loteRef = terrestreRef ?? refInterno;
+  // Fechar o painel ou trocar a modalidade com carro/van digitado e não
+  // gravado (22/10, #4705–#4724: "cliquei para ir de van, quando fechou mudou
+  // para aéreo"): pergunta antes. Nada volta sozinho para "Aérea".
+  const [descartar, setDescartar] = useState<null | { acao: () => void }>(null);
+  const seSemDados = (acao: () => void) => {
+    if (loteRef.current?.temDados()) { setDescartar({ acao }); return; }
+    acao();
+  };
   const q = quick;
   const transportType = q?.transportType || "aereo";
   // 16/10: "Carro / van" troca a passagem de van (só empresa) pelo transporte
@@ -66,7 +82,13 @@ export default function QuickBatchPanel({
   // Abriu: o foco vai para o título do painel (teclado e leitor de tela sabem onde estão).
   useEffect(() => { if (expanded) tituloRef.current?.focus({ preventScroll: true }); }, [expanded]);
 
+  useImperativeHandle(ref, () => ({ pedirFechar: () => (terrestre ? seSemDados(onToggle) : onToggle()) }));
+
   const setTransport = (value: string) => {
+    if (terrestre && value !== "terrestre") { seSemDados(() => aplicarTransporte(value)); return; }
+    aplicarTransporte(value);
+  };
+  const aplicarTransporte = (value: string) => {
     if (value === "rodoviario" && filteredEvent) {
       handlers.onPatch("quick", {
         transportType: value,
@@ -160,7 +182,7 @@ export default function QuickBatchPanel({
           </label>}
           <button
             type="button"
-            onClick={onToggle}
+            onClick={() => (terrestre ? seSemDados(onToggle) : onToggle())}
             aria-label="Fechar o painel de lote"
             title="Fechar"
             className="pas-alvo inline-flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -171,7 +193,7 @@ export default function QuickBatchPanel({
       </div>
 
       {terrestre && (
-        <TerrestreLote vagas={vagasSelecionadas} nomeDaVaga={nomeDaVaga} canEdit={canEdit} onConcluido={(ids) => onTerrestreConcluido?.(ids)} />
+        <TerrestreLote ref={loteRef} vagas={vagasSelecionadas} nomeDaVaga={nomeDaVaga} canEdit={canEdit} onConcluido={(ids, r) => onTerrestreConcluido?.(ids, r)} />
       )}
 
       {/* Barra de progresso */}
@@ -310,6 +332,22 @@ export default function QuickBatchPanel({
         </div>
       </div>
       </>}
+
+      <ConfirmDialog
+        open={!!descartar}
+        onOpenChange={(o) => { if (!o) setDescartar(null); }}
+        title="Descartar o carro/van preenchido?"
+        description={`O transporte ainda não foi gravado. Para gravar, volte e clique em “Registrar em ${vagasSelecionadas.length} ${vagasSelecionadas.length === 1 ? "vaga" : "vagas"}”.`}
+        cancelLabel="Voltar ao carro/van"
+        confirmLabel="Descartar"
+        tone="danger"
+        onConfirm={() => { const acao = descartar?.acao; setDescartar(null); loteRef.current?.limpar(); acao?.(); }}
+        testId="lote-terrestre-descartar-dialogo"
+        confirmTestId="lote-terrestre-descartar"
+        className="max-w-[440px]"
+      />
     </section>
   );
-}
+});
+
+export default QuickBatchPanel;

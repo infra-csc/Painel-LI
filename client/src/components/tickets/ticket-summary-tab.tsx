@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { Plane, CheckCheck, XCircle, MapPin } from "lucide-react";
 import type { TeamInclusion, Ticket, Collaborator } from "@shared/schema";
 import { extractTravelSuggestion } from "@/lib/ticket-form";
+import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
 import SuggestedDates from "./suggested-dates";
 import SwapReviewPanel from "./swap-review-panel";
 import { formatDate, toTitleCase, type SwapRequestRow } from "./use-tickets-data";
@@ -65,7 +66,12 @@ export default function TicketSummaryTab({
               <Campo rotulo="ID"><span className="font-mono font-semibold">#{inclusion.inclusionNumber || "N/A"}</span></Campo>
               <Campo rotulo="Função">{functionName}</Campo>
               <Campo rotulo="Passagem">
-                {ticket ? (
+                {ticket && passagemSoComCarimbo(ticket) ? (
+                  // Só o carimbo de emitida (22/10): não é passagem registrada.
+                  <span className="inline-flex items-start gap-1 max-w-full px-2 py-[3px] rounded-md bg-warning-soft text-warning-strong text-2xs leading-4 font-medium">
+                    <Plane className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />Marcada como emitida · sem dados
+                  </span>
+                ) : ticket ? (
                   <span className="inline-flex items-center gap-1 h-[22px] px-2 rounded-md bg-success-soft text-success text-2xs font-medium">
                     <Plane className="w-3 h-3" aria-hidden="true" />Registrada
                   </span>

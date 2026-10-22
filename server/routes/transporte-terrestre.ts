@@ -38,7 +38,10 @@ import {
   type PernaDaViagem,
 } from "@shared/transporte-terrestre";
 import { faseParaStatus, normalizarStatus } from "@shared/vaga-status";
-import type { TeamInclusion, TransporteTerrestre } from "@shared/schema";
+import { tickets as ticketsTable, type TeamInclusion, type TransporteTerrestre } from "@shared/schema";
+import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
+import { inArray } from "drizzle-orm";
+import { db } from "../db";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
 import { hospedagemConta, passagemConta, statusDepoisDePassagemParaHistorico } from "../vaga-guards";
 import {
@@ -188,13 +191,27 @@ export function registrarTransporteTerrestre(app: Express): void {
         const { gravado, anterior } = await gravarTrecho(item, ator.id, grupoId);
         logs.push(montarLogDeAuditoria(anterior ? "update" : "create", "transporte_terrestre", gravado.id, gravado, ator.id, ator.name, anterior ?? undefined, req));
       }
-      await createAuditLogsBatch(logs);
+      // Passagem que era SÓ o carimbo (22/10, vaga #4724): "Marcar como
+      // emitida" numa vaga que ia de carro/van deixou uma passagem aérea em
+      // branco. Com o terrestre cobrindo a vaga inteira, ela não é bilhete de
+      // nada — sai, com auditoria. Passagem com qualquer dado fica.
+      const vagasDoPedido = Array.from(new Set(aceitos.map((i) => i.teamInclusionId)));
+      const vaziasRemovidas: string[] = [];
+      for (const id of vagasDoPedido) {
+        const vaga = vagas.get(id);
+        if (!vaga) continue;
+        const vazias = (await storage.getTicketsByInclusionId(id)).filter((t) => passagemSoComCarimbo(t));
+        if (vazias.length === 0 || !terrestreCobreAVaga(vaga, await terrestresDaVaga(id))) continue;
+        const apagadas = await db.delete(ticketsTable).where(inArray(ticketsTable.id, vazias.map((t) => t.id))).returning();
+        await createAuditLogsBatch(apagadas.map((t) => montarLogDeAuditoria("delete", "ticket", t.id, t, ator.id, ator.name, undefined, req)));
+        if (apagadas.length > 0) vaziasRemovidas.push(id);
+      }
       const statusPorVaga: Record<string, string> = {};
-      for (const id of Array.from(new Set(aceitos.map((i) => i.teamInclusionId)))) {
+      for (const id of vagasDoPedido) {
         const atualizada = await recalcularStatusDeLogistica(id, ator, req);
         if (atualizada) statusPorVaga[id] = atualizada.status;
       }
-      res.json({ gravados: aceitos.length, vagas: new Set(aceitos.map((i) => i.teamInclusionId)).size, falhas, statusPorVaga, grupoId });
+      res.json({ gravados: aceitos.length, vagas: vagasDoPedido.length, falhas, statusPorVaga, grupoId, vaziasRemovidas });
     } catch (error) {
       responderErroComStatus(res, error, "Erro ao registrar o transporte terrestre", 500);
     }

@@ -11,6 +11,7 @@ import { parseBrNumber } from "@/lib/utils";
 import { mobilidadeTrechoCents, isEventoEmSP, parseHoraMin, MOBILIDADE_TRECHO_MADRUGADA_CENTS } from "@shared/atendimento";
 import { calcAlimentacao, dataDeChegadaDaIda, type AlimentacaoDia } from "@shared/alimentacao";
 import { datasSuspeitasDaPassagem, diaEmTextoCompleto, errosDeDataDaPassagem, textoDaDataSuspeita } from "@shared/janela-de-viagem";
+import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
 
 export type TransportType = "aereo" | "rodoviario" | "van";
 
@@ -138,7 +139,10 @@ const isBlank = (v: unknown) => v === undefined || v === null || String(v).trim(
 /** Devolve os campos obrigatórios não preenchidos (com rótulo). */
 export function getMissingRequiredFields(form: TicketFormData): RequiredField[] {
   const type = normalizeTransportType(form?.transportType);
-  return getRequiredFields(type, !!form?.isOneWay, !!form?.isReturnOnly).filter(({ field }) => isBlank(form?.[field]));
+  const faltam = getRequiredFields(type, !!form?.isOneWay, !!form?.isReturnOnly).filter(({ field }) => isBlank(form?.[field]));
+  // "" = a modalidade ficou por escolher (passagem que era só o carimbo, 22/10):
+  // não vira "Aérea" calada no registro.
+  return form?.transportType === "" ? [{ field: "transportType", label: "Modalidade" }, ...faltam] : faltam;
 }
 
 /**
@@ -671,6 +675,8 @@ export interface StoredTicketLike {
   ticketObservations?: string | null;
   attachmentIds?: string[] | null;
   idaVemDeInclusionId?: string | null;
+  /** Carimbo de emissão — com ele e sem dado nenhum, a linha é só o carimbo (22/10). */
+  emittedAt?: Date | string | null;
 }
 
 /**
@@ -694,11 +700,16 @@ export function isStoredTicketReturnOnly(t: StoredTicketLike): boolean {
 /** Prefill do formulário a partir da passagem gravada (valor em centavos → texto). */
 export function ticketToFormValues(t: StoredTicketLike): TicketFormValues {
   const s = (v: string | null | undefined) => v || "";
+  // Passagem que é só o carimbo de emitida (22/10, vaga #4724): ninguém
+  // escolheu a modalidade nem digitou valor — o formulário abre com os dois
+  // vazios ("Escolha a modalidade"), não com "Aérea" e R$ 0.
+  const soCarimbo = passagemSoComCarimbo(t as Parameters<typeof passagemSoComCarimbo>[0]);
   return {
-    transportType: t.transportType || "aereo",
-    isOneWay: isStoredTicketOneWay(t),
+    transportType: soCarimbo ? "" : t.transportType || "aereo",
+    // Sem dado nenhum, "só ida" seria um chute (é o que a ausência de volta diz): abre "Ida e volta".
+    isOneWay: soCarimbo ? false : isStoredTicketOneWay(t),
     isReturnOnly: isStoredTicketReturnOnly(t),
-    value: ((t.value || 0) / 100).toString(),
+    value: soCarimbo ? "" : ((t.value || 0) / 100).toString(),
     purchaseDate: s(t.purchaseDate),
     departureAirport: s(t.departureAirport),
     destinationAirport: s(t.destinationAirport),

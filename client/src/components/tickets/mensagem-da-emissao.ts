@@ -3,10 +3,25 @@
 // 22/10 (vaga #4401): desfazer numa passagem que era SÓ o carimbo apaga a
 // linha e devolve a vaga para "Comprar" — a tela precisa dizer isso, senão
 // quem clicou acha que a passagem continua lá.
+//
+// 22/10 (vaga #4724): marcar numa vaga sem passagem que vai de carro/van não
+// cria mais uma passagem aérea em branco — a vaga é pulada, e a tela diz por
+// quê e oferece o "Vai de carro/van" (shared/carimbo-sem-passagem.ts).
+import type { TipoDoPulo } from "@shared/carimbo-sem-passagem";
+import type { PernaDaViagem } from "@shared/transporte-terrestre";
+
+export interface VagaPulada {
+  id: string;
+  motivo: string;
+  /** Só nas vagas puladas por transporte terrestre (marcar). */
+  tipo?: TipoDoPulo;
+  /** Pernas que faltam registrar como carro/van (tipo "terrestre"). */
+  pernas?: PernaDaViagem[];
+}
 
 export interface RespostaDaEmissao {
   ok: string[];
-  pulados: { id: string; motivo: string }[];
+  pulados: VagaPulada[];
   /** Vagas cuja linha de passagem era só o carimbo e foi apagada (desfazer). */
   removidas?: string[];
   /** Status novo das vagas que voltaram para "Comprar". */
@@ -17,12 +32,45 @@ export const TEXTO_VAZIA_REMOVIDA = "A passagem vazia foi removida e a vaga volt
 
 const vagas = (n: number) => (n === 1 ? "1 vaga" : `${n} vagas`);
 
+/** Puladas por transporte terrestre (carro/van, já registrada ou ônibus) — o que a tela lista no aviso. */
+export const puladasPorTerrestre = (res: Pick<RespostaDaEmissao, "pulados">): VagaPulada[] =>
+  (res.pulados ?? []).filter((p) => !!p.tipo);
+
+/** As que o atalho "Vai de carro/van" resolve. */
+export const puladasParaRegistrar = (pulados: readonly VagaPulada[]): VagaPulada[] =>
+  pulados.filter((p) => p.tipo === "terrestre");
+
+/** "Em 2 vagas: vai de carro/van — registre em 'Vai de carro/van'." — uma frase por motivo. */
+function frasesDosPulados(pulados: readonly VagaPulada[]): string[] {
+  const porMotivo = new Map<string, number>();
+  for (const p of pulados) porMotivo.set(p.motivo, (porMotivo.get(p.motivo) ?? 0) + 1);
+  return Array.from(porMotivo, ([motivo, n]) => `Em ${vagas(n)}: ${motivo}.`);
+}
+
 export function mensagemDaEmissao(res: RespostaDaEmissao, emitida: boolean): { title: string; description: string } {
   const n = res.ok?.length ?? 0;
   if (emitida) {
+    const pulados = puladasPorTerrestre(res);
+    if (pulados.length === 0) {
+      return {
+        title: `${n} passagem(ns) marcada(s) como emitida(s)`,
+        description: "Se a área pedir ajuste de data depois disso e o aprovador aprovar, Compras recebe o aviso para remarcar. O preenchimento dos dados continua liberado.",
+      };
+    }
+    // Nenhuma passagem foi criada nessas vagas: dizer, para ninguém achar que "saiu como aéreo".
+    if (n === 0 && pulados.length === 1) {
+      const p = pulados[0];
+      return p.tipo === "ja_terrestre"
+        ? { title: "Esta vaga já está registrada como carro/van", description: "Não há passagem a marcar como emitida." }
+        : p.tipo === "rodoviaria"
+        ? { title: "Esta vaga vai de ônibus", description: "Nenhuma passagem foi criada. Registre a passagem rodoviária na passagem da vaga." }
+        : { title: "Esta vaga vai de carro/van", description: "Nenhuma passagem foi criada. Registre em \"Vai de carro/van\"." };
+    }
     return {
-      title: `${n} passagem(ns) marcada(s) como emitida(s)`,
-      description: "Se a área pedir ajuste de data depois disso e o aprovador aprovar, Compras recebe o aviso para remarcar. O preenchimento dos dados continua liberado.",
+      title: n > 0
+        ? `${n} passagem(ns) marcada(s) como emitida(s) · ${vagas(pulados.length)} sem passagem criada`
+        : `Nenhuma passagem marcada · ${vagas(pulados.length)} sem passagem criada`,
+      description: frasesDosPulados(pulados).join(" "),
     };
   }
   const removidas = res.removidas ?? [];

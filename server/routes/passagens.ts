@@ -29,8 +29,9 @@ import { avaliarTetoDoTrecho, chaveDaRota, justificativaValida, nomeDaRota, rota
 import { lerAjustes, precoTipicoDaRota } from "../busca-de-passagens/servico";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
 import { carregarVagasDeViagem, conflitosDaVagaComPassagem, juntarPassagens, sinaisDeViagem } from "../viagens";
-import { SQL_TERRESTRE_COBRE_A_VAGA, terrestreCobreAVaga, terrestresDaVaga, terrestresDasVagas } from "../transporte-terrestre";
-import { NOME_DO_MODO, type ModoTerrestre } from "@shared/transporte-terrestre";
+import { SQL_TERRESTRE_COBRE_A_VAGA, comoTrecho, terrestreCobreAVaga, terrestresDaVaga, terrestresDasVagas } from "../transporte-terrestre";
+import { NOME_DO_MODO, type ModoTerrestre, type PernaDaViagem } from "@shared/transporte-terrestre";
+import { decidirCarimboSemPassagem, type TipoDoPulo } from "@shared/carimbo-sem-passagem";
 import {
   montarLogDeAuditoria,
   createAuditLog,
@@ -475,6 +476,12 @@ export function registrarPassagens(app: Express): void {
    * marcar NÃO exige passagem preenchida: se a vaga ainda não tem linha de
    * passagem, uma é criada só com o carimbo.
    *
+   * Exceção (22/10, vaga #4724 — "finalizei como VAN"): vaga sem passagem que
+   * vai de carro/van não ganha essa linha (seria uma passagem AÉREA em
+   * branco). Ela sai em `pulados` com `tipo` ("terrestre": registre em "Vai
+   * de carro/van"; "ja_terrestre": já registrada; "rodoviaria": ônibus) e as
+   * `pernas` que faltam registrar — shared/carimbo-sem-passagem.ts.
+   *
    * Desmarcar existe porque erro de clique acontece: reabre a janela de ajuste.
    * Se a linha era SÓ o carimbo (criada aqui e nunca preenchida —
    * shared/passagem-so-com-carimbo.ts), desmarcar a apaga e a vaga volta para
@@ -495,7 +502,7 @@ export function registrarPassagens(app: Express): void {
     try {
       const agora = new Date();
       const ok: string[] = [];
-      const pulados: { id: string; motivo: string }[] = [];
+      const pulados: { id: string; motivo: string; tipo?: TipoDoPulo; pernas?: PernaDaViagem[] }[] = [];
       // Leituras EM LOTE (auditoria 28/08): 1 SELECT de vagas + 1 de passagens
       // + cache de evento. Escritas EM LOTE (23/09): um UPDATE … WHERE id IN
       // para as passagens existentes, um INSERT multi-linha para as que faltam
@@ -514,6 +521,13 @@ export function registrarPassagens(app: Express): void {
       const patch = { emittedAt: emitida ? agora : null, emittedBy: emitida ? actor.id : null, updatedAt: agora, updatedBy: actor.id };
       const idsParaAtualizar: string[] = [];
       const vagasSemPassagem: string[] = [];
+      // Vaga sem passagem que vai de carro/van (22/10, vaga #4724): o carimbo
+      // não cria uma passagem AÉREA em branco — pula, e a tela oferece o
+      // "Vai de carro/van". Regra em shared/carimbo-sem-passagem.ts; o
+      // terrestre já gravado vem em lote, só das vagas sem passagem.
+      const terrestresSemPassagem = emitida
+        ? await terrestresDasVagas(ids.filter((id) => vagaPorId.has(id) && !passagensPorVaga.has(id)))
+        : [];
       for (const inclusionId of ids) {
         const inclusion = vagaPorId.get(inclusionId);
         if (!inclusion || inclusion.deletedAt) { pulados.push({ id: inclusionId, motivo: "vaga não encontrada" }); continue; }
@@ -522,6 +536,8 @@ export function registrarPassagens(app: Express): void {
         const doVaga = passagensPorVaga.get(inclusionId) ?? [];
         if (doVaga.length === 0) {
           if (!emitida) { pulados.push({ id: inclusionId, motivo: "sem passagem para desmarcar" }); continue; }
+          const decisao = decidirCarimboSemPassagem(inclusion, terrestresSemPassagem.filter((r) => r.teamInclusionId === inclusionId).map(comoTrecho));
+          if (decisao.acao === "pular") { pulados.push({ id: inclusionId, motivo: decisao.motivo, tipo: decisao.tipo, pernas: decisao.pernas }); continue; }
           vagasSemPassagem.push(inclusionId);
         } else {
           idsParaAtualizar.push(...doVaga.map((t) => t.id));

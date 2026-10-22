@@ -19,6 +19,7 @@ import { IndicacaoDaLogistica, LeituraSuspeita, ProblemasDaViagem, SugestaoDeTre
 import { pernasComOrigemIgualAoDestino } from "@shared/sanidade-da-passagem";
 import { rotuloDaCobertura, reaisDoTerrestre, type CoberturaTerrestre, type ModoDeRegistro, type PernaDaViagem, type TrechoTerrestre } from "@shared/transporte-terrestre";
 import { AtalhoDoTerrestre, LinhasDoTerrestre } from "./terrestre-na-linha";
+import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
 
 export interface TicketRowProps {
   inclusion: TeamInclusion;
@@ -131,6 +132,9 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   const voltaVazia = !hasSuggestionValue(suggestion.retorno);
   const summary = ticket ? ticketSummaryLine(ticket) : "";
   const rodo = ticket?.transportType === "rodoviario";
+  // Linha criada só pelo "Marcar como emitida", sem dado nenhum (22/10, #4724):
+  // não é passagem aérea comprada — a linha diz o que ela é.
+  const soCarimbo = !!ticket && passagemSoComCarimbo(ticket);
   // Vai de carro ou van em TODAS as pernas e sem passagem (16/10): não há o que comprar.
   const terrestreTotal = !ticket && !!cobertura?.cobreTudo;
   const podeTerrestre = !!onTerrestre && canEdit && !locked && !cancelado;
@@ -143,7 +147,7 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   // Leitura do voucher suspeita (19/10, caso #3913): origem igual ao destino na mesma perna.
   const leituraSuspeita = ticket && !cancelado ? pernasComOrigemIgualAoDestino(ticket) : [];
   // Viagem que cruza outra, data impossível (09/10) ou suspeita (16/10) também esperam alguém de Compras.
-  const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado && !terrestreTotal)
+  const esperaVoce = hasPendingSwap || !!alteracaoPendente || (!ticket && !cancelado && !terrestreTotal) || (soCarimbo && !cancelado)
     || (!cancelado && (!!sinal?.cruzaCom?.length || !!sinal?.dataImpossivel || !!sinal?.datasSuspeitas?.length || leituraSuspeita.length > 0));
 
   return (
@@ -253,7 +257,20 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
 
       {/* Viagem: datas, horários e o trecho de cada perna */}
       <td data-col="viagem" className={`${cellCls} !pr-1 overflow-hidden`} data-rotulo="Viagem" onClick={open} title={summary || undefined}>
-        {ticket ? (
+        {ticket && soCarimbo ? (
+          <>
+            <span
+              className="inline-flex items-start gap-1 max-w-full px-[7px] py-[3px] rounded-md text-2xs leading-4 font-medium bg-warning-soft text-warning-strong"
+              title="Só o carimbo de emitida — nenhum dado da passagem foi preenchido"
+              data-testid={`ticket-so-carimbo-${inclusion.id}`}
+            >
+              <Stamp className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0">Marcada como emitida · sem dados</span>
+            </span>
+            <LinhasDoTerrestre terrestres={terrestres} cobertura={cobertura} inclusionId={inclusion.id} onEditar={editarTerrestre} onRegistrarFalta={registrarFalta} mostrarFalta={terrestres.length > 0} />
+            {podeTerrestre && terrestres.length === 0 && <AtalhoDoTerrestre inclusion={inclusion} onAbrir={onTerrestre!} />}
+          </>
+        ) : ticket ? (
           ticket.transportType === "van" ? (
             <div className="flex items-center gap-1.5 text-xs">
               <span className="sr-only">Van confirmada</span>
@@ -340,6 +357,12 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
       <td data-col="status" className={`${cellCls} text-left`} data-rotulo="Situação" onClick={open}>
         {cancelado ? (
           <span className={`${PILULA} bg-muted text-muted-foreground`}>Cancelado</span>
+        ) : ticket && soCarimbo ? (
+          // O rótulo inteiro fica na coluna Viagem (a de Situação tem ~110px e o
+          // texto vazava sobre as ações); aqui, a situação curta.
+          <span className={`${PILULA} bg-warning-soft text-warning`} title="Só o carimbo de emitida — nenhum dado da passagem foi preenchido" data-testid={`ticket-situacao-so-carimbo-${inclusion.id}`}>
+            <span className="w-[5px] h-[5px] rounded-full bg-warning shrink-0" aria-hidden="true" />Sem dados
+          </span>
         ) : ticket ? (
           <div className="flex flex-col items-start gap-1 min-w-0" title={summary}>
             <span className="flex flex-wrap items-center gap-1">

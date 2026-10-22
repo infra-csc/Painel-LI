@@ -6,7 +6,7 @@
 // entre as vagas marcadas e, em cada vaga, entre os trechos dela; a soma bate
 // exatamente com o total. Carro: o valor de cada vaga (padrão) ou o total
 // dividido. O total dividido vai num pedido só (tudo ou nada) e vira um grupo.
-import { useMemo, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Check, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,14 +55,35 @@ export function previaDoLote(f: FormularioTerrestre, vagas: readonly TeamInclusi
   };
 }
 
-export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido }: {
+/** Algo digitado no lote (modo, empresa ou valor) que ainda não foi gravado? */
+export const loteTerrestreSujo = (f: FormularioTerrestre): boolean =>
+  !!f.modo || f.empresa.trim() !== "" || f.valor.trim() !== "";
+
+/**
+ * O que a página pede ao lote (22/10, caso #4705–#4724): a barra de seleção
+ * registra pelo MESMO caminho do botão do painel, e fechar o painel pergunta
+ * antes de jogar fora o carro/van digitado.
+ */
+export interface LoteTerrestreHandle {
+  /** O mesmo que "Registrar em N vagas": confere e abre a confirmação. */
+  aplicar: () => void;
+  temDados: () => boolean;
+  limpar: () => void;
+}
+
+interface TerrestreLoteProps {
   /** Vagas marcadas na lista (pendentes, não canceladas, evento aberto). */
   vagas: TeamInclusion[];
   nomeDaVaga: (v: TeamInclusion) => string;
   canEdit: boolean;
-  /** Ids das vagas gravadas — a página tira da seleção. */
-  onConcluido: (ids: string[]) => void;
-}) {
+  /**
+   * Ids das vagas gravadas — a página tira da seleção. `todas`: nada falhou
+   * (a página fecha o painel; com falha ele fica aberto com as que sobraram).
+   */
+  onConcluido: (ids: string[], resultado: { todas: boolean }) => void;
+}
+
+const TerrestreLote = forwardRef<LoteTerrestreHandle, TerrestreLoteProps>(function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido }, ref) {
   const { toast } = useToast();
   const { registrar } = useTerrestreMutations();
   const [form, setForm] = useState<FormularioTerrestre>({ ...FORMULARIO_TERRESTRE_VAZIO });
@@ -124,7 +145,7 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
       falhas.push(`#${v?.inclusionNumber ?? "?"}: a vaga não tem o trecho marcado`);
     }
     if (gravadas.length > 0) {
-      onConcluido(Array.from(new Set(gravadas)));
+      onConcluido(Array.from(new Set(gravadas)), { todas: falhas.length === 0 });
       toast({ variant: "success", title: `Transporte terrestre registrado em ${new Set(gravadas).size} ${new Set(gravadas).size === 1 ? "vaga" : "vagas"}`, description: "Elas saíram da fila Comprar." });
       setForm({ ...FORMULARIO_TERRESTRE_VAZIO });
     }
@@ -159,6 +180,11 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
       fora: confirmar.fora.length,
     };
   })();
+  useImperativeHandle(ref, () => ({
+    aplicar,
+    temDados: () => loteTerrestreSujo(form),
+    limpar: () => { setForm({ ...FORMULARIO_TERRESTRE_VAZIO }); setErros({}); },
+  }));
   const ultimoResumo = useRef(resumoAtual);
   if (resumoAtual) ultimoResumo.current = resumoAtual;
   const resumo = resumoAtual ?? ultimoResumo.current;
@@ -264,4 +290,6 @@ export default function TerrestreLote({ vagas, nomeDaVaga, canEdit, onConcluido 
       </AlertDialog>
     </>
   );
-}
+});
+
+export default TerrestreLote;

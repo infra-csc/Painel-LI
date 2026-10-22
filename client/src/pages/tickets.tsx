@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useCallback, useDeferredValue, useRef, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { AlertCircle, Stamp, FileUp, Layers, Lock, RotateCw, X, PlaneTakeoff, Car } from "lucide-react";
+import { AlertCircle, FileUp, Layers, Lock, RotateCw, X } from "lucide-react";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { PageHeader } from "@/components/common/page-header";
@@ -30,7 +30,11 @@ import { refeicaoCents } from "@shared/alimentacao";
 import type { TeamInclusion, Ticket } from "@shared/schema";
 import { useTicketsData, toTitleCase } from "@/components/tickets/use-tickets-data";
 import { useTicketUpsert } from "@/components/tickets/use-ticket-upsert";
-import { mensagemDaEmissao, type RespostaDaEmissao } from "@/components/tickets/mensagem-da-emissao";
+import { mensagemDaEmissao, puladasPorTerrestre, type RespostaDaEmissao, type VagaPulada } from "@/components/tickets/mensagem-da-emissao";
+import { PuladosDaEmissao } from "@/components/tickets/pulados-da-emissao";
+import { BarraDeSelecao } from "@/components/tickets/barra-de-selecao";
+import type { LoteTerrestreHandle } from "@/components/tickets/terrestre-lote";
+import { modoSugerido, sugestaoTerrestreDaVaga } from "@shared/transporte-terrestre";
 import { aplicarStatusDaVagaNoCache, TEAM_INCLUSIONS_KEY } from "@/hooks/use-vaga-acoes";
 import { filtersFromSearch, searchFromFilters } from "@/components/tickets/filters-url";
 import { contarPorOpcao, passaNosFiltrosBase } from "@/components/tickets/tickets-filtering";
@@ -39,7 +43,7 @@ import { BlocoDeAvisos, BotaoAvisosResolvidos } from "@/components/avisos-de-alt
 import { useAvisosPendentes, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 import TicketsWorkQueue, { type FilaDePassagens } from "@/components/tickets/tickets-work-queue";
 import TicketsFilterBar from "@/components/tickets/tickets-filter-bar";
-import QuickBatchPanel from "@/components/tickets/quick-batch-panel";
+import QuickBatchPanel, { type PainelDeLoteHandle } from "@/components/tickets/quick-batch-panel";
 import VoucherLoteDialog from "@/components/tickets/voucher-lote-dialog";
 import TicketsTable from "@/components/tickets/tickets-table";
 import TicketModal from "@/components/tickets/ticket-modal";
@@ -136,6 +140,9 @@ export default function Tickets() {
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [batchExpanded, setBatchExpanded] = useState(false);
   const painelLoteRef = useRef<HTMLDivElement | null>(null);
+  // O lote de carro/van (22/10): a barra de seleção registra por ele.
+  const terrestreLoteRef = useRef<LoteTerrestreHandle>(null);
+  const painelDeLoteRef = useRef<PainelDeLoteHandle>(null);
   const [voucherLoteAberto, setVoucherLoteAberto] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   // "Vai de carro/van" (16/10): o diálogo da vaga, aberto pela linha, pelo atalho da Sugestão ou pelo modal.
@@ -548,6 +555,8 @@ export default function Tickets() {
   // Só ADMIN e COMPRAS veem a ação (o servidor recusa o resto).
   const queryClient = useQueryClient();
   const podeEmitir = isPurchasingRole;
+  // Vagas que o "Marcar como emitida" pulou por irem de carro/van (22/10, #4724).
+  const [puladosDaEmissao, setPuladosDaEmissao] = useState<VagaPulada[]>([]);
   const emitirMutation = useMutation({
     mutationFn: async ({ inclusionIds, emitida }: { inclusionIds: string[]; emitida: boolean }) =>
       (await apiRequest("POST", "/api/tickets/emitidas", { inclusionIds, emitida })).json() as Promise<RespostaDaEmissao>,
@@ -560,6 +569,8 @@ export default function Tickets() {
       queryClient.invalidateQueries({ queryKey: [TEAM_INCLUSIONS_KEY] });
       queryClient.invalidateQueries({ queryKey: ["shell", "sem-passagem-30d"] });
       toast(mensagemDaEmissao(res, vars.emitida));
+      // O toast some sozinho; o aviso das puladas fica até registrar ou fechar.
+      if (vars.emitida) setPuladosDaEmissao(puladasPorTerrestre(res));
     },
     onError: () => toast({ title: "Não foi possível marcar as passagens", description: "Tente novamente.", variant: "destructive" }),
   });
@@ -742,6 +753,30 @@ export default function Tickets() {
     setBatchExpanded(true);
     setTimeout(() => painelLoteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   };
+  // Painel aberto no modo Carro/van: a barra troca o carimbo pelo "Registrar" do terrestre (22/10).
+  const loteTerrestreAberto = batchExpanded && ticketData["quick"]?.transportType === "terrestre";
+  const registrarTerrestreDaBarra = () => {
+    painelLoteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    terrestreLoteRef.current?.aplicar();
+  };
+  /** Nome da vaga pulada no aviso ("#4724 Marina Souza"); fora do recorte, só o motivo. */
+  const nomeDaVagaPulada = (id: string) => {
+    const inc = ticketInclusions.find((i) => i.id === id);
+    return inc ? nomeDaVagaNoLote(inc) : null;
+  };
+  /**
+   * Atalho do aviso das puladas: uma vaga abre o "Vai de carro/van" dela (com
+   * o carro/van da Sugestão); várias viram a seleção e abrem o lote de carro/van.
+   */
+  const registrarPuladasComoTerrestre = (pulados: VagaPulada[]) => {
+    const incs = pulados.map((p) => ticketInclusions.find((i) => i.id === p.id)).filter((i): i is TeamInclusion => !!i);
+    if (incs.length === 0) return;
+    setPuladosDaEmissao([]);
+    if (incs.length === 1) { abrirTerrestre(incs[0], modoSugerido(sugestaoTerrestreDaVaga(incs[0]))); return; }
+    setSelectedTickets(incs.map((i) => i.id));
+    handlers.onFieldChange("quick", "transportType", "terrestre");
+    abrirLote();
+  };
 
   return (
     <>
@@ -759,7 +794,7 @@ export default function Tickets() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => (batchExpanded ? setBatchExpanded(false) : abrirLote())}
+              onClick={() => (batchExpanded ? painelDeLoteRef.current?.pedirFechar() : abrirLote())}
               aria-expanded={batchExpanded}
               aria-controls="painel-lote-passagens"
               className={`shrink-0 h-[34px] rounded-lg text-sm font-medium ${batchExpanded ? "border-primary/40 bg-brand-soft text-primary hover:bg-brand-soft" : ""}`}
@@ -808,6 +843,7 @@ export default function Tickets() {
 
         <div ref={painelLoteRef} id="painel-lote-passagens" className="scroll-mt-[calc(var(--sticky-top,3.5rem)+4.5rem)] empty:hidden">
           <QuickBatchPanel
+            ref={painelDeLoteRef}
             expanded={batchExpanded}
             onToggle={() => setBatchExpanded(v => !v)}
             quick={ticketData["quick"]}
@@ -822,7 +858,13 @@ export default function Tickets() {
             onApply={handleApplyToSelected}
             vagasSelecionadas={vagasSelecionadas}
             nomeDaVaga={nomeDaVagaNoLote}
-            onTerrestreConcluido={(ids) => setSelectedTickets(prev => prev.filter(id => !ids.includes(id)))}
+            terrestreRef={terrestreLoteRef}
+            onTerrestreConcluido={(ids, { todas }) => {
+              // Gravou: as vagas saem da seleção e, sem falha, o painel fecha (22/10) —
+              // fica claro que registrou. Com falha, fica aberto com as que sobraram.
+              setSelectedTickets(prev => prev.filter(id => !ids.includes(id)));
+              if (todas) setBatchExpanded(false);
+            }}
           />
         </div>
 
@@ -864,6 +906,14 @@ export default function Tickets() {
           </div>
         )}
 
+        {/* "Marcar como emitida" pulou vagas que vão de carro/van (22/10, #4724): por quê, e o atalho. */}
+        <PuladosDaEmissao
+          pulados={puladosDaEmissao}
+          nomeDaVaga={nomeDaVagaPulada}
+          onRegistrar={canEdit ? registrarPuladasComoTerrestre : undefined}
+          onFechar={() => setPuladosDaEmissao([])}
+        />
+
         {/* `overflow-clip` (07/10): `hidden` prendia o cabeçalho grudado da tabela. */}
         <div className="bg-card rounded-xl border border-border overflow-clip">
           <TicketsTable
@@ -896,83 +946,20 @@ export default function Tickets() {
           />
         </div>
 
-        {/* Barra de seleção (07/10): era um bloco lá em cima, fora da vista de
-            quem marcava a 40ª linha. Agora acompanha a rolagem no rodapé da
-            lista. "Emitida" em lote é o aviso de "o bilhete saiu" para várias
-            pessoas de uma vez — não preenche nada. Desde 07/10 não trava mais o pedido de ajuste (regra do dono); ajuste aprovado depois vira aviso para Compras. */}
-        {nSel > 0 && (
-          <div className="sticky bottom-3 z-20 pas-sobe" data-testid="barra-selecao">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-foreground text-background shadow-3 pl-4 pr-2 py-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-2">
-                  <p className="m-0 text-sm font-semibold tabular-nums" aria-live="polite">
-                    {nSel} {nSel === 1 ? "passagem selecionada" : "passagens selecionadas"}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTickets([])}
-                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-xs font-medium text-background/75 hover:bg-background/10 hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
-                    data-testid="limpar-selecao"
-                  >
-                    <X className="w-3.5 h-3.5" aria-hidden="true" />Limpar seleção
-                  </button>
-                </div>
-                {podeEmitir && (
-                  <p className="m-0 hidden lg:block text-2xs leading-4 text-background/65 truncate">
-                    Marcar como emitida registra que o bilhete saiu. Os dados da passagem continuam podendo ser preenchidos depois.
-                  </p>
-                )}
-              </div>
-              {/* min-w-0 (21/10): com shrink-0 os botões não quebravam linha e a barra alargava a página no celular. */}
-              <div className="flex flex-wrap items-center gap-2 min-w-0">
-                {podeBuscarPrecos && (
-                  <button
-                    type="button"
-                    onClick={() => irParaBusca(effectiveSelectedTickets)}
-                    title="Abre a Busca de passagens com estas escalações selecionadas — antes de gastar, ela mostra quantas consultas usa"
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
-                    data-testid="buscar-precos-selecao"
-                  >
-                    <PlaneTakeoff className="w-4 h-4" aria-hidden="true" />Buscar preços
-                  </button>
-                )}
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => { handlers.onFieldChange("quick", "transportType", "terrestre"); abrirLote(); }}
-                    title="Carro (só o valor) ou van (empresa e valor total da van) para as vagas marcadas — sem passagem a comprar"
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
-                    data-testid="terrestre-selecao"
-                  >
-                    <Car className="w-4 h-4" aria-hidden="true" />Vai de carro/van ({nSel})
-                  </button>
-                )}
-                {canEdit && !batchExpanded && (
-                  <button
-                    type="button"
-                    onClick={() => { if (ticketData["quick"]?.transportType === "terrestre") handlers.onFieldChange("quick", "transportType", "aereo"); abrirLote(); }}
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-background/25 text-xs font-semibold text-background hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
-                  >
-                    <Layers className="w-4 h-4" aria-hidden="true" />Preencher dados em lote
-                  </button>
-                )}
-                {podeEmitir && (
-                  <button
-                    type="button"
-                    onClick={marcarSelecionadasEmitidas}
-                    disabled={emitirMutation.isPending}
-                    title="Registra que o bilhete saiu. Os dados da passagem continuam podendo ser preenchidos depois."
-                    className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60"
-                    data-testid="marcar-emitidas-lote"
-                  >
-                    <Stamp className="w-4 h-4" aria-hidden="true" />
-                    {emitirMutation.isPending ? "Marcando…" : `Marcar como emitida (${nSel})`}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Barra de seleção: segue a rolagem no rodapé da lista (barra-de-selecao.tsx). */}
+        <BarraDeSelecao
+          nSel={nSel}
+          onLimpar={() => setSelectedTickets([])}
+          podeEmitir={podeEmitir}
+          onMarcarEmitidas={marcarSelecionadasEmitidas}
+          emitindo={emitirMutation.isPending}
+          canEdit={canEdit}
+          onTerrestre={() => { handlers.onFieldChange("quick", "transportType", "terrestre"); abrirLote(); }}
+          onPreencherLote={!batchExpanded ? () => { if (ticketData["quick"]?.transportType === "terrestre") handlers.onFieldChange("quick", "transportType", "aereo"); abrirLote(); } : undefined}
+          onBuscarPrecos={podeBuscarPrecos ? () => irParaBusca(effectiveSelectedTickets) : undefined}
+          loteTerrestreAberto={loteTerrestreAberto}
+          onRegistrarTerrestre={registrarTerrestreDaBarra}
+        />
         </div>
       </div>
       </div>
@@ -1003,8 +990,10 @@ export default function Tickets() {
           if (isModalDirty()) { setDiscardTarget("close"); return; }
           const inc = selectedInclusion;
           closeModalDiscarding();
-          abrirTerrestre(inc);
+          abrirTerrestre(inc, modoSugerido(sugestaoTerrestreDaVaga(inc)));
         } : undefined}
+        onDesfazerEmissao={podeEmitir && selectedInclusion ? () => emitirMutation.mutate({ inclusionIds: [selectedInclusion.id], emitida: false }) : undefined}
+        desfazendoEmissao={emitirMutation.isPending}
         onBuscarPrecos={podeBuscarPrecos && selectedInclusion ? () => {
           // Nada digitado se perde sem perguntar: com o formulário sujo, o
           // "Descartar alterações?" de sempre decide antes de sair.
