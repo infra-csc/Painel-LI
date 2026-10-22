@@ -3,11 +3,14 @@
  * Papéis: logística (admin/Compras/Produção) registra e edita; só admin e
  * Compras carimbam a emissão. O status da vaga é derivado após cada escrita.
  */
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
 import { db, linhasDe } from "../db";
-import { tickets as ticketsTable, insertTicketSchema } from "@shared/schema";
+import { tickets as ticketsTable, insertTicketSchema, type TeamInclusion, type Ticket, type TransporteTerrestre } from "@shared/schema";
+import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
+import { faseParaStatus, normalizarStatus } from "@shared/vaga-status";
+import { hospedagemConta, passagemConta, statusDepoisDePassagemParaHistorico } from "../vaga-guards";
 import { and, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
 import { analisarPassagens, diaISO, somarDias, type PassagemParaAnalise } from "@shared/analise-de-passagens";
 import { hojeISO } from "@shared/hoje-sp";
@@ -26,7 +29,7 @@ import { avaliarTetoDoTrecho, chaveDaRota, justificativaValida, nomeDaRota, rota
 import { lerAjustes, precoTipicoDaRota } from "../busca-de-passagens/servico";
 import { assertInclusionEventEditable, newEventCache } from "../event-guard";
 import { carregarVagasDeViagem, conflitosDaVagaComPassagem, juntarPassagens, sinaisDeViagem } from "../viagens";
-import { SQL_TERRESTRE_COBRE_A_VAGA, terrestresDaVaga } from "../transporte-terrestre";
+import { SQL_TERRESTRE_COBRE_A_VAGA, terrestreCobreAVaga, terrestresDaVaga, terrestresDasVagas } from "../transporte-terrestre";
 import { NOME_DO_MODO, type ModoTerrestre } from "@shared/transporte-terrestre";
 import {
   montarLogDeAuditoria,
@@ -51,6 +54,42 @@ const CAMPOS_DAS_PERNAS = [
   "actualDepartureDate", "actualDepartureTime", "departureCityOrigin", "departureCityDestination",
   "actualReturnDate", "actualReturnTime", "returnCityOrigin", "returnCityDestination",
 ] as const;
+
+type Ator = NonNullable<Awaited<ReturnType<typeof requireRoles>>>;
+
+/**
+ * Desfazer a emissão que apagou a linha SÓ com o carimbo (22/10, vaga #4401):
+ * a vaga volta para "Comprar" — mesma regressão da troca aprovada e do
+ * desfazer do terrestre (`statusDepoisDePassagemParaHistorico`), e pelo mesmo
+ * motivo: é a decisão humana que a regra "compra registrada não volta para
+ * escalado" pede. Só desfaz o que a linha apagada fazia: se ela não contava
+ * (cancelada), se sobrou outra passagem atual que conta ou se o terrestre
+ * cobre a vaga, o "passagem comprada" vem de lá e fica. Hospedagem viva leva
+ * a hospedagem_comprada. Devolve o status novo, ou undefined.
+ */
+async function devolverAFilaSemACarimbada(
+  vaga: TeamInclusion,
+  linhas: { apagadas: readonly Ticket[]; restantes: readonly Ticket[]; terrestres: readonly TransporteTerrestre[] },
+  ator: Ator,
+  req: Request,
+): Promise<string | undefined> {
+  if (!linhas.apagadas.some(passagemConta)) return undefined;
+  if (linhas.restantes.some(passagemConta) || terrestreCobreAVaga(vaga, linhas.terrestres)) return undefined;
+  const temHospedagem = (await storage.getAccommodationsByInclusionId(vaga.id)).some(hospedagemConta);
+  const novo = statusDepoisDePassagemParaHistorico(vaga.status, temHospedagem);
+  if (!novo || novo === normalizarStatus(vaga.status)) return undefined;
+  try {
+    const atualizada = await storage.updateTeamInclusion(vaga.id, { status: novo, phase: faseParaStatus(novo) ?? vaga.phase, updatedBy: ator.id }, {
+      expectedStatus: vaga.status,
+      auditFor: (u) => montarLogDeAuditoria("update", "team_inclusion", vaga.id, u, ator.id, ator.name, vaga, req),
+    });
+    return atualizada?.status;
+  } catch (erro) {
+    // Perdeu a corrida (409): a outra decisão vale; a linha vazia já saiu.
+    if ((erro as { status?: unknown } | null)?.status !== 409) throw erro;
+    return undefined;
+  }
+}
 
 const mesmoValor = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || String(a ?? "") === String(b ?? "");
 
@@ -437,7 +476,12 @@ export function registrarPassagens(app: Express): void {
    * passagem, uma é criada só com o carimbo.
    *
    * Desmarcar existe porque erro de clique acontece: reabre a janela de ajuste.
-   * Tudo vai para a auditoria, com quem marcou e quando.
+   * Se a linha era SÓ o carimbo (criada aqui e nunca preenchida —
+   * shared/passagem-so-com-carimbo.ts), desmarcar a apaga e a vaga volta para
+   * "Comprar" (22/10, vaga #4401: a linha vazia ficava e a vaga seguia
+   * "passagem comprada"); passagem com dados só perde o carimbo. A resposta
+   * diz quais vagas perderam a linha (`removidas`) e o status novo de cada
+   * uma (`statusPorVaga`). Tudo vai para a auditoria, com quem marcou e quando.
    */
   app.post("/api/tickets/emitidas", async (req, res) => {
     // Só ADMIN e COMPRAS carimbam a emissão (decisão do dono, 26/08) — quem
@@ -485,22 +529,53 @@ export function registrarPassagens(app: Express): void {
         ok.push(inclusionId);
       }
       const anteriorPorTicket = new Map(passagens.map((t) => [t.id, t]));
-      const { atualizadas, criadas } = await db.transaction(async (tx) => {
-        const atualizadas = idsParaAtualizar.length > 0
-          ? await tx.update(ticketsTable).set(patch).where(inArray(ticketsTable.id, idsParaAtualizar)).returning()
+      // Desfazer (22/10, vaga #4401): a linha que é SÓ o carimbo — criada pelo
+      // "Marcar como emitida" e nunca preenchida — não é passagem; sai inteira.
+      // As outras só perdem o carimbo, como sempre.
+      const idsParaApagar = emitida ? [] : idsParaAtualizar.filter((id) => passagemSoComCarimbo(anteriorPorTicket.get(id)));
+      const apagar = new Set(idsParaApagar);
+      const idsParaCarimbar = idsParaAtualizar.filter((id) => !apagar.has(id));
+      const { atualizadas, criadas, apagadas } = await db.transaction(async (tx) => {
+        const atualizadas = idsParaCarimbar.length > 0
+          ? await tx.update(ticketsTable).set(patch).where(inArray(ticketsTable.id, idsParaCarimbar)).returning()
           : [];
         const criadas = vagasSemPassagem.length > 0
           ? await tx.insert(ticketsTable).values(vagasSemPassagem.map((teamInclusionId) => ({ teamInclusionId, ...patch }))).returning()
           : [];
-        return { atualizadas, criadas };
+        const apagadas = idsParaApagar.length > 0
+          ? await tx.delete(ticketsTable).where(inArray(ticketsTable.id, idsParaApagar)).returning()
+          : [];
+        return { atualizadas, criadas, apagadas };
       });
       await createAuditLogsBatch([
         ...criadas.map((t) => montarLogDeAuditoria("emitir", "ticket", t.id, t, actor.id, actor.name, undefined, req)),
         ...atualizadas.map((t) => montarLogDeAuditoria(emitida ? "emitir" : "desfazer_emissao", "ticket", t.id, t, actor.id, actor.name, anteriorPorTicket.get(t.id), req)),
+        ...apagadas.map((t) => montarLogDeAuditoria("delete", "ticket", t.id, anteriorPorTicket.get(t.id) ?? t, actor.id, actor.name, undefined, req)),
       ]);
+      const statusPorVaga: Record<string, string> = {};
       // Uma vaga que ganhou a primeira linha de passagem passa a "passagem comprada"
-      for (const inclusionId of vagasSemPassagem) await recalcularStatusDeLogistica(inclusionId, actor, req);
-      res.json({ ok, pulados, emitida });
+      for (const inclusionId of vagasSemPassagem) {
+        const atualizada = await recalcularStatusDeLogistica(inclusionId, actor, req);
+        if (atualizada?.status) statusPorVaga[inclusionId] = atualizada.status;
+      }
+      // …e a que perdeu a linha vazia volta para "Comprar", se era ela que a punha lá.
+      const removidas: string[] = [];
+      const vagasComApagada = Array.from(new Set(apagadas.map((t) => t.teamInclusionId)));
+      if (vagasComApagada.length > 0) {
+        const terrestres = await terrestresDasVagas(vagasComApagada);
+        for (const inclusionId of vagasComApagada) {
+          removidas.push(inclusionId);
+          const vaga = vagaPorId.get(inclusionId);
+          if (!vaga) continue;
+          const novo = await devolverAFilaSemACarimbada(vaga, {
+            apagadas: apagadas.filter((t) => t.teamInclusionId === inclusionId),
+            restantes: (passagensPorVaga.get(inclusionId) ?? []).filter((t) => !apagar.has(t.id)),
+            terrestres: terrestres.filter((r) => r.teamInclusionId === inclusionId),
+          }, actor, req);
+          if (novo) statusPorVaga[inclusionId] = novo;
+        }
+      }
+      res.json({ ok, pulados, emitida, removidas, statusPorVaga });
     } catch (error) {
       console.error("erro ao marcar passagem emitida:", error);
       res.status(500).json({ message: "Erro ao marcar as passagens" });

@@ -305,7 +305,7 @@ a vaga sem permissão/estado entra em `skipped`.
 |---|---|---|---|---|---|---|---|
 | Listar passagens / hospedagens | `GET /api/tickets[?eventId=]`, `GET /api/accommodations[?eventId=]` | 👁 | 👁 | 👁 | 👁 | 👁 | `no-store` (dados do passageiro) |
 | Registrar / editar passagem | `POST /api/tickets`, `PATCH /api/tickets/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | status da vaga **derivado** pelo servidor; `teamInclusionId` do PATCH ignorado |
-| Marcar/desmarcar **emitida** (lote) | `POST /api/tickets/emitidas` | ✅🕓 | ❌ | ✅🕓 | ❌ | ❌ | ≤ 200 vagas; cria linha de passagem se não houver |
+| Marcar/desmarcar **emitida** (lote) | `POST /api/tickets/emitidas` | ✅🕓 | ❌ | ✅🕓 | ❌ | ❌ | ≤ 200 vagas; cria linha de passagem se não houver; desmarcar apaga a linha que é só o carimbo (22/10) |
 | Registrar / editar hospedagem | `POST /api/accommodations`, `PATCH /api/accommodations/:id` | ✅🕓 | ✅🕓 | ✅🕓 | ❌ | ❌ | mover para outra vaga → 400 |
 | Ler vouchers (PDF) | `POST /api/vouchers/ler` | ✅ | ✅ | ✅ | ❌ | ❌ | só interpretação; não grava |
 

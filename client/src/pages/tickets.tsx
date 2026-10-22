@@ -30,6 +30,8 @@ import { refeicaoCents } from "@shared/alimentacao";
 import type { TeamInclusion, Ticket } from "@shared/schema";
 import { useTicketsData, toTitleCase } from "@/components/tickets/use-tickets-data";
 import { useTicketUpsert } from "@/components/tickets/use-ticket-upsert";
+import { mensagemDaEmissao, type RespostaDaEmissao } from "@/components/tickets/mensagem-da-emissao";
+import { aplicarStatusDaVagaNoCache, TEAM_INCLUSIONS_KEY } from "@/hooks/use-vaga-acoes";
 import { filtersFromSearch, searchFromFilters } from "@/components/tickets/filters-url";
 import { contarPorOpcao, passaNosFiltrosBase } from "@/components/tickets/tickets-filtering";
 import { DEFAULT_PERIOD } from "@/components/scaling/scaling-period";
@@ -548,18 +550,16 @@ export default function Tickets() {
   const podeEmitir = isPurchasingRole;
   const emitirMutation = useMutation({
     mutationFn: async ({ inclusionIds, emitida }: { inclusionIds: string[]; emitida: boolean }) =>
-      (await apiRequest("POST", "/api/tickets/emitidas", { inclusionIds, emitida })).json() as Promise<{ ok: string[]; pulados: { id: string; motivo: string }[] }>,
+      (await apiRequest("POST", "/api/tickets/emitidas", { inclusionIds, emitida })).json() as Promise<RespostaDaEmissao>,
     onSuccess: (res, vars) => {
+      // Marcar numa vaga sem passagem a leva a "passagem comprada"; desfazer
+      // numa passagem só com o carimbo a devolve a "Comprar" (22/10): o status
+      // da vaga muda nos dois casos.
+      for (const [inclusionId, status] of Object.entries(res.statusPorVaga ?? {})) aplicarStatusDaVagaNoCache(queryClient, inclusionId, status);
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
-      const n = res.ok?.length ?? 0;
-      toast({
-        title: vars.emitida
-          ? `${n} passagem(ns) marcada(s) como emitida(s)`
-          : `${n} passagem(ns) voltaram para "não emitida"`,
-        description: vars.emitida
-          ? "Se a área pedir ajuste de data depois disso e o aprovador aprovar, Compras recebe o aviso para remarcar. O preenchimento dos dados continua liberado."
-          : "As passagens voltaram para \"não emitida\".",
-      });
+      queryClient.invalidateQueries({ queryKey: [TEAM_INCLUSIONS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["shell", "sem-passagem-30d"] });
+      toast(mensagemDaEmissao(res, vars.emitida));
     },
     onError: () => toast({ title: "Não foi possível marcar as passagens", description: "Tente novamente.", variant: "destructive" }),
   });
