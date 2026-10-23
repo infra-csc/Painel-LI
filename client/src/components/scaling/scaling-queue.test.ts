@@ -179,9 +179,9 @@ describe("contadores em lote", () => {
     }
   });
 
-  it("devolve um número para cada uma das 18 opções", () => {
+  it("devolve um número para cada uma das 24 opções (18 + Honorário, 23/10)", () => {
     const out = contadoresDasFlags(linhas, {}, contexto);
-    expect(Object.keys(out)).toHaveLength(18);
+    expect(Object.keys(out)).toHaveLength(24);
     expect(TODAS_AS_FLAGS.every((k) => typeof out[k] === "number")).toBe(true);
   });
 
@@ -276,5 +276,49 @@ describe("fazTesteDeBusca", () => {
     expect(fazTesteDeBusca("ativacao", nomes)!(v)).toBe(true);
     expect(fazTesteDeBusca("estacoes", nomes)!(v)).toBe(true);
     expect(fazTesteDeBusca("curitiba - pr", nomes)!(v)).toBe(true);
+  });
+});
+
+describe("grupo Honorário (23/10 — “quem lança não sabe quais lançou”)", () => {
+  // Cinco vagas de cenotécnica, uma em cada etapa; uma de outra função (sem honorário) e uma de sugestão.
+  const etapa = { a: "falta_lancar", b: "rascunho", c: "aguardando", d: "devolvido", e: "aprovado" } as const;
+  const meus = new Set(["b", "c"]);
+  const linhas = [
+    ...Object.keys(etapa).map((id) => vaga({ id, collaboratorId: "c1" })),
+    vaga({ id: "producao", collaboratorId: "c2" }),
+    vaga({ id: "sug", phase: "sugestao", status: "sugestao_pendente" }),
+  ];
+  const contexto = ctx({
+    honorarioDaVaga: (i) => (i.id in etapa ? { situacao: etapa[i.id as keyof typeof etapa], meu: meus.has(i.id) } : undefined),
+  });
+
+  it("cada etapa alcança só as vagas dela; vaga sem honorário não entra em nenhuma", () => {
+    const n = contadoresDasFlags(linhas, {}, contexto);
+    expect([n["hon:falta"], n["hon:rascunho"], n["hon:aguardando"], n["hon:devolvido"], n["hon:aprovado"]]).toEqual([1, 1, 1, 1, 1]);
+    expect(n["hon:meus"]).toBe(2);
+    expect(linhas.filter(fazTesteDeFlags({ "hon:falta": true }, contexto)).map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("etapas somam entre si; 'Lançados por mim' cruza com a etapa", () => {
+    const soma = linhas.filter(fazTesteDeFlags({ "hon:rascunho": true, "hon:devolvido": true }, contexto)).map((i) => i.id);
+    expect(soma).toEqual(["b", "d"]);
+    const cruza = linhas.filter(fazTesteDeFlags({ "hon:rascunho": true, "hon:devolvido": true, "hon:meus": true }, contexto)).map((i) => i.id);
+    expect(cruza).toEqual(["b"]);
+    // O número ao lado de "Lançados por mim" já respeita a etapa marcada.
+    expect(contadoresDasFlags(linhas, { "hon:rascunho": true, "hon:devolvido": true }, contexto)["hon:meus"]).toBe(1);
+  });
+
+  it("o lote bate com a contagem uma-a-uma também no grupo novo", () => {
+    for (const ativas of [{ "hon:aprovado": true }, { "hon:meus": true }, { "hon:falta": true, "pass:nao-precisa": true }]) {
+      const emLote = contadoresDasFlags(linhas, ativas, contexto);
+      for (const k of TODAS_AS_FLAGS) expect(emLote[k]).toBe(contarComFlag(linhas, ativas, k, contexto));
+    }
+  });
+
+  it("sem o contexto de honorário (quem não lança) nenhuma vaga entra — e a sugestão nunca entra", () => {
+    const n = contadoresDasFlags(linhas, {}, ctx());
+    expect(n["hon:falta"] + n["hon:aprovado"] + n["hon:meus"]).toBe(0);
+    const comTudo = ctx({ honorarioDaVaga: () => ({ situacao: "falta_lancar", meu: true }) });
+    expect(linhas.filter(fazTesteDeFlags({ "hon:falta": true }, comTudo)).map((i) => i.id)).not.toContain("sug");
   });
 });

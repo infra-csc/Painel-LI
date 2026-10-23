@@ -35,7 +35,7 @@ export function BotaoHonorariosDoEvento({ eventId, onAbrir }: { eventId: string 
   const e = eventos.data?.find((x) => x.id === eventId);
   const pendentes = e ? e.semPedido + e.rascunhos + e.devolvidos : 0;
   const detalhe = e
-    ? [e.semPedido && `${e.semPedido} sem valor`, e.rascunhos && `${e.rascunhos} em rascunho`, e.devolvidos && `${e.devolvidos} devolvido${e.devolvidos === 1 ? "" : "s"}`].filter(Boolean).join(" · ")
+    ? [e.semPedido && `${e.semPedido} ${e.semPedido === 1 ? "falta" : "faltam"} lançar`, e.rascunhos && `${e.rascunhos} em rascunho`, e.devolvidos && `${e.devolvidos} devolvido${e.devolvidos === 1 ? "" : "s"}`].filter(Boolean).join(" · ")
     : "";
   return (
     <button

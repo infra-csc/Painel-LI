@@ -62,6 +62,13 @@ interface Props {
 
   /** "10 vagas" ou "6 de 10 vagas" quando há recorte. */
   contagem: string;
+
+  /**
+   * Grupo "Honorário" (23/10): só para quem lança honorário da cenotécnica.
+   * Enquanto a situação carrega, os números do grupo mostram "…".
+   */
+  mostrarHonorario?: boolean;
+  carregandoHonorario?: boolean;
 }
 
 /**
@@ -334,11 +341,12 @@ export default function ScalingFilterBar(p: Props) {
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 p-3.5 max-h-[min(70vh,560px)] overflow-y-auto">
-                {FLAG_GROUPS.map((g) => (
-                  <div key={g.id}>
-                    <p className="mb-1 px-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                {FLAG_GROUPS.filter((g) => g.restrito !== "honorario" || p.mostrarHonorario).map((g) => (
+                  <div key={g.id} data-testid={`flag-grupo-${g.id}`}>
+                    <p className={`px-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground ${g.nota ? "" : "mb-1"}`}>
                       {g.titulo}
                     </p>
+                    {g.nota && <p className="mb-1 px-2 text-2xs text-muted-foreground">{g.nota}</p>}
                     <div className="flex flex-col gap-px">
                       {g.opcoes.map((o, idx) => (
                         <Fragment key={o.key}>
@@ -357,8 +365,8 @@ export default function ScalingFilterBar(p: Props) {
                         >
                           <Caixa on={!!p.flags[o.key]} />
                           <span className="flex-1 min-w-0 truncate">{o.label}</span>
-                          <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
-                            {contagens[o.key] ?? 0}
+                          <span className="shrink-0 text-2xs text-muted-foreground tabular-nums" data-testid={`flag-n-${o.key}`}>
+                            {g.restrito === "honorario" && p.carregandoHonorario ? "…" : contagens[o.key] ?? 0}
                           </span>
                         </button>
                         </Fragment>

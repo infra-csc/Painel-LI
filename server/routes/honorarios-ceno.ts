@@ -41,7 +41,7 @@ import {
   podeEditarHonorario, podeLiberarHonorario, podeRemoverHonorario, posicaoSugerida, setorDaVaga,
   validarAjuste, validarDadosDoPedido, validarLiberacao, validarMotivo, vagaRecebeHonorario, ehAprovado,
   vagaSaiuDosHonorarios, AVISO_DA_VAGA_LABEL, TIPO_DO_VALOR_LABEL, ehTipoDeTabela, ehTipoDoValor, nomeDaVagaSemColaborador,
-  posicaoDoTipo, type HonorarioStatus,
+  posicaoDoTipo, honorarioNaFila, type HonorarioStatus, type HonorarioNaFila, type PedidoParaFila,
 } from "@shared/honorarios-ceno";
 import { CENO_FREELA_TIPOS, cenoEmpreitaTotalCents, isCenoFreelaTipo, type CenoFreelaTipo } from "@shared/cenotecnica-empreita";
 import * as dados from "../storage/honorarios-ceno";
@@ -121,6 +121,9 @@ function eAprovadorNaLinha(a: Acesso, h: { functionId: string | null }): boolean
 }
 const aprovaNaLinha = (a: Acesso, h: { functionId: string | null }) => a.admin || eAprovadorNaLinha(a, h);
 const veLinha = (a: Acesso, h: { functionId: string | null }) => a.financeiro || pedeNaLinha(a, h) || aprovaNaLinha(a, h);
+
+/** Eventos por consulta na situação da Fila (a tela divide em lotes). */
+export const SITUACAO_EVENTOS_MAX = 100;
 
 const SEM_ACESSO = "Os honorários da cenotécnica são vistos só por quem pede (cenotécnica), pelo aprovador da escala e pelo Financeiro.";
 
@@ -523,6 +526,48 @@ export function registrarHonorariosCeno(app: Express): void {
       casa: casa.map((v) => ({ id: v.id, inclusionNumber: v.inclusionNumber, functionName: v.functionName, collaboratorName: v.collaboratorName })),
       funcoes: a.funcoesCeno.filter((f) => a.admin || a.pedeEm.has(f.id)),
     });
+  });
+
+  // Situação do honorário de cada vaga, para a FILA da Escalação (23/10 —
+  // dono: "quem lança não sabe quais lançou"). SÓ LEITURA e agregada: as vagas
+  // ativas de cenotécnica dos eventos pedidos, das funções pelas quais a
+  // pessoa lança, com a etapa (falta lançar, rascunho, aguardando, devolvido,
+  // aprovado), o valor, quem lançou e a empreita. Mesma permissão do pedido;
+  // quem não lança: 403 (a tela nem pergunta).
+  app.get("/api/honorarios-ceno/situacao", async (req, res) => {
+    const user = await usuarioDe(req, res);
+    if (!user) return;
+    const a = await acessoDe(user);
+    if (!podePedir(a)) return negar(res);
+    const bruto = typeof req.query.eventIds === "string" ? req.query.eventIds : "";
+    const eventIds = Array.from(new Set(bruto.split(",").map((x) => x.trim()).filter(Boolean)));
+    if (eventIds.length === 0) return res.status(400).json({ message: "Informe os eventos." });
+    if (eventIds.length > SITUACAO_EVENTOS_MAX) return res.status(400).json({ message: `No máximo ${SITUACAO_EVENTOS_MAX} eventos por vez.` });
+
+    const [vagas, pedidos] = await Promise.all([
+      dados.vagasAtivas(funcoesQuePede(a), eventIds),
+      dados.pedidosParaSituacao(eventIds),
+    ]);
+    const meus = pedidos.filter((h) => pedeNaLinha(a, h));
+    const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString() : null);
+    const paraFila = (h: HonorarioComContexto): PedidoParaFila => ({
+      id: h.id, nome: h.nome, status: h.status, valorPedido: h.valorPedido, valorAprovado: h.valorAprovado,
+      avisoDaVaga: h.avisoDaVaga, colaboradorAtual: h.colaboradorAtual, avisosDaEmpreita: h.avisosDaEmpreita,
+      criadoPor: h.criadoPor, criadoPorNome: h.criadoPorNome, createdAt: iso(h.createdAt),
+      enviadoPor: h.enviadoPor, enviadoPorNome: h.enviadoPorNome, enviadoEm: iso(h.enviadoEm),
+      decididoPorNome: h.decididoPorNome, decididoEm: iso(h.decididoEm),
+    });
+    const porVaga = new Map(meus.filter((h) => h.tipo === "vaga" && h.teamInclusionId).map((h) => [h.teamInclusionId!, paraFila(h)]));
+    // A vaga numa empreita segue a etapa da empreita (o valor é o da equipe).
+    const empreitaDaVaga = new Map<string, { pedido: PedidoParaFila; vagas: number }>();
+    for (const h of meus) {
+      if (h.tipo !== "empreita") continue;
+      const e = { pedido: paraFila(h), vagas: h.vagasDaEmpreita.length };
+      for (const v of h.vagasDaEmpreita) empreitaDaVaga.set(v.id, e);
+    }
+    const lista: HonorarioNaFila[] = vagas.map((v) => honorarioNaFila(v, porVaga.get(v.id) ?? null, empreitaDaVaga.get(v.id) ?? null, user.id));
+    naoArmazenar(res);
+    res.json(lista);
   });
 
   // Criar o pedido de uma vaga ou uma empreita (nasce como rascunho).

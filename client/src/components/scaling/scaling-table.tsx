@@ -37,6 +37,7 @@ import { type SortConfig, type SortField } from "@/components/common/sortable-he
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TeamInclusion, Ticket, Accommodation } from "@shared/schema";
+import type { HonorarioNaFila } from "@shared/honorarios-ceno";
 import type { PendingChangeRequest } from "./use-scaling-data";
 import type { NormalizedSwap } from "./scaling-utils";
 import { CHECKBOX_CLS, ScalingCardRow, ScalingTableRow } from "./scaling-table-row";
@@ -103,6 +104,13 @@ export interface ScalingTableProps {
   onConfirmarRapido?: (e: React.MouseEvent, inclusion: TeamInclusion) => void;
   /** Linha cuja confirmação está em andamento (botão trava e mostra "Confirmando…"). */
   confirmandoId?: string | null;
+  /**
+   * Honorário da cenotécnica (23/10): a situação do valor da vaga, só para
+   * quem lança (undefined para os outros — nenhum selo aparece). O selo abre
+   * a vaga direto na aba Honorário.
+   */
+  honorarioDaVaga?: (inclusion: TeamInclusion) => HonorarioNaFila | undefined;
+  onAbrirHonorario?: (inclusion: TeamInclusion) => void;
   // ── Seleção múltipla (ações em massa) ──
   selectedIds: Set<string>;
   /** Motivo pelo qual a linha NÃO pode ser selecionada (null = pode) */
@@ -268,7 +276,7 @@ export default function ScalingTable(props: ScalingTableProps) {
             <col style={{ width: larga ? "280px" : "196px" }} />
             {/* O "Confirmar" rápido mora na Situação desde 07/10 (no lugar do
                 "Falta confirmar"): a coluna de ações tem só os dois ícones. */}
-            <col style={{ width: larga ? "196px" : "164px" }} />
+            <col style={{ width: larga ? "196px" : "180px" }} />
             <col style={{ width: "80px" }} />
           </colgroup>
           <thead className="esc-cabecalho sticky z-10 bg-surface-muted shadow-[inset_0_-1px_0_0_var(--border)]">

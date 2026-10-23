@@ -31,12 +31,14 @@ import { AcaoDoEstado, BotaoTentarDeNovo, EstadoDaValidacao } from "@/components
 import { ICONE_DA_LINHA, MOLDURA, TH } from "@/components/scaling-approval/tokens";
 import { isCenotecnicaFunction } from "@shared/alimentacao";
 import { isCenoFreelaTipo } from "@shared/cenotecnica-empreita";
-import { ehTipoDeTabela, faltaParaEnviar, rotuloDoValor, valorPorDiaria } from "@shared/honorarios-ceno";
+import { contarLancamento, ehTipoDeTabela, faltaParaEnviar, lancadoPor, rotuloDoValor, valorPorDiaria, type SituacaoNaFila } from "@shared/honorarios-ceno";
+import { useAuth } from "@/hooks/use-auth";
+import { ABAS_DO_PEDIDO, AbasDoPedido, AutoriaDoPedido, BadgeFaltaLancar, ResumoDoLancamento, abaDaSituacao, contagemPorAba, situacaoDaLinha, type AbaDoPedido } from "./lancamento";
 import {
   useAcessoHonorarios, useEventosDoPedido, useGravarTipoNaVaga, useMutacoesDoPedido, usePedidoDoEvento,
   type CamposDoPedido, type EventoDoPedido, type Honorario, type LinhaDoPedido, type TabelaDaVaga,
 } from "./api";
-import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, ValorComDiaria, VagasDaEmpreitaLista, brl, brlCurto, diariasTexto, haQuanto, periodoCurto } from "./pecas";
+import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, ValorComDiaria, VagasDaEmpreitaLista, brl, brlCurto, diariasTexto, periodoCurto } from "./pecas";
 import { CampoDeValor, IndicadorDeSalvamento, SelectDoTipo, useSalvamento } from "./linha-editavel";
 import { DetalhesDialog, type AlvoDoFormulario } from "./detalhes-dialog";
 import { HistoricoSheet } from "./historico-sheet";
@@ -54,39 +56,71 @@ function DataDoEvento({ iso }: { iso: string }) {
   );
 }
 
+/** Os números de um evento para quem lança (23/10): o que falta, o que está em rascunho, o que foi. */
+function numerosDoEvento(e: EventoDoPedido) {
+  const lancadas = e.rascunhos + e.aguardando + e.devolvidos + e.aprovados;
+  const total = e.semPedido + lancadas;
+  const enviadas = e.aguardando + e.devolvidos + e.aprovados;
+  return { total, lancadas, enviadas, falta: e.semPedido, rascunhos: e.rascunhos, devolvidos: e.devolvidos, aprovados: e.aprovados };
+}
+
+/** "3 faltam lançar · 2 rascunhos · 5 enviados" — o que pede ação vem primeiro e com cor. */
+function ContadoresDoEvento({ n }: { n: ReturnType<typeof numerosDoEvento> }) {
+  const itens = [
+    { chave: "falta", v: n.falta, texto: `${n.falta} ${n.falta === 1 ? "falta" : "faltam"} lançar`, cls: "font-semibold text-warning", ponto: "bg-warning-strong" },
+    { chave: "rascunho", v: n.rascunhos, texto: `${n.rascunhos} ${n.rascunhos === 1 ? "rascunho" : "rascunhos"}`, cls: "font-medium text-slate-700", ponto: "bg-slate-400" },
+    { chave: "enviado", v: n.enviadas, texto: `${n.enviadas} ${n.enviadas === 1 ? "enviado" : "enviados"}`, cls: "text-slate-600", ponto: "bg-success-strong" },
+  ].filter((x) => x.v > 0);
+  if (itens.length === 0) return <span className="text-2xs text-muted-foreground">Nada lançado ainda</span>;
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs" data-testid="hon-evento-contadores">
+      {itens.map((x) => (
+        <span key={x.chave} className={cn("inline-flex items-center gap-1.5 tabular-nums", x.cls)}>
+          <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", x.ponto)} />{x.texto}
+        </span>
+      ))}
+      {n.devolvidos > 0 && <StatusBadge tone="primary" size="sm">{n.devolvidos} {n.devolvidos === 1 ? "devolvido" : "devolvidos"}</StatusBadge>}
+    </span>
+  );
+}
+
 function LinhaDoEvento({ e, onEscolher }: { e: EventoDoPedido; onEscolher: (id: string) => void }) {
-  const contadores = [
-    e.devolvidos ? { n: e.devolvidos, rotulo: e.devolvidos === 1 ? "devolvido" : "devolvidos", tom: "primary" as const } : null,
-    e.aguardando ? { n: e.aguardando, rotulo: "aguardando", tom: "warning" as const } : null,
-    e.rascunhos ? { n: e.rascunhos, rotulo: e.rascunhos === 1 ? "rascunho" : "rascunhos", tom: "neutral" as const } : null,
-    e.aprovados ? { n: e.aprovados, rotulo: e.aprovados === 1 ? "aprovado" : "aprovados", tom: "success" as const } : null,
-  ].filter(Boolean) as { n: number; rotulo: string; tom: "primary" | "warning" | "neutral" | "success" }[];
+  const n = numerosDoEvento(e);
+  const pct = n.total ? Math.round((n.lancadas / n.total) * 100) : 0;
+  const pendente = n.falta + n.rascunhos + n.devolvidos > 0;
   return (
     <li>
       <button
         type="button"
         onClick={() => onEscolher(e.id)}
-        className="group flex w-full items-center gap-3.5 px-4 py-3 text-left transition-colors hover:bg-surface-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className={cn(
+          "group flex w-full items-center gap-3.5 border-l-[3px] px-4 py-3 text-left transition-colors hover:bg-surface-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          pendente && !e.passado ? "border-l-warning-strong" : "border-l-transparent",
+        )}
         data-testid={`hon-evento-${e.id}`}
       >
         <DataDoEvento iso={e.startDate} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-foreground">{e.name}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
-            <span>{periodoCurto(e.startDate, e.endDate)}</span>
+            <span className="tabular-nums">{periodoCurto(e.startDate, e.endDate)}</span>
             <span aria-hidden="true">·</span>
-            <span>{e.vagas} {e.vagas === 1 ? "vaga" : "vagas"}{e.semColaborador ? ` (${e.semColaborador} sem nome)` : ""}{e.semPedido > 0 ? ` · ${e.semPedido} sem valor` : ""}</span>
+            <span>{e.vagas} {e.vagas === 1 ? "vaga" : "vagas"}{e.semColaborador ? ` (${e.semColaborador} sem nome)` : ""}</span>
             {e.empreitas > 0 && <><span aria-hidden="true">·</span><span>{e.empreitas} {e.empreitas === 1 ? "empreita" : "empreitas"}</span></>}
           </span>
-          {contadores.length > 0 && (
-            <span className="mt-1.5 flex flex-wrap gap-1">
-              {contadores.map((c) => <StatusBadge key={c.rotulo} tone={c.tom} size="sm">{c.n} {c.rotulo}</StatusBadge>)}
-            </span>
-          )}
+          <span className="mt-1.5 block"><ContadoresDoEvento n={n} /></span>
         </span>
-        <span className="hidden shrink-0 text-right sm:block">
-          <span className="block text-2xs text-muted-foreground">{e.totalAprovado > 0 ? "Aprovado" : e.totalPedido > 0 ? "Enviado" : "Nada enviado"}</span>
-          <span className={cn("block text-sm font-semibold tabular-nums", e.totalAprovado || e.totalPedido ? "text-foreground" : "text-muted-foreground")}>{e.totalAprovado || e.totalPedido ? brlCurto(e.totalAprovado || e.totalPedido) : "—"}</span>
+        <span className="hidden w-[132px] shrink-0 sm:block">
+          <span className="flex items-baseline justify-between gap-2 text-2xs text-muted-foreground">
+            <span>{n.total && n.lancadas === n.total ? "Tudo lançado" : "Lançadas"}</span>
+            <span className="font-semibold tabular-nums text-foreground">{n.lancadas}/{n.total}</span>
+          </span>
+          <span className="mt-1 block h-1 overflow-hidden rounded-full bg-surface-muted ring-1 ring-inset ring-border" role="img" aria-label={`${n.lancadas} de ${n.total} lançadas`}>
+            <span className={cn("block h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none", n.lancadas === n.total ? "bg-success-strong" : "bg-primary")} style={{ width: `${pct}%` }} />
+          </span>
+          <span className="mt-1 block text-right text-2xs tabular-nums text-muted-foreground">
+            {e.totalAprovado ? `${brlCurto(e.totalAprovado)} aprovado` : e.totalPedido ? `${brlCurto(e.totalPedido)} enviado` : "nada enviado"}
+          </span>
         </span>
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-foreground" aria-hidden="true" />
       </button>
@@ -114,15 +148,32 @@ function EventosDoPedido({ onEscolher }: { onEscolher: (id: string) => void }) {
   }
   const proximos = lista.filter((e) => !e.passado);
   const passados = lista.filter((e) => e.passado);
+  // O que está com você nos eventos que ainda vão acontecer — a pergunta de quem abre a gaveta.
+  const pendentes = proximos.map(numerosDoEvento).reduce((s, n) => ({ falta: s.falta + n.falta, rascunhos: s.rascunhos + n.rascunhos, devolvidos: s.devolvidos + n.devolvidos }), { falta: 0, rascunhos: 0, devolvidos: 0 });
+  const comPendencia = proximos.filter((e) => { const n = numerosDoEvento(e); return n.falta + n.rascunhos + n.devolvidos > 0; }).length;
   const bloco = (titulo: string, itens: EventoDoPedido[]) => itens.length > 0 && (
     <section className="space-y-2" aria-label={titulo}>
       <h3 className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{titulo}</h3>
       <ul className={cn(MOLDURA, "divide-y divide-border overflow-hidden")}>{itens.map((e) => <LinhaDoEvento key={e.id} e={e} onEscolher={onEscolher} />)}</ul>
     </section>
   );
+  const partes = [
+    pendentes.falta ? `${pendentes.falta} ${pendentes.falta === 1 ? "vaga falta" : "vagas faltam"} lançar` : null,
+    pendentes.rascunhos ? `${pendentes.rascunhos} ${pendentes.rascunhos === 1 ? "rascunho não enviado" : "rascunhos não enviados"}` : null,
+    pendentes.devolvidos ? `${pendentes.devolvidos} ${pendentes.devolvidos === 1 ? "devolvido" : "devolvidos"} para negociar` : null,
+  ].filter(Boolean);
   return (
     <div className="val-entra space-y-5" data-testid="hon-eventos">
-      <p className="text-sm text-muted-foreground">Escolha o evento para lançar o honorário de cada vaga da cenotécnica — escalada ou ainda sem nome.</p>
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground">Escolha o evento para lançar o honorário de cada vaga da cenotécnica — escalada ou ainda sem nome.</p>
+        {proximos.length > 0 && (
+          <p className="text-sm text-slate-700" data-testid="hon-eventos-resumo">
+            {partes.length
+              ? <>Nos próximos eventos: <span className="font-semibold text-foreground">{partes.join(" · ")}</span>{comPendencia > 1 ? `, em ${comPendencia} eventos` : ""}.</>
+              : <span className="font-medium text-success">Nos próximos eventos está tudo lançado e enviado.</span>}
+          </p>
+        )}
+      </div>
       {bloco("Próximos e em andamento", proximos)}
       {bloco("Já aconteceram", passados)}
     </div>
@@ -169,20 +220,20 @@ function useSalvarLinha(eventId: string, linha: { vaga: LinhaDoPedido["vaga"]; s
   return { salvar, ...sv };
 }
 
-function Situacao({ h, sem, compacta }: { h: Honorario | null; sem?: string; compacta?: boolean }) {
-  if (h && compacta) return <EtapaBadge h={h} visao="pedido" />;
-  if (!h) return <StatusBadge tone="neutral" size="sm" className="bg-transparent ring-1 ring-inset ring-border">{sem ?? "Sem valor"}</StatusBadge>;
+/**
+ * A etapa da linha e quem lançou/enviou/decidiu (23/10: "quem lança não sabe
+ * quais lançou"). Sem pedido: "Falta lançar", tracejado como o selo da Fila.
+ */
+function Situacao({ h, compacta, meuId }: { h: Honorario | null; compacta?: boolean; meuId: string | null | undefined }) {
+  if (!h) return <BadgeFaltaLancar />;
+  if (compacta) return <EtapaBadge h={h} visao="pedido" />;
   return (
     <span className="block space-y-1">
       <EtapaBadge h={h} visao="pedido" />
-      {h.status === "aguardando" && <span className="block text-2xs text-muted-foreground">Enviado {haQuanto(h.enviadoEm)}</span>}
-      {(h.status === "aprovado" || h.status === "aprovado_ajuste") && (
-        <>
-          <span className="block text-2xs text-muted-foreground">por {h.decididoPorNome ?? "aprovador"}</span>
-          {h.liberado > 0 && h.valorAprovado ? <BarraDaVerba aprovado={h.valorAprovado} liberado={h.liberado} className="max-w-[140px]" /> : null}
-        </>
-      )}
-      {h.status === "devolvido" && <span className="block text-2xs text-muted-foreground">por {h.decididoPorNome ?? "aprovador"} · {haQuanto(h.decididoEm)}</span>}
+      <AutoriaDoPedido h={h} meuId={meuId} />
+      {(h.status === "aprovado" || h.status === "aprovado_ajuste") && h.liberado > 0 && h.valorAprovado
+        ? <BarraDaVerba aprovado={h.valorAprovado} liberado={h.liberado} className="max-w-[140px]" />
+        : null}
     </span>
   );
 }
@@ -251,6 +302,10 @@ interface DadosDaLinha {
   estado: ReturnType<typeof useSalvamento>["estado"];
   erro: string | null;
   acoes: ReactNode;
+  /** Trabalho de quem lança: falta lançar, rascunho ou devolvido que ainda dá para mexer (marcador âmbar). */
+  pedeAcao: boolean;
+  /** Para "Lançado por você". */
+  meuId: string | null | undefined;
 }
 
 function PorDiariaOuStatus({ d }: { d: DadosDaLinha }) {
@@ -321,11 +376,11 @@ function Linha({ d, modo }: { d: DadosDaLinha; modo: ModoDaLista }) {
   );
   if (modo === "cartao") {
     return (
-      <li className={cn("val-entra overflow-hidden rounded-xl border bg-card shadow-1", devolvido ? "border-primary/25" : "border-border")} data-testid={`hon-linha-${d.testId}`}>
+      <li className={cn("val-entra overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-1", devolvido ? "border-primary/25" : "border-border", d.pedeAcao && "border-l-warning-strong")} data-testid={`hon-linha-${d.testId}`} data-pede-acao={d.pedeAcao || undefined}>
         <div className="space-y-3 px-3.5 pb-3 pt-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">{titulo}<span className="mt-0.5 block text-2xs text-muted-foreground">{d.sub}</span></div>
-            <span className="shrink-0"><Situacao h={d.h} compacta /></span>
+            <span className="shrink-0"><Situacao h={d.h} compacta meuId={d.meuId} /></span>
           </div>
           {d.avisos}
           <CampoTipo d={d} />
@@ -340,13 +395,16 @@ function Linha({ d, modo }: { d: DadosDaLinha; modo: ModoDaLista }) {
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-1 border-t border-border bg-surface-muted/60 px-2 py-1">{d.acoes}</div>
+        <div className="flex items-center justify-between gap-2 border-t border-border bg-surface-muted/60 py-1 pl-3.5 pr-2">
+          <span className="min-w-0">{d.h && <AutoriaDoPedido h={d.h} meuId={d.meuId} />}</span>
+          <span className="flex shrink-0 items-center gap-1">{d.acoes}</span>
+        </div>
       </li>
     );
   }
   return (
-    <tr className={cn("border-b border-border align-top transition-colors last:border-b-0", devolvido ? "bg-brand-soft/30" : "bg-card hover:bg-surface-muted/50")} data-testid={`hon-linha-${d.testId}`}>
-      <td className="px-3 py-3">
+    <tr className={cn("border-b border-border align-top transition-colors last:border-b-0", devolvido ? "bg-brand-soft/30" : "bg-card hover:bg-surface-muted/50")} data-testid={`hon-linha-${d.testId}`} data-pede-acao={d.pedeAcao || undefined}>
+      <td className={cn("border-l-[3px] px-3 py-3", d.pedeAcao ? "border-l-warning-strong" : "border-l-transparent")}>
         {titulo}
         <span className="mt-0.5 block text-2xs text-muted-foreground">{d.sub}</span>
         <span className="mt-0.5 block text-2xs tabular-nums text-slate-600">Montagem {d.periodo} · {diariasTexto(d.diarias)}</span>
@@ -354,7 +412,7 @@ function Linha({ d, modo }: { d: DadosDaLinha; modo: ModoDaLista }) {
       </td>
       <td className="px-3 py-3"><CampoTipo d={d} /></td>
       <td className="px-3 py-3 text-right"><CampoDoValor d={d} /></td>
-      <td className="px-3 py-3"><Situacao h={d.h} /></td>
+      <td className="px-3 py-3"><Situacao h={d.h} meuId={d.meuId} /></td>
       <td className="whitespace-nowrap py-2.5 pl-1 pr-2 text-right">{d.acoes}</td>
     </tr>
   );
@@ -427,6 +485,8 @@ function useDadosDaVaga(linha: LinhaDoPedido, eventId: string, cb: Callbacks): D
     estado: sv.estado,
     erro: sv.erro,
     acoes: <AcoesDaLinha h={h} editavel={editavel && !!v} nome={nome} onDetalhes={() => cb.onDetalhes(linha)} onHistorico={cb.onHistorico} onRemover={cb.onRemover} />,
+    pedeAcao: h ? h.podeEditar && (h.status === "rascunho" || h.status === "devolvido") : !linha.foraDaEscala,
+    meuId: cb.meuId,
   };
 }
 
@@ -452,10 +512,13 @@ function useDadosDaEmpreita(h: Honorario, eventId: string, cb: Callbacks): Dados
     estado: sv.estado,
     erro: sv.erro,
     acoes: <AcoesDaLinha h={h} editavel={h.podeEditar} nome={h.nome} onDetalhes={() => cb.onEditarEmpreita(h)} onHistorico={cb.onHistorico} onRemover={cb.onRemover} />,
+    pedeAcao: h.podeEditar && (h.status === "rascunho" || h.status === "devolvido"),
+    meuId: cb.meuId,
   };
 }
 
 interface Callbacks {
+  meuId: string | null | undefined;
   onDetalhes: (l: LinhaDoPedido) => void;
   onEditarEmpreita: (h: Honorario) => void;
   onHistorico: (id: string) => void;
@@ -560,15 +623,27 @@ function EnviarDialog({ aberto, onOpenChange, prontos, incompletos, evento }: {
 
 // ── O painel do evento ──────────────────────────────────────────────────────
 
+/** Uma linha do pedido (vaga ou empreita), como o resumo e as abas leem. */
+interface ItemDoPedido { chave: string; situacao: SituacaoNaFila; meu: boolean }
+
+const chaveDaLinha = (l: LinhaDoPedido) => l.vaga?.id ?? l.honorario?.id ?? "";
+
 function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocarEvento: () => void }) {
   const q = usePedidoDoEvento(eventId);
   const { remover } = useMutacoesDoPedido();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const meuId = user?.id ?? null;
   const [alvo, setAlvo] = useState<AlvoDoFormulario | null>(null);
   const [historicoId, setHistoricoId] = useState<string | null>(null);
   const [removendo, setRemovendo] = useState<Honorario | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [verCasa, setVerCasa] = useState(false);
+  // Abas (23/10): o recorte da lista. `fixados` guarda as linhas que estavam
+  // na aba quando ela foi aberta — lançar o valor numa linha de "Faltam
+  // lançar" não a faz sumir debaixo do cursor; ela fica, já com a etapa nova,
+  // até a pessoa trocar de aba.
+  const [recorte, setRecorte] = useState<{ aba: AbaDoPedido; soMeus: boolean; fixados: Set<string> }>({ aba: "todas", soMeus: false, fixados: new Set() });
   const modo: ModoDaLista = useMediaQuery("(min-width: 1280px)") ? "tabela" : "cartao";
 
   const d = q.data;
@@ -576,6 +651,10 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
     ...(d?.linhas.map((l) => l.honorario).filter(Boolean) as Honorario[] ?? []),
     ...(d?.empreitas ?? []),
   ], [d]);
+  const itens = useMemo<ItemDoPedido[]>(() => [
+    ...(d?.linhas ?? []).map((l) => ({ chave: chaveDaLinha(l), situacao: situacaoDaLinha(l.honorario), meu: !!l.honorario && lancadoPor(l.honorario, meuId) })),
+    ...(d?.empreitas ?? []).map((h) => ({ chave: h.id, situacao: situacaoDaLinha(h), meu: lancadoPor(h, meuId) })),
+  ], [d, meuId]);
   const editaveis = todas.filter((h) => h.podeEditar);
   /** O que ainda segura a linha (dados ou a troca de colaborador sem confirmar). */
   const pendencia = (h: Honorario) => faltaParaEnviar(h)
@@ -584,7 +663,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
   const prontos = editaveis.filter((h) => !pendencia(h));
   const incompletos = [
     ...editaveis.filter((h) => pendencia(h)).map((h) => ({ nome: h.nome, motivo: pendencia(h)! })),
-    ...(d?.linhas.filter((l) => !l.honorario && !l.foraDaEscala).map((l) => ({ nome: l.sugestao?.nome ?? "Vaga", motivo: "Sem valor" })) ?? []),
+    ...(d?.linhas.filter((l) => !l.honorario && !l.foraDaEscala).map((l) => ({ nome: l.sugestao?.nome ?? "Vaga", motivo: "Falta lançar" })) ?? []),
   ];
   const soma = (f: (h: Honorario) => boolean, v: (h: Honorario) => number = (h) => h.valorPedido) => todas.filter(f).reduce((s, h) => s + v(h), 0);
   const devolvidos = todas.filter((h) => h.status === "devolvido");
@@ -602,7 +681,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
     if (!removendo) return;
     try {
       await remover.mutateAsync({ id: removendo.id, versao: removendo.versao });
-      toast({ title: "Rascunho removido", description: `${removendo.nome} voltou a ficar sem valor.` });
+      toast({ title: "Rascunho removido", description: `${removendo.nome} voltou para "Falta lançar".` });
       setRemovendo(null);
     } catch (e) {
       toast({ variant: "destructive", title: "Não foi possível remover", description: apiErrorMessage(e, "Tente de novo.") });
@@ -610,16 +689,35 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
     }
   };
 
+  // ── Recorte das abas ──────────────────────────────────────────────────
+  const naAba = (i: ItemDoPedido, aba: AbaDoPedido, soMeus: boolean) => (!soMeus || i.meu) && (aba === "todas" || abaDaSituacao(i.situacao) === aba);
+  const mudarRecorte = (aba: AbaDoPedido, soMeus: boolean) =>
+    setRecorte({ aba, soMeus, fixados: new Set(itens.filter((i) => naAba(i, aba, soMeus)).map((i) => i.chave)) });
+  const porChave = new Map(itens.map((i) => [i.chave, i]));
+  const visivel = (chave: string) => {
+    const i = porChave.get(chave);
+    return !!i && (naAba(i, recorte.aba, recorte.soMeus) || recorte.fixados.has(chave));
+  };
+  const universo = recorte.soMeus ? itens.filter((i) => i.meu) : itens;
+  const nPorAba = contagemPorAba(contarLancamento(universo.map((i) => i.situacao)));
+  const resumo = contarLancamento(itens.map((i) => i.situacao));
+  const filtrando = recorte.aba !== "todas" || recorte.soMeus;
+
   const vagas = d.linhas;
+  const vagasVisiveis = filtrando ? vagas.filter((l) => visivel(chaveDaLinha(l))) : vagas;
+  const empreitasVisiveis = filtrando ? d.empreitas.filter((h) => visivel(h.id)) : d.empreitas;
   const cb: Callbacks = {
+    meuId,
     onDetalhes: (x) => setAlvo({ modo: "vaga", linha: x }),
     onEditarEmpreita: (x) => setAlvo({ modo: "empreita", honorario: x, vagasDoEvento: d.vagasDoEvento ?? [] }),
     onHistorico: setHistoricoId,
     onRemover: setRemovendo,
   };
+  const novaEmpreita = () => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] });
   const semNada = vagas.length === 0 && d.empreitas.length === 0;
   const semNome = vagas.filter((l) => l.honorario ? l.honorario.semColaborador : l.sugestao?.semColaborador).length;
   const motivoSemEnvio = prontos.length === 0 ? (editaveis.length === 0 && incompletos.length === 0 ? "Nada a enviar" : "Escolha o tipo de freela (ou outro valor) antes de enviar") : null;
+  const vazioDaAba = ABAS_DO_PEDIDO.find((a) => a.key === recorte.aba)?.vazio;
 
   return (
     <div className="val-entra space-y-4" data-testid="hon-pedido">
@@ -628,22 +726,26 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
           <button type="button" onClick={onTrocarEvento} className="val-alvo -ml-1 inline-flex h-7 items-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> Todos os eventos
           </button>
-          <h2 className="text-sm font-semibold text-foreground">{d.evento.name}</h2>
+          <h2 className="text-[15px] font-semibold leading-6 text-foreground">{d.evento.name}</h2>
           <p className="text-xs text-muted-foreground">
-            {vagas.length} {vagas.length === 1 ? "vaga" : "vagas"}{semNome ? ` (${semNome} sem nome)` : ""} · {d.empreitas.length} {d.empreitas.length === 1 ? "empreita" : "empreitas"}
+            <span className="tabular-nums">{periodoCurto(d.evento.startDate, d.evento.endDate)}</span>
+            {" · "}{vagas.length} {vagas.length === 1 ? "vaga" : "vagas"}{semNome ? ` (${semNome} sem nome)` : ""} · {d.empreitas.length} {d.empreitas.length === 1 ? "empreita" : "empreitas"}
             {d.casa.length ? ` · ${d.casa.length} da casa (sem honorário)` : ""}
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <Button type="button" variant="outline" className="val-alvo flex-1 sm:flex-none" onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}>
+          <Button type="button" variant="outline" className="val-alvo w-full sm:w-auto" onClick={novaEmpreita}>
             <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar empreita
           </Button>
-          <Button type="button" className="val-alvo flex-1 sm:flex-none" onClick={() => setEnviando(true)} disabled={!!motivoSemEnvio}
+          <Button type="button" className="val-alvo w-full sm:w-auto" onClick={() => setEnviando(true)} disabled={!!motivoSemEnvio}
             title={motivoSemEnvio ?? undefined} data-testid="hon-enviar">
             <Send className="h-4 w-4" aria-hidden="true" /> Enviar para aprovação{prontos.length ? ` (${prontos.length})` : ""}
           </Button>
         </div>
       </div>
+
+      {/* O que já foi lançado e o que falta (23/10) — a primeira coisa que se lê. */}
+      {!semNada && <ResumoDoLancamento c={resumo} onAba={(a) => mudarRecorte(a, false)} />}
 
       <FaixaDeTotais testId="hon-totais" itens={[
         { rotulo: "A enviar", valor: brlCurto(soma((h) => h.podeEditar && !pendencia(h))), detalhe: `${prontos.length} ${prontos.length === 1 ? "pronto" : "prontos"}${incompletos.length ? ` · ${incompletos.length} ${incompletos.length === 1 ? "pendente" : "pendentes"}` : ""}` },
@@ -653,59 +755,88 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
       ]} />
 
       {devolvidos.length > 0 && (
-        <p role="status" className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-brand-soft px-3.5 py-2.5 text-xs leading-relaxed text-slate-700">
+        <p role="status" className="flex flex-wrap items-start gap-x-2.5 gap-y-1 rounded-lg border border-primary/20 bg-brand-soft px-3.5 py-2.5 text-xs leading-relaxed text-slate-700">
           <Undo2 className="mt-px h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-          <span>
+          <span className="min-w-0 flex-1">
             <span className="font-semibold text-foreground">{devolvidos.length} {devolvidos.length === 1 ? "pedido voltou" : "pedidos voltaram"} para negociar.</span>{" "}
             O motivo está na linha — ajuste o valor e envie de novo.
           </span>
+          {recorte.aba !== "decididos" && (
+            <button type="button" onClick={() => mudarRecorte("decididos", false)} className="val-alvo shrink-0 rounded font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-testid="hon-ver-devolvidos">
+              Ver {devolvidos.length === 1 ? "o devolvido" : "os devolvidos"}
+            </button>
+          )}
         </p>
       )}
 
       {semNada ? (
         <EstadoDaValidacao icone={<Inbox aria-hidden="true" />} titulo="Nenhuma vaga de cenotécnica freela neste evento"
           texto={d.casa.length ? `Há ${d.casa.length} ${d.casa.length === 1 ? "vaga da casa" : "vagas da casa"} (funcionário), que não recebem honorário. Equipes terceirizadas entram como empreita.` : "Quando houver vaga de cenotécnica neste evento (escalada ou ainda aberta), ela aparece aqui. Equipes terceirizadas entram como empreita."}
-          acao={<AcaoDoEstado onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}><Plus className="h-4 w-4" aria-hidden="true" /> Adicionar empreita</AcaoDoEstado>}
+          acao={<AcaoDoEstado onClick={novaEmpreita}><Plus className="h-4 w-4" aria-hidden="true" /> Adicionar empreita</AcaoDoEstado>}
           testId="hon-pedido-vazio" />
       ) : (
         <>
-          {vagas.length > 0 && (
-            <section aria-labelledby="hon-vagas" className="space-y-2">
-              <h3 id="hon-vagas" className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-foreground">
-                Vagas <span className="font-normal text-muted-foreground">· {vagas.length}{semNome ? `, ${semNome} sem nome` : ""} · escolha o tipo de freela ou digite outro valor</span>
-              </h3>
-              <ListaDoPedido modo={modo} valorRotulo="Valor negociado" legenda="Vagas da cenotécnica e o honorário de cada uma">
-                {vagas.map((l) => <LinhaDaVaga key={l.vaga?.id ?? l.honorario?.id} linha={l} eventId={eventId} cb={cb} modo={modo} />)}
-              </ListaDoPedido>
-            </section>
-          )}
+          <AbasDoPedido
+            aba={recorte.aba} onAba={(a) => mudarRecorte(a, recorte.soMeus)} n={nPorAba}
+            devolvidos={universo.filter((i) => i.situacao === "devolvido").length}
+            soMeus={recorte.soMeus} onSoMeus={(v) => mudarRecorte(recorte.aba, v)} nMeus={itens.filter((i) => i.meu).length}
+          />
 
-          <section aria-labelledby="hon-empreitas" className="space-y-2 pt-2">
-            <div className="flex items-center justify-between gap-2">
-              <h3 id="hon-empreitas" className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-foreground">
-                Empreitas <span className="font-normal text-muted-foreground">· equipe com valor fechado, com as vagas da escala que ela cobre</span>
-              </h3>
-              {d.empreitas.length > 0 && (
-                <Button type="button" variant="ghost" size="sm" className="val-alvo text-primary hover:bg-brand-soft hover:text-primary" onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}>
-                  <Plus className="h-4 w-4" aria-hidden="true" /> Nova
-                </Button>
-              )}
-            </div>
-            {d.empreitas.length === 0 ? (
-              <button type="button" onClick={() => setAlvo({ modo: "empreita", honorario: null, vagasDoEvento: d.vagasDoEvento ?? [] })}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-card px-4 py-4 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-brand-soft/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar uma empreita (responsável, vagas da escala e valor fechado)
+          {filtrando && vagasVisiveis.length === 0 && empreitasVisiveis.length === 0 ? (
+            <div className="val-entra flex flex-col items-center gap-1 rounded-xl border border-dashed border-slate-300 bg-card px-6 py-8 text-center" role="status" data-testid="hon-aba-vazia">
+              <p className="text-sm font-semibold text-foreground">
+                {recorte.soMeus && recorte.aba === "todas" ? "Você ainda não lançou nada neste evento" : vazioDaAba?.titulo}
+              </p>
+              <p className="max-w-[440px] text-xs leading-relaxed text-muted-foreground">
+                {recorte.soMeus ? "“Lançados por mim” mostra só o que você lançou ou enviou." : vazioDaAba?.texto}
+              </p>
+              <button type="button" onClick={() => mudarRecorte("todas", false)} className="val-alvo mt-2 rounded text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                Ver todas as linhas
               </button>
-            ) : (
-              <ListaDoPedido modo={modo} valorRotulo="Valor fechado" colunaTipo="Vagas" legenda="Empreitas do evento">
-                {d.empreitas.map((h) => <LinhaDaEmpreita key={h.id} h={h} eventId={eventId} cb={cb} modo={modo} />)}
-              </ListaDoPedido>
-            )}
-          </section>
+            </div>
+          ) : (
+            <>
+              {vagasVisiveis.length > 0 && (
+                <section aria-labelledby="hon-vagas" className="space-y-2">
+                  <h3 id="hon-vagas" className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-foreground">
+                    Vagas <span className="font-normal text-muted-foreground">· {filtrando ? `${vagasVisiveis.length} de ${vagas.length}` : `${vagas.length}${semNome ? `, ${semNome} sem nome` : ""}`} · escolha o tipo de freela ou digite outro valor</span>
+                  </h3>
+                  <ListaDoPedido modo={modo} valorRotulo="Valor negociado" legenda="Vagas da cenotécnica e o honorário de cada uma">
+                    {vagasVisiveis.map((l) => <LinhaDaVaga key={chaveDaLinha(l)} linha={l} eventId={eventId} cb={cb} modo={modo} />)}
+                  </ListaDoPedido>
+                </section>
+              )}
+
+              {(!filtrando || empreitasVisiveis.length > 0) && (
+                <section aria-labelledby="hon-empreitas" className="space-y-2 pt-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 id="hon-empreitas" className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-foreground">
+                      Empreitas <span className="font-normal text-muted-foreground">· equipe com valor fechado, com as vagas da escala que ela cobre</span>
+                    </h3>
+                    {d.empreitas.length > 0 && (
+                      <Button type="button" variant="ghost" size="sm" className="val-alvo text-primary hover:bg-brand-soft hover:text-primary" onClick={novaEmpreita}>
+                        <Plus className="h-4 w-4" aria-hidden="true" /> Nova
+                      </Button>
+                    )}
+                  </div>
+                  {d.empreitas.length === 0 ? (
+                    <button type="button" onClick={novaEmpreita}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-card px-4 py-4 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-brand-soft/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar uma empreita (responsável, vagas da escala e valor fechado)
+                    </button>
+                  ) : (
+                    <ListaDoPedido modo={modo} valorRotulo="Valor fechado" colunaTipo="Vagas" legenda="Empreitas do evento">
+                      {empreitasVisiveis.map((h) => <LinhaDaEmpreita key={h.id} h={h} eventId={eventId} cb={cb} modo={modo} />)}
+                    </ListaDoPedido>
+                  )}
+                </section>
+              )}
+            </>
+          )}
         </>
       )}
 
-      {d.casa.length > 0 && !semNada && (
+      {d.casa.length > 0 && !semNada && !filtrando && (
         <div className="rounded-xl border border-border bg-surface-muted/60 px-3.5 py-2.5 text-xs text-slate-600">
           <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setVerCasa((x) => !x)} aria-expanded={verCasa}>
             <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -720,9 +851,9 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
         </div>
       )}
 
-      <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-        <ArrowRight className="h-3 w-3" aria-hidden="true" />
-        Os honorários não mudam a escalação, o Planejado nem o Realizado — são um pedido à parte para o Financeiro.
+      <p className="flex items-start gap-1.5 text-2xs leading-4 text-muted-foreground">
+        <ArrowRight className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+        Os honorários não mudam a escalação. Só o valor aprovado entra no Planejado da vaga — rascunho, enviado e devolvido não mudam nada.
       </p>
 
       <DetalhesDialog alvo={alvo} eventId={eventId} evento={d.evento} onClose={() => setAlvo(null)} />
@@ -732,7 +863,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
         open={!!removendo}
         onOpenChange={(o) => { if (!o && !remover.isPending) setRemovendo(null); }}
         title="Remover o rascunho?"
-        description={removendo ? `${removendo.nome} volta a ficar sem valor. Nada foi enviado ao aprovador ainda.` : undefined}
+        description={removendo ? `${removendo.nome} volta para "Falta lançar". Nada foi enviado ao aprovador ainda.` : undefined}
         tone="danger"
         icon={Trash2}
         cancelLabel="Manter"
@@ -756,5 +887,5 @@ export function PedidoPainel({ eventId, onEscolherEvento }: { eventId: string | 
     );
   }
   if (!eventId) return <EventosDoPedido onEscolher={onEscolherEvento} />;
-  return <PedidoDoEvento eventId={eventId} onTrocarEvento={() => onEscolherEvento("")} />;
+  return <PedidoDoEvento key={eventId} eventId={eventId} onTrocarEvento={() => onEscolherEvento("")} />;
 }

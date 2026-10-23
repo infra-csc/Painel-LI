@@ -20,6 +20,7 @@ import { ordenarEscalacoes } from "../scaling-sort";
 import { getScalingStatusLabel } from "../scaling-status";
 import { FLAG_GROUPS, contarFlagsAtivas, fazTesteDeBusca, fazTesteDeFlags, testeDaFila, QUEUE_META, type QueueContext } from "../scaling-queue";
 import type { AnalyticsContext } from "../scaling-analytics-data";
+import { useHonorariosDaFila } from "@/components/honorarios-ceno/na-fila";
 import type { ScalingFiltersState } from "./use-scaling-filters";
 
 export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; filtros: ScalingFiltersState; user: User | null }) {
@@ -46,6 +47,31 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     [bulkBlockReasonById],
   );
 
+  // ── A primeira camada do recorte: evento/período/função ─────────────────
+  // Datas dos eventos: permitem medir o período pela DATA DO EVENTO (22/09).
+  const datasDoEvento = useCallback((id: string | null | undefined) => (id ? data.eventById.get(id) : undefined), [data.eventById]);
+  const testePeriodo = useMemo(() => fazTesteDePeriodo(periodo, hoje, datasDoEvento), [periodo, hoje, datasDoEvento]);
+  const testeRecorte = useMemo(() => fazTesteDeRecorte(recorteEventos, hoje), [recorteEventos, hoje]);
+  // Função entra na mesma camada do evento/período: é recorte "do que existe",
+  // não filtro de trabalho — a fila e os contadores contam sobre ela.
+  const testeFuncao = useMemo(() => {
+    if (funcoesMarcadas.length === 0) return () => true;
+    const set = new Set(funcoesMarcadas);
+    return (i: TeamInclusion) => set.has(i.functionId);
+  }, [funcoesMarcadas]);
+  const comPeriodo = useMemo(
+    () => scalingInclusions.filter((i) => testePeriodo(i) && testeRecorte(i) && testeFuncao(i)),
+    [scalingInclusions, testePeriodo, testeRecorte, testeFuncao],
+  );
+
+  /**
+   * Honorários da cenotécnica (23/10): a situação de cada vaga do recorte,
+   * só para quem lança — o selo da linha e o grupo "Honorário" dos filtros
+   * leem daqui. Para os outros não sai consulta e o contexto fica sem ela.
+   */
+  const honorario = useHonorariosDaFila(comPeriodo, data.functionById);
+  const honorarioDaVaga = honorario.ativo ? honorario.situacaoDe : undefined;
+
   const queueContext = useMemo<QueueContext>(() => ({
     temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i),
     temTroca: (i) => pendingSwapByInclusion.has(i.id),
@@ -54,8 +80,9 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     temPassagemComprada: (i) => data.purchasedTicketByInclusion.has(i.id),
     temHospedagemReservada: (i) => data.accommodationByInclusion.has(i.id),
     ehCenoEmpreita: (i) => data.isCenotecnicaFunction(i.functionId),
+    honorarioDaVaga,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [pendingSwapByInclusion, data.pendingChangeByInclusion, data.purchasedTicketByInclusion, data.accommodationByInclusion, getSelectBlockReason]);
+  }), [pendingSwapByInclusion, data.pendingChangeByInclusion, data.purchasedTicketByInclusion, data.accommodationByInclusion, getSelectBlockReason, honorarioDaVaga]);
 
   // Hotel reservado nas Análises (16/10): a MESMA regra do servidor
   // (server/vaga-guards.ts → hospedagemConta) — com nome de hotel e não
@@ -86,22 +113,7 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [queueContext, data.eventById, data.functionById, data.collaboratorById, data.purchasedTicketByInclusion, vagasComHotel]);
 
-  // ── As camadas do recorte ───────────────────────────────────────────────
-  // Datas dos eventos: permitem medir o período pela DATA DO EVENTO (22/09).
-  const datasDoEvento = useCallback((id: string | null | undefined) => (id ? data.eventById.get(id) : undefined), [data.eventById]);
-  const testePeriodo = useMemo(() => fazTesteDePeriodo(periodo, hoje, datasDoEvento), [periodo, hoje, datasDoEvento]);
-  const testeRecorte = useMemo(() => fazTesteDeRecorte(recorteEventos, hoje), [recorteEventos, hoje]);
-  // Função entra na mesma camada do evento/período: é recorte "do que existe",
-  // não filtro de trabalho — a fila e os contadores contam sobre ela.
-  const testeFuncao = useMemo(() => {
-    if (funcoesMarcadas.length === 0) return () => true;
-    const set = new Set(funcoesMarcadas);
-    return (i: TeamInclusion) => set.has(i.functionId);
-  }, [funcoesMarcadas]);
-  const comPeriodo = useMemo(
-    () => scalingInclusions.filter((i) => testePeriodo(i) && testeRecorte(i) && testeFuncao(i)),
-    [scalingInclusions, testePeriodo, testeRecorte, testeFuncao],
-  );
+  // ── As outras camadas do recorte ────────────────────────────────────────
   // Análises (18/09): as vagas ainda na Validação/Aprovação de Escala, com o
   // MESMO recorte da tela (evento, período, futuros/realizados, função,
   // excluídas e quem vê o quê). Só são buscadas com a aba aberta — a fila não
@@ -270,7 +282,7 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     ? `${nDaAba} de ${nDoRecorte} vagas`
     : `${nDaAba} ${nDaAba === 1 ? "vaga" : "vagas"}`;
 
-  const rotuloDasFlags = contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null;
+  const rotuloDasFlags = contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.resumo ?? o.label).join(", ") : null;
   const nomesDosFiltrosAtivos = [
     busca.trim() ? `“${busca.trim()}”` : null,
     eventosMarcados.length ? `${eventosMarcados.length} ${eventosMarcados.length === 1 ? "evento" : "eventos"}` : null,
@@ -302,6 +314,7 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     comPeriodo, sugestoesDoRecorte, opcoesDeFuncao, contagemPorRecorte, comBusca, linhasSemFlags, comFlags, linhasDoRelatorio,
     contagensDaFila, visibleRows, opcoesDeEvento, linhasDoQuadro, nomesDasFuncoes,
     resumoTopo, contagem, nomesDosFiltrosAtivos, nomesDosFiltrosDoRecorte,
+    honorario,
   };
 }
 

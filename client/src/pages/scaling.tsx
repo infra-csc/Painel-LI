@@ -121,6 +121,9 @@ export default function Scaling() {
     getSelectBlockReason: r.getSelectBlockReason,
     onToggleSelect: sel.toggleSelect,
     onToggleAllVisible: sel.toggleAllVisible,
+    // Honorário da cenotécnica (23/10): selo por vaga para quem lança; abre a aba Honorário.
+    honorarioDaVaga: r.honorario.ativo ? r.honorario.situacaoDe : undefined,
+    onAbrirHonorario: (i: TeamInclusion) => modal.openInclusion(i, "honorario"),
   };
 
   return (
@@ -167,6 +170,7 @@ export default function Scaling() {
               verExcluidos={verExcluidos} onVerExcluidos={filtros.setVerExcluidos}
               recorteEventos={filtros.recorteEventos} onRecorteEventos={filtros.setRecorteEventos} contagemPorRecorte={r.contagemPorRecorte}
               contagem={r.contagem}
+              mostrarHonorario={r.honorario.ativo} carregandoHonorario={r.honorario.carregando}
             />
 
             {aba === "escala" ? (

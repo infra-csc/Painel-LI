@@ -428,7 +428,7 @@ describe("Honorários — aba Honorário no modal da vaga (Escalação)", () => 
       "POST /api/honorarios-ceno": () => respostaJson(honorario({ id: "h2", teamInclusionId: "v2", nome: "Pessoa Dois" }), 201),
     }, chamadas));
     const { user } = renderComTudo(<NaVaga vagaId="v2" />, { user: producao });
-    expect(await screen.findByTestId("hon-vaga-situacao")).toHaveTextContent("Sem pedido");
+    expect(await screen.findByTestId("hon-vaga-situacao")).toHaveTextContent("Falta lançar");
     expect(screen.getByTestId("hon-vaga-enviar")).toBeDisabled();
     expect(screen.getByTestId("hon-vaga-falta")).toHaveTextContent("Informe o valor negociado.");
     expect(screen.getByLabelText(/Por que outro valor\?/)).toBeInTheDocument();
@@ -620,5 +620,91 @@ describe("Honorários — empreita que agrupa vagas", () => {
     expect(screen.getByText("Vaga ainda sem colaborador escalado")).toBeInTheDocument();
     await user.click(screen.getByTestId("hon-empreita-vagas-botao"));
     expect(screen.getByTestId("hon-empreita-vagas")).toHaveTextContent("#101 Pessoa Um");
+  });
+});
+
+describe("Honorários — gaveta do evento: o que já foi lançado e o que falta (23/10)", () => {
+  /** 4 vagas: rascunho meu, sem pedido, enviada por outra pessoa e devolvida minha. */
+  function pedidoMisto(): PedidoDoEvento {
+    const p = pedido();
+    p.linhas = [
+      { vaga: vaga("v1", 101, "Pessoa Um"), sugestao: sugestao("Pessoa Um"), tabela: TABELA, honorario: honorario(), foraDaEscala: false },
+      { vaga: vaga("v2", 102, "Pessoa Dois"), sugestao: sugestao("Pessoa Dois", { tipoFreela: "outro" }), tabela: TABELA, honorario: null, foraDaEscala: false },
+      {
+        vaga: vaga("v3", 103, "Pessoa Três"), sugestao: sugestao("Pessoa Três"), tabela: TABELA, foraDaEscala: false,
+        honorario: honorario({ id: "h3", teamInclusionId: "v3", nome: "Pessoa Três", status: "aguardando", podeEditar: false, podeRemover: false, criadoPor: "u-outra", criadoPorNome: "Outra Pessoa", enviadoPor: "u-outra", enviadoPorNome: "Outra Pessoa", enviadoEm: "2099-10-02T10:00:00Z" }),
+      },
+      {
+        vaga: vaga("v4", 104, "Pessoa Quatro"), sugestao: sugestao("Pessoa Quatro"), tabela: TABELA, foraDaEscala: false,
+        honorario: honorario({ id: "h4", teamInclusionId: "v4", nome: "Pessoa Quatro", status: "devolvido", podeRemover: false, enviadoPor: "u-pede", enviadoPorNome: "Quem Pede", enviadoEm: "2099-10-02T10:00:00Z", decididoPorNome: "Quem Aprova", decididoEm: "2099-10-03T10:00:00Z", motivoDecisao: "Rever as diárias" }),
+      },
+    ];
+    return p;
+  }
+
+  it("resumo do topo, abas com contagem, atalhos do resumo, quem lançou e “Lançados por mim”", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/pedido": () => respostaJson(pedidoMisto()),
+    }, []));
+    const { user } = renderComTudo(<PedidoPainel eventId="ev1" onEscolherEvento={() => {}} />, { user: producao });
+
+    const resumo = await screen.findByTestId("hon-resumo");
+    expect(resumo).toHaveTextContent("3 de 4 lançadas");
+    expect(resumo).toHaveTextContent("2 enviadas, 1 em rascunho");
+    expect(resumo).toHaveTextContent("1 falta lançar");
+    expect(resumo).toHaveTextContent("1 devolvida");
+
+    const abas = screen.getByTestId("hon-abas");
+    expect(within(abas).getByTestId("hon-aba-todas")).toHaveTextContent("4");
+    expect(within(abas).getByTestId("hon-aba-falta")).toHaveTextContent("1");
+    expect(within(abas).getByTestId("hon-aba-rascunho")).toHaveTextContent("1");
+    expect(within(abas).getByTestId("hon-aba-enviados")).toHaveTextContent("1");
+    expect(within(abas).getByTestId("hon-aba-decididos")).toHaveTextContent("1");
+
+    // Quem lançou, e quando: "você" para a pessoa logada.
+    expect(within(screen.getByTestId("hon-linha-101")).getByTestId("hon-autoria")).toHaveTextContent(/Você lançou/);
+    expect(within(screen.getByTestId("hon-linha-103")).getByTestId("hon-autoria")).toHaveTextContent(/Enviado por Outra Pessoa/);
+    // Sem pedido: "Falta lançar"; o que pede ação tem o marcador.
+    expect(within(screen.getByTestId("hon-linha-102")).getByTestId("hon-falta-lancar")).toBeInTheDocument();
+    expect(screen.getByTestId("hon-linha-102")).toHaveAttribute("data-pede-acao", "true");
+    expect(screen.getByTestId("hon-linha-103")).not.toHaveAttribute("data-pede-acao");
+
+    // O atalho do resumo leva à aba; a lista mostra só aquela etapa.
+    await user.click(screen.getByTestId("hon-resumo-falta"));
+    expect(screen.getByTestId("hon-aba-falta")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("hon-linha-102")).toBeInTheDocument();
+    expect(screen.queryByTestId("hon-linha-101")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("hon-aba-decididos"));
+    expect(screen.getByTestId("hon-linha-104")).toBeInTheDocument();
+    expect(screen.queryByTestId("hon-linha-102")).not.toBeInTheDocument();
+
+    // "Lançados por mim": o rascunho e o devolvido são meus; o enviado pela outra pessoa não.
+    await user.click(screen.getByTestId("hon-aba-todas"));
+    await user.click(screen.getByTestId("hon-so-meus"));
+    expect(screen.getByTestId("hon-so-meus")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("hon-linha-101")).toBeInTheDocument();
+    expect(screen.getByTestId("hon-linha-104")).toBeInTheDocument();
+    expect(screen.queryByTestId("hon-linha-103")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hon-linha-102")).not.toBeInTheDocument();
+
+    // Aba sem nada: explica e oferece voltar.
+    await user.click(screen.getByTestId("hon-aba-enviados"));
+    expect(screen.getByTestId("hon-aba-vazia")).toBeInTheDocument();
+  });
+
+  it("lista de eventos: “N faltam lançar · N rascunhos · N enviados” e o total dos próximos", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }),
+      "GET /api/honorarios-ceno/eventos": () => respostaJson([
+        { id: "ev1", name: "Night Run Teste", startDate: "2099-10-11", endDate: "2099-10-12", location: "Curitiba", vagas: 6, semColaborador: 1, semPedido: 3, empreitas: 0, rascunhos: 2, aguardando: 4, devolvidos: 0, aprovados: 1, totalPedido: 500_000, totalAprovado: 100_000, passado: false },
+      ]),
+    }, []));
+    renderComTudo(<PedidoPainel eventId={null} onEscolherEvento={() => {}} />, { user: producao });
+    const linha = await screen.findByTestId("hon-evento-ev1");
+    expect(within(linha).getByTestId("hon-evento-contadores")).toHaveTextContent("3 faltam lançar2 rascunhos5 enviados");
+    expect(linha).toHaveTextContent("7/10");
+    expect(screen.getByTestId("hon-eventos-resumo")).toHaveTextContent("3 vagas faltam lançar · 2 rascunhos não enviados");
   });
 });

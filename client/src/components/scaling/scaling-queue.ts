@@ -15,6 +15,7 @@
  * só é possível avaliando uma configuração passada de fora.
  */
 import type { TeamInclusion } from "@shared/schema";
+import type { SituacaoNaFila } from "@shared/honorarios-ceno";
 import { getScalingStatusKey } from "./scaling-status";
 
 /** O que a fila precisa saber sobre cada linha, resolvido pela tela. */
@@ -31,6 +32,12 @@ export interface QueueContext {
   temHospedagemReservada: (i: TeamInclusion) => boolean;
   /** Cenotécnica de empreita — só nessas o tipo de freela é cobrado. */
   ehCenoEmpreita: (i: TeamInclusion) => boolean;
+  /**
+   * Honorário da vaga (23/10), só para quem LANÇA honorário — undefined para
+   * os outros e para a vaga que não é de cenotécnica (o grupo "Honorário"
+   * nem aparece para quem não lança).
+   */
+  honorarioDaVaga?: (i: TeamInclusion) => { situacao: SituacaoNaFila; meu: boolean } | undefined;
 }
 
 export type QueueKey = "trabalho" | "escalar" | "gestor" | "troca" | "prontas";
@@ -71,7 +78,8 @@ export type FlagKey =
   | "pass:precisa" | "pass:nao-precisa" | "pass:comprada" | "pass:nao-comprada"
   | "hosp:precisa" | "hosp:nao-precisa" | "hosp:reservada" | "hosp:nao-reservada"
   | "anal:troca" | "anal:ajuste"
-  | "falta:freela" | "falta:nf" | "falta:cidade";
+  | "falta:freela" | "falta:nf" | "falta:cidade"
+  | "hon:falta" | "hon:rascunho" | "hon:aguardando" | "hon:devolvido" | "hon:aprovado" | "hon:meus";
 
 export interface FlagGroup {
   id: string;
@@ -84,7 +92,11 @@ export interface FlagGroup {
    * comprada da Maria Claudia, porque ela "precisa"). Sem eixo, o grupo
    * inteiro é uma lista só.
    */
-  opcoes: { key: FlagKey; label: string; eixo?: string }[];
+  opcoes: { key: FlagKey; label: string; eixo?: string; resumo?: string }[];
+  /** Grupo que só aparece para quem tem o papel (23/10: "Honorário" só para quem lança). */
+  restrito?: "honorario";
+  /** Uma linha sob o título, quando o grupo precisa dizer o que conta. */
+  nota?: string;
 }
 
 export const FLAG_GROUPS: FlagGroup[] = [
@@ -126,6 +138,19 @@ export const FLAG_GROUPS: FlagGroup[] = [
       { key: "falta:cidade", label: "Sem cidade de saída" },
     ],
   },
+  {
+    // Honorários da cenotécnica (23/10): a etapa do valor de cada vaga, para
+    // quem lança. A vaga numa empreita segue a etapa da empreita; a da casa
+    // não entra. "Lançados por mim" é outra lista: cruza com a etapa.
+    id: "hon", titulo: "Honorário", restrito: "honorario", nota: "vagas de cenotécnica que você lança", opcoes: [
+      { key: "hon:falta", label: "Falta lançar", eixo: "etapa", resumo: "honorário falta lançar" },
+      { key: "hon:rascunho", label: "Rascunho (não enviado)", eixo: "etapa", resumo: "honorário em rascunho" },
+      { key: "hon:aguardando", label: "Aguardando aprovação", eixo: "etapa", resumo: "honorário aguardando aprovação" },
+      { key: "hon:devolvido", label: "Devolvido", eixo: "etapa", resumo: "honorário devolvido" },
+      { key: "hon:aprovado", label: "Aprovado", eixo: "etapa", resumo: "honorário aprovado" },
+      { key: "hon:meus", label: "Lançados por mim", eixo: "autor", resumo: "honorários lançados por mim" },
+    ],
+  },
 ];
 
 /**
@@ -153,7 +178,8 @@ export const ehVagaDeSugestao = (i: TeamInclusion): boolean =>
  * - O resto (troca, ajuste, falta definir) lê o mesmo campo da escalação.
  */
 function testeDaFlagNaSugestao(key: FlagKey, naEscalacao: (i: TeamInclusion) => boolean): (i: TeamInclusion) => boolean {
-  if (key.startsWith("sit:")) return () => false;
+  // Situação e honorário são da vaga NA escalação (a sugestão ainda não pede honorário).
+  if (key.startsWith("sit:") || key.startsWith("hon:")) return () => false;
   if (key === "pass:comprada" || key === "hosp:reservada") return () => false;
   if (key === "pass:nao-comprada" || key === "hosp:nao-reservada") return () => true;
   return naEscalacao;
@@ -190,8 +216,17 @@ function testeDaFlagNaEscalacao(key: FlagKey, ctx: QueueContext): (i: TeamInclus
     case "falta:freela": return (i) => ctx.ehCenoEmpreita(i) && !i.cenoFreelaTipo;
     case "falta:nf": return (i) => i.emitsNf === false;
     case "falta:cidade": return (i) => !String(i.city ?? "").trim();
+
+    case "hon:falta": return honorarioNaEtapa(ctx, "falta_lancar");
+    case "hon:rascunho": return honorarioNaEtapa(ctx, "rascunho");
+    case "hon:aguardando": return honorarioNaEtapa(ctx, "aguardando");
+    case "hon:devolvido": return honorarioNaEtapa(ctx, "devolvido");
+    case "hon:aprovado": return honorarioNaEtapa(ctx, "aprovado");
+    case "hon:meus": return (i) => !!ctx.honorarioDaVaga?.(i)?.meu;
   }
 }
+
+const honorarioNaEtapa = (ctx: QueueContext, s: SituacaoNaFila) => (i: TeamInclusion) => ctx.honorarioDaVaga?.(i)?.situacao === s;
 
 /**
  * As listas que somam entre si (OU): cada grupo sem eixo é uma lista; um
@@ -256,7 +291,7 @@ export function contarComFlag(
 export const TODAS_AS_FLAGS: FlagKey[] = FLAG_GROUPS.flatMap((g) => g.opcoes.map((o) => o.key));
 
 /**
- * Os dezoito contadores de uma vez.
+ * Todos os contadores de uma vez (eram dezoito; 24 com o grupo Honorário, 23/10).
  *
  * A versão ingênua chamava contarComFlag por opção: 18 varreduras da lista
  * inteira, cada uma reconstruindo os predicados e reavaliando coisas caras

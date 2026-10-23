@@ -442,6 +442,26 @@ export async function honorariosParaPlanejado(eventId: string): Promise<Honorari
   }));
 }
 
+/**
+ * Os pedidos de vários eventos para a SITUAÇÃO na Fila da Escalação (23/10) —
+ * SÓ LEITURA, como `honorariosParaPlanejado`: não passa por `completar` (que
+ * grava o colaborador da vaga aberta no pedido). Traz o aviso de cada vaga e,
+ * nas empreitas, o que mudou nas vagas delas.
+ */
+export async function pedidosParaSituacao(eventIds: string[]): Promise<HonorarioComContexto[]> {
+  if (eventIds.length === 0) return [];
+  const linhas = (await selecaoComContexto().where(inArray(honorariosCeno.eventId, eventIds))).map(comContexto);
+  const empreitas = linhas.filter((h) => h.tipo === "empreita");
+  if (empreitas.length) {
+    const porEmpreita = await vagasDasEmpreitas(empreitas.map((h) => h.id));
+    for (const h of empreitas) {
+      h.vagasDaEmpreita = porEmpreita.get(h.id) ?? [];
+      h.avisosDaEmpreita = h.vagasDaEmpreita.filter((v) => v.aviso).map((v) => `#${v.inclusionNumber} ${AVISO_NA_EMPREITA_LABEL[v.aviso!]}`);
+    }
+  }
+  return linhas;
+}
+
 /** Eventos que têm pedido de honorário (qualquer status). */
 export async function eventosComHonorario(): Promise<string[]> {
   const r = await db.selectDistinct({ eventId: honorariosCeno.eventId }).from(honorariosCeno);

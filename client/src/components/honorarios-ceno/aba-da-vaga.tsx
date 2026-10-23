@@ -41,6 +41,9 @@ import {
 import { AvisoDaLinha, EtapaBadge, VagasDaEmpreitaLista, brl, dataBr, diariasTexto, haQuanto, periodoCurto } from "./pecas";
 import { CamposDoPedido, ConfirmarDescarteDasVagas, DetalhesDialog, useFormularioDoPedido, type AlvoDoFormulario } from "./detalhes-dialog";
 import { HistoricoSheet, LinhaDoTempo, ResumoDosValores } from "./historico-sheet";
+import { BadgeFaltaLancar } from "./lancamento";
+import { quem } from "./na-fila";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * A linha de honorário desta vaga, para quem pode pedir. Só consulta quando a
@@ -79,11 +82,11 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 const LINK = "val-alvo inline-flex items-center rounded-md px-1 text-2xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
 
 /** O que a etapa significa para quem pede, numa frase. */
-function Situacao({ h, linha }: { h: Honorario | null; linha: LinhaDoPedido }) {
+function Situacao({ h, linha, meuId }: { h: Honorario | null; linha: LinhaDoPedido; meuId: string | null | undefined }) {
   if (!h) {
     return (
       <div className="space-y-2" data-testid="hon-vaga-situacao">
-        <StatusBadge tone="neutral" dot className="bg-transparent ring-1 ring-inset ring-border">Sem pedido</StatusBadge>
+        {linha.foraDaEscala ? <StatusBadge tone="neutral" dot>Sem pedido</StatusBadge> : <BadgeFaltaLancar />}
         <p className="text-sm text-slate-700">
           {linha.foraDaEscala ? "A vaga saiu da escala — não há o que pedir." : "Escolha o tipo de freela (valor da tabela) ou outro valor. Fica como rascunho até você enviar para o aprovador."}
         </p>
@@ -94,7 +97,7 @@ function Situacao({ h, linha }: { h: Honorario | null; linha: LinhaDoPedido }) {
   return (
     <div className="space-y-2.5" data-testid="hon-vaga-situacao">
       <EtapaBadge h={h} visao="pedido" />
-      {h.status === "rascunho" && <p className="text-sm text-slate-700">Ainda não foi para o aprovador.</p>}
+      {h.status === "rascunho" && <p className="text-sm text-slate-700">Ainda não foi para o aprovador. <span className="text-muted-foreground">Lançado por {quem(h.criadoPorNome, h.criadoPor, meuId)} {haQuanto(h.createdAt)}.</span></p>}
       {h.status === "aguardando" && (
         <p className="text-sm text-slate-700">
           Enviado {haQuanto(h.enviadoEm)}{h.enviadoPorNome ? ` por ${h.enviadoPorNome}` : ""}. Está com o aprovador — o valor só muda se ele devolver para negociar.
@@ -338,6 +341,7 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
 }) {
   const { linha } = hon;
   const { toast } = useToast();
+  const meuId = useAuth().user?.id ?? null;
   const { enviar, editar } = useMutacoesDoPedido();
   const h = linha?.honorario ?? null;
   const editavel = !!linha && (h ? h.podeEditar : !linha.foraDaEscala);
@@ -410,7 +414,7 @@ export function AbaHonorarioDaVaga({ inclusion, hon, rodape, onFechar }: {
 
   const situacao = (
     <Secao titulo="Situação do pedido" icone={<CircleDollarSign aria-hidden="true" />} tom={h?.status === "devolvido" ? "decisao" : "neutro"} testId="hon-vaga-situacao-card">
-      <Situacao h={h} linha={linha} />
+      <Situacao h={h} linha={linha} meuId={meuId} />
       {h && (h.avisoDaVaga || h.eventoExcluido) && (
         <AvisoDaLinha h={h} className="mt-3">
           {trocado && h.podeEditar && (

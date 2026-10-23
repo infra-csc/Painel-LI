@@ -3,9 +3,12 @@
  * Um formato por chave: todas as consultas do módulo começam com
  * `["honorarios-ceno", …]` e toda mutação invalida o módulo inteiro + o sino.
  */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, fetchJson } from "@/lib/queryClient";
-import type { AvisoDaVaga } from "@shared/honorarios-ceno";
+import type { AvisoDaVaga, HonorarioNaFila } from "@shared/honorarios-ceno";
+
+export type { HonorarioNaFila } from "@shared/honorarios-ceno";
 
 export const CHAVE = "honorarios-ceno";
 export const CHAVE_DO_SINO = ["shell", "honorarios-ceno"] as const;
@@ -274,6 +277,43 @@ export function useHistoricoDoHonorario(id: string | null) {
     queryFn: ({ signal }) => fetchJson(`/api/honorarios-ceno/${id}/historico`, signal),
     enabled: !!id,
   });
+}
+
+/**
+ * Situação do honorário por vaga, para a Fila da Escalação (23/10). Os eventos
+ * vão em lotes (o servidor aceita até 100 por consulta); a chave começa com
+ * `CHAVE`, então toda mutação do módulo também atualiza os selos.
+ */
+export const SITUACAO_LOTE = 60;
+export const chaveDaSituacao = (eventIds: readonly string[]) => [CHAVE, "situacao", eventIds.join(",")] as const;
+export const buscarSituacao = (eventIds: readonly string[], signal?: AbortSignal) =>
+  fetchJson<HonorarioNaFila[]>(`/api/honorarios-ceno/situacao?eventIds=${encodeURIComponent(eventIds.join(","))}`, signal);
+
+export function useSituacaoDosHonorarios(eventIds: readonly string[], enabled: boolean) {
+  const lotes = useMemo(() => {
+    const ordenados = Array.from(new Set(eventIds)).sort();
+    const out: string[][] = [];
+    for (let i = 0; i < ordenados.length; i += SITUACAO_LOTE) out.push(ordenados.slice(i, i + SITUACAO_LOTE));
+    return out;
+  }, [eventIds]);
+  return useQueries({
+    queries: lotes.map((ids) => ({
+      queryKey: [...chaveDaSituacao(ids)],
+      queryFn: ({ signal }: { signal: AbortSignal }) => buscarSituacao(ids, signal),
+      enabled,
+      staleTime: 30_000,
+      // Mudar o período/recorte troca os lotes: o selo antigo fica até o novo chegar.
+      placeholderData: keepPreviousData,
+    })),
+    combine: juntarSituacoes,
+  });
+}
+
+/** Fora do hook (referência estável): o TanStack só recombina quando os lotes mudam. */
+function juntarSituacoes(rs: { data?: unknown; isLoading: boolean; isError: boolean }[]) {
+  const porVaga = new Map<string, HonorarioNaFila>();
+  for (const r of rs) for (const h of (r.data as HonorarioNaFila[] | undefined) ?? []) porVaga.set(h.vagaId, h);
+  return { porVaga, carregando: rs.some((r) => r.isLoading), erro: rs.some((r) => r.isError) };
 }
 
 export function buscarPendencias(signal?: AbortSignal) {

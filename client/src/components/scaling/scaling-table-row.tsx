@@ -16,6 +16,7 @@ import { formatDiarias, formatDateRange } from "@/lib/utils";
 import type { TeamInclusion } from "@shared/schema";
 import { StatusBadge } from "@/components/common/status-badge";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
+import { SeloDoHonorario } from "@/components/honorarios-ceno/na-fila";
 import type { ScalingTableProps } from "./scaling-table";
 import { detalheDaSituacao, getStatusBadge, needsDaLinha, shouldShowPendingSwapBadge, type Need } from "./scaling-table-cells";
 
@@ -251,6 +252,10 @@ function Situacao({ inclusion, m, p, comConfirmar = false }: { inclusion: TeamIn
         >
           {detalhe.texto}
         </span>
+      )}
+      {/* Honorário da cenotécnica (23/10): só para quem lança; abre a aba Honorário. */}
+      {p.honorarioDaVaga && !m.cancelada && (
+        <SeloDoHonorario h={p.honorarioDaVaga(inclusion)} meuId={p.currentUserId} onAbrir={() => p.onAbrirHonorario?.(inclusion)} />
       )}
       {/* Etiqueta para Compras (dono, 15/09): a vaga teve troca de colaborador aprovada. */}
       {p.approvedSwapInclusionIds.has(inclusion.id) && detalhe?.tom !== "troca" && (

@@ -855,3 +855,167 @@ export function valorDoHonorarioNaVaga(e: {
   if (aprovadoCents != null) return { subtotalCents: aprovadoCents, fonte: "honorario", aprovadoCents, pendenteCents, difereDoAprovado: false };
   return { subtotalCents: e.regraCents, fonte: "regra", aprovadoCents, pendenteCents, difereDoAprovado: false };
 }
+
+// ── Situação na Escalação (23/10) ───────────────────────────────────────────
+//
+// Dono: "nos honorários, quem lança não sabe quais lançou, tinha que ser mais
+// claro". A Fila de trabalho da Escalação ganha um selo por vaga de
+// cenotécnica e um filtro "Honorário"; a gaveta do evento, um resumo e abas.
+// SÓ LEITURA e só apresentação: as etapas abaixo são uma leitura dos status
+// que já existem (nada novo é gravado). A vaga que está numa EMPREITA segue a
+// etapa da empreita (o valor dela é o da equipe); a da casa não recebe.
+
+/** Onde o honorário de uma vaga está, para quem lança. */
+export type SituacaoNaFila = "falta_lancar" | "rascunho" | "aguardando" | "devolvido" | "aprovado" | "casa";
+
+export const SITUACAO_NA_FILA_LABEL: Record<SituacaoNaFila, string> = {
+  falta_lancar: "Falta lançar",
+  rascunho: "Rascunho (não enviado)",
+  aguardando: "Aguardando aprovação",
+  devolvido: "Devolvido para negociar",
+  aprovado: "Aprovado",
+  casa: "Da casa · não recebe",
+};
+
+/** Lê o status do pedido como etapa da fila (sem pedido → falta lançar). */
+export function situacaoDoStatus(status: string | null | undefined): Exclude<SituacaoNaFila, "casa"> {
+  if (status === "rascunho" || status === "aguardando" || status === "devolvido") return status;
+  if (status && ehAprovado(status)) return "aprovado";
+  return "falta_lancar";
+}
+
+/** O que ainda é trabalho de quem lança: falta lançar, rascunho não enviado e devolvido. */
+export const situacaoPedeAcao = (s: SituacaoNaFila | null | undefined): boolean =>
+  s === "falta_lancar" || s === "rascunho" || s === "devolvido";
+
+/** Quem lançou / enviou / decidiu um pedido, como a rota agregada devolve. */
+export interface AutoriaDoPedido {
+  criadoPor: string | null;
+  criadoPorNome: string | null;
+  createdAt: string | null;
+  enviadoPor: string | null;
+  enviadoPorNome: string | null;
+  enviadoEm: string | null;
+  decididoPorNome: string | null;
+  decididoEm: string | null;
+}
+
+/** O pedido foi lançado ou enviado pela pessoa ("Lançados por mim"). */
+export function lancadoPor(p: { criadoPor?: string | null; enviadoPor?: string | null }, userId: string | null | undefined): boolean {
+  if (!userId) return false;
+  return p.criadoPor === userId || p.enviadoPor === userId;
+}
+
+/** Uma vaga na Fila da Escalação (GET /api/honorarios-ceno/situacao). */
+export interface HonorarioNaFila extends AutoriaDoPedido {
+  vagaId: string;
+  eventId: string;
+  situacao: SituacaoNaFila;
+  /** O pedido que vale para a vaga: o próprio ou o da empreita (null = falta lançar / casa). */
+  honorarioId: string | null;
+  status: string | null;
+  /** O valor que vale hoje: o aprovado, se houver, senão o pedido (centavos). */
+  valorCents: number | null;
+  /** O pedido original, quando houve ajuste. */
+  valorPedidoCents: number | null;
+  /** A vaga faz parte de uma empreita (o valor é o da equipe, rateado no Planejado). */
+  empreita: { id: string; nome: string; vagas: number } | null;
+  /** Lançado ou enviado pela pessoa logada. */
+  meu: boolean;
+  /** A escala mudou depois do pedido (troca de colaborador, vaga da empreita mudou…). */
+  aviso: string | null;
+}
+
+/** Pedido (vaga ou empreita) como a montagem da situação lê. */
+export interface PedidoParaFila extends AutoriaDoPedido {
+  id: string;
+  nome: string;
+  status: string;
+  valorPedido: number;
+  valorAprovado: number | null;
+  avisoDaVaga?: AvisoDaVaga | null;
+  colaboradorAtual?: string | null;
+  avisosDaEmpreita?: readonly string[] | null;
+}
+
+const SEM_AUTORIA: AutoriaDoPedido = {
+  criadoPor: null, criadoPorNome: null, createdAt: null, enviadoPor: null, enviadoPorNome: null, enviadoEm: null, decididoPorNome: null, decididoEm: null,
+};
+
+/**
+ * A situação de UMA vaga ativa de cenotécnica para quem lança. Ordem:
+ *  1. da casa (funcionário) → "casa" (não recebe, sem pedido);
+ *  2. numa empreita → a etapa da EMPREITA, com o nome dela;
+ *  3. com pedido próprio → a etapa do pedido;
+ *  4. sem nada → falta lançar.
+ */
+export function honorarioNaFila(
+  vaga: { id: string; eventId: string; collaboratorId: string | null; collaboratorType: string | null; empreitaEmpresa: string | null },
+  pedido: PedidoParaFila | null,
+  empreita: { pedido: PedidoParaFila; vagas: number } | null,
+  userId: string | null | undefined,
+): HonorarioNaFila {
+  const base = { vagaId: vaga.id, eventId: vaga.eventId };
+  if (!vagaRecebeHonorario(vaga)) {
+    return { ...base, ...SEM_AUTORIA, situacao: "casa", honorarioId: null, status: null, valorCents: null, valorPedidoCents: null, empreita: null, meu: false, aviso: null };
+  }
+  const p = empreita?.pedido ?? pedido;
+  if (!p) {
+    return { ...base, ...SEM_AUTORIA, situacao: "falta_lancar", honorarioId: null, status: null, valorCents: null, valorPedidoCents: null, empreita: null, meu: false, aviso: null };
+  }
+  const aviso = empreita
+    ? (empreita.pedido.avisosDaEmpreita?.length ? `Vaga da empreita mudou: ${empreita.pedido.avisosDaEmpreita.join("; ")}` : null)
+    : p.avisoDaVaga
+      ? (p.avisoDaVaga === "colaborador_trocado"
+        ? (p.colaboradorAtual ? `A vaga trocou de colaborador — hoje: ${p.colaboradorAtual}` : "A vaga ficou sem colaborador")
+        : AVISO_DA_VAGA_LABEL[p.avisoDaVaga])
+      : null;
+  const aprovado = ehAprovado(p.status) && p.valorAprovado != null;
+  return {
+    ...base,
+    situacao: situacaoDoStatus(p.status),
+    honorarioId: p.id,
+    status: p.status,
+    valorCents: aprovado ? p.valorAprovado : p.valorPedido,
+    valorPedidoCents: p.valorPedido,
+    empreita: empreita ? { id: empreita.pedido.id, nome: empreita.pedido.nome, vagas: empreita.vagas } : null,
+    criadoPor: p.criadoPor, criadoPorNome: p.criadoPorNome, createdAt: p.createdAt,
+    enviadoPor: p.enviadoPor, enviadoPorNome: p.enviadoPorNome, enviadoEm: p.enviadoEm,
+    decididoPorNome: p.decididoPorNome, decididoEm: p.decididoEm,
+    meu: lancadoPor(p, userId),
+    aviso,
+  };
+}
+
+/** Os pedidos de uma etapa só ("enviados" = saíram do rascunho: aguardando, decididos). */
+export interface ContagemDoLancamento {
+  /** Linhas que recebem honorário: vagas (fora de empreita) + empreitas. */
+  total: number;
+  faltaLancar: number;
+  rascunho: number;
+  aguardando: number;
+  devolvido: number;
+  aprovado: number;
+  /** Com pedido (qualquer etapa). */
+  lancadas: number;
+  /** Já saíram do rascunho (aguardando, devolvido, aprovado). */
+  enviadas: number;
+}
+
+export function contarLancamento(situacoes: readonly SituacaoNaFila[]): ContagemDoLancamento {
+  const c: ContagemDoLancamento = { total: 0, faltaLancar: 0, rascunho: 0, aguardando: 0, devolvido: 0, aprovado: 0, lancadas: 0, enviadas: 0 };
+  for (const s of situacoes) {
+    if (s === "casa") continue;
+    c.total += 1;
+    if (s === "falta_lancar") { c.faltaLancar += 1; continue; }
+    c.lancadas += 1;
+    if (s === "rascunho") c.rascunho += 1;
+    else {
+      c.enviadas += 1;
+      if (s === "aguardando") c.aguardando += 1;
+      else if (s === "devolvido") c.devolvido += 1;
+      else c.aprovado += 1;
+    }
+  }
+  return c;
+}
