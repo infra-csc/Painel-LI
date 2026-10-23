@@ -101,6 +101,12 @@ export interface MirrorRow {
    * em quarto ou o evento não tem tarifa. `completo` falso = há noite sem tarifa.
    */
   hotelDosQuartos?: { totalCentavos: number; noites: number; completo: boolean } | null;
+  /**
+   * O que o "Confirmar" do quarto escreveu na hospedagem desta vaga (23/10,
+   * `hospedagens_do_espelho.campos`: coluna → valor) — separa o "do Espelho"
+   * do lançado à mão (shared/hotel-na-hospedagem.ts). Ausente/null: nada.
+   */
+  hospedagemDoEspelho?: Record<string, string | number | null> | null;
   pendencies: string[];
 }
 

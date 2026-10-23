@@ -43,11 +43,19 @@
  * novas". Vaga cancelada não chega mais aqui (o servidor a tira de `rows` e
  * dos quartos; ver shared/vagas-canceladas.ts). Quarto CONFIRMADO de onde
  * alguém saiu por isso mostra o aviso "uma vaga deste quarto foi cancelada".
+ *
+ * 23/10, dono: "no espelho operacional, quando colocarmos o hotel, refletir na
+ * passagem" → "quando confirmar, deve preencher lá na aba de Hospedagem com
+ * os dados". O "Confirmar" do quarto preenche a HOSPEDAGEM de cada pessoa
+ * (hotel, datas, tipo, valor, com quem divide) — a que Passagens, Hospedagens
+ * e Escalação leem. Dado lançado à mão e diferente fica: a linha mostra a
+ * diferença com "Usar os dados do quarto"; quarto reaberto avisa para
+ * conferir; a faixa do hotel do evento resume (hospedagens-do-quarto.tsx).
  */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangle, Building2, CheckCheck, Loader2, Moon, Pencil, RefreshCw, BedDouble, Scissors, StickyNote } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { MirrorEvent, RoomGroup } from "@shared/operational-mirror-types";
+import type { MirrorEvent, MirrorRow, RoomGroup } from "@shared/operational-mirror-types";
 import { seloDaOrigem } from "@shared/datas-do-quarto";
 import { motivoDoTipoQueOHotelNaoTem, observacaoDeDatas, PREFIXO_DATAS_DIFERENTES, tipoQueOHotelNaoTem, tiposDoHotelOuPadrao } from "@shared/room-pairing";
 import { ocupacaoPorNoite, rotuloDoTipo, trechosPorApartamento, type TipoDoTrecho } from "@shared/ocupacao-por-noite";
@@ -55,13 +63,25 @@ import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, type QuartoDaRoomingList
 import { chaveDoOcupante, custoDoHotel, dividirCentavos, entradaDoCustoDoHotel, periodoNoQuarto, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
 import { fonteDoHotel } from "@shared/operational-mirror-types";
 import { avisoDeQuemSaiu } from "@shared/vagas-canceladas";
+import { conferirHospedagem, ocupantesDoQuarto } from "@shared/hotel-na-hospedagem";
 import { HotelDoEvento } from "./hotel-do-evento";
+import { HospedagemDoOcupanteAviso, HospedagensDasVagas, type HospedagemDoOcupante } from "./hospedagens-do-quarto";
 import { PainelDeValoresDoHotel, useValoresDoHotel } from "./valores-do-hotel";
 import { AvisoDeQuartosQueExcedem, TiposDoHotelChips } from "./tipos-do-hotel";
 import { partesTxt, ValorDaPessoa, ValoresDoQuarto } from "./valores-do-quarto";
 import { MoverPara } from "./mover-para";
 import { RoomingListPdf } from "./rooming-list-pdf";
 import { brl, diaSemana, fmtDate, memberInfo, type GroupViewProps } from "./mirror-shared";
+
+/**
+ * O total da hospedagem foi escrito pelo Confirmar (23/10) e não mexido
+ * depois? Então não é "lançado na grade": é a própria conta do quarto — a
+ * linha mostra o valor calculado normal, sem riscar.
+ */
+const valorEscritoPeloConfirmar = (r: MirrorRow) => {
+  const escrito = r.hospedagemDoEspelho?.totalCents;
+  return escrito != null && r.accommodation?.totalCents != null && Number(escrito) === r.accommodation.totalCents;
+};
 
 /** A cor do TIPO é detalhe (o ponto do selo), não o separador entre quartos. */
 const COR_DO_TIPO: Record<TipoDoTrecho, string> = {
@@ -301,7 +321,25 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
       if (qual === "saida" && dq.diariaExtraNaVolta) return { base, extra: `+1 diária · volta ${dq.diariaExtraNaVolta.horario}` };
       return { base };
     };
-    return { m, r, bruto, ini, fim, mi, origem, chave, divergencia: dq?.divergencia?.texto ?? null };
+    /*
+     * Hospedagem da vaga × quarto (23/10). Confirmado: o que o Confirmar
+     * preencheu, o que difere (lançado à mão) ou ficou para trás. Reaberto:
+     * se a hospedagem tem dados do último Confirmar, o aviso para conferir.
+     * Quem não precisa de hospedagem (e não tem) fica de fora, como no servidor.
+     * `ocupantesDoQuarto` é a mesma função que o servidor usa para gravar
+     * (no máximo 3 por quarto — refazer por ocupante não pesa).
+     */
+    const dados = mb.collaboratorId ? ocupantesDoQuarto(g, rowByCollab).find((o) => o.collaboratorId === mb.collaboratorId) : undefined;
+    let hospedagem: HospedagemDoOcupante | null = null;
+    if (r && dados && dados.precisa) {
+      if (g.confirmed) {
+        const { situacao, diferencas } = conferirHospedagem(r.accommodation, r.hospedagemDoEspelho, dados.dados);
+        if (situacao) hospedagem = { teamInclusionId: r.teamInclusionId, nome: m.name, situacao, diferencas };
+      } else if (r.hospedagemDoEspelho && Object.keys(r.hospedagemDoEspelho).length > 0) {
+        hospedagem = { teamInclusionId: r.teamInclusionId, nome: m.name, situacao: "reaberto", diferencas: [] };
+      }
+    }
+    return { m, r, bruto, ini, fim, mi, origem, chave, hospedagem, divergencia: dq?.divergencia?.texto ?? null };
   });
   type Ocupante = ReturnType<typeof ocupantes>[number];
 
@@ -527,6 +565,8 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         <HotelDoEvento eventId={evento.id} canEdit={canEdit} listaDeSugestoes={listaDeHoteis}
           quartos={groups.map((g) => ({ id: g.id, hotelName: g.hotelName, confirmed: g.confirmed }))}>
           {chipsDosTipos}
+          <HospedagensDasVagas eventId={evento.id} canEdit={canEdit}
+            ocupantes={quartos.flatMap((q) => q.lista.map((o) => o.hospedagem).filter((h): h is HospedagemDoOcupante => !!h))} />
         </HotelDoEvento>
       )}
       <AvisoDeQuartosQueExcedem excedentes={excedentes} canEdit={canEdit} onRecalc={onRecalc} recalcPending={recalcPending} />
@@ -591,13 +631,16 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
                           <span>{o.divergencia}</span>
                         </div>
                       )}
+                      {o.hospedagem && (
+                        <HospedagemDoOcupanteAviso eventId={evento?.id} canEdit={canEdit} ocupante={o.hospedagem} />
+                      )}
                     </div>
                     {data(o, "entrada")}
                     {data(o, "saida")}
                     {comValores && (
                       <ValorDaPessoa pessoa={custo.porQuarto.get(g.id)?.pessoas.find((p) => p.chave === o.chave)} nome={o.m.name}
                         collaboratorId={o.m.id ?? null} temEscolhaSalva={!!o.m.id && escolhasDeLate.has(o.m.id)} lateNaHospedagem={!!o.r?.accommodation?.lateCheckout}
-                        lancadoCentavos={o.r && fonteDoHotel(o.r) === "lancado" ? o.r.accommodation?.totalCents ?? null : null}
+                        lancadoCentavos={o.r && fonteDoHotel(o.r) === "lancado" && !valorEscritoPeloConfirmar(o.r) ? o.r.accommodation?.totalCents ?? null : null}
                         canEdit={canEdit} mutacoes={mutacoesDeValores} />
                     )}
                   </li>

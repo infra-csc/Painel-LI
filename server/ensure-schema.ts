@@ -406,6 +406,26 @@ const PASSOS: Passo[] = [
     descricao: "índice hotel_late_checkouts_evento_pessoa_uq",
     sql: `CREATE UNIQUE INDEX IF NOT EXISTS hotel_late_checkouts_evento_pessoa_uq ON hotel_late_checkouts (event_id, collaborator_id)`,
   },
+  // 23/10 — quarto confirmado no Espelho preenche a hospedagem da vaga: o que
+  // o Espelho escreveu (campos), para não sobrescrever o que foi lançado à mão.
+  // Só o código novo lê; sem a tabela, o preenchimento não acontece e o resto segue.
+  {
+    descricao: "tabela hospedagens_do_espelho (quarto confirmado → hospedagem da vaga)",
+    sql: `CREATE TABLE IF NOT EXISTS hospedagens_do_espelho (
+      accommodation_id varchar PRIMARY KEY REFERENCES accommodations(id) ON DELETE CASCADE,
+      event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      team_inclusion_id varchar NOT NULL,
+      hotel_room_group_id varchar,
+      campos jsonb NOT NULL,
+      criada_pelo_espelho boolean NOT NULL DEFAULT false,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by varchar REFERENCES users(id)
+    )`,
+  },
+  {
+    descricao: "índice hospedagens_do_espelho_evento_idx",
+    sql: `CREATE INDEX IF NOT EXISTS hospedagens_do_espelho_evento_idx ON hospedagens_do_espelho (event_id)`,
+  },
   {
     descricao: "scaling_change_requests.grupo_id (pedido de ajuste em par)",
     sql: `ALTER TABLE scaling_change_requests ADD COLUMN IF NOT EXISTS grupo_id varchar`,

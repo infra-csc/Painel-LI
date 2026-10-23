@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAvisos } from "./avisos";
 import { rotuloCampo } from "./editable-cell";
 import { textoDoValor, type CellValue } from "./mirror-shared";
+import { invalidarLogisticaDasOutrasTelas, textoDoPreenchimento, type ResumoDasHospedagens } from "./hospedagens-do-quarto";
 
 function saveErrorMessage(err: unknown, fallback: string) {
   const e = err as { status?: number; body?: { message?: string } } | null;
@@ -23,7 +24,12 @@ export function useMirrorMutations(eventId: string, mirrorKey: unknown[]) {
   const { toast } = useToast();
   const { avisar } = useAvisos();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: mirrorKey });
+  // Hotel/datas de quarto e células de hospedagem/passagem mexem na hospedagem
+  // e no status da vaga (23/10): as outras telas releem quando abrirem.
+  const invalidate = () => {
+    invalidarLogisticaDasOutrasTelas(queryClient);
+    return queryClient.invalidateQueries({ queryKey: mirrorKey });
+  };
   const erro = (title: string, fallback = "Tente novamente em instantes.") => (err: unknown) =>
     toast({ title, description: saveErrorMessage(err, fallback), variant: "destructive" });
 
@@ -108,15 +114,24 @@ export function useMirrorMutations(eventId: string, mirrorKey: unknown[]) {
     onSuccess: () => { invalidate(); toast({ title: "Sugestões recalculadas", description: "Grupos confirmados foram preservados." }); },
     onError: erro("Erro ao recalcular", "Não foi possível recalcular as sugestões."),
   });
+  // 23/10: confirmar o quarto preenche a hospedagem de cada pessoa (servidor);
+  // o toast diz o que foi preenchido e o que ficou para conferir.
   const confirmRoom = useMutation({
-    mutationFn: async (id: string) => apiRequest("POST", `/api/hotel-room-groups/${id}/confirm`),
-    onSuccess: () => { invalidate(); toast({ title: "Quarto confirmado" }); },
+    mutationFn: async (id: string): Promise<{ hospedagens?: ResumoDasHospedagens | null }> =>
+      (await apiRequest("POST", `/api/hotel-room-groups/${id}/confirm`)).json().catch(() => ({})),
+    onSuccess: (r) => { invalidate(); toast({ title: "Quarto confirmado", description: textoDoPreenchimento(r?.hospedagens) }); },
     onError: erro("Não foi possível confirmar o quarto"),
   });
   const patchRoom = useMutation({
     mutationFn: async ({ id, campos }: { id: string; campos: Record<string, unknown> }) =>
       apiRequest("PATCH", `/api/hotel-room-groups/${id}`, campos),
-    onSuccess: invalidate,
+    onSuccess: (_r, v) => {
+      invalidate();
+      // Reabrir não apaga a hospedagem preenchida no Confirmar (23/10).
+      if (v.campos.confirmed === false) {
+        toast({ title: "Quarto reaberto", description: "A hospedagem de quem está nele fica como estava — confira e confirme de novo para atualizar." });
+      }
+    },
     onError: erro("Não foi possível salvar o quarto"),
   });
   const mover = useMutation({

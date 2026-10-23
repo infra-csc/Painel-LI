@@ -229,6 +229,7 @@ export default function TicketsTable({
               terrestres={data.getTerrestres(inclusion.id)}
               cobertura={data.getCobertura(inclusion.id)}
               onTerrestre={onTerrestre}
+              hospedagem={data.accommodationByInclusion.get(inclusion.id)}
               rowIdx={rowIdx}
               eventName={data.getEventName(inclusion.eventId)}
               functionName={data.getFunctionName(inclusion.functionId)}

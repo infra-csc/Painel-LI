@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { renderComTudo } from "@/test/render";
-import { passagemFake, vagaFake } from "@/test/fixtures-dominio";
+import { hospedagemFake, passagemFake, vagaFake } from "@/test/fixtures-dominio";
 import TicketRow, { ticketSummaryLine, type TicketRowProps } from "./ticket-row";
 
 function montar(extras: Partial<TicketRowProps> = {}) {
@@ -153,5 +153,23 @@ describe("TicketRow", () => {
     unmount();
     const { linha: semSugestao } = montar();
     expect(within(semSugestao).getByText("—")).toBeInTheDocument();
+  });
+});
+
+describe("TicketRow — selo do Hotel (23/10: quarto confirmado no Espelho preenche a hospedagem)", () => {
+  it("hospedagem com hotel: selo com o nome e as datas", () => {
+    montar({ hospedagem: hospedagemFake({ teamInclusionId: "vaga-1", hotelName: "Hotel Ibis", checkInDate: "2026-04-09", checkOutDate: "2026-04-13" }) });
+    const selo = screen.getByTestId("ticket-hotel-vaga-1");
+    expect(selo).toHaveTextContent("Hotel Ibis");
+    expect(selo).toHaveTextContent("09/04 → 13/04");
+    expect(selo).toHaveAttribute("title", "Hospedagem reservada · Hotel Ibis · 09/04 → 13/04");
+  });
+
+  it("precisa de hospedagem e não tem hotel: 'Hotel pendente'; não precisa e não tem: sem selo", () => {
+    const { unmount } = montar({ inclusion: vagaFake({ id: "vaga-1", needsAccommodation: true }) });
+    expect(screen.getByTestId("ticket-hotel-vaga-1")).toHaveTextContent("Hotel pendente");
+    unmount();
+    montar({ inclusion: vagaFake({ id: "vaga-1", needsAccommodation: false }) });
+    expect(screen.queryByTestId("ticket-hotel-vaga-1")).toBeNull();
   });
 });

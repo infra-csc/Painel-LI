@@ -20,6 +20,7 @@ import {
   hotelTarifasEvento,
   hotelValoresQuarto,
   hotelLateCheckouts,
+  hospedagensDoEspelho,
   systemSettings,
   type Ticket,
 } from "@shared/schema";
@@ -489,6 +490,22 @@ export async function carregarValoresDoHotel(eventId: string, exec: Exec = db): 
 }
 
 /**
+ * O que o "Confirmar" do quarto escreveu em cada hospedagem do evento (23/10,
+ * shared/hotel-na-hospedagem.ts), por id da hospedagem. Tolerante como os
+ * valores do hotel: sem a tabela (boot ainda preparando o banco), `null`.
+ */
+export async function carregarHospedagensDoEspelho(eventId: string, exec: Exec = db): Promise<Map<string, Record<string, string | number | null>> | null> {
+  try {
+    const linhas = await exec.select({ accommodationId: hospedagensDoEspelho.accommodationId, campos: hospedagensDoEspelho.campos })
+      .from(hospedagensDoEspelho).where(eq(hospedagensDoEspelho.eventId, eventId));
+    return new Map(linhas.map((l) => [l.accommodationId, l.campos ?? {}]));
+  } catch (erro) {
+    console.error("[espelho] hospedagens_do_espelho indisponível (tabela ainda não criada?) —", erro instanceof Error ? erro.message : erro);
+    return null;
+  }
+}
+
+/**
  * Apartamentos que o hotel do evento tem (22/10) — para as sugestões e o
  * "Mover". Tolerante como os valores: sem a tabela/colunas (boot ainda
  * preparando o banco) ou sem linha gravada, o hotel tem todos os tipos.
@@ -506,7 +523,7 @@ export async function carregarTiposDoHotel(eventId: string, exec: Exec = db): Pr
 
 // ---------- Buscar dados consolidados ----------
 export async function getOperationalMirror(eventId: string): Promise<MirrorResponse | null> {
-  const [base, extras, uberGroupRows, roomGroupRows, uberMemberRows, roomMemberRows, valoresDoHotel] = await Promise.all([
+  const [base, extras, uberGroupRows, roomGroupRows, uberMemberRows, roomMemberRows, valoresDoHotel, doEspelho] = await Promise.all([
     carregarBaseDoEvento(eventId),
     db.select().from(logisticsExtraCosts).where(eq(logisticsExtraCosts.eventId, eventId)),
     db.select().from(uberGroups).where(eq(uberGroups.eventId, eventId)).orderBy(asc(uberGroups.createdAt), asc(uberGroups.id)),
@@ -514,6 +531,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     membrosDeUberDoEvento(db, eventId),
     membrosDeQuartoDoEvento(db, eventId),
     carregarValoresDoHotel(eventId),
+    carregarHospedagensDoEspelho(eventId),
   ]);
   if (!base) return null;
   const { event, inclusions, canceladas, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga } = base;
@@ -644,6 +662,7 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
       suggestedRoomGroupId: roomGroup?.id || null,
       roomGroupLabel: roomGroup ? `${roomGroup.roomType || ""} ${roomGroup.confirmed ? "(Confirmado)" : "(Sugestão)"}`.trim() : null,
       datasDoQuarto: datasDoQuartoDaVaga(ti, ticket, acc),
+      hospedagemDoEspelho: (acc && doEspelho?.get(acc.id)) || null,
       pendencies,
     };
   });

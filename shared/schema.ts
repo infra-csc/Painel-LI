@@ -1789,6 +1789,35 @@ export const hotelLateCheckouts = pgTable("hotel_late_checkouts", {
 ]);
 export type HotelLateCheckout = typeof hotelLateCheckouts.$inferSelect;
 
+/**
+ * O que o Espelho escreveu na hospedagem da vaga (23/10, dono: "quando
+ * confirmar [o quarto], deve preencher lá na aba de Hospedagem com os
+ * dados"). Uma linha por hospedagem: os campos que vieram do quarto
+ * confirmado (hotel, check-in/out, tipo, diárias, valor, com quem divide), em
+ * `campos` (coluna de `accommodations` → valor escrito). É o que separa o
+ * valor "do Espelho" (atualizado quando o quarto é confirmado de novo) do
+ * lançado à mão (nunca sobrescrito sem alguém pedir) — regra em
+ * shared/hotel-na-hospedagem.ts. Tabela própria de propósito: nenhuma coluna
+ * de `accommodations` muda, e quem lê hospedagem não depende dela existir.
+ * Migração: scripts/migrations/2026-10-23-hotel-do-espelho-na-hospedagem.sql
+ * (também criada no boot por server/ensure-schema.ts).
+ */
+export const hospedagensDoEspelho = pgTable("hospedagens_do_espelho", {
+  accommodationId: varchar("accommodation_id").primaryKey().references(() => accommodations.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  teamInclusionId: varchar("team_inclusion_id").notNull(),
+  /** Quarto confirmado de onde vieram os dados (sem FK: o quarto pode ser refeito). */
+  hotelRoomGroupId: varchar("hotel_room_group_id"),
+  campos: jsonb("campos").$type<Record<string, string | number | null>>().notNull(),
+  /** A hospedagem nasceu pelo Espelho (não existia linha para a vaga). */
+  criadaPeloEspelho: boolean("criada_pelo_espelho").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+}, (t) => [
+  index("hospedagens_do_espelho_evento_idx").on(t.eventId),
+]);
+export type HospedagemDoEspelho = typeof hospedagensDoEspelho.$inferSelect;
+
 export const insertLogisticsExtraCostSchema = createInsertSchema(logisticsExtraCosts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUberGroupSchema = createInsertSchema(uberGroups).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   // Horas "HH:MM" (25/09) — o cálculo do carro (shared/uber-routing.ts) lê `time`.

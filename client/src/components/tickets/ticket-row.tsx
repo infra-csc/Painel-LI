@@ -8,8 +8,9 @@
 // No celular/tablet a MESMA árvore de células vira um cartão por CSS
 // (`.pas-cartao` no index.css) — nada é renderizado de outro jeito.
 import { forwardRef, memo } from "react";
-import { Eye, Plane, ArrowLeftRight, Lock, Stamp, Bus, PlaneTakeoff, PlaneLanding, MapPin, CalendarClock, Truck } from "lucide-react";
-import type { TeamInclusion, Ticket } from "@shared/schema";
+import { Eye, Plane, ArrowLeftRight, Lock, Stamp, Bus, PlaneTakeoff, PlaneLanding, MapPin, CalendarClock, Truck, BedDouble } from "lucide-react";
+import type { Accommodation, TeamInclusion, Ticket } from "@shared/schema";
+import { hospedagemReservada } from "@shared/hotel-na-hospedagem";
 import { extractTravelSuggestion, formatSuggestionDate, hasSuggestionValue } from "@/lib/ticket-form";
 import { formatDate, formatBrl, isOneWayTicket, toTitleCase } from "./use-tickets-data";
 import { cn } from "@/lib/utils";
@@ -17,8 +18,9 @@ import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import type { SinalDeViagem } from "./use-sinais-de-viagem";
 import { IndicacaoDaLogistica, LeituraSuspeita, ProblemasDaViagem, SugestaoDeTrechoDireto, TrechoDiretoDaVaga } from "./sinais-da-vaga";
 import { pernasComOrigemIgualAoDestino } from "@shared/sanidade-da-passagem";
-import { rotuloDaCobertura, reaisDoTerrestre, type CoberturaTerrestre, type ModoDeRegistro, type PernaDaViagem, type TrechoTerrestre } from "@shared/transporte-terrestre";
+import { modoSugerido, rotuloDaCobertura, reaisDoTerrestre, sugestaoTerrestreDaVaga, type CoberturaTerrestre, type ModoDeRegistro, type PernaDaViagem, type TrechoTerrestre } from "@shared/transporte-terrestre";
 import { AtalhoDoTerrestre, LinhasDoTerrestre } from "./terrestre-na-linha";
+import { aeroportoComumDoTrechoDireto } from "./regiao-do-trecho-direto";
 import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
 
 export interface TicketRowProps {
@@ -62,6 +64,54 @@ export interface TicketRowProps {
   cobertura?: CoberturaTerrestre;
   /** "Vai de carro/van": registrar/editar o terrestre (sem permissão: ausente). */
   onTerrestre?: (inclusion: TeamInclusion, modo?: ModoDeRegistro, pernas?: PernaDaViagem[]) => void;
+  /**
+   * Hospedagem da vaga (23/10): o selo "Hotel" embaixo do passageiro — o hotel
+   * definido no Espelho (aba Quartos) chega aqui pela hospedagem.
+   */
+  hospedagem?: Accommodation;
+}
+
+const ddmm = (v: string | null | undefined) => {
+  const d = v ? String(v).slice(0, 10) : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : null;
+};
+
+/**
+ * Selo "Hotel" da vaga (23/10, dono: "no espelho operacional, quando
+ * colocarmos o hotel, refletir na passagem"). Reservada = com hotel e não
+ * cancelada (mesma regra do status da vaga). Quem não precisa de hospedagem
+ * nem tem uma não ganha selo.
+ */
+function SeloDoHotel({ hospedagem, precisa, inclusionId }: { hospedagem: Accommodation | undefined; precisa: boolean; inclusionId: string }) {
+  if (hospedagemReservada(hospedagem)) {
+    const entrada = ddmm(hospedagem!.checkInDate);
+    const saida = ddmm(hospedagem!.checkOutDate);
+    const datas = entrada || saida ? `${entrada ?? "—"} → ${saida ?? "—"}` : null;
+    // A coluna do passageiro é estreita: o nome do hotel quebra em linhas e
+    // as datas ficam inteiras embaixo — cortar o nome deixava só "H…".
+    return (
+      <span
+        className="inline-flex max-w-full items-start gap-1.5 rounded-md bg-success-soft px-[7px] py-[3px] text-2xs font-medium leading-4 text-success"
+        title={`Hospedagem reservada · ${hospedagem!.hotelName}${datas ? ` · ${datas}` : ""}`}
+        data-testid={`ticket-hotel-${inclusionId}`}
+      >
+        <BedDouble className="mt-0.5 w-3 h-3 shrink-0" aria-hidden="true" />
+        <span className="min-w-0">
+          <span className="sr-only">Hotel:</span>
+          <span className="break-words">{hospedagem!.hotelName}</span>
+          {datas && <span className="block whitespace-nowrap tabular-nums font-normal">{datas}</span>}
+        </span>
+      </span>
+    );
+  }
+  if (!precisa && !hospedagem) return null;
+  const cancelada = hospedagem?.hotelStatus === "cancelada";
+  return (
+    <span className={`${PILULA} bg-muted text-muted-foreground`} data-testid={`ticket-hotel-${inclusionId}`}
+      title={cancelada ? "A hospedagem desta vaga foi cancelada" : "Precisa de hospedagem — hotel ainda não definido"}>
+      <BedDouble className="w-3 h-3 shrink-0" aria-hidden="true" />{cancelada ? "Hotel cancelado" : "Hotel pendente"}
+    </span>
+  );
 }
 
 const transportLabel = (t: Ticket) => (t.transportType === "van" ? "Van" : t.transportType === "rodoviario" ? "Rodoviário" : "Aéreo");
@@ -120,7 +170,7 @@ function Perna({ ida, data, partida, chegada, origem, destino, rodo }: {
 const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function TicketRow({
   inclusion, ticket, rowIdx, eventName, functionName, collaboratorName, eventLocation, onToggleEmitida, emitindo,
   hasPendingSwap, hasApprovedSwap, alteracaoPendente, selected, canEdit, locked, onToggleSelect, onOpen, sinal, nomeDoEvento, onTrechoDireto, onBuscarTrechoDireto, onCorrigirPassagem, "data-index": dataIndex,
-  terrestres = [], cobertura, onTerrestre,
+  terrestres = [], cobertura, onTerrestre, hospedagem,
 }, ref) {
   const cancelado = inclusion.status === "cancelado";
   const cellCls = `px-2.5 py-2.5 align-top cursor-pointer ${cancelado ? "opacity-60" : ""}`;
@@ -141,6 +191,12 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   const editarTerrestre = podeTerrestre ? (pernas?: PernaDaViagem[]) => onTerrestre!(inclusion, undefined, pernas) : undefined;
   // A perna que falta também pode ir de carro/van (ida de van, volta de carro — 21/10).
   const registrarFalta = podeTerrestre ? (pernas: PernaDaViagem[]) => onTerrestre!(inclusion, undefined, pernas) : undefined;
+  // Trecho direto sugerido (23/10): mesma região do evento anterior = por
+  // terra, sem voo; e o carro/van passa a morar no cartão da sugestão.
+  const anteriorSugerida = !ticket && !cancelado && terrestres.length === 0 ? sinal?.podeIrDiretoDe : undefined;
+  const aeroportoComum = anteriorSugerida ? aeroportoComumDoTrechoDireto(anteriorSugerida, { location: eventLocation, name: eventName }) : null;
+  const terrestreNoCartao = podeTerrestre && !!anteriorSugerida;
+  const modoDoTerrestre = terrestreNoCartao ? modoSugerido(sugestaoTerrestreDaVaga(inclusion)) : undefined;
   // A borda esquerda diz de quem é a vez: âmbar = espera você (compra
   // pendente, troca em análise, alteração aprovada para remarcar); verde =
   // comprada; cinza = cancelada.
@@ -251,6 +307,7 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
                 <ArrowLeftRight className="w-3 h-3" aria-hidden="true" />Troca aprovada
               </span>
             )}
+            {!cancelado && <SeloDoHotel hospedagem={hospedagem} precisa={!!inclusion.needsAccommodation} inclusionId={inclusion.id} />}
           </div>
         </div>
       </td>
@@ -307,12 +364,21 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
         ) : (
           <>
             <span className="text-xs text-muted-foreground italic whitespace-nowrap">Não comprada</span>
-            {podeTerrestre && <AtalhoDoTerrestre inclusion={inclusion} onAbrir={onTerrestre!} />}
+            {/* Com a sugestão de trecho direto, o carro/van mora no cartão dela
+                (23/10): é a mesma decisão — como a pessoa chega vindo do evento
+                anterior — e dois botões iguais na célula só pesavam. */}
+            {podeTerrestre && !terrestreNoCartao && <AtalhoDoTerrestre inclusion={inclusion} onAbrir={onTerrestre!} />}
             {!cancelado && (
               <SugestaoDeTrechoDireto
                 sinal={sinal} inclusionId={inclusion.id} podeRegistrar={canEdit && !locked}
                 onRegistrar={onTrechoDireto ? (anteriorId) => onTrechoDireto(inclusion, anteriorId) : undefined}
                 onBuscarPrecos={onBuscarTrechoDireto && !locked ? (anteriorId) => onBuscarTrechoDireto(inclusion, anteriorId) : undefined}
+                aeroportoComum={aeroportoComum}
+                terrestre={terrestreNoCartao ? {
+                  modo: modoDoTerrestre,
+                  onIda: () => onTerrestre!(inclusion, modoDoTerrestre, ["ida"]),
+                  onViagem: () => onTerrestre!(inclusion, modoDoTerrestre),
+                } : undefined}
               />
             )}
           </>

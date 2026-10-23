@@ -42,7 +42,8 @@ import { tipoPorOcupantes } from "@shared/room-pairing";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, planoDoHotelDoEvento } from "@shared/rooming-list";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
 import { LIMITE_DA_DIARIA_CENTAVOS, LIMITE_DO_VALOR_PAGO_CENTAVOS } from "@shared/custo-dos-quartos";
-import { createAuditLog, upload, requireRoles, LOGISTICA_ROLES, TODOS_OS_PAPEIS } from "./_compartilhado";
+import { createAuditLog, upload, requireRoles, recalcularStatusDeLogistica, LOGISTICA_ROLES, TODOS_OS_PAPEIS } from "./_compartilhado";
+import { preencherHospedagensDosQuartos, preencherSemDerrubar } from "../hotel-na-hospedagem";
 
 export function registrarEspelhoOperacional(app: Express): void {
   // ===== Espelho Operacional (Logística do Evento) =====
@@ -60,6 +61,9 @@ export function registrarEspelhoOperacional(app: Express): void {
       res.status(500).json({ message: "Erro ao carregar espelho operacional" });
     }
   });
+
+  /** Campo da grade que grava hospedagem ou passagem — o status da vaga é derivado deles. */
+  const mexeNaLogistica = (field: string) => field.startsWith("accommodation.") || field.startsWith("ticket.");
 
   /** Campos do espelho que mexem no PERÍODO da vaga — travados por pedido de ajuste pendente. */
   const CAMPOS_DE_DATA_DO_ESPELHO = new Set(["schedule.startDate", "schedule.endDate"]);
@@ -82,6 +86,9 @@ export function registrarEspelhoOperacional(app: Express): void {
       if (CAMPOS_DE_DATA_DO_ESPELHO.has(String(field)) && !await travaDePedidoPendente(req.params.rowId, res)) return;
       const result = await patchOperationalMirrorCell(req.params.eventId, req.params.rowId, field, value);
       await createAuditLog("update", "operational_mirror", req.params.rowId, { eventId: req.params.eventId, field, value }, ator.id, ator.name, undefined, req);
+      // Hotel/passagem lançados na grade também andam o status da vaga (23/10)
+      // — antes só as telas de Hospedagens e Passagens faziam isso.
+      if (mexeNaLogistica(String(field))) await recalcularStatusDeLogistica(req.params.rowId, ator, req);
       res.json(result);
     } catch (error) {
       console.error("Erro ao salvar célula do espelho:", error);
@@ -137,6 +144,7 @@ export function registrarEspelhoOperacional(app: Express): void {
 
       let gravados = 0;
       const falhas: { nome: string; campo: string; motivo: string }[] = [];
+      const vagasComLogistica = new Set<string>();
       for (const linha of linhas) {
         const rowId = String(linha?.teamInclusionId ?? "");
         if (!rowId || !Array.isArray(linha?.alteracoes)) continue;
@@ -147,12 +155,14 @@ export function registrarEspelhoOperacional(app: Express): void {
           try {
             await patchOperationalMirrorCell(req.params.eventId, rowId, String(alt.campo), alt.para);
             gravados += 1;
+            if (mexeNaLogistica(String(alt.campo))) vagasComLogistica.add(rowId);
           } catch (e) {
             falhas.push({ nome: String(linha.nome ?? ""), campo: String(alt.campo), motivo: (e as Error)?.message || "erro" });
           }
         }
       }
       await createAuditLog("update", "operational_mirror", req.params.eventId, { eventId: req.params.eventId, acao: "importar planilha", gravados, falhas: falhas.length }, ator.id, ator.name, undefined, req);
+      for (const rowId of Array.from(vagasComLogistica)) await recalcularStatusDeLogistica(rowId, ator, req);
       res.json({ gravados, falhas });
     } catch (error) {
       console.error("erro ao aplicar planilha do espelho:", error);
@@ -284,6 +294,35 @@ export function registrarEspelhoOperacional(app: Express): void {
     } catch (error) {
       console.error("erro ao aplicar o hotel do evento:", error);
       res.status(500).json({ message: "Não foi possível aplicar o hotel aos quartos." });
+    }
+  });
+
+  /**
+   * POST /api/events/:eventId/operational-mirror/hospedagens — preenche a
+   * hospedagem das vagas com os dados dos quartos CONFIRMADOS (23/10; o mesmo
+   * que o "Confirmar" faz). Sem corpo: só o que está vazio ou foi escrito pelo
+   * Espelho; o lançado à mão fica e volta em `diferem`.
+   * `usarDadosDoQuarto: [teamInclusionId…]` — essas vagas recebem os dados do
+   * quarto mesmo sobre o lançado à mão (a tela mostra a diferença antes).
+   * Regra em shared/hotel-na-hospedagem.ts; status e auditoria em
+   * server/hotel-na-hospedagem.ts.
+   */
+  app.post("/api/events/:eventId/operational-mirror/hospedagens", async (req, res) => {
+    const ator = await requireRoles(req, res, LOGISTICA_ROLES);
+    if (!ator) return;
+    try {
+      const { eventId } = req.params;
+      const bruto = req.body?.usarDadosDoQuarto;
+      if (bruto !== undefined && (!Array.isArray(bruto) || bruto.length === 0 || bruto.length > 500 || bruto.some((x: unknown) => typeof x !== "string" || !x))) {
+        return res.status(400).json({ message: "Informe as vagas que recebem os dados do quarto." });
+      }
+      if (!await assertEventEditable(eventId, ator, res)) return;
+      const forcar = bruto ? new Set<string>(bruto) : null;
+      const resumo = await preencherHospedagensDosQuartos(eventId, ator, req, forcar ? { vagas: forcar, forcar } : {});
+      res.json(resumo);
+    } catch (error) {
+      console.error("erro ao preencher as hospedagens dos quartos:", error);
+      res.status(500).json({ message: "Não foi possível preencher as hospedagens." });
     }
   });
 
@@ -491,7 +530,10 @@ export function registrarEspelhoOperacional(app: Express): void {
         .set({ confirmed: true, suggested: false, updatedAt: new Date() })
         .where(eq(hotelRoomGroupsTable.id, req.params.id)).returning();
       await createAuditLog("confirm", "hotel_room_group", req.params.id, g, ator.id, ator.name, grupo, req);
-      res.json(g);
+      // 23/10, dono: "quando confirmar, deve preencher lá na aba de Hospedagem
+      // com os dados" — hotel, datas, tipo, valor e com quem divide.
+      const hospedagens = await preencherSemDerrubar(grupo.eventId, ator, req, { quartos: [g.id] });
+      res.json({ ...g, hospedagens });
     } catch {
       res.status(400).json({ message: "Erro ao confirmar grupo de quarto" });
     }
@@ -778,7 +820,12 @@ export function registrarEspelhoOperacional(app: Express): void {
         .set({ ...allowed, updatedAt: new Date() })
         .where(eq(hotelRoomGroupsTable.id, req.params.id)).returning();
       await createAuditLog("update", "hotel_room_group", req.params.id, g, ator.id, ator.name, anterior, req);
-      res.json(g);
+      // Quarto CONFIRMADO (23/10): confirmar por aqui, ou trocar o hotel/as
+      // datas dele, preenche de novo a hospedagem de quem está nele. Reabrir
+      // (confirmed: false) não apaga nada — a aba avisa para conferir.
+      const mexeNaHospedagem = g.confirmed && ("confirmed" in allowed || "hotelName" in allowed || "checkInDate" in allowed || "checkOutDate" in allowed);
+      const hospedagens = mexeNaHospedagem ? await preencherSemDerrubar(anterior.eventId, ator, req, { quartos: [g.id] }) : undefined;
+      res.json(hospedagens === undefined ? g : { ...g, hospedagens });
     } catch {
       res.status(400).json({ message: "Erro ao atualizar grupo de quarto" });
     }
@@ -909,6 +956,10 @@ export function registrarEspelhoOperacional(app: Express): void {
         .where(eq(hotelRoomGroupMembersTable.id, req.params.id)).returning();
       if (!m) return res.status(404).json({ message: "Ocupante não encontrado" });
       await createAuditLog("update", "hotel_room_group_member", req.params.id, m, ator.id, ator.name, anterior, req);
+      // Quarto confirmado: a estadia própria vira as datas da hospedagem (23/10).
+      if (grupo?.confirmed && ("checkInDate" in allowed || "checkOutDate" in allowed)) {
+        await preencherSemDerrubar(grupo.eventId, ator, req, { quartos: [grupo.id] });
+      }
       res.json(m);
     } catch {
       res.status(400).json({ message: "Erro ao atualizar a estadia desta pessoa" });
