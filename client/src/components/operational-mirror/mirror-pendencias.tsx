@@ -190,6 +190,12 @@ export function PlacarDeBlocos({ resumo, totals, blocoFiltro, setBlocoFiltro, de
                 {obrigatorio && !vazio ? (rb.faltam ? `${rb.faltam} a completar` : "fechado") : ""}
               </span>
             </span>
+            {/* 23/10: quanto do bloco é de vaga cancelada (fora das listas, dentro do custo). */}
+            {(b === "passagem" || b === "hospedagem") && (b === "passagem" ? totals?.canceladas?.tickets ?? 0 : totals?.canceladas?.hotel ?? 0) > 0 && (
+              <span className="mt-0.5 block text-2xs leading-4 text-muted-foreground" data-testid={`mirror-canceladas-${b}`}>
+                inclui {brl(b === "passagem" ? totals?.canceladas?.tickets ?? 0 : totals?.canceladas?.hotel ?? 0)} de vagas canceladas
+              </span>
+            )}
             {b === "passagem" && (totals?.ticketsHistorico ?? 0) > 0 && (
               <span className="mt-0.5 block text-2xs leading-4 text-muted-foreground" data-testid="mirror-passagens-historico">
                 inclui {brl(totals?.ticketsHistorico ?? 0)} de passagens de trocas
@@ -206,6 +212,12 @@ export function PlacarDeBlocos({ resumo, totals, blocoFiltro, setBlocoFiltro, de
         <p className="mt-1.5 text-2xs leading-4 text-muted-foreground">
           {derivedHotelCount > 0 ? "Inclui hotel calculado" : "Soma dos cinco blocos"}
         </p>
+        {(totals.canceladas?.total ?? 0) > 0 && (
+          // 23/10: o dinheiro das vagas canceladas continua aqui — o bloco do topo diz quais são.
+          <p className="mt-0.5 text-2xs leading-4 text-muted-foreground" data-testid="mirror-custo-canceladas">
+            inclui {brl(totals.canceladas?.total ?? 0)} de vagas canceladas
+          </p>
+        )}
       </div>
     </div>
   );

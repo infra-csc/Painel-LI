@@ -36,9 +36,14 @@ export interface GradeViewProps {
   irParaVisao: (v: "uber" | "quartos") => void;
   /** Total sem filtro — o rodapé diz "N de M pessoas". */
   totalDoEvento: number;
+  /**
+   * O evento tem vaga cancelada com custo (23/10)? Então o rodapé não se diz
+   * "do evento": o custo do evento (placar) inclui as canceladas, a grade não.
+   */
+  temCanceladasComCusto?: boolean;
 }
 
-export function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage, confirmados, pendenciaDe, irParaVisao, totalDoEvento }: GradeViewProps) {
+export function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, sort, onSort, editMode, canEdit, emptyMessage, confirmados, pendenciaDe, irParaVisao, totalDoEvento, temCanceladasComCusto }: GradeViewProps) {
   const show = (b: Block) => !hiddenBlocks.has(b);
   // "Bater o olho e entender" (pedido do dono): cada etapa diz quantas pessoas
   // já têm aquilo resolvido. Sem isso, saber o que falta exigia percorrer ~36
@@ -194,7 +199,7 @@ export function GradeView({ rows, hiddenBlocks, compact, saveCell, openDrawer, s
             <tfoot className="sticky bottom-0 z-20">
               <tr>
                 <th scope="row" colSpan={2} className="sticky left-0 z-30 border-r border-t border-border bg-surface-muted px-2.5 py-2 text-left text-2xs font-semibold uppercase tracking-[0.06em] text-slate-700">
-                  Total {rows.length === totalDoEvento ? "do evento" : "do recorte"}
+                  Total {rows.length !== totalDoEvento ? "do recorte" : temCanceladasComCusto ? "das vagas ativas" : "do evento"}
                 </th>
                 <TotalVazio n={4} />
                 {show("passagem") && <><TotalCol valor={soma.passagem} /><TotalVazio n={8} /></>}

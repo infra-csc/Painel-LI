@@ -101,6 +101,12 @@ export function RateioView({ totals }: { totals: MirrorTotals; hotelDerived?: bo
         </div>
       )}
 
+      {(totals.canceladas?.total ?? 0) > 0 && (
+        // 23/10: dinheiro gasto em vaga cancelada entra na conta da função dela.
+        <p className="text-xs text-muted-foreground" data-testid="rateio-canceladas">
+          Inclui {brl(totals.canceladas?.total ?? 0)} de {totals.canceladas?.vagas === 1 ? "1 vaga cancelada" : `${totals.canceladas?.vagas} vagas canceladas`} (passagem e hospedagem já registradas) — a lista está no topo do Espelho.
+        </p>
+      )}
       <div className="grid grid-cols-1 items-start gap-4 2xl:grid-cols-2">
         <RateioTabela
           titulo="Rateio por conta"

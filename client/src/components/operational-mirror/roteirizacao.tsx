@@ -28,6 +28,7 @@ import type { MirrorRow, MirrorCollaborator, UberGroup } from "@shared/operation
 import { cn } from "@/lib/utils";
 import { MoverPara } from "./mover-para";
 import { HOTEL_PADRAO, ORIGEM_NORTE, vooDoCarro } from "@shared/uber-routing";
+import { avisoDeQuemSaiu } from "@shared/vagas-canceladas";
 import { diaSemana, fmtDate, memberInfo, UBER_ROTA } from "./mirror-shared";
 
 type Direcao = "ida" | "volta";
@@ -481,6 +482,14 @@ function CartaoDoCarro({
           {confirmar}
         </div>
       </header>
+      {/* Carro CONFIRMADO de onde alguém saiu por vaga cancelada/excluída (23/10):
+          a pessoa já não aparece, mas o carro combinado precisa ser ajustado. */}
+      {g.confirmed && avisoDeQuemSaiu(g.foraDoEspelho, "carro") && (
+        <p className="flex items-start gap-2 border-b border-danger/20 bg-danger-soft px-4 py-2 text-xs font-medium text-danger" role="status" data-testid={`uber-vaga-cancelada-${g.id}`}>
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>{avisoDeQuemSaiu(g.foraDoEspelho, "carro")}</span>
+        </p>
+      )}
       {estranha && (
         // Fora do cabeçalho de propósito: lá ele empurrava titular e confirmar
         // para outra linha. Aqui diz o problema inteiro, com o período do evento.

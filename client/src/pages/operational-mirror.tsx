@@ -37,6 +37,7 @@ import { DepartamentosView } from "@/components/operational-mirror/departamentos
 import { QuartosView } from "@/components/operational-mirror/quartos-view";
 import { UberView } from "@/components/operational-mirror/uber-view";
 import { RateioView } from "@/components/operational-mirror/rateio-view";
+import { VagasCanceladas } from "@/components/operational-mirror/vagas-canceladas";
 import type { OpenDrawer } from "@/components/operational-mirror/mirror-shared";
 
 export default function OperationalMirror() {
@@ -184,6 +185,8 @@ function EspelhoOperacional() {
 
             {eventId && !isLoading && !loadErrorMessage && data && ev && totals && (
               <>
+                {/* 23/10: vaga cancelada não entra nas listas — só aqui, com o que já custou. */}
+                <VagasCanceladas vagas={data.vagasCanceladas} totais={totals.canceladas} eventId={eventId} />
                 <PainelDeFechamento resumo={resumo} totalPessoas={rows.length} chip={chip} setChip={setChip}
                   totals={totals} blocoFiltro={blocoFiltro} setBlocoFiltro={setBlocoFiltro} derivedHotelCount={derivedHotelCount} />
 
@@ -221,7 +224,7 @@ function EspelhoOperacional() {
                           horizontal. O seletor continua mostrando "Grade" como ativa —
                           é a mesma informação, noutra forma. */}
                       {view === "grade" && estreito && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} totalDoEvento={rows.length} />}
-                      {view === "grade" && !estreito && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={m.saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} confirmados={confirmados} pendenciaDe={pendenciaDe} irParaVisao={setView} totalDoEvento={rows.length} />}
+                      {view === "grade" && !estreito && <GradeView rows={filteredRows} hiddenBlocks={hiddenBlocks} compact={compact} saveCell={m.saveCell} openDrawer={openDrawer} sort={sort} onSort={toggleSort} editMode={editMode} canEdit={canEditMirror} emptyMessage={emptyMessage} confirmados={confirmados} pendenciaDe={pendenciaDe} irParaVisao={setView} totalDoEvento={rows.length} temCanceladasComCusto={(totals.canceladas?.total ?? 0) > 0} />}
                       {view === "colaboradores" && <ColaboradoresView rows={filteredRows} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} totalDoEvento={rows.length} />}
                       {view === "departamentos" && <DepartamentosView rows={filteredRows} totals={totals} collapsed={collapsedDepts} setCollapsed={setCollapsedDepts} openDrawer={openDrawer} canEdit={canEditMirror} emptyMessage={emptyMessage} pendenciaDe={pendenciaDe} verNaGrade={(dep) => { filtros.setDeptFilter(dep); setView("grade"); }} />}
                       {view === "quartos" && <QuartosView groups={data.roomGroups} collabById={collabById} rows={rows} evento={data.event} valores={data.valoresDoHotel}

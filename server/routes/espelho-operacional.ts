@@ -36,6 +36,7 @@ import {
   lerPlanilhaParaOEspelho,
   motivoDeLotacaoDoQuarto,
   horariosCalculadosDosCarros,
+  colaboradoresComVagaAtiva,
 } from "../operational-mirror";
 import { tipoPorOcupantes } from "@shared/room-pairing";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, planoDoHotelDoEvento } from "@shared/rooming-list";
@@ -597,13 +598,19 @@ export function registrarEspelhoOperacional(app: Express): void {
       if (!membro) return res.status(404).json({ message: "Esta pessoa não está neste quarto." });
 
       let ocupantesNoDestino = 1;
+      const membrosDestino = paraGrupoId
+        ? await db.select().from(hotelRoomGroupMembersTable).where(eq(hotelRoomGroupMembersTable.hotelRoomGroupId, String(paraGrupoId)))
+        : [];
+      // Quem só tem vaga cancelada/excluída ainda pode estar gravado no quarto,
+      // mas a tela já não o mostra (23/10): o tipo dos quartos conta só quem
+      // tem vaga ativa — senão um duplo "de um" virava triplo.
+      const ativos = await colaboradoresComVagaAtiva(origem.eventId, Array.from(new Set([...membrosOrigem, ...membrosDestino].map((m) => m.collaboratorId))));
+      const ativosNaOrigem = membrosOrigem.filter((m) => m.collaboratorId !== collaboratorId && ativos.has(m.collaboratorId)).length;
       if (paraGrupoId) {
-        const membrosDestino = await db.select().from(hotelRoomGroupMembersTable)
-          .where(eq(hotelRoomGroupMembersTable.hotelRoomGroupId, String(paraGrupoId)));
         const juntos = Array.from(new Set([...membrosDestino.map((m) => m.collaboratorId), String(collaboratorId)]));
         const motivo = await motivoDeLotacaoDoQuarto(origem.eventId, juntos);
         if (motivo) return res.status(400).json({ message: motivo });
-        ocupantesNoDestino = juntos.length;
+        ocupantesNoDestino = juntos.filter((c) => c === String(collaboratorId) || ativos.has(c)).length;
       }
 
       // Quarto novo nasce no hotel do evento (15/10: "todos ficam no mesmo
@@ -633,7 +640,7 @@ export function registrarEspelhoOperacional(app: Express): void {
           await tx.delete(hotelRoomGroupsTable).where(eq(hotelRoomGroupsTable.id, deGrupoId));
         } else {
           await tx.update(hotelRoomGroupsTable)
-            .set({ roomType: tipoPorOcupantes(membrosOrigem.length - 1), notes: null, confirmed: false, updatedAt: new Date() })
+            .set({ roomType: tipoPorOcupantes(Math.max(1, ativosNaOrigem)), notes: null, confirmed: false, updatedAt: new Date() })
             .where(eq(hotelRoomGroupsTable.id, deGrupoId));
         }
         await tx.update(hotelRoomGroupsTable)

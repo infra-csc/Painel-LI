@@ -164,6 +164,17 @@ export function temLogisticaComprada(status: string | null | undefined): boolean
     || status === "hospedagem_passagem_comprada";
 }
 
+/**
+ * Vaga CANCELADA (23/10) — o status OU a fase. É o único status terminal de
+ * vaga oficial: recusa/negação só existem na etapa de sugestão
+ * (`sugestao_negada`, fase "sugestao") e em trocas/pedidos, não na vaga.
+ * Vaga cancelada sai das listas operacionais (Espelho: quartos, Uber, pessoas,
+ * departamentos, pendências); o dinheiro já gasto nela continua no custo.
+ */
+export function ehVagaCancelada(vaga: { status?: string | null; phase?: string | null } | null | undefined): boolean {
+  return !!vaga && (vaga.status === "cancelado" || vaga.phase === "cancelado");
+}
+
 /** Vaga na etapa de Validação de Escala — aceita o status OU a fase. */
 export function ehSugestao(statusOuFase: string | null | undefined): boolean {
   if (!statusOuFase) return false;

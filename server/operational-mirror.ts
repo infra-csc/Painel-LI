@@ -36,6 +36,8 @@ import {
   type UberGroup,
 } from "@shared/operational-mirror-types";
 import { custoDoHotel, entradaDoCustoDoHotel, linhaPorColaborador, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
+import { ehVagaCancelada } from "@shared/vaga-status";
+import { custoDaVagaCancelada, tirarQuemSaiuDoEspelho, type VagaCanceladaComCusto } from "@shared/vagas-canceladas";
 
 // ---------- Tipos do espelho operacional ----------
 // O contrato (MirrorRow, MirrorTotals, MirrorResponse...) vive em
@@ -136,18 +138,44 @@ export async function motivoDeLotacaoDoQuarto(eventId: string, collaboratorIds: 
   const [config, tipos, vagas] = await Promise.all([
     getLogisticsConfig(),
     carregarTiposDoHotel(eventId, exec),
-    exec.select({ collaboratorId: teamInclusions.collaboratorId, functionName: functions.name, deletedAt: teamInclusions.deletedAt, phase: teamInclusions.phase })
+    exec.select({ collaboratorId: teamInclusions.collaboratorId, functionName: functions.name, deletedAt: teamInclusions.deletedAt, phase: teamInclusions.phase, status: teamInclusions.status })
       .from(teamInclusions)
       .leftJoin(functions, eq(functions.id, teamInclusions.functionId))
       .where(and(eq(teamInclusions.eventId, eventId), inArray(teamInclusions.collaboratorId, collaboratorIds))),
   ]);
   // Uma pessoa com mais de uma vaga no evento vale pela função que a põe na
-  // cenotécnica, se houver.
-  const funcoes = collaboratorIds.map((cid) => {
-    const nomes = vagas.filter((v) => v.collaboratorId === cid && !v.deletedAt && v.phase !== "sugestao").map((v) => v.functionName);
+  // cenotécnica, se houver. Quem não tem vaga ATIVA no evento (cancelada ou
+  // excluída, 23/10) não ocupa lugar: no banco ainda pode estar no quarto,
+  // mas a tela já o tirou — contar com ele recusava um Mover legítimo.
+  const ativas = vagas.filter(vagaAtivaNoEspelho);
+  const ocupantes = collaboratorIds.filter((cid) => ativas.some((v) => v.collaboratorId === cid));
+  if (ocupantes.length < 2) return null;
+  const funcoes = ocupantes.map((cid) => {
+    const nomes = ativas.filter((v) => v.collaboratorId === cid).map((v) => v.functionName);
     return nomes.find((n) => ehCenotecnica(n)) ?? nomes[0] ?? null;
   });
   return motivoDeLotacao(funcoes, config.allowTripleRoom, tipos);
+}
+
+/**
+ * A vaga conta nas listas operacionais do Espelho? Fora: excluída, sugestão
+ * (Validação de Escala) e cancelada (23/10).
+ */
+function vagaAtivaNoEspelho(v: { deletedAt?: Date | string | null; phase?: string | null; status?: string | null }): boolean {
+  return !v.deletedAt && v.phase !== "sugestao" && !ehVagaCancelada(v);
+}
+
+/**
+ * Destes colaboradores, quem tem vaga ATIVA no evento (23/10) — o "Mover" e o
+ * "Separar" contam só eles: quem tem só vaga cancelada/excluída ainda pode
+ * estar gravado no quarto, mas a tela já não o mostra.
+ */
+export async function colaboradoresComVagaAtiva(eventId: string, collaboratorIds: string[], exec: Exec = db): Promise<Set<string>> {
+  if (collaboratorIds.length === 0) return new Set();
+  const vagas = await exec.select({ collaboratorId: teamInclusions.collaboratorId, deletedAt: teamInclusions.deletedAt, phase: teamInclusions.phase, status: teamInclusions.status })
+    .from(teamInclusions)
+    .where(and(eq(teamInclusions.eventId, eventId), inArray(teamInclusions.collaboratorId, collaboratorIds)));
+  return new Set(vagas.filter(vagaAtivaNoEspelho).map((v) => v.collaboratorId).filter((x): x is string => !!x));
 }
 
 // ---------- Passagens: ida e volta em linhas separadas ----------
@@ -289,7 +317,10 @@ export function consolidarPassagens<T extends Record<string, unknown>>(rows: T[]
 // ---------- Leitura dos dados do evento ----------
 interface BaseDoEvento {
   event: typeof events.$inferSelect;
+  /** Vagas ATIVAS: sem excluídas, sugestões e canceladas — as listas operacionais. */
   inclusions: (typeof teamInclusions.$inferSelect)[];
+  /** Vagas canceladas (não excluídas, fora da sugestão) — só para o custo (23/10). */
+  canceladas: (typeof teamInclusions.$inferSelect)[];
   collabMap: Map<string, typeof collaborators.$inferSelect>;
   fnMap: Map<string, typeof functions.$inferSelect>;
   ticketByInclusion: Map<string, Ticket>;
@@ -309,16 +340,23 @@ interface BaseDoEvento {
 async function carregarBaseDoEvento(eventId: string, exec: Exec = db): Promise<BaseDoEvento | null> {
   const [[event], todasAsVagas] = await Promise.all([
     exec.select().from(events).where(eq(events.id, eventId)),
-    exec.select().from(teamInclusions).where(eq(teamInclusions.eventId, eventId)),
+    // Ordem fixa (23/10): "a última vaga da pessoa" é a que a aba Quartos
+    // mostra e a que a montagem usa — sem ORDER BY, era a ordem do disco.
+    exec.select().from(teamInclusions).where(eq(teamInclusions.eventId, eventId)).orderBy(asc(teamInclusions.inclusionNumber), asc(teamInclusions.id)),
   ]);
   if (!event) return null;
 
   // Sugestões de escala (phase 'sugestao') ainda não são vagas oficiais — ficam
   // fora do Espelho até a Validação de Escala aprová-las (filtro central).
-  const inclusions = todasAsVagas.filter((ti) => !ti.deletedAt && ti.phase !== "sugestao");
-  const inclusionIds = inclusions.map((ti) => ti.id);
-  const collabIds = Array.from(new Set(inclusions.map((ti) => ti.collaboratorId).filter((x): x is string => !!x)));
-  const fnIds = Array.from(new Set(inclusions.map((ti) => ti.functionId).filter((x): x is string => !!x)));
+  const oficiais = todasAsVagas.filter((ti) => !ti.deletedAt && ti.phase !== "sugestao");
+  // Canceladas (23/10) saem das listas operacionais — grade, pessoas,
+  // departamentos, pendências, quartos, Uber e a montagem de sugestões — mas
+  // são lidas junto: o dinheiro gasto nelas continua no custo do evento.
+  const inclusions = oficiais.filter((ti) => !ehVagaCancelada(ti));
+  const canceladas = oficiais.filter((ti) => ehVagaCancelada(ti));
+  const inclusionIds = oficiais.map((ti) => ti.id);
+  const collabIds = Array.from(new Set(oficiais.map((ti) => ti.collaboratorId).filter((x): x is string => !!x)));
+  const fnIds = Array.from(new Set(oficiais.map((ti) => ti.functionId).filter((x): x is string => !!x)));
 
   const [collabRows, fnRows, ticketRows, accRows] = await Promise.all([
     collabIds.length ? exec.select().from(collaborators).where(inArray(collaborators.id, collabIds)) : Promise.resolve([]),
@@ -358,7 +396,7 @@ async function carregarBaseDoEvento(eventId: string, exec: Exec = db): Promise<B
   const accByInclusion = new Map<string, typeof accommodations.$inferSelect>();
   for (const a of accRows) accByInclusion.set(a.teamInclusionId, a);
 
-  return { event, inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga };
+  return { event, inclusions, canceladas, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga };
 }
 
 /** Membros dos grupos do evento, via join — sem ler a tabela de membros inteira. */
@@ -478,19 +516,35 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     carregarValoresDoHotel(eventId),
   ]);
   if (!base) return null;
-  const { event, inclusions, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga } = base;
+  const { event, inclusions, canceladas, collabMap, fnMap, ticketByInclusion, accByInclusion, historicoPorVaga } = base;
 
   const uberMembrosPorGrupo = agruparMembros(uberMemberRows, "uberGroupId");
   const roomMembrosPorGrupo = agruparMembros(roomMemberRows, "hotelRoomGroupId");
 
-  const uberGroupsWithMembers: UberGroup[] = uberGroupRows.map((g) => ({
+  // Quartos e carros GRAVADOS com quem não tem mais vaga ativa no evento
+  // (cancelada ou excluída, 23/10): a pessoa sai na leitura, o grupo vazio
+  // some e o confirmado ganha o aviso (`foraDoEspelho`). O vínculo no banco
+  // fica — o "Refazer sugestões" refaz os não confirmados.
+  const ativos = new Set(inclusions.map((ti) => ti.collaboratorId).filter((x): x is string => !!x));
+  const cancelados = new Map<string, string>();
+  for (const ti of canceladas) {
+    if (ti.collaboratorId && !ativos.has(ti.collaboratorId)) cancelados.set(ti.collaboratorId, collabMap.get(ti.collaboratorId)?.fullName || "(sem nome)");
+  }
+  const semVaga = Array.from(new Set([...uberMemberRows, ...roomMemberRows].map((m) => m.collaboratorId)))
+    .filter((id) => !ativos.has(id) && !cancelados.has(id) && !collabMap.has(id));
+  const nomesSemVaga = new Map(semVaga.length
+    ? (await db.select({ id: collaborators.id, fullName: collaborators.fullName }).from(collaborators).where(inArray(collaborators.id, semVaga))).map((c) => [c.id, c.fullName] as const)
+    : []);
+  const nomeDe = (id: string) => collabMap.get(id)?.fullName || nomesSemVaga.get(id) || "(sem nome)";
+
+  const uberGroupsWithMembers: UberGroup[] = tirarQuemSaiuDoEspelho(uberGroupRows.map((g) => ({
     ...g,
     members: uberMembrosPorGrupo.get(g.id) ?? [],
-  })) as UberGroup[];
-  const roomGroupsWithMembers: RoomGroup[] = roomGroupRows.map((g) => ({
+  })), ativos, cancelados, nomeDe) as UberGroup[];
+  const roomGroupsWithMembers: RoomGroup[] = tirarQuemSaiuDoEspelho(roomGroupRows.map((g) => ({
     ...g,
     members: roomMembrosPorGrupo.get(g.id) ?? [],
-  })) as RoomGroup[];
+  })), ativos, cancelados, nomeDe) as RoomGroup[];
 
   // mapear colaborador -> grupo (uber/quarto) do evento
   const collabToUberGroup = new Map<string, UberGroup>();
@@ -612,66 +666,95 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
     }
   }
 
+  // ----- Vagas canceladas com custo (23/10) -----
+  // Fora das listas operacionais, mas o dinheiro gasto nelas (passagem —
+  // inclusive a de histórico de troca —, hospedagem, bagagem, Uber, locação)
+  // continua no custo do evento, como já somava antes: aqui num bloco à parte,
+  // para revisar reembolso/remarcação.
+  const vagasCanceladas: VagaCanceladaComCusto[] = [];
+  for (const ti of canceladas) {
+    const collab = (ti.collaboratorId ? collabMap.get(ti.collaboratorId) : null) ?? null;
+    const fn = (ti.functionId ? fnMap.get(ti.functionId) : null) ?? null;
+    const ticket = ticketByInclusion.get(ti.id) ?? null;
+    const c = custoDaVagaCancelada({
+      teamInclusionId: ti.id,
+      inclusionNumber: ti.inclusionNumber ?? null,
+      collaborator: { id: collab?.id ?? null, fullName: collab?.fullName || "(sem colaborador)" },
+      function: { name: fn?.name ?? null, area: ti.area || fn?.responsibleArea || null, costCenter: fn?.costCenter ?? null },
+      schedule: { startDate: ti.scheduleStartDate ?? null, endDate: ti.scheduleEndDate ?? null, dailyRates: ti.dailyRates ?? null },
+      passagem: ticket,
+      historicoCentavos: historicoPorVaga.get(ti.id) ?? 0,
+      hospedagem: accByInclusion.get(ti.id) ?? null,
+      bagagemCentavos: (ticket?.baggageTotalCents || 0) + extrasFor(ti.id, ti.collaboratorId, "baggage").total,
+      uberCentavos: extrasFor(ti.id, ti.collaboratorId, "uber").total,
+      locacaoCentavos: extrasFor(ti.id, ti.collaboratorId, "car_rental").total,
+    });
+    if (c) vagasCanceladas.push(c);
+  }
+
   // ----- Totais -----
+  // Uma parcela por vaga — ativa (linha do Espelho) ou cancelada — com as
+  // chaves dos subtotais. A cancelada entra no total e nos subtotais (o
+  // dinheiro foi gasto) e fica marcada em `canceladas`.
+  type Parcela = { funcao: string | null; departamento: string | null; conta: string | null; tickets: number; hotel: number; baggage: number; uber: number; carRental: number; cancelada: boolean };
+  const parcelas: Parcela[] = [
+    ...rows.map((r) => ({
+      funcao: r.function.name, departamento: r.function.area, conta: r.function.costCenter,
+      // Passagem da linha + passagens de histórico da mesma vaga (troca aprovada).
+      tickets: (r.ticket?.value || 0) + (historicoPorVaga.get(r.teamInclusionId) ?? 0),
+      hotel: hotelTotalCents(r), baggage: r.baggage.totalCents, uber: r.uber.totalCents, carRental: r.carRental.totalCents, cancelada: false,
+    })),
+    ...vagasCanceladas.map((v) => ({
+      funcao: v.function.name, departamento: v.function.area, conta: v.function.costCenter,
+      tickets: v.passagemCentavos, hotel: v.hotelCentavos, baggage: v.bagagemCentavos, uber: v.uberCentavos, carRental: v.locacaoCentavos, cancelada: true,
+    })),
+  ];
+  const totalDa = (x: Parcela) => x.tickets + x.hotel + x.baggage + x.uber + x.carRental;
   let totalTickets = 0, totalHotel = 0, totalBaggage = 0, totalUber = 0, totalCarRental = 0;
-  // Passagem da linha + passagens de histórico da mesma vaga (troca aprovada).
-  const passagemDaVaga = (r: { teamInclusionId: string; ticket: { value?: number | null } | null }) =>
-    (r.ticket?.value || 0) + (historicoPorVaga.get(r.teamInclusionId) ?? 0);
-  let totalTicketsHistorico = 0;
-  historicoPorVaga.forEach((v) => { totalTicketsHistorico += v; });
-  for (const r of rows) {
-    totalTickets += passagemDaVaga(r);
-    totalHotel += hotelTotalCents(r);
-    totalBaggage += r.baggage.totalCents;
-    totalUber += r.uber.totalCents;
-    totalCarRental += r.carRental.totalCents;
+  for (const x of parcelas) {
+    totalTickets += x.tickets;
+    totalHotel += x.hotel;
+    totalBaggage += x.baggage;
+    totalUber += x.uber;
+    totalCarRental += x.carRental;
   }
   const grand = totalTickets + totalHotel + totalBaggage + totalUber + totalCarRental;
+  // "Inclui R$ X de passagens de trocas": só das vagas ativas — a de uma vaga
+  // cancelada já aparece no bloco das canceladas.
+  let totalTicketsHistorico = 0;
+  for (const r of rows) totalTicketsHistorico += historicoPorVaga.get(r.teamInclusionId) ?? 0;
+  const somaCanceladas = (k: "tickets" | "hotel" | "baggage" | "uber" | "carRental") =>
+    parcelas.reduce((n, x) => n + (x.cancelada ? x[k] : 0), 0);
+  const totaisCanceladas = {
+    vagas: vagasCanceladas.length,
+    revisar: vagasCanceladas.filter((v) => v.revisar).length,
+    tickets: somaCanceladas("tickets"), hotel: somaCanceladas("hotel"), baggage: somaCanceladas("baggage"),
+    uber: somaCanceladas("uber"), carRental: somaCanceladas("carRental"),
+    total: vagasCanceladas.reduce((n, v) => n + v.totalCentavos, 0),
+  };
 
-  // subtotais por função/departamento
-  const byFunction: Record<string, MirrorSubtotal> = {};
-  for (const r of rows) {
-    const key = r.function.name || "(sem função)";
-    if (!byFunction[key]) byFunction[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
-    const t = passagemDaVaga(r);
-    const h = hotelTotalCents(r);
-    byFunction[key].tickets += t;
-    byFunction[key].hotel += h;
-    byFunction[key].baggage += r.baggage.totalCents;
-    byFunction[key].uber += r.uber.totalCents;
-    byFunction[key].carRental += r.carRental.totalCents;
-    byFunction[key].total += t + h + r.baggage.totalCents + r.uber.totalCents + r.carRental.totalCents;
-  }
-
+  /** Subtotais por uma chave (função, departamento ou conta), na ordem em que aparecem. */
+  const subtotais = (chave: (x: Parcela) => string): Record<string, MirrorSubtotal> => {
+    const out: Record<string, MirrorSubtotal> = {};
+    for (const x of parcelas) {
+      const key = chave(x);
+      const st = out[key] ?? (out[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0, canceladas: 0 });
+      st.tickets += x.tickets;
+      st.hotel += x.hotel;
+      st.baggage += x.baggage;
+      st.uber += x.uber;
+      st.carRental += x.carRental;
+      st.total += totalDa(x);
+      if (x.cancelada) st.canceladas = (st.canceladas ?? 0) + totalDa(x);
+    }
+    return out;
+  };
+  // subtotais por função
+  const byFunction = subtotais((x) => x.funcao || "(sem função)");
   // subtotais por departamento (area)
-  const byDepartment: Record<string, MirrorSubtotal> = {};
-  for (const r of rows) {
-    const key = r.function.area || r.function.name || "(sem departamento)";
-    if (!byDepartment[key]) byDepartment[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
-    const t = passagemDaVaga(r);
-    const h = hotelTotalCents(r);
-    byDepartment[key].tickets += t;
-    byDepartment[key].hotel += h;
-    byDepartment[key].baggage += r.baggage.totalCents;
-    byDepartment[key].uber += r.uber.totalCents;
-    byDepartment[key].carRental += r.carRental.totalCents;
-    byDepartment[key].total += t + h + r.baggage.totalCents + r.uber.totalCents + r.carRental.totalCents;
-  }
-
+  const byDepartment = subtotais((x) => x.departamento || x.funcao || "(sem departamento)");
   // subtotais por CONTA (rateio contábil — functions.cost_center)
-  const byAccount: Record<string, MirrorSubtotal> = {};
-  for (const r of rows) {
-    const key = r.function.costCenter || "(sem conta)";
-    if (!byAccount[key]) byAccount[key] = { name: key, tickets: 0, hotel: 0, baggage: 0, uber: 0, carRental: 0, total: 0 };
-    const t = passagemDaVaga(r);
-    const h = hotelTotalCents(r);
-    byAccount[key].tickets += t;
-    byAccount[key].hotel += h;
-    byAccount[key].baggage += r.baggage.totalCents;
-    byAccount[key].uber += r.uber.totalCents;
-    byAccount[key].carRental += r.carRental.totalCents;
-    byAccount[key].total += t + h + r.baggage.totalCents + r.uber.totalCents + r.carRental.totalCents;
-  }
+  const byAccount = subtotais((x) => x.conta || "(sem conta)");
 
   const pendingCount = rows.reduce((s, r) => s + r.pendencies.length, 0);
 
@@ -699,11 +782,13 @@ export async function getOperationalMirror(eventId: string): Promise<MirrorRespo
       byDepartment: Object.values(byDepartment),
       // Maior primeiro: no fechamento o que importa é onde o dinheiro pesa.
       byAccount: Object.values(byAccount).sort((x, y) => y.total - x.total),
+      canceladas: totaisCanceladas,
     },
     pendingCount,
-    suggestedRoomCount: roomGroupRows.length,
-    suggestedUberCount: uberGroupRows.length,
+    suggestedRoomCount: roomGroupsWithMembers.length,
+    suggestedUberCount: uberGroupsWithMembers.length,
     valoresDoHotel,
+    vagasCanceladas,
   };
 }
 
@@ -1581,6 +1666,28 @@ export async function exportOperationalMirrorExcel(eventId: string): Promise<Buf
       r.carRental.checkIn || "",
       r.pendencies.join("; "),
     ]);
+  }
+
+  // Vagas canceladas com custo (23/10): fora da lista acima, dentro do total.
+  const canceladas = data.vagasCanceladas ?? [];
+  if (canceladas.length > 0) {
+    aoa.push([]);
+    aoa.push(["VAGAS CANCELADAS COM CUSTO — fora das listas operacionais, somadas no total (revisar reembolso/remarcação)"]);
+    aoa.push(["NOME", "VAGA", "DEPARTAMENTO", "INÍCIO", "TÉRMINO", "PASSAGEM", "IDA", "VOLTA", "HOSPEDAGEM", "ENTRADA", "SAÍDA", "EXTRAS", "TOTAL", "SITUAÇÃO"]);
+    for (const v of canceladas) {
+      aoa.push([
+        v.collaborator.fullName,
+        v.inclusionNumber != null ? `#${v.inclusionNumber}` : "",
+        v.function.area || v.function.name || "",
+        v.schedule.startDate || "", v.schedule.endDate || "",
+        v.passagemCentavos ? brl(v.passagemCentavos) : "", v.passagem?.ida || "", v.passagem?.volta || "",
+        v.hotelCentavos ? brl(v.hotelCentavos) : "", v.hospedagem?.checkIn || "", v.hospedagem?.checkOut || "",
+        brl(v.bagagemCentavos + v.uberCentavos + v.locacaoCentavos),
+        brl(v.totalCentavos),
+        v.revisar ? "Revisar: ainda tem passagem ou hospedagem" : "Registros já cancelados",
+      ]);
+    }
+    aoa.push(["TOTAL DAS CANCELADAS", "", "", "", "", "", "", "", "", "", "", "", brl(data.totals.canceladas?.total ?? 0)]);
   }
 
   // Subtotais

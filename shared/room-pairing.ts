@@ -257,7 +257,26 @@ function primeiroTrio(a: RoomCandidate, parceiros: RoomCandidate[], config: Room
  * (5 cenotécnicos → 2+2+1); sem duplo, só individual e triplo (5 → 3+1+1);
  * sem os dois, um quarto por pessoa.
  */
-export function sugerirQuartos(candidatos: RoomCandidate[], config: RoomPairingConfig): SuggestedRoom[] {
+/**
+ * Um colaborador, um candidato (23/10). O quarto é por COLABORADOR (o membro
+ * do quarto guarda o colaborador, não a vaga), mas quem tem duas vagas no
+ * evento chegava aqui duas vezes, cada uma com as datas da sua vaga. Caso
+ * real (Night Run Curitiba, 23/10): a vaga antiga (15–18/10) pareou com outra
+ * pessoa das datas antigas, a vaga nova (28/10–02/11) foi pulada como "já
+ * usada" — e a tela, que mostra a ÚLTIMA vaga da pessoa, exibia no mesmo
+ * quarto dois períodos que não dividem noite nenhuma. Vale a última entrada
+ * de cada colaborador, a mesma que a aba Quartos mostra (`linhaPorColaborador`).
+ */
+export function umCandidatoPorColaborador(candidatos: readonly RoomCandidate[]): RoomCandidate[] {
+  const ultimo = new Map<string, number>();
+  candidatos.forEach((c, i) => ultimo.set(c.collaboratorId, i));
+  return candidatos.filter((c, i) => ultimo.get(c.collaboratorId) === i);
+}
+
+export function sugerirQuartos(entrada: RoomCandidate[], config: RoomPairingConfig): SuggestedRoom[] {
+  // Sem noite em comum ninguém divide (`podemDividir`); para isso valer, cada
+  // pessoa entra UMA vez, com o período que a tela vai mostrar.
+  const candidatos = umCandidatoPorColaborador(entrada);
   const usados = new Set<string>();
   const quartos: SuggestedRoom[] = [];
   // 22/10: o que o hotel do evento tem. Sem triplo, o quarto para em 2 (a

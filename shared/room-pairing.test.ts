@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   sugerirQuartos, podemDividir, noitesEmComum, noitesEmComumDeTodos, observacaoDeDatas, ehCenotecnica,
   capacidadeDoQuarto, motivoDeLotacao, tipoPorOcupantes, type RoomCandidate, type RoomPairingConfig,
-  apartamentoParaPessoas, hotelTemOTipo, motivoDoTipoQueOHotelNaoTem, tipoQueOHotelNaoTem, tiposDoHotelOuPadrao,
+  apartamentoParaPessoas, hotelTemOTipo, motivoDoTipoQueOHotelNaoTem, tipoQueOHotelNaoTem, tiposDoHotelOuPadrao, umCandidatoPorColaborador,
 } from "./room-pairing";
 
 const CFG: RoomPairingConfig = { allowTripleRoom: false, requireSameGenderForSharedRoom: true, sameFunctionPriority: true };
@@ -344,5 +344,39 @@ describe("hotel do evento sem duplo ou sem triplo (22/10)", () => {
     expect(motivoDeLotacao(["Cenotécnica", "Cenotécnica", "Cenotécnica"], false, { duplo: false, triplo: true })).toBeNull();
     expect(motivoDeLotacao(["Kit"], false, { duplo: false, triplo: false })).toBeNull();
     expect(motivoDeLotacao(["Kit", "Kit", "Kit", "Kit"], true, { duplo: false, triplo: false })).toBe("Um quarto comporta no máximo 3 pessoas.");
+  });
+});
+
+describe("períodos que não se encostam (23/10, Night Run Curitiba)", () => {
+  // Andrew (vaga das datas antigas) 14/10→19/10 × Matheus (vaga nova)
+  // 28/10→02/11: mesmo gênero, mesma função, mesmo hotel — e nenhuma noite
+  // em comum. Não dividem quarto.
+  const andrew = p({ collaboratorId: "andrew", gender: "male", checkIn: "2026-10-14", checkOut: "2026-10-19", hotelName: null });
+  const matheus = p({ collaboratorId: "matheus", gender: "male", checkIn: "2026-10-28", checkOut: "2026-11-02", hotelName: null });
+
+  it("sem noite em comum, cada um no seu quarto", () => {
+    expect(noitesEmComum(andrew, matheus)).toBe(0);
+    expect(podemDividir(andrew, matheus, CFG)).toBe(false);
+    const quartos = sugerirQuartos([andrew, matheus], { ...CFG, allowTripleRoom: true });
+    expect(quartos.map((q) => q.members)).toEqual([["andrew"], ["matheus"]]);
+    expect(quartos.every((q) => q.roomType === "single")).toBe(true);
+  });
+
+  it("a mesma pessoa com duas vagas (antiga e nova): vale a ÚLTIMA, e ninguém pareia pela antiga", () => {
+    // Era o furo: a vaga antiga de Matheus pareava com Andrew (mesmas datas
+    // antigas), a nova era pulada como "já usada" e a tela mostrava as datas
+    // novas no mesmo quarto de Andrew.
+    const matheusAntigo = p({ collaboratorId: "matheus", gender: "male", checkIn: "2026-10-14", checkOut: "2026-10-19", hotelName: null });
+    expect(umCandidatoPorColaborador([andrew, matheusAntigo, matheus])).toEqual([andrew, matheus]);
+    const quartos = sugerirQuartos([andrew, matheusAntigo, matheus], CFG);
+    expect(quartos.map((q) => q.members)).toEqual([["andrew"], ["matheus"]]);
+    expect(quartos[1]).toMatchObject({ checkIn: "2026-10-28", checkOut: "2026-11-02" });
+  });
+
+  it("quem tem noite em comum continua dividindo", () => {
+    const outro = p({ collaboratorId: "outro", gender: "male", checkIn: "2026-10-29", checkOut: "2026-11-01", hotelName: null });
+    const [q] = sugerirQuartos([matheus, outro], CFG);
+    expect(q.members).toEqual(["matheus", "outro"]);
+    expect(q.sharedNights).toBe(3);
   });
 });

@@ -11,6 +11,9 @@ import type {
 } from "./schema";
 import type { DatasDoQuarto } from "./datas-do-quarto";
 import type { ValoresDoHotelSalvos } from "./custo-dos-quartos";
+import type { OcupanteForaDoEspelho, VagaCanceladaComCusto } from "./vagas-canceladas";
+
+export type { OcupanteForaDoEspelho, VagaCanceladaComCusto } from "./vagas-canceladas";
 
 export interface MirrorCollaborator {
   id: string | null;
@@ -109,6 +112,26 @@ export interface MirrorSubtotal {
   uber: number;
   carRental: number;
   total: number;
+  /**
+   * Quanto de `total` é de VAGA CANCELADA (23/10): o dinheiro gasto continua
+   * no rateio, mas a visão Departamentos (operacional) mostra só as ativas.
+   * Opcional: servidor antigo não manda.
+   */
+  canceladas?: number;
+}
+
+/** O que as vagas canceladas ainda somam no custo do evento (23/10). */
+export interface TotaisDasCanceladas {
+  /** Vagas canceladas que têm algum registro ou valor (as do bloco). */
+  vagas: number;
+  /** Destas, quantas ainda têm passagem ou hospedagem valendo — o aviso do topo. */
+  revisar: number;
+  tickets: number;
+  hotel: number;
+  baggage: number;
+  uber: number;
+  carRental: number;
+  total: number;
 }
 
 export interface MirrorTotals {
@@ -130,6 +153,12 @@ export interface MirrorTotals {
    * responde "quem gastou", esta responde "em qual conta entra".
    */
   byAccount: MirrorSubtotal[];
+  /**
+   * Vagas canceladas (23/10): JÁ INCLUÍDAS em tickets/hotel/…/grand e nos
+   * subtotais — dinheiro gasto não some —, separadas aqui para a tela dizer
+   * quanto é delas. Opcional: servidor antigo não manda.
+   */
+  canceladas?: TotaisDasCanceladas;
 }
 
 export interface MirrorEvent {
@@ -142,9 +171,17 @@ export interface MirrorEvent {
 }
 
 /** Grupo de quarto do evento com seus membros (linhas cruas das tabelas). */
-export type RoomGroup = HotelRoomGroup & { members: HotelRoomGroupMember[] };
+export type RoomGroup = HotelRoomGroup & {
+  members: HotelRoomGroupMember[];
+  /**
+   * Quem estava gravado no quarto e saiu na leitura por não ter mais vaga ativa
+   * no evento (cancelada ou excluída, 23/10). O vínculo no banco fica; o
+   * quarto CONFIRMADO avisa. Opcional: servidor antigo não manda.
+   */
+  foraDoEspelho?: OcupanteForaDoEspelho[];
+};
 /** Grupo de Uber do evento com seus membros (linhas cruas das tabelas). */
-export type UberGroup = UberGroupRow & { members: UberGroupMember[] };
+export type UberGroup = UberGroupRow & { members: UberGroupMember[]; foraDoEspelho?: OcupanteForaDoEspelho[] };
 
 export interface MirrorResponse {
   event: MirrorEvent;
@@ -161,6 +198,12 @@ export interface MirrorResponse {
    * não manda; `null` quando as tabelas ainda não existem no banco.
    */
   valoresDoHotel?: ValoresDoHotelSalvos | null;
+  /**
+   * Vagas canceladas que ainda têm passagem, hospedagem ou algum valor (23/10).
+   * FORA de `rows` (grade, pessoas, departamentos, pendências, quartos, Uber);
+   * o custo delas está em `totals` e em `totals.canceladas`.
+   */
+  vagasCanceladas?: VagaCanceladaComCusto[];
 }
 
 /**

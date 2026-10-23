@@ -56,7 +56,9 @@ export function DepartamentosView({ rows, totals, collapsed, setCollapsed, openD
       {groups.map(([name, members]) => {
         const dt = deptTotals.get(name);
         const isOpen = !collapsed.has(name);
-        const subtotal = dt?.total ?? 0;
+        // Visão operacional (23/10): só as vagas ativas. O que é de vaga
+        // cancelada continua no rateio e no custo do evento.
+        const subtotal = (dt?.total ?? 0) - (dt?.canceladas ?? 0);
         const extrasTotal = members.reduce((s, r) => s + (r.baggage.extraCents || 0) + (r.uber.totalCents || 0) + (r.carRental.totalCents || 0), 0);
         // Progresso em BLOCOS em uso (só os três que pendenciam): "X de Y
         // blocos em uso prontos". A base conta o que cada pessoa usa, não
@@ -90,7 +92,8 @@ export function DepartamentosView({ rows, totals, collapsed, setCollapsed, openD
                 <span className="whitespace-nowrap text-2xs tabular-nums text-muted-foreground">{blocosProntos} de {blocosEmUso} blocos</span>
               </div>
               <div className="ml-auto flex items-center gap-3">
-                {dt && <span className="hidden text-xs tabular-nums text-muted-foreground 2xl:inline">Passagem {brl(dt.tickets)} · Hotel {brl(dt.hotel)} · Extras {brl(extrasTotal)}</span>}
+                {dt && !dt.canceladas && <span className="hidden text-xs tabular-nums text-muted-foreground 2xl:inline">Passagem {brl(dt.tickets)} · Hotel {brl(dt.hotel)} · Extras {brl(extrasTotal)}</span>}
+                {dt && !!dt.canceladas && <span className="hidden text-xs tabular-nums text-muted-foreground lg:inline" title="Fora desta lista; somado no custo do evento e no rateio">+ {brl(dt.canceladas)} de vagas canceladas</span>}
                 <span className="text-sm font-semibold tabular-nums text-foreground">{brl(subtotal)}</span>
                 <button type="button" onClick={() => verNaGrade(name)} data-testid={`dept-ver-${name}`}
                   className="esp-alvo inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-slate-700 transition-colors hover:border-primary/40 hover:bg-brand-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

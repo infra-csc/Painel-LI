@@ -38,6 +38,11 @@
  * topo mostra um aviso com "Refazer sugestões" — refazer sozinho também
  * refaria os carros não confirmados e desfaria os ajustes à mão nos quartos
  * não confirmados. O "Mover" não deixa juntar num tipo que o hotel não tem.
+ *
+ * 23/10, dono: "Sistema está misturando prova que foi cancelada com provas
+ * novas". Vaga cancelada não chega mais aqui (o servidor a tira de `rows` e
+ * dos quartos; ver shared/vagas-canceladas.ts). Quarto CONFIRMADO de onde
+ * alguém saiu por isso mostra o aviso "uma vaga deste quarto foi cancelada".
  */
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { AlertTriangle, Building2, CheckCheck, Loader2, Moon, Pencil, RefreshCw, BedDouble, Scissors, StickyNote } from "lucide-react";
@@ -49,6 +54,7 @@ import { ocupacaoPorNoite, rotuloDoTipo, trechosPorApartamento, type TipoDoTrech
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, type QuartoDaRoomingList } from "@shared/rooming-list";
 import { chaveDoOcupante, custoDoHotel, dividirCentavos, entradaDoCustoDoHotel, periodoNoQuarto, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
 import { fonteDoHotel } from "@shared/operational-mirror-types";
+import { avisoDeQuemSaiu } from "@shared/vagas-canceladas";
 import { HotelDoEvento } from "./hotel-do-evento";
 import { PainelDeValoresDoHotel, useValoresDoHotel } from "./valores-do-hotel";
 import { AvisoDeQuartosQueExcedem, TiposDoHotelChips } from "./tipos-do-hotel";
@@ -454,6 +460,17 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
   /** Os avisos do quarto, uma vez só, logo abaixo do cabeçalho. */
   const avisos = (q: (typeof quartos)[number]) => {
     const itens: ReactNode[] = [];
+    // Confirmado = já combinado com o hotel: quem saiu (vaga cancelada) precisa
+    // ser desfeito lá. No não confirmado, o "Refazer sugestões" resolve sozinho.
+    const saiu = q.g.confirmed ? avisoDeQuemSaiu(q.g.foraDoEspelho, "quarto") : null;
+    if (saiu) {
+      itens.push(
+        <p key="saiu" className="flex items-start gap-1.5 text-xs font-medium leading-snug text-danger" role="status" data-testid={`room-vaga-cancelada-${q.g.id}`}>
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>{saiu}</span>
+        </p>,
+      );
+    }
     if (q.divergenciaComum) {
       const n = q.lista.length;
       itens.push(
