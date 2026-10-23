@@ -128,7 +128,44 @@ export const FLAG_GROUPS: FlagGroup[] = [
   },
 ];
 
+/**
+ * A vaga ainda está na Validação/Aprovação de Escala (antes da escalação).
+ * Mesma regra de `ehSugestao` das Análises — repetida aqui para a fila não
+ * depender do módulo das Análises.
+ */
+export const ehVagaDeSugestao = (i: TeamInclusion): boolean =>
+  i.phase === "sugestao" || String(i.status ?? "").startsWith("sugestao_");
+
+/**
+ * Vaga de sugestão (23/10 — "não precisa de passagem e segue aparecendo"):
+ * as Análises somam as vagas em validação/aprovação ao recorte, e elas
+ * passavam por fora dos filtros do painel. Agora passam pela MESMA função,
+ * com três regras próprias, porque ainda não chegaram à escalação:
+ *
+ * - **Situação** (vaga aberta, salvo, gestor, escalado, cancelada) descreve a
+ *   vaga NA escalação; a sugestão não está em nenhuma delas. Marcar qualquer
+ *   situação tira as sugestões — sem isso, "Vaga aberta" as contaria (não têm
+ *   colaborador) e "Escalado" dependeria do status interno da sugestão.
+ * - **Passagem/hotel comprados**: sugestão ainda não compra nada (é a regra de
+ *   `contarLogistica`). "Comprada"/"Reservada" nunca; "Não comprada"/"Não
+ *   reservada" sempre. "Precisa"/"Não precisa" seguem `needsTicket` e
+ *   `needsAccommodation`, como na escalação.
+ * - O resto (troca, ajuste, falta definir) lê o mesmo campo da escalação.
+ */
+function testeDaFlagNaSugestao(key: FlagKey, naEscalacao: (i: TeamInclusion) => boolean): (i: TeamInclusion) => boolean {
+  if (key.startsWith("sit:")) return () => false;
+  if (key === "pass:comprada" || key === "hosp:reservada") return () => false;
+  if (key === "pass:nao-comprada" || key === "hosp:nao-reservada") return () => true;
+  return naEscalacao;
+}
+
 function testeDaFlag(key: FlagKey, ctx: QueueContext): (i: TeamInclusion) => boolean {
+  const naEscalacao = testeDaFlagNaEscalacao(key, ctx);
+  const naSugestao = testeDaFlagNaSugestao(key, naEscalacao);
+  return (i) => (ehVagaDeSugestao(i) ? naSugestao(i) : naEscalacao(i));
+}
+
+function testeDaFlagNaEscalacao(key: FlagKey, ctx: QueueContext): (i: TeamInclusion) => boolean {
   switch (key) {
     case "sit:aberta": return (i) => !ctx.temNome(i) && i.status !== "cancelado";
     case "sit:gestor": return (i) => i.status === "aguardando_producao";
@@ -278,4 +315,29 @@ export function contarFlagsAtivas(ativas: Record<string, boolean>): number {
 /** Busca sem acento e sem caixa — "jose" acha "José". */
 export function normalizarBusca(texto: string): string {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+/** Os nomes que a busca da barra compara. */
+export interface ResolvedoresDaBusca {
+  getCollaboratorName: (collaboratorId?: string | null) => string;
+  getFunctionName: (functionId: string | null) => string;
+  getEventName: (eventId: string | null) => string;
+  getCollaboratorCity: (collaboratorId?: string | null) => string | null;
+}
+
+/**
+ * A busca da barra (número da vaga, colaborador, função, evento ou cidade),
+ * como fábrica: a Fila e as vagas de sugestão das Análises usam a MESMA (23/10
+ * — antes a sugestão ignorava a busca e aparecia com qualquer texto). `null`
+ * quando a busca está vazia.
+ */
+export function fazTesteDeBusca(busca: string, r: ResolvedoresDaBusca): ((i: TeamInclusion) => boolean) | null {
+  const q = normalizarBusca(busca.replace(/#/g, ""));
+  if (!q) return null;
+  return (i) =>
+    String(i.inclusionNumber ?? "").includes(q) ||
+    normalizarBusca(r.getCollaboratorName(i.collaboratorId)).includes(q) ||
+    normalizarBusca(r.getFunctionName(i.functionId)).includes(q) ||
+    normalizarBusca(r.getEventName(i.eventId)).includes(q) ||
+    normalizarBusca(i.city ?? r.getCollaboratorCity(i.collaboratorId) ?? "").includes(q);
 }

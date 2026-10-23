@@ -18,7 +18,7 @@ import { getBulkConfirmBlockReason } from "../scaling-validation";
 import { fazTesteDePeriodo, fazTesteDeRecorte, rotuloDoPeriodo, temRecorteDePeriodo, type RecorteDeEventos } from "../scaling-period";
 import { ordenarEscalacoes } from "../scaling-sort";
 import { getScalingStatusLabel } from "../scaling-status";
-import { FLAG_GROUPS, contarFlagsAtivas, fazTesteDeFlags, normalizarBusca, testeDaFila, QUEUE_META, type QueueContext } from "../scaling-queue";
+import { FLAG_GROUPS, contarFlagsAtivas, fazTesteDeBusca, fazTesteDeFlags, testeDaFila, QUEUE_META, type QueueContext } from "../scaling-queue";
 import type { AnalyticsContext } from "../scaling-analytics-data";
 import type { ScalingFiltersState } from "./use-scaling-filters";
 
@@ -103,24 +103,27 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     [scalingInclusions, testePeriodo, testeRecorte, testeFuncao],
   );
   // Análises (18/09): as vagas ainda na Validação/Aprovação de Escala, com o
-  // MESMO recorte da tela (evento, período, futuros/realizados, função e quem
-  // vê o quê). Só são buscadas com a aba aberta — a fila não precisa delas.
+  // MESMO recorte da tela (evento, período, futuros/realizados, função,
+  // excluídas e quem vê o quê). Só são buscadas com a aba aberta — a fila não
+  // precisa delas. A busca e os filtros do painel entram mais abaixo, nas
+  // mesmas camadas da escalação (23/10).
   const { data: sugestoesRaw } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions?phase=sugestao"],
     enabled: aba === "analises",
     staleTime: 60_000,
   });
-  const sugestoesDoRecorte = useMemo(() => {
+  const sugestoesComPeriodo = useMemo(() => {
     const veemTodasAsFuncoes = ["production", "function_area", "purchasing", "financial"];
     return (sugestoesRaw ?? []).filter((i) => {
-      if (i.deletedAt) return false;
+      // Excluída e negada são o "cancelado" da sugestão: só com "Excluídas".
+      if (!verExcluidos && (i.deletedAt || i.status === SUGESTAO_STATUS.NEGADA)) return false;
       const ev = data.eventById.get(i.eventId);
       if (!ev || ev.status === "excluído" || ev.status === "excluido") return false;
       if (eventosMarcados.length > 0 && !eventosMarcados.includes(i.eventId)) return false;
       const podeVer = data.isAdminRole || veemTodasAsFuncoes.includes(String(user?.role ?? "")) || data.userFunctionIds.has(i.functionId);
       return podeVer && testePeriodo(i) && testeRecorte(i) && testeFuncao(i);
     });
-  }, [sugestoesRaw, data.eventById, data.isAdminRole, data.userFunctionIds, user?.role, eventosMarcados, testePeriodo, testeRecorte, testeFuncao]);
+  }, [sugestoesRaw, verExcluidos, data.eventById, data.isAdminRole, data.userFunctionIds, user?.role, eventosMarcados, testePeriodo, testeRecorte, testeFuncao]);
 
   // Opções de função: base com tudo aplicado menos a própria função.
   const opcoesDeFuncao = useMemo(() => {
@@ -139,29 +142,44 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     return { futuros: base.filter(t.futuros).length, realizados: base.filter(t.realizados).length, todos: base.length };
   }, [scalingInclusions, testePeriodo, testeFuncao, hoje]);
 
-  const comBusca = useMemo(() => {
-    const q = normalizarBusca(busca.replace(/#/g, ""));
-    if (!q) return comPeriodo;
-    return comPeriodo.filter((i) =>
-      String(i.inclusionNumber ?? "").includes(q) ||
-      normalizarBusca(getCollaboratorName(i.collaboratorId)).includes(q) ||
-      normalizarBusca(getFunctionName(i.functionId)).includes(q) ||
-      normalizarBusca(getEventName(i.eventId)).includes(q) ||
-      normalizarBusca(i.city ?? getCollaboratorCity(i.collaboratorId) ?? "").includes(q),
-    );
+  // A MESMA busca para a escalação e para as sugestões (23/10).
+  const testeBusca = useMemo(
+    () => fazTesteDeBusca(busca, { getCollaboratorName, getFunctionName, getEventName, getCollaboratorCity }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comPeriodo, busca, data.collaboratorById, data.functionById, data.eventById]);
+    [busca, data.collaboratorById, data.functionById, data.eventById],
+  );
+  const comBusca = useMemo(() => (testeBusca ? comPeriodo.filter(testeBusca) : comPeriodo), [comPeriodo, testeBusca]);
+  const sugestoesComBusca = useMemo(
+    () => (testeBusca ? sugestoesComPeriodo.filter(testeBusca) : sugestoesComPeriodo),
+    [sugestoesComPeriodo, testeBusca],
+  );
 
   const testeFlags = useMemo(() => fazTesteDeFlags(flags, queueContext), [flags, queueContext]);
   const comFlags = useMemo(() => comBusca.filter(testeFlags), [comBusca, testeFlags]);
   /**
-   * Relatório "O que falta" (18/09): sem filtro de situação, entra também o que
-   * está na validação e na aprovação; com filtro (ex.: "Salvo · falta
-   * confirmar"), segue o filtro. Memoizado: o diálogo recalcula a cada troca.
+   * As sugestões passam pelos MESMOS filtros do painel (23/10 — "não precisa
+   * de passagem e segue aparecendo": a vaga em validação escapava de todos).
+   * As regras próprias da sugestão moram em scaling-queue.ts (testeDaFlag).
+   */
+  const sugestoesDoRecorte = useMemo(() => sugestoesComBusca.filter(testeFlags), [sugestoesComBusca, testeFlags]);
+  /**
+   * O que os contadores do painel de filtros contam. Nas Análises entram as
+   * sugestões: o "0" ao lado de "Precisa de passagem" tem que ser o mesmo
+   * número que os cartões mostram com ele marcado.
+   */
+  const linhasSemFlags = useMemo(
+    () => (aba === "analises" && sugestoesComBusca.length > 0 ? [...comBusca, ...sugestoesComBusca] : comBusca),
+    [aba, comBusca, sugestoesComBusca],
+  );
+  /**
+   * Relatório "O que falta" (18/09): entra também o que está na validação e na
+   * aprovação — já com a busca e os filtros (23/10). Um filtro de situação
+   * (ex.: "Salvo · falta confirmar") tira as sugestões pela própria regra.
+   * Memoizado: o diálogo recalcula a cada troca.
    */
   const linhasDoRelatorio = useMemo(
-    () => (Object.values(flags).some(Boolean) ? comFlags : [...comFlags, ...sugestoesDoRecorte]),
-    [flags, comFlags, sugestoesDoRecorte],
+    () => (sugestoesDoRecorte.length > 0 ? [...comFlags, ...sugestoesDoRecorte] : comFlags),
+    [comFlags, sugestoesDoRecorte],
   );
 
   const contagensDaFila = useMemo(() => {
@@ -244,10 +262,13 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
    * relatório usam. Uma contagem só diria "18 vagas" ao lado de um painel que
    * analisa 3.741.
    */
-  const linhasDaAba = aba === "fila" ? visibleRows : comFlags;
-  const contagem = temRecorte && linhasDaAba.length !== comPeriodo.length
-    ? `${linhasDaAba.length} de ${comPeriodo.length} vagas`
-    : `${linhasDaAba.length} ${linhasDaAba.length === 1 ? "vaga" : "vagas"}`;
+  // Nas Análises as sugestões entram nos dois lados da conta (23/10).
+  const nasAnalises = aba === "analises";
+  const nDaAba = aba === "fila" ? visibleRows.length : comFlags.length + (nasAnalises ? sugestoesDoRecorte.length : 0);
+  const nDoRecorte = comPeriodo.length + (nasAnalises ? sugestoesComPeriodo.length : 0);
+  const contagem = temRecorte && nDaAba !== nDoRecorte
+    ? `${nDaAba} de ${nDoRecorte} vagas`
+    : `${nDaAba} ${nDaAba === 1 ? "vaga" : "vagas"}`;
 
   const rotuloDasFlags = contarFlagsAtivas(flags) ? FLAG_GROUPS.flatMap(g => g.opcoes).filter(o => flags[o.key]).map(o => o.label).join(", ") : null;
   const nomesDosFiltrosAtivos = [
@@ -278,7 +299,7 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
 
   return {
     getSelectBlockReason, queueContext, analyticsContext, datasDoEvento,
-    comPeriodo, sugestoesDoRecorte, opcoesDeFuncao, contagemPorRecorte, comBusca, comFlags, linhasDoRelatorio,
+    comPeriodo, sugestoesDoRecorte, opcoesDeFuncao, contagemPorRecorte, comBusca, linhasSemFlags, comFlags, linhasDoRelatorio,
     contagensDaFila, visibleRows, opcoesDeEvento, linhasDoQuadro, nomesDasFuncoes,
     resumoTopo, contagem, nomesDosFiltrosAtivos, nomesDosFiltrosDoRecorte,
   };

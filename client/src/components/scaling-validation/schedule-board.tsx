@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
 import { buildReadDateList, formatDateHeader } from "./scaling-grid-utils";
@@ -10,6 +10,37 @@ interface ScheduleBoardProps {
   /** Período do evento — colunas mínimas do quadro. */
   rangeStart?: string;
   rangeEnd?: string;
+  /*
+   * Extensões da Escalação (23/10 — logística no quadro). Todas opcionais: a
+   * Validação e a visão do evento não passam nada e o quadro fica como era.
+   */
+  /** Colunas por função depois de Pessoas-dia (Passagem, Carro/van, Hotel…). */
+  extraColumns?: BoardExtraColumn[];
+  /** Linhas do rodapé com uma célula por dia (Chegam, Saem, No hotel). */
+  extraFooterRows?: BoardExtraFooterRow[];
+  /** Dias que precisam de coluna mesmo sem ninguém trabalhando (a chegada na véspera). */
+  extraDates?: string[];
+  /** A tela inteira já é leitura: sem a marca "somente leitura" e sem o cinza por linha. */
+  hideReadOnlyMark?: boolean;
+  /** Clique no nome da função (abre o detalhe dela). */
+  onFunctionClick?: (functionId: string) => void;
+}
+
+export interface BoardExtraColumn {
+  key: string;
+  header: ReactNode;
+  /** Classe do th/td (ex.: esconder no celular). */
+  className?: string;
+  cell: (functionId: string) => ReactNode;
+  footer?: ReactNode;
+}
+
+export interface BoardExtraFooterRow {
+  key: string;
+  label: ReactNode;
+  cell: (date: string) => ReactNode;
+  vagasCell?: ReactNode;
+  totalCell?: ReactNode;
 }
 
 interface BoardLine {
@@ -27,7 +58,10 @@ interface BoardLine {
  * workDays de TODAS as áreas. Linhas fora do escopo do usuário ficam em cinza.
  * Vagas negadas não entram na soma.
  */
-export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: ScheduleBoardProps) {
+export function ScheduleBoard({
+  rows, functionNameById, rangeStart, rangeEnd,
+  extraColumns = [], extraFooterRows = [], extraDates, hideReadOnlyMark = false, onFunctionClick,
+}: ScheduleBoardProps) {
   const { dates, lines, totals, totalDays, truncated } = useMemo(() => {
     const active = rows.filter((r) => r.status !== SUGESTAO_STATUS.NEGADA);
     let min = rangeStart ?? "";
@@ -38,13 +72,17 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
       if (!min || days[0] < min) min = days[0];
       if (!max || days[days.length - 1] > max) max = days[days.length - 1];
     }
+    for (const d of extraDates ?? []) {
+      if (!min || d < min) min = d;
+      if (!max || d > max) max = d;
+    }
     // Leitura: período longo demais TRUNCA (com aviso) em vez de sumir com as colunas.
     const { dates, totalDays, truncated } = min && max ? buildReadDateList(min, max) : { dates: [] as string[], totalDays: 0, truncated: false };
     const byFn = new Map<string, BoardLine>();
     for (const r of active) {
       let line = byFn.get(r.functionId);
       if (!line) {
-        line = { functionId: r.functionId, functionName: functionNameById.get(r.functionId) ?? "Sem função", area: r.area ?? "", editable: r.canEdit, total: 0, perDay: {}, vagas: 0 };
+        line = { functionId: r.functionId, functionName: functionNameById.get(r.functionId) ?? "Sem função", area: r.area ?? "", editable: hideReadOnlyMark || r.canEdit, total: 0, perDay: {}, vagas: 0 };
         byFn.set(r.functionId, line);
       }
       line.vagas += 1;
@@ -58,7 +96,7 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
     const totals: Record<string, number> = {};
     for (const d of dates) totals[d] = lines.reduce((acc, l) => acc + (l.perDay[d] || 0), 0);
     return { dates, lines, totals, totalDays, truncated };
-  }, [rows, functionNameById, rangeStart, rangeEnd]);
+  }, [rows, functionNameById, rangeStart, rangeEnd, extraDates, hideReadOnlyMark]);
 
   if (lines.length === 0) {
     return <p className="rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground" role="status">Nenhuma vaga com dias de trabalho para montar o quadro.</p>;
@@ -66,6 +104,8 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
 
   // Cabeçalho no padrão das tabelas do módulo (11px, bold, caixa alta, tracking-wide).
   const TH = "px-2 py-2 text-center border-r border-border text-2xs font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap";
+  // Borda das colunas extras: a primeira separa o bloco (2px), a última não fecha.
+  const bordaExtra = (k: number) => cn(k === 0 && "border-l-2 border-l-border", k < extraColumns.length - 1 && "border-r border-border");
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -77,7 +117,7 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
       {/* Focável: o quadro rola para o lado (uma coluna por dia) e sem tabIndex
           quem navega pelo teclado não tinha como chegar nas colunas escondidas. */}
       <div
-        className="overflow-x-auto max-h-[600px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className={cn("overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", extraFooterRows.length > 0 ? "max-h-[760px]" : "max-h-[600px]")}
         tabIndex={0}
         role="region"
         aria-label="Quadro de vagas por função e dia (rolagem horizontal)"
@@ -97,14 +137,29 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
                   </th>
                 );
               })}
-              <th scope="col" className={cn(TH, "border-r-0 border-l border-l-border")}>Pessoas-dia</th>
+              <th scope="col" className={cn(TH, extraColumns.length === 0 && "border-r-0", "border-l border-l-border")}>Pessoas-dia</th>
+              {extraColumns.map((c, k) => (
+                <th scope="col" key={c.key} className={cn(TH, "border-r-0", bordaExtra(k), c.className)}>{c.header}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {lines.map((line, i) => (
               <tr key={line.functionId} className={cn("border-b border-border", i % 2 === 1 ? "bg-surface-muted/40" : "bg-card", !line.editable && "text-slate-600")}>
-                <td className={cn("px-3 py-1.5 font-semibold sticky left-0 z-10 border-r border-border w-[200px] min-w-[200px]", i % 2 === 1 ? "bg-surface-muted" : "bg-card", line.editable ? "text-foreground" : "text-slate-600")}>
-                  <span className="block truncate" title={line.functionName}>{line.functionName}</span>
+                <td className={cn("px-3 py-1.5 font-semibold sticky left-0 z-10 border-r border-border w-[200px] min-w-[200px] max-w-[200px]", i % 2 === 1 ? "bg-surface-muted" : "bg-card", line.editable ? "text-foreground" : "text-slate-600")}>
+                  {onFunctionClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onFunctionClick(line.functionId)}
+                      className="block max-w-full truncate rounded text-left underline-offset-2 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      title={`${line.functionName} — ver as vagas e a viagem de cada uma`}
+                      data-testid={`quadro-funcao-${line.functionId}`}
+                    >
+                      {line.functionName}
+                    </button>
+                  ) : (
+                    <span className="block truncate" title={line.functionName}>{line.functionName}</span>
+                  )}
                   {!line.editable && <span className="block text-2xs font-normal text-muted-foreground">somente leitura</span>}
                 </td>
                 <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-r border-border">{line.vagas}</td>
@@ -121,18 +176,37 @@ export function ScheduleBoard({ rows, functionNameById, rangeStart, rangeEnd }: 
                   );
                 })}
                 <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-l border-l-border">{line.total}</td>
+                {extraColumns.map((c, k) => (
+                  <td key={c.key} className={cn("px-1 py-1.5 text-center", bordaExtra(k), c.className)}>{c.cell(line.functionId)}</td>
+                ))}
               </tr>
             ))}
           </tbody>
-          <tfoot className="bg-surface-muted border-t border-border sticky bottom-0">
+          <tfoot className="bg-surface-muted border-t border-border sticky bottom-0 z-10">
             <tr>
-              <td className="px-3 py-2 text-2xs font-bold uppercase tracking-wide text-muted-foreground sticky left-0 bg-surface-muted z-10 border-r border-border">Total por dia</td>
+              <td className="px-3 py-2 text-2xs font-bold uppercase tracking-wide text-muted-foreground sticky left-0 bg-surface-muted z-20 border-r border-border">Total por dia</td>
               <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-r border-border">{lines.reduce((a, l) => a + l.vagas, 0)}</td>
               {dates.map((d) => (
                 <td key={d} className="px-1 py-2 text-center text-xs font-bold tabular-nums text-slate-700 border-r border-border">{totals[d] || <span className="text-muted-foreground font-normal">–</span>}</td>
               ))}
               <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-l border-l-border">{lines.reduce((a, l) => a + l.total, 0)}</td>
+              {extraColumns.map((c, k) => (
+                <td key={c.key} className={cn("px-1 py-2 text-center", bordaExtra(k), c.className)}>{c.footer}</td>
+              ))}
             </tr>
+            {extraFooterRows.map((row) => (
+              <tr key={row.key} className="border-t border-border" data-testid={`quadro-rodape-${row.key}`}>
+                <td className="px-3 py-1 text-2xs font-semibold text-slate-700 sticky left-0 bg-surface-muted z-20 border-r border-border">{row.label}</td>
+                <td className="px-2 py-1 text-center text-xs tabular-nums border-r border-border">{row.vagasCell}</td>
+                {dates.map((d) => (
+                  <td key={d} className="px-1 py-1 text-center border-r border-border">{row.cell(d)}</td>
+                ))}
+                <td className="px-2 py-1 text-center text-xs tabular-nums border-l border-l-border">{row.totalCell}</td>
+                {extraColumns.map((c, k) => (
+                  <td key={c.key} className={cn(bordaExtra(k), c.className)} />
+                ))}
+              </tr>
+            ))}
           </tfoot>
         </table>
       </div>

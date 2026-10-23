@@ -22,7 +22,7 @@
 import { useMemo } from "react";
 import { AlertTriangle, CloudOff } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
-import { ScheduleBoard } from "@/components/scaling-validation/schedule-board";
+import { AbaEscala } from "@/components/scaling/escala/aba-escala";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -163,25 +163,27 @@ export default function Scaling() {
               eventos={filtros.eventos} onEventos={filtros.setEventos} opcoesDeEvento={r.opcoesDeEvento}
               funcoes={filtros.funcoes} onFuncoes={filtros.setFuncoes} opcoesDeFuncao={r.opcoesDeFuncao}
               periodo={filtros.periodo} onPeriodo={filtros.setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje} datasDoEvento={r.datasDoEvento}
-              flags={filtros.flags} onFlags={filtros.setFlags} linhasSemFlags={r.comBusca} queueContext={r.queueContext}
+              flags={filtros.flags} onFlags={filtros.setFlags} linhasSemFlags={r.linhasSemFlags} queueContext={r.queueContext}
               verExcluidos={verExcluidos} onVerExcluidos={filtros.setVerExcluidos}
               recorteEventos={filtros.recorteEventos} onRecorteEventos={filtros.setRecorteEventos} contagemPorRecorte={r.contagemPorRecorte}
               contagem={r.contagem}
             />
 
             {aba === "escala" ? (
-              <div className="space-y-2" data-testid="aba-escala-quadro">
-                <ScheduleBoard
-                  rows={r.linhasDoQuadro}
-                  functionNameById={r.nomesDasFuncoes}
-                  rangeStart={eventoUnico?.startDate ?? undefined}
-                  rangeEnd={eventoUnico?.endDate ?? undefined}
-                />
-                <p className="text-2xs text-muted-foreground">
-                  Quadro do recorte atual, somente leitura — vagas canceladas não entram na soma.
-                  {eventosMarcados.length !== 1 ? " Escolha um evento no filtro para ver o período inteiro dele." : ""}
-                </p>
-              </div>
+              // Quadro + logística (23/10): colunas por função, chegam/saem/hotel por dia e os horários.
+              <AbaEscala
+                rows={r.linhasDoQuadro}
+                linhas={r.comFlags}
+                functionNameById={r.nomesDasFuncoes}
+                eventoUnico={eventoUnico}
+                variosEventos={eventosMarcados.length !== 1}
+                recorteFuturos={filtros.recorteEventos === "futuros"}
+                tickets={data.tickets}
+                accommodations={data.accommodations}
+                getCollaboratorName={getCollaboratorName}
+                onAbrirVaga={(i) => modal.openInclusion(i, "resumo")}
+                onEscalarFuncao={filtros.verFuncao}
+              />
             ) : aba === "analises" ? (
               <ScalingAnalytics
                 linhas={r.comFlags}
@@ -191,6 +193,9 @@ export default function Scaling() {
                 onVerVagasDoEvento={filtros.verVagasDoEvento}
                 onVerFuncao={filtros.verFuncao}
                 onAbrirLinha={(i) => { filtros.setAba("fila"); modal.openInclusion(i, "resumo"); }}
+                temRecorte={temRecorte}
+                nomesDosFiltrosAtivos={r.nomesDosFiltrosDoRecorte}
+                onLimparFiltros={filtros.limpaFiltros}
               />
             ) : (
               <ScalingQueue

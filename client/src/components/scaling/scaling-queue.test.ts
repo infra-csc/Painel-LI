@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { TeamInclusion } from "@shared/schema";
 import {
-  TODAS_AS_FLAGS, contadoresDasFlags, contarComFlag, fazTesteDeFlags, normalizarBusca,
+  TODAS_AS_FLAGS, contadoresDasFlags, contarComFlag, fazTesteDeBusca, fazTesteDeFlags, normalizarBusca,
   testeDaFila, type QueueContext,
 } from "./scaling-queue";
 
@@ -195,5 +195,86 @@ describe("busca", () => {
   it("ignora acento e caixa", () => {
     expect(normalizarBusca("  JOSÉ da Silva ")).toBe("jose da silva");
     expect(normalizarBusca("Cenotécnica")).toBe("cenotecnica");
+  });
+});
+
+describe("vaga de sugestão (em validação/aprovação) nos filtros — 23/10", () => {
+  // Caso real: #5171, ativação local, em validação, não precisa de passagem.
+  const sugestao = (over: Partial<TeamInclusion> = {}) =>
+    vaga({ id: "s1", phase: "sugestao", status: "sugestao_pendente", needsTicket: false, ...over } as Partial<TeamInclusion>);
+
+  it('"Precisa de passagem" tira a sugestão que não precisa e mantém a que precisa', () => {
+    const teste = fazTesteDeFlags({ "pass:precisa": true }, ctx());
+    expect(teste(sugestao())).toBe(false);
+    expect(teste(sugestao({ needsTicket: true }))).toBe(true);
+    expect(fazTesteDeFlags({ "pass:nao-precisa": true }, ctx())(sugestao())).toBe(true);
+  });
+
+  it("qualquer filtro de Situação tira a sugestão — ela ainda não está na escalação", () => {
+    for (const k of ["sit:aberta", "sit:salvo", "sit:gestor", "sit:escalado", "sit:cancelada"]) {
+      expect(fazTesteDeFlags({ [k]: true }, ctx())(sugestao())).toBe(false);
+    }
+    // Sem isso, "Vaga aberta" contaria a sugestão (não tem colaborador).
+    expect(fazTesteDeFlags({ "sit:aberta": true }, ctx())(vaga())).toBe(true);
+  });
+
+  it("sugestão nunca tem passagem comprada nem hotel reservado", () => {
+    const tudoComprado = ctx({ temPassagemComprada: () => true, temHospedagemReservada: () => true });
+    const s = sugestao({ needsTicket: true, needsAccommodation: true });
+    expect(fazTesteDeFlags({ "pass:comprada": true }, tudoComprado)(s)).toBe(false);
+    expect(fazTesteDeFlags({ "pass:nao-comprada": true }, tudoComprado)(s)).toBe(true);
+    expect(fazTesteDeFlags({ "hosp:reservada": true }, tudoComprado)(s)).toBe(false);
+    expect(fazTesteDeFlags({ "hosp:nao-reservada": true }, tudoComprado)(s)).toBe(true);
+    // "Precisa de passagem" + "Não comprada" = quem precisa e ainda não tem.
+    expect(fazTesteDeFlags({ "pass:precisa": true, "pass:nao-comprada": true }, tudoComprado)(s)).toBe(true);
+  });
+
+  it("filtros combinados cruzam (E) também na sugestão", () => {
+    const s = sugestao({ needsTicket: true, needsAccommodation: false, city: "" });
+    expect(fazTesteDeFlags({ "pass:precisa": true, "hosp:precisa": true }, ctx())(s)).toBe(false);
+    expect(fazTesteDeFlags({ "pass:precisa": true, "falta:cidade": true }, ctx())(s)).toBe(true);
+    expect(fazTesteDeFlags({ "pass:precisa": true, "falta:nf": true }, ctx())(s)).toBe(false);
+  });
+
+  it("os contadores do painel contam a sugestão com a mesma regra", () => {
+    const linhas = [sugestao(), sugestao({ id: "s2", needsTicket: true }), vaga({ id: "v9" })];
+    const out = contadoresDasFlags(linhas, {}, ctx());
+    expect(out["pass:precisa"]).toBe(1);
+    expect(out["sit:aberta"]).toBe(1); // só a da escalação
+    expect(out["pass:comprada"]).toBe(0);
+  });
+
+  it("a sugestão aprovada pela área (sugestao_validada) segue a mesma regra", () => {
+    expect(fazTesteDeFlags({ "pass:precisa": true }, ctx())(sugestao({ status: "sugestao_validada" }))).toBe(false);
+  });
+});
+
+describe("fazTesteDeBusca", () => {
+  const nomes = {
+    getCollaboratorName: (id?: string | null) => (id ? "José Souza" : "Não escalado"),
+    getFunctionName: () => "Ativação local",
+    getEventName: () => "Circuito das Estações - Verão - Curitiba",
+    getCollaboratorCity: () => null,
+  };
+
+  it("busca vazia não recorta (null)", () => {
+    expect(fazTesteDeBusca("  ", nomes)).toBeNull();
+    expect(fazTesteDeBusca("#", nomes)).toBeNull();
+  });
+
+  it("número da vaga, com ou sem #", () => {
+    const v = vaga({ inclusionNumber: 5272 } as Partial<TeamInclusion>);
+    expect(fazTesteDeBusca("5272", nomes)!(v)).toBe(true);
+    expect(fazTesteDeBusca("#5272", nomes)!(v)).toBe(true);
+    // A #5171 não casa com "5272" por nenhum campo.
+    expect(fazTesteDeBusca("5272", nomes)!(vaga({ inclusionNumber: 5171 } as Partial<TeamInclusion>))).toBe(false);
+  });
+
+  it("colaborador, função, evento e cidade, sem acento", () => {
+    const v = vaga({ collaboratorId: "c1", city: "Curitiba - PR" });
+    expect(fazTesteDeBusca("jose", nomes)!(v)).toBe(true);
+    expect(fazTesteDeBusca("ativacao", nomes)!(v)).toBe(true);
+    expect(fazTesteDeBusca("estacoes", nomes)!(v)).toBe(true);
+    expect(fazTesteDeBusca("curitiba - pr", nomes)!(v)).toBe(true);
   });
 });

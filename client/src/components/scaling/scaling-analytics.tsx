@@ -7,20 +7,25 @@
  * barra sozinha não dizia quantas) e leva ao lugar onde se resolve: Escalação,
  * Validação ou Aprovação, já filtradas pelo evento.
  *
- * Os números vêm de scaling-analytics-data.ts, que lê a base do recorte de
- * evento/período/excluídas e NÃO dos filtros de situação: "quantas faltam
- * escalar" não pode ser respondido por uma lista já filtrada por "vaga aberta".
+ * Um recorte só (23/10): os números vêm de scaling-analytics-data.ts sobre as
+ * MESMAS linhas da Fila — busca, evento, função, período, futuros/realizados,
+ * excluídas e todos os filtros do painel —, e as vagas em validação/aprovação
+ * passam pelos mesmos filtros (regras da sugestão em scaling-queue.ts). O
+ * bloco da fila de trabalho (Escalar, Com o gestor…) não recorta: é a
+ * pergunta que as Análises respondem. Recorte vazio = estado vazio, nunca
+ * números de vagas que o filtro deixou de fora.
  */
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { BedDouble, Plane } from "lucide-react";
+import { BedDouble, FilterX, Plane } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { AcaoDoEstado, EstadoVazio } from "./scaling-page/estados-da-pagina";
 import { QuadroDePrazos, useDiasDosPrazos } from "./scaling-analytics-quadro";
 import type { TeamInclusion } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import {
   BUCKETS, DIAS_ESPERA_ATRASADA, analisarPorEvento, calcularKpis, funcoesDescobertas,
-  gargalos, textoDeFimDeSemana, textoDePrazo, type AnalyticsContext, type Gargalo,
+  gargalos, textoDeFimDeSemana, textoDePrazo, vagasVivas, type AnalyticsContext, type Gargalo,
 } from "./scaling-analytics-data";
 
 /**
@@ -60,6 +65,11 @@ interface Props {
   onVerFuncao: (nomeDaFuncao: string) => void;
   /** Abre o modal daquela linha. */
   onAbrirLinha: (inclusion: TeamInclusion) => void;
+  /** Há busca/filtro/recorte ligado — o estado vazio oferece limpar. */
+  temRecorte?: boolean;
+  /** "busca “5272” · Precisa de passagem" — o que está recortando, para o estado vazio. */
+  nomesDosFiltrosAtivos?: string;
+  onLimparFiltros?: () => void;
 }
 
 function Kpi({ rotulo, valor, sub, cor }: { rotulo: string; valor: string; sub: string; cor: string }) {
@@ -103,11 +113,43 @@ function LinhaDeLogistica({ icone, feitos, precisam, feito, oque }: {
 const linkDaEtapa = (etapa: "validacao" | "aprovacao", eventId: string) =>
   `${etapa === "validacao" ? "/scaling-validation" : "/scaling-approval"}?eventId=${encodeURIComponent(eventId)}`;
 
-export default function ScalingAnalytics({ linhas, sugestoes = [], ctx, hoje, onVerVagasDoEvento, onVerFuncao, onAbrirLinha }: Props) {
+export default function ScalingAnalytics(props: Props) {
+  const { linhas, sugestoes = [], temRecorte = false, nomesDosFiltrosAtivos = "", onLimparFiltros } = props;
+  const todas = useMemo(() => (sugestoes.length ? [...linhas, ...sugestoes] : linhas), [linhas, sugestoes]);
+  const nVivas = useMemo(() => vagasVivas(todas).length, [todas]);
+
+  // Recorte vazio (23/10): nenhum cartão, quadro ou lista — só a causa e a saída.
+  // Antes a vaga em validação escapava dos filtros e enchia os cartões de "1".
+  if (nVivas === 0) {
+    const limpar = temRecorte && onLimparFiltros ? (
+      <AcaoDoEstado onClick={onLimparFiltros} testId="button-limpar-filtros-analises" principal={false}>
+        <FilterX className="h-4 w-4" aria-hidden="true" />Limpar filtros
+      </AcaoDoEstado>
+    ) : undefined;
+    const soCanceladas = todas.length > 0;
+    return (
+      <div data-testid="aba-analises">
+        <EstadoVazio
+          testId="analises-vazio"
+          icone={<FilterX className="h-5 w-5" aria-hidden="true" />}
+          titulo={soCanceladas ? "Só vagas canceladas neste recorte" : "Nenhuma vaga neste recorte"}
+          texto={soCanceladas
+            ? `As análises contam vagas vivas, e ${todas.length === 1 ? "a única vaga" : `as ${todas.length} vagas`} deste recorte ${todas.length === 1 ? "está cancelada ou excluída" : "estão canceladas ou excluídas"}.${limpar ? " Limpe os filtros para ver as análises." : ""}`
+            : temRecorte
+              ? `Filtrando por ${nomesDosFiltrosAtivos || "este recorte"} não sobra nenhuma vaga para analisar. Limpe os filtros para ver as análises.`
+              : "Ainda não há vagas nos eventos futuros. Elas chegam da Inclusão de Equipe quando as funções do evento abrem."}
+          acao={limpar}
+        />
+      </div>
+    );
+  }
+  return <PainelDasAnalises {...props} todas={todas} />;
+}
+
+function PainelDasAnalises({ linhas, todas, ctx, hoje, onVerVagasDoEvento, onVerFuncao, onAbrirLinha }: Props & { todas: TeamInclusion[] }) {
   // O caminho inteiro da vaga: validação → aprovação → escalação → completa.
   // Tudo memoizado (18/09): antes os quatro cálculos rodavam a cada render —
   // inclusive ao clicar em "Mostrar mais", que não muda nenhum número.
-  const todas = useMemo(() => (sugestoes.length ? [...linhas, ...sugestoes] : linhas), [linhas, sugestoes]);
   const kpis = useMemo(() => calcularKpis(todas, ctx, hoje), [todas, ctx, hoje]);
   const eventos = useMemo(() => analisarPorEvento(todas, ctx, hoje), [todas, ctx, hoje]);
   const funcoes = useMemo(() => funcoesDescobertas(linhas, ctx), [linhas, ctx]);
