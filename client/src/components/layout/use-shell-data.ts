@@ -25,6 +25,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
+import { ehPerfilHonorarios } from "@shared/roles";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useSwapRequests } from "@/hooks/use-swap-requests";
@@ -87,8 +88,12 @@ export function useShellData() {
   const isPurchasing = hasRole(user, "admin", "purchasing");
   const canSeeApprovals = hasPermission(user, "canAccessScalingApproval");
   const canSeeValidation = hasPermission(user, "canAccessScalingValidation");
+  // Perfil Honorários (23/10): o servidor recusa tudo fora da tela dele
+  // (server/perfil-honorarios.ts), então a casca nem pergunta. Só o sino dos
+  // honorários (a liberar) continua para ele.
+  const soHonorarios = ehPerfilHonorarios(user?.role);
   // Gestor da cenotécnica (dono, 15/09): mesma regra da tela de Escalação.
-  const aprovaCenotecnica = !!user?.canApproveCenotecnica || isAdmin(user);
+  const aprovaCenotecnica = !soHonorarios && (!!user?.canApproveCenotecnica || isAdmin(user));
 
   // ── Trocas (mesma consulta que o menu já usava) ──
   const [seenState, setSeenState] = useState<SeenState>(() => (user ? getSeenState(user.id) : {}));
@@ -101,7 +106,7 @@ export function useShellData() {
   // Hook único das trocas (23/09): o cache ["/api/swap-requests"] é o mesmo
   // das telas, já normalizado em camelCase. O refetch de 30s é SÓ da casca —
   // as telas leem o que ela mantém vivo.
-  const { data: swapRequests } = useSwapRequests({ enabled: !!user, refetchInterval: 30_000 });
+  const { data: swapRequests } = useSwapRequests({ enabled: !!user && !soHonorarios, refetchInterval: 30_000 });
 
   // Status da inclusão do swap: vem embutido na resposta de /api/swap-requests
   // (JOIN com team_inclusions). A casca NÃO baixa mais a lista inteira de vagas

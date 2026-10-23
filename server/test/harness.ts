@@ -44,7 +44,7 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-nos-testes";
 /** Origin que toda mutação dos testes envia (está na allowlist do CSRF). */
 export const ORIGEM_PERMITIDA = "http://localhost";
 
-export type Papel = "admin" | "production" | "function_area" | "purchasing" | "financial";
+export type Papel = "admin" | "production" | "function_area" | "purchasing" | "financial" | "honorarios";
 
 type ModuloDb = typeof import("../db");
 type ModuloStorage = typeof import("../storage");

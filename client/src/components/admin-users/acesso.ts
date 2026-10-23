@@ -13,7 +13,7 @@ import { ALL_TABS, MENU_GROUPS, type NavTab, type ToneDoGrupo } from "@/componen
 import { toTitleCase } from "@/lib/format";
 
 /** Ordem em que os perfis aparecem (do mais amplo ao mais restrito). */
-export const PERFIS: CanonicalRole[] = ["admin", "financial", "purchasing", "production", "function_area"];
+export const PERFIS: CanonicalRole[] = ["admin", "financial", "purchasing", "production", "function_area", "honorarios"];
 
 /** Nome do perfil — o mesmo do filtro, do modal e da confirmação. */
 export const NOME_DO_PERFIL: Record<CanonicalRole, string> = {
@@ -22,6 +22,7 @@ export const NOME_DO_PERFIL: Record<CanonicalRole, string> = {
   function_area: "Área de Função",
   purchasing: "Compras / Viagem",
   financial: "RH",
+  honorarios: "Honorários (liberação)",
 };
 
 /** Uma frase: o que o perfil faz no dia a dia (só descrição das regras de role-utils). */
@@ -31,6 +32,7 @@ export const RESUMO_DO_PERFIL: Record<CanonicalRole, string> = {
   function_area: "Escalação, módulo de Escala e colaboradores.",
   purchasing: "Cadastros, passagens, hospedagem e controle de bagagem.",
   financial: "Financeiro, controle RH e cadastros; consulta a operação.",
+  honorarios: "Só os Honorários da cenotécnica: libera a verba e extrai os relatórios. Não lança nem aprova.",
 };
 
 export function nomeDoPerfil(role: string | null | undefined): string {

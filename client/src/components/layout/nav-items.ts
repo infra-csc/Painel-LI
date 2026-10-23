@@ -83,7 +83,8 @@ export const ALL_TABS: NavTab[] = [
   { id: "rh-control",         path: "/rh-control",         label: "Controle RH",          icon: Users,             permission: "canAccessScreen5" },
   { id: "invoices",           path: "/invoices",           label: "Notas fiscais",        icon: Receipt,           permission: "canAccessFinanceiro" },
   { id: "flash-account",      path: "/flash-account",      label: "Conta corrente Flash", icon: PiggyBank,         permission: "canAccessFinanceiro" },
-  { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessFinanceiro" },
+  // 23/10: permissão própria — o perfil Honorários abre só esta tela.
+  { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessHonorariosCeno" },
   { id: "calculation-rules",  path: "/calculation-rules",  label: "Regras de cálculo",    icon: Calculator,        permission: "canAccessFinanceiro" },
   { id: "system-settings",    path: "/system-settings",    label: "Valores padrão",       icon: SlidersHorizontal, permission: "canAccessFinanceiro" },
   { id: "consultation",       path: "/consultation",       label: "Log de auditoria",     icon: FileSearch,        permission: "canAccessScreen6" },

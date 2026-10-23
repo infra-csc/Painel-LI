@@ -60,7 +60,7 @@ export function ConfirmarSimulacao({ alvo, iniciando, erro, onConfirmar, onFecha
           <div>
             <p className="m-0 mb-1.5 text-xs font-semibold text-foreground">
               O que você vai ver{perfil && <span className="sm:hidden font-normal text-muted-foreground"> · {perfil.label}</span>}
-              <span className="font-normal text-muted-foreground"> · {totalDeTelas(telas)} telas no menu</span>
+              <span className="font-normal text-muted-foreground"> · {totalDeTelas(telas)} {totalDeTelas(telas) === 1 ? "tela" : "telas"} no menu</span>
             </p>
             <ListaDeTelas grupos={telas} className="rounded-lg border border-border bg-card px-3 py-2.5" />
           </div>

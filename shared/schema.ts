@@ -11,6 +11,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { isValidHhmm, TRECHOS_SUGERIDOS, type ProposedChanges } from "./scaling-validation-rules";
 import type { MudancaDoAviso } from "./aviso-de-alteracao";
+import { PAPEIS_CANONICOS } from "./roles";
 
 // TIPOS DO BANCO (25/09 — auditoria de 23/09). Espelho em produção:
 // scripts/migrations/2026-09-25-jsonb.sql, -timestamptz.sql e -integridade.sql,
@@ -81,7 +82,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
-  role: text("role").notNull(), // admin, production, function_area, purchasing, financial
+  role: text("role").notNull(), // admin, production, function_area, purchasing, financial, honorarios (shared/roles.ts)
   area: text("area"), // area responsável
   resetToken: text("reset_token"), // token for password reset
   resetTokenExpiry: timestamp("reset_token_expiry", { withTimezone: true }), // expiry for reset token
@@ -695,7 +696,7 @@ export const loginSchema = z.object({
 // User approval schema (admin only)
 export const userApprovalSchema = z.object({
   status: z.enum(["approved", "rejected"]),
-  role: z.enum(["admin", "production", "function_area", "purchasing", "financial"]).optional()
+  role: z.enum(PAPEIS_CANONICOS).optional()
 });
 
 export const insertEventSchema = createInsertSchema(events).omit({

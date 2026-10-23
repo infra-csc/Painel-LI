@@ -62,7 +62,7 @@ export function ListaDePessoas({ pessoas, bloqueado, iniciandoId, onEscolher }: 
                     <perfil.icon className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />{perfil.label}
                   </span>
                 ) : <span className="text-sm text-muted-foreground">Perfil desconhecido</span>}
-                <span className="sim-perfil-telas text-xs tabular-nums text-muted-foreground">{n} telas</span>
+                <span className="sim-perfil-telas text-xs tabular-nums text-muted-foreground">{n} {n === 1 ? "tela" : "telas"}</span>
               </div>
               <div className="sim-area">
                 {u.area?.trim()

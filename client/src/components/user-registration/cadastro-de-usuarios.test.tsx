@@ -53,6 +53,24 @@ describe("Cadastro de usuários", () => {
     expect(screen.getByRole("radio", { name: /Logística Interna/ })).not.toBeChecked();
   });
 
+  it("perfil Honorários (23/10): o admin escolhe, vê que abre uma tela só e cria com role \"honorarios\"", async () => {
+    const { user, chamadas } = montar(admin, () => respostaJson({ id: "novo", name: "Romilson Brito", email: "romilson@empresa.com.br", role: "honorarios" }));
+    await user.type(screen.getByLabelText(/Nome completo/), "Romilson Brito");
+    await user.type(screen.getByLabelText(/E-mail corporativo/), "romilson@empresa.com.br");
+    const opcao = screen.getByRole("radio", { name: /Honorários \(liberação\)/ });
+    expect(screen.getByTestId("cad-perfil-honorarios")).toHaveTextContent(/1 tela(?!s)/);
+    await user.click(opcao);
+    expect(screen.getByTestId("cad-telas")).toHaveTextContent("Honorários da cenotécnica");
+    await user.click(screen.getByTestId("button-submit"));
+    await waitFor(() => expect(chamadas).toHaveLength(1));
+    expect(chamadas[0].corpo).toMatchObject({ role: "honorarios", email: "romilson@empresa.com.br" });
+  });
+
+  it("RH não oferece o perfil Honorários (só Produção e Área de Função)", () => {
+    montar(rh);
+    expect(screen.queryByRole("radio", { name: /Honorários \(liberação\)/ })).not.toBeInTheDocument();
+  });
+
   it("vazio: as frases do schema, sem POST", async () => {
     const { user, chamadas } = montar(admin);
     await user.click(screen.getByTestId("button-submit"));

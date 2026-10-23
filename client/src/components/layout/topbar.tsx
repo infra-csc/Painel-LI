@@ -18,7 +18,8 @@ import { TOPBAR_H } from "@/contexts/sidebar-context";
 import { cn } from "@/lib/utils";
 import { X, Menu, PanelLeftClose, PanelLeftOpen, Search, CircleHelp, ChevronRight, Compass } from "lucide-react";
 import { useShellMode } from "./use-shell-mode";
-import { breadcrumbFor, type Breadcrumb } from "./nav-items";
+import { breadcrumbFor, visibleTabs, SCALING_MODULE_PATHS, type Breadcrumb } from "./nav-items";
+import { useAuth } from "@/hooks/use-auth";
 import NotificationsMenu from "./notifications-menu";
 import UserMenu from "./user-menu";
 import { combo, teclas } from "./shortcuts";
@@ -56,7 +57,11 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
   const ToggleIcon = !isDesktop
     ? (isMobileOpen ? X : Menu)
     : isOpen ? PanelLeftClose : PanelLeftOpen;
-  const buscaLabel = `Buscar tela ou evento (${combo("K")})`;
+  // Quem não abre o módulo de Escala (ex.: o perfil Honorários, 23/10) não
+  // recebe eventos na paleta — a busca diz só "tela".
+  const { user } = useAuth();
+  const buscaEventos = visibleTabs(user).some((t) => SCALING_MODULE_PATHS.includes(t.path));
+  const buscaLabel = `${buscaEventos ? "Buscar tela ou evento" : "Buscar tela"} (${combo("K")})`;
 
   return (
     <header
@@ -126,7 +131,7 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
             <Search className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span className="flex-1 min-w-0 text-left text-[13px] truncate">
               <span className="xl:hidden">Buscar…</span>
-              <span className="hidden xl:inline">Buscar tela ou evento</span>
+              <span className="hidden xl:inline">{buscaEventos ? "Buscar tela ou evento" : "Buscar tela"}</span>
             </span>
             <Keys parts={teclas("K")} />
           </button>

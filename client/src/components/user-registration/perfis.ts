@@ -6,7 +6,7 @@
  * de telas daqui nunca promete uma tela que o perfil não abre.
  */
 import type { LucideIcon } from "lucide-react";
-import { Network, ShieldCheck, ShoppingCart, Truck, Users } from "lucide-react";
+import { HandCoins, Network, ShieldCheck, ShoppingCart, Truck, Users } from "lucide-react";
 import type { User } from "@shared/schema";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import { visibleGroups } from "@/components/layout/nav-items";
@@ -26,6 +26,8 @@ export const PERFIS: Perfil[] = [
   { value: "function_area", label: "Área de Função",    icon: Network,      resumo: "Escala a equipe das próprias funções e valida a escala onde tiver esse papel." },
   { value: "purchasing",    label: "Compras / Viagem",  icon: ShoppingCart, resumo: "Passagens, hospedagem e bagagem; cadastra operadores." },
   { value: "financial",     label: "RH",                icon: Users,        resumo: "Financeiro completo (planejado, realizado, notas, Flash); cadastra operadores." },
+  // 23/10: uma tela só. O pedido segue da cenotécnica e a aprovação, do aprovador da escala.
+  { value: "honorarios",    label: "Honorários (liberação)", icon: HandCoins, resumo: "Só os Honorários da cenotécnica: libera a verba e extrai os relatórios. Não lança nem aprova." },
 ];
 
 /** Perfil (aceitando os apelidos legados do banco). */

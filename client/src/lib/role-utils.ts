@@ -10,7 +10,8 @@
 import type { User } from "@shared/schema";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 
-export type UserRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
+/** Papel canônico (shared/roles.ts) — inclui o perfil Honorários (23/10). */
+export type UserRole = CanonicalRole;
 
 // ── Helpers de papel (23/09) ────────────────────────────────────────────────
 // `normalizeRole` (@shared/roles) é a ÚNICA tabela de aliases: "administrador",
@@ -86,11 +87,18 @@ export interface RolePermissions {
   canAccessScalingEventView: boolean;  // GET /api/scaling-suggestions/event-view — todos os papéis conhecidos (somente leitura)
   canAccessScalingManagers: boolean;   // aba Responsáveis da Escala dentro de Funções — permissões próprias, diferentes do catálogo (só admin)
   canAccessSimulation: boolean;        // módulo "Ver como usuário" — espelha POST /api/simulation/start (só admin)
+  canAccessHonorariosCeno: boolean;    // tela Honorários da cenotécnica (23/10) — espelha GET /api/honorarios-ceno/financeiro: admin, RH e o perfil Honorários
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
   const canonical = normalizeRole(role) ?? role;
   switch (canonical) {
+    // Perfil Honorários (23/10): SÓ a tela Honorários da cenotécnica (liberar
+    // a verba, histórico, relatórios e CSV). Todo o resto é false, e o
+    // servidor barra qualquer outra rota (server/perfil-honorarios.ts).
+    case "honorarios":
+      return { ...getRolePermissions("" as UserRole), canAccessHonorariosCeno: true };
+
     case "admin":
       return {
         canAccessCadastros: true,
@@ -127,6 +135,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingEventView: true,
         canAccessScalingManagers: true,   // aba Responsáveis da Escala — só admin
         canAccessSimulation: true,        // "Ver como usuário" — só admin
+        canAccessHonorariosCeno: true,
       };
 
     case "production":
@@ -165,6 +174,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,       // "Ver como usuário" — só admin
+        canAccessHonorariosCeno: false,
       };
 
     case "function_area":
@@ -203,6 +213,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,       // "Ver como usuário" — só admin
+        canAccessHonorariosCeno: false,
       };
 
     case "purchasing":
@@ -241,6 +252,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,         // "Ver como usuário" — só admin
+        canAccessHonorariosCeno: false,
       };
 
     case "financial":
@@ -279,6 +291,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingEventView: true,
         canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,         // "Ver como usuário" — só admin
+        canAccessHonorariosCeno: true,
       };
 
     default:
@@ -317,6 +330,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingEventView: false,
         canAccessScalingManagers: false,
         canAccessSimulation: false,
+        canAccessHonorariosCeno: false,
       };
   }
 }
@@ -335,6 +349,7 @@ export function getRoleLabel(role: UserRole): string {
     case "function_area": return "Área responsável por funções";
     case "purchasing": return "Área de Compras/Viagem";
     case "financial": return "RH";
+    case "honorarios": return "Honorários (liberação)";
     default: return "Usuário";
   }
 }

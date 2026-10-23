@@ -55,3 +55,13 @@ describe("edição de usuário — regra compartilhada", () => {
     expect(podeRedefinirSenhaDe("production", false)).toBe(true);
   });
 });
+
+describe("perfil Honorários (23/10)", () => {
+  it("não edita terceiros nem o próprio perfil; o admin pode pôr qualquer conta no perfil", () => {
+    expect(camposEditaveisDoUsuario("honorarios", false)).toEqual([]);
+    expect(camposEditaveisDoUsuario("honorarios", true)).toEqual(["name", "email"]);
+    expect(recusaDaEdicaoDeUsuario("honorarios", false, ["name"])).toBe(MSG_SEM_PERMISSAO_PARA_EDITAR);
+    expect(recusaDaEdicaoDeUsuario("honorarios", true, ["role"])).toBe(MSG_PROPRIO_PERFIL);
+    expect(recusaDaEdicaoDeUsuario("admin", false, ["role"])).toBeNull();
+  });
+});

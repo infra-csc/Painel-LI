@@ -7,7 +7,15 @@
  * Esta é a fonte única da tabela de aliases.
  */
 
-export type CanonicalRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
+/**
+ * Papéis canônicos — a chave gravada em `users.role` (texto livre no banco,
+ * sem CHECK). 23/10: `honorarios`, o perfil que só libera a verba dos
+ * Honorários da cenotécnica e extrai os relatórios. O Portal Norte manda o
+ * nome "Honorários (liberação)" no SSO e grava a chave `honorarios` direto na
+ * tabela (syncPermissionToLogistica); as duas formas viram este papel.
+ */
+export const PAPEIS_CANONICOS = ["admin", "production", "function_area", "purchasing", "financial", "honorarios"] as const;
+export type CanonicalRole = (typeof PAPEIS_CANONICOS)[number];
 
 const ROLE_MAP: Record<string, CanonicalRole> = {
   admin: "admin",
@@ -30,11 +38,39 @@ const ROLE_MAP: Record<string, CanonicalRole> = {
   travel: "purchasing",
   financeiro: "financial",
   finance: "financial",
+  // Honorários da cenotécnica: só liberação e relatórios (23/10). As chaves
+  // ficam sem acento (ver `chaveDoPapel`): "Honorários (liberação)", o texto
+  // exato que o Portal manda, vira "honorarios (liberacao)".
+  honorarios: "honorarios",
+  "honorarios (liberacao)": "honorarios",
+  "honorarios liberacao": "honorarios",
+  honorarios_liberacao: "honorarios",
 };
+
+/** Caixa, acentos e espaços (nas pontas e repetidos) não importam. */
+function chaveDoPapel(role: string): string {
+  return role.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/\s+/g, " ");
+}
 
 export function normalizeRole(role: string | null | undefined): CanonicalRole | null {
   if (!role) return null;
-  return ROLE_MAP[role.toLowerCase().trim()] || null;
+  return ROLE_MAP[chaveDoPapel(role)] || null;
+}
+
+/**
+ * Perfil "Honorários (liberação)" (23/10): só a tela Honorários da
+ * cenotécnica (liberar verba, histórico, relatórios e CSV). Não pede nem
+ * aprova honorário e não abre nenhuma outra tela nem rota: o servidor barra
+ * tudo fora da lista de server/perfil-honorarios.ts.
+ */
+export function ehPerfilHonorarios(role: string | null | undefined): boolean {
+  return normalizeRole(role) === "honorarios";
+}
+
+/** Quem registra a liberação da verba dos honorários: admin, RH e o perfil Honorários. */
+export function podeLiberarHonorarios(role: string | null | undefined): boolean {
+  const r = normalizeRole(role);
+  return r === "admin" || r === "financial" || r === "honorarios";
 }
 
 /** RH (financial) ou administrador — quem decide no fluxo financeiro. */

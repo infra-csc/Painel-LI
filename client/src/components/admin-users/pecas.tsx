@@ -57,7 +57,7 @@ export function PerfilDoUsuario({ role, className }: { role: string; className?:
         admin ? "bg-brand-soft text-primary" : conhecido ? "bg-muted text-slate-700" : "bg-danger-soft text-danger",
         className,
       )}
-      title={conhecido ? undefined : "Perfil desconhecido: o sistema não abre nenhuma tela para ele"}
+      title={conhecido ? nomeDoPerfil(role) : "Perfil desconhecido: o sistema não abre nenhuma tela para ele"}
     >
       {admin && <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
       <span className="truncate">{nomeDoPerfil(role)}</span>

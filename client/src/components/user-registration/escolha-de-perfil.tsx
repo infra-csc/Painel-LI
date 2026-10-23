@@ -46,7 +46,7 @@ export function EscolhaDePerfil({ perfis, valor, registro, erro, restrito }: {
                 <span className="block text-sm font-semibold leading-5 text-foreground">{p.label}</span>
                 <span className="block text-xs leading-[18px] text-muted-foreground">{p.resumo}</span>
               </span>
-              <span className="cad-perfil-telas shrink-0 text-2xs tabular-nums text-muted-foreground">{n} telas</span>
+              <span className="cad-perfil-telas shrink-0 text-2xs tabular-nums text-muted-foreground">{n} {n === 1 ? "tela" : "telas"}</span>
               <span className={cn("cad-perfil-marca", marcado && "cad-perfil-marca-on")} aria-hidden="true">
                 {marcado && <Check className="w-3 h-3" strokeWidth={3} />}
               </span>
@@ -68,7 +68,7 @@ export function EscolhaDePerfil({ perfis, valor, registro, erro, restrito }: {
         <p className="m-0 flex items-center gap-1.5 text-xs font-semibold text-foreground">
           <LayoutList className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
           {escolhido ? <>O que {escolhido.label} vê no menu</> : "Telas liberadas"}
-          {escolhido && <span className="font-normal text-muted-foreground">· {totalDeTelas(telas)} telas</span>}
+          {escolhido && <span className="font-normal text-muted-foreground">· {totalDeTelas(telas)} {totalDeTelas(telas) === 1 ? "tela" : "telas"}</span>}
         </p>
         {escolhido ? (
           <ListaDeTelas key={escolhido.value} grupos={telas} className="pas-entra mt-2" />

@@ -8,6 +8,13 @@
  * registro da liberação — aceita parcial), Liberados (o que já foi pago, com
  * as OCs) e Relatórios (por evento, mês, pessoa/empreita e setor × posição,
  * com CSV). A barra filtra por evento; sem evento, tudo.
+ *
+ * 23/10: filtro por PERÍODO na barra (shared/honorarios-periodo.ts). Em "A
+ * liberar" e nos Relatórios vale a data do evento; em "Liberados", a data da
+ * liberação (padrão — o Financeiro fecha o mês pelo que pagou) ou a do
+ * evento. Vale para a faixa de totais, as listas, os relatórios e os CSVs
+ * (nome do arquivo e linhas de abertura dizem o período). A tela é também a
+ * única do perfil "Honorários (liberação)".
  */
 import { useMemo, useState } from "react";
 import { Banknote, CheckCircle2, CloudOff, Download, FileBarChart, History, Inbox, Lock, SearchX, Wallet } from "lucide-react";
@@ -32,6 +39,15 @@ import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, OrigemDaLinha, O
 import { HistoricoSheet } from "@/components/honorarios-ceno/historico-sheet";
 import { EstornoDialog, LiberacaoDialog } from "@/components/honorarios-ceno/financeiro-dialogos";
 import { Relatorios, TIPOS_DE_RELATORIO } from "@/components/honorarios-ceno/relatorios";
+import { FiltroDePeriodo } from "@/components/honorarios-ceno/filtro-de-periodo";
+import { hojeISO } from "@shared/hoje-sp";
+import {
+  descricaoDoIntervalo, ehAtalhoDoPeriodo, intervaloDoPeriodo, preambuloDoCsv, recortarPelaDataDaLiberacao, recortarPelaDataDoEvento,
+  semLimite, sufixoDoPeriodo, totaisPagosNoPeriodo, BASE_DO_PERIODO_LABEL,
+  type AtalhoDoPeriodo, type BaseDoPeriodo, type EscolhaDoPeriodo, type LinhaPagaNoPeriodo,
+} from "@shared/honorarios-periodo";
+
+type PagoNoPeriodo = LinhaPagaNoPeriodo<HonorarioDoFinanceiro, Liberacao>;
 
 type Aba = "liberar" | "liberados" | "relatorios";
 
@@ -50,19 +66,28 @@ function casaBusca(h: HonorarioDoFinanceiro, q: string): boolean {
   return [h.nome, h.eventName, h.functionName, ...h.liberacoes.map((l) => l.oc)].some((x) => normalizarNomeDeFuncao(x).includes(t));
 }
 
-function exportarLinhas(linhas: HonorarioDoFinanceiro[], sufixo: string) {
-  const cabecalho = ["Evento", "Data do evento", "Nome", "Tipo", "Origem do valor", "Vagas da empreita", "Setor", "Posição", "Início", "Fim", "Diárias", "Valor pedido (R$)", "Valor aprovado (R$)", "Por diária (R$)", "Situação", "Liberado (R$)", "Falta liberar (R$)", "OC/DP", "Pedido por", "Decidido por"];
+/**
+ * CSV das linhas. `pagos` (Liberados pela data da liberação): só os pedidos
+ * pagos no período, com a coluna "Liberado no período" e as OCs/DPs do
+ * período (com a data). `preambulo`: as linhas de abertura com o período.
+ */
+function exportarLinhas(linhas: HonorarioDoFinanceiro[], nomeDoArquivo: string, preambulo: string[][], pagos?: PagoNoPeriodo[]) {
+  const porPago = pagos ? new Map(pagos.map((p) => [p.linha.id, p])) : null;
+  const cabecalho = ["Evento", "Data do evento", "Nome", "Tipo", "Origem do valor", "Vagas da empreita", "Setor", "Posição", "Início", "Fim", "Diárias", "Valor pedido (R$)", "Valor aprovado (R$)", "Por diária (R$)", "Situação", "Liberado (R$)", "Falta liberar (R$)", ...(porPago ? ["Liberado no período (R$)"] : []), "OC/DP", "Pedido por", "Decidido por"];
   const linhasCsv = linhas.map((h) => {
     const vigente = h.valorAprovado ?? h.valorPedido;
     const pd = valorPorDiaria(vigente, h.diarias);
+    const pago = porPago?.get(h.id);
+    const ocs = pago ? pago.liberacoes.map((l) => `${l.oc} (${dataBr(l.data)})`) : h.liberacoes.filter((l) => !l.estornadaEm).map((l) => l.oc);
     return [
       h.eventName ?? "", dataBr(h.eventStartDate), h.nome, h.tipo === "empreita" ? "Empreita" : h.semColaborador ? "Vaga sem colaborador" : "Vaga", rotuloDoValor(h), (h.vagasDaEmpreita ?? []).map((v) => `#${v.inclusionNumber}`).join(" "), setorLabel(h.setor), posicaoLabel(h.posicao),
       dataBr(h.inicio), dataBr(h.fim), String(h.diarias ?? ""), reaisParaCsv(h.valorPedido), h.valorAprovado != null ? reaisParaCsv(h.valorAprovado) : "",
       pd != null ? reaisParaCsv(pd) : "", ETAPA_LABEL[etapaDoHonorario(h)], reaisParaCsv(h.liberado), reaisParaCsv(h.falta),
-      h.liberacoes.filter((l) => !l.estornadaEm).map((l) => l.oc).join(" / "), h.enviadoPorNome ?? h.criadoPorNome, h.decididoPorNome ?? "",
+      ...(porPago ? [reaisParaCsv(pago?.liberadoNoPeriodo ?? 0)] : []),
+      ocs.join(" / "), h.enviadoPorNome ?? h.criadoPorNome, h.decididoPorNome ?? "",
     ];
   });
-  downloadCsv(`honorarios-cenotecnica-linhas${sufixo}.csv`, cabecalho, linhasCsv);
+  downloadCsv(nomeDoArquivo, cabecalho, linhasCsv, preambulo);
 }
 
 function LinhaALiberar({ h, onLiberar, onHistorico }: { h: HonorarioDoFinanceiro; onLiberar: () => void; onHistorico: () => void }) {
@@ -147,7 +172,16 @@ function CartaoALiberar({ h, onLiberar, onHistorico }: { h: HonorarioDoFinanceir
   );
 }
 
-function PorEvento({ linhas, render }: { linhas: HonorarioDoFinanceiro[]; render: (doEvento: HonorarioDoFinanceiro[]) => React.ReactNode }) {
+const Numero = ({ rotulo, valor, tom }: { rotulo: string; valor: string; tom?: "warning" }) => (
+  <span><span className="block text-2xs text-muted-foreground">{rotulo}</span><span className={cn("block text-sm font-semibold tabular-nums", tom === "warning" ? "text-warning" : "text-foreground")}>{valor}</span></span>
+);
+
+/** Agrupa por evento. `numeros`: o que o cabeçalho do grupo soma (padrão: aprovado e a liberar). */
+function PorEvento({ linhas, render, numeros }: {
+  linhas: HonorarioDoFinanceiro[];
+  render: (doEvento: HonorarioDoFinanceiro[]) => React.ReactNode;
+  numeros?: (doEvento: HonorarioDoFinanceiro[]) => React.ReactNode;
+}) {
   const grupos = useMemo(() => {
     const m = new Map<string, HonorarioDoFinanceiro[]>();
     for (const h of linhas) m.set(h.eventId, [...(m.get(h.eventId) ?? []), h]);
@@ -165,8 +199,12 @@ function PorEvento({ linhas, render }: { linhas: HonorarioDoFinanceiro[]; render
                 <p className="text-2xs text-muted-foreground">{dataBr(g[0].eventStartDate)} · {g.length} {g.length === 1 ? "linha" : "linhas"}</p>
               </div>
               <p className="flex gap-4 text-right">
-                <span><span className="block text-2xs text-muted-foreground">Aprovado</span><span className="block text-sm font-semibold tabular-nums text-foreground">{brl(t.aprovado)}</span></span>
-                <span><span className="block text-2xs text-muted-foreground">A liberar</span><span className="block text-sm font-semibold tabular-nums text-warning">{brl(t.aLiberar)}</span></span>
+                {numeros ? numeros(g) : (
+                  <>
+                    <Numero rotulo="Aprovado" valor={brl(t.aprovado)} />
+                    <Numero rotulo="A liberar" valor={brl(t.aLiberar)} tom="warning" />
+                  </>
+                )}
               </p>
             </header>
             {render(g)}
@@ -177,19 +215,26 @@ function PorEvento({ linhas, render }: { linhas: HonorarioDoFinanceiro[]; render
   );
 }
 
-function LinhaLiberada({ h, onHistorico }: { h: HonorarioDoFinanceiro; onHistorico: () => void }) {
-  const ativas = h.liberacoes.filter((l) => !l.estornadaEm);
+/**
+ * Pedido liberado. `pago` (base data da liberação): só as OCs/DPs do período e
+ * a soma delas; se ainda falta verba, o selo "parcial" diz quanto.
+ */
+function LinhaLiberada({ h, pago, onHistorico }: { h: HonorarioDoFinanceiro; pago?: PagoNoPeriodo; onHistorico: () => void }) {
+  const ativas = pago ? pago.liberacoes : h.liberacoes.filter((l) => !l.estornadaEm);
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3">
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3" data-testid={`hon-liberado-${h.id}`}>
       <span className="min-w-0 flex-1 basis-[220px]">
         <span className="block truncate text-sm font-semibold text-foreground">{h.nome}</span>
         <span className="block truncate text-2xs text-muted-foreground">{rotuloDoValor(h)} · {diariasTexto(h.diarias)}</span>
+        {pago && h.falta > 0 && (
+          <span className="mt-0.5 inline-flex items-center rounded-full bg-warning-soft px-2 py-0.5 text-2xs font-medium text-warning">Parcial · faltam {brlCurto(h.falta)}</span>
+        )}
         <AvisoDaLinha h={h} />
       </span>
       <span className="min-w-[160px] text-xs text-slate-700">
         {ativas.map((l: Liberacao) => <span key={l.id} className="block tabular-nums">OC/DP {l.oc} · {dataBr(l.data)} · {brlCurto(l.valor)}</span>)}
       </span>
-      <span className="w-[120px] text-right text-sm font-semibold tabular-nums text-foreground">{brl(h.liberado)}</span>
+      <span className="w-[120px] text-right text-sm font-semibold tabular-nums text-foreground">{brl(pago ? pago.liberadoNoPeriodo : h.liberado)}</span>
       <Button type="button" variant="ghost" size="sm" className="val-alvo h-8 w-8 p-0 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={onHistorico} aria-label={`Histórico de ${h.nome}`}>
         <History className="h-4 w-4" aria-hidden="true" />
       </Button>
@@ -208,12 +253,32 @@ export default function HonorariosCenoPage() {
     evento: campo.texto(""),
     relatorio: campo.opcao<TipoDeRelatorio>("evento"),
     q: campo.texto(""),
+    // Período (23/10): atalho ou "personalizado" com de/até; base da aba Liberados.
+    periodo: campo.opcao<AtalhoDoPeriodo>("tudo"),
+    de: campo.texto(""),
+    ate: campo.texto(""),
+    base: campo.opcao<BaseDoPeriodo>("liberacao"),
   });
   const aba: Aba = ABAS.some((a) => a.id === url.aba) ? url.aba : "liberar";
   const tipo: TipoDeRelatorio = TIPOS_DE_RELATORIO.includes(url.relatorio) ? url.relatorio : "evento";
   const [liberando, setLiberando] = useState<HonorarioDoFinanceiro | null>(null);
   const [historicoId, setHistoricoId] = useState<string | null>(null);
   const [estornando, setEstornando] = useState<{ h: HonorarioDoFinanceiro; l: Liberacao } | null>(null);
+
+  // ── Período ──
+  const hoje = useMemo(() => hojeISO(), []);
+  const escolha = useMemo<EscolhaDoPeriodo>(
+    () => (ehAtalhoDoPeriodo(url.periodo) ? { atalho: url.periodo, de: url.de || null, ate: url.ate || null } : { atalho: "tudo" }),
+    [url.periodo, url.de, url.ate],
+  );
+  const intervalo = useMemo(() => intervaloDoPeriodo(escolha, hoje), [escolha, hoje]);
+  const comPeriodo = !semLimite(intervalo);
+  const baseDosLiberados: BaseDoPeriodo = url.base === "evento" ? "evento" : "liberacao";
+  // "A liberar" e Relatórios: sempre a data do evento. "Liberados": a escolhida.
+  const base: BaseDoPeriodo = aba === "liberados" ? baseDosLiberados : "evento";
+  const pelaLiberacao = aba === "liberados" && baseDosLiberados === "liberacao";
+  const escolherPeriodo = (e: EscolhaDoPeriodo) => setUrl({ periodo: e.atalho, de: e.atalho === "personalizado" ? e.de ?? "" : "", ate: e.atalho === "personalizado" ? e.ate ?? "" : "" });
+  const limparPeriodo = () => setUrl({ periodo: "tudo", de: "", ate: "", base: "liberacao" });
 
   const todas = useMemo(() => q.data ?? [], [q.data]);
   const eventos = useMemo(() => {
@@ -222,12 +287,28 @@ export default function HonorariosCenoPage() {
     return Array.from(m.values());
   }, [todas]);
   const doEvento = useMemo(() => (url.evento ? todas.filter((h) => h.eventId === url.evento) : todas), [todas, url.evento]);
-  const t = useMemo(() => somar(doEvento), [doEvento]);
-  const aLiberar = doEvento.filter((h) => h.falta > 0 && (h.status === "aprovado" || h.status === "aprovado_ajuste") && casaBusca(h, url.q));
-  const liberados = doEvento.filter((h) => h.valorAprovado != null && h.falta === 0 && h.liberado > 0 && casaBusca(h, url.q));
-  const nALiberar = doEvento.filter((h) => h.falta > 0 && (h.status === "aprovado" || h.status === "aprovado_ajuste")).length;
+  /** Evento escolhido + período pela data do evento — base de A liberar, Relatórios e da faixa. */
+  const noPeriodo = useMemo(() => recortarPelaDataDoEvento(doEvento, intervalo), [doEvento, intervalo]);
+  /** Liberados pela data da liberação: o que foi pago no período. */
+  const pagos = useMemo<PagoNoPeriodo[]>(() => recortarPelaDataDaLiberacao<Liberacao, HonorarioDoFinanceiro>(doEvento, intervalo), [doEvento, intervalo]);
+  const pagoPorId = useMemo(() => new Map(pagos.map((p) => [p.linha.id, p])), [pagos]);
+  const t = useMemo(() => somar(noPeriodo), [noPeriodo]);
+  const tPagos = useMemo(() => totaisPagosNoPeriodo(pagos), [pagos]);
+  const aLiberar = noPeriodo.filter((h) => h.falta > 0 && (h.status === "aprovado" || h.status === "aprovado_ajuste") && casaBusca(h, url.q));
+  const liberados = pelaLiberacao
+    ? pagos.map((p) => p.linha).filter((h) => casaBusca(h, url.q))
+    : noPeriodo.filter((h) => h.valorAprovado != null && h.falta === 0 && h.liberado > 0 && casaBusca(h, url.q));
+  const nALiberar = noPeriodo.filter((h) => h.falta > 0 && (h.status === "aprovado" || h.status === "aprovado_ajuste")).length;
   const eventoEscolhido = eventos.find((e) => e.id === url.evento);
-  const sufixo = eventoEscolhido ? `-${slugify(eventoEscolhido.name)}` : "";
+  const sufixoDoEvento = eventoEscolhido ? `-${slugify(eventoEscolhido.name)}` : "";
+  const periodoTexto = descricaoDoIntervalo(intervalo);
+  const linhasParaExportar = pelaLiberacao ? pagos.map((p) => p.linha) : noPeriodo;
+  const exportar = () => exportarLinhas(
+    linhasParaExportar,
+    `honorarios-cenotecnica-linhas${sufixoDoEvento}${sufixoDoPeriodo(intervalo, base)}.csv`,
+    preambuloDoCsv(pelaLiberacao ? "Honorários da cenotécnica — liberados no período" : "Honorários da cenotécnica — linhas", intervalo, base, eventoEscolhido?.name),
+    pelaLiberacao ? pagos : undefined,
+  );
 
   const barra = (
     <PageHeader
@@ -240,10 +321,15 @@ export default function HonorariosCenoPage() {
           <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border sm:block" />
           <EventSearchSelect variante="barra" value={url.evento} onValueChange={(id) => setUrl({ evento: id })} events={eventos} rotuloVazio="Todos os eventos"
             detalhe={eventoEscolhido ? `${dataBr(eventoEscolhido.startDate)} · ${doEvento.length} linhas` : `${eventos.length} ${eventos.length === 1 ? "evento" : "eventos"} com honorários`} />
+          <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border sm:block" />
+          <FiltroDePeriodo escolha={escolha} onEscolha={escolherPeriodo} hoje={hoje} base={base}
+            onBase={aba === "liberados" ? (b) => setUrl({ base: b }) : undefined}
+            onLimpar={limparPeriodo} podeLimpar={comPeriodo || baseDosLiberados !== "liberacao"} />
         </>
       ) : undefined}
-      actions={podeVer && doEvento.length > 0 ? (
-        <Button type="button" variant="outline" size="sm" className="val-alvo" onClick={() => exportarLinhas(doEvento, sufixo)} data-testid="hon-exportar-linhas">
+      actions={podeVer && linhasParaExportar.length > 0 ? (
+        <Button type="button" variant="outline" size="sm" className="val-alvo" onClick={exportar} data-testid="hon-exportar-linhas"
+          title={comPeriodo ? `Exporta as linhas de ${periodoTexto} (${BASE_DO_PERIODO_LABEL[base]})` : undefined}>
           <Download className="h-4 w-4" aria-hidden="true" /> Exportar linhas
         </Button>
       ) : undefined}
@@ -259,21 +345,36 @@ export default function HonorariosCenoPage() {
       </div>
     );
   } else if (!podeVer) {
-    conteudo = <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do Financeiro" texto="Só o Financeiro (RH) e o administrador veem os honorários a liberar." testId="hon-fin-sem-acesso" />;
+    conteudo = <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do Financeiro" texto="Só o Financeiro (RH), o perfil Honorários e o administrador veem os honorários a liberar." testId="hon-fin-sem-acesso" />;
   } else if (q.error) {
     conteudo = <EstadoDaValidacao tom="erro" icone={<CloudOff aria-hidden="true" />} titulo="Não foi possível carregar os honorários" texto={apiErrorMessage(q.error, "Verifique sua conexão e tente novamente.")} acao={<BotaoTentarDeNovo onClick={() => q.refetch()} tentando={q.isFetching} />} />;
   } else if (todas.length === 0) {
     conteudo = <EstadoDaValidacao icone={<Wallet aria-hidden="true" />} titulo="Nenhum honorário enviado ainda" texto="Quando a cenotécnica enviar o valor negociado e o aprovador da escala aprovar, o pedido aparece aqui para você registrar a liberação da verba." testId="hon-fin-vazio" />;
   } else {
     const contagem: Record<Aba, number | null> = { liberar: nALiberar, liberados: null, relatorios: null };
+    // Faixa: na aba Liberados pela data da liberação, o que foi PAGO no
+    // período; no resto, os totais dos eventos do período.
+    const noPeriodoTexto = comPeriodo ? " no período" : "";
+    const itensDaFaixa = pelaLiberacao ? [
+      { rotulo: `Liberado${noPeriodoTexto}`, valor: brlCurto(tPagos.liberado), detalhe: plural(tPagos.liberacoes, "OC/DP", "OCs/DPs"), destaque: "success" as const },
+      { rotulo: "Pedidos pagos", valor: String(tPagos.pedidos), detalhe: plural(tPagos.eventos, "evento", "eventos") },
+      { rotulo: "Aprovado desses pedidos", valor: brlCurto(tPagos.aprovadoDessesPedidos), detalhe: tPagos.aprovadoDessesPedidos ? `${Math.round((tPagos.liberado / tPagos.aprovadoDessesPedidos) * 100)}% liberado${noPeriodoTexto}` : "—" },
+      { rotulo: "Ainda falta desses pedidos", valor: brlCurto(tPagos.faltaDessesPedidos), detalhe: tPagos.faltaDessesPedidos > 0 ? "liberação parcial" : "pagos por completo", destaque: tPagos.faltaDessesPedidos > 0 ? "warning" as const : undefined },
+    ] : [
+      { rotulo: "Aprovado", valor: brlCurto(t.aprovado), detalhe: plural(noPeriodo.filter((h) => h.valorAprovado != null).length, "pedido", "pedidos"), destaque: "success" as const },
+      { rotulo: "Liberado", valor: brlCurto(t.liberado), detalhe: t.aprovado ? `${Math.round((t.liberado / t.aprovado) * 100)}% do aprovado` : "—" },
+      { rotulo: "A liberar", valor: brlCurto(t.aLiberar), detalhe: `${nALiberar} ${nALiberar === 1 ? "pedido" : "pedidos"}`, destaque: t.aLiberar > 0 ? "warning" as const : undefined },
+      { rotulo: "Aguardando aprovação", valor: brlCurto(t.aguardando), detalhe: t.emNegociacao ? `${t.emNegociacao} em negociação` : "com o aprovador da escala" },
+    ];
+    const limparFiltros = <Button type="button" variant="outline" size="sm" className="val-alvo" onClick={limparPeriodo} data-testid="hon-limpar-periodo">Limpar período</Button>;
     conteudo = (
       <>
-        <FaixaDeTotais testId="hon-fin-totais" itens={[
-          { rotulo: "Aprovado", valor: brlCurto(t.aprovado), detalhe: plural(doEvento.filter((h) => h.valorAprovado != null).length, "pedido", "pedidos"), destaque: "success" },
-          { rotulo: "Liberado", valor: brlCurto(t.liberado), detalhe: t.aprovado ? `${Math.round((t.liberado / t.aprovado) * 100)}% do aprovado` : "—" },
-          { rotulo: "A liberar", valor: brlCurto(t.aLiberar), detalhe: `${nALiberar} ${nALiberar === 1 ? "pedido" : "pedidos"}`, destaque: t.aLiberar > 0 ? "warning" : undefined },
-          { rotulo: "Aguardando aprovação", valor: brlCurto(t.aguardando), detalhe: t.emNegociacao ? `${t.emNegociacao} em negociação` : "com o aprovador da escala" },
-        ]} />
+        {comPeriodo && (
+          <p className="-mb-2 text-xs text-muted-foreground" data-testid="hon-periodo-resumo" aria-live="polite">
+            {pelaLiberacao ? "Liberado" : "Eventos"} de <span className="font-medium text-foreground">{periodoTexto}</span> · pela {BASE_DO_PERIODO_LABEL[base]}
+          </p>
+        )}
+        <FaixaDeTotais testId="hon-fin-totais" itens={itensDaFaixa} />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 sm:border-b sm:border-border">
           <div className="val-rolagem-x -mx-[var(--page-gutter)] border-b border-border px-[var(--page-gutter)] sm:mx-0 sm:self-end sm:border-b-0 sm:px-0">
@@ -313,6 +414,7 @@ export default function HonorariosCenoPage() {
         <div id={`hon-painel-${aba}`} role="tabpanel" aria-labelledby={`hon-tab-${aba}`} className="val-entra">
           {aba === "liberar" && (aLiberar.length === 0 ? (
             url.q ? <EstadoDaValidacao icone={<SearchX aria-hidden="true" />} titulo="Nada com essa busca" texto="Nenhum pedido a liberar bate com o nome, evento ou OC/DP digitado." />
+              : comPeriodo && noPeriodo.length === 0 ? <EstadoDaValidacao icone={<SearchX aria-hidden="true" />} titulo="Nenhum evento neste período" texto={`Nenhum honorário de evento que começa em ${periodoTexto}.`} acao={limparFiltros} testId="hon-fin-periodo-vazio" />
               : <EstadoDaValidacao icone={<CheckCircle2 aria-hidden="true" />} titulo="Nada a liberar" texto={t.aguardando > 0 ? `Tudo o que foi aprovado já tem verba. Há ${brl(t.aguardando)} aguardando o aprovador da escala.` : "Tudo o que foi aprovado já tem verba liberada."} testId="hon-fin-nada-a-liberar" />
           ) : (
             <PorEvento linhas={aLiberar} render={(g) => !largo ? (
@@ -337,13 +439,23 @@ export default function HonorariosCenoPage() {
             )} />
           ))}
           {aba === "liberados" && (liberados.length === 0 ? (
-            <EstadoDaValidacao icone={<Inbox aria-hidden="true" />} titulo={url.q ? "Nada com essa busca" : "Nenhuma verba liberada por completo ainda"} texto={url.q ? "Tente outro nome, evento ou OC/DP." : "Os pedidos com a verba inteira liberada ficam aqui, com as OCs/DPs."} />
+            url.q ? <EstadoDaValidacao icone={<SearchX aria-hidden="true" />} titulo="Nada com essa busca" texto="Tente outro nome, evento ou OC/DP." />
+              : comPeriodo ? <EstadoDaValidacao icone={<Inbox aria-hidden="true" />} titulo="Nada liberado neste período"
+                  texto={pelaLiberacao ? `Nenhuma OC/DP com data de ${periodoTexto}.` : `Nenhum evento de ${periodoTexto} com a verba inteira liberada.`} acao={limparFiltros} testId="hon-fin-periodo-vazio" />
+              : <EstadoDaValidacao icone={<Inbox aria-hidden="true" />} titulo={pelaLiberacao ? "Nenhuma verba liberada ainda" : "Nenhuma verba liberada por completo ainda"}
+                  texto={pelaLiberacao ? "Cada OC/DP registrada aparece aqui, com a data da liberação." : "Os pedidos com a verba inteira liberada ficam aqui, com as OCs/DPs."} />
           ) : (
-            <PorEvento linhas={liberados} render={(g) => (
-              <ul className={cn(MOLDURA, "divide-y divide-border overflow-hidden")}>{g.map((h) => <LinhaLiberada key={h.id} h={h} onHistorico={() => setHistoricoId(h.id)} />)}</ul>
-            )} />
+            <PorEvento linhas={liberados}
+              numeros={pelaLiberacao ? (g) => <Numero rotulo={`Liberado${noPeriodoTexto}`} valor={brl(g.reduce((s, h) => s + (pagoPorId.get(h.id)?.liberadoNoPeriodo ?? 0), 0))} /> : undefined}
+              render={(g) => (
+                <ul className={cn(MOLDURA, "divide-y divide-border overflow-hidden")}>{g.map((h) => <LinhaLiberada key={h.id} h={h} pago={pelaLiberacao ? pagoPorId.get(h.id) : undefined} onHistorico={() => setHistoricoId(h.id)} />)}</ul>
+              )} />
           ))}
-          {aba === "relatorios" && <Relatorios linhas={doEvento} tipo={tipo} onTipo={(r) => setUrl({ relatorio: r })} sufixoDoArquivo={sufixo} />}
+          {aba === "relatorios" && (
+            <Relatorios linhas={noPeriodo} tipo={tipo} onTipo={(r) => setUrl({ relatorio: r })} sufixoDoArquivo={`${sufixoDoEvento}${sufixoDoPeriodo(intervalo, "evento")}`}
+              preambulo={(rotulo) => preambuloDoCsv(`Honorários da cenotécnica — ${rotulo.toLowerCase()}`, intervalo, "evento", eventoEscolhido?.name)}
+              periodo={comPeriodo ? periodoTexto : null} acaoSemDados={comPeriodo ? limparFiltros : undefined} />
+          )}
         </div>
       </>
     );

@@ -130,6 +130,11 @@ export function portalReturnPermitido(url: string | null | undefined): string | 
  * Humanos", "Compras e Viagens"...). Primeiro a tabela oficial de aliases
  * (@shared/roles); só depois as heurísticas por trecho, para o que a tabela
  * não conhece. Default seguro: production (menor privilégio operacional).
+ *
+ * 23/10: "Honorários (liberação)" — o texto exato do Portal — e a chave
+ * `honorarios` viram o perfil Honorários (normalizeRole ignora caixa, acentos
+ * e espaços nas pontas). Sem isso o nome cairia no default `production` e a
+ * pessoa ganharia a operação inteira em vez de uma tela só.
  */
 export function papelDoPortal(raw?: string | null): CanonicalRole {
   const canonico = normalizeRole(raw);

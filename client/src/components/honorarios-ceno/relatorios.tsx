@@ -29,13 +29,20 @@ function Celula({ v, forte, tom }: { v: number; forte?: boolean; tom?: "warning"
   );
 }
 
-export function exportarRelatorio(tipo: TipoDeRelatorio, grupos: GrupoDoRelatorio[], sufixo: string) {
+/** `preambulo` (23/10): linhas de abertura do arquivo com o período e o evento. */
+export function exportarRelatorio(tipo: TipoDeRelatorio, grupos: GrupoDoRelatorio[], sufixo: string, preambulo: string[][] = []) {
   const { cabecalho, linhas } = csvDoRelatorio(tipo, grupos);
-  downloadCsv(`honorarios-cenotecnica-${tipo}${sufixo}.csv`, cabecalho, linhas);
+  downloadCsv(`honorarios-cenotecnica-${tipo}${sufixo}.csv`, cabecalho, linhas, preambulo);
 }
 
-export function Relatorios({ linhas, tipo, onTipo, sufixoDoArquivo }: {
+export function Relatorios({ linhas, tipo, onTipo, sufixoDoArquivo, preambulo, periodo, acaoSemDados }: {
   linhas: Honorario[]; tipo: TipoDeRelatorio; onTipo: (t: TipoDeRelatorio) => void; sufixoDoArquivo: string;
+  /** Linhas de abertura do CSV, pelo rótulo do relatório (23/10: o período e o evento). */
+  preambulo?: (rotulo: string) => string[][];
+  /** "01/10/2026 a 31/10/2026" quando há período: vai para o vazio e a nota de rodapé. */
+  periodo?: string | null;
+  /** Botão do vazio (ex.: limpar o período). */
+  acaoSemDados?: React.ReactNode;
 }) {
   const r = RELATORIOS[tipo];
   const grupos = useMemo(() => r.gerar(linhas), [r, linhas]);
@@ -55,7 +62,7 @@ export function Relatorios({ linhas, tipo, onTipo, sufixoDoArquivo }: {
             ))}
           </div>
         </div>
-        <Button type="button" variant="outline" size="sm" className="val-alvo" disabled={grupos.length === 0} onClick={() => exportarRelatorio(tipo, grupos, sufixoDoArquivo)} data-testid="hon-exportar-relatorio">
+        <Button type="button" variant="outline" size="sm" className="val-alvo" disabled={grupos.length === 0} onClick={() => exportarRelatorio(tipo, grupos, sufixoDoArquivo, preambulo?.(r.rotulo) ?? [])} data-testid="hon-exportar-relatorio">
           <Download className="h-4 w-4" aria-hidden="true" /> Exportar CSV
         </Button>
       </div>
@@ -77,8 +84,13 @@ export function Relatorios({ linhas, tipo, onTipo, sufixoDoArquivo }: {
         </ul>
       ) : null}
       {grupos.length === 0 ? (
-        <EstadoDaValidacao icone={<BarChart3 aria-hidden="true" />} titulo="Nada para somar ainda"
-          texto="Os relatórios somam o que a cenotécnica já enviou para aprovação — rascunhos não entram." />
+        periodo ? (
+          <EstadoDaValidacao icone={<BarChart3 aria-hidden="true" />} titulo="Nada para somar neste período"
+            texto={`Nenhum honorário enviado de evento que começa em ${periodo}.`} acao={acaoSemDados} testId="hon-relatorio-periodo-vazio" />
+        ) : (
+          <EstadoDaValidacao icone={<BarChart3 aria-hidden="true" />} titulo="Nada para somar ainda"
+            texto="Os relatórios somam o que a cenotécnica já enviou para aprovação — rascunhos não entram." />
+        )
       ) : !largo ? null : (
         <div className={cn(MOLDURA, "overflow-x-auto")}>
           <table className="w-full min-w-[860px] text-sm">
@@ -128,6 +140,7 @@ export function Relatorios({ linhas, tipo, onTipo, sufixoDoArquivo }: {
       )}
       <p className="text-2xs text-muted-foreground">
         Pedido = o que foi enviado (aguardando + aprovados). Devolvidos para negociar ficam fora das somas até voltarem. Mês = mês de início do evento.
+        {periodo ? ` Período: eventos que começam em ${periodo}.` : ""}
       </p>
     </div>
   );

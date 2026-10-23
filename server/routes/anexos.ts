@@ -10,7 +10,7 @@ import { db } from "../db";
 import { accommodations as accommodationsTable, collaborators as collaboratorsTable, tickets as ticketsTable } from "@shared/schema";
 import { arrayContains, eq } from "drizzle-orm";
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
-import { upload, requireRoles, CADASTRO_ROLES, LOGISTICA_ROLES, TODOS_OS_PAPEIS } from "./_compartilhado";
+import { upload, requireRoles, CADASTRO_ROLES, LOGISTICA_ROLES, PAPEIS_DA_OPERACAO } from "./_compartilhado";
 
 export function registrarAnexos(app: Express): void {
   /**
@@ -184,7 +184,7 @@ export function registrarAnexos(app: Express): void {
    * Devolve o objeto e os metadados, ou null (resposta já enviada).
    */
   const abrirAnexoComAcl = async (req: Request, res: Response) => {
-    const quem = await requireRoles(req, res, TODOS_OS_PAPEIS);
+    const quem = await requireRoles(req, res, PAPEIS_DA_OPERACAO);
     if (!quem) return null;
     const { id } = req.params as { id: string };
     if (!idDeAnexoValido(id, res)) return null;

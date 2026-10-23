@@ -95,7 +95,7 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/rh-control",        permission: "canAccessScreen5"       },
   { path: "/invoices",          permission: "canAccessFinanceiro"    },
   { path: "/flash-account",     permission: "canAccessFinanceiro"    },
-  { path: "/honorarios-ceno",   permission: "canAccessFinanceiro"    },
+  { path: "/honorarios-ceno",   permission: "canAccessHonorariosCeno" }, // 23/10: o perfil Honorários entra direto aqui
   { path: "/calculation-rules", permission: "canAccessFinanceiro"    },
   { path: "/system-settings",   permission: "canAccessFinanceiro"    },
   { path: "/consultation",      permission: "canAccessScreen6"       },
@@ -276,7 +276,7 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/honorarios-ceno">
-              <ProtectedRoute permission="canAccessFinanceiro">
+              <ProtectedRoute permission="canAccessHonorariosCeno">
                 <HonorariosCenoPage />
               </ProtectedRoute>
             </Route>
@@ -285,7 +285,11 @@ function Router() {
                 <CalculationRulesPage />
               </ProtectedRoute>
             </Route>
-            <Route path="/calendar" component={CalendarPage} />
+            <Route path="/calendar">
+              <ProtectedRoute permission="canAccessCalendar">
+                <CalendarPage />
+              </ProtectedRoute>
+            </Route>
             {/* Todas as pendências do usuário (15/09) — cada item já respeita a permissão. */}
             <Route path="/pendencias" component={PendenciasPage} />
             <Route component={NotFound} />

@@ -13,7 +13,7 @@ import { z } from "zod";
 import { timingSafeEqual } from "crypto";
 import { storage } from "../storage";
 import { type InsertSystemLog, type TeamInclusion, type User } from "@shared/schema";
-import { isFinanceRole, normalizeRole, ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
+import { isFinanceRole, normalizeRole, PAPEIS_CANONICOS, ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
 import { effectiveUserId } from "../simulation";
 import { moduloDe, resumoParaGravar } from "@shared/log-auditoria";
 import { validarEmpreita } from "@shared/cenotecnica-empreita";
@@ -297,7 +297,15 @@ export const LOGISTICA_ROLES = ROLE_GROUPS.logistica;
  * requireRoles). Antes vivia duplicado em usuários (PAPEIS_VALIDOS) e em
  * anexos (TODOS_OS_PAPEIS).
  */
-export const TODOS_OS_PAPEIS = ["admin", "production", "function_area", "purchasing", "financial"] as const satisfies readonly CanonicalRole[];
+export const TODOS_OS_PAPEIS = PAPEIS_CANONICOS;
+
+/**
+ * Os papéis da OPERAÇÃO — todos menos o perfil Honorários (23/10), que só
+ * abre a tela de liberação dos honorários. As rotas "qualquer papel do app"
+ * (anexos, rooming list) usam esta lista: o gate de server/perfil-honorarios.ts
+ * já barra o perfil antes, e a rota não depende disso para recusar.
+ */
+export const PAPEIS_DA_OPERACAO = ["admin", "production", "function_area", "purchasing", "financial"] as const satisfies readonly CanonicalRole[];
 
 /** Admin ou Compras — quem decide trocas de colaborador. */
 export function ehAdminOuCompras(user: { role?: string | null } | null | undefined): boolean {

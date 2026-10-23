@@ -6,7 +6,8 @@
  *    responsável da função) e o admin. Vê e edita só o que é das funções dele.
  *  - APROVA: o MESMO aprovador da escala — aprovador cadastrado da função de
  *    cenotécnica, o aprovador padrão do sistema — e o admin.
- *  - LIBERA: o Financeiro (papéis financeiros: admin e RH — shared/roles.ts).
+ *  - LIBERA: o Financeiro — admin, RH e, desde 23/10, o perfil Honorários
+ *    (só liberação e relatórios; shared/roles.ts podeLiberarHonorarios).
  *  - Ninguém fora disso vê valores: 403.
  *
  * Ordem das respostas (padrão do app): 401 → 403 (papel/escopo) → 400
@@ -31,7 +32,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { effectiveUserId } from "../simulation";
 import { createAuditLog, primeiraMensagemDoZod } from "./_compartilhado";
-import { isFinanceRole, normalizeRole } from "@shared/roles";
+import { ehPerfilHonorarios, normalizeRole, podeLiberarHonorarios } from "@shared/roles";
 import { DEFAULT_APPROVER_SETTING_KEY } from "@shared/scaling-validation-rules";
 import { hojeISO } from "@shared/hoje-sp";
 import type { User } from "@shared/schema";
@@ -90,15 +91,22 @@ async function acessoDe(user: User): Promise<Acesso> {
   const ids = new Set(funcoesCeno.map((f) => f.id));
   const pedeEm = new Set<string>();
   const aprovaEm = new Set<string>();
+  // Perfil Honorários (23/10): só libera. Mesmo que um cadastro antigo o deixe
+  // como validador/aprovador de uma função de cenotécnica ou aprovador padrão,
+  // ele não lança nem aprova (o pedido é da cenotécnica; a aprovação, do
+  // aprovador da escala).
+  const soLibera = ehPerfilHonorarios(user.role);
   for (const id of Array.from(ids)) {
+    if (soLibera) break;
     if (papeis.validador.has(id) || papeis.responsavel.has(id)) pedeEm.add(id);
     if (papeis.aprovador.has(id)) aprovaEm.add(id);
   }
   return {
     user,
     admin: normalizeRole(user.role) === "admin",
-    financeiro: isFinanceRole(user.role),
-    aprovadorPadrao: !!padrao && padrao === user.id,
+    // Libera a verba: admin, RH e o perfil Honorários (23/10).
+    financeiro: podeLiberarHonorarios(user.role),
+    aprovadorPadrao: !soLibera && !!padrao && padrao === user.id,
     funcoesCeno,
     pedeEm,
     aprovaEm,
@@ -926,7 +934,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
-    if (!a.financeiro) return negar(res, "Só o Financeiro (RH) e o administrador veem os honorários a liberar.");
+    if (!a.financeiro) return negar(res, "Só o Financeiro (RH, perfil Honorários) e o administrador veem os honorários a liberar.");
     const eventId = typeof req.query.eventId === "string" && req.query.eventId ? req.query.eventId : undefined;
     const f = [dados.filtros.semRascunho()];
     if (eventId) f.push(dados.filtros.doEvento(eventId));
@@ -943,7 +951,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
-    if (!a.financeiro) return negar(res, "Só o Financeiro (RH) e o administrador liberam verba.");
+    if (!a.financeiro) return negar(res, "Só o Financeiro (RH, perfil Honorários) e o administrador liberam verba.");
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     const b = corpo(liberarSchema, req, res);
@@ -968,7 +976,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
-    if (!a.financeiro) return negar(res, "Só o Financeiro (RH) e o administrador mexem nas liberações.");
+    if (!a.financeiro) return negar(res, "Só o Financeiro (RH, perfil Honorários) e o administrador mexem nas liberações.");
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     const b = corpo(estornarSchema, req, res);

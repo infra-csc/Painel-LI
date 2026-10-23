@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeRole, isFinanceRole, hasRoleIn, ROLE_GROUPS } from "./roles";
+import { normalizeRole, isFinanceRole, hasRoleIn, ROLE_GROUPS, ehPerfilHonorarios, podeLiberarHonorarios, PAPEIS_CANONICOS } from "./roles";
 
 describe("normalizeRole", () => {
   it("papéis canônicos passam direto", () => {
@@ -74,5 +74,33 @@ describe("hasRoleIn (grupos de autorização do servidor)", () => {
       expect(hasRoleIn(null, g)).toBe(false);
       expect(hasRoleIn("", g)).toBe(false);
     }
+  });
+});
+
+describe("perfil Honorários (liberação) — 23/10", () => {
+  it("o nome exato do Portal e a chave gravada viram `honorarios` (caixa, acentos e espaços não importam)", () => {
+    expect(normalizeRole("Honorários (liberação)")).toBe("honorarios");
+    expect(normalizeRole("  HONORÁRIOS (LIBERAÇÃO) ")).toBe("honorarios");
+    expect(normalizeRole("honorarios (liberacao)")).toBe("honorarios");
+    expect(normalizeRole("Honorários  (liberação)")).toBe("honorarios");
+    expect(normalizeRole("honorarios")).toBe("honorarios");
+    expect(PAPEIS_CANONICOS).toContain("honorarios");
+  });
+
+  it("só libera honorário: não é papel financeiro nem entra em grupo nenhum", () => {
+    expect(ehPerfilHonorarios("Honorários (liberação)")).toBe(true);
+    expect(ehPerfilHonorarios("financial")).toBe(false);
+    expect(podeLiberarHonorarios("honorarios")).toBe(true);
+    expect(podeLiberarHonorarios("financial")).toBe(true);
+    expect(podeLiberarHonorarios("admin")).toBe(true);
+    expect(podeLiberarHonorarios("production")).toBe(false);
+    expect(isFinanceRole("honorarios")).toBe(false);
+    for (const g of Object.values(ROLE_GROUPS)) expect(hasRoleIn("honorarios", g)).toBe(false);
+  });
+
+  it("os acentos nos papéis antigos seguem valendo como antes", () => {
+    expect(normalizeRole("Financeiro")).toBe("financial");
+    expect(normalizeRole("Logística")).toBe("production");
+    expect(normalizeRole("Área de Função")).toBeNull();
   });
 });

@@ -123,7 +123,11 @@ export function toViewRow(row: ApiViewRow): EventViewRow {
 
 /** Slug ASCII p/ nome de arquivo. */
 export const slugify = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
-export function downloadCsv(filename: string, header: string[], lines: string[][]) {
+/**
+ * `preambulo` (23/10, Honorários): linhas ANTES do cabeçalho da tabela — de que
+ * recorte é o arquivo (período, evento). Uma linha vazia separa da tabela.
+ */
+export function downloadCsv(filename: string, header: string[], lines: string[][], preambulo: string[][] = []) {
   const qv = (v: unknown) => {
     let s = String(v ?? "");
     // Anti-injeção de fórmula: célula que começa com = + - @ ganharia vida no Excel
@@ -131,7 +135,7 @@ export function downloadCsv(filename: string, header: string[], lines: string[][
     if (/^[=+\-@]/.test(s.trimStart())) s = `'${s}`;
     return `"${s.replace(/"/g, '""')}"`;
   };
-  const body = [header.map(qv).join(";"), ...lines.map((l) => l.map(qv).join(";"))].join("\r\n");
+  const body = [...preambulo.map((l) => l.map(qv).join(";")), header.map(qv).join(";"), ...lines.map((l) => l.map(qv).join(";"))].join("\r\n");
   const blob = new Blob(["﻿" + body], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);

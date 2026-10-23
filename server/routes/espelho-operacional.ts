@@ -42,7 +42,7 @@ import { tipoPorOcupantes } from "@shared/room-pairing";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, planoDoHotelDoEvento } from "@shared/rooming-list";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
 import { LIMITE_DA_DIARIA_CENTAVOS, LIMITE_DO_VALOR_PAGO_CENTAVOS } from "@shared/custo-dos-quartos";
-import { createAuditLog, upload, requireRoles, recalcularStatusDeLogistica, LOGISTICA_ROLES, TODOS_OS_PAPEIS } from "./_compartilhado";
+import { createAuditLog, upload, requireRoles, recalcularStatusDeLogistica, LOGISTICA_ROLES, PAPEIS_DA_OPERACAO } from "./_compartilhado";
 import { preencherHospedagensDosQuartos, preencherSemDerrubar } from "../hotel-na-hospedagem";
 
 export function registrarEspelhoOperacional(app: Express): void {
@@ -190,7 +190,7 @@ export function registrarEspelhoOperacional(app: Express): void {
    * quando a pessoa marcou "Incluir CPF" e o papel dela vê dados pessoais.
    */
   app.post("/api/events/:eventId/operational-mirror/rooming-list", async (req, res) => {
-    const ator = await requireRoles(req, res, TODOS_OS_PAPEIS);
+    const ator = await requireRoles(req, res, PAPEIS_DA_OPERACAO);
     if (!ator) return;
     try {
       // `semHotel: true` (15/10): o documento dos quartos SEM hotel definido —

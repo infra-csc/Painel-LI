@@ -305,7 +305,7 @@ const VALORES_DO_CAMPO: Record<string, Record<string, string>> = {
   },
   role: {
     admin: "Administrador", administrator: "Administrador", administrador: "Administrador", purchasing: "Compras",
-    function_area: "Área", production: "Produção", financial: "Financeiro / RH", viewer: "Consulta",
+    function_area: "Área", production: "Produção", financial: "Financeiro / RH", honorarios: "Honorários (liberação)", viewer: "Consulta",
     validador: "Validador", aprovador: "Aprovador",
   },
   // Mesmos nomes das telas (cadastro da vaga).

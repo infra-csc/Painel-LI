@@ -12,7 +12,7 @@
  */
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
-export const PAPEIS = ["admin", "production", "purchasing", "function_area", "financial", "aprovador"] as const;
+export const PAPEIS = ["admin", "production", "purchasing", "function_area", "financial", "aprovador", "honorarios"] as const;
 export type Papel = (typeof PAPEIS)[number];
 
 /** Nomes semeados (server/dev/demo-seed.ts — DEMO_USUARIOS). */
@@ -23,6 +23,7 @@ export const USUARIO: Record<Papel, { nome: string; email: string }> = {
   function_area: { nome: "Bruno Cardoso", email: "area@demo.local" },
   financial: { nome: "Patrícia Lemos", email: "rh@demo.local" },
   aprovador: { nome: "Marcos Vieira", email: "aprovador@demo.local" },
+  honorarios: { nome: "Romeu Brandão", email: "honorarios@demo.local" },
 };
 
 export const DEMO_SENHA = "Demo@2026";

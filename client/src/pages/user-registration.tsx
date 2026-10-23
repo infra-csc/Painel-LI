@@ -28,7 +28,7 @@ import { apiErrorMessage, apiErrorStatus } from "@/lib/api-error";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission, getAvailableAreas } from "@/lib/role-utils";
-import { normalizeRole } from "@shared/roles";
+import { normalizeRole, PAPEIS_CANONICOS } from "@shared/roles";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/common/page-header";
@@ -45,7 +45,7 @@ const schema = z.object({
   // trim (08/10): nome só com espaços passava na tela.
   name: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().trim().email("Digite um e-mail válido"),
-  role: z.enum(["admin", "production", "function_area", "purchasing", "financial"], {
+  role: z.enum(PAPEIS_CANONICOS, {
     required_error: "Selecione um perfil de acesso",
   }),
   area: z.string().optional(),

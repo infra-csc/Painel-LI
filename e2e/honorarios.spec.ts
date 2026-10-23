@@ -190,3 +190,32 @@ test("quem pede vê a vaga da empreita como parte dela, sem pedido próprio", as
   await expect(card).toContainText("peça para o aprovador devolver");
   await expect(modal.getByTestId("hon-vaga-form")).toHaveCount(0);
 });
+
+// Por último: liberar a vaga aberta mudaria o total do relatório que o teste do Financeiro confere.
+test("perfil Honorários (23/10): entra direto na tela, libera a vaga aberta, filtra por período e não abre outra tela", async ({ page }) => {
+  await entrarComo(page, "honorarios");
+  await expect(page).toHaveURL(/\/honorarios-ceno/);
+  const menu = page.getByRole("complementary", { name: "Menu principal" });
+  await expect(menu.getByRole("link", { name: /Honorários da cenotécnica/ })).toBeVisible();
+  await expect(menu.getByRole("link", { name: /Escalação|Planejado|Passagens|Colaboradores|Eventos/ })).toHaveCount(0);
+
+  await page.goto(`/honorarios-ceno?evento=${eventId}`);
+  await page.getByRole("button", { name: `Registrar liberação de ${nomeDaAberta}` }).click();
+  const dialogo = page.getByRole("dialog");
+  await dialogo.getByLabel("Nº da OC/DP").fill("E2E-HON");
+  await dialogo.getByRole("button", { name: /^Liberar R\$/ }).click();
+  await esperarToast(page, /Verba liberada|Liberação registrada|liberada/);
+
+  // Liberados de "este mês" pela data da liberação (padrão): a OC de hoje aparece.
+  await page.goto(`/honorarios-ceno?evento=${eventId}&aba=liberados&periodo=este-mes`);
+  await expect(page.getByTestId("hon-periodo")).toContainText("Este mês");
+  await expect(page.getByText(nomeDaAberta)).toBeVisible();
+  await expect(page.getByText(/OC\/DP E2E-HON/)).toBeVisible();
+
+  // Outra tela pela URL: "Sem acesso a esta tela"; a API recusa.
+  await page.goto("/scaling");
+  await expect(page.getByRole("heading", { name: "Sem acesso a esta tela" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Ir para Honorários da cenotécnica/ })).toBeVisible();
+  expect((await api(page).get("/api/events")).status()).toBe(403);
+  expect((await api(page).get("/api/team-inclusions")).status()).toBe(403);
+});

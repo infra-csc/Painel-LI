@@ -40,7 +40,7 @@ type Db = NeonDatabase<typeof schema>;
 type LinhaDeVaga = typeof schema.teamInclusions.$inferInsert;
 
 // ── Usuários ────────────────────────────────────────────────────────────────
-export const DEMO_PAPEIS = ["admin", "production", "purchasing", "function_area", "financial", "aprovador"] as const;
+export const DEMO_PAPEIS = ["admin", "production", "purchasing", "function_area", "financial", "aprovador", "honorarios"] as const;
 export type DemoPapel = (typeof DEMO_PAPEIS)[number];
 
 /** Senha de TODOS os usuários de demonstração (login por senha só existe fora de produção). */
@@ -53,6 +53,8 @@ export const DEMO_USUARIOS: Record<DemoPapel, { email: string; name: string; rol
   function_area: { email: "area@demo.local", name: "Bruno Cardoso", role: "function_area", area: "Comercial", canApproveCenotecnica: false },
   financial: { email: "rh@demo.local", name: "Patrícia Lemos", role: "financial", area: "Recursos Humanos", canApproveCenotecnica: false },
   aprovador: { email: "aprovador@demo.local", name: "Marcos Vieira", role: "production", area: "Produção", canApproveCenotecnica: true },
+  // 23/10: perfil que só libera a verba dos honorários e extrai os relatórios.
+  honorarios: { email: "honorarios@demo.local", name: "Romeu Brandão", role: "honorarios", area: "Controladoria", canApproveCenotecnica: false },
 };
 
 // ── Catálogos ───────────────────────────────────────────────────────────────

@@ -34,12 +34,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { User } from "@shared/schema";
-import { normalizeRole } from "@shared/roles";
+import { normalizeRole, PAPEIS_CANONICOS } from "@shared/roles";
 import { camposEditaveisDoUsuario, type CampoDoUsuario } from "@shared/edicao-de-usuario";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
-  Check, Loader2, Lock, ShieldAlert, ShieldCheck, Layers, Briefcase, ShoppingCart, BarChart2, X,
+  Check, Loader2, Lock, ShieldAlert, ShieldCheck, Layers, Briefcase, ShoppingCart, BarChart2, HandCoins, X,
 } from "lucide-react";
 import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { OptionalMark, RequiredMark } from "@/components/forms/required-mark";
@@ -58,13 +58,14 @@ const ROLE_CFG: Record<string, { label: string; icon: typeof ShieldCheck; iconCl
   function_area: { label: NOME_DO_PERFIL.function_area, icon: Briefcase,    iconCls: "text-muted-foreground" },
   purchasing:    { label: NOME_DO_PERFIL.purchasing,    icon: ShoppingCart, iconCls: "text-muted-foreground" },
   financial:     { label: NOME_DO_PERFIL.financial,     icon: BarChart2,    iconCls: "text-muted-foreground" },
+  honorarios:    { label: NOME_DO_PERFIL.honorarios,    icon: HandCoins,    iconCls: "text-muted-foreground" },
 };
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 const userEditSchema = z.object({
   name:  z.string().trim().min(1, "Nome é obrigatório"),
   email: z.string().trim().email("E-mail inválido"),
-  role:  z.enum(["admin", "production", "function_area", "purchasing", "financial"], {
+  role:  z.enum(PAPEIS_CANONICOS, {
     required_error: "Selecione uma função",
   }),
   area: z.string().optional(),

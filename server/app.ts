@@ -24,6 +24,7 @@ import { criarStoreDeRateLimit } from "./rate-limit-store";
 import type { User } from "@shared/schema";
 import { registerRoutes } from "./routes";
 import { simulationReadOnlyGuard } from "./simulation";
+import { bloqueioDoPerfilHonorarios } from "./perfil-honorarios";
 import { log } from "./vite";
 import { tratadorGlobalDeErros, serializarJsonNaBorda } from "./http";
 import {
@@ -376,6 +377,11 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
     req.user = user;
     return next();
   });
+
+  // ── Perfil Honorários (23/10): negado por padrão ─────────────────────────
+  // Fora da lista de server/perfil-honorarios.ts (a tela de liberação dos
+  // honorários + o mínimo da casca), toda rota /api responde 403 para ele.
+  app.use(bloqueioDoPerfilHonorarios);
 
   // ── Modo Simulação: somente leitura ───────────────────────────────────────
   // Com `session.simulatedUserId` setado (admin vendo o sistema como outro
