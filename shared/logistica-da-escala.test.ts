@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   estadoDaContagem,
+  faltaNoMovimento,
+  horariosAgrupados,
+  logisticaPorFuncaoEDia,
+  noiteNoHotel,
+  porFonte,
+  vagasComFaltaNaCelula,
   horaDaSugestao,
   horariosEmTexto,
   logisticaDaVagaNaEscala,
@@ -260,5 +266,127 @@ describe("resumirLogistica — por função, total e por dia", () => {
     expect(estadoDaContagem({ precisam: 0, tem: 0 })).toBe("ninguem");
     expect(estadoDaContagem({ precisam: 5, tem: 5 })).toBe("ok");
     expect(estadoDaContagem({ precisam: 5, tem: 3 })).toBe("falta");
+  });
+});
+
+// ── 23/10 (20a Fuga das Ilhas): necessidade de hotel e função × dia ──────
+
+describe("noites que precisa de hotel — sem reserva, pela viagem prevista", () => {
+  it("sem reserva: as noites da passagem (chega 9, sai 14 → noites 9 a 13)", () => {
+    const l = logisticaDaVagaNaEscala(vaga("a"), fontes({ passagens: { a: [passagem()] } }));
+    expect(l.noites).toEqual([]);
+    expect(l.noitesQuePrecisa).toEqual(["2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"]);
+    expect(l.fonteDasNoites).toBe("passagem");
+  });
+
+  it("sem passagem: as noites da Sugestão, marcadas como sugestão", () => {
+    const l = logisticaDaVagaNaEscala(vaga("a"), fontes());
+    expect(l.noitesQuePrecisa).toHaveLength(5);
+    expect(l.fonteDasNoites).toBe("sugestao");
+  });
+
+  it("sem passagem nem Sugestão: o período da escala, com a noite do último dia (sai no dia seguinte)", () => {
+    const semViagem = vaga("a", { flightDepartureDate: null, flightReturnDate: null, scheduleStartDate: "2026-12-10", scheduleEndDate: "2026-12-12" });
+    expect(logisticaDaVagaNaEscala(semViagem, fontes()).noitesQuePrecisa).toEqual(["2026-12-10", "2026-12-11", "2026-12-12"]);
+    const comDias = logisticaDaVagaNaEscala(semViagem, { ...fontes(), diasDeTrabalhoDe: () => ["2026-12-11", "2026-12-13"] });
+    expect(comDias.noitesQuePrecisa).toEqual(["2026-12-11", "2026-12-12", "2026-12-13"]);
+    expect(comDias.fonteDasNoites).toBe("escala");
+  });
+
+  it("com reserva: valem as noites da reserva; quem não precisa não tem noite", () => {
+    const reservada = logisticaDaVagaNaEscala(vaga("a"), fontes({ hoteis: { a: [hotel({ checkInDate: "2026-12-10", checkOutDate: "2026-12-12" })] } }));
+    expect(reservada.noitesQuePrecisa).toEqual(["2026-12-10", "2026-12-11"]);
+    expect(reservada.fonteDasNoites).toBe("hospedagem");
+    expect(logisticaDaVagaNaEscala(vaga("a", { needsAccommodation: false }), fontes()).noitesQuePrecisa).toEqual([]);
+  });
+
+  it("no dia: precisam × reservados por noite (nada reservado não é '—')", () => {
+    const r = resumirLogistica([vaga("a"), vaga("b"), vaga("c", { needsAccommodation: false })], fontes({ hoteis: { a: [hotel()] } }));
+    expect(noiteNoHotel(r.porDia.get("2026-12-10"))).toEqual({ precisam: 2, reservados: 1, estado: "falta" });
+    const nada = resumirLogistica([vaga("a"), vaga("b")], fontes());
+    expect(noiteNoHotel(nada.porDia.get("2026-12-10"))).toEqual({ precisam: 2, reservados: 0, estado: "falta" });
+    expect(noiteNoHotel(nada.porDia.get("2026-12-14"))).toEqual({ precisam: 0, reservados: 0, estado: "ninguem" });
+    const tudo = resumirLogistica([vaga("a")], fontes({ hoteis: { a: [hotel()] } }));
+    expect(noiteNoHotel(tudo.porDia.get("2026-12-10")).estado).toBe("ok");
+  });
+});
+
+describe("logisticaPorFuncaoEDia — as células do quadro", () => {
+  const vagas: VagaDaEscala[] = [
+    vaga("a"),                                   // passagem + hotel: tudo resolvido
+    vaga("b"),                                   // só Sugestão, sem hotel
+    vaga("c", { functionId: "f2", needsAccommodation: false, transportModeIda: "van", transportModeVolta: "van" }),
+    vaga("d", { status: "cancelado" }),
+  ];
+  const dias: Record<string, string[]> = { a: ["2026-12-10", "2026-12-11"], b: ["2026-12-10"], c: ["2026-12-10"] };
+  const r = resumirLogistica(vagas, fontes({
+    passagens: { a: [passagem()] }, hoteis: { a: [hotel()] }, terrestres: { c: [van("ida")] },
+  }));
+  const celulas = logisticaPorFuncaoEDia(r, (id) => dias[id] ?? []);
+  const f1 = celulas.get("f1")!;
+
+  it("chegada, saída e noite por função e dia; cancelada não entra", () => {
+    const dia9 = f1.get("2026-12-09")!;
+    expect(dia9.chegam.map((m) => m.vagaId)).toEqual(["a", "b"]);
+    expect(dia9.trabalham).toEqual([]);
+    expect(dia9.noHotel).toEqual(["a"]);
+    expect(dia9.semReserva).toEqual(["b"]);
+    // Por hora: a Sugestão (18h) sai antes da passagem (18:40).
+    expect(f1.get("2026-12-14")!.saem.map((m) => m.vagaId)).toEqual(["b", "a"]);
+    expect(f1.get("2026-12-10")!.trabalham).toEqual(["a", "b"]);
+    expect(Array.from(celulas.values()).flatMap((f) => Array.from(f.values())).some((c) => c.trabalham.includes("d"))).toBe(false);
+  });
+
+  it("sugestão × passagem: a da passagem vem antes e conta separado", () => {
+    const dia9 = f1.get("2026-12-09")!;
+    expect(dia9.chegam.map((m) => m.fonte)).toEqual(["passagem", "sugestao"]);
+    expect(porFonte(dia9.chegam)).toEqual({ passagem: 1, sugestao: 1 });
+  });
+
+  it("pendências: passagem da perna do dia e hotel da noite; o meio da estadia só cobra o hotel", () => {
+    const dia9 = f1.get("2026-12-09")!;
+    expect(dia9.faltam).toEqual({ passagem: ["b"], terrestre: [], hotel: ["b"] });
+    expect(dia9.estado).toBe("falta");
+    const dia11 = f1.get("2026-12-11")!;
+    expect(dia11.faltam.passagem).toEqual([]);
+    expect(dia11.faltam.hotel).toEqual(["b"]);
+    expect(vagasComFaltaNaCelula(dia9)).toEqual(["b"]);
+  });
+
+  it("carro/van: ida registrada resolve; a volta indicada sem registro falta", () => {
+    const f2 = celulas.get("f2")!;
+    expect(f2.get("2026-12-09")!.faltam.terrestre).toEqual([]);
+    expect(f2.get("2026-12-09")!.estado).toBe("ok");
+    expect(f2.get("2026-12-14")!.faltam.terrestre).toEqual(["c"]);
+  });
+
+  it("célula só com quem trabalha (sem chegada, saída nem noite) fica vazia", () => {
+    const so = resumirLogistica([vaga("x", { needsTicket: false, needsAccommodation: false })], fontes());
+    const c = logisticaPorFuncaoEDia(so, () => ["2026-12-10"]).get("f1")!.get("2026-12-10")!;
+    expect(c.trabalham).toEqual(["x"]);
+    expect(c.estado).toBe("vazio");
+  });
+
+  it("a soma das células de um dia bate com o rodapé", () => {
+    const dia = "2026-12-09";
+    const soma = Array.from(celulas.values()).reduce((a, f) => a + (f.get(dia)?.chegam.length ?? 0), 0);
+    expect(soma).toBe(r.porDia.get(dia)!.chegam.length);
+  });
+
+  it("quem segue direto para outro evento não cobra passagem na saída", () => {
+    expect(faltaNoMovimento(r.porVaga.get("b")!, { tipo: "saida", segueParaOutroEvento: true })).toBeNull();
+    expect(faltaNoMovimento(r.porVaga.get("b")!, { tipo: "saida", segueParaOutroEvento: false })).toBe("passagem");
+  });
+});
+
+describe("horariosAgrupados", () => {
+  it("passagem por hora, depois a Sugestão, e sem horário por último", () => {
+    const m = (hora: string | null, fonte: "passagem" | "sugestao") => ({ dia: "2026-12-09", hora, fonte });
+    expect(horariosAgrupados([m("14:00", "sugestao"), m("09:10", "passagem"), m(null, "sugestao"), m("09:10", "passagem"), m("07:00", "passagem")])).toEqual([
+      { hora: "07:00", fonte: "passagem", n: 1 },
+      { hora: "09:10", fonte: "passagem", n: 2 },
+      { hora: "14:00", fonte: "sugestao", n: 1 },
+      { hora: null, fonte: "passagem", n: 1 },
+    ]);
   });
 });

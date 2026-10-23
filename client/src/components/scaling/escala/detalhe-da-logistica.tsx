@@ -7,7 +7,10 @@
  * - DetalheDaFuncao: a célula função × (Passagem | Carro/van | Hotel | Sem
  *   nome), ou o nome da função. Cada vaga com a viagem completa.
  * - DetalheDoDia: quem chega, quem sai e quem dorme no hotel num dia, por
- *   horário — o que Compras e o Uber/transfer precisam para planejar.
+ *   horário — o que Compras e o Uber/transfer precisam para planejar. Com
+ *   `functionId` (clique numa célula do quadro), o mesmo dia recortado pela
+ *   função, com a aba "Na escala" (quem trabalha). O hotel da noite separa quem
+ *   precisa e ainda não tem reserva de quem já está reservado.
  *
  * As listas leem o MESMO resumo (shared/logistica-da-escala) que pinta as
  * células: o número da célula e o tamanho da lista batem por construção.
@@ -24,18 +27,21 @@ import { hasPermission } from "@/lib/role-utils";
 import { cn } from "@/lib/utils";
 import type { TeamInclusion } from "@shared/schema";
 import {
-  minutoDoMovimento, resumoDoMovimento,
-  type EstadoDoItem, type LogisticaDaVagaNaEscala, type Movimento, type ResumoDaLogistica,
+  faltaNoMovimento, minutoDoMovimento, noiteNoHotel, resumoDoMovimento,
+  type EstadoDoItem, type LogisticaDaCelula, type LogisticaDaVagaNaEscala, type Movimento, type ResumoDaLogistica,
 } from "@shared/logistica-da-escala";
+import { somarDiasISO } from "@shared/janela-de-viagem";
 import { CartaoDaViagem, type FocoDoCartao } from "./cartao-da-viagem";
 import {
-  codigosDaPassagem, diaCurto, diaPorExtenso, dm, horaDaLista, horarioDoTrecho, modoECompanhia, movimentoEmTexto, plural, rotaDoTrecho,
+  codigosDaPassagem, diaCurto, diaPorExtenso, dm, horaDaLista, horarioDoTrecho, modoECompanhia, movimentoEmTexto, ORIGEM_DAS_NOITES, plural, rotaDoTrecho,
 } from "./formatos";
 
 const BUSCA_A_PARTIR_DE = 15;
 
 export interface ContextoDaEscala {
   resumo: ResumoDaLogistica;
+  /** A mesma logística recortada por função × dia (as células do quadro). */
+  celulas: Map<string, Map<string, LogisticaDaCelula>>;
   vagaPorId: Map<string, TeamInclusion>;
   nomeDaVaga: (v: TeamInclusion) => string | null;
   nomeDaFuncao: (functionId: string) => string;
@@ -307,65 +313,111 @@ export function DetalheDaFuncao({ alvo, ctx, onFechar }: { alvo: AlvoDaFuncao; c
   );
 }
 
-// ── Detalhe por dia ───────────────────────────────────────────────────────
+// ── Detalhe por dia (e por função × dia) ──────────────────────────────────
 
-export type FocoDoDia = "chegam" | "saem" | "hotel";
-export interface AlvoDoDia { tipo: "dia"; dia: string; foco: FocoDoDia }
+export type FocoDoDia = "trabalham" | "chegam" | "saem" | "hotel";
+/**
+ * O dia inteiro (rodapé, agenda) ou uma célula do quadro (`functionId`): a
+ * mesma lista, recortada pela função.
+ */
+export interface AlvoDoDia { tipo: "dia"; dia: string; foco: FocoDoDia; functionId?: string | null }
+
+const DIA_VAZIO = { chegam: [] as Movimento[], saem: [] as Movimento[], noHotel: [] as string[], semReserva: [] as string[], trabalham: [] as string[] };
+
+type ItemDoHotel = { v: TeamInclusion; l: LogisticaDaVagaNaEscala };
 
 export function DetalheDoDia({ alvo, ctx, onFechar }: { alvo: AlvoDoDia; ctx: ContextoDaEscala; onFechar: () => void }) {
   const { user } = useAuth();
   const [, navegar] = useLocation();
   const copiar = useCopiar();
-  const [foco, setFoco] = useState<FocoDoDia>(alvo.foco);
-  const dia = ctx.resumo.porDia.get(alvo.dia) ?? { dia: alvo.dia, chegam: [], saem: [], noHotel: [] };
-  const movimentos = foco === "chegam" ? dia.chegam : foco === "saem" ? dia.saem : [];
-  const doHotel = useMemo(
-    () => dia.noHotel.map((id) => ({ v: ctx.vagaPorId.get(id), l: ctx.resumo.porVaga.get(id) }))
-      .filter((x): x is { v: TeamInclusion; l: LogisticaDaVagaNaEscala } => !!x.v && !!x.l)
-      .sort((a, b) => String(a.l.hospedagem?.hotelName ?? "").localeCompare(String(b.l.hospedagem?.hotelName ?? ""), "pt-BR") || (ctx.nomeDaVaga(a.v) ?? "").localeCompare(ctx.nomeDaVaga(b.v) ?? "", "pt-BR")),
-    [dia.noHotel, ctx],
-  );
+  const daFuncao = alvo.functionId ?? null;
+  const [foco, setFoco] = useState<FocoDoDia>(alvo.foco === "trabalham" && !daFuncao ? "chegam" : alvo.foco);
+
+  const base = useMemo(() => {
+    if (daFuncao) {
+      const c = ctx.celulas.get(daFuncao)?.get(alvo.dia);
+      return c ? { chegam: c.chegam, saem: c.saem, noHotel: c.noHotel, semReserva: c.semReserva, trabalham: c.trabalham } : DIA_VAZIO;
+    }
+    const d = ctx.resumo.porDia.get(alvo.dia);
+    return d ? { ...d, trabalham: [] as string[] } : DIA_VAZIO;
+  }, [ctx.celulas, ctx.resumo, daFuncao, alvo.dia]);
+
+  const movimentos = foco === "chegam" ? base.chegam : foco === "saem" ? base.saem : [];
+  const { reservados, semReserva, trabalham } = useMemo(() => {
+    const itens = (ids: readonly string[]) => ids.map((id) => ({ v: ctx.vagaPorId.get(id), l: ctx.resumo.porVaga.get(id) }))
+      .filter((x): x is ItemDoHotel => !!x.v && !!x.l);
+    const porNome = (a: ItemDoHotel, b: ItemDoHotel) => (ctx.nomeDaVaga(a.v) ?? "~").localeCompare(ctx.nomeDaVaga(b.v) ?? "~", "pt-BR");
+    const porHotel = (a: ItemDoHotel, b: ItemDoHotel) =>
+      String(a.l.hospedagem?.hotelName ?? "").localeCompare(String(b.l.hospedagem?.hotelName ?? ""), "pt-BR") || porNome(a, b);
+    return {
+      reservados: itens(base.noHotel).sort(porHotel),
+      semReserva: itens(base.semReserva).sort(porNome),
+      trabalham: itens(base.trabalham).sort(porNome),
+    };
+  }, [base, ctx]);
+  const noite = noiteNoHotel(base);
+
   const sugestoes = movimentos.filter((m) => m.fonte === "sugestao").length;
   const evento = ctx.eventoUnico;
   const podeCompras = hasPermission(user ?? null, "canAccessScreen3");
+  const nomeDaFuncao = daFuncao ? ctx.nomeDaFuncao(daFuncao) : null;
+  const textoDaNoite = noite.precisam === 0 ? "ninguém no hotel" : `hotel: ${noite.reservados} de ${noite.precisam} ${plural(noite.precisam, "reservado", "reservados")}`;
 
   const copiarLista = () => {
-    const cab = `${evento?.name ?? "Escala"} — ${diaPorExtenso(alvo.dia)} · ${foco === "chegam" ? resumoDoMovimento("Chegam", dia.chegam) : foco === "saem" ? resumoDoMovimento("Saem", dia.saem) : `No hotel: ${doHotel.length}`}`;
+    const recorte = [nomeDaFuncao, diaPorExtenso(alvo.dia)].filter(Boolean).join(" · ");
+    const cab = `${evento?.name ?? "Escala"} — ${recorte} · ${
+      foco === "chegam" ? resumoDoMovimento("Chegam", base.chegam)
+        : foco === "saem" ? resumoDoMovimento("Saem", base.saem)
+          : foco === "hotel" ? `No hotel: ${noite.reservados} de ${noite.precisam} reservados`
+            : `Na escala: ${trabalham.length}`}`;
+    const nomeEFuncao = (v: TeamInclusion) => `${ctx.nomeDaVaga(v) ?? "sem nome"} (${ctx.nomeDaFuncao(v.functionId)})`;
     const linhas = foco === "hotel"
-      ? doHotel.map(({ v, l }) => `${ctx.nomeDaVaga(v) ?? "sem nome"} (${ctx.nomeDaFuncao(v.functionId)}) · ${l.hospedagem?.hotelName ?? ""} · ${dm(l.hospedagem?.checkInDate ?? null)} → ${dm(l.hospedagem?.checkOutDate ?? null)}`)
-      : movimentos.map((m) => {
-        const v = ctx.vagaPorId.get(m.vagaId);
-        return v ? movimentoEmTexto(m, ctx.nomeDaVaga(v) ?? "sem nome", ctx.nomeDaFuncao(v.functionId)) : "";
-      });
-    copiar([cab, ...linhas].join("\n"), foco === "hotel" ? "Cole na mensagem para o hotel." : "Cole na mensagem do Uber/transfer ou de Compras.");
+      ? [
+        ...semReserva.map(({ v, l }) => `${nomeEFuncao(v)} · SEM RESERVA · precisa ${dm(l.noitesQuePrecisa[0])} → ${dm(somarDiasISO(l.noitesQuePrecisa[l.noitesQuePrecisa.length - 1], 1))}`),
+        ...reservados.map(({ v, l }) => `${nomeEFuncao(v)} · ${l.hospedagem?.hotelName ?? ""} · ${dm(l.hospedagem?.checkInDate ?? null)} → ${dm(l.hospedagem?.checkOutDate ?? null)}`),
+      ]
+      : foco === "trabalham"
+        ? trabalham.map(({ v, l }) => [`#${v.inclusionNumber}`, nomeEFuncao(v), l.chegada ? `chega ${dm(l.chegada.dia)} ${horaDaLista(l.chegada)}` : null, l.saida ? `sai ${dm(l.saida.dia)} ${horaDaLista(l.saida)}` : null].filter(Boolean).join(" · "))
+        : movimentos.map((m) => {
+          const v = ctx.vagaPorId.get(m.vagaId);
+          return v ? movimentoEmTexto(m, ctx.nomeDaVaga(v) ?? "sem nome", ctx.nomeDaFuncao(v.functionId)) : "";
+        });
+    copiar([cab, ...linhas].join("\n"), foco === "hotel" ? "Cole na mensagem para o hotel ou para Compras." : "Cole na mensagem do Uber/transfer ou de Compras.");
   };
-  const vazio = foco === "hotel" ? doHotel.length === 0 : movimentos.length === 0;
+  const vazio = foco === "hotel" ? noite.precisam === 0 : foco === "trabalham" ? trabalham.length === 0 : movimentos.length === 0;
+  const acaoDoHotel = foco === "hotel";
+
+  const opcoes: { key: FocoDoDia; rotulo: string; detalhe?: string; tom?: "ok" | "falta" | "neutro" }[] = [
+    ...(daFuncao ? [{ key: "trabalham" as const, rotulo: "Na escala", detalhe: String(base.trabalham.length) }] : []),
+    { key: "chegam", rotulo: "Chegam", detalhe: String(base.chegam.length) },
+    { key: "saem", rotulo: "Saem", detalhe: String(base.saem.length) },
+    {
+      key: "hotel", rotulo: "No hotel",
+      detalhe: noite.precisam === 0 ? "—" : `${noite.reservados}/${noite.precisam}`,
+      tom: noite.estado === "falta" ? "falta" : noite.estado === "ok" ? "ok" : "neutro",
+    },
+  ];
 
   return (
     <Casca
       testId="detalhe-logistica-dia"
-      eyebrow={`Chegadas e saídas${evento ? ` · ${evento.name}` : ""}`}
-      titulo={diaPorExtenso(alvo.dia)}
+      eyebrow={`${daFuncao ? "Logística da função no dia" : "Chegadas e saídas"}${evento ? ` · ${evento.name}` : ""}`}
+      titulo={nomeDaFuncao ? `${nomeDaFuncao} · ${diaPorExtenso(alvo.dia)}` : diaPorExtenso(alvo.dia)}
       onFechar={onFechar}
       descricao={(
         <>
-          <span>{resumoDoMovimento("Chegam", dia.chegam)}</span>
-          <span>{resumoDoMovimento("Saem", dia.saem)}</span>
-          <span>No hotel {dia.noHotel.length}</span>
+          {daFuncao && (base.trabalham.length > 0
+            ? <span><span className="font-semibold tabular-nums text-foreground">{base.trabalham.length}</span> na escala</span>
+            : <span>ninguém trabalha no dia</span>)}
+          <span className="inline-flex items-center gap-1"><PlaneLanding className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />{resumoDoMovimento("Chegam", base.chegam)}</span>
+          <span className="inline-flex items-center gap-1"><PlaneTakeoff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />{resumoDoMovimento("Saem", base.saem)}</span>
+          <span className={cn("inline-flex items-center gap-1", noite.estado === "falta" && "font-medium text-warning")}>
+            <BedDouble className={cn("h-3.5 w-3.5", noite.estado === "falta" ? "text-warning" : "text-muted-foreground")} aria-hidden="true" />
+            {textoDaNoite}
+          </span>
         </>
       )}
-      abas={(
-        <Abas
-          rotulo="O que mostrar"
-          valor={foco}
-          onValor={setFoco}
-          opcoes={[
-            { key: "chegam", rotulo: "Chegam", detalhe: String(dia.chegam.length) },
-            { key: "saem", rotulo: "Saem", detalhe: String(dia.saem.length) },
-            { key: "hotel", rotulo: "No hotel", detalhe: String(dia.noHotel.length) },
-          ]}
-        />
-      )}
+      abas={<Abas rotulo="O que mostrar" valor={foco} onValor={setFoco} opcoes={opcoes} />}
       rodape={(
         <>
           {!vazio && (
@@ -374,36 +426,81 @@ export function DetalheDoDia({ alvo, ctx, onFechar }: { alvo: AlvoDoDia; ctx: Co
             </Button>
           )}
           <DialogClose asChild>
-            <Button type="button" variant="outline" className={cn("h-11 sm:h-9", vazio && "col-span-2")}>Fechar</Button>
+            <Button type="button" variant="outline" className={cn("h-11 sm:h-9", (vazio || !podeCompras) && "col-span-2")}>Fechar</Button>
           </DialogClose>
           {podeCompras && (
             <Button
               type="button"
               className="order-first col-span-2 h-11 gap-1.5 sm:order-none sm:h-9"
-              onClick={() => { onFechar(); navegar(foco === "hotel" ? (evento ? `/operational-mirror?eventId=${encodeURIComponent(evento.id)}` : "/operational-mirror") : (evento ? `/tickets?event=${encodeURIComponent(evento.id)}` : "/tickets")); }}
+              onClick={() => { onFechar(); navegar(acaoDoHotel ? (evento ? `/operational-mirror?eventId=${encodeURIComponent(evento.id)}` : "/operational-mirror") : (evento ? `/tickets?event=${encodeURIComponent(evento.id)}` : "/tickets")); }}
               data-testid="logistica-acao"
             >
-              {foco === "hotel" ? "Abrir no Espelho operacional" : "Abrir em Passagens"} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              {acaoDoHotel ? "Abrir no Espelho operacional" : "Abrir em Passagens"} <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
         </>
       )}
     >
       {vazio ? (
-        <Vazio>{foco === "chegam" ? "Ninguém chega neste dia." : foco === "saem" ? "Ninguém sai neste dia." : "Ninguém no hotel nesta noite."}</Vazio>
+        <Vazio>
+          {foco === "chegam" ? `Ninguém${nomeDaFuncao ? " desta função" : ""} chega neste dia.`
+            : foco === "saem" ? `Ninguém${nomeDaFuncao ? " desta função" : ""} sai neste dia.`
+              : foco === "hotel" ? `Ninguém${nomeDaFuncao ? " desta função" : ""} precisa de hotel nesta noite.`
+                : "Ninguém desta função trabalha neste dia."}
+        </Vazio>
       ) : foco === "hotel" ? (
-        <ul className="space-y-2 sm:space-y-0 sm:divide-y sm:divide-border" data-testid="logistica-dia-lista">
-          {doHotel.map(({ v, l }) => (
-            <li key={v.id} className="flex items-start gap-3 rounded-lg border border-border px-3 py-2.5 sm:rounded-none sm:border-0 sm:px-1">
-              <BedDouble className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <NomeDaVaga v={v} ctx={ctx} onFechar={onFechar} />
-                <span className="block truncate text-xs text-slate-600">{ctx.nomeDaFuncao(v.functionId)}</span>
-              </div>
-              <div className="shrink-0 text-right text-xs">
-                <span className="block font-semibold text-foreground">{l.hospedagem?.hotelName}</span>
-                <span className="block tabular-nums text-slate-600">{dm(l.hospedagem?.checkInDate ?? null)} → {dm(l.hospedagem?.checkOutDate ?? null)}</span>
-              </div>
+        <>
+          {semReserva.length > 0 && (
+            <section aria-label="Sem reserva">
+              <h3 className="pt-1 text-2xs font-semibold uppercase tracking-[0.05em] text-warning" data-testid="hotel-sem-reserva">Precisam, sem reserva · {semReserva.length}</h3>
+              <ul className="mt-1 space-y-2 sm:space-y-0 sm:divide-y sm:divide-border" data-testid="logistica-dia-sem-reserva">
+                {semReserva.map(({ v, l }) => {
+                  const ultima = l.noitesQuePrecisa[l.noitesQuePrecisa.length - 1];
+                  return (
+                    <li key={v.id} className="flex items-start gap-3 rounded-lg border border-warning/25 bg-warning-soft/40 px-3 py-2.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-1">
+                      <BedDouble className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                      <div className="min-w-0 flex-1">
+                        <NomeDaVaga v={v} ctx={ctx} onFechar={onFechar} />
+                        <span className="block truncate text-xs text-slate-600">{ctx.nomeDaFuncao(v.functionId)}{v.city ? ` · ${v.city}` : ""}</span>
+                      </div>
+                      <div className="shrink-0 text-right text-xs">
+                        <span className="block font-semibold text-warning">Sem reserva</span>
+                        <span className="block tabular-nums text-slate-600" title={l.fonteDasNoites ? `Noites ${ORIGEM_DAS_NOITES[l.fonteDasNoites]}` : undefined}>
+                          {l.fonteDasNoites && l.fonteDasNoites !== "passagem" ? "≈ " : ""}{dm(l.noitesQuePrecisa[0])} → {dm(somarDiasISO(ultima, 1))}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+          {reservados.length > 0 && (
+            <section aria-label="Reservados" className={semReserva.length > 0 ? "mt-3 border-t border-border pt-3" : ""}>
+              <h3 className="pt-1 text-2xs font-semibold uppercase tracking-[0.05em] text-success" data-testid="hotel-reservados">Reservados · {reservados.length}</h3>
+              <ul className="mt-1 space-y-2 sm:space-y-0 sm:divide-y sm:divide-border" data-testid="logistica-dia-lista">
+                {reservados.map(({ v, l }) => (
+                  <li key={v.id} className="flex items-start gap-3 rounded-lg border border-border px-3 py-2.5 sm:rounded-none sm:border-0 sm:px-1">
+                    <BedDouble className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <NomeDaVaga v={v} ctx={ctx} onFechar={onFechar} />
+                      <span className="block truncate text-xs text-slate-600">{ctx.nomeDaFuncao(v.functionId)}</span>
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      <span className="block font-semibold text-foreground">{l.hospedagem?.hotelName}</span>
+                      <span className="block tabular-nums text-slate-600">{dm(l.hospedagem?.checkInDate ?? null)} → {dm(l.hospedagem?.checkOutDate ?? null)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      ) : foco === "trabalham" ? (
+        <ul className="divide-y divide-border" data-testid="logistica-dia-escala">
+          {trabalham.map(({ v, l }) => (
+            <li key={v.id}>
+              <CartaoDaViagem vaga={v} l={l} nome={ctx.nomeDaVaga(v)} funcao={null} foco={null} onAbrirVaga={(vaga) => { onFechar(); ctx.onAbrirVaga(vaga); }} />
             </li>
           ))}
         </ul>
@@ -447,6 +544,7 @@ function LinhaDoMovimento({ m, ctx, onFechar }: { m: Movimento; ctx: ContextoDaE
   const rota = rotaDoTrecho(m);
   const horario = horarioDoTrecho(m);
   const { loc } = codigosDaPassagem(sugestao ? null : l.passagemAtual);
+  const falta = faltaNoMovimento(l, m);
   return (
     <li className="flex items-start gap-3 rounded-lg border border-border px-3 py-2.5 sm:rounded-none sm:border-0 sm:px-1" data-testid={`movimento-${m.vagaId}`}>
       <span
@@ -474,6 +572,11 @@ function LinhaDoMovimento({ m, ctx, onFechar }: { m: Movimento; ctx: ContextoDaE
             </>
           )}
           {m.segueParaOutroEvento && <span className="text-slate-600">· segue para outro evento</span>}
+          {falta && (
+            <span className="rounded-full border border-warning/30 bg-warning-soft px-1.5 py-px text-2xs font-semibold text-warning" data-testid={`falta-${m.vagaId}`}>
+              {falta === "passagem" ? "falta a passagem" : "falta registrar o carro/van"}
+            </span>
+          )}
         </p>
       </div>
     </li>

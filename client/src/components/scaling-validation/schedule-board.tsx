@@ -24,6 +24,23 @@ interface ScheduleBoardProps {
   hideReadOnlyMark?: boolean;
   /** Clique no nome da função (abre o detalhe dela). */
   onFunctionClick?: (functionId: string) => void;
+  /**
+   * Conteúdo da célula função × dia (23/10 — logística dentro da grade). Recebe
+   * o chip padrão (`chip`, ou null quando ninguém trabalha) e devolve o que a
+   * célula mostra. Sem ele, a célula é só o chip.
+   */
+  renderDayCell?: (cell: BoardDayCell) => ReactNode;
+  /** Classe extra das colunas de dia (th e td) — ex.: mais largas para caber os marcadores. */
+  dayColumnClassName?: string;
+}
+
+export interface BoardDayCell {
+  functionId: string;
+  functionName: string;
+  date: string;
+  /** Pessoas da função trabalhando no dia. */
+  count: number;
+  chip: ReactNode;
 }
 
 export interface BoardExtraColumn {
@@ -61,6 +78,7 @@ interface BoardLine {
 export function ScheduleBoard({
   rows, functionNameById, rangeStart, rangeEnd,
   extraColumns = [], extraFooterRows = [], extraDates, hideReadOnlyMark = false, onFunctionClick,
+  renderDayCell, dayColumnClassName,
 }: ScheduleBoardProps) {
   const { dates, lines, totals, totalDays, truncated } = useMemo(() => {
     const active = rows.filter((r) => r.status !== SUGESTAO_STATUS.NEGADA);
@@ -131,7 +149,7 @@ export function ScheduleBoard({
               {dates.map((d) => {
                 const { date, dayName, isWeekend } = formatDateHeader(d);
                 return (
-                  <th scope="col" key={d} className={cn(TH, "w-14", isWeekend ? "bg-warning-soft text-warning" : "bg-brand-soft/50")}>
+                  <th scope="col" key={d} className={cn(TH, "w-14", dayColumnClassName, isWeekend ? "bg-warning-soft text-warning" : "bg-brand-soft/50")}>
                     <div className="leading-none font-bold">{date}</div>
                     <div className="text-2xs mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
                   </th>
@@ -165,13 +183,14 @@ export function ScheduleBoard({
                 <td className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums border-r border-border">{line.vagas}</td>
                 {dates.map((d) => {
                   const n = line.perDay[d] || 0;
+                  const chip = n > 0
+                    ? <span className={cn("inline-flex items-center justify-center h-7 w-10 rounded-lg text-xs font-semibold tabular-nums", line.editable ? "bg-brand-soft text-primary" : "bg-muted text-slate-600")}>{n}</span>
+                    : null;
                   return (
-                    <td key={d} className="px-1 py-1.5 text-center border-r border-border">
-                      {n > 0 ? (
-                        <span className={cn("inline-flex items-center justify-center h-7 w-10 rounded-lg text-xs font-semibold tabular-nums", line.editable ? "bg-brand-soft text-primary" : "bg-muted text-slate-600")}>{n}</span>
-                      ) : (
-                        <span className="text-slate-200">–</span>
-                      )}
+                    <td key={d} className={cn("px-1 py-1.5 text-center border-r border-border", dayColumnClassName)}>
+                      {renderDayCell
+                        ? renderDayCell({ functionId: line.functionId, functionName: line.functionName, date: d, count: n, chip })
+                        : chip ?? <span className="text-slate-200">–</span>}
                     </td>
                   );
                 })}
@@ -187,7 +206,7 @@ export function ScheduleBoard({
               <td className="px-3 py-2 text-2xs font-bold uppercase tracking-wide text-muted-foreground sticky left-0 bg-surface-muted z-20 border-r border-border">Total por dia</td>
               <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-r border-border">{lines.reduce((a, l) => a + l.vagas, 0)}</td>
               {dates.map((d) => (
-                <td key={d} className="px-1 py-2 text-center text-xs font-bold tabular-nums text-slate-700 border-r border-border">{totals[d] || <span className="text-muted-foreground font-normal">–</span>}</td>
+                <td key={d} className={cn("px-1 py-2 text-center text-xs font-bold tabular-nums text-slate-700 border-r border-border", dayColumnClassName)}>{totals[d] || <span className="text-muted-foreground font-normal">–</span>}</td>
               ))}
               <td className="px-2 py-2 text-center text-xs font-bold tabular-nums border-l border-l-border">{lines.reduce((a, l) => a + l.total, 0)}</td>
               {extraColumns.map((c, k) => (
@@ -196,10 +215,10 @@ export function ScheduleBoard({
             </tr>
             {extraFooterRows.map((row) => (
               <tr key={row.key} className="border-t border-border" data-testid={`quadro-rodape-${row.key}`}>
-                <td className="px-3 py-1 text-2xs font-semibold text-slate-700 sticky left-0 bg-surface-muted z-20 border-r border-border">{row.label}</td>
+                <th scope="row" className="px-3 py-1.5 text-left text-2xs font-semibold text-slate-700 sticky left-0 bg-surface-muted z-20 border-r border-border">{row.label}</th>
                 <td className="px-2 py-1 text-center text-xs tabular-nums border-r border-border">{row.vagasCell}</td>
                 {dates.map((d) => (
-                  <td key={d} className="px-1 py-1 text-center border-r border-border">{row.cell(d)}</td>
+                  <td key={d} className={cn("px-1 py-1 text-center border-r border-border", dayColumnClassName)}>{row.cell(d)}</td>
                 ))}
                 <td className="px-2 py-1 text-center text-xs tabular-nums border-l border-l-border">{row.totalCell}</td>
                 {extraColumns.map((c, k) => (

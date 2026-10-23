@@ -5,7 +5,7 @@
  * "07:30 → 09:55" (partida → chegada), "POA → GRU" (aeroporto; sem ele, a
  * cidade), LOC à parte da OC.
  */
-import type { LogisticaDaVagaNaEscala, Movimento, PassagemDaEscala } from "@shared/logistica-da-escala";
+import type { FonteDasNoites, GrupoDeHorario, LogisticaDaVagaNaEscala, Movimento, PassagemDaEscala } from "@shared/logistica-da-escala";
 import { NOME_DO_MODO_DO_MOVIMENTO, ROTULO_DA_SITUACAO } from "@shared/logistica-da-escala";
 import { NOME_DO_MODO, textoDoTrecho, type PernaDaViagem } from "@shared/transporte-terrestre";
 import { formatDateHeader } from "@/components/scaling-validation/scaling-grid-utils";
@@ -87,4 +87,24 @@ export function movimentoEmTexto(m: Movimento, nome: string, funcao: string): st
     m.fonte === "sugestao" ? `sugestão: ${m.textoDaSugestao ?? "sem horário"}` : horarioDoTrecho(m),
     m.segueParaOutroEvento ? "segue para outro evento" : null,
   ].filter(Boolean).join(" · ");
+}
+
+/** "09:10 ×10", "≈10:15 ×4", "sem horário ×2" — um grupo de horários do dia. */
+export function textoDoGrupo(g: GrupoDeHorario): string {
+  const hora = g.hora ? `${g.fonte === "sugestao" ? "≈" : ""}${g.hora}` : "sem horário";
+  return g.n > 1 ? `${hora} ×${g.n}` : hora;
+}
+
+/** De onde saem as noites de quem precisa de hotel (para o detalhe). */
+export const ORIGEM_DAS_NOITES: Record<FonteDasNoites, string> = {
+  hospedagem: "pela reserva",
+  passagem: "pelas datas da passagem",
+  sugestao: "pela sugestão da escala",
+  escala: "pelo período da escala",
+};
+
+/** "3 nomes, +2" — os primeiros nomes de uma lista longa, para o tooltip. */
+export function primeirosNomes(nomes: readonly string[], max = 4): string {
+  if (nomes.length <= max) return nomes.join(", ");
+  return `${nomes.slice(0, max).join(", ")} +${nomes.length - max}`;
 }

@@ -31,6 +31,21 @@
  * Hotel por noite: a noite de D vai de D a D+1 (como em ocupacao-por-noite) —
  * quem entra dia 9 e sai dia 14 dorme as noites 9 a 13.
  *
+ * NECESSIDADE por noite (23/10 — print do dono no 20a Fuga das Ilhas: a linha
+ * "No hotel" inteira com "—" porque nada estava reservado). Quem precisa de
+ * hotel e ainda não tem reserva dorme as noites da viagem prevista: da chegada
+ * (passagem → Sugestão → início da escala) até a saída (passagem → Sugestão →
+ * dia seguinte ao fim da escala — sem data de volta, a noite do último dia de
+ * trabalho conta, como nas reservas: entra na véspera ou no 1º dia, sai no dia
+ * seguinte ao último). Quem já tem reserva conta
+ * pelas noites da reserva — assim a noite só fica "pendente" por vaga sem
+ * reserva, e bate com a coluna Hotel (tem/precisam).
+ *
+ * FUNÇÃO × DIA (`logisticaPorFuncaoEDia`): a mesma conta, recortada por célula
+ * do quadro — quem da função chega, sai e dorme no hotel naquele dia, e o que
+ * ainda falta (passagem/carro-van da perna que se move nesse dia, hotel da
+ * noite).
+ *
  * Quem chama decide o recorte (evento, função, período, excluídas). Vaga
  * cancelada não entra — como no quadro.
  */
@@ -55,7 +70,7 @@ export type VagaDaEscala = Pick<TeamInclusion, "id" | "functionId" | "status"> &
   | "inclusionNumber" | "collaboratorId" | "empreitaEmpresa" | "needsTicket" | "needsAccommodation"
   | "flightDepartureDate" | "flightDepartureSuggestedTime" | "flightArrivalSuggestedTime"
   | "flightReturnDate" | "flightReturnSuggestedTime" | "transportModeIda" | "transportModeVolta"
-  | "trechosSugeridos" | "voltaSegueParaEventoId" | "deletedAt"
+  | "trechosSugeridos" | "voltaSegueParaEventoId" | "deletedAt" | "scheduleStartDate" | "scheduleEndDate"
 >>;
 
 export type PassagemDaEscala = Partial<Ticket>;
@@ -68,6 +83,12 @@ export interface FontesDaLogistica {
   passagemQueSaiDe?: (vagaId: string) => PassagemDaEscala | undefined;
   hospedagensDe: (vagaId: string) => readonly HospedagemDaEscala[];
   terrestresDe: (vagaId: string) => readonly TrechoTerrestre[];
+  /**
+   * Dias de trabalho da vaga ("AAAA-MM-DD", em ordem). Opcional: sem ele, a
+   * escala vale por scheduleStartDate/EndDate. Usado na noite prevista de
+   * quem ainda não tem viagem.
+   */
+  diasDeTrabalhoDe?: (vagaId: string) => readonly string[];
 }
 
 // ── Regras de "tem" ───────────────────────────────────────────────────────
@@ -230,11 +251,20 @@ export interface LogisticaDaVagaNaEscala {
   indicado: Partial<Record<PernaDaViagem, ModoTerrestre>>;
   hotel: EstadoDoItem;
   hospedagem: HospedagemDaEscala | null;
-  /** Noites no hotel (a noite de D vai de D a D+1). */
+  /** Noites no hotel RESERVADAS (a noite de D vai de D a D+1). */
   noites: string[];
+  /**
+   * Noites em que a vaga precisa de hotel: as da reserva, quando há; sem
+   * reserva (e precisando), as da viagem prevista. Vazio = não precisa.
+   */
+  noitesQuePrecisa: string[];
+  /** De onde saem as noites que precisa: a reserva, a passagem, a Sugestão ou a escala. */
+  fonteDasNoites: FonteDasNoites | null;
   chegada: Movimento | null;
   saida: Movimento | null;
 }
+
+export type FonteDasNoites = "hospedagem" | FonteDoHorario | "escala";
 
 export const vagaCancelada = (v: Pick<VagaDaEscala, "status">): boolean => v.status === "cancelado";
 
@@ -291,24 +321,62 @@ export function logisticaDaVagaNaEscala(v: VagaDaEscala, fontes: FontesDaLogisti
         : null);
   }
 
+  const noites = noitesDaHospedagem(hospedagem);
+  let noitesQuePrecisa: string[] = [];
+  let fonteDasNoites: FonteDasNoites | null = null;
+  if (hospedagem) {
+    noitesQuePrecisa = noites;
+    fonteDasNoites = noites.length ? "hospedagem" : null;
+  } else if (v.needsAccommodation) {
+    const prevista = noitesPrevistas(v, chegada, saida, fontes.diasDeTrabalhoDe?.(v.id));
+    noitesQuePrecisa = prevista.noites;
+    fonteDasNoites = prevista.noites.length ? prevista.fonte : null;
+  }
+
   return {
     vagaId: v.id, functionId: v.functionId,
     semNome: !v.collaboratorId && !vagaComEmpreita(v),
     viaja, passagem, passagemAtual, situacao: situacaoDaPassagem(passagemAtual), pernasDePassagem,
     terrestre, pernasTerrestres, terrestrePorPerna: cobertura.porPerna, indicado,
-    hotel, hospedagem, noites: noitesDaHospedagem(hospedagem),
+    hotel, hospedagem, noites, noitesQuePrecisa, fonteDasNoites,
     chegada, saida,
   };
 }
 
-/** Noites da hospedagem: de check-in (inclusive) a check-out (exclusive). Teto de 60. */
-export function noitesDaHospedagem(a: HospedagemDaEscala | null | undefined): string[] {
-  const ini = diaDe(a?.checkInDate);
-  const fim = diaDe(a?.checkOutDate);
+/** Noites entre duas datas: de (inclusive) a até (exclusive). Teto de 60. */
+function noitesEntre(ini: string | null, fim: string | null): string[] {
   if (!ini || !fim || fim <= ini) return [];
   const out: string[] = [];
   for (let d = ini; d < fim && out.length < 60; d = somarDiasISO(d, 1)) out.push(d);
   return out;
+}
+
+/** Noites da hospedagem: de check-in (inclusive) a check-out (exclusive). Teto de 60. */
+export function noitesDaHospedagem(a: HospedagemDaEscala | null | undefined): string[] {
+  return noitesEntre(diaDe(a?.checkInDate), diaDe(a?.checkOutDate));
+}
+
+/**
+ * Noites da viagem prevista de quem precisa de hotel e ainda não tem reserva:
+ * da chegada à saída (passagem → Sugestão) e, sem elas, o período da escala
+ * (os dias de trabalho, quando informados) — sem data de volta, a saída é o
+ * dia seguinte ao último dia de trabalho. A fonte é a mais fraca das duas
+ * pontas (escala < Sugestão < passagem).
+ */
+export function noitesPrevistas(
+  v: Pick<VagaDaEscala, "scheduleStartDate" | "scheduleEndDate">,
+  chegada: Pick<Movimento, "dia" | "fonte"> | null,
+  saida: Pick<Movimento, "dia" | "fonte"> | null,
+  diasDeTrabalho?: readonly string[],
+): { noites: string[]; fonte: FonteDasNoites } {
+  const dias = diasDeTrabalho && diasDeTrabalho.length ? diasDeTrabalho : null;
+  const iniEscala = dias?.[0] ?? diaDe(v.scheduleStartDate);
+  const fimEscala = dias?.[dias.length - 1] ?? diaDe(v.scheduleEndDate);
+  const ini = chegada?.dia ?? iniEscala;
+  const fim = saida?.dia ?? (fimEscala ? somarDiasISO(fimEscala, 1) : null);
+  const pontas: FonteDasNoites[] = [chegada ? chegada.fonte : "escala", saida ? saida.fonte : "escala"];
+  const fonte: FonteDasNoites = pontas.includes("escala") ? "escala" : pontas.includes("sugestao") ? "sugestao" : "passagem";
+  return { noites: noitesEntre(ini, fim), fonte };
 }
 
 // ── Agregados ─────────────────────────────────────────────────────────────
@@ -331,8 +399,10 @@ export interface LogisticaDoDia {
   dia: string;
   chegam: Movimento[];
   saem: Movimento[];
-  /** Vagas com hotel nesta noite. */
+  /** Vagas com hotel RESERVADO nesta noite. */
   noHotel: string[];
+  /** Vagas que precisam de hotel nesta noite e ainda não têm reserva. */
+  semReserva: string[];
 }
 
 export interface ResumoDaLogistica {
@@ -374,7 +444,7 @@ export function resumirLogistica(vagas: readonly VagaDaEscala[], fontes: FontesD
   const semDiaDeSaida: string[] = [];
   const doDia = (dia: string) => {
     let d = porDia.get(dia);
-    if (!d) { d = { dia, chegam: [], saem: [], noHotel: [] }; porDia.set(dia, d); }
+    if (!d) { d = { dia, chegam: [], saem: [], noHotel: [], semReserva: [] }; porDia.set(dia, d); }
     return d;
   };
 
@@ -404,6 +474,7 @@ export function resumirLogistica(vagas: readonly VagaDaEscala[], fontes: FontesD
       if (!f.ultimaSaida || antes(f.ultimaSaida, l.saida)) f.ultimaSaida = l.saida;
     } else if (l.viaja) semDiaDeSaida.push(v.id);
     for (const n of l.noites) doDia(n).noHotel.push(v.id);
+    if (!l.hospedagem) for (const n of l.noitesQuePrecisa) doDia(n).semReserva.push(v.id);
   }
 
   for (const d of Array.from(porDia.values())) {
@@ -412,6 +483,147 @@ export function resumirLogistica(vagas: readonly VagaDaEscala[], fontes: FontesD
   }
   const diasEmOrdem = new Map(Array.from(porDia.entries()).sort(([a], [b]) => a.localeCompare(b)));
   return { porVaga, porFuncao, total, porDia: diasEmOrdem, semDiaDeChegada, semDiaDeSaida };
+}
+
+// ── Noite no hotel: precisam × reservados ────────────────────────────────
+
+export interface NoiteNoHotel {
+  /** Precisam nesta noite (com e sem reserva). */
+  precisam: number;
+  reservados: number;
+  /** "ninguem" = ninguém precisa; "ok" = todos reservados; "falta" = alguém sem reserva. */
+  estado: EstadoDaContagem;
+}
+
+export function noiteNoHotel(d: Pick<LogisticaDoDia, "noHotel" | "semReserva"> | undefined): NoiteNoHotel {
+  const reservados = d?.noHotel.length ?? 0;
+  const precisam = reservados + (d?.semReserva.length ?? 0);
+  return { precisam, reservados, estado: estadoDaContagem({ precisam, tem: reservados }) };
+}
+
+// ── Função × dia (as células do quadro) ──────────────────────────────────
+
+export type PendenciaDaCelula = "passagem" | "terrestre" | "hotel";
+
+export interface LogisticaDaCelula {
+  functionId: string;
+  dia: string;
+  /** Vagas da função que trabalham no dia (pelos dias de trabalho, quando informados). */
+  trabalham: string[];
+  chegam: Movimento[];
+  saem: Movimento[];
+  /** A noite de D: quem tem reserva e quem precisa sem reserva. */
+  noHotel: string[];
+  semReserva: string[];
+  /**
+   * O que falta para alguém DESTE dia, por vaga: a passagem (ou o carro/van)
+   * da perna que se move no dia, e o hotel da noite.
+   */
+  faltam: Record<PendenciaDaCelula, string[]>;
+  /** "vazio" = sem chegada, saída nem noite; "falta" = alguma pendência; "ok" = tudo resolvido. */
+  estado: "vazio" | "falta" | "ok";
+}
+
+/**
+ * O que falta no movimento: a perna pede passagem e a vaga não tem ("passagem"),
+ * ou vai por terra sem registro ("terrestre"). Quem segue direto para outro
+ * evento sai pela passagem da vaga seguinte — não falta nada aqui.
+ */
+export function faltaNoMovimento(
+  l: Pick<LogisticaDaVagaNaEscala, "pernasTerrestres" | "terrestrePorPerna" | "pernasDePassagem" | "passagem">,
+  m: Pick<Movimento, "tipo" | "segueParaOutroEvento">,
+): PendenciaDaCelula | null {
+  if (m.segueParaOutroEvento) return null;
+  const perna: PernaDaViagem = m.tipo === "chegada" ? "ida" : "volta";
+  if (l.pernasTerrestres.includes(perna)) return l.terrestrePorPerna[perna] ? null : "terrestre";
+  if (l.pernasDePassagem.includes(perna) && l.passagem === "falta") return "passagem";
+  return null;
+}
+
+const celulaVazia = (functionId: string, dia: string): LogisticaDaCelula => ({
+  functionId, dia, trabalham: [], chegam: [], saem: [], noHotel: [], semReserva: [],
+  faltam: { passagem: [], terrestre: [], hotel: [] }, estado: "vazio",
+});
+
+/**
+ * Logística de cada célula função × dia. Lê o MESMO resumo do rodapé e das
+ * colunas: somar as células de um dia dá o rodapé daquele dia.
+ * Devolve functionId → dia → célula (só as células com algo).
+ */
+export function logisticaPorFuncaoEDia(
+  resumo: Pick<ResumoDaLogistica, "porVaga">,
+  diasDeTrabalhoDe?: (vagaId: string) => readonly string[],
+): Map<string, Map<string, LogisticaDaCelula>> {
+  const out = new Map<string, Map<string, LogisticaDaCelula>>();
+  const celula = (fid: string, dia: string) => {
+    let f = out.get(fid);
+    if (!f) { f = new Map(); out.set(fid, f); }
+    let c = f.get(dia);
+    if (!c) { c = celulaVazia(fid, dia); f.set(dia, c); }
+    return c;
+  };
+  const marcar = (lista: string[], id: string) => { if (!lista.includes(id)) lista.push(id); };
+
+  for (const l of Array.from(resumo.porVaga.values())) {
+    for (const d of diasDeTrabalhoDe?.(l.vagaId) ?? []) celula(l.functionId, d).trabalham.push(l.vagaId);
+    for (const m of [l.chegada, l.saida]) {
+      if (!m) continue;
+      const c = celula(l.functionId, m.dia);
+      (m.tipo === "chegada" ? c.chegam : c.saem).push(m);
+      const falta = faltaNoMovimento(l, m);
+      if (falta) marcar(c.faltam[falta], l.vagaId);
+    }
+    for (const n of l.noites) celula(l.functionId, n).noHotel.push(l.vagaId);
+    if (!l.hospedagem) {
+      for (const n of l.noitesQuePrecisa) {
+        const c = celula(l.functionId, n);
+        c.semReserva.push(l.vagaId);
+        marcar(c.faltam.hotel, l.vagaId);
+      }
+    }
+  }
+
+  for (const f of Array.from(out.values())) {
+    for (const c of Array.from(f.values())) {
+      c.chegam = ordenarMovimentos(c.chegam);
+      c.saem = ordenarMovimentos(c.saem);
+      const temLogistica = c.chegam.length + c.saem.length + c.noHotel.length + c.semReserva.length > 0;
+      const falta = c.faltam.passagem.length + c.faltam.terrestre.length + c.faltam.hotel.length > 0;
+      c.estado = !temLogistica ? "vazio" : falta ? "falta" : "ok";
+    }
+  }
+  return out;
+}
+
+/** Vagas com alguma pendência na célula (sem repetir). */
+export const vagasComFaltaNaCelula = (c: Pick<LogisticaDaCelula, "faltam">): string[] =>
+  Array.from(new Set([...c.faltam.passagem, ...c.faltam.terrestre, ...c.faltam.hotel]));
+
+// ── Horários agrupados ────────────────────────────────────────────────────
+
+/** Um grupo de horário: "09:10 ×10" (passagem), "≈14:00 ×3" (Sugestão) ou "sem horário ×2". */
+export interface GrupoDeHorario { hora: string | null; fonte: FonteDoHorario; n: number }
+
+/**
+ * Os horários de uma lista, agrupados para leitura rápida: os da passagem por
+ * hora, depois os da Sugestão por hora, e "sem horário" por último.
+ */
+export function horariosAgrupados(movimentos: readonly Pick<Movimento, "hora" | "fonte" | "dia">[]): GrupoDeHorario[] {
+  const grupos = new Map<string, GrupoDeHorario>();
+  for (const m of movimentos) {
+    const chave = m.hora ? `${m.fonte}|${m.hora}` : "sem";
+    const g = grupos.get(chave);
+    if (g) g.n += 1; else grupos.set(chave, { hora: m.hora, fonte: m.hora ? m.fonte : "passagem", n: 1 });
+  }
+  const ordem = (g: GrupoDeHorario) => (g.hora === null ? 2 : g.fonte === "sugestao" ? 1 : 0);
+  return Array.from(grupos.values()).sort((a, b) => ordem(a) - ordem(b) || minutoDoMovimento(a) - minutoDoMovimento(b));
+}
+
+/** Quantos movimentos vêm da passagem e quantos só da Sugestão. */
+export function porFonte(movimentos: readonly Pick<Movimento, "fonte">[]): { passagem: number; sugestao: number } {
+  let passagem = 0;
+  for (const m of movimentos) if (m.fonte === "passagem") passagem += 1;
+  return { passagem, sugestao: movimentos.length - passagem };
 }
 
 // ── Textos ────────────────────────────────────────────────────────────────

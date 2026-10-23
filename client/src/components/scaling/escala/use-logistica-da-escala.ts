@@ -30,6 +30,8 @@ export interface EntradaDaLogistica {
   /** Recorte "Futuros": só os eventos que não terminaram. */
   futuros: boolean;
   habilitado: boolean;
+  /** Dias de trabalho por vaga (os do quadro) — a noite prevista de quem ainda não tem viagem. */
+  diasDeTrabalho?: ReadonlyMap<string, readonly string[]>;
 }
 
 export interface LogisticaDaEscala {
@@ -40,7 +42,7 @@ export interface LogisticaDaEscala {
   fontes: FontesDaLogistica;
 }
 
-export function useLogisticaDaEscala({ linhas, tickets, accommodations, eventId, futuros, habilitado }: EntradaDaLogistica): LogisticaDaEscala {
+export function useLogisticaDaEscala({ linhas, tickets, accommodations, eventId, futuros, habilitado, diasDeTrabalho }: EntradaDaLogistica): LogisticaDaEscala {
   const chave = eventId ? ["/api/tickets", "terrestres", { eventId }] : futuros ? ["/api/tickets", "terrestres", { futuros: true }] : ["/api/tickets", "terrestres"];
   const url = eventId ? `/api/transportes-terrestres?eventId=${encodeURIComponent(eventId)}` : futuros ? "/api/transportes-terrestres?futuros=1" : "/api/transportes-terrestres";
   const terrestres = useQuery<TerrestreLido[]>({
@@ -78,8 +80,9 @@ export function useLogisticaDaEscala({ linhas, tickets, accommodations, eventId,
       passagemQueSaiDe: (id) => saiDe.get(id),
       hospedagensDe: (id) => hospedagens.get(id) ?? NADA,
       terrestresDe: (id) => porVaga.get(id) ?? NADA,
+      diasDeTrabalhoDe: (id) => diasDeTrabalho?.get(id) ?? NADA,
     };
-  }, [tickets, accommodations, terrestres.data]);
+  }, [tickets, accommodations, terrestres.data, diasDeTrabalho]);
 
   const resumo = useMemo(() => resumirLogistica(linhas, fontes), [linhas, fontes]);
 
