@@ -103,9 +103,19 @@ export function registrarEventos(app: Express): void {
       // Allow partial updates including status field
       const eventData = updateEventSchema.parse(req.body);
       if (!isFinanceRole(currentUser.role)) {
+        // Vazio e null são o mesmo "sem empresa" (23/10: o formulário manda "" para
+        // o evento sem pagadora e Compras levava 403 ao salvar qualquer outra coisa);
+        // o CNPJ compara só os dígitos (com ou sem máscara é o mesmo CNPJ).
+        const mesmoValor = (campo: "paymentCompanyName" | "paymentCompanyCnpj", a: string | null | undefined, b: string | null | undefined) => {
+          const limpo = (v: string | null | undefined) => {
+            const t = (v ?? "").trim();
+            return campo === "paymentCompanyCnpj" ? t.replace(/\D/g, "") : t.replace(/\s+/g, " ").toLowerCase();
+          };
+          return limpo(a) === limpo(b);
+        };
         for (const campo of ["paymentCompanyName", "paymentCompanyCnpj"] as const) {
           if (eventData[campo] === undefined) continue;
-          if ((eventData[campo] ?? null) !== (oldEvent[campo] ?? null)) {
+          if (!mesmoValor(campo, eventData[campo], oldEvent[campo])) {
             return res.status(403).json({ message: "A empresa pagadora só pode ser alterada pelo financeiro." });
           }
           delete eventData[campo];

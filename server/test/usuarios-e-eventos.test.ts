@@ -153,6 +153,17 @@ describe("PUT /api/events/:id", () => {
     expect(igual.body.name).toBe(`${evento.name} (editado)`);
   });
 
+  it("por purchasing: evento sem pagadora e o formulário mandando \"\" → 200 (caso #271, 23/10)", async () => {
+    const { agent } = await agenteLogado("purchasing");
+    const evento = await criarEvento();
+    const res = await mutacao(agent.put(`/api/events/${evento.id}`)).send({
+      name: `${evento.name} (datas)`, paymentCompanyName: "", paymentCompanyCnpj: "  ",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe(`${evento.name} (datas)`);
+    expect((await ctx.storage.getEvent(evento.id))?.paymentCompanyName).toBeNull();
+  });
+
   it("por purchasing com status 'excluído' → 403 (só admin exclui)", async () => {
     const { agent } = await agenteLogado("purchasing");
     const evento = await criarEvento();
