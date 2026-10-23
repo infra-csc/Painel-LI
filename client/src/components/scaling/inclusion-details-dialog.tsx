@@ -23,13 +23,18 @@ import { DetailsFooter } from "./inclusion-details/details-footer";
 import { ResumoTab } from "./inclusion-details/resumo-tab";
 import { AttachmentList } from "./inclusion-details/attachments";
 import { AbaHonorarioDaVaga, useHonorarioDaVaga } from "@/components/honorarios-ceno/aba-da-vaga";
-import { conflitosUnicos, doneBadge, pendingBadge, tabTrigger, type InclusionDetailsDialogProps } from "./inclusion-details/details-shared";
+import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
+import { conflitosUnicos, dadosSomenteLeitura, doneBadge, pendingBadge, tabTrigger, type InclusionDetailsDialogProps } from "./inclusion-details/details-shared";
 
 export type { DetailsTab, InclusionDetailsDialogProps } from "./inclusion-details/details-shared";
 export { cenoDiasTrabalhados } from "./inclusion-details/details-shared";
 
-export default function InclusionDetailsDialog(props: InclusionDetailsDialogProps) {
-  const { open, onOpenChange, modal, inclusion, modalData, data, details, mutations, user, openAttachment, navIndex, navTotal, onNavigate, onSave, onConfirm } = props;
+export default function InclusionDetailsDialog(propsRecebidas: InclusionDetailsDialogProps) {
+  // Vaga em Validação de Escala (23/10 — aberta pela Aprovação): o modal só
+  // mostra. Os cartões leem as permissões de `data`; aqui elas viram "não".
+  const emValidacao = isSuggestionInclusion(propsRecebidas.inclusion);
+  const props = emValidacao ? { ...propsRecebidas, data: dadosSomenteLeitura(propsRecebidas.data) } : propsRecebidas;
+  const { open, onOpenChange, modal, inclusion, modalData, data, details, mutations, user, openAttachment, navIndex, navTotal, onNavigate, onSave, onConfirm, acoesDaVaga } = props;
   const st = useInclusionDialogState(props);
   const {
     activeTab, setActiveTab, showAllLogs, setShowAllLogs, newComment, setNewComment, showSwapModal, setShowSwapModal,
@@ -145,6 +150,7 @@ export default function InclusionDetailsDialog(props: InclusionDetailsDialogProp
               eventLocked={eventLocked} requestLockReason={requestLockReason} mostrarPedirAjuste={mostrarPedirAjusteNoRodape}
               onPedirAjuste={() => setPedirAjusteAberto(true)} onReativar={() => setShowReactivateConfirm(true)}
               onClose={() => onOpenChange(false)} onSave={onSave} onConfirm={onConfirm}
+              somenteLeitura={emValidacao} acoesExtras={acoesDaVaga}
               />
             )}
 

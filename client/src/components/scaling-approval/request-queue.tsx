@@ -8,6 +8,10 @@
  * negar/reajustar sem borda. A tabela tem larguras fixas (nada rola de lado)
  * e vira cartões abaixo de 1280px pelo CSS (`.apr-tabela`) — era uma tabela
  * de 860px que rolava a partir de 768 e uma segunda lista para o celular.
+ *
+ * 23/10: o "vaga #N" do pedido sobre vaga que existe (ajuste, exclusão) é um
+ * botão que abre o modal da vaga da Escalação (`onAbrirVaga`). A linha segue
+ * abrindo o PEDIDO — é nele que se decide.
  */
 import type { MouseEvent } from "react";
 import { CheckCircle2, ChevronRight, PencilLine, XCircle } from "lucide-react";
@@ -32,6 +36,13 @@ interface RequestQueueProps {
   onReajustar?: (item: ChangeRequestItem) => void;
   onNegar?: (item: ChangeRequestItem) => void;
   busy?: boolean;
+  /** Abre o modal da vaga do pedido (só pedidos sobre vaga existente — ver `temVagaParaAbrir`). */
+  onAbrirVaga?: (item: ChangeRequestItem) => void;
+}
+
+/** O pedido age sobre uma vaga que existe (ajuste/exclusão)? Inclusão pede vaga nova. */
+export function temVagaParaAbrir(r: ChangeRequestItem): r is ChangeRequestItem & { teamInclusionId: string } {
+  return r.requestType !== "inclusao" && !!r.teamInclusionId;
 }
 
 /** Filete colorido da linha, por tipo de pedido — a mesma leitura de cor dos badges. */
@@ -106,7 +117,7 @@ export function MudancasDoPedido({ r, max = MAX_MUDANCAS }: { r: ChangeRequestIt
   );
 }
 
-export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById, onApprove, onReajustar, onNegar, busy }: RequestQueueProps) {
+export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById, onApprove, onReajustar, onNegar, busy, onAbrirVaga }: RequestQueueProps) {
   const canAct = !!(onApprove && onReajustar && onNegar);
   return (
     <div className="apr-tabela xl:rounded-xl xl:border xl:border-border xl:bg-card xl:shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]">
@@ -164,7 +175,20 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                       {nome}
                     </button>
                     <span className="block break-words text-2xs leading-4 text-muted-foreground">
-                      <span className="font-medium tabular-nums text-slate-600">{targetLabel(r)}</span>
+                      {onAbrirVaga && temVagaParaAbrir(r) ? (
+                        <button
+                          type="button"
+                          onClick={() => onAbrirVaga(r)}
+                          className="rounded-sm font-medium tabular-nums text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={`Abrir a ${targetLabel(r)} no modal da escalação`}
+                          title="Abrir a vaga"
+                          data-testid={`pedido-abrir-vaga-${r.id}`}
+                        >
+                          {targetLabel(r)}
+                        </button>
+                      ) : (
+                        <span className="font-medium tabular-nums text-slate-600">{targetLabel(r)}</span>
+                      )}
                       <span title={r.requestedByName ?? undefined}> · por {r.requestedByName}</span>
                     </span>
                     {/* A data embaixo do nome do evento (04/09): sem ela não se

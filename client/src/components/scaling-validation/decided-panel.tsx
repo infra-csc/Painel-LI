@@ -11,6 +11,10 @@
  *
  * 07/10 (redesenho da Validação): pílulas do StatusBadge único, cabeçalho em
  * caixa de frase, cartões no celular, esqueleto e erro com "Tentar de novo".
+ *
+ * 23/10: na Aprovação (`onAbrirVaga`), a vaga abre o modal da Escalação no
+ * lugar do detalhe da Validação — a linha inteira abre, e ‹ › percorre as
+ * decididas da lista. A Validação continua com o detalhe dela.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +34,7 @@ import { periodLabel } from "./suggestions-list";
 import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
 import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type SuggestionRow } from "./types";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
+import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "@/components/scaling-approval/vaga-modal/linha-que-abre";
 
 /** Como a vaga foi decidida — o servidor lê do log mais recente que decide a vaga (11/09). */
 interface DecisaoDaVaga {
@@ -69,13 +74,18 @@ interface EventViewResponse {
 
 const MAX_LINHAS = 100;
 
-export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = false }: {
+export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = false, onAbrirVaga }: {
   /** Evento filtrado na tela ("" = todos os eventos). */
   eventId: string;
   functionNameById: Map<string, string>;
   filtro?: FiltroDasDecididas;
   /** Administrador (14/09): pode excluir da lista as vagas negadas, que não têm mais ação. */
   podeLimpar?: boolean;
+  /**
+   * Aprovação (23/10): abre o modal da vaga da Escalação com a vaga e a lista
+   * visível (para ‹ ›). Sem esta prop, abre o detalhe da Validação.
+   */
+  onAbrirVaga?: (row: SuggestionRow, lista: SuggestionRow[]) => void;
 }) {
   const query = useQuery<EventViewResponse>({
     queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`, eventId || "__todos__"],
@@ -147,6 +157,12 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
   const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionIds || !!filtro.soMinhas);
 
   const detailRow = rows.find((r) => r.row.id === detailId)?.row ?? null;
+  /** Abre a vaga: o modal da Escalação (Aprovação) ou o detalhe da Validação. */
+  const abrirVaga = (row: EventViewRow) => (onAbrirVaga ? onAbrirVaga(row, rows.map((r) => r.row)) : setDetailId(row.id));
+  /** Na Aprovação a linha inteira abre (fora dos botões), e Enter nela também. */
+  const linha = (row: EventViewRow) => (onAbrirVaga
+    ? { ...linhaQueAbre(() => abrirVaga(row), `Abrir a vaga #${row.inclusionNumber} — ${functionNameById.get(row.functionId) ?? "Sem função"}`), className: CLASSE_LINHA_QUE_ABRE }
+    : { className: "" });
   /** As negadas visíveis (com os filtros da barra) — alvo do "Excluir negadas da lista". */
   const idsNegadas = rows.filter((r) => r.decisao === "negada").map((r) => r.row.id);
 
@@ -234,7 +250,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
   const botaoDetalhe = (row: EventViewRow) => (
     <button
       type="button"
-      onClick={() => setDetailId(row.id)}
+      onClick={() => abrirVaga(row)}
       className="val-alvo val-abrir inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`Abrir detalhes da vaga #${row.inclusionNumber}`}
       title="Ver detalhes"
@@ -247,7 +263,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
   const nomeDaVaga = (row: EventViewRow) => (
     <button
       type="button"
-      onClick={() => setDetailId(row.id)}
+      onClick={() => abrirVaga(row)}
       className="group block max-w-full rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`Ver detalhes da vaga #${row.inclusionNumber}`}
     >
@@ -283,7 +299,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
           </thead>
           <tbody>
             {rows.map(({ row, decisao }) => (
-              <tr key={row.id} className="val-linha border-b border-border align-top last:border-0 hover:bg-surface-muted/60">
+              <tr key={row.id} {...linha(row)} className={cn("val-linha border-b border-border align-top last:border-0 hover:bg-surface-muted/60", linha(row).className)}>
                 <td className="py-3 pl-4 pr-3">{nomeDaVaga(row)}</td>
                 <td className="max-w-[240px] whitespace-normal break-words px-3 py-3 text-[13px] text-slate-600" title={row.eventName ?? undefined}>{row.eventName ?? "Sem evento"}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-[13px] tabular-nums text-slate-700">{periodLabel(row)}</td>
@@ -303,7 +319,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
       </div>
       <ul className="space-y-2.5 md:hidden" aria-label="Vagas já decididas pelo aprovador">
         {rows.map(({ row, decisao }) => (
-          <li key={row.id} className="val-cartao rounded-xl border border-border bg-card px-4 py-3">
+          <li key={row.id} {...linha(row)} className={cn("val-cartao rounded-xl border border-border bg-card px-4 py-3", linha(row).className)}>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">{nomeDaVaga(row)}</div>
               <div className="-mr-2 -mt-1 flex shrink-0 items-center">
@@ -345,7 +361,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
         confirmTestId="button-confirmar-limpar-negadas"
       />
       <SuggestionDetailDrawer
-        open={!!detailRow}
+        open={!onAbrirVaga && !!detailRow}
         onOpenChange={(o) => { if (!o) setDetailId(null); }}
         row={detailRow}
         functionName={detailRow ? functionNameById.get(detailRow.functionId) : undefined}

@@ -32,10 +32,12 @@ export function useScalingData(opts: {
   filters: ScalingFilters;
   sortConfig: SortConfig | null;
   user: ScalingUser;
+  /** false = nenhuma consulta (modal da vaga na Aprovação, antes de abrir). Padrão: true. */
+  enabled?: boolean;
 }) {
-  const { filters, sortConfig, user } = opts;
+  const { filters, sortConfig, user, enabled = true } = opts;
 
-  const q = useScalingQueries({ filters, user });
+  const q = useScalingQueries({ filters, user, enabled });
   const {
     teamInclusions, vagasParaOpcoesDeEvento, events, functions, collaborators, tickets, accommodations,
     isLoading, isFetchingInclusions, isErrorInclusions, inclusionsError,

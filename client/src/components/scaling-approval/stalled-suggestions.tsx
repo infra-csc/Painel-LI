@@ -6,6 +6,9 @@
  * âmbar de três parágrafos que gritava mais do que as vagas), a tabela usa a
  * linha da Validação e vira cartões abaixo de 1280px (`.apr-tabela`), e o lote
  * foi para a barra escura flutuante — o mesmo desenho das vagas aguardando.
+ *
+ * 23/10: clicar na linha (ou Enter nela) abre o modal da vaga da Escalação,
+ * com ‹ › por esta lista — só para ver; a decisão continua nos botões da linha.
  */
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,6 +29,9 @@ import { isStaleDecisionError } from "./use-decisions";
 import { APROVAR_DA_LINHA, ICONE_DA_LINHA, SOBRE_ESCURO, TH } from "./tokens";
 import type { StalledRow as SuggestionRow } from "./types";
 import { LinhaDoEvento } from "./linha-do-evento";
+import { comoVaga, itensDasSugestoes, useVagaNaAprovacao } from "./vaga-modal/use-vaga-na-aprovacao";
+import { ModalDaVagaNaAprovacao } from "./vaga-modal/modal-da-vaga";
+import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "./vaga-modal/linha-que-abre";
 
 interface StalledSuggestionsProps {
   rows: SuggestionRow[];
@@ -74,6 +80,8 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
   const [confirm, setConfirm] = useState<{ rows: SuggestionRow[]; kind: "approve" | "reject" } | null>(null);
   const [comment, setComment] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** Modal da vaga (23/10): navega por ESTA lista. */
+  const vm = useVagaNaAprovacao(useMemo(() => itensDasSugestoes(rows), [rows]));
   const selecionaveis = useMemo(() => rows.filter((r) => canActOn(r)), [rows, canActOn]);
   const selecionadas = useMemo(() => selecionaveis.filter((r) => selected.has(r.id)), [selecionaveis, selected]);
   const todasMarcadas = selecionaveis.length > 0 && selecionadas.length === selecionaveis.length;
@@ -210,7 +218,8 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
               const obs = row.observations?.trim();
               return (
                 <tr key={row.id} data-testid={`parada-row-${row.inclusionNumber}`} data-selecionada={marcada || undefined}
-                  className={cn("apr-linha border-b border-border align-top last:border-b-0", marcada ? "bg-brand-soft/50" : "bg-card hover:bg-surface-muted/60")}>
+                  {...(vm.podeVer ? linhaQueAbre(() => { void vm.abrir({ id: row.id, vaga: comoVaga(row) }); }, `Abrir a vaga #${row.inclusionNumber} — ${fnName}`) : {})}
+                  className={cn("apr-linha border-b border-border align-top last:border-b-0", vm.podeVer && CLASSE_LINHA_QUE_ABRE, marcada ? "bg-brand-soft/50" : "bg-card hover:bg-surface-muted/60")}>
                   {onDecideMany && (
                     <td data-col="sel" className="w-11 py-3 pl-3 pr-1">
                       <span className="inline-flex h-5 items-center">
@@ -347,6 +356,8 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
           <p className="text-2xs text-muted-foreground">Fica registrado no histórico da vaga.</p>
         </div>
       </ConfirmDialog>
+
+      <ModalDaVagaNaAprovacao vm={vm} />
     </>
   );
 }

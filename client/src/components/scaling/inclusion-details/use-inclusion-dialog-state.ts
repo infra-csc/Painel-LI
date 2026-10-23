@@ -7,12 +7,20 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PAST_EVENT_BLOCK_MSG } from "@shared/event-window";
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
+import { isFinanceRole } from "@shared/roles";
+import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
 import { pendingRequestLock, podePedirAjuste, useChangeWindow } from "../adjust-request-panel";
 import type { InclusionDetailsDialogProps } from "./details-shared";
-import { isTypingTarget } from "./details-shared";
+import { isTypingTarget, motivoDaVagaEmValidacao } from "./details-shared";
 
 export function useInclusionDialogState(props: InclusionDetailsDialogProps) {
   const { open, inclusion, initialTab, abrirEscolhaDeColaborador = false, data, details, user, navIndex, navTotal, onNavigate } = props;
+  /**
+   * Vaga ainda na Validação de Escala (23/10 — o modal abre também pela
+   * Aprovação): o servidor recusa PATCH/confirm/cancel/pedido da Escalação
+   * nela (400 MSG_VAGA_EM_VALIDACAO), então o modal só mostra.
+   */
+  const emValidacao = isSuggestionInclusion(inclusion);
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -39,9 +47,13 @@ export function useInclusionDialogState(props: InclusionDetailsDialogProps) {
   // Sem `queryFn` caseiro (23/09): o padrão do queryClient checa `res.ok`,
   // trata 401 e HTML de servidor desatualizado — o de antes gravava o corpo
   // do erro no cache como se fossem os valores.
+  // GET /api/system-settings é do módulo financeiro (admin/RH — requireFinSession):
+  // para os outros papéis a busca era um 403 a cada vaga de cenotécnica ou
+  // percurso aberta (23/10). Sem ela os valores caem nos padrões do shared —
+  // exatamente o que o 403 já produzia, agora sem o erro.
   const { data: systemSettings } = useQuery<Record<string, number>>({
     queryKey: ["/api/system-settings"],
-    enabled: open && (isPercursoInclusion || isCenoEmpreitaInclusion),
+    enabled: open && isFinanceRole(user?.role) && (isPercursoInclusion || isCenoEmpreitaInclusion),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -89,9 +101,10 @@ export function useInclusionDialogState(props: InclusionDetailsDialogProps) {
   const eventLockReason = eventLocked ? PAST_EVENT_BLOCK_MSG : null;
   // Pedido de ajuste em análise: a escalação inteira fica travada até o
   // aprovador decidir (mesma consulta do painel "Precisa mudar algo?").
-  const changeWindow = useChangeWindow(inclusion?.id, open && !!inclusion?.id);
-  const requestLockReason = pendingRequestLock(changeWindow.data);
-  const mostrarPedirAjusteNoRodape = podePedirAjuste(changeWindow.data);
+  // Na vaga em validação o pedido é feito na tela de Validação, não aqui.
+  const changeWindow = useChangeWindow(inclusion?.id, open && !!inclusion?.id && !emValidacao);
+  const requestLockReason = emValidacao ? motivoDaVagaEmValidacao(inclusion?.status) : pendingRequestLock(changeWindow.data);
+  const mostrarPedirAjusteNoRodape = !emValidacao && podePedirAjuste(changeWindow.data);
   /** Um motivo só para os cartões internos: pedido em análise vence evento encerrado. */
   const actionLockReason = requestLockReason ?? eventLockReason;
 
@@ -109,7 +122,7 @@ export function useInclusionDialogState(props: InclusionDetailsDialogProps) {
     escolhendoColaborador, setEscolhendoColaborador, showReactivateConfirm, setShowReactivateConfirm,
     pedirAjusteAberto, setPedirAjusteAberto, contentRef,
     isPercursoInclusion, isCenoEmpreitaInclusion, systemSettings,
-    hasPrev, hasNext, eventLocked, requestLockReason, mostrarPedirAjusteNoRodape, actionLockReason,
+    hasPrev, hasNext, eventLocked, requestLockReason, mostrarPedirAjusteNoRodape, actionLockReason, emValidacao,
     getUserName, selectedTicket, accommodation,
   };
 }

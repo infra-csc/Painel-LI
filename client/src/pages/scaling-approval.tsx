@@ -14,8 +14,12 @@
  * status dentro da aba que eles filtram, listas que viram cartões abaixo de
  * 1280px, lote em barra escura flutuante e estados (carregando, vazio, erro,
  * sem acesso) no desenho do módulo. Lógica intacta.
+ *
+ * 23/10 (dono: "tem que aparecer o modal da escalação aqui"): a vaga abre o
+ * modal da Escalação nas abas Aguardando, Paradas e Decididas (a linha) e na
+ * Fila (o "vaga #N" do pedido). Ver `components/scaling-approval/vaga-modal`.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, CloudOff, Inbox, SearchX, Stamp } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ToastAction } from "@/components/ui/toast";
@@ -29,7 +33,7 @@ import { useScalingEvent } from "@/lib/use-scaling-event";
 import { normalizeRole } from "@shared/roles";
 import { CHANGE_REQUEST_STATUS } from "@shared/scaling-validation-rules";
 import type { ChangeRequestItem, ReviewBody } from "@/components/scaling-approval/types";
-import { RequestQueue } from "@/components/scaling-approval/request-queue";
+import { RequestQueue, temVagaParaAbrir } from "@/components/scaling-approval/request-queue";
 import { RequestDetailDialog } from "@/components/scaling-approval/request-detail-sheet";
 import { ApproveRequestDialog, ReviewRequestDialog } from "@/components/scaling-approval/decision-dialogs";
 import { StalledSuggestions } from "@/components/scaling-approval/stalled-suggestions";
@@ -44,6 +48,8 @@ import { useApprovalVagas } from "@/components/scaling-approval/page/use-approva
 import { ApprovalHeader, ApprovalSummary, FilaToolbar } from "@/components/scaling-approval/page/approval-filter-bar";
 import { ApprovalTabBar, MinhasFuncoesToggle, temFiltroMinhasFuncoes } from "@/components/scaling-approval/page/approval-tab-bar";
 import { AcessoNegadoAprovacao, EsqueletoDaLista } from "@/components/scaling-approval/page/estados-da-aprovacao";
+import { comoVaga, itensDasSugestoes, useVagaNaAprovacao, type ItemDaVaga } from "@/components/scaling-approval/vaga-modal/use-vaga-na-aprovacao";
+import { ModalDaVagaNaAprovacao } from "@/components/scaling-approval/vaga-modal/modal-da-vaga";
 
 export default function ScalingApprovalPage() {
   usePageTitle("Aprovação de escala");
@@ -74,6 +80,24 @@ export default function ScalingApprovalPage() {
   // ── Filtros locais + contadores ──
   const filtered = useMemo(() => filtrarPedidos(items, f), [items, f.typeFilter, f.search, f.lateOnly, f.mineOnly]); // eslint-disable-line react-hooks/exhaustive-deps
   const counts = useMemo(() => contarPendentes(pendingItems), [pendingItems]);
+
+  // ── Modal da vaga (23/10) ──
+  // Fila: as vagas dos pedidos visíveis, sem repetir (dois pedidos da mesma
+  // vaga são uma parada só no ‹ ›). Só o id — a vaga é buscada ao abrir.
+  const itensDaFila = useMemo<ItemDaVaga[]>(() => {
+    const vistos = new Set<string>();
+    const itens: ItemDaVaga[] = [];
+    for (const r of filtered) {
+      if (!temVagaParaAbrir(r) || vistos.has(r.teamInclusionId)) continue;
+      vistos.add(r.teamInclusionId);
+      itens.push({ id: r.teamInclusionId });
+    }
+    return itens;
+  }, [filtered]);
+  const vagaDaFila = useVagaNaAprovacao(itensDaFila);
+  // Decididas: a lista visível no momento do clique (o histórico não muda por aqui).
+  const [itensDasDecididas, setItensDasDecididas] = useState<ItemDaVaga[]>([]);
+  const vagaDasDecididas = useVagaNaAprovacao(itensDasDecididas);
 
   // ── Decisões ──
   /** Próximo pendente da fila (na ordem visível), fora o que acabou de ser decidido. */
@@ -255,6 +279,7 @@ export default function ScalingApprovalPage() {
               onApprove={(r: ChangeRequestItem) => openDetailWithMode(r, "approve")}
               onReajustar={(r: ChangeRequestItem) => openDetailWithMode(r, "reajustar")}
               onNegar={(r: ChangeRequestItem) => openDetailWithMode(r, "negar")}
+              onAbrirVaga={(r: ChangeRequestItem) => { if (temVagaParaAbrir(r)) void vagaDaFila.abrir({ id: r.teamInclusionId }); }}
             />
           )}
         </TabsContent>
@@ -292,7 +317,15 @@ export default function ScalingApprovalPage() {
 
         {/* Histórico do que o aprovador já decidiu (28/08) — leitura pura. */}
         <TabsContent value="decididas" className="val-entra mt-0 space-y-3">
-          <DecidedPanel eventId={eventId} functionNameById={functionNameById} podeLimpar={isAdmin} />
+          <DecidedPanel
+            eventId={eventId}
+            functionNameById={functionNameById}
+            podeLimpar={isAdmin}
+            onAbrirVaga={(row, lista) => {
+              setItensDasDecididas(itensDasSugestoes(lista));
+              void vagaDasDecididas.abrir({ id: row.id, vaga: comoVaga(row) });
+            }}
+          />
         </TabsContent>
       </Tabs>
 
@@ -329,6 +362,10 @@ export default function ScalingApprovalPage() {
         pending={review.isPending}
         onSubmit={submitReview}
       />
+
+      {/* Modal da vaga da Escalação (23/10) — Fila e Decididas; as abas de vagas montam o delas. */}
+      <ModalDaVagaNaAprovacao vm={vagaDaFila} />
+      <ModalDaVagaNaAprovacao vm={vagaDasDecididas} />
     </PageContainer>
   );
 }
