@@ -29,7 +29,7 @@ import type { InclusionDialogState } from "./use-inclusion-dialog-state";
 export function ResumoTab({ inclusion, props, st }: { inclusion: TeamInclusion; props: InclusionDetailsDialogProps; st: InclusionDialogState }) {
   const { modalData, data, details, mutations, user, openAttachment } = props;
   const { events, getFunctionName, canConfirmEscalation, canApproveProduction, collaborators } = data;
-  const { eventLocked, actionLockReason, isCenoEmpreitaInclusion, systemSettings, pedirAjusteAberto, setPedirAjusteAberto, selectedTicket, accommodation, setActiveTab, emValidacao } = st;
+  const { eventLocked, actionLockReason, isCenoEmpreitaInclusion, systemSettings, pedirAjusteAberto, setPedirAjusteAberto, selectedTicket, accommodation, setActiveTab } = st;
   // O pedido de ajuste vai para a coluna mais curta (07/10): com o colaborador
   // só para leitura, a esquerda sobrava vazia embaixo; com a lista de nomes
   // aberta, é a direita que sobra.
@@ -38,8 +38,7 @@ export function ResumoTab({ inclusion, props, st }: { inclusion: TeamInclusion; 
   // Pedido de ajuste da vaga já escalada (regra do dono, 26/08): dias,
   // diárias e viagem ainda podem mudar por pedido ao aprovador enquanto a
   // passagem não for comprada. Quem decide se aparece é o servidor.
-  // Vaga em Validação de Escala (23/10): o pedido é feito na tela de Validação.
-  const ajuste = emValidacao ? null : (
+  const ajuste = (
     <>
       <AdjustRequestPanel
         inclusion={inclusion}

@@ -8,8 +8,13 @@
  * 07/10 (redesenho): cabeçalho em três camadas (número e fila; a função em
  * destaque; evento e status), seções com a moldura do modal da Escalação,
  * avisos do aprovador com filete de cor e o rodapé com UMA ação forte.
+ *
+ * 23/10: a Aprovação de escala abre a vaga neste MESMO detalhe (dono: "teria
+ * que ser no estilo do segundo") — ela troca só o que é do papel: a frase do
+ * cabeçalho (`papel`), os selos (`selos`), a história de quem decidiu
+ * (`historia`), quem validou (`validadoPor`) e o rodapé (`rodape`).
  */
-import { useEffect } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   CalendarDays, CheckCheck, ChevronLeft, ChevronRight,
@@ -25,7 +30,7 @@ import { StatusCell } from "./suggestions-list";
 import { DayLabel, LegChip, NeedChip, SaiDeChip } from "./logistics-chips";
 import {
   DECISION_TONE_CLASS, canRequestChange, canValidate,
-  describeLastDecision, describeVagaDecision, workDaysOf, type SuggestionRow,
+  describeLastDecision, describeVagaDecision, workDaysOf, ymd, type SuggestionRow,
 } from "./types";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { ValidationNoteBlock } from "./validation-note-blocks";
@@ -70,6 +75,24 @@ interface SuggestionDetailDrawerProps {
    * scroll travado e o foco perdido.
    */
   onClosed?: () => void;
+  /**
+   * Quem lê a vaga, depois do evento no cabeçalho. Padrão (Validação): "você
+   * valida esta função" ou "somente leitura". A Aprovação diz quem aprova.
+   */
+  papel?: ReactNode;
+  /** Selos de situação no lugar do `StatusCell` (a Aprovação soma "parada há N dias", "Aprovada — virou Inclusão"…). */
+  selos?: ReactNode;
+  /** Avisos de destaque a mais, no topo da história (ex.: como a vaga decidida foi decidida). */
+  historia?: ReactNode;
+  /** Nome de quem validou — vai na observação da validação ("quem validou e quando"). */
+  validadoPor?: string | null;
+  /**
+   * Vaga validada SEM observação: mostra mesmo assim o aviso "Validada pela
+   * área" com quem e quando (a Aprovação decide lendo isso). Padrão: não.
+   */
+  mostrarQuemValidou?: boolean;
+  /** Rodapé de outra tela (Aprovação: Reprovar / Devolver / Aprovar) — substitui o da Validação. */
+  rodape?: ReactNode;
 }
 
 /** Modal com o detalhe completo de uma vaga sugerida (leitura). */
@@ -77,8 +100,9 @@ export function SuggestionDetailDrawer({
   open, onOpenChange, row, functionName, event, approverNames,
   onValidate, onAdjust, onDelete, onClosed,
   list, onNavigate, onValidateAndNext, hasNextValidatable,
-  mostrarOndeEsta,
+  mostrarOndeEsta, papel, selos, historia, validadoPor, mostrarQuemValidou = false, rodape,
 }: SuggestionDetailDrawerProps) {
+  const conteudoRef = useRef<HTMLDivElement>(null);
   const days = row ? workDaysOf(row) : [];
   const decision = row ? describeLastDecision(row.lastDecision) : null;
   const vagaDecision = row ? describeVagaDecision(row.lastVagaDecision) : null;
@@ -86,9 +110,12 @@ export function SuggestionDetailDrawer({
   const mayValidate = !!row && !!onValidate && canValidate(row);
   const mayRequest = !!row && canRequestChange(row);
   const ondeEsta = mostrarOndeEsta && row ? ondeEstaAVaga(row) : null;
-  const showFooter = mayValidate || (mayRequest && (!!onAdjust || !!onDelete)) || !!ondeEsta;
-  const start = days[0] ?? "";
-  const end = days.length ? days[days.length - 1] : "";
+  const showFooter = !!rodape || mayValidate || (mayRequest && (!!onAdjust || !!onDelete)) || !!ondeEsta;
+  const notaDaValidacao = row?.validationNote?.trim() ?? "";
+  // Sem dias marcados, o período da escala (23/10): a vaga aprovada aberta
+  // pelas Decididas pode ter só início e fim — "Período não definido" mentia.
+  const start = days[0] ?? ymd(row?.scheduleStartDate);
+  const end = days.length ? days[days.length - 1] : ymd(row?.scheduleEndDate);
   const hasLeg = !!row && hasAnyLeg(row);
   const hasLogistics = hasLeg || !!row?.needsTicket || !!row?.needsAccommodation || !!row?.city?.trim();
 
@@ -105,6 +132,8 @@ export function SuggestionDetailDrawer({
       // Digitando (comentário, busca) as setas são do campo, não da fila.
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      // Diálogo por cima (decidir a vaga, na Aprovação): as setas são dele.
+      if (el && el !== document.body && conteudoRef.current && !conteudoRef.current.contains(el)) return;
       if (e.key === "ArrowLeft" && prevRow) { e.preventDefault(); onNavigate!(prevRow); }
       if (e.key === "ArrowRight" && nextRow) { e.preventDefault(); onNavigate!(nextRow); }
     };
@@ -120,6 +149,8 @@ export function SuggestionDetailDrawer({
           chips de logística e os dias de trabalho quebravam em duas linhas.
           Com 720px cabem numa linha só, e sobra menos rolagem para conferir. */}
       <DialogContent
+        ref={conteudoRef}
+        data-testid="detalhe-da-vaga"
         className="!max-w-[720px] w-[95vw] max-h-[88vh] rounded-xl !flex !flex-col p-0 gap-0 overflow-hidden focus:outline-none"
         // Foco inicial no próprio diálogo (07/10): ia para o "‹", que abria o
         // tooltip "Vaga anterior (←)" por cima do título ao abrir — e o
@@ -159,15 +190,17 @@ export function SuggestionDetailDrawer({
                 {/* Sem `event` (Decididas, Histórico) o nome vem da própria linha — era "Evento" seco. */}
                 <span>{event?.name ?? row.eventName ?? "Evento"}</span>
                 <span aria-hidden="true">·</span>
-                {row.canEdit
+                {papel ?? (row.canEdit
                   ? <span className="font-medium text-primary">você valida esta função</span>
-                  : <span>somente leitura</span>}
+                  : <span>somente leitura</span>)}
               </DialogDescription>
-              <div className="pt-1"><StatusCell row={row} approverNames={approverNames} /></div>
+              <div className="pt-1">{selos ?? <StatusCell row={row} approverNames={approverNames} />}</div>
             </DialogHeader>
 
             <div key={row.id} className="val-entra flex-1 min-h-0 overflow-y-auto bg-surface-muted/60">
               <div className="space-y-3 px-4 py-4 sm:px-5">
+                {historia}
+
                 {/* Decisão do aprovador (a vaga voltou) */}
                 {row.lastDecision && decision && (
                   <Destaque id="det-decisao" tom={DECISION_TONE_CLASS[decision.tone]} icon={Undo2}
@@ -188,9 +221,15 @@ export function SuggestionDetailDrawer({
 
                 {/* Observação de quem validou (dono, 24/09) — só enquanto a vaga
                     está validada: ao voltar para validação o servidor a zera. */}
-                {row.status === SUGESTAO_STATUS.VALIDADA && (
-                  <ValidationNoteBlock id="det-obs-validacao" note={row.validationNote} at={row.validatedAt} />
-                )}
+                {row.status === SUGESTAO_STATUS.VALIDADA && (notaDaValidacao ? (
+                  <ValidationNoteBlock id="det-obs-validacao" note={row.validationNote} byName={validadoPor} at={row.validatedAt} />
+                ) : mostrarQuemValidou && (
+                  <Destaque id="det-validada" tom="border-info/30 bg-info-soft text-info" icon={CheckCheck}
+                    title="Validada pela área"
+                    meta={<>{validadoPor ?? "Área responsável"}{row.validatedAt ? <> · {fmtDateTime(row.validatedAt)}</> : null}</>}>
+                    <span className="italic text-slate-600">Sem observação da validação.</span>
+                  </Destaque>
+                ))}
 
                 {/* Pedido pendente */}
                 {pending && (
@@ -223,7 +262,7 @@ export function SuggestionDetailDrawer({
                         {days.map((d) => <DayChip key={d} v={d} />)}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground">Nenhum dia marcado.</p>
+                      <p className="text-xs text-muted-foreground">{start ? "Nenhum dia marcado — vale o período acima." : "Nenhum dia marcado."}</p>
                     )}
                   </div>
                 </Card>
@@ -266,7 +305,8 @@ export function SuggestionDetailDrawer({
 
             {showFooter && (
               <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-card px-4 py-3 sm:px-5">
-                {ondeEsta && (
+                {rodape}
+                {!rodape && ondeEsta && (
                   <Link href={ondeEsta.href} className="val-alvo mr-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-primary transition-colors hover:border-primary/30 hover:bg-brand-soft">
                     <ExternalLink className="h-4 w-4" aria-hidden="true" /> {ondeEsta.label}
                   </Link>
@@ -274,19 +314,19 @@ export function SuggestionDetailDrawer({
                 {/* Pedir exclusão é o caminho mais raro: fica à esquerda, em
                     texto, longe do "Validar" (07/10 — era um contorno vermelho
                     colado ao botão verde). */}
-                {mayRequest && onDelete && (
+                {!rodape && mayRequest && onDelete && (
                   <Button type="button" variant="ghost" size="sm" className={cn("val-alvo h-9 rounded-lg px-2.5 text-danger hover:bg-danger-soft hover:text-danger", !ondeEsta && "sm:mr-auto")} onClick={() => onDelete(row)}>
                     <Trash2 className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir exclusão
                   </Button>
                 )}
-                {mayRequest && onAdjust && (
+                {!rodape && mayRequest && onAdjust && (
                   <Button type="button" variant="outline" size="sm" className="val-alvo h-9 rounded-lg" onClick={() => onAdjust(row)}>
                     <PencilLine className="w-4 h-4 mr-1.5" aria-hidden="true" /> Pedir ajuste
                   </Button>
                 )}
                 {/* Encadeia a fila: valida e já abre a próxima pendente, sem
                     passar pela tabela. Só aparece quando existe próxima. */}
-                {mayValidate && onValidateAndNext && hasNextValidatable && (
+                {!rodape && mayValidate && onValidateAndNext && hasNextValidatable && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -302,7 +342,7 @@ export function SuggestionDetailDrawer({
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {mayValidate && (
+                {!rodape && mayValidate && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button type="button" size="sm" className="val-alvo h-9 rounded-lg bg-success px-3.5 font-semibold text-white shadow-1 hover:bg-success/90 max-sm:w-full" onClick={() => onValidate!(row)}>

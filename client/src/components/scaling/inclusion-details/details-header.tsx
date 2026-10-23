@@ -16,8 +16,6 @@ import type { TeamInclusion } from "@shared/schema";
 import { DialogTitle } from "@/components/ui/dialog";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { formatDateRange, formatDiarias } from "@/lib/utils";
-import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
-import { StatusPorChaveBadge } from "@/components/common/status-badge";
 import { getStatusBadge } from "../scaling-table";
 
 export function DetailsHeader({ inclusion, nome, contexto, navIndex, navTotal, hasPrev, hasNext, onNavigate }: {
@@ -42,10 +40,7 @@ export function DetailsHeader({ inclusion, nome, contexto, navIndex, navTotal, h
         <span className="font-mono text-xs text-muted-foreground tabular-nums shrink-0" data-testid="text-modal-id">
           #{inclusion?.inclusionNumber || "—"}
         </span>
-        {/* Vaga em Validação de Escala (23/10, aberta pela Aprovação): a pílula da
-            Escalação dizia "Salvo" para uma vaga validada; aqui vai a situação
-            da validação ("Validada pela área — aguardando aprovação"). */}
-        {inclusion && (isSuggestionInclusion(inclusion) ? <StatusPorChaveBadge status={inclusion.status} size="sm" dot /> : getStatusBadge(inclusion, "sm"))}
+        {inclusion && getStatusBadge(inclusion, "sm")}
         <DialogTitle className="order-last basis-full min-w-0 text-lg font-semibold leading-tight tracking-[-0.01em] text-foreground m-0 p-0 break-words sm:order-none sm:basis-0 sm:flex-1 sm:truncate">
           {nome}
         </DialogTitle>

@@ -9,9 +9,10 @@
  * e vira cartões abaixo de 1280px pelo CSS (`.apr-tabela`) — era uma tabela
  * de 860px que rolava a partir de 768 e uma segunda lista para o celular.
  *
- * 23/10: o "vaga #N" do pedido sobre vaga que existe (ajuste, exclusão) é um
- * botão que abre o modal da vaga da Escalação (`onAbrirVaga`). A linha segue
- * abrindo o PEDIDO — é nele que se decide.
+ * 23/10: o "vaga #N" do pedido sobre vaga que ainda está na Validação de
+ * escala (ajuste, exclusão) é um botão que abre o detalhe da vaga
+ * (`onAbrirVaga` + `podeAbrirVaga`). A linha segue abrindo o PEDIDO — é nele
+ * que se decide.
  */
 import type { MouseEvent } from "react";
 import { CheckCircle2, ChevronRight, PencilLine, XCircle } from "lucide-react";
@@ -36,8 +37,10 @@ interface RequestQueueProps {
   onReajustar?: (item: ChangeRequestItem) => void;
   onNegar?: (item: ChangeRequestItem) => void;
   busy?: boolean;
-  /** Abre o modal da vaga do pedido (só pedidos sobre vaga existente — ver `temVagaParaAbrir`). */
+  /** Abre o detalhe da vaga do pedido (só pedidos sobre vaga existente — ver `temVagaParaAbrir`). */
   onAbrirVaga?: (item: ChangeRequestItem) => void;
+  /** A tela tem a vaga deste pedido para mostrar? Sem resposta, o "vaga #N" fica texto. */
+  podeAbrirVaga?: (item: ChangeRequestItem) => boolean;
 }
 
 /** O pedido age sobre uma vaga que existe (ajuste/exclusão)? Inclusão pede vaga nova. */
@@ -117,7 +120,7 @@ export function MudancasDoPedido({ r, max = MAX_MUDANCAS }: { r: ChangeRequestIt
   );
 }
 
-export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById, onApprove, onReajustar, onNegar, busy, onAbrirVaga }: RequestQueueProps) {
+export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById, onApprove, onReajustar, onNegar, busy, onAbrirVaga, podeAbrirVaga }: RequestQueueProps) {
   const canAct = !!(onApprove && onReajustar && onNegar);
   return (
     <div className="apr-tabela xl:rounded-xl xl:border xl:border-border xl:bg-card xl:shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]">
@@ -175,12 +178,12 @@ export function RequestQueue({ items, onOpen, showEvent = true, eventPeriodById,
                       {nome}
                     </button>
                     <span className="block break-words text-2xs leading-4 text-muted-foreground">
-                      {onAbrirVaga && temVagaParaAbrir(r) ? (
+                      {onAbrirVaga && temVagaParaAbrir(r) && (podeAbrirVaga?.(r) ?? true) ? (
                         <button
                           type="button"
                           onClick={() => onAbrirVaga(r)}
                           className="rounded-sm font-medium tabular-nums text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={`Abrir a ${targetLabel(r)} no modal da escalação`}
+                          aria-label={`Abrir os detalhes da ${targetLabel(r)}`}
                           title="Abrir a vaga"
                           data-testid={`pedido-abrir-vaga-${r.id}`}
                         >

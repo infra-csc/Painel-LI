@@ -12,9 +12,9 @@
  * 07/10 (redesenho da Validação): pílulas do StatusBadge único, cabeçalho em
  * caixa de frase, cartões no celular, esqueleto e erro com "Tentar de novo".
  *
- * 23/10: na Aprovação (`onAbrirVaga`), a vaga abre o modal da Escalação no
- * lugar do detalhe da Validação — a linha inteira abre, e ‹ › percorre as
- * decididas da lista. A Validação continua com o detalhe dela.
+ * 23/10: na Aprovação (`onAbrirVaga`), a linha inteira abre a vaga no detalhe
+ * da Aprovação (o mesmo desenho deste, com "como foi decidida" no topo e ‹ ›
+ * pelas decididas da lista). A Validação continua com o detalhe dela.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,10 +34,10 @@ import { periodLabel } from "./suggestions-list";
 import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
 import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type SuggestionRow } from "./types";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
-import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "@/components/scaling-approval/vaga-modal/linha-que-abre";
+import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "@/components/scaling-approval/detalhe-da-vaga/linha-que-abre";
 
 /** Como a vaga foi decidida — o servidor lê do log mais recente que decide a vaga (11/09). */
-interface DecisaoDaVaga {
+export interface DecisaoDaVaga {
   action: string;
   resumo: string;
   comment: string | null;
@@ -46,6 +46,8 @@ interface DecisaoDaVaga {
 }
 /** Linha do event-view (vaga + evento anexado + pedidos da vaga + decisão). */
 type EventViewRow = SuggestionRow & { requests?: { id: string }[]; decisao?: DecisaoDaVaga | null };
+/** Vaga das Decididas como a Aprovação a recebe ao abrir: a linha + aprovada/negada. */
+export type VagaDecidida = EventViewRow & { decididaComo: "aprovada" | "negada" };
 
 /** O que a barra de filtros da página aplica aqui (busca, função, área, "minhas funções"). */
 export interface FiltroDasDecididas {
@@ -56,7 +58,7 @@ export interface FiltroDasDecididas {
 }
 
 /** Rótulo curto do caminho da decisão, pelo log (o "resumo" completo vai no título). */
-const CAMINHO_POR_ACAO: Record<string, string> = {
+export const CAMINHO_POR_ACAO: Record<string, string> = {
   suggestion_approved: "aprovada pelo aprovador após a validação da área",
   suggestion_rejected: "reprovada pelo aprovador",
   suggestion_returned: "devolvida pelo aprovador para a área",
@@ -74,6 +76,13 @@ interface EventViewResponse {
 
 const MAX_LINHAS = 100;
 
+/** A pílula da decisão — a mesma na tabela, no cartão e no detalhe da Aprovação. */
+export function PilulaDaDecisao({ decisao }: { decisao: "aprovada" | "negada" }) {
+  return decisao === "aprovada"
+    ? <StatusBadge tone="success" icon={CheckCircle2}>Aprovada — virou Inclusão</StatusBadge>
+    : <StatusBadge tone="danger" icon={XCircle}>Negada</StatusBadge>;
+}
+
 export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = false, onAbrirVaga }: {
   /** Evento filtrado na tela ("" = todos os eventos). */
   eventId: string;
@@ -82,10 +91,10 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
   /** Administrador (14/09): pode excluir da lista as vagas negadas, que não têm mais ação. */
   podeLimpar?: boolean;
   /**
-   * Aprovação (23/10): abre o modal da vaga da Escalação com a vaga e a lista
+   * Aprovação (23/10): abre o detalhe da Aprovação com a vaga e a lista
    * visível (para ‹ ›). Sem esta prop, abre o detalhe da Validação.
    */
-  onAbrirVaga?: (row: SuggestionRow, lista: SuggestionRow[]) => void;
+  onAbrirVaga?: (vaga: VagaDecidida, lista: VagaDecidida[]) => void;
 }) {
   const query = useQuery<EventViewResponse>({
     queryKey: [`${SUGGESTIONS_QUERY_KEY}/event-view`, eventId || "__todos__"],
@@ -157,8 +166,14 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
   const temFiltro = !!filtro && (filtro.busca.trim() !== "" || !!filtro.functionIds || !!filtro.soMinhas);
 
   const detailRow = rows.find((r) => r.row.id === detailId)?.row ?? null;
-  /** Abre a vaga: o modal da Escalação (Aprovação) ou o detalhe da Validação. */
-  const abrirVaga = (row: EventViewRow) => (onAbrirVaga ? onAbrirVaga(row, rows.map((r) => r.row)) : setDetailId(row.id));
+  /** Abre a vaga: o detalhe da Aprovação (`onAbrirVaga`) ou o da Validação. */
+  const comoDecidida = (r: { row: EventViewRow; decisao: "aprovada" | "negada" }): VagaDecidida => ({ ...r.row, decididaComo: r.decisao });
+  const abrirVaga = (row: EventViewRow) => {
+    if (!onAbrirVaga) { setDetailId(row.id); return; }
+    const lista = rows.map(comoDecidida);
+    const vaga = lista.find((v) => v.id === row.id);
+    if (vaga) onAbrirVaga(vaga, lista);
+  };
   /** Na Aprovação a linha inteira abre (fora dos botões), e Enter nela também. */
   const linha = (row: EventViewRow) => (onAbrirVaga
     ? { ...linhaQueAbre(() => abrirVaga(row), `Abrir a vaga #${row.inclusionNumber} — ${functionNameById.get(row.functionId) ?? "Sem função"}`), className: CLASSE_LINHA_QUE_ABRE }
@@ -214,10 +229,7 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
     );
   }
 
-  /** A pílula da decisão — a mesma na tabela e no cartão. */
-  const pilula = (decisao: "aprovada" | "negada") => decisao === "aprovada"
-    ? <StatusBadge tone="success" icon={CheckCircle2}>Aprovada — virou Inclusão</StatusBadge>
-    : <StatusBadge tone="danger" icon={XCircle}>Negada</StatusBadge>;
+  const pilula = (decisao: "aprovada" | "negada") => <PilulaDaDecisao decisao={decisao} />;
   /** Como e por quem (11/09): sem isto toda linha dizia a mesma coisa. */
   const comoEQuem = (row: EventViewRow) => row.decisao ? (
     <div className="mt-1.5 space-y-1 text-xs leading-snug text-slate-600" title={row.decisao.resumo || undefined}>

@@ -38,39 +38,6 @@ export interface InclusionDetailsDialogProps {
   onNavigate: (direction: -1 | 1) => void;
   onSave: (thenNext: boolean) => void;
   onConfirm: () => void;
-  /**
-   * Ações de quem abriu o modal por OUTRA tela, no rodapé à direita (23/10 —
-   * Aprovação de escala: Devolver / Reprovar / Aprovar da vaga aguardando).
-   * A Escalação não passa nada.
-   */
-  acoesDaVaga?: ReactNode;
-}
-
-/** O que o modal diz na vaga que ainda está na Validação de Escala (só leitura). */
-export const VAGA_EM_VALIDACAO_MSG =
-  "Esta vaga ainda está na Validação de Escala: escolher colaborador, confirmar e pedir ajuste só depois que ela for aprovada.";
-export const VAGA_NEGADA_MSG = "Esta vaga foi negada na Validação de Escala e não entra na escala — fica aqui só para consulta.";
-/** A frase certa para a situação da vaga em validação (negada não "vai ser aprovada"). */
-export const motivoDaVagaEmValidacao = (status: string | null | undefined): string =>
-  status === "sugestao_negada" ? VAGA_NEGADA_MSG : VAGA_EM_VALIDACAO_MSG;
-
-/**
- * Vaga em Validação de Escala (23/10): as regras de edição da Escalação não
- * valem — o servidor recusa PATCH, /confirm, /cancel e pedidos nela. As
- * permissões que os cartões leem viram "não", para nenhum controle prometer o
- * que a API vai negar. Ninguém ganha nem perde poder fora desse caso.
- */
-export function dadosSomenteLeitura(data: ScalingData): ScalingData {
-  const nao = () => false;
-  return {
-    ...data,
-    canManageFunction: nao,
-    canConfirmEscalation: nao,
-    canEditCollaborator: nao,
-    canScaleFunction: nao,
-    canApproveProductionFor: nao,
-    canApproveProduction: false,
-  };
 }
 
 // Decisão do usuário (17/08): o Tipo 1 × Tipo 2 do percurseiro é definido no

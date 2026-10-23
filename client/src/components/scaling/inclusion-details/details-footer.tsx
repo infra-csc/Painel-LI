@@ -2,8 +2,7 @@
  * Rodapé do modal da vaga (25/09 — extraído do dialog): motivo do bloqueio ou
  * aviso, Reativar (admin), Pedir ajuste, Fechar, Salvar e Confirmar.
  */
-import type { ReactNode } from "react";
-import { AlertCircle, Check, Info, Loader2, PencilLine, RotateCcw, Save } from "lucide-react";
+import { AlertCircle, Check, Loader2, PencilLine, RotateCcw, Save } from "lucide-react";
 import type { TeamInclusion } from "@shared/schema";
 import { hasRoleIn } from "@shared/roles";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { isReadOnly } from "@/lib/interactions";
 import { isEscalated, type ModalData } from "../scaling-utils";
 import { getSaveBlockReason, getConfirmBlockReason, getScalingWarning } from "../scaling-validation";
-import { motivoDaVagaEmValidacao } from "./details-shared";
 import type { ScalingData, ScalingUser } from "../use-scaling-data";
 import type { ScalingMutations } from "../use-scaling-mutations";
 
@@ -29,17 +27,9 @@ export interface DetailsFooterProps {
   onClose: () => void;
   onSave: (thenNext: boolean) => void;
   onConfirm: () => void;
-  /**
-   * Vaga em Validação de Escala (23/10): sem Salvar, Confirmar, Pedir ajuste e
-   * Reativar — o servidor recusa todos nela. A faixa diz por quê, em tom de
-   * informação (não é um erro de quem olha).
-   */
-  somenteLeitura?: boolean;
-  /** Ações de outra tela (Aprovação: decidir a vaga), à direita do Fechar. */
-  acoesExtras?: ReactNode;
 }
 
-export function DetailsFooter({ inclusion, modalData, data, mutations, user, eventLocked, requestLockReason, mostrarPedirAjuste, onPedirAjuste, onReativar, onClose, onSave, onConfirm, somenteLeitura = false, acoesExtras }: DetailsFooterProps) {
+export function DetailsFooter({ inclusion, modalData, data, mutations, user, eventLocked, requestLockReason, mostrarPedirAjuste, onPedirAjuste, onReativar, onClose, onSave, onConfirm }: DetailsFooterProps) {
   const isSaving = mutations.saveInclusion.isPending;
   const readOnly = isReadOnly(inclusion, user);
   const escalated = isEscalated(inclusion);
@@ -48,16 +38,15 @@ export function DetailsFooter({ inclusion, modalData, data, mutations, user, eve
   // salvar por baixo faria o aprovador decidir sobre outra vaga.
   const saveReason = isSaving ? null : (requestLockReason ?? getSaveBlockReason(inclusion, modalData, data));
   const confirmReason = isSaving ? null : (requestLockReason ?? getConfirmBlockReason(inclusion, modalData, data));
-  const showSave = !somenteLeitura && !readOnly && (data.canEditCollaborator(inclusion) || !escalated);
-  const showConfirm = !somenteLeitura && !readOnly && !escalated;
+  const showSave = !readOnly && (data.canEditCollaborator(inclusion) || !escalated);
+  const showConfirm = !readOnly && !escalated;
   const inlineReason = showConfirm ? confirmReason : (showSave ? saveReason : null);
   // Aviso não bloqueante (ex.: cenotécnica sem tipo de freela): só
   // aparece quando não há bloqueio, para não competir com ele.
-  const warning = inlineReason || somenteLeitura ? null : getScalingWarning(inclusion, data);
-  const mensagem = somenteLeitura ? motivoDaVagaEmValidacao(inclusion.status) : inlineReason ?? warning;
-  const podeReativar = !somenteLeitura && inclusion.status === "cancelado" && !eventLocked && hasRoleIn(user?.role, ["admin"]);
-  const pedirAjuste = !somenteLeitura && mostrarPedirAjuste;
-  const soFechar = !showSave && !showConfirm && !pedirAjuste && !podeReativar && !acoesExtras;
+  const warning = inlineReason ? null : getScalingWarning(inclusion, data);
+  const mensagem = inlineReason ?? warning;
+  const podeReativar = inclusion.status === "cancelado" && !eventLocked && hasRoleIn(user?.role, ["admin"]);
+  const soFechar = !showSave && !showConfirm && !mostrarPedirAjuste && !podeReativar;
   /*
    * 07/10 — duas faixas:
    *  1. o MOTIVO (o que trava ou o aviso), em linha inteira, colado aos botões
@@ -71,13 +60,11 @@ export function DetailsFooter({ inclusion, modalData, data, mutations, user, eve
     <div className="shrink-0 border-t border-border bg-card">
       {mensagem && (
         <p
-          className={`flex items-start gap-2 border-b px-4 py-2 text-xs leading-snug sm:px-6 ${somenteLeitura ? "border-info/20 bg-info-soft text-info" : inlineReason ? "border-warning/20 bg-warning-soft/70 text-warning" : "border-border bg-surface-muted text-slate-600"}`}
+          className={`flex items-start gap-2 border-b px-4 py-2 text-xs leading-snug sm:px-6 ${inlineReason ? "border-warning/20 bg-warning-soft/70 text-warning" : "border-border bg-surface-muted text-slate-600"}`}
           role="status"
-          data-testid={somenteLeitura ? "text-vaga-em-validacao" : inlineReason ? "text-confirm-block-reason" : "text-scaling-warning"}
+          data-testid={inlineReason ? "text-confirm-block-reason" : "text-scaling-warning"}
         >
-          {somenteLeitura
-            ? <Info className="mt-px w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            : <AlertCircle className={`mt-px w-3.5 h-3.5 shrink-0 ${inlineReason ? "" : "text-muted-foreground"}`} aria-hidden="true" />}
+          <AlertCircle className={`mt-px w-3.5 h-3.5 shrink-0 ${inlineReason ? "" : "text-muted-foreground"}`} aria-hidden="true" />
           <span className="min-w-0">{mensagem}</span>
         </p>
       )}
@@ -96,7 +83,7 @@ export function DetailsFooter({ inclusion, modalData, data, mutations, user, eve
         {/* Pedir ajuste no rodapé FIXO (dono, 14/09: "muitos não estão
             vendo porque tem que descer o scroll"). Mesmas condições do
             cartão do Resumo, que continua lá com a explicação. */}
-        {pedirAjuste && (
+        {mostrarPedirAjuste && (
           <Button
             type="button"
             variant="outline"
@@ -161,7 +148,6 @@ export function DetailsFooter({ inclusion, modalData, data, mutations, user, eve
             {confirmReason && <TooltipContent side="top" className="max-w-[320px] text-xs">{confirmReason}</TooltipContent>}
           </Tooltip>
         )}
-        {acoesExtras}
       </div>
     </div>
   );

@@ -7,8 +7,10 @@
  * linha da Validação e vira cartões abaixo de 1280px (`.apr-tabela`), e o lote
  * foi para a barra escura flutuante — o mesmo desenho das vagas aguardando.
  *
- * 23/10: clicar na linha (ou Enter nela) abre o modal da vaga da Escalação,
- * com ‹ › por esta lista — só para ver; a decisão continua nos botões da linha.
+ * 23/10: clicar na linha (ou Enter nela) abre o detalhe da vaga no estilo da
+ * Validação de escala, com ‹ › por esta lista. No rodapé, os mesmos Reprovar /
+ * Aprovar direto da linha (mesmo diálogo); decidida, o detalhe segue para a
+ * próxima. Vaga de outro aprovador abre sem botões, dizendo quem decide.
  */
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,9 +31,9 @@ import { isStaleDecisionError } from "./use-decisions";
 import { APROVAR_DA_LINHA, ICONE_DA_LINHA, SOBRE_ESCURO, TH } from "./tokens";
 import type { StalledRow as SuggestionRow } from "./types";
 import { LinhaDoEvento } from "./linha-do-evento";
-import { comoVaga, itensDasSugestoes, useVagaNaAprovacao } from "./vaga-modal/use-vaga-na-aprovacao";
-import { ModalDaVagaNaAprovacao } from "./vaga-modal/modal-da-vaga";
-import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "./vaga-modal/linha-que-abre";
+import { useDetalheDaVaga } from "./detalhe-da-vaga/use-detalhe-da-vaga";
+import { DecisaoNoDetalhe, DetalheDaVagaNaAprovacao, QuemDecideNoDetalhe } from "./detalhe-da-vaga/detalhe-da-vaga";
+import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "./detalhe-da-vaga/linha-que-abre";
 
 interface StalledSuggestionsProps {
   rows: SuggestionRow[];
@@ -80,8 +82,9 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
   const [confirm, setConfirm] = useState<{ rows: SuggestionRow[]; kind: "approve" | "reject" } | null>(null);
   const [comment, setComment] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  /** Modal da vaga (23/10): navega por ESTA lista. */
-  const vm = useVagaNaAprovacao(useMemo(() => itensDasSugestoes(rows), [rows]));
+  /** Detalhe da vaga (23/10): navega por ESTA lista. */
+  const detalhe = useDetalheDaVaga(rows);
+  const idsDaLista = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
   const selecionaveis = useMemo(() => rows.filter((r) => canActOn(r)), [rows, canActOn]);
   const selecionadas = useMemo(() => selecionaveis.filter((r) => selected.has(r.id)), [selecionaveis, selected]);
   const todasMarcadas = selecionaveis.length > 0 && selecionadas.length === selecionaveis.length;
@@ -98,6 +101,7 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
   const doConfirm = async () => {
     if (!confirm) return;
     const texto = comment.trim() || undefined;
+    const ids = confirm.rows.map((r) => r.id);
     try {
       if (confirm.rows.length === 1 || !onDecideMany) {
         for (const row of confirm.rows) await onDecide(row, confirm.kind, texto);
@@ -106,8 +110,9 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
       }
       setSelected(new Set());
       setConfirm(null);
+      detalhe.depoisDeDecidir(ids);
     } catch (err) {
-      if (isStaleDecisionError(err)) { setSelected(new Set()); setConfirm(null); }
+      if (isStaleDecisionError(err)) { setSelected(new Set()); setConfirm(null); detalhe.depoisDeDecidir(ids); }
     }
   };
   const unica = confirm && confirm.rows.length === 1 ? confirm.rows[0] : null;
@@ -218,8 +223,8 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
               const obs = row.observations?.trim();
               return (
                 <tr key={row.id} data-testid={`parada-row-${row.inclusionNumber}`} data-selecionada={marcada || undefined}
-                  {...(vm.podeVer ? linhaQueAbre(() => { void vm.abrir({ id: row.id, vaga: comoVaga(row) }); }, `Abrir a vaga #${row.inclusionNumber} — ${fnName}`) : {})}
-                  className={cn("apr-linha border-b border-border align-top last:border-b-0", vm.podeVer && CLASSE_LINHA_QUE_ABRE, marcada ? "bg-brand-soft/50" : "bg-card hover:bg-surface-muted/60")}>
+                  {...linhaQueAbre(() => detalhe.abrir(row), `Abrir a vaga #${row.inclusionNumber} — ${fnName}`)}
+                  className={cn("apr-linha border-b border-border align-top last:border-b-0", CLASSE_LINHA_QUE_ABRE, marcada ? "bg-brand-soft/50" : "bg-card hover:bg-surface-muted/60")}>
                   {onDecideMany && (
                     <td data-col="sel" className="w-11 py-3 pl-3 pr-1">
                       <span className="inline-flex h-5 items-center">
@@ -357,7 +362,25 @@ export function StalledSuggestions({ rows, functionNameById, canActOn, approverN
         </div>
       </ConfirmDialog>
 
-      <ModalDaVagaNaAprovacao vm={vm} />
+      {/* Detalhe da vaga (23/10). Os botões abrem o MESMO diálogo da linha. */}
+      <DetalheDaVagaNaAprovacao
+        detalhe={detalhe}
+        functionNameById={functionNameById}
+        approverNamesFor={approverNamesFor}
+        acoes={(row) => {
+          if (!idsDaLista.has(row.id)) return null;
+          if (!canActOn(row)) return <QuemDecideNoDetalhe aprovadores={approverNamesFor?.(row) ?? []} />;
+          return (
+            <DecisaoNoDetalhe
+              numero={row.inclusionNumber}
+              busy={busy}
+              onReprovar={() => openConfirm(row, "reject")}
+              onAprovar={() => openConfirm(row, "approve")}
+              rotuloAprovar="Aprovar direto"
+            />
+          );
+        }}
+      />
     </>
   );
 }

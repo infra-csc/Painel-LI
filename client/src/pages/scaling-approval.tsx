@@ -15,9 +15,10 @@
  * 1280px, lote em barra escura flutuante e estados (carregando, vazio, erro,
  * sem acesso) no desenho do módulo. Lógica intacta.
  *
- * 23/10 (dono: "tem que aparecer o modal da escalação aqui"): a vaga abre o
- * modal da Escalação nas abas Aguardando, Paradas e Decididas (a linha) e na
- * Fila (o "vaga #N" do pedido). Ver `components/scaling-approval/vaga-modal`.
+ * 23/10: a vaga abre o detalhe no estilo da Validação de escala (dono: "teria
+ * que ser no estilo do segundo, não do primeiro" — o primeiro era o modal da
+ * Escalação) nas abas Aguardando, Paradas e Decididas (a linha) e na Fila (o
+ * "vaga #N" do pedido). Ver `components/scaling-approval/detalhe-da-vaga`.
  */
 import { useMemo, useState } from "react";
 import { CheckCircle2, CloudOff, Inbox, SearchX, Stamp } from "lucide-react";
@@ -48,8 +49,11 @@ import { useApprovalVagas } from "@/components/scaling-approval/page/use-approva
 import { ApprovalHeader, ApprovalSummary, FilaToolbar } from "@/components/scaling-approval/page/approval-filter-bar";
 import { ApprovalTabBar, MinhasFuncoesToggle, temFiltroMinhasFuncoes } from "@/components/scaling-approval/page/approval-tab-bar";
 import { AcessoNegadoAprovacao, EsqueletoDaLista } from "@/components/scaling-approval/page/estados-da-aprovacao";
-import { comoVaga, itensDasSugestoes, useVagaNaAprovacao, type ItemDaVaga } from "@/components/scaling-approval/vaga-modal/use-vaga-na-aprovacao";
-import { ModalDaVagaNaAprovacao } from "@/components/scaling-approval/vaga-modal/modal-da-vaga";
+import { useDetalheDaVaga } from "@/components/scaling-approval/detalhe-da-vaga/use-detalhe-da-vaga";
+import { DetalheDaVagaNaAprovacao } from "@/components/scaling-approval/detalhe-da-vaga/detalhe-da-vaga";
+import { HistoriaDaDecidida, SelosDaDecidida } from "@/components/scaling-approval/detalhe-da-vaga/da-decidida";
+import type { VagaDecidida } from "@/components/scaling-validation/decided-panel";
+import type { StalledRow } from "@/components/scaling-approval/types";
 
 export default function ScalingApprovalPage() {
   usePageTitle("Aprovação de escala");
@@ -81,23 +85,28 @@ export default function ScalingApprovalPage() {
   const filtered = useMemo(() => filtrarPedidos(items, f), [items, f.typeFilter, f.search, f.lateOnly, f.mineOnly]); // eslint-disable-line react-hooks/exhaustive-deps
   const counts = useMemo(() => contarPendentes(pendingItems), [pendingItems]);
 
-  // ── Modal da vaga (23/10) ──
-  // Fila: as vagas dos pedidos visíveis, sem repetir (dois pedidos da mesma
-  // vaga são uma parada só no ‹ ›). Só o id — a vaga é buscada ao abrir.
-  const itensDaFila = useMemo<ItemDaVaga[]>(() => {
+  // ── Detalhe da vaga (23/10) ──
+  // Fila: as vagas dos pedidos visíveis que ainda estão na Validação de escala
+  // (as que a tela já carregou), sem repetir — dois pedidos da mesma vaga são
+  // uma parada só no ‹ ›. Vaga já escalada não está nessa lista: o "vaga #N"
+  // dela continua texto.
+  const sugestaoPorId = useMemo(() => new Map((suggestionsQuery.data ?? []).map((r) => [r.id, r])), [suggestionsQuery.data]);
+  const vagasDaFila = useMemo<StalledRow[]>(() => {
     const vistos = new Set<string>();
-    const itens: ItemDaVaga[] = [];
+    const vagas: StalledRow[] = [];
     for (const r of filtered) {
-      if (!temVagaParaAbrir(r) || vistos.has(r.teamInclusionId)) continue;
-      vistos.add(r.teamInclusionId);
-      itens.push({ id: r.teamInclusionId });
+      const vaga = temVagaParaAbrir(r) ? sugestaoPorId.get(r.teamInclusionId) : undefined;
+      if (!vaga || vistos.has(vaga.id)) continue;
+      vistos.add(vaga.id);
+      vagas.push(vaga);
     }
-    return itens;
-  }, [filtered]);
-  const vagaDaFila = useVagaNaAprovacao(itensDaFila);
+    return vagas;
+  }, [filtered, sugestaoPorId]);
+  const detalheDaFila = useDetalheDaVaga(vagasDaFila);
   // Decididas: a lista visível no momento do clique (o histórico não muda por aqui).
-  const [itensDasDecididas, setItensDasDecididas] = useState<ItemDaVaga[]>([]);
-  const vagaDasDecididas = useVagaNaAprovacao(itensDasDecididas);
+  const [vagasDecididas, setVagasDecididas] = useState<VagaDecidida[]>([]);
+  const detalheDasDecididas = useDetalheDaVaga(vagasDecididas);
+  const aprovadoresDa = (row: { functionId: string }) => approverNamesByFunctionId.get(row.functionId) ?? [];
 
   // ── Decisões ──
   /** Próximo pendente da fila (na ordem visível), fora o que acabou de ser decidido. */
@@ -279,7 +288,11 @@ export default function ScalingApprovalPage() {
               onApprove={(r: ChangeRequestItem) => openDetailWithMode(r, "approve")}
               onReajustar={(r: ChangeRequestItem) => openDetailWithMode(r, "reajustar")}
               onNegar={(r: ChangeRequestItem) => openDetailWithMode(r, "negar")}
-              onAbrirVaga={(r: ChangeRequestItem) => { if (temVagaParaAbrir(r)) void vagaDaFila.abrir({ id: r.teamInclusionId }); }}
+              podeAbrirVaga={(r: ChangeRequestItem) => temVagaParaAbrir(r) && sugestaoPorId.has(r.teamInclusionId)}
+              onAbrirVaga={(r: ChangeRequestItem) => {
+                const vaga = temVagaParaAbrir(r) ? sugestaoPorId.get(r.teamInclusionId) : undefined;
+                if (vaga) detalheDaFila.abrir(vaga);
+              }}
             />
           )}
         </TabsContent>
@@ -321,9 +334,9 @@ export default function ScalingApprovalPage() {
             eventId={eventId}
             functionNameById={functionNameById}
             podeLimpar={isAdmin}
-            onAbrirVaga={(row, lista) => {
-              setItensDasDecididas(itensDasSugestoes(lista));
-              void vagaDasDecididas.abrir({ id: row.id, vaga: comoVaga(row) });
+            onAbrirVaga={(vaga, lista) => {
+              setVagasDecididas(lista);
+              detalheDasDecididas.abrir(vaga);
             }}
           />
         </TabsContent>
@@ -363,9 +376,18 @@ export default function ScalingApprovalPage() {
         onSubmit={submitReview}
       />
 
-      {/* Modal da vaga da Escalação (23/10) — Fila e Decididas; as abas de vagas montam o delas. */}
-      <ModalDaVagaNaAprovacao vm={vagaDaFila} />
-      <ModalDaVagaNaAprovacao vm={vagaDasDecididas} />
+      {/* Detalhe da vaga (23/10) — Fila e Decididas, só leitura (na Fila se decide
+          o PEDIDO; nas Decididas não há mais o que decidir). As abas de vagas
+          montam o delas, com a decisão no rodapé. */}
+      <DetalheDaVagaNaAprovacao detalhe={detalheDaFila} functionNameById={functionNameById} approverNamesFor={aprovadoresDa} userNameById={userNameById} />
+      <DetalheDaVagaNaAprovacao
+        detalhe={detalheDasDecididas}
+        functionNameById={functionNameById}
+        approverNamesFor={aprovadoresDa}
+        userNameById={userNameById}
+        selos={(vaga) => <SelosDaDecidida vaga={vaga} />}
+        historia={(vaga) => <HistoriaDaDecidida vaga={vaga} />}
+      />
     </PageContainer>
   );
 }

@@ -12,10 +12,11 @@
  * (CSS `.apr-tabela`). O lote saiu de um cartão branco no topo da lista para
  * a barra escura flutuante da Validação e da Escalação.
  *
- * 23/10 (dono: "tem que aparecer o modal da escalação aqui"): clicar na linha
- * (ou Enter nela) abre o modal da vaga da Escalação, com ‹ › por esta lista. No
- * rodapé dele vão os mesmos Devolver / Reprovar / Aprovar da linha, com os
- * mesmos diálogos; decidida, o modal segue para a próxima vaga ou fecha.
+ * 23/10: clicar na linha (ou Enter nela) abre o detalhe da vaga no estilo da
+ * Validação de escala (dono: "teria que ser no estilo do segundo"), com ‹ ›
+ * por esta lista. No rodapé vão os mesmos Reprovar / Devolver / Aprovar da
+ * linha, com os mesmos diálogos; decidida, o detalhe segue para a próxima
+ * vaga ou fecha. Vaga de outro aprovador abre sem botões, dizendo quem decide.
  */
 import { useMemo, useState } from "react";
 import { CheckCheck, CheckCircle2, Lock, MessageSquareText, Undo2, X, XCircle } from "lucide-react";
@@ -39,9 +40,9 @@ import { isStaleDecisionError } from "./use-decisions";
 import { APROVAR_DA_LINHA, ICONE_DA_LINHA, SOBRE_ESCURO, TH } from "./tokens";
 import type { StalledRow as SuggestionRow, VagaDecisionKind } from "./types";
 import { LinhaDoEvento } from "./linha-do-evento";
-import { comoVaga, itensDasSugestoes, useVagaNaAprovacao } from "./vaga-modal/use-vaga-na-aprovacao";
-import { DecisaoDaVagaNoModal, ModalDaVagaNaAprovacao, QuemDecideNoModal } from "./vaga-modal/modal-da-vaga";
-import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "./vaga-modal/linha-que-abre";
+import { useDetalheDaVaga } from "./detalhe-da-vaga/use-detalhe-da-vaga";
+import { DecisaoNoDetalhe, DetalheDaVagaNaAprovacao, QuemDecideNoDetalhe } from "./detalhe-da-vaga/detalhe-da-vaga";
+import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "./detalhe-da-vaga/linha-que-abre";
 
 interface AwaitingApprovalProps {
   rows: SuggestionRow[];
@@ -174,9 +175,8 @@ export function AwaitingApproval({
   /** Uma vaga (botão da linha) ou o lote selecionado (barra) — um comentário para todas. */
   const [decision, setDecision] = useState<{ kind: VagaDecisionKind; rows: SuggestionRow[] } | null>(null);
   const [comment, setComment] = useState("");
-  /** Modal da vaga (23/10): navega por ESTA lista, com os filtros da aba. */
-  const itensDoModal = useMemo(() => itensDasSugestoes(rows), [rows]);
-  const vm = useVagaNaAprovacao(itensDoModal);
+  /** Detalhe da vaga (23/10): navega por ESTA lista, com os filtros da aba. */
+  const detalhe = useDetalheDaVaga(rows);
 
   const selectableIds = useMemo(() => new Set(rows.filter((r) => r.canDecide === true).map((r) => r.id)), [rows]);
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
@@ -213,10 +213,10 @@ export function AwaitingApproval({
       else await onDecideMany(decision.rows, decision.kind, text);
       setDecision(null);
       setComment("");
-      vm.depoisDeDecidir(ids);
+      detalhe.depoisDeDecidir(ids);
     } catch (err) {
-      // A vaga mudou por baixo (404/409) e saiu da lista: o modal também segue.
-      if (isStaleDecisionError(err)) { setDecision(null); setComment(""); vm.depoisDeDecidir(ids); }
+      // A vaga mudou por baixo (404/409) e saiu da lista: o detalhe também segue.
+      if (isStaleDecisionError(err)) { setDecision(null); setComment(""); detalhe.depoisDeDecidir(ids); }
     }
   };
   /** Aprovar (lote ou uma vaga): mesma regra — fecha só quando o servidor responde. */
@@ -226,9 +226,9 @@ export function AwaitingApproval({
     try {
       await onApprove(confirmRows);
       setConfirmRows(null);
-      vm.depoisDeDecidir(ids);
+      detalhe.depoisDeDecidir(ids);
     } catch (err) {
-      if (isStaleDecisionError(err)) { setConfirmRows(null); vm.depoisDeDecidir(ids); }
+      if (isStaleDecisionError(err)) { setConfirmRows(null); detalhe.depoisDeDecidir(ids); }
     }
   };
 
@@ -358,8 +358,8 @@ export function AwaitingApproval({
               const obs = row.observations?.trim();
               return (
                 <tr key={row.id} data-testid={`awaiting-row-${row.inclusionNumber}`} data-selecionada={isSelected || undefined}
-                  {...(vm.podeVer ? linhaQueAbre(() => { void vm.abrir({ id: row.id, vaga: comoVaga(row) }); }, `Abrir a vaga #${row.inclusionNumber} — ${nome}`) : {})}
-                  className={cn("apr-linha border-b border-border align-top last:border-b-0", vm.podeVer && CLASSE_LINHA_QUE_ABRE,
+                  {...linhaQueAbre(() => detalhe.abrir(row), `Abrir a vaga #${row.inclusionNumber} — ${nome}`)}
+                  className={cn("apr-linha border-b border-border align-top last:border-b-0", CLASSE_LINHA_QUE_ABRE,
                     isSelected ? "bg-brand-soft/50" : "bg-card hover:bg-surface-muted/60")}>
                   <td data-col="sel" className="w-11 py-3 pl-3 pr-1">
                     <span className="inline-flex h-5 items-center">
@@ -595,22 +595,22 @@ export function AwaitingApproval({
         </div>
       </ConfirmDialog>
 
-      {/* Modal da vaga (23/10). Os botões de decisão abrem os MESMOS diálogos acima. */}
-      <ModalDaVagaNaAprovacao
-        vm={vm}
-        acoes={(vaga) => {
-          const row = rowById.get(vaga.id);
-          if (!row) return null;
-          if (!selectableIds.has(row.id)) {
-            const aprovadores = approverNamesFor?.(row) ?? [];
-            return <QuemDecideNoModal texto={aprovadores.length ? `Quem decide esta vaga: ${aprovadores.join(", ")}.` : "Você não é aprovador desta função."} />;
-          }
+      {/* Detalhe da vaga (23/10). Os botões de decisão abrem os MESMOS diálogos acima. */}
+      <DetalheDaVagaNaAprovacao
+        detalhe={detalhe}
+        functionNameById={functionNameById}
+        approverNamesFor={approverNamesFor}
+        userNameById={userNameById}
+        acoes={(row) => {
+          // Saiu da lista (decidida por outra pessoa): só leitura, sem afirmar quem decide.
+          if (!rowById.has(row.id)) return null;
+          if (!selectableIds.has(row.id)) return <QuemDecideNoDetalhe aprovadores={approverNamesFor?.(row) ?? []} />;
           return (
-            <DecisaoDaVagaNoModal
+            <DecisaoNoDetalhe
               numero={row.inclusionNumber}
               busy={busy}
-              onDevolver={() => openDecision("devolver", row)}
               onReprovar={() => openDecision("reprovar", row)}
+              onDevolver={() => openDecision("devolver", row)}
               onAprovar={() => setConfirmRows([row])}
             />
           );

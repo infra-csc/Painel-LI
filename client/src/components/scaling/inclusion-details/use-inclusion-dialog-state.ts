@@ -8,19 +8,12 @@ import { useQuery } from "@tanstack/react-query";
 import { PAST_EVENT_BLOCK_MSG } from "@shared/event-window";
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
 import { isFinanceRole } from "@shared/roles";
-import { isSuggestionInclusion } from "@shared/scaling-validation-rules";
 import { pendingRequestLock, podePedirAjuste, useChangeWindow } from "../adjust-request-panel";
 import type { InclusionDetailsDialogProps } from "./details-shared";
-import { isTypingTarget, motivoDaVagaEmValidacao } from "./details-shared";
+import { isTypingTarget } from "./details-shared";
 
 export function useInclusionDialogState(props: InclusionDetailsDialogProps) {
   const { open, inclusion, initialTab, abrirEscolhaDeColaborador = false, data, details, user, navIndex, navTotal, onNavigate } = props;
-  /**
-   * Vaga ainda na Validação de Escala (23/10 — o modal abre também pela
-   * Aprovação): o servidor recusa PATCH/confirm/cancel/pedido da Escalação
-   * nela (400 MSG_VAGA_EM_VALIDACAO), então o modal só mostra.
-   */
-  const emValidacao = isSuggestionInclusion(inclusion);
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -101,10 +94,9 @@ export function useInclusionDialogState(props: InclusionDetailsDialogProps) {
   const eventLockReason = eventLocked ? PAST_EVENT_BLOCK_MSG : null;
   // Pedido de ajuste em análise: a escalação inteira fica travada até o
   // aprovador decidir (mesma consulta do painel "Precisa mudar algo?").
-  // Na vaga em validação o pedido é feito na tela de Validação, não aqui.
-  const changeWindow = useChangeWindow(inclusion?.id, open && !!inclusion?.id && !emValidacao);
-  const requestLockReason = emValidacao ? motivoDaVagaEmValidacao(inclusion?.status) : pendingRequestLock(changeWindow.data);
-  const mostrarPedirAjusteNoRodape = !emValidacao && podePedirAjuste(changeWindow.data);
+  const changeWindow = useChangeWindow(inclusion?.id, open && !!inclusion?.id);
+  const requestLockReason = pendingRequestLock(changeWindow.data);
+  const mostrarPedirAjusteNoRodape = podePedirAjuste(changeWindow.data);
   /** Um motivo só para os cartões internos: pedido em análise vence evento encerrado. */
   const actionLockReason = requestLockReason ?? eventLockReason;
 
@@ -122,7 +114,7 @@ export function useInclusionDialogState(props: InclusionDetailsDialogProps) {
     escolhendoColaborador, setEscolhendoColaborador, showReactivateConfirm, setShowReactivateConfirm,
     pedirAjusteAberto, setPedirAjusteAberto, contentRef,
     isPercursoInclusion, isCenoEmpreitaInclusion, systemSettings,
-    hasPrev, hasNext, eventLocked, requestLockReason, mostrarPedirAjusteNoRodape, actionLockReason, emValidacao,
+    hasPrev, hasNext, eventLocked, requestLockReason, mostrarPedirAjusteNoRodape, actionLockReason,
     getUserName, selectedTicket, accommodation,
   };
 }

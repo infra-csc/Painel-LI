@@ -1,5 +1,5 @@
 /**
- * A linha da lista abre o modal da vaga (23/10) — o mesmo contrato da linha da
+ * A linha da lista abre o detalhe da vaga (23/10) — o mesmo contrato da linha da
  * Escalação: clique em qualquer ponto da linha FORA dos controles dela
  * (checkbox, botões de decisão, links, dicas), Enter com a linha em foco.
  * Arrastar o mouse para copiar um texto não abre nada.

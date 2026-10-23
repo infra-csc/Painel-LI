@@ -11,15 +11,7 @@ import type { TeamInclusion, Event, Function, Collaborator, Ticket, Accommodatio
 import type { NormalizedSwap } from "./scaling-utils";
 import type { PendingChangeRequest, ScalingFilters, ScalingUser } from "./scaling-data-types";
 
-export function useScalingQueries({ filters, user, enabled = true }: {
-  filters: ScalingFilters;
-  user: ScalingUser;
-  /**
-   * false = nenhuma consulta (23/10): a Aprovação de escala monta o modal da
-   * vaga e só carrega os dados da Escalação quando ele abre.
-   */
-  enabled?: boolean;
-}) {
+export function useScalingQueries({ filters, user }: { filters: ScalingFilters; user: ScalingUser }) {
   const {
     data: teamInclusions,
     isLoading: isLoadingInclusions,
@@ -51,7 +43,6 @@ export function useScalingQueries({ filters, user, enabled = true }: {
       includeDeleted: filters.showDeleted,
     })),
     placeholderData: keepPreviousData,
-    enabled,
   });
 
   /**
@@ -65,19 +56,18 @@ export function useScalingQueries({ filters, user, enabled = true }: {
   const umEventoMarcado = filters.eventId.length === 1;
   const { data: vagasSemRecorteDeEvento } = useQuery<TeamInclusion[]>({
     ...listaDeVagasQuery(recorteDaListaDeVagas({ eventId: undefined, user, includeDeleted: filters.showDeleted })),
-    enabled: enabled && umEventoMarcado,
+    enabled: umEventoMarcado,
     staleTime: 5 * 60_000,
   });
   const vagasParaOpcoesDeEvento = umEventoMarcado ? vagasSemRecorteDeEvento : teamInclusions;
 
-  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000, enabled });
-  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000, enabled });
+  const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({ queryKey: ["/api/events"], staleTime: 300_000 });
+  const { data: functions, isLoading: isLoadingFunctions } = useQuery<Function[]>({ queryKey: ["/api/functions"], staleTime: 300_000 });
   // Managers de todas as funções — uma única requisição. `userName` (01/09)
   // é o que permite a linha dizer QUEM escala a vaga que você não pode mexer.
   const { data: allFunctionManagers, isLoading: isLoadingManagers } = useQuery<{ functionId: string; userId: string; userName?: string | null }[]>({
     queryKey: ["/api/function-managers/all"],
     staleTime: 300_000,
-    enabled,
   });
   // Responsáveis do MÓDULO DE ESCALA (tabela própria; mesma chave da
   // Validação, cache compartilhado). Necessário porque o servidor aceita em
@@ -87,7 +77,7 @@ export function useScalingQueries({ filters, user, enabled = true }: {
   const { data: escalaManagers } = useQuery<{ functionId: string; userId: string; role: "validador" | "aprovador" }[]>({
     queryKey: ["/api/scaling-function-managers"],
     staleTime: 300_000,
-    enabled: enabled && !!user,
+    enabled: !!user,
   });
 
   /**
@@ -98,7 +88,6 @@ export function useScalingQueries({ filters, user, enabled = true }: {
   const { data: commentCounts } = useQuery<{ teamInclusionId: string; n: number }[]>({
     queryKey: ["/api/comments/counts"],
     staleTime: 60_000,
-    enabled,
     // A rota é nova: numa implantação atrasada o servidor responde o HTML do
     // SPA, e a tela fica sem o contador em vez de quebrar inteira.
     queryFn: async () => {
@@ -112,12 +101,12 @@ export function useScalingQueries({ filters, user, enabled = true }: {
     (commentCounts || []).forEach((c) => { if (c.teamInclusionId) m.set(c.teamInclusionId, Number(c.n) || 0); });
     return m;
   }, [commentCounts]);
-  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000, enabled });
-  const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"], enabled });
-  const { data: tickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"], enabled });
+  const { data: collaborators, isLoading: isLoadingCollaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"], staleTime: 300_000 });
+  const { data: accommodations } = useQuery<Accommodation[]>({ queryKey: ["/api/accommodations"] });
+  const { data: tickets } = useQuery<Ticket[]>({ queryKey: ["/api/tickets"] });
   // Swap requests globais — badges nas linhas da tabela. Hook único (23/09):
   // já vem normalizado e é o mesmo cache da casca e das outras telas.
-  const { data: allSwapRequestsData } = useSwapRequests({ enabled });
+  const { data: allSwapRequestsData } = useSwapRequests();
 
   // ── Índices O(1) — preservam a semântica de Array.find: o PRIMEIRO vence ──
   const eventById = useMemo(() => {
@@ -155,7 +144,6 @@ export function useScalingQueries({ filters, user, enabled = true }: {
   const { data: pendingChanges } = useQuery<PendingChangeRequest[]>({
     queryKey: ["/api/scaling-change-requests/pending-by-inclusion"],
     staleTime: 30_000,
-    enabled,
     queryFn: async () => {
       // Rota enxuta, feita para esta tela. Se o servidor ainda não a tiver
       // (implantação atrasada), ela responde o HTML do SPA — daí a checagem do
