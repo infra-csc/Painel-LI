@@ -30,6 +30,7 @@ import { SaveBar, type MudancaPendente } from "@/components/settings/save-bar";
 import { AppliedValuesSection } from "@/components/settings/applied-values-section";
 import { PaymentCompaniesCard } from "@/components/settings/payment-companies-card";
 import { DataDeCorteCard } from "@/components/settings/data-de-corte-card";
+import { PresencaConfigCard } from "@/components/settings/presenca-config-card";
 import { LegacyValuesSection } from "@/components/settings/legacy-values-section";
 import { FunctionValuesTable } from "@/components/settings/function-values-table";
 import { AtualizarPlanejado, SettingsFooter } from "@/components/settings/settings-footer";
@@ -177,6 +178,8 @@ export default function SystemSettingsPage() {
               <PaymentCompaniesCard user={user} paymentCompanies={s.paymentCompanies} state={empresas} />
               {/* Data de corte do legado dos honorários (26/10) — só o administrador muda. */}
               <DataDeCorteCard />
+              {/* Presença e acesso do colaborador (27/10, Fase 1) — padrão provisório, só o administrador muda. */}
+              <PresencaConfigCard />
 
               {/* ZONA 2 — VALORES LEGADOS E OVERRIDES (colapsada por padrão) */}
               <LegacyValuesSection

@@ -4164,3 +4164,159 @@ button.esp-apto:disabled { cursor: not-allowed; opacity: .6; }
   .ctr-linha td, .ctr-soltar { transition: none; }
   .ctr-cartao:active, .ctr-total:active { transform: none; }
 }
+
+/* ══ Presença no evento (prs-, 27/10 — Honorários, Fase 1) ══════════════════
+ * A lista de pessoas (cartão com a linha do tempo dos dias), a faixa "Na
+ * arena agora", os diálogos (marcar, corrigir, ocorrência, confirmar,
+ * check-out final, código de acesso) e o resumo na Conferência DP.
+ * Larguras pela largura DO CARTÃO (container), não da janela: menu aberto,
+ * tablet e celular reorganizam igual. */
+.prs-legenda { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+@keyframes prs-entra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.prs-entra { animation: prs-entra 160ms ease-out both; }
+@keyframes prs-treme { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.prs-treme { animation: prs-treme 220ms ease-in-out 1; }
+
+/* ── Lista e cartão da pessoa ─────────────────────────────────────────────── */
+.prs-lista { display: flex; flex-direction: column; gap: 8px; }
+.prs-pessoa {
+  container-type: inline-size; position: relative; overflow: clip;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.prs-pessoa:hover { border-color: color-mix(in srgb, var(--primary) 18%, var(--border)); }
+.prs-pessoa-aberta { box-shadow: var(--elevation-1); }
+/* Já com o DP: filete à esquerda, como a decisão na Conferência. */
+.prs-pessoa-travada::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--info-strong); }
+.prs-pessoa-topo {
+  display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr) auto;
+  grid-template-areas: "quem dias fim"; gap: 10px 20px; align-items: start; padding: 14px 16px;
+}
+.prs-pessoa-quem { grid-area: quem; }
+.prs-pessoa-dias { grid-area: dias; }
+.prs-pessoa-fim { grid-area: fim; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+@container (max-width: 820px) {
+  .prs-pessoa-topo { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "quem fim" "dias dias"; }
+}
+@container (max-width: 460px) {
+  .prs-pessoa-topo { grid-template-columns: minmax(0, 1fr); grid-template-areas: "quem" "dias" "fim"; padding: 12px; }
+  .prs-pessoa-fim { flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 8px; }
+  .prs-valor { text-align: left !important; }
+  .prs-acao-texto { display: none; }
+}
+
+/* ── Linha do tempo dos dias ──────────────────────────────────────────────── */
+.prs-dias { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.prs-dia-item { display: flex; }
+.prs-dia {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: 104px; min-height: 60px; padding: 6px 8px; text-align: left;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--foreground);
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+button.prs-dia { cursor: pointer; }
+button.prs-dia:hover { box-shadow: var(--elevation-1); border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+button.prs-dia:active { transform: translateY(1px); }
+button.prs-dia:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ring); }
+button.prs-dia[data-state="open"] { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px color-mix(in srgb, var(--primary) 45%, transparent); }
+.prs-dia-data { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; color: var(--muted-foreground); white-space: nowrap; }
+.prs-dia-hoje-marca { display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 4px; background: var(--primary); color: var(--primary-foreground); font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.prs-dia-horas { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; line-height: 18px; white-space: nowrap; }
+.prs-dia-sinais { display: inline-flex; align-items: center; gap: 6px; min-height: 12px; font-size: 10px; color: var(--muted-foreground); }
+.prs-dia-ok { border-color: color-mix(in srgb, var(--success-strong) 35%, var(--border)); background: color-mix(in srgb, var(--success-soft) 55%, var(--card)); }
+.prs-dia-ok .prs-dia-sinais { color: var(--success); }
+.prs-dia-arena { border-color: color-mix(in srgb, var(--success-strong) 60%, var(--border)); background: var(--success-soft); }
+.prs-dia-arena .prs-dia-horas { color: var(--success); }
+.prs-dia-alerta { border-color: color-mix(in srgb, var(--warning-strong) 45%, var(--border)); background: color-mix(in srgb, var(--warning-soft) 60%, var(--card)); }
+.prs-dia-alerta .prs-dia-horas { color: var(--warning); }
+.prs-dia-perigo { border-color: color-mix(in srgb, var(--danger-strong) 40%, var(--border)); background: var(--danger-soft); }
+.prs-dia-perigo .prs-dia-horas { color: var(--danger); }
+.prs-dia-falta { background: var(--muted); border-color: transparent; }
+.prs-dia-falta .prs-dia-horas { color: hsl(215, 19%, 35%); }
+.prs-dia-futuro { border-style: dashed; background: transparent; }
+.prs-dia-futuro .prs-dia-horas { color: var(--muted-foreground); font-weight: 500; }
+.prs-dia-hoje { border-style: dashed; border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); background: var(--brand-soft); }
+.prs-dia-hoje .prs-dia-horas { color: var(--primary); font-weight: 500; }
+@keyframes prs-pulso { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success-strong) 55%, transparent); } 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.prs-pulso { width: 7px; height: 7px; border-radius: 999px; background: var(--success-strong); flex-shrink: 0; animation: prs-pulso 1.8s ease-out infinite; }
+@container (max-width: 460px) {
+  .prs-dia { width: calc((100cqw - 24px - 12px) / 3); min-width: 88px; }
+}
+
+/* ── Corpo aberto: quatro blocos que quebram pela largura ─────────────────── */
+.prs-pessoa-corpo {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 20px;
+  padding: 14px 16px 16px; border-top: 1px solid var(--border); background: var(--surface-muted);
+}
+.prs-bloco { min-width: 0; }
+.prs-ocorrencia { display: flex; align-items: flex-start; gap: 8px; padding: 8px 6px 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.prs-memoria { margin: 0; padding: 6px 12px; list-style: none; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); font-size: 12.5px; line-height: 18px; color: hsl(215, 19%, 30%); }
+.prs-memoria > li { padding: 5px 0; }
+.prs-memoria > li + li { border-top: 1px dashed var(--border); }
+.prs-memoria-total { font-weight: 600; color: var(--foreground); }
+.prs-memoria-compacta { background: var(--card); font-size: 11.5px; padding: 2px 10px; }
+
+/* ── Na arena agora ───────────────────────────────────────────────────────── */
+.prs-arena { border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.prs-arena-cabeca { display: flex; align-items: center; gap: 8px; padding: 12px 16px 8px; }
+.prs-arena-ponto { width: 8px; height: 8px; border-radius: 999px; background: var(--muted-foreground); opacity: .5; flex-shrink: 0; }
+.prs-arena-ponto-vivo { background: var(--success-strong); opacity: 1; animation: prs-pulso 1.8s ease-out infinite; }
+.prs-arena-lista { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0 16px 12px; list-style: none; }
+.prs-arena-pessoa {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 32px; padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--success-strong) 35%, var(--border)); border-radius: 999px;
+  background: color-mix(in srgb, var(--success-soft) 60%, var(--card)); font-size: 12px;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.prs-arena-pessoa:hover { background: var(--success-soft); border-color: color-mix(in srgb, var(--success-strong) 60%, var(--border)); }
+.prs-arena-pessoa:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ring); }
+
+/* ── Diálogos: corpo rola, rodapé fica à mão ──────────────────────────────── */
+.prs-dialogo { display: flex; flex-direction: column; overflow: hidden; }
+.prs-dialogo > .prs-dialogo-corpo { min-height: 0; flex: 1 1 auto; overflow-y: auto; }
+.prs-dialogo > .prs-rodape, .prs-dialogo > div:first-child { flex-shrink: 0; }
+.prs-botao-foto {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; height: 96px;
+  border: 1.5px dashed color-mix(in srgb, var(--primary) 45%, var(--border)); border-radius: 12px;
+  background: var(--brand-soft); color: var(--primary); font-size: 13px; font-weight: 500;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.prs-botao-foto:hover:not(:disabled) { border-color: var(--primary); }
+.prs-botao-foto:disabled { opacity: .6; cursor: progress; }
+.prs-botao-foto:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ring); }
+.prs-botao-foto-sec { border-color: var(--border); border-style: solid; background: var(--card); color: hsl(215, 19%, 30%); }
+.prs-botao-foto-sec:hover:not(:disabled) { border-color: color-mix(in srgb, var(--foreground) 25%, var(--border)); }
+.prs-tipo {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; text-align: left;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--foreground);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.prs-tipo:hover { border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+.prs-tipo:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ring); }
+.prs-tipo-on { border-color: var(--primary); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--primary); }
+.prs-tipo-on > span:first-child { color: var(--primary); }
+.prs-select { display: block; width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); font-size: 14px; color: var(--foreground); }
+.prs-select:focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent); }
+.prs-opcao { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease; }
+.prs-opcao:hover { border-color: color-mix(in srgb, var(--foreground) 22%, var(--border)); }
+.prs-opcao-on { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); background: var(--brand-soft); }
+
+/* ── Conferência DP: resumo da presença no item ───────────────────────────── */
+.prs-resumo { border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 10px 12px; }
+.prs-resumo-dias { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.prs-resumo-dia { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 7px; border-radius: 6px; font-size: 11.5px; font-variant-numeric: tabular-nums; background: var(--muted); color: hsl(215, 19%, 30%); }
+.prs-resumo-dia button { display: inline-flex; color: inherit; border-radius: 4px; }
+.prs-resumo-dia button:hover { color: var(--primary); }
+.prs-resumo-dia button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+
+@media (pointer: coarse) {
+  .prs-dia { min-height: 64px; }
+  .prs-arena-pessoa { height: 44px; }
+  .prs-tipo { min-height: 56px; }
+  .prs-resumo-dia { height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prs-entra, .prs-treme, .prs-pulso, .prs-arena-ponto-vivo { animation: none; }
+  .prs-pessoa, .prs-dia, .prs-arena-pessoa, .prs-tipo, .prs-opcao, .prs-botao-foto { transition: none; }
+  button.prs-dia:active { transform: none; }
+}

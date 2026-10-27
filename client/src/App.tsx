@@ -52,6 +52,10 @@ const AprovacaoDeHonorariosPage = lazy(() => import("@/pages/aprovacao-de-honora
 const ScalingEventViewPage   = lazy(() => import("@/pages/scaling-event-view"));
 const SimulationPage         = lazy(() => import("@/pages/simulation"));
 const PendenciasPage         = lazy(() => import("@/pages/pendencias"));
+// 27/10 (Honorários, Fase 1): portal do colaborador — CPF + senha, fora do menu interno.
+const PortalDoColaborador    = lazy(() => import("@/pages/colaborador"));
+// 27/10 (Honorários, Fase 1): presença no evento — check-in/out, ocorrências e check-out final.
+const PresencaNoEventoPage   = lazy(() => import("@/pages/presenca-no-evento"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -92,6 +96,7 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/accommodations",    permission: "canAccessScreen3"       },
   { path: "/baggage-control",   permission: "canAccessBaggage"       },
   { path: "/budget-planned",    permission: "canAccessFinanceiro"    },
+  { path: "/presenca",          permission: "canAccessPresenca"      }, // 27/10: admin, DP, produção, Área de Função
   { path: "/budget-actual",     permission: "canAccessFinanceiro"    },
   { path: "/budget-comparison", permission: "canAccessScreen5"       },
   { path: "/rh-control",        permission: "canAccessScreen5"       },
@@ -134,6 +139,8 @@ function Router() {
       {/* Public routes */}
       <Route path="/auth" component={AuthPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
+      {/* Portal do colaborador: sessão própria, vale com ou sem usuário interno logado. */}
+      <Route path="/colaborador" nest component={PortalDoColaborador} />
       
       {/* Protected routes */}
       {user ? (
@@ -245,6 +252,11 @@ function Router() {
             <Route path="/budget-planned">
               <ProtectedRoute permission="canAccessFinanceiro">
                 <BudgetPlanned />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/presenca">
+              <ProtectedRoute permission="canAccessPresenca">
+                <PresencaNoEventoPage />
               </ProtectedRoute>
             </Route>
             <Route path="/budget-actual">

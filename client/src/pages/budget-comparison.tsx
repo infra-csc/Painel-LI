@@ -38,6 +38,7 @@ import { RhEditActualDialog } from "@/components/budget/rh-edit-actual-dialog";
 import { SplitDetailDialog } from "@/components/budget/split-detail-dialog";
 import { ReopenComparisonDialog } from "@/components/budget/reopen-comparison-dialog";
 import { ddmm } from "@/components/budget/types";
+import { usePresencaDoEvento } from "@/components/presenca/use-presenca";
 
 const SEM_ESCALACOES: never[] = [];
 
@@ -100,6 +101,14 @@ export default function BudgetComparisonPage() {
   // perdiam os botões do RH nesta tela.
   const papel = normalizeRole(user?.role);
   const isRhOrAdmin = papel === "admin" || papel === "financial";
+
+  // Presença no evento (27/10, Fase 1): só no fluxo novo e só para o DP — o
+  // resumo de cada pessoa aparece no item aberto (dias, selfies, confirmação, CNPJ).
+  const qPresenca = usePresencaDoEvento(selectedEventId, isRhOrAdmin && !!selectedEvent && !legado.ehLegado(selectedEvent), false);
+  const presencaPorActual = useMemo(
+    () => new Map((qPresenca.data?.evento.id === selectedEventId ? qPresenca.data.prestacoes : []).map((p) => [p.actualId, p])),
+    [qPresenca.data, selectedEventId],
+  );
 
   const dados = useBudgetComparisonData({
     budgetPlanned, budgetActual, comparison, allTeamInclusions: q.teamInclusions ?? SEM_ESCALACOES, getCollaboratorName, getFunctionName,
@@ -295,6 +304,7 @@ export default function BudgetComparisonPage() {
           getFunctionName={getFunctionName}
           onEdit={acoes.openEditModal}
           onSplitDetail={acoes.setSplitDetail}
+          presencaPorActual={presencaPorActual}
         />
 
         {/* ── Decisão do RH: barra de seleção que sobe do rodapé — apenas RH/admin decide ── */}

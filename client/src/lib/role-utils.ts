@@ -88,6 +88,7 @@ export interface RolePermissions {
   canAccessScalingManagers: boolean;   // aba Responsáveis da Escala dentro de Funções — permissões próprias, diferentes do catálogo (só admin)
   canAccessSimulation: boolean;        // módulo "Ver como usuário" — espelha POST /api/simulation/start (só admin)
   canAccessHonorariosCeno: boolean;    // tela Honorários da cenotécnica (23/10) — espelha GET /api/honorarios-ceno/financeiro: admin, RH e o perfil Honorários
+  canAccessPresenca: boolean;          // Presença no evento (27/10) — espelha GET /api/presenca/eventos/:id: admin, DP, produção e Área de Função (o servidor recorta as funções dela)
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
@@ -136,6 +137,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingManagers: true,   // aba Responsáveis da Escala — só admin
         canAccessSimulation: true,        // "Ver como usuário" — só admin
         canAccessHonorariosCeno: true,
+        canAccessPresenca: true,
       };
 
     case "production":
@@ -175,6 +177,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,       // "Ver como usuário" — só admin
         canAccessHonorariosCeno: false,
+        canAccessPresenca: true,
       };
 
     case "function_area":
@@ -214,6 +217,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingManagers: false,  // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,       // "Ver como usuário" — só admin
         canAccessHonorariosCeno: false,
+        canAccessPresenca: true,          // só as funções em que é responsável (o servidor recorta)
       };
 
     case "purchasing":
@@ -253,6 +257,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,         // "Ver como usuário" — só admin
         canAccessHonorariosCeno: false,
+        canAccessPresenca: false,
       };
 
     case "financial":
@@ -292,6 +297,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingManagers: false,    // aba Responsáveis da Escala — só admin
         canAccessSimulation: false,         // "Ver como usuário" — só admin
         canAccessHonorariosCeno: true,
+        canAccessPresenca: true,
       };
 
     default:
@@ -331,6 +337,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScalingManagers: false,
         canAccessSimulation: false,
         canAccessHonorariosCeno: false,
+        canAccessPresenca: false,
       };
   }
 }

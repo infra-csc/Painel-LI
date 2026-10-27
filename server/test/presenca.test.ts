@@ -470,6 +470,8 @@ describe("presença no evento (produção/DP)", () => {
       workedDays: ["2026-10-01", "2026-10-02", "2026-10-03"], dailyQuantity: 3, dailyValue: 22_000,
     });
     expect(gravado!.observations).toContain("sem a confirmação do colaborador");
+    // O motivo da mudança vai junto (a Conferência DP cobra changeReason).
+    expect(gravado!.changeReason).toMatch(/^Check-out final da presença por .+ · ajuste de 10% sobre o calculado · sem a confirmação do colaborador: Colaborador sem celular no evento$/);
     const logs = await ctx.db.select().from(ctx.schema.systemLogs).where(eq(ctx.schema.systemLogs.entityId, actual.id));
     expect(logs.some((l) => l.action === "send_review")).toBe(true);
     // Já está com o DP: não refaz

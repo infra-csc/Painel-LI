@@ -97,6 +97,11 @@ export async function semearPresencaDemo(db: Db): Promise<ResumoDaPresencaDemo> 
   const funcao = (nome: string) => funcoes.find((f) => f.name === nome);
   if (!funcao("Produtor") || !funcao("Montagem") || !funcao("Fotografia")) return vazio;
 
+  // A Área de Função da demo responde também pela Fotografia: a tela da presença
+  // mostra a ela só essa pessoa (o recorte das funções dela) — 27/10, telas internas.
+  const [area] = await db.select().from(schema.users).where(eq(schema.users.email, DEMO_USUARIOS.function_area.email));
+  if (area) await db.insert(schema.functionManagers).values({ functionId: funcao("Fotografia")!.id, userId: area.id, role: "validador" }).onConflictDoNothing();
+
   // O primeiro aprovado (MEI com contrato ativo no seed dos contratos) e três freelas depois dos 14 dos contratos.
   const aprovados = await db.select().from(schema.collaborators)
     .where(and(eq(schema.collaborators.status, "aprovado"), eq(schema.collaborators.active, true)))

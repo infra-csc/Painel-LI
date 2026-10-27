@@ -21,6 +21,9 @@ import {
   Avatar, DetailRow, SituacaoDoColaborador, TYPE_CFG, TipoBadge, formatDate, formatDocument, rotuloDoSecundario, toTitleCase,
 } from "./collaborator-shared";
 import { SecaoPagamento } from "@/components/contratos/secao-pagamento";
+import { BotaoGerarCodigo } from "@/components/presenca/codigo-de-acesso";
+import { useAuth } from "@/hooks/use-auth";
+import { hasRole } from "@/lib/role-utils";
 
 /** Data de um timestamp (ISO) em dd/mm/aaaa, no fuso de quem olha. */
 function dataDoRegistro(v: unknown): string {
@@ -52,6 +55,9 @@ export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosP
   /** "Editar cadastro" a partir da ficha (o mesmo modal de edição da lista). */
   onEdit?: (c: Collaborator) => void;
 }) {
+  const { user } = useAuth();
+  // Espelha POST /api/colaboradores/:id/codigo-de-acesso (admin, DP, produção).
+  const podeGerarCodigo = hasRole(user, "admin", "financial", "production");
   const decidido = c && (c.status === "aprovado" || c.status === "rejeitado") ? dataDoRegistro(c.approvedAt) : "";
   const pendenteDecidivel = !!c && c.status === "pendente" && canEdit;
   return (
@@ -184,6 +190,22 @@ export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosP
 
             {/* Pagamento (26/10): só o DP — a seção se esconde sozinha para os outros papéis. */}
             <SecaoPagamento collaboratorId={c.id} nome={toTitleCase(c.fullName)} />
+
+            {/* App do colaborador (27/10, Honorários Fase 1): DP, admin e produção geram o código de primeiro acesso. */}
+            {podeGerarCodigo && (
+              <Grupo titulo="App do colaborador">
+                {c.status === "aprovado" && c.active !== false ? (
+                  <>
+                    <p className="text-xs leading-5 text-slate-700">
+                      A pessoa entra no app de honorários com o CPF e uma senha própria. O código de primeiro acesso vale 72 horas e serve também para quem esqueceu a senha.
+                    </p>
+                    <BotaoGerarCodigo alvo={{ collaboratorId: c.id, nome: toTitleCase(c.fullName) }} className="mt-2.5" />
+                  </>
+                ) : (
+                  <p className="text-xs leading-5 text-muted-foreground">Só colaborador aprovado e ativo tem acesso ao app.</p>
+                )}
+              </Grupo>
+            )}
 
             {c.approvalNotes && (
               <Grupo titulo="Observações da aprovação">

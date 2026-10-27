@@ -534,6 +534,15 @@ export function registrarPresenca(app: Express): void {
     const pct = ajusteEmPct(calculado, valorFinal);
     const campos = camposDoRealizadoNoCheckoutFinal(m.actual, m.calculo, valorFinal);
     const semConfirmacao = !m.confirmacao;
+    // Motivo da mudança no Realizado (27/10): a Conferência DP cobra `changeReason`
+    // quando o valor difere do planejado — o check-out final é esse motivo.
+    const nOcorrencias = m.ocorrencias.filter((o) => !o.removidoEm).length;
+    const motivoDoCheckout = [
+      `Check-out final da presença por ${nomeDe(user)}`,
+      nOcorrencias > 0 ? `${nOcorrencias} ${nOcorrencias === 1 ? "ocorrência" : "ocorrências"}` : null,
+      pct ? `ajuste de ${pct.toLocaleString("pt-BR")}% sobre o calculado` : null,
+      semConfirmacao ? `sem a confirmação do colaborador: ${justificativa}` : null,
+    ].filter(Boolean).join(" · ");
     const agora = new Date();
     try {
       const { depois, enviado } = await db.transaction(async (tx) => {
@@ -545,6 +554,7 @@ export function registrarPresenca(app: Express): void {
           valorHorasExtras: m.calculo.valorHorasExtras,
           cnpjEmissor: cnpj, razaoSocialEmissor: razaoSocial,
           checkoutFinalEm: agora, checkoutFinalPor: user.id,
+          changeReason: motivoDoCheckout,
           ...(semConfirmacao ? { observations: [m.actual.observations, `Check-out final sem a confirmação do colaborador (${nomeDe(user)}): ${justificativa}`].filter(Boolean).join("\n") } : {}),
           updatedAt: agora, updatedBy: user.id,
         }).where(and(

@@ -35,6 +35,10 @@ import { BlocoDoExtrato, CabecalhoDoExtrato, Diferenca, LinhaDoExtrato } from ".
 import { ratearPlanejadoPorDias } from "./actual-utils";
 import { isCasaType } from "./types";
 import { dailySubtotalOf, fmt, getWorkedDayCount, lerAdjustedFields, type ComparisonRow, type SplitDetailState } from "./comparison-utils";
+import { ResumoDaPresenca } from "@/components/presenca/resumo-da-presenca";
+import type { PrestacaoDaPresenca } from "@/components/presenca/tipos";
+import { seloDoCnpj } from "@/components/presenca/presenca-utils";
+import { SeloContratoAtivo } from "@/components/contratos/pecas";
 
 export interface ComparisonCardProps {
   row: ComparisonRow;
@@ -52,6 +56,12 @@ export interface ComparisonCardProps {
   onToggleSelect: (id: string, checked: boolean) => void;
   onEdit: (a: BudgetActual) => void;
   onSplitDetail: (s: SplitDetailState) => void;
+  /**
+   * Presença no evento (27/10, Fase 1): só no fluxo novo e só para o DP —
+   * dias com entrada/saída, selfies, ocorrências, confirmação e CNPJ. Não muda
+   * nenhuma regra de aprovar/devolver/recusar.
+   */
+  presenca?: PrestacaoDaPresenca;
 }
 
 /** Motivo de quem não participou: o do Planejado, senão o do Realizado. */
@@ -228,6 +238,13 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
         />
       </div>
 
+      {/* ── Presença no evento (fluxo novo) ── */}
+      {props.presenca && (
+        <div className="mt-3">
+          <ResumoDaPresenca p={props.presenca} eventId={a.eventId} nome={getCollaboratorName(row.collaboratorId)} />
+        </div>
+      )}
+
       {/* ── Anotações ── */}
       {(a.changeReason || a.rhComment || (rhComment && !a.rhComment) || a.rhAdjustNote || ajustes.length > 0 || plannedEdits.length > 0) && (
         <div className="cmp-notas">
@@ -282,7 +299,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
 }
 
 export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCardProps) {
-  const { row, isExpanded, isSelected, isHighlighted, cardTi, eventNotes, plannedLogs, isRhOrAdmin, getCollaboratorName, getFunctionName, onToggleExpand, onToggleSelect, onEdit } = props;
+  const { row, isExpanded, isSelected, isHighlighted, cardTi, eventNotes, plannedLogs, isRhOrAdmin, getCollaboratorName, getFunctionName, onToggleExpand, onToggleSelect, onEdit, presenca } = props;
   const p = row.planned;
   const a = row.actual;
   const plannedTotal = p?.totalValue || 0;
@@ -348,7 +365,7 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
             <span className={isCasaType(row.collaboratorType) ? "text-primary" : undefined}>{isCasaType(row.collaboratorType) ? "Casa" : "Freela"}</span>
             {periodLabel && <span className="tabular-nums"><span aria-hidden="true"> · </span>{periodLabel}</span>}
           </p>
-          {(row.isSplit || isResubmitted || isNotAttended || temNotas || (hasDiff && !hasJustification && !row.isSplit && !isNotAttended) || !!row.planned) && (
+          {(row.isSplit || isResubmitted || isNotAttended || temNotas || (hasDiff && !hasJustification && !row.isSplit && !isNotAttended) || !!row.planned || !!presenca) && (
             <div className="cmp-selos flex flex-wrap items-center gap-1 mt-1.5 empty:hidden">
               {row.isSplit && (
                 <Chip tom="marca" title={[a, ...row.splitChildren].map(c => getCollaboratorName(c.collaboratorId)).join(" + ")}>
@@ -364,6 +381,11 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
               )}
               {temNotas && <BudgetNotesBadge notes={eventNotes} entityId={a.id} />}
               {row.planned && <PlannedEditedBadge logs={plannedLogs} entityId={row.planned.id} />}
+              {/* Presença (fluxo novo): confirmação do colaborador e o contrato do CNPJ informado. */}
+              {presenca && (presenca.confirmacao
+                ? <Chip tom="ok" title="O colaborador (ou o representante) confirmou os dias e o CNPJ">Confirmou</Chip>
+                : <Chip tom="alerta" title="O colaborador não confirmou os dias e o CNPJ — se o check-out final foi feito assim, a justificativa está nas observações">Sem confirmação</Chip>)}
+              {presenca && <SeloContratoAtivo situacao={seloDoCnpj(presenca.cnpj.situacao)} />}
             </div>
           )}
           {row.isSplit && (

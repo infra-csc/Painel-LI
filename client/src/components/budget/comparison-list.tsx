@@ -21,6 +21,7 @@ import type { BudgetActual, BudgetNote } from "@shared/schema";
 import type { DadosDoComparativo } from "@/hooks/use-budget-comparison-data";
 import { ComparisonCard } from "./comparison-card";
 import type { SplitDetailState } from "./comparison-utils";
+import type { PrestacaoDaPresenca } from "@/components/presenca/tipos";
 
 export interface ComparisonListProps {
   dados: DadosDoComparativo;
@@ -33,10 +34,12 @@ export interface ComparisonListProps {
   getFunctionName: (id?: string | null) => string;
   onEdit: (a: BudgetActual) => void;
   onSplitDetail: (s: SplitDetailState) => void;
+  /** Presença no evento por prestação (27/10 — fluxo novo, só o DP). */
+  presencaPorActual?: ReadonlyMap<string, PrestacaoDaPresenca>;
 }
 
 export function ComparisonList(p: ComparisonListProps) {
-  const { dados: d, selectedEventId, highlightCardId, eventNotes, plannedLogs, isRhOrAdmin, getCollaboratorName, getFunctionName, onEdit, onSplitDetail } = p;
+  const { dados: d, selectedEventId, highlightCardId, eventNotes, plannedLogs, isRhOrAdmin, getCollaboratorName, getFunctionName, onEdit, onSplitDetail, presencaPorActual } = p;
   const { sortedData, expandedCards, setExpandedCards, selectedItems, setSelectedItems } = d;
   const allVisibleExpanded = sortedData.length > 0 && sortedData.every(r => expandedCards.has(r.actual.id));
   const selecionaveis = sortedData.filter(row => (row.actual.rhStatus || "pendente") === "pendente").map(row => row.actual.id);
@@ -146,6 +149,7 @@ export function ComparisonList(p: ComparisonListProps) {
               onToggleSelect={toggleSelect}
               onEdit={onEdit}
               onSplitDetail={onSplitDetail}
+              presenca={presencaPorActual?.get(row.actual.id)}
             />
           </div>
         ))}

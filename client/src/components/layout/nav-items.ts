@@ -29,7 +29,7 @@ import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
   ChartColumn, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins, CircleDollarSign,
-  LayoutDashboard, FileSignature,
+  LayoutDashboard, FileSignature, Fingerprint,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -102,13 +102,15 @@ export const ALL_TABS: NavTab[] = [
   // ── Honorários (26/10, slide 11): o fluxo, na ordem ──
   { id: "rh-control",         path: "/rh-control",         label: "Painel de honorários", icon: LayoutDashboard,   permission: "canAccessScreen5", sinonimos: ["Controle RH", "Controle DP", "fila"] },
   { id: "budget-planned",     path: "/budget-planned",     label: "Pré-aprovação de valores", icon: CalendarClock, permission: "canAccessFinanceiro", sinonimos: ["Planejado", "orçamento previsto"] },
-  // "Presença no evento" no slide: o nome muda na Fase 1, quando houver presença de verdade.
-  { id: "budget-actual",      path: "/budget-actual",      label: "Realizado",            icon: Wallet,            permission: "canAccessFinanceiro", sinonimos: ["Presença no evento", "prestação de contas"] },
+  // 27/10 (Fase 1): a presença de verdade — check-in/out com selfie, ocorrências e check-out final.
+  // Produção e Área de Função também entram (o servidor recorta as funções da Área).
+  { id: "presenca",           path: "/presenca",           label: "Presença no evento",   icon: Fingerprint,       permission: "canAccessPresenca", sinonimos: ["check-in", "check-out", "selfie", "na arena", "check-out final"] },
+  { id: "budget-actual",      path: "/budget-actual",      label: "Realizado",            icon: Wallet,            permission: "canAccessFinanceiro", sinonimos: ["prestação de contas"] },
   { id: "budget-comparison",  path: "/budget-comparison",  label: "Conferência DP",       icon: ChartColumn,       permission: "canAccessScreen5", sinonimos: ["Comparativo", "planejado x realizado"] },
   // Envio e validação de NF são as abas Lançamento e Aprovação DP da MESMA tela: um item só.
   { id: "invoices",           path: "/invoices",           label: "Notas fiscais",        icon: Receipt,           permission: "canAccessFinanceiro", sinonimos: ["Envio de NF", "Validação de NF", "lançamento", "aprovação", "NF"] },
   // ── Honorários › Configuração e apoio ──
-  { id: "system-settings",    path: "/system-settings",    label: "Tabela de valores",    icon: SlidersHorizontal, permission: "canAccessFinanceiro", sinonimos: ["Valores padrão", "data de corte"] },
+  { id: "system-settings",    path: "/system-settings",    label: "Tabela de valores",    icon: SlidersHorizontal, permission: "canAccessFinanceiro", sinonimos: ["Valores padrão", "data de corte", "regras da presença", "termo LGPD"] },
   { id: "calculation-rules",  path: "/calculation-rules",  label: "Regras de cálculo",    icon: Calculator,        permission: "canAccessFinanceiro" },
   // 23/10: permissão própria — o perfil Honorários abre só esta tela.
   { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessHonorariosCeno", sinonimos: ["liberação de verba", "empreita"] },
@@ -154,7 +156,7 @@ export const MENU_GROUPS: NavGroup[] = [
     title: "Honorários",
     tone: "success",
     ids: [
-      "rh-control", "budget-planned", "budget-actual", "budget-comparison", "invoices",
+      "rh-control", "budget-planned", "presenca", "budget-actual", "budget-comparison", "invoices",
       "system-settings", "calculation-rules", "honorarios-ceno", "flash-account", "contratos",
     ],
     subgroup: {

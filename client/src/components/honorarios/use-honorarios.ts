@@ -83,8 +83,16 @@ function lerMostrar(): boolean {
  * (eventos que terminam antes da data de corte); o filtro para ver mora no
  * seletor de evento e vale para as quatro telas (preferência deste navegador).
  */
-export function useFiltroDoLegado(): FiltroDoLegado {
-  const { dataDeCorte, ehLegado } = useDataDeCorte();
+export function useFiltroDoLegado(opcoes?: {
+  /**
+   * 27/10: a Presença no evento abre também para produção e Área de Função, que
+   * não leem a data de corte (GET só do DP/admin — 403). Com `false`, vale a
+   * data padrão para o filtro da lista; quem decide o legado de fato é o
+   * servidor da tela (409 "evento_legado").
+   */
+  lerDoServidor?: boolean;
+}): FiltroDoLegado {
+  const { dataDeCorte, ehLegado } = useDataDeCorte(opcoes?.lerDoServidor ?? true);
   const [mostrar, setMostrarEstado] = useState(lerMostrar);
   const setMostrar = useCallback((v: boolean) => {
     setMostrarEstado(v);

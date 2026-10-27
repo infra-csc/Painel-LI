@@ -50,7 +50,10 @@ export function gateDoColaborador(req: Request, res: Response, next: NextFunctio
   if (ehRotaAbertaDoColaborador(req.path)) return next();
   const colaboradorId = req.session?.colaboradorId;
   if (!colaboradorId) {
-    console.warn(`[AuthAudit] PORTAL DO COLABORADOR sem sessão ${req.method} ${req.path}`);
+    // Abrir o portal sem sessão é o caminho normal (GET /eu): só o resto vai ao log.
+    if (!(req.method === "GET" && req.path.toLowerCase() === "/api/colaborador/eu")) {
+      console.warn(`[AuthAudit] PORTAL DO COLABORADOR sem sessão ${req.method} ${req.path}`);
+    }
     return res.status(401).json({ message: "Entre com o seu CPF e senha.", portalDoColaborador: true });
   }
   const agora = Date.now();

@@ -259,9 +259,12 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
 
   // Portal do colaborador (27/10): entrar e primeiro acesso por IP, no mesmo
   // store do Postgres. O bloqueio por CPF (5 erros → 15 min) é da rota.
+  // Só os ERROS contam (27/10): na arena muita gente sai pelo mesmo IP (Wi-Fi
+  // do evento, operadora) e o começo do turno não pode travar a equipe.
   const limitadorDoColaborador = (prefixo: string) => rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 30,
+    limit: 60,
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Muitas tentativas. Tente novamente em alguns minutos.' },

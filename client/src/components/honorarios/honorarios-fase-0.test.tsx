@@ -31,7 +31,8 @@ describe("Menu: o grupo Financeiro virou Honorários (slide 11)", () => {
     expect(grupo).toBeDefined();
     expect(MENU_GROUPS.some((g) => g.title === "Financeiro")).toBe(false);
     const nomes = grupo!.ids.map((id) => tabById(id)).filter(Boolean).map((t) => rotuloComEtapa(t!));
-    expect(nomes.slice(0, 5)).toEqual(["Painel de honorários", "Pré-aprovação de valores", "Realizado", "Conferência DP", "Notas fiscais"]);
+    // 27/10 (Fase 1): "Presença no evento" entra entre a Pré-aprovação e o Realizado.
+    expect(nomes.slice(0, 6)).toEqual(["Painel de honorários", "Pré-aprovação de valores", "Presença no evento", "Realizado", "Conferência DP", "Notas fiscais"]);
     expect(grupo!.subgroup).toMatchObject({ label: "Configuração e apoio" });
     expect(grupo!.subgroup!.ids.map((id) => tabById(id)?.label)).toEqual([
       "Tabela de valores", "Regras de cálculo", "Honorários da cenotécnica", "Cartão Flash", "Contratos (CNPJ)",
