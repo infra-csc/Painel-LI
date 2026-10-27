@@ -17,10 +17,13 @@ test.describe("Login por papel", () => {
     await expect(page.getByRole("button", { name: `Conta de ${USUARIO.admin.nome}` })).toBeVisible();
   });
 
-  test("function_area não vê Honorários nem Cadastro de usuários, mas vê a Validação de escala", async ({ page }) => {
+  // 27/10: a Área de Função vê só a "Presença no evento" do grupo Honorários (das funções dela).
+  test("function_area vê só a Presença no evento em Honorários, não vê Cadastro de usuários, e vê a Validação de escala", async ({ page }) => {
     await entrarComo(page, "function_area");
     await expect(menu(page).getByRole("link", { name: /Validação de escala/ })).toBeVisible();
-    await expect(menu(page).getByRole("button", { name: "Honorários", exact: true })).toHaveCount(0);
+    await expect(menu(page).getByRole("link", { name: "Presença no evento" })).toBeVisible();
+    await expect(menu(page).getByRole("link", { name: "Painel de honorários" })).toHaveCount(0);
+    await expect(menu(page).getByRole("link", { name: "Pré-aprovação de valores" })).toHaveCount(0);
     await expect(menu(page).getByRole("link", { name: "Notas fiscais" })).toHaveCount(0);
     await expect(menu(page).getByRole("link", { name: "Cadastro de usuários" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: `Conta de ${USUARIO.function_area.nome}` })).toBeVisible();
