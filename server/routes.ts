@@ -50,6 +50,7 @@ import { registrarContratos } from "./routes/contratos";
 import { registrarPagamentoColaborador } from "./routes/pagamento-colaborador";
 import { registrarColaboradorPortal } from "./routes/colaborador-portal";
 import { registrarPresenca } from "./routes/presenca";
+import { registrarHonorariosPagamento } from "./routes/honorarios-pagamento";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Toda rota registrada daqui em diante (inclusive as de scaling-validation e
@@ -118,6 +119,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Presença no evento (27/10, Fase 1): check-in/out, ocorrências, check-out
   // final do produtor e o código de acesso do colaborador.
   registrarPresenca(app);
+  // Fase 2 MANUAL (28/10): OC, NF pelo representante, conferência OC × NF × CNPJ,
+  // pago e o expurgo das selfies.
+  registrarHonorariosPagamento(app);
 
   // ── Trocas de colaborador ─────────────────────────────────────────────────
   registrarTrocas(app);

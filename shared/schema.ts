@@ -665,6 +665,23 @@ export const budgetActual = pgTable("budget_actual", {
   valorHorasExtras: integer("valor_horas_extras").notNull().default(0), // centavos
   checkoutFinalEm: timestamp("checkout_final_em", { withTimezone: true }),
   checkoutFinalPor: varchar("checkout_final_por"),
+  // Módulo de Honorários, Fase 2 MANUAL (28/10) — etapas 4 (OC) e 7 (pago),
+  // regras em shared/honorarios-pagamento.ts. Só as rotas de
+  // server/routes/honorarios-pagamento.ts gravam (fora do insertBudgetActualSchema).
+  // Um importador do arquivo do M4 grava nestes MESMOS campos (oc_origem 'm4').
+  // Migração: scripts/migrations/2026-10-28-honorarios-fase-2.sql (+ ensure-schema).
+  ocNumero: text("oc_numero"),
+  ocValor: integer("oc_valor"), // centavos (padrão: o total aprovado)
+  ocData: date("oc_data"),
+  ocRegistradaEm: timestamp("oc_registrada_em", { withTimezone: true }),
+  ocRegistradaPor: varchar("oc_registrada_por"),
+  ocOrigem: text("oc_origem"), // 'manual' | 'lote' | 'm4'
+  ocJustificativa: text("oc_justificativa"), // CNPJ sem contrato ativo: o DP registra assim mesmo
+  pagoEm: date("pago_em"),
+  pagoRegistradoPor: varchar("pago_registrado_por"),
+  pagoRegistradoEm: timestamp("pago_registrado_em", { withTimezone: true }),
+  pagamentoObs: text("pagamento_obs"),
+  pagamentoComprovanteId: text("pagamento_comprovante_id"), // anexo ATT-… (opcional)
 }, (t) => [
   // Já existem (13/08)
   index("budget_actual_event_idx").on(t.eventId),
@@ -904,6 +921,10 @@ export const insertBudgetActualSchema = createInsertSchema(budgetActual).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  // OC e pagamento (28/10, Fase 2): só as rotas próprias gravam — o corpo de
+  // POST/PATCH /api/budget-actual nunca traz (o zod descarta).
+  ocNumero: true, ocValor: true, ocData: true, ocRegistradaEm: true, ocRegistradaPor: true, ocOrigem: true, ocJustificativa: true,
+  pagoEm: true, pagoRegistradoPor: true, pagoRegistradoEm: true, pagamentoObs: true, pagamentoComprovanteId: true,
 }).extend({
   // jsonb (25/09). As rotas descartam este campo do corpo; o tipo serve ao servidor.
   rhAdjustedFields: z.record(z.object({ from: z.number(), to: z.number(), label: z.string() })).nullish(),
@@ -961,6 +982,12 @@ export const invoices = pgTable("invoices", {
   checkinAt: timestamp("checkin_at", { withTimezone: true }),
   // FK real criada NOT VALID em 23/09 (invoices_checkin_by_fk, ON DELETE SET NULL)
   checkinBy: varchar("checkin_by").references(() => users.id, { onDelete: "set null" }),
+  // Fase 2 dos Honorários (28/10): o que a NOTA diz, para a conferência do DP
+  // (nº da OC da nota × OC registrada; valor da nota × valor da OC; CNPJ da
+  // nota × CNPJ emissor). Opcionais: notas antigas não têm.
+  nfNumero: text("nf_numero"),
+  nfValor: integer("nf_valor"), // centavos
+  nfCnpj: text("nf_cnpj"), // só dígitos
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -2090,6 +2117,9 @@ export const presencas = pgTable("presencas", {
   checkoutPor: text("checkout_por"),
   checkoutUserId: varchar("checkout_user_id"),
   observacao: text("observacao"),
+  // 28/10 (Fase 2): as selfies saíram do storage (prazo de guarda depois do
+  // pagamento — presenca_retencao_dias); os horários ficam.
+  fotoExpurgadaEm: timestamp("foto_expurgada_em", { withTimezone: true }),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

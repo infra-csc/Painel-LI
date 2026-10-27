@@ -142,6 +142,22 @@ export class ObjectStorageService {
   }
 
   /**
+   * Apaga o objeto do anexo (28/10 — expurgo das selfies). Objeto que já não
+   * existe conta como apagado (true); false só quando o storage falha.
+   */
+  async apagarAnexo(id: string): Promise<boolean> {
+    if (!ATTACHMENT_ID_RE.test(id)) return true;
+    if (emMemoria()) { objetosDaDemo.delete(id); return true; }
+    try {
+      await this.arquivoDoAnexo(id).delete({ ignoreNotFound: true });
+      return true;
+    } catch (err) {
+      console.error(`[storage] não consegui apagar o anexo ${id}:`, err instanceof Error ? err.message : err);
+      return false;
+    }
+  }
+
+  /**
    * Envia o arquivo ao navegador. Regras (23/09):
    *  - Content-Type SEMPRE da allowlist; fora dela vira octet-stream + download
    *    forçado (nunca `inline`), o que cobre SVG/HTML gravados antes da allowlist;

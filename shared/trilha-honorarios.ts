@@ -21,11 +21,15 @@
  *  - Em evento: a prestação existe (o Planejado foi liberado para a Produção);
  *  - Confirmado: a prestação foi enviada para análise (ou já decidida);
  *  - Validado: o DP aprovou a prestação (Comparativo);
- *  - OC emitida: indisponível (Fase 1);
+ *  - OC emitida: o DP registrou a OC na prestação (28/10, Fase 2 —
+ *    `budget_actual.oc_numero`); a nota lançada com o nº da OC digitado (o
+ *    caminho de antes) também conta;
  *  - NF enviada: nota enviada (ou já aprovada);
  *  - NF lançada no M4: nota aprovada E lançada (o "check-in financeiro" de
- *    hoje — no slide 11, "check-in" fica só para a arena);
- *  - Pago: indisponível (Fase 1).
+ *    hoje — no slide 11, "check-in" fica só para a arena) = PROGRAMADO;
+ *  - Pago: o DP marcou como pago (28/10 — `budget_actual.pago_em`).
+ * Evento LEGADO (`legado: true`): OC e Pago não se aplicam (o legado segue
+ * como antes — o pagamento é acompanhado fora do app).
  *
  * Funções puras — servidor (Painel de honorários) e tela (componente comum).
  */
@@ -56,10 +60,10 @@ export const ETAPAS_DA_TRILHA: readonly DefinicaoDaEtapa[] = [
   { id: "em_evento", rotulo: "Em evento", descricao: "Liberado para a Produção: a prestação está com o responsável da função", quem: "Produção", disponivel: true, ondeHoje: "Realizado" },
   { id: "confirmado", rotulo: "Confirmado", descricao: "Dias e valores confirmados e enviados para a conferência do DP", quem: "Produção", disponivel: true, ondeHoje: "Realizado" },
   { id: "validado", rotulo: "Validado", descricao: "O DP conferiu o planejado × o realizado e aprovou", quem: "DP", disponivel: true, ondeHoje: "Conferência DP" },
-  { id: "oc_emitida", rotulo: "OC emitida", descricao: "Ordem de compra gerada no M4 pelo DP — chega na Fase 1", quem: "DP", disponivel: false },
+  { id: "oc_emitida", rotulo: "OC emitida", descricao: "Ordem de compra gerada no M4 e registrada no app pelo DP", quem: "DP", disponivel: true, ondeHoje: "Ordens de compra", daNota: true },
   { id: "nf_enviada", rotulo: "NF enviada", descricao: "Nota fiscal anexada com o nº da OC", quem: "Colaborador", disponivel: true, ondeHoje: "Notas fiscais › Lançamento", daNota: true },
   { id: "nf_lancada", rotulo: "NF lançada no M4", descricao: "O DP validou a nota e deu entrada no M4 (hoje: o check-in financeiro da nota)", quem: "DP", disponivel: true, ondeHoje: "Notas fiscais › Aprovação DP", daNota: true },
-  { id: "pago", rotulo: "Pago", descricao: "Pagamento programado e liquidado no M4 — chega na Fase 1", quem: "M4", disponivel: false, daNota: true },
+  { id: "pago", rotulo: "Pago", descricao: "Pagamento liquidado — o DP marca como pago", quem: "DP", disponivel: true, ondeHoje: "Ordens de compra e Notas fiscais", daNota: true },
 ];
 
 const INDICE = new Map(ETAPAS_DA_TRILHA.map((e, i) => [e.id, i]));
@@ -81,12 +85,18 @@ export type EstadoDaEtapa = "feita" | "atual" | "futura" | "em_breve" | "nao_se_
 
 export interface EntradaDaTrilha {
   planejado?: { status?: string | null; didNotAttend?: boolean | null } | null;
-  realizado?: { sentForReview?: boolean | null; rhStatus?: string | null; didNotAttend?: boolean | null } | null;
-  nota?: { status?: string | null; checkinAt?: Date | string | null } | null;
+  realizado?: {
+    sentForReview?: boolean | null; rhStatus?: string | null; didNotAttend?: boolean | null;
+    /** 28/10 (Fase 2): OC registrada pelo DP e a data do pagamento. */
+    ocNumero?: string | null; pagoEm?: string | Date | null;
+  } | null;
+  nota?: { status?: string | null; checkinAt?: Date | string | null; oc?: string | null } | null;
   /** O colaborador emite NF nesta escalação (padrão: sim). */
   emiteNf?: boolean;
   /** Linha do legado concluída fora do fluxo ("Concluir em lote"). */
   concluidoForaDoFluxo?: boolean;
+  /** Evento legado (28/10): OC e Pago não se aplicam — segue como antes. */
+  legado?: boolean;
 }
 
 export interface PosicaoNaTrilha {
@@ -111,8 +121,11 @@ const AGUARDANDO: Record<EtapaDaTrilha, string> = {
   oc_emitida: "Aguardando a OC",
   nf_enviada: "Aguardando o envio da nota fiscal",
   nf_lancada: "Aguardando a validação e o lançamento da NF no M4",
-  pago: "NF lançada no M4 — o pagamento ainda é acompanhado fora do app",
+  pago: "Pagamento programado — aguardando a baixa do DP",
 };
+
+/** Etapas que o LEGADO não tem (28/10): a OC registrada e o pago. */
+const FORA_DO_LEGADO = new Set<EtapaDaTrilha>(["oc_emitida", "pago"]);
 
 /** Posição de UM registro (uma pessoa num evento) na trilha. */
 export function posicaoNaTrilha(e: EntradaDaTrilha): PosicaoNaTrilha {
@@ -127,15 +140,20 @@ export function posicaoNaTrilha(e: EntradaDaTrilha): PosicaoNaTrilha {
   if (r) feitas.add("em_evento");
   if (r && ((r.sentForReview && rh !== "devolvido") || rh === "aprovado" || rh === "rejeitado")) feitas.add("confirmado");
   if (rh === "aprovado") feitas.add("validado");
-  if (emiteNf && (nf === "enviada" || nf === "aprovada" || !!n?.checkinAt)) feitas.add("nf_enviada");
+  const notaEnviada = nf === "enviada" || nf === "aprovada" || !!n?.checkinAt;
+  // OC: a registrada pelo DP; a digitada na nota já enviada (o caminho de antes) também vale.
+  if (emiteNf && (!!r?.ocNumero || (notaEnviada && !!n?.oc?.trim()))) feitas.add("oc_emitida");
+  if (emiteNf && notaEnviada) feitas.add("nf_enviada");
   if (emiteNf && nf === "aprovada" && !!n?.checkinAt) feitas.add("nf_lancada");
+  if (emiteNf && !!r?.pagoEm) feitas.add("pago");
+  const naoSeAplica = (def: DefinicaoDaEtapa) => (def.daNota && !emiteNf) || (!!e.legado && FORA_DO_LEGADO.has(def.id));
 
   // Onde está: avança pelo caminho enquanto as etapas disponíveis estiverem feitas.
   let etapa: EtapaDaTrilha = "previsto";
   let proxima: EtapaDaTrilha | null = null;
   for (const def of ETAPAS_DA_TRILHA) {
     if (!def.disponivel) continue;
-    if (def.daNota && !emiteNf) continue;
+    if (naoSeAplica(def)) continue;
     if (feitas.has(def.id)) { etapa = def.id; continue; }
     proxima = def.id;
     break;
@@ -154,7 +172,7 @@ export function posicaoNaTrilha(e: EntradaDaTrilha): PosicaoNaTrilha {
   const estados = {} as Record<EtapaDaTrilha, EstadoDaEtapa>;
   for (const def of ETAPAS_DA_TRILHA) {
     if (!def.disponivel) estados[def.id] = "em_breve";
-    else if (def.daNota && !emiteNf) estados[def.id] = "nao_se_aplica";
+    else if (naoSeAplica(def)) estados[def.id] = "nao_se_aplica";
     else if (feitas.has(def.id)) estados[def.id] = "feita";
     else if (def.id === proxima) estados[def.id] = "atual";
     else estados[def.id] = "futura";
@@ -165,7 +183,11 @@ export function posicaoNaTrilha(e: EntradaDaTrilha): PosicaoNaTrilha {
   else if (desvio === "concluido_fora_do_fluxo") aguardando = "Concluído fora do fluxo (legado)";
   else if (desvio === "recusado") aguardando = nf === "recusada" && rh !== "rejeitado" ? "Nota fiscal recusada — encerrado" : "Prestação recusada pelo DP — encerrado";
   else if (desvio === "devolvido") aguardando = rh === "devolvido" ? "Devolvido ao responsável da função para correção" : "Nota devolvida ao colaborador para correção";
-  else if (!esperada) aguardando = emiteNf ? AGUARDANDO.pago : "Validado — não emite NF";
+  else if (!esperada) {
+    aguardando = !emiteNf ? "Validado — não emite NF"
+      : e.legado ? "NF lançada no M4 — o pagamento é acompanhado fora do app (legado)"
+      : "Pago";
+  }
   else if (esperada === "nf_lancada" && nf === "aprovada") aguardando = "NF aprovada — falta o lançamento no M4";
   else aguardando = AGUARDANDO[esperada];
 

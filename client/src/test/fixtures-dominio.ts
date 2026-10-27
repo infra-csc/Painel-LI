@@ -268,6 +268,10 @@ export function notaFiscalFake(parcial: Partial<Invoice> = {}): Invoice {
     history: [],
     checkinAt: null,
     checkinBy: null,
+    // O que a nota diz (28/10, conferência do DP)
+    nfNumero: null,
+    nfValor: null,
+    nfCnpj: null,
     createdAt: CRIADO_EM,
     updatedAt: CRIADO_EM,
     ...parcial,
@@ -325,6 +329,19 @@ export function realizadoFake(parcial: Partial<BudgetActual> = {}): BudgetActual
     valorHorasExtras: 0,
     checkoutFinalEm: null,
     checkoutFinalPor: null,
+    // OC e pagamento (28/10)
+    ocNumero: null,
+    ocValor: null,
+    ocData: null,
+    ocRegistradaEm: null,
+    ocRegistradaPor: null,
+    ocOrigem: null,
+    ocJustificativa: null,
+    pagoEm: null,
+    pagoRegistradoPor: null,
+    pagoRegistradoEm: null,
+    pagamentoObs: null,
+    pagamentoComprovanteId: null,
     ...parcial,
   };
 }

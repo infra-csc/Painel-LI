@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { garantirEstrutura } from "./ensure-schema";
 import { setupVite, serveStatic, log } from "./vite";
 import { iniciarAgendadorDaBusca } from "./busca-de-passagens/agendador";
+import { iniciarExpurgoDiario } from "./expurgo-selfies";
 
 // ── Processo: nunca cair por uma promise esquecida (23/09) ──────────────────
 // Um `await` rejeitado fora de try/catch (ou fora do asyncHandler) viraria
@@ -67,6 +68,11 @@ process.on("uncaughtException", (err) => {
           erro instanceof Error ? erro.message : erro,
         );
       })
-      .finally(() => iniciarAgendadorDaBusca());
+      .finally(() => {
+        iniciarAgendadorDaBusca();
+        // 28/10: expurgo diário das selfies pagas além da guarda (LGPD) — só com
+        // o storage real; desligável na Tabela de valores (server/expurgo-selfies.ts).
+        iniciarExpurgoDiario();
+      });
   });
 })();

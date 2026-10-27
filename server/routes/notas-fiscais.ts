@@ -10,6 +10,8 @@ import { invoices as invoicesTable, insertInvoiceSchema, type Invoice, type Hist
 import { eq, and, isNull, sql as drizzleSql } from "drizzle-orm";
 import { ZodError } from "zod";
 import { isNfEligible, podeAprovarNota, podeDevolverNota, podeFazerCheckin } from "@shared/prestacao-rules";
+import { ocDaNota } from "@shared/honorarios-pagamento";
+import { cnpjValido, digitosDoCnpj } from "@shared/cnpj";
 import { createAuditLog, ehViolacaoDeUnicidade, requireRoles, FINANCE_ROLES, requireFinanceUser } from "./_compartilhado";
 
 export function registrarNotasFiscais(app: Express): void {
@@ -95,6 +97,11 @@ export function registrarNotasFiscais(app: Express): void {
       if (anexoDaNotaInvalido(data.attachmentUrl)) {
         return res.status(400).json({ message: "Anexo da nota inválido: use um arquivo enviado pelo sistema." });
       }
+      // CNPJ da nota (28/10, conferência do DP): só dígitos, e válido.
+      if (data.nfCnpj) {
+        if (!cnpjValido(data.nfCnpj)) return res.status(400).json({ message: "CNPJ da nota inválido — confira os 14 dígitos." });
+        data.nfCnpj = digitosDoCnpj(data.nfCnpj);
+      }
       if (data.status && data.status !== "enviada" && data.status !== "pendente") {
         data.status = "enviada";
       }
@@ -112,6 +119,10 @@ export function registrarNotasFiscais(app: Express): void {
         if (!eligible) {
           return res.status(400).json({ message: "Este item do Realizado não está elegível para NF (devolvido, rejeitado ou ainda não enviado)." });
         }
+        // Fase 2 (28/10): com OC registrada, a nota vem com ELA (vazia → preenche; outra → 409).
+        const travada = ocDaNota(actualRef.ocNumero, data.oc);
+        if ("erro" in travada) return res.status(409).json({ message: travada.erro, codigo: "oc_travada" });
+        data.oc = travada.oc;
         // Unicidade: uma NF por prestação (constraint no banco cobre corrida)
         const existingInvoices = await storage.getInvoices(data.eventId);
         if (existingInvoices.some(inv => inv.budgetActualId === data.budgetActualId)) {
@@ -159,8 +170,23 @@ export function registrarNotasFiscais(app: Express): void {
       // Aprovar/devolver/recusar/check-in têm rotas dedicadas com papel —
       // antes qualquer logado aprovava a própria NF por aqui (IDOR).
       const body: Partial<Invoice> = {};
-      for (const k of ["oc", "attachmentUrl", "attachmentName", "paymentText"] as const) {
+      for (const k of ["oc", "attachmentUrl", "attachmentName", "paymentText", "nfNumero", "nfValor", "nfCnpj"] as const) {
         if (k in req.body) body[k] = req.body[k];
+      }
+      // O que a nota diz (28/10): valor em centavos e CNPJ válido.
+      if (body.nfValor != null && (!Number.isInteger(body.nfValor) || body.nfValor <= 0)) {
+        return res.status(400).json({ message: "Valor da nota inválido (centavos, maior que zero)." });
+      }
+      if (body.nfCnpj) {
+        if (!cnpjValido(body.nfCnpj)) return res.status(400).json({ message: "CNPJ da nota inválido — confira os 14 dígitos." });
+        body.nfCnpj = digitosDoCnpj(body.nfCnpj);
+      }
+      // Com OC registrada na prestação, a nota fica travada nela (28/10).
+      const prestacaoDaNota = existing.budgetActualId ? await storage.getBudgetActualById(existing.budgetActualId) : null;
+      if (prestacaoDaNota?.ocNumero) {
+        const travada = ocDaNota(prestacaoDaNota.ocNumero, body.oc);
+        if ("erro" in travada) return res.status(409).json({ message: travada.erro, codigo: "oc_travada" });
+        body.oc = travada.oc;
       }
       if (req.body.status !== undefined) {
         if (req.body.status !== "enviada") {

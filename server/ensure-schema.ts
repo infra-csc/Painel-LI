@@ -857,6 +857,24 @@ const PASSOS: Passo[] = [
     )`,
   },
   { descricao: "índice presenca_confirmacoes_actual_uq (uma confirmação por prestação)", sql: `CREATE UNIQUE INDEX IF NOT EXISTS presenca_confirmacoes_actual_uq ON presenca_confirmacoes (actual_id)` },
+  // 28/10 — Módulo de Honorários, Fase 2 MANUAL: OC, conferência da NF, pago e
+  // expurgo das selfies (scripts/migrations/2026-10-28-honorarios-fase-2.sql).
+  { descricao: "budget_actual.oc_numero (nº da OC)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS oc_numero text` },
+  { descricao: "budget_actual.oc_valor (centavos)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS oc_valor integer` },
+  { descricao: "budget_actual.oc_data", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS oc_data date` },
+  { descricao: "budget_actual.oc_registrada_em", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS oc_registrada_em timestamptz` },
+  { descricao: "budget_actual.oc_registrada_por", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS oc_registrada_por varchar` },
+  { descricao: "budget_actual.oc_origem (manual | lote | m4)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS oc_origem text` },
+  { descricao: "budget_actual.oc_justificativa (sem contrato ativo)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS oc_justificativa text` },
+  { descricao: "budget_actual.pago_em", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS pago_em date` },
+  { descricao: "budget_actual.pago_registrado_por", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS pago_registrado_por varchar` },
+  { descricao: "budget_actual.pago_registrado_em", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS pago_registrado_em timestamptz` },
+  { descricao: "budget_actual.pagamento_obs", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS pagamento_obs text` },
+  { descricao: "budget_actual.pagamento_comprovante_id (anexo)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS pagamento_comprovante_id text` },
+  { descricao: "invoices.nf_numero (nº da nota)", sql: `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS nf_numero text` },
+  { descricao: "invoices.nf_valor (valor da nota, centavos)", sql: `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS nf_valor integer` },
+  { descricao: "invoices.nf_cnpj (CNPJ da nota)", sql: `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS nf_cnpj text` },
+  { descricao: "presencas.foto_expurgada_em (selfies apagadas após a guarda)", sql: `ALTER TABLE presencas ADD COLUMN IF NOT EXISTS foto_expurgada_em timestamptz` },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

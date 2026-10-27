@@ -15,6 +15,8 @@
  *   POST /api/colaborador/presencas/:actualId/:dia/saida
  *   POST /api/colaborador/prestacoes/:actualId/confirmar     { dias, cnpj, razaoSocial?, contestacao? }
  *   GET  /api/colaborador/fotos/:id        (só as próprias selfies)
+ *   POST /api/colaborador/prestacoes/:actualId/nota-fiscal   (28/10, multipart: arquivo, valorNota, numeroNota?, cnpjNota?, conta?)
+ *   GET  /api/colaborador/prestacoes/:actualId/nota-fiscal/arquivo   (a própria nota)
  *
  * Sessão: `req.session.colaboradorId` (server/colaborador-sessao.ts) — mundo
  * à parte das rotas internas. O CPF nunca vai para a auditoria nem para o log;
@@ -44,6 +46,15 @@ import {
   prestacaoDoFluxoNovo, receberSelfie, registrarMarcacao, salvarConfirmacao, type PrestacaoMontada,
 } from "../presenca-servico";
 import { createAuditLog, responderErroComStatus } from "./_compartilhado";
+import { valoresVisiveisAoColaborador, podeEnviarNotaDaOc } from "@shared/honorarios-pagamento";
+import { TIPOS_DE_CONTA, TIPOS_DE_PIX, type DadosDePagamento } from "@shared/pagamento";
+import type { Invoice } from "@shared/schema";
+import { obterPagamento } from "../storage/contratos";
+import { gravarDadosDePagamento, temContaOuPix } from "../pagamento-servico";
+import {
+  blocoDoPortal, contaDoPortal, enviarNotaDaPrestacao, lerCamposDaNota, notaDaPrestacao, notasDasPrestacoes, receberArquivoDaNota,
+  type ContaDoPortal,
+} from "../honorarios-pagamento-servico";
 
 const MSG_CREDENCIAIS = "CPF ou senha incorretos.";
 const MSG_CODIGO = "CPF ou código inválido (ou vencido). Peça um código novo ao DP ou à produção.";
@@ -130,18 +141,23 @@ const corpoDaConfirmacao = z.object({
   contestacao: z.string().trim().max(2000).nullish(),
 });
 
-const marcacaoDoDia = (em: Date | null, fotoId: string | null, por: string | null, lat: string | null) => em ? {
+const marcacaoDoDia = (em: Date | null, fotoId: string | null, por: string | null, lat: string | null, fotoExpurgadaEm: Date | null = null) => em ? {
   em: new Date(em).toISOString(),
   hora: horaEmBrasilia(em),
   comSelfie: !!fotoId,
+  // 28/10: a selfie saiu do storage depois da guarda (LGPD); o horário fica.
+  fotoExpurgada: !!fotoExpurgadaEm,
   fotoId,
   porRepresentante: por === "representante" || por === "produtor_correcao",
   comLocalizacao: !!lat,
 } : null;
 
-/** A prestação como o COLABORADOR vê: valores só se o evento não os oculta. */
-function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string) {
-  const ocultos = m.evento.ocultarValoresColaborador !== false;
+/**
+ * A prestação como o COLABORADOR vê: valores só se o evento não os oculta —
+ * ou depois da OC ("não exibir valores" vale ATÉ a OC, 28/10).
+ */
+function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string, pagamento: { nota: Invoice | null; conta: ContaDoPortal }) {
+  const ocultos = !valoresVisiveisAoColaborador(m.evento.ocultarValoresColaborador, m.actual.ocNumero);
   const confirmar = permissaoDeConfirmar(m, hoje);
   return {
     id: m.actual.id,
@@ -151,8 +167,8 @@ function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string) {
       const p = m.presencaPorDia.get(dia) ?? null;
       return {
         dia, estado,
-        entrada: p ? marcacaoDoDia(p.checkinEm, p.checkinFotoId, p.checkinPor, p.checkinLat) : null,
-        saida: p ? marcacaoDoDia(p.checkoutEm, p.checkoutFotoId, p.checkoutPor, p.checkoutLat) : null,
+        entrada: p ? marcacaoDoDia(p.checkinEm, p.checkinFotoId, p.checkinPor, p.checkinLat, p.fotoExpurgadaEm) : null,
+        saida: p ? marcacaoDoDia(p.checkoutEm, p.checkoutFotoId, p.checkoutPor, p.checkoutLat, p.fotoExpurgadaEm) : null,
         podeEntrar: !m.checkoutFinalFeito && podeRegistrarEntrada({ dia, hoje, dias: m.dias, presenca: p }).ok,
         podeSair: !m.checkoutFinalFeito && podeRegistrarSaida({ dia, hoje, dias: m.dias, presenca: p }).ok,
       };
@@ -180,6 +196,8 @@ function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string) {
       memoria: m.calculo.linhas,
       valorFinal: m.checkoutFinalFeito ? m.actual.totalValue : null,
     },
+    // Etapas 5–7 (28/10): OC, nota fiscal, programado e pago.
+    notaEPagamento: blocoDoPortal(m.actual, m.evento, pagamento.nota, m.funcaoNome, pagamento.conta, m.dias[0] ?? null, m.dias[m.dias.length - 1] ?? null),
   };
 }
 
@@ -298,10 +316,11 @@ export function registrarColaboradorPortal(app: Express): void {
         .sort((a, b) => String(b.evento.startDate).localeCompare(String(a.evento.startDate)));
       // CNPJs ligados ao colaborador (para escolher na confirmação).
       const contratos = (await contratosDosColaboradores([colab.id])).get(colab.id) ?? [];
+      const [notas, conta] = await Promise.all([notasDasPrestacoes(montadas.map((m) => m.actual.id)), contaDoPortal(colab.id)]);
       res.set("Cache-Control", "no-store");
       res.json({
         hoje,
-        prestacoes: montadas.map((m) => prestacaoDoColaborador(m, hoje)),
+        prestacoes: montadas.map((m) => prestacaoDoColaborador(m, hoje, { nota: notas.get(m.actual.id) ?? null, conta })),
         cnpjs: contratos.map((c) => ({ cnpj: mascararCnpj(c.cnpj), razaoSocial: c.razaoSocial, ativo: contratoVigenteEm(c, hojeISO()) })),
       });
     } catch (error) {
@@ -334,8 +353,8 @@ export function registrarColaboradorPortal(app: Express): void {
     if (!presenca) return;
     res.status(201).json({
       dia: req.params.dia,
-      entrada: marcacaoDoDia(presenca.checkinEm, presenca.checkinFotoId, presenca.checkinPor, presenca.checkinLat),
-      saida: marcacaoDoDia(presenca.checkoutEm, presenca.checkoutFotoId, presenca.checkoutPor, presenca.checkoutLat),
+      entrada: marcacaoDoDia(presenca.checkinEm, presenca.checkinFotoId, presenca.checkinPor, presenca.checkinLat, presenca.fotoExpurgadaEm),
+      saida: marcacaoDoDia(presenca.checkoutEm, presenca.checkoutFotoId, presenca.checkoutPor, presenca.checkoutLat, presenca.fotoExpurgadaEm),
     });
   };
   app.post("/api/colaborador/presencas/:actualId/:dia/entrada", marcar("entrada"));
@@ -373,5 +392,82 @@ export function registrarColaboradorPortal(app: Express): void {
     const { ObjectStorageService } = await import("../objectStorage");
     const servico = new ObjectStorageService();
     await servico.downloadObject(servico.arquivoDoAnexo(id), res, { inline: true, nomeArquivo: `selfie-${id.slice(-8)}` });
+  });
+
+  // ── Nota fiscal com a OC + conta do CNPJ (28/10, etapa 5) ─────────────────
+  /**
+   * Multipart: `arquivo` (PDF ou foto JPG/PNG, até 10 MB), `valorNota`
+   * (centavos), `numeroNota?`, `cnpjNota?` (padrão: o CNPJ emissor) e — SÓ
+   * quando ainda não há conta nem PIX gravados — a conta do CNPJ: `banco`,
+   * `agencia`, `conta`, `tipoConta`, `pixTipo`, `pixChave`, `titular`
+   * (gravada pelo MESMO serviço cifrado do DP; a mudança fica pendente de
+   * conferência no sino do DP). Grava a `invoices` da prestação com a OC
+   * registrada, status "enviada" (ou reenvia a devolvida).
+   */
+  app.post("/api/colaborador/prestacoes/:actualId/nota-fiscal", async (req, res) => {
+    const colab = await requireColaborador(req, res);
+    if (!colab) return;
+    if (!(await receberArquivoDaNota(req, res))) return;
+    const campos = lerCamposDaNota(req.body);
+    if ("erro" in campos) return res.status(400).json({ message: campos.erro, campo: campos.campo });
+    try {
+      const config = await lerConfiguracaoDoBanco();
+      const m = await minhaPrestacao(req, res, colab, config);
+      if (!m) return;
+      const nota = await notaDaPrestacao(m.actual.id);
+      const pode = podeEnviarNotaDaOc(m.actual, nota);
+      if (!pode.ok) return res.status(409).json({ message: pode.motivo, codigo: pode.codigo });
+
+      // A conta do CNPJ: só quando ainda não há conta nem PIX (depois, só o DP muda).
+      const corpo = (req.body ?? {}) as Record<string, unknown>;
+      const conta: Partial<DadosDePagamento> = {};
+      for (const k of ["banco", "agencia", "conta", "pixChave", "titular"] as const) {
+        if (typeof corpo[k] === "string" && corpo[k]) conta[k] = String(corpo[k]).slice(0, 200);
+      }
+      if (typeof corpo.tipoConta === "string" && corpo.tipoConta) {
+        if (!(TIPOS_DE_CONTA as readonly string[]).includes(corpo.tipoConta)) return res.status(400).json({ message: "Tipo de conta inválido.", campo: "tipoConta" });
+        conta.tipoConta = corpo.tipoConta as DadosDePagamento["tipoConta"];
+      }
+      if (typeof corpo.pixTipo === "string" && corpo.pixTipo) {
+        if (!(TIPOS_DE_PIX as readonly string[]).includes(corpo.pixTipo)) return res.status(400).json({ message: "Tipo da chave PIX inválido.", campo: "pixTipo" });
+        conta.pixTipo = corpo.pixTipo as DadosDePagamento["pixTipo"];
+      }
+      const gravado = await obterPagamento(colab.id);
+      if (temContaOuPix(gravado)) {
+        if (Object.keys(conta).length > 0) {
+          return res.status(409).json({ message: "A sua conta já está cadastrada — para trocar, fale com o DP.", codigo: "conta_ja_cadastrada" });
+        }
+      } else {
+        if (!conta.conta && !conta.pixChave) {
+          return res.status(400).json({ message: "Informe a conta bancária (ou o PIX) do CNPJ para receber.", codigo: "conta_obrigatoria", campo: "conta" });
+        }
+        const r = await gravarDadosDePagamento({
+          colaborador: colab, versao: gravado?.versao ?? 0, enviado: conta,
+          autor: { id: `colaborador:${colab.id}`, name: nomeNaAuditoria(colab) }, req,
+        });
+        if (!r.ok) return res.status(r.status).json(r.corpo);
+      }
+
+      const gravada = await enviarNotaDaPrestacao({ req, res, actual: m.actual, nota, campos: campos.campos, ator: null, nomeDoAtor: nomeNaAuditoria(colab) });
+      if (!gravada) return;
+      const hoje = diaEmBrasilia();
+      res.status(nota ? 200 : 201).json({ prestacao: prestacaoDoColaborador(m, hoje, { nota: gravada, conta: await contaDoPortal(colab.id) }) });
+    } catch (error) {
+      responderErroComStatus(res, error, "Não foi possível enviar a nota agora. Tente de novo.", 500);
+    }
+  });
+
+  /** O arquivo da PRÓPRIA nota fiscal (para conferir o que foi enviado). */
+  app.get("/api/colaborador/prestacoes/:actualId/nota-fiscal/arquivo", async (req, res) => {
+    const colab = await requireColaborador(req, res);
+    if (!colab) return;
+    const m = await minhaPrestacao(req, res, colab, await lerConfiguracaoDoBanco());
+    if (!m) return;
+    const nota = await notaDaPrestacao(m.actual.id);
+    const id = nota?.attachmentUrl?.match(/^\/api\/attachments\/(ATT-[A-Z0-9-]{4,60})\/(view|download)$/)?.[1];
+    if (!id) return res.status(404).json({ message: "Nota fiscal não encontrada." });
+    const { ObjectStorageService } = await import("../objectStorage");
+    const servico = new ObjectStorageService();
+    await servico.downloadObject(servico.arquivoDoAnexo(id), res, { inline: true, nomeArquivo: nota?.attachmentName || "nota-fiscal" });
   });
 }

@@ -71,7 +71,8 @@ describe("Conferência DP — trilha do evento", () => {
     const trilha = screen.getByTestId("trilha-do-evento");
     expect(within(trilha).getAllByRole("listitem")).toHaveLength(9);
     expect(within(trilha).getByTestId("trilha-evento-validado")).toHaveTextContent("Validado");
-    expect(within(trilha).getByTestId("trilha-evento-oc_emitida")).toHaveTextContent(/em breve/i);
+    // 28/10 (Fase 2): a OC deixou de ser "em breve".
+    expect(within(trilha).getByTestId("trilha-evento-oc_emitida")).not.toHaveTextContent(/em breve/i);
     expect(screen.queryByTestId("trilho-comparativo")).not.toBeInTheDocument();
   });
 });

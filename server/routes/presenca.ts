@@ -53,6 +53,8 @@ import {
 } from "../presenca-servico";
 import { marcarEnviadosParaRevisao } from "./orcamento-realizado";
 import { PAPEIS_QUE_VEEM_SELFIES } from "../objectAcl";
+import { notasDasPrestacoes } from "../honorarios-pagamento-servico";
+import { ROTULO_DO_ESTADO_DO_PAGAMENTO, estadoDoPagamento, podeEnviarNotaDaOc } from "@shared/honorarios-pagamento";
 import {
   createAuditLog, createAuditLogsBatch, montarLogDeAuditoria, requireFinanceUser, requireRoles, responderErroComStatus,
 } from "./_compartilhado";
@@ -127,12 +129,15 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
     m.actual.checkoutFinalPor, m.confirmacao?.userId,
     ...Array.from(m.presencaPorDia.values()).flatMap((p) => [p.checkinUserId, p.checkoutUserId]),
   ]).filter((v): v is string => !!v)));
-  const [contratos, acessos, nomesSubst, usuarios] = await Promise.all([
+  const [contratos, acessos, nomesSubst, usuarios, notas] = await Promise.all([
     contratosDosColaboradores(colabIds),
     acessosDosColaboradores(colabIds),
     substitutos.length ? db.select({ id: collaboratorsTable.id, nome: collaboratorsTable.fullName }).from(collaboratorsTable).where(inArray(collaboratorsTable.id, substitutos)) : Promise.resolve([]),
     userIds.length ? storage.getUsersByIds(userIds) : Promise.resolve([] as User[]),
+    notasDasPrestacoes(montadas.map((m) => m.actual.id)),
   ]);
+  // NF pelo representante (28/10): admin, DP e produção — POST /api/ordens-de-compra/:actualId/nota-fiscal.
+  const enviaNf = (PAPEIS_DO_PRODUTOR as readonly string[]).includes(normalizeRole(user.role) ?? "");
   const nomeDoSubst = new Map(nomesSubst.map((s) => [s.id, s.nome]));
   const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name || u.email]));
   const podeVerFotos = (PAPEIS_QUE_VEEM_SELFIES as readonly string[]).includes(normalizeRole(user.role) ?? "");
@@ -149,6 +154,8 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
       por: lado === "checkin" ? p.checkinPor : p.checkoutPor,
       porUsuario: userId ? { id: userId, nome: nomeDoUsuario.get(userId) ?? null } : null,
       comSelfie: !!fotoId,
+      // 28/10: a selfie saiu do storage depois da guarda (LGPD); o horário fica.
+      fotoExpurgada: !!p.fotoExpurgadaEm,
       fotoId: podeVerFotos ? fotoId : null,
       fotoUrl: podeVerFotos && fotoId ? `/api/attachments/${fotoId}/view` : null,
       lat: lado === "checkin" ? (p.checkinLat != null ? Number(p.checkinLat) : null) : (p.checkoutLat != null ? Number(p.checkoutLat) : null),
@@ -227,6 +234,18 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
         ultimoAcessoEm: acesso?.ultimoAcessoEm ? new Date(acesso.ultimoAcessoEm).toISOString() : null,
       },
       realizado: { rhStatus: m.actual.rhStatus, sentForReview: m.actual.sentForReview, totalValue: m.actual.totalValue, dailyValue: m.actual.dailyValue },
+      // Etapas 4–7 (28/10): a OC, a nota e se dá para enviar a NF como representante.
+      notaFiscal: (() => {
+        const n = notas.get(m.actual.id) ?? null;
+        const estado = estadoDoPagamento({ ocNumero: m.actual.ocNumero, pagoEm: m.actual.pagoEm, nota: n });
+        return {
+          estado, rotulo: ROTULO_DO_ESTADO_DO_PAGAMENTO[estado],
+          oc: m.actual.ocNumero ? { numero: m.actual.ocNumero, valor: m.actual.ocValor, data: m.actual.ocData } : null,
+          nota: n ? { id: n.id, status: n.status, numero: n.nfNumero, valor: n.nfValor, arquivoNome: n.attachmentName, comentarioDoDp: n.returnComment } : null,
+          pagoEm: m.actual.pagoEm,
+          podeEnviar: enviaNf && podeEnviarNotaDaOc(m.actual, n).ok,
+        };
+      })(),
     };
   });
 }

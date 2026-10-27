@@ -103,6 +103,9 @@ export interface RealizadoParaControle {
   rhAdjustNote: string | null;
   updatedBy: string | null;
   updatedAt: Date | string | null;
+  /** 28/10 (Fase 2): OC registrada e data do pagamento — a trilha marca OC emitida e Pago. */
+  ocNumero?: string | null;
+  pagoEm?: string | null;
 }
 
 export interface NotaParaControle {
@@ -425,7 +428,7 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
       conclusaoForaDoFluxo,
       trilha: posicaoNaTrilha({
         planejado: base.planned, realizado: base.actual, nota: invoice, emiteNf: emite,
-        concluidoForaDoFluxo: !!conclusaoForaDoFluxo,
+        concluidoForaDoFluxo: !!conclusaoForaDoFluxo, legado,
       }),
     };
     return { ...parcial, rhPrecisaAgir: rhPrecisaAgirNaLinha(parcial) };

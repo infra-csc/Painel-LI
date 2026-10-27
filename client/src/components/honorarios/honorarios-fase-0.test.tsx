@@ -79,13 +79,13 @@ describe("Menu: o grupo Financeiro virou Honorários (slide 11)", () => {
 });
 
 describe("Trilha única do honorário (slide 8)", () => {
-  it("registro: feitas, a esperada, OC e Pago 'em breve' e o que falta", () => {
+  it("registro: feitas, a esperada e o que falta (OC e Pago existem desde 28/10)", () => {
     renderComTudo(<TrilhaDoRegistro posicao={posicaoNaTrilha({ realizado: { sentForReview: true, rhStatus: "pendente" } })} />);
     const trilha = screen.getByTestId("trilha-do-registro");
     expect(trilha).toHaveAttribute("data-etapa", "confirmado");
     const etapas = within(trilha).getAllByRole("listitem");
     expect(etapas).toHaveLength(9);
-    expect(etapas.map((e) => e.getAttribute("data-estado"))).toEqual(["feita", "feita", "feita", "feita", "atual", "em_breve", "futura", "futura", "em_breve"]);
+    expect(etapas.map((e) => e.getAttribute("data-estado"))).toEqual(["feita", "feita", "feita", "feita", "atual", "futura", "futura", "futura", "futura"]);
     expect(screen.getByTestId("trilha-aguardando")).toHaveTextContent("Aguardando a conferência do DP");
   });
 
@@ -103,7 +103,7 @@ describe("Trilha única do honorário (slide 8)", () => {
     renderComTudo(<TrilhaDoEvento contagem={contagem} foco={["previsto", "pre_aprovado"]} />);
     expect(screen.getByTestId("trilha-evento-previsto")).toHaveTextContent("2");
     expect(screen.getByTestId("trilha-evento-pre_aprovado")).toHaveTextContent("1");
-    expect(screen.getByTestId("trilha-evento-pago")).toHaveTextContent(/em breve/i);
+    expect(screen.getByTestId("trilha-evento-pago")).not.toHaveTextContent(/em breve/i);
     expect(screen.getByTestId("trilha-desvios")).toHaveTextContent("1 recusado");
   });
 
