@@ -36,7 +36,7 @@ const LISTA_NF: ListaCurta = {
   opcoes: [
     { id: "all", nome: "Todas as notas" },
     { id: "pendente", nome: "Aguardando nota" },
-    { id: "enviada", nome: "Aguardando aprovação RH" },
+    { id: "enviada", nome: "Aguardando aprovação DP" },
     { id: "devolvida", nome: "Devolvida" },
     { id: "aprovada", nome: "Aprovada" },
     { id: "recusada", nome: "NF recusada" },
@@ -76,7 +76,7 @@ export function RhFilters(p: RhFiltersProps) {
 
   // Linha do recorte: algo além da busca e do evento está ligado.
   const temLinha = f.filterStatus !== "all" || f.filterCheckinOnly || f.filterFunction !== "all" || f.filterInvoiceStatus !== "all" || f.filterCollaborator !== "all";
-  const nomeDoRecorte = f.filterStatus === "rh_action" ? "pendências do RH"
+  const nomeDoRecorte = f.filterStatus === "rh_action" ? "pendências do DP"
     : f.filterStatus !== "all" ? statusConfig[f.filterStatus].label.toLowerCase()
     : "";
 

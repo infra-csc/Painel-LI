@@ -26,6 +26,8 @@ export interface CartaoPrestacaoProps {
   approvingInvoiceId: string | null;
   nfApproving: boolean;
   canRh: boolean;
+  /** Legado (26/10): só leitura — as decisões ficam escondidas. */
+  somenteLeitura?: boolean;
   toggleExpand: (id: string) => void;
   toggleDetails: (id: string) => void;
   navigate: (path: string) => void;
@@ -35,14 +37,17 @@ export interface CartaoPrestacaoProps {
 }
 
 export const CartaoPrestacao = memo(function CartaoPrestacao({
-  item, expandido, detalhes, approvingInvoiceId, nfApproving, canRh,
+  item, expandido, detalhes, approvingInvoiceId, nfApproving, canRh: podeDecidir, somenteLeitura,
   toggleExpand, toggleDetails, navigate, setApprovingInvoiceId, setNfApproving, toast,
 }: CartaoPrestacaoProps) {
+  // Legado (só leitura) e o que já foi concluído fora do fluxo não pedem ação.
+  const leitura = !!somenteLeitura || !!item.conclusaoForaDoFluxo;
+  const canRh = podeDecidir && !leitura;
   const config = statusConfig[item.status];
   const isExpanded = expandido;
   const isResubmitted = item.actual?.resubmitted;
   const navTarget = getNavigationTarget(item);
-  const needsRhAction = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
+  const needsRhAction = !leitura && (item.status === "prestacao_recebida" || item.status === "planejamento_pendente");
   // NF ligada ao Realizado raiz, já resolvida pelo servidor.
   const invoice = item.invoice ?? undefined;
   const tom = tomDaLinha(item, invoice);

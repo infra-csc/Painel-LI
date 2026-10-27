@@ -153,7 +153,7 @@ describe("GET /api/attachments/:id/view", () => {
     expect(Buffer.isBuffer(res.body) && (res.body as Buffer).equals(PNG)).toBe(true);
   });
 
-  it("por RH → 200 com Content-Type da allowlist, CSP sandbox, nosniff e sem cache", async () => {
+  it("por DP → 200 com Content-Type da allowlist, CSP sandbox, nosniff e sem cache", async () => {
     const dono = await agenteLogado("function_area");
     const anexo = await anexoDe(dono.agent);
     const { agent: rh } = await agenteLogado("financial");
@@ -171,7 +171,7 @@ describe("GET /api/attachments/:id/view", () => {
 
   // 29/09 (decisão do dono): a Área de Função voltou a ver os dados pessoais
   // do colaborador — inclusive o documento anexado, mesmo o que ela não enviou.
-  it("documento de colaborador (CPF/RG): qualquer Área de Função vê (29/09); RH vê", async () => {
+  it("documento de colaborador (CPF/RG): qualquer Área de Função vê (29/09); DP vê", async () => {
     const dono = await agenteLogado("function_area");
     const anexo = await anexoDe(dono.agent);
     const colab = await criarColaborador();
@@ -208,5 +208,17 @@ describe("GET /api/attachments/:id/view", () => {
     const { agent } = await agenteLogado("admin");
     expect((await agent.get("/api/attachments/..%2F..%2Fetc/view")).status).toBe(400);
     expect((await agent.get("/api/attachments/ATT-NAO-EXISTE-123/view")).status).toBe(404);
+  });
+
+  // 27/10: o arquivo de contrato continua só do DP mesmo depois de trocado ou
+  // removido do contrato (a marca fica no próprio objeto, não em contratos.anexo_id).
+  it("anexo marcado como contrato e já fora do contrato: Compras → 403, DP → 200", async () => {
+    const dp = await agenteLogado("financial");
+    const anexo = await anexoDe(dp.agent);
+    const { ObjectStorageService } = await import("../objectStorage");
+    await new ObjectStorageService().arquivoDoAnexo(anexo.id).setMetadata({ metadata: { "custom:classe": "contrato" } });
+    const { agent: compras } = await agenteLogado("purchasing");
+    expect((await compras.get(anexo.url)).status).toBe(403);
+    expect((await binario(dp.agent.get(anexo.url))).status).toBe(200);
   });
 });

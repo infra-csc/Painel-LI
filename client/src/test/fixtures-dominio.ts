@@ -12,6 +12,7 @@ import type {
 import type { SuggestionRow } from "@/components/scaling-validation/types";
 import type { PrestacaoItem } from "@/components/rh/prestacao-types";
 import type { NotaParaControle, PlanejadoParaControle, RealizadoParaControle } from "@shared/controle-rh";
+import { posicaoNaTrilha } from "@shared/trilha-honorarios";
 
 let seq = 0;
 const proximo = () => { seq += 1; return seq; };
@@ -171,6 +172,7 @@ export function eventoFake(parcial: Partial<Event> = {}): Event {
     paymentCompanyName: null,
     paymentCompanyCnpj: null,
     aeroportoIata: null,
+    ocultarValoresColaborador: true,
     createdAt: CRIADO_EM,
     ...parcial,
   };
@@ -401,13 +403,13 @@ export function notaRhFake(parcial: Partial<NotaParaControle> = {}): NotaParaCon
   };
 }
 
-/** Linha da fila do Controle RH (GET /api/rh/controle). */
+/** Linha da fila do Painel de honorários (GET /api/rh/controle). */
 export function linhaRhFake(parcial: Partial<PrestacaoItem> = {}): PrestacaoItem {
   const n = proximo();
-  return {
+  const linha = {
     id: `linha-rh-${n}`,
     status: "prestacao_recebida",
-    responsavelAtual: "RH",
+    responsavelAtual: "DP",
     lastActivityDate: new Date().toISOString(),
     event: {
       id: "evento-1", eventNumber: 1, name: "Circuito Brasília", location: "Brasília, DF",
@@ -425,6 +427,13 @@ export function linhaRhFake(parcial: Partial<PrestacaoItem> = {}): PrestacaoItem
     nfElegivel: true,
     rhActionByName: null,
     rhPrecisaAgir: true,
+    legado: false,
+    conclusaoForaDoFluxo: null,
     ...parcial,
   } as PrestacaoItem;
+  // A trilha única (26/10) segue o que a linha tem — a mesma regra do servidor.
+  return parcial.trilha ? linha : {
+    ...linha,
+    trilha: posicaoNaTrilha({ planejado: linha.planned, realizado: linha.actual, nota: linha.invoice, emiteNf: linha.emiteNf, concluidoForaDoFluxo: !!linha.conclusaoForaDoFluxo }),
+  };
 }

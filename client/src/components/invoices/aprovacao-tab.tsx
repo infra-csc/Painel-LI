@@ -30,8 +30,8 @@ import type { BudgetActual } from "@shared/schema";
 const APROV_FILTERS = [
   { id: "all",               label: "Todos" },
   { id: "enviada",           label: "Aguardando",         dot: getStatusCfg("enviada").dot },
-  { id: "checkin-pendente",  label: "Aguard. check-in",   dot: getStatusCfg("checkin-pendente").dot },
-  { id: "checkin-realizado", label: "Check-in realizado", dot: getStatusCfg("checkin-realizado").dot },
+  { id: "checkin-pendente",  label: "Aguard. M4",   dot: getStatusCfg("checkin-pendente").dot },
+  { id: "checkin-realizado", label: "Lançada no M4", dot: getStatusCfg("checkin-realizado").dot },
   { id: "devolvida",         label: "Devolvida",          dot: getStatusCfg("devolvida").dot },
   { id: "recusada",          label: "NF recusada",        dot: getStatusCfg("recusada").dot },
 ];
@@ -123,7 +123,7 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
         <EstadoDaLista
           icone={FileText}
           titulo="Nenhuma nota enviada ainda"
-          texto="As notas lançadas para este evento aparecem aqui para a análise do RH: aprovar, devolver para ajuste ou recusar, e depois o check-in financeiro."
+          texto="As notas lançadas para este evento aparecem aqui para a análise do DP: aprovar, devolver para ajuste ou recusar, e depois o lançamento no M4."
           acao={onIrParaLancamento && (
             <button type="button" onClick={onIrParaLancamento} className={BOTAO_SAIDA}>
               Ir para Lançamento <ArrowRight className="w-4 h-4" aria-hidden="true" />

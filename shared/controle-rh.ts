@@ -21,6 +21,8 @@
  * Funções puras — sem I/O.
  */
 import { isNfEligible, nfIsentaPorEscalacao, type EscalacaoLike } from "./prestacao-rules";
+import { contarNaTrilha, posicaoNaTrilha, type ContagemDaTrilha, type PosicaoNaTrilha } from "./trilha-honorarios";
+import { DATA_DE_CORTE_PADRAO, ehEventoLegado, eventoNoRecorte, type RecorteDoLegado } from "./legado-honorarios";
 
 // ── Tipos de entrada (o mínimo que o cruzamento lê de cada tabela) ──────────
 export interface EventoParaControle {
@@ -129,6 +131,22 @@ export interface EntradaDoControleRh {
   nomesDeColaboradores: ReadonlyMap<string, string>;
   nomesDeFuncoes: ReadonlyMap<string, string>;
   nomesDeUsuarios: ReadonlyMap<string, string>;
+  /**
+   * Data de corte do legado (26/10, `system_settings.honorarios_data_corte`):
+   * evento que TERMINA antes dela é legado. Padrão: 01/11/2026.
+   */
+  dataDeCorte?: string;
+  /** Recorte pedido (padrão "todos" — a rota manda "fluxo_novo" quando a tela não escolhe). */
+  recorte?: RecorteDoLegado;
+  /** Linhas do legado concluídas fora do fluxo, pelo id da linha (`pl-…`/`ti-…`). */
+  conclusoes?: ReadonlyMap<string, ConclusaoForaDoFluxo>;
+}
+
+/** "Concluir em lote" do legado: quem, quando e por quê (26/10). */
+export interface ConclusaoForaDoFluxo {
+  motivo: string;
+  porNome: string | null;
+  em: string | null;
 }
 
 // ── Contrato de saída ───────────────────────────────────────────────────────
@@ -170,7 +188,7 @@ export interface LinhaDoControleRh {
   /** `pl-<planejado.id>` quando há Planejado; `ti-<vaga.id>` quando só existe a vaga. */
   id: string;
   status: StatusDaPrestacao;
-  /** "RH", "Concluído" ou o nome do responsável da função. */
+  /** "DP", "Concluído" ou o nome do responsável da função. */
   responsavelAtual: string;
   /** ISO 8601 ou null — a tela calcula "há N dias" a partir daqui. */
   lastActivityDate: string | null;
@@ -190,14 +208,20 @@ export interface LinhaDoControleRh {
   nfElegivel: boolean;
   /** Nome de quem decidiu no RH (actual.rhActionBy), se houver. */
   rhActionByName: string | null;
-  /** Ações pendentes do RH nesta linha. */
+  /** Ações pendentes do DP nesta linha (o nome do campo é do contrato antigo). */
   rhPrecisaAgir: boolean;
+  /** Onde o registro está na trilha única do honorário (shared/trilha-honorarios). */
+  trilha: PosicaoNaTrilha;
+  /** O evento terminou antes da data de corte (legado — só leitura no Painel). */
+  legado: boolean;
+  /** Linha do legado concluída fora do fluxo ("Concluir em lote"), ou null. */
+  conclusaoForaDoFluxo: ConclusaoForaDoFluxo | null;
 }
 
 export interface ContadoresDoControleRh {
   status: Record<StatusDaPrestacao, number>;
   nf: { pending: number; enviada: number; devolvida: number; aprovada: number; checkinPending: number; checkinDone: number };
-  /** Quantas linhas pedem ação do RH (contador do cabeçalho). */
+  /** Quantas linhas pedem ação do DP (contador do cabeçalho). */
   rhAction: number;
   /**
    * Denominador da barra "Progresso geral" (e do "de N total" do card
@@ -207,6 +231,13 @@ export interface ContadoresDoControleRh {
    * denominador anterior; agora vem pronto.
    */
   totalParaProgresso: number;
+  /** Quantos registros estão em cada etapa da trilha única (recorte pedido). */
+  trilha: ContagemDaTrilha;
+  /**
+   * Linhas de cada recorte do legado, ANTES de aplicar o recorte pedido — as
+   * contagens das abas "Fluxo novo" × "Legado" do Painel de honorários.
+   */
+  recortes: { fluxoNovo: number; legado: number; legadoConcluido: number };
 }
 
 export interface ControleRh {
@@ -215,6 +246,10 @@ export interface ControleRh {
   contadores: ContadoresDoControleRh;
   /** Funções presentes nas linhas (para o select de filtro), ordenadas por nome. */
   funcoes: { id: string; name: string }[];
+  /** Data de corte do legado usada neste recorte (AAAA-MM-DD). */
+  dataDeCorte: string;
+  /** Recorte aplicado. */
+  recorte: RecorteDoLegado;
   geradoEm: string;
 }
 
@@ -239,6 +274,10 @@ function decidirPeloRealizado(
   let status: StatusDaPrestacao = "aguardando_prestacao";
   let responsavelAtual = resolveResponsavel(planned.createdBy);
   let lastActivityDate = iso(planned.updatedAt);
+  // 26/10 (Honorários, Fase 0): com a pré-aprovação, o Planejado é gravado
+  // ANTES do envio ao Realizado. Sem prestação, a vez ainda é do DP — pré-
+  // aprovar e liberar para a Produção —, não do responsável da função.
+  if (!actual && comVaga && !planned.didNotAttend) return { status: "planejamento_pendente", responsavelAtual: "DP", lastActivityDate };
   if (!actual) return { status, responsavelAtual, lastActivityDate };
 
   const rhStatus = actual.rhStatus || "pendente";
@@ -253,7 +292,7 @@ function decidirPeloRealizado(
     lastActivityDate = iso(actual.rhActionAt) ?? lastActivityDate;
     responsavelAtual = resolveResponsavel(comVaga ? (actual.updatedBy || planned.createdBy) : actual.updatedBy);
   } else if (actual.sentForReview) {
-    status = "prestacao_recebida"; responsavelAtual = "RH";
+    status = "prestacao_recebida"; responsavelAtual = "DP";
     lastActivityDate = iso(actual.updatedAt) ?? lastActivityDate;
   } else if (comVaga) {
     // Só a linha COM vaga refina "aguardando" pelo Realizado (a órfã mantém o Planejado).
@@ -264,8 +303,9 @@ function decidirPeloRealizado(
   return { status, responsavelAtual, lastActivityDate };
 }
 
-/** O RH precisa agir nesta linha? (status do RH, NF enviada a aprovar ou check-in pendente.) */
-export function rhPrecisaAgirNaLinha(l: Pick<LinhaDoControleRh, "status" | "invoice">): boolean {
+/** O DP precisa agir nesta linha? (status do DP, NF enviada a aprovar ou lançamento pendente.) Concluída fora do fluxo: não. */
+export function rhPrecisaAgirNaLinha(l: Pick<LinhaDoControleRh, "status" | "invoice"> & { conclusaoForaDoFluxo?: ConclusaoForaDoFluxo | null }): boolean {
+  if (l.conclusaoForaDoFluxo) return false;
   const inv = l.invoice;
   const needsRhCheckin = l.status === "aprovada_faturamento" && inv?.status === "aprovada" && !inv?.checkinAt;
   const needsRhNfApproval = l.status === "aprovada_faturamento" && inv?.status === "enviada";
@@ -279,15 +319,18 @@ export function linhaPassaNoFiltro(l: LinhaDoControleRh, filtro: FiltroDeStatus)
     case "rh_action":
       return l.rhPrecisaAgir;
     case "col_action": {
+      if (l.conclusaoForaDoFluxo) return false;
       const nfDevolvida = l.nfElegivel && inv?.status === "devolvida";
       const nfPendente = l.nfElegivel && (!inv || inv.status === "pendente") && l.emiteNf;
       return l.status === "aguardando_prestacao" || l.status === "devolvida_para_ajuste" || nfDevolvida || nfPendente;
     }
     case "nf_andamento": {
+      if (l.conclusaoForaDoFluxo) return false;
       const st = inv?.status || "pendente";
       return l.nfElegivel && ((st === "pendente" && l.emiteNf) || st === "enviada" || st === "devolvida");
     }
     case "concluidos":
+      if (l.conclusaoForaDoFluxo) return true;
       return l.status === "aprovada_faturamento" && inv?.status === "aprovada" && !!inv?.checkinAt;
     default:
       return l.status === filtro;
@@ -300,7 +343,8 @@ export function linhaPassaNoFiltro(l: LinhaDoControleRh, filtro: FiltroDeStatus)
  * emite NF (definido na escalação) e NF recusada (terminal) — senão o progresso
  * nunca chega a 100%. Mesma regra que a tela aplicava em `contarParaProgresso`.
  */
-export function linhaContaNoProgresso(l: Pick<LinhaDoControleRh, "status" | "emiteNf" | "invoice" | "planned" | "actual">): boolean {
+export function linhaContaNoProgresso(l: Pick<LinhaDoControleRh, "status" | "emiteNf" | "invoice" | "planned" | "actual"> & { conclusaoForaDoFluxo?: ConclusaoForaDoFluxo | null }): boolean {
+  if (l.conclusaoForaDoFluxo) return false;
   if (l.planned?.didNotAttend || l.actual?.didNotAttend) return false;
   if (l.status === "recusada") return false;
   if (!l.emiteNf) return false;
@@ -355,20 +399,34 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
   const nomeUsuario = (id?: string | null) => (id ? entrada.nomesDeUsuarios.get(id) ?? null : null);
   const resolveResponsavel = (id?: string | null): string => nomeUsuario(id) ?? "Responsável da função";
 
-  const linhas: LinhaDoControleRh[] = [];
+  const todas: LinhaDoControleRh[] = [];
   const planejadosUsados = new Set<string>();
   const idsVistos = new Set<string>();
 
-  const montar = (base: Omit<LinhaDoControleRh, "collaboratorName" | "functionName" | "invoice" | "emiteNf" | "nfElegivel" | "rhActionByName" | "rhPrecisaAgir">): LinhaDoControleRh => {
+  const dataDeCorte = entrada.dataDeCorte ?? DATA_DE_CORTE_PADRAO;
+  const recorte: RecorteDoLegado = entrada.recorte ?? "todos";
+
+  const montar = (base: Omit<LinhaDoControleRh, "collaboratorName" | "functionName" | "invoice" | "emiteNf" | "nfElegivel" | "rhActionByName" | "rhPrecisaAgir" | "trilha" | "legado" | "conclusaoForaDoFluxo">): LinhaDoControleRh => {
     const invoice = base.actual ? notaPorRealizado.get(base.actual.id) ?? null : null;
+    const legado = ehEventoLegado(base.event.endDate, dataDeCorte);
+    // Só o legado é concluído fora do fluxo: uma conclusão gravada para um
+    // evento que voltou ao fluxo novo (a data de corte mudou) não vale.
+    const conclusaoForaDoFluxo = legado ? entrada.conclusoes?.get(base.id) ?? null : null;
+    const emite = emiteNf(base.event.id, base.collaboratorId, base.functionId);
     const parcial = {
       ...base,
       collaboratorName: base.collaboratorId ? entrada.nomesDeColaboradores.get(base.collaboratorId) ?? null : null,
       functionName: base.functionId ? entrada.nomesDeFuncoes.get(base.functionId) ?? null : null,
       invoice,
-      emiteNf: emiteNf(base.event.id, base.collaboratorId, base.functionId),
+      emiteNf: emite,
       nfElegivel: base.actual ? isNfEligible(base.actual) : false,
       rhActionByName: nomeUsuario(base.actual?.rhActionBy),
+      legado,
+      conclusaoForaDoFluxo,
+      trilha: posicaoNaTrilha({
+        planejado: base.planned, realizado: base.actual, nota: invoice, emiteNf: emite,
+        concluidoForaDoFluxo: !!conclusaoForaDoFluxo,
+      }),
     };
     return { ...parcial, rhPrecisaAgir: rhPrecisaAgirNaLinha(parcial) };
   };
@@ -379,8 +437,8 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
     const teamInclusion = { id: v.id, inclusionNumber: v.inclusionNumber, status: v.status, phase: v.phase, emitsNf: v.emitsNf, createdAt: iso(v.createdAt) };
     const planned = planejadoPorChave.get(chave(v));
     if (!planned) {
-      linhas.push(montar({
-        id: `ti-${v.id}`, status: "planejamento_pendente", responsavelAtual: "RH", lastActivityDate: iso(v.createdAt),
+      todas.push(montar({
+        id: `ti-${v.id}`, status: "planejamento_pendente", responsavelAtual: "DP", lastActivityDate: iso(v.createdAt),
         event, collaboratorId: v.collaboratorId, functionId: v.functionId, teamInclusion, planned: null, actual: null,
       }));
       continue;
@@ -391,7 +449,7 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
     planejadosUsados.add(planned.id);
     const actual = realizadoDe(planned);
     const d = decidirPeloRealizado(actual, planned, resolveResponsavel, true);
-    linhas.push(montar({
+    todas.push(montar({
       id, ...d, event, collaboratorId: planned.collaboratorId, functionId: planned.functionId, teamInclusion, planned, actual,
     }));
   }
@@ -405,24 +463,35 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
     idsVistos.add(id);
     const actual = realizadoDe(planned);
     const d = decidirPeloRealizado(actual, planned, resolveResponsavel, false);
-    linhas.push(montar({
+    todas.push(montar({
       id, ...d, event, collaboratorId: planned.collaboratorId, functionId: planned.functionId, teamInclusion: null, planned, actual,
     }));
   }
 
   const prioridade = new Map(STATUS_DA_PRESTACAO.map((s, i) => [s, i]));
-  linhas.sort((a, b) => {
+  todas.sort((a, b) => {
     const pa = prioridade.get(a.status) ?? 99;
     const pb = prioridade.get(b.status) ?? 99;
     if (pa !== pb) return pa - pb;
     return (b.lastActivityDate ? Date.parse(b.lastActivityDate) : 0) - (a.lastActivityDate ? Date.parse(a.lastActivityDate) : 0);
   });
 
-  // Contadores (sobre todas as linhas, como os cards da tela)
+  // Recorte do legado (26/10): as abas contam ANTES de recortar; os demais
+  // contadores valem para o recorte pedido.
+  const recortes = { fluxoNovo: 0, legado: 0, legadoConcluido: 0 };
+  for (const l of todas) {
+    if (!l.legado) { recortes.fluxoNovo += 1; continue; }
+    recortes.legado += 1;
+    if (l.conclusaoForaDoFluxo) recortes.legadoConcluido += 1;
+  }
+  const linhas = todas.filter((l) => eventoNoRecorte(l.legado, recorte));
+  const eventosNoRecorte = new Set(entrada.eventos.filter((e) => eventoNoRecorte(ehEventoLegado(e.endDate, dataDeCorte), recorte)).map((e) => e.id));
+
+  // Contadores (sobre todas as linhas do recorte, como os cards da tela)
   const status = Object.fromEntries(STATUS_DA_PRESTACAO.map((s) => [s, 0])) as Record<StatusDaPrestacao, number>;
   for (const l of linhas) status[l.status] += 1;
 
-  const realizadosElegiveis = entrada.realizados.filter((a) => isNfEligible(a) && !a.splitParentId);
+  const realizadosElegiveis = entrada.realizados.filter((a) => isNfEligible(a) && !a.splitParentId && eventosNoRecorte.has(a.eventId));
   const idsElegiveis = new Set(realizadosElegiveis.map((a) => a.id));
   const notasRelevantes = entrada.notas.filter((n) => !!n.budgetActualId && idsElegiveis.has(n.budgetActualId));
   const enviadas = new Set(notasRelevantes.filter((n) => n.status !== "pendente").map((n) => n.budgetActualId));
@@ -446,8 +515,12 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
       nf,
       rhAction: linhas.filter((l) => l.rhPrecisaAgir).length,
       totalParaProgresso: linhas.filter(linhaContaNoProgresso).length,
+      trilha: contarNaTrilha(linhas.map((l) => l.trilha)),
+      recortes,
     },
     funcoes,
+    dataDeCorte,
+    recorte,
     geradoEm: agora.toISOString(),
   };
 }

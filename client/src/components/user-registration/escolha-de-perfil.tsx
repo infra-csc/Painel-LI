@@ -59,7 +59,7 @@ export function EscolhaDePerfil({ perfis, valor, registro, erro, restrito }: {
 
       {restrito && (
         <p className="m-0 text-xs leading-relaxed text-muted-foreground">
-          Administrador, Compras / Viagem e RH só são cadastrados por um administrador.
+          Administrador, Compras / Viagem e DP só são cadastrados por um administrador.
         </p>
       )}
 

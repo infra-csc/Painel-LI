@@ -12,6 +12,9 @@ import { calcularPlanejadoDaVaga, type VagaParaPlanejado } from "@shared/budget-
 import { honorariosNasVagas, type HonorarioNaVaga, type HonorarioParaPlanejado } from "@shared/honorarios-ceno";
 import { indexarPorId } from "@/lib/indices";
 import { collabFuncKey, isCasaType, type BudgetOverrides, type CalculatedBudget } from "@/components/budget/types";
+import { pedePreAprovacao, situacaoDaPreAprovacao, type SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
+import { valoresParaGravar } from "@/components/budget/pre-aprovacao";
+import { casarVagasComPlanejado } from "@shared/casamento-do-planejado";
 
 export interface EntradaDoMotor {
   teamInclusions: TeamInclusion[] | undefined;
@@ -26,6 +29,8 @@ export interface EntradaDoMotor {
   existingActuals: BudgetActual[] | undefined;
   /** Honorários da cenotécnica do evento (21/10): o aprovado é a mão de obra da vaga. */
   honorarios?: HonorarioParaPlanejado[] | undefined;
+  /** O evento é legado (27/10, termina antes da data de corte): vai ao Realizado sem a pré-aprovação. */
+  eventoLegado?: boolean;
 }
 
 export interface EstatisticasDoPlanejado {
@@ -38,6 +43,14 @@ export interface EstatisticasDoPlanejado {
   mediaPorDia: number;
   enviados: number;
   progressoEnvio: number;
+  /** Pré-aprovados pelo DP com o valor de agora — prontos para ir ao Realizado (26/10). */
+  preAprovados: number;
+  /** Ainda pedem a pré-aprovação (nunca pré-aprovados ou com o valor mudado). */
+  aPreAprovar: number;
+  /** Evento legado (27/10): vagas que vão ao Realizado sem a pré-aprovação (fluxo antigo). */
+  legado: number;
+  /** Pré-aprovação feita (ou já enviados, ou legado): base da barra "Pré-aprovação do DP". */
+  progressoPreAprovacao: number;
 }
 
 export interface SaidaDoMotor {
@@ -45,10 +58,21 @@ export interface SaidaDoMotor {
   calculatedBudgets: CalculatedBudget[];
   /** Ids de vaga já enviados ao Realizado (derivado de `existingActuals`). */
   sentToActual: Set<string>;
-  /** Chaves "colaborador|função" marcadas como "não participou". */
-  notAttendedKeys: Set<string>;
+  /** Ids de vaga marcados como "não participou" (27/10: pela linha da vaga, não mais pela chave colaborador|função). */
+  notAttendedIds: Set<string>;
   isCardNotAttended: (b: CalculatedBudget) => boolean;
-  plannedByCollabFunc: Map<string, BudgetPlannedRow>;
+  /**
+   * Pré-aprovação do DP de cada vaga (26/10, shared/pre-aprovacao): pendente,
+   * pré-aprovada, desatualizada (o valor mudou), enviada, não participou ou
+   * legado (27/10: evento antes da data de corte, sem pré-aprovação).
+   */
+  situacaoDaVaga: (b: CalculatedBudget) => SituacaoDaPreAprovacao;
+  /**
+   * Linha do Planejado de cada vaga (id da vaga → linha). 27/10: vaga com
+   * colaborador casa pela chave colaborador|função; sem colaborador, pela vaga
+   * gravada na linha (shared/casamento-do-planejado.ts).
+   */
+  plannedByVaga: Map<string, BudgetPlannedRow>;
   actualsByCollabFunc: Map<string, BudgetActual>;
   totalGeral: number;
   stats: EstatisticasDoPlanejado;
@@ -64,7 +88,7 @@ const STATUS_CONFIRMADOS = new Set([
 export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
   const {
     teamInclusions, functionValues, collaborators, functionNamesById, systemSettings,
-    ticketByInclusion, eventLocation, budgetOverrides, allBudgetPlanned, existingActuals, honorarios,
+    ticketByInclusion, eventLocation, budgetOverrides, allBudgetPlanned, existingActuals, honorarios, eventoLegado = false,
   } = e;
 
   // Honorário de cada vaga (aprovado, parte da empreita ou pendente) — a mesma
@@ -91,16 +115,36 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
   // alterado à mão nos onSuccess — duas fontes de verdade que divergiam.
   // Após enviar, os onSuccess gravam o registro criado no cache da query
   // (`setQueryData`) e invalidam; a UI responde na hora sem estado paralelo.
+  // Linha do Planejado de cada vaga (27/10) — antes `plannedByCollabFunc`, que
+  // juntava as vagas sem colaborador da mesma função na mesma linha.
+  const plannedByVaga = useMemo(
+    () => casarVagasComPlanejado(confirmedInclusions, allBudgetPlanned ?? []),
+    [confirmedInclusions, allBudgetPlanned],
+  );
+
   const sentToActual = useMemo(() => {
     const enviados = new Set<string>();
     if (!existingActuals || existingActuals.length === 0) return enviados;
     const chaves = new Set<string>();
-    for (const a of existingActuals) chaves.add(collabFuncKey(a));
+    // Sem colaborador (27/10): enviada é a vaga cuja linha tem Realizado (plannedId);
+    // só o lançamento direto no Realizado (sem plannedId) vale pela chave, como antes.
+    const chavesDiretas = new Set<string>();
+    const planejadosEnviados = new Set<string>();
+    for (const a of existingActuals) {
+      chaves.add(collabFuncKey(a));
+      if (a.plannedId) planejadosEnviados.add(a.plannedId);
+      else chavesDiretas.add(collabFuncKey(a));
+    }
     for (const inc of confirmedInclusions) {
-      if (chaves.has(collabFuncKey(inc))) enviados.add(inc.id);
+      if (inc.collaboratorId) {
+        if (chaves.has(collabFuncKey(inc))) enviados.add(inc.id);
+        continue;
+      }
+      const linha = plannedByVaga.get(inc.id);
+      if ((linha && planejadosEnviados.has(linha.id)) || chavesDiretas.has(collabFuncKey(inc))) enviados.add(inc.id);
     }
     return enviados;
-  }, [existingActuals, confirmedInclusions]);
+  }, [existingActuals, confirmedInclusions, plannedByVaga]);
 
   // ── Cálculo por vaga: MOTOR COMPARTILHADO (23/09) ────────────────────────
   // `calcularPlanejadoDaVaga` (@shared/budget-engine) é a mesma sequência que
@@ -150,30 +194,17 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
     return out;
   }, [confirmedInclusions, functionValues, collaboratorById, functionValueByFunctionId, functionNamesById, systemSettings, ticketByInclusion, eventLocation, budgetOverrides, honorarioPorVaga]);
 
-  // Set de chaves "collaboratorId|functionId" para cards marcados como "não participou"
-  const notAttendedKeys = useMemo(() => {
-    const keys = new Set<string>();
-    (allBudgetPlanned || []).forEach(p => {
-      if (p.didNotAttend) keys.add(collabFuncKey(p));
-    });
-    return keys;
-  }, [allBudgetPlanned]);
+  // Vagas marcadas como "não participou" — pela linha DA vaga (27/10).
+  const notAttendedIds = useMemo(() => {
+    const ids = new Set<string>();
+    plannedByVaga.forEach((p, vagaId) => { if (p.didNotAttend) ids.add(vagaId); });
+    return ids;
+  }, [plannedByVaga]);
 
   const isCardNotAttended = useCallback(
-    (b: CalculatedBudget) => notAttendedKeys.has(collabFuncKey(b.inclusion)),
-    [notAttendedKeys],
+    (b: CalculatedBudget) => notAttendedIds.has(b.inclusion.id),
+    [notAttendedIds],
   );
-
-  // Registros indexados por "colaborador|função" — evita .find() O(n) por card/linha.
-  // O primeiro registro vence, preservando a semântica do Array.find original.
-  const plannedByCollabFunc = useMemo(() => {
-    const m = new Map<string, BudgetPlannedRow>();
-    (allBudgetPlanned || []).forEach(p => {
-      const key = collabFuncKey(p);
-      if (!m.has(key)) m.set(key, p);
-    });
-    return m;
-  }, [allBudgetPlanned]);
 
   const actualsByCollabFunc = useMemo(() => {
     const m = new Map<string, BudgetActual>();
@@ -185,15 +216,28 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
     return m;
   }, [existingActuals]);
 
+  // Pré-aprovação (26/10): compara o gravado com o valor de AGORA — o mesmo
+  // que o envio grava (valoresParaGravar). Mudou (recálculo, ajuste manual,
+  // honorário aprovado) → "desatualizado": volta a pedir a pré-aprovação.
+  // Evento legado (27/10): sem pré-aprovação válida a vaga fica "legado" e vai ao
+  // Realizado pelo fluxo antigo (o servidor também não exige).
+  const situacaoDaVaga = useCallback((b: CalculatedBudget): SituacaoDaPreAprovacao => situacaoDaPreAprovacao({
+    enviado: sentToActual.has(b.inclusion.id),
+    naoParticipou: notAttendedIds.has(b.inclusion.id),
+    planejado: plannedByVaga.get(b.inclusion.id),
+    valoresDeAgora: valoresParaGravar(b),
+    eventoLegado,
+  }), [sentToActual, notAttendedIds, plannedByVaga, eventoLegado]);
+
   const totalGeral = useMemo(() => {
     return calculatedBudgets
-      .filter(b => !notAttendedKeys.has(collabFuncKey(b.inclusion)))
+      .filter(b => !notAttendedIds.has(b.inclusion.id))
       .reduce((sum, b) => sum + b.totalFinal, 0);
-  }, [calculatedBudgets, notAttendedKeys]);
+  }, [calculatedBudgets, notAttendedIds]);
 
   // Estatísticas de resumo
   const stats = useMemo((): EstatisticasDoPlanejado => {
-    const activeBudgets = calculatedBudgets.filter(b => !notAttendedKeys.has(collabFuncKey(b.inclusion)));
+    const activeBudgets = calculatedBudgets.filter(b => !notAttendedIds.has(b.inclusion.id));
     const total = activeBudgets.length;
     const isFreela = (type?: string) => type === "freela" || !type;
     const totalCasa = activeBudgets.filter(b => isCasaType(b.collaborator?.type)).length;
@@ -207,13 +251,24 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
     // impedia o progresso de chegar a 100%.
     const enviados = activeBudgets.filter(b => sentToActual.has(b.inclusion.id)).length;
     const progressoEnvio = total > 0 ? (enviados / total) * 100 : 0;
+    let preAprovados = 0;
+    let aPreAprovar = 0;
+    let legado = 0;
+    for (const b of activeBudgets) {
+      const s = situacaoDaVaga(b);
+      if (s === "pre_aprovado") preAprovados++;
+      else if (pedePreAprovacao(s)) aPreAprovar++;
+      else if (s === "legado") legado++;
+    }
+    // Legado (27/10) não pede a pré-aprovação: conta como resolvido na barra.
+    const progressoPreAprovacao = total > 0 ? ((preAprovados + enviados + legado) / total) * 100 : 0;
 
-    return { total, totalCasa, totalFreela, valorCasa, valorFreela, media, mediaPorDia, enviados, progressoEnvio };
-  }, [calculatedBudgets, totalGeral, sentToActual, notAttendedKeys]);
+    return { total, totalCasa, totalFreela, valorCasa, valorFreela, media, mediaPorDia, enviados, progressoEnvio, preAprovados, aPreAprovar, legado, progressoPreAprovacao };
+  }, [calculatedBudgets, totalGeral, sentToActual, notAttendedIds, situacaoDaVaga]);
 
   return {
-    confirmedInclusions, calculatedBudgets, sentToActual, notAttendedKeys, isCardNotAttended,
-    plannedByCollabFunc, actualsByCollabFunc, totalGeral, stats,
+    confirmedInclusions, calculatedBudgets, sentToActual, notAttendedIds, isCardNotAttended, situacaoDaVaga,
+    plannedByVaga, actualsByCollabFunc, totalGeral, stats,
   };
 }
 

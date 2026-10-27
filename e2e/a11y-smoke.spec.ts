@@ -9,7 +9,8 @@ const TELAS: { rota: string; h1: string | RegExp }[] = [
   { rota: "/events", h1: "Eventos" },
   { rota: "/scaling", h1: "Escalação" },
   { rota: "/tickets", h1: "Passagens" },
-  { rota: "/budget-planned", h1: "Planejado" },
+  { rota: "/budget-planned", h1: "Pré-aprovação de valores" },
+  { rota: "/rh-control", h1: "Painel de honorários" },
   { rota: "/invoices", h1: /Notas fiscais/ },
   { rota: "/admin-users", h1: "Usuários" },
 ];

@@ -19,8 +19,10 @@ export interface RhFilaFiltrada {
 }
 
 /** "Concluído" = aprovada_faturamento + NF aprovada + check-in realizado (checkinAt). */
-const estaConcluida = (item: PrestacaoItem) =>
-  item.status === "aprovada_faturamento" && item.invoice?.status === "aprovada" && !!item.invoice?.checkinAt;
+export const estaConcluida = (item: PrestacaoItem) =>
+  // 26/10: o legado concluído fora do fluxo também é "concluído" (some por padrão).
+  !!item.conclusaoForaDoFluxo ||
+  (item.status === "aprovada_faturamento" && item.invoice?.status === "aprovada" && !!item.invoice?.checkinAt);
 
 export function useRhFilaFiltrada(
   dados: Pick<RhControlData, "prestacaoItems">,

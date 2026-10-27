@@ -74,7 +74,7 @@ describe("canActOnPastEvent — SÓ o administrador", () => {
     expect(canActOnPastEvent("administrador")).toBe(true);
   });
 
-  it("RH/Financeiro NÃO age em evento encerrado (decisão 20/08)", () => {
+  it("DP/Financeiro NÃO age em evento encerrado (decisão 20/08)", () => {
     // O papel não tem permissão de escalação em evento nenhum — liberá-lo aqui
     // seria prometer um acerto que ele não consegue fazer.
     expect(canActOnPastEvent("financial")).toBe(false);
@@ -101,7 +101,7 @@ describe("isEventLockedFor", () => {
     expect(isEventLockedFor("2026-08-20", "function_area", "2026-08-21")).toBe(true);
   });
 
-  it("evento passado trava também o RH/Financeiro", () => {
+  it("evento passado trava também o DP/Financeiro", () => {
     expect(isEventLockedFor("2026-08-20", "financial", "2026-08-21")).toBe(true);
   });
 
@@ -132,7 +132,7 @@ describe("mensagens", () => {
     );
   });
 
-  it("nenhuma das duas mensagens manda falar com o RH", () => {
+  it("nenhuma das duas mensagens manda falar com o DP", () => {
     for (const msg of [PAST_EVENT_BLOCK_MSG, PAST_EVENT_BANNER_MSG]) {
       expect(msg).not.toMatch(/RH|Financeiro/i);
     }

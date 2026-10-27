@@ -114,6 +114,12 @@ export const events = pgTable("events", {
   // reaproveitado em toda busca. Só a rota da busca grava (fora dos schemas de
   // insert/update abaixo). Código IATA de 3 letras; null = não confirmado.
   aeroportoIata: text("aeroporto_iata"),
+  // Módulo de Honorários, Fase 0 (26/10): "não exibir valores" ao colaborador,
+  // por evento, ligado até a OC (decisão do dono). Só o DP muda (rota própria
+  // PATCH /api/events/:id/ocultar-valores — fora dos schemas de insert/update
+  // abaixo). Vale na Fase 1 (portal do colaborador); hoje só fica registrado.
+  // Migração: scripts/migrations/2026-10-26-honorarios-fase-0.sql (+ ensure-schema).
+  ocultarValoresColaborador: boolean("ocultar_valores_colaborador").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -581,7 +587,10 @@ export const budgetPlanned = pgTable("budget_planned", {
   transport: integer("transport").notNull().default(0), // translado em centavos
   totalValue: integer("total_value").notNull().default(0), // total em centavos (calculado)
   observations: text("observations"), // observações
-  status: text("status").notNull().default("pendente"), // pendente, aprovado_rh, rejeitado_rh
+  // Pré-aprovação do DP (26/10, shared/pre-aprovacao.ts): pendente | pre_aprovado
+  // ("aprovado_rh", nome antigo, vale como pré-aprovado; rejeitado_rh nunca foi usado).
+  // approvedBy/approvedAt = quem pré-aprovou e quando.
+  status: text("status").notNull().default("pendente"),
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   createdBy: varchar("created_by").references(() => users.id),
@@ -590,10 +599,15 @@ export const budgetPlanned = pgTable("budget_planned", {
   updatedBy: varchar("updated_by").references(() => users.id),
   didNotAttend: boolean("did_not_attend").notNull().default(false),
   didNotAttendReason: text("did_not_attend_reason"),
+  // 27/10 (Honorários, Fase 0): a vaga da linha. Vagas SEM colaborador na mesma
+  // função não têm chave colaborador|função única — casam por aqui
+  // (shared/casamento-do-planejado.ts). Nulo em linha antiga (adotada depois).
+  teamInclusionId: varchar("team_inclusion_id").references(() => teamInclusions.id, { onDelete: "set null" }),
 }, (t) => [
   // Já existem (13/08)
   index("budget_planned_event_idx").on(t.eventId),
   uniqueIndex("budget_planned_event_collab_func_uq").on(t.eventId, t.collaboratorId, t.functionId),
+  index("budget_planned_team_inclusion_idx").on(t.teamInclusionId), // 27/10
 ]);
 
 // Realizado - o que realmente aconteceu
@@ -705,6 +719,7 @@ export const insertEventSchema = createInsertSchema(events).omit({
   status: true, // tem valor default "planejado"
   createdAt: true,
   aeroportoIata: true, // só a busca de passagens grava (09/10)
+  ocultarValoresColaborador: true, // só o DP muda, por rota própria (26/10)
 });
 
 // Schema for updating events (allows status field)
@@ -713,6 +728,7 @@ export const updateEventSchema = createInsertSchema(events).omit({
   eventNumber: true,
   createdAt: true,
   aeroportoIata: true, // só a busca de passagens grava (09/10)
+  ocultarValoresColaborador: true, // só o DP muda, por rota própria (26/10)
 }).partial();
 
 export const insertFunctionSchema = createInsertSchema(functions).omit({
@@ -1391,6 +1407,30 @@ export const honorariosCenoEmpreitaVagas = pgTable("honorarios_ceno_empreita_vag
 
 export type HonorarioCenoEmpreitaVaga = typeof honorariosCenoEmpreitaVagas.$inferSelect;
 
+/**
+ * Módulo de Honorários, Fase 0 (26/10) — legado concluído FORA do fluxo.
+ * Eventos que terminam antes da data de corte (shared/legado-honorarios.ts)
+ * são legado; "Concluir em lote" no Painel de honorários grava aqui uma linha
+ * por registro (a chave é o id da linha do Painel: `pl-<planejado>` ou
+ * `ti-<vaga>`), com motivo, quem e quando. Nada da prestação, da nota ou do
+ * planejado muda nem é apagado. Migração: 2026-10-26-honorarios-fase-0.sql
+ * (+ server/ensure-schema.ts).
+ */
+export const honorariosLegadoConcluidos = pgTable("honorarios_legado_concluidos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  linhaId: text("linha_id").notNull(),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  motivo: text("motivo").notNull(),
+  porId: varchar("por_id").notNull(),
+  porNome: text("por_nome").notNull(),
+  em: timestamp("em", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("honorarios_legado_concluidos_linha_uq").on(t.linhaId),
+  index("honorarios_legado_concluidos_evento_idx").on(t.eventId),
+]);
+
+export type HonorarioLegadoConcluido = typeof honorariosLegadoConcluidos.$inferSelect;
+
 // ===== BUSCA DE PASSAGENS NA INTERNET (09/10) =====
 // Cache COMPARTILHADO das consultas ao fornecedor (Ignav) e o registro de
 // consumo que alimenta o contador/teto do mês. A chave é o pedido normalizado
@@ -1863,3 +1903,118 @@ export const rateLimits = pgTable("rate_limits", {
   expiraEm: timestamp("expira_em", { withTimezone: true }).notNull(),
 });
 export type RateLimit = typeof rateLimits.$inferSelect;
+
+// ===== CONTRATOS (CNPJ) E DADOS DE PAGAMENTO (26/10 — Fase 0 do Módulo de Honorários) =====
+// Ata de 22/10: "o DP verifica se o CNPJ informado tem contrato ativo". Um
+// CNPJ por contrato (único); um contrato atende vários colaboradores
+// (empreiteira) e um colaborador pode ter mais de um CNPJ. Regra da vigência
+// em shared/contratos.ts; importação da planilha em shared/importacao-contratos.ts.
+// Só o DP (admin + financial) lê e grava — server/routes/contratos.ts.
+// Migração: scripts/migrations/2026-10-26-contratos-e-pagamento.sql; o boot
+// também cria (server/ensure-schema.ts) — este app NÃO tem db:push.
+export const contratos = pgTable("contratos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  /** Só os 14 dígitos (a máscara é da tela). */
+  cnpj: text("cnpj").notNull(),
+  razaoSocial: text("razao_social").notNull(),
+  nomeFantasia: text("nome_fantasia"),
+  /** 'mei' | 'empresa' | 'empreiteira' */
+  tipo: text("tipo").notNull().default("empresa"),
+  vigenciaInicio: date("vigencia_inicio"),
+  vigenciaFim: date("vigencia_fim"),
+  observacao: text("observacao"),
+  /** Anexo do contrato no Object Storage (ATT-…); a ACL deixa só o DP abrir. */
+  anexoId: text("anexo_id"),
+  anexoNome: text("anexo_nome"),
+  encerradoEm: timestamp("encerrado_em", { withTimezone: true }),
+  encerradoPor: varchar("encerrado_por"),
+  encerradoPorNome: text("encerrado_por_nome"),
+  motivoEncerramento: text("motivo_encerramento"),
+  versao: integer("versao").notNull().default(1),
+  criadoPor: varchar("criado_por"),
+  criadoPorNome: text("criado_por_nome"),
+  atualizadoPorNome: text("atualizado_por_nome"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("contratos_cnpj_uq").on(t.cnpj),
+]);
+export type Contrato = typeof contratos.$inferSelect;
+export type InsertContrato = typeof contratos.$inferInsert;
+
+/** Colaboradores atendidos por cada contrato (N:N). */
+export const contratosColaboradores = pgTable("contratos_colaboradores", {
+  contratoId: varchar("contrato_id").notNull().references(() => contratos.id, { onDelete: "cascade" }),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id, { onDelete: "cascade" }),
+  criadoPorNome: text("criado_por_nome"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.contratoId, t.collaboratorId] }),
+  index("contratos_colaboradores_colaborador_idx").on(t.collaboratorId),
+]);
+export type ContratoColaborador = typeof contratosColaboradores.$inferSelect;
+
+/** Histórico do contrato: o que aconteceu, quem e quando (frases prontas em `detalhes`). */
+export const contratosHistorico = pgTable("contratos_historico", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contratoId: varchar("contrato_id").notNull().references(() => contratos.id, { onDelete: "cascade" }),
+  /** criado | editado | encerrado | reativado | vinculado | desvinculado | anexo | importado */
+  acao: text("acao").notNull(),
+  detalhes: jsonb("detalhes").$type<string[]>().notNull(),
+  por: varchar("por"),
+  porNome: text("por_nome").notNull(),
+  em: timestamp("em", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("contratos_historico_contrato_idx").on(t.contratoId, t.em),
+]);
+export type ContratoHistorico = typeof contratosHistorico.$inferSelect;
+
+/**
+ * Dados de pagamento do colaborador — TABELA À PARTE de `collaborators` de
+ * propósito: nenhuma rota que devolve colaborador (listas, integração com o
+ * Maratona, exportações) faz SELECT aqui, então os campos não vazam por
+ * descuido. Banco, agência, conta e chave PIX ficam cifrados (AES-256-GCM,
+ * server/cripto-pagamento.ts, chave no Secret PAGAMENTO_CHAVE).
+ */
+export const colaboradoresPagamento = pgTable("colaboradores_pagamento", {
+  collaboratorId: varchar("collaborator_id").primaryKey().references(() => collaborators.id, { onDelete: "cascade" }),
+  bancoCifrado: text("banco_cifrado"),
+  agenciaCifrada: text("agencia_cifrada"),
+  contaCifrada: text("conta_cifrada"),
+  pixChaveCifrada: text("pix_chave_cifrada"),
+  /** 'corrente' | 'poupanca' | 'pagamento' */
+  tipoConta: text("tipo_conta"),
+  /** 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' */
+  pixTipo: text("pix_tipo"),
+  titular: text("titular"),
+  email: text("email"),
+  versao: integer("versao").notNull().default(1),
+  atualizadoPor: varchar("atualizado_por"),
+  atualizadoPorNome: text("atualizado_por_nome"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ColaboradorPagamento = typeof colaboradoresPagamento.$inferSelect;
+
+/**
+ * Toda mudança dos dados de pagamento, com antes/depois MASCARADOS. Mudança
+ * de conta/PIX/titular (`mudaConta`) fica pendente de conferência por OUTRA
+ * pessoa do DP — é o aviso do sino (o dado mais usado em fraude).
+ */
+export const colaboradoresPagamentoAlteracoes = pgTable("colaboradores_pagamento_alteracoes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id, { onDelete: "cascade" }),
+  campos: jsonb("campos").$type<string[]>().notNull(),
+  antes: jsonb("antes").$type<Record<string, string | null>>().notNull(),
+  depois: jsonb("depois").$type<Record<string, string | null>>().notNull(),
+  mudaConta: boolean("muda_conta").notNull().default(false),
+  por: varchar("por"),
+  porNome: text("por_nome").notNull(),
+  em: timestamp("em", { withTimezone: true }).notNull().defaultNow(),
+  conferidoEm: timestamp("conferido_em", { withTimezone: true }),
+  conferidoPor: varchar("conferido_por"),
+  conferidoPorNome: text("conferido_por_nome"),
+}, (t) => [
+  index("colaboradores_pagamento_alteracoes_colaborador_idx").on(t.collaboratorId, t.em),
+  index("colaboradores_pagamento_alteracoes_pendentes_idx").on(t.em).where(sql`${t.mudaConta} AND ${t.conferidoEm} IS NULL`),
+]);
+export type ColaboradorPagamentoAlteracao = typeof colaboradoresPagamentoAlteracoes.$inferSelect;

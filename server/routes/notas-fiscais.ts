@@ -300,12 +300,12 @@ export function registrarNotasFiscais(app: Express): void {
         })
         .where(and(eq(invoicesTable.id, req.params.id), eq(invoicesTable.status, "aprovada"), isNull(invoicesTable.checkinAt)))
         .returning();
-      if (!invoice) return res.status(409).json({ message: "Esta nota já teve check-in ou mudou de status — recarregue a lista." });
+      if (!invoice) return res.status(409).json({ message: "Esta nota já foi lançada no M4 ou mudou de status — recarregue a lista." });
       await createAuditLog("checkin", "invoice", req.params.id, invoice, user.id, user.name, inv, req);
       res.json(invoice);
     } catch (error) {
       console.error("Error doing financial checkin:", error);
-      res.status(500).json({ message: "Erro ao fazer check-in financeiro" });
+      res.status(500).json({ message: "Erro ao lançar a nota no M4" });
     }
   });
 }

@@ -11,7 +11,7 @@
  * ação forte da tela — "Enviar ao Realizado (N)" — mais o "Limpar seleção".
  * A confirmação continua a mesma (ConfirmSendDialog).
  */
-import { Loader2, Send, X } from "lucide-react";
+import { BadgeCheck, Loader2, Send, X } from "lucide-react";
 import { formatCurrency } from "./types";
 
 export interface EnviarParaRealizadoBarProps {
@@ -21,11 +21,20 @@ export interface EnviarParaRealizadoBarProps {
   onSend: (ids: string[]) => void;
   onLimpar: () => void;
   isSending?: boolean;
+  /**
+   * 26/10 (Honorários, Fase 0): dos selecionados, quantos já têm a
+   * pré-aprovação do DP (vão ao Realizado) e quantos ainda pedem — a barra
+   * oferece os dois passos, cada um com a sua contagem.
+   */
+  nPreAprovados?: number;
+  nAPreAprovar?: number;
+  onPreAprovar?: () => void;
 }
 
-export function EnviarParaRealizadoBar({ selectedIds, totalSelecionado, onSend, onLimpar, isSending }: EnviarParaRealizadoBarProps) {
+export function EnviarParaRealizadoBar({ selectedIds, totalSelecionado, onSend, onLimpar, isSending, nPreAprovados, nAPreAprovar = 0, onPreAprovar }: EnviarParaRealizadoBarProps) {
   const n = selectedIds.size;
   if (n === 0) return null;
+  const nEnviar = nPreAprovados ?? n;
   return (
     <div className="sticky bottom-3 z-20 pas-sobe" role="region" aria-label="Ações da seleção" data-testid="barra-selecao-planejado">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-foreground text-background shadow-3 pl-4 pr-2 py-2">
@@ -45,18 +54,32 @@ export function EnviarParaRealizadoBar({ selectedIds, totalSelecionado, onSend, 
             </button>
           </div>
           <p className="m-0 hidden lg:block text-2xs leading-4 text-background/65 truncate">
-            Vai para a prestação de contas com os valores de agora — inclusive os ajustados à mão.
+            {nAPreAprovar > 0
+              ? `${nAPreAprovar} ${nAPreAprovar === 1 ? "pede" : "pedem"} a pré-aprovação do DP antes de ir ao Realizado.`
+              : "Vai para o Realizado (liberado para a Produção) com o valor pré-aprovado."}
           </p>
         </div>
+        {onPreAprovar && nAPreAprovar > 0 && (
+          <button
+            type="button"
+            onClick={onPreAprovar}
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-success-strong text-xs font-semibold text-white hover:bg-success-strong/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60 shrink-0"
+            data-testid="planejado-pre-aprovar-selecionados"
+          >
+            <BadgeCheck className="w-4 h-4" aria-hidden="true" />
+            Pré-aprovar<span className="max-[420px]:hidden"> ({nAPreAprovar})</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onSend(Array.from(selectedIds))}
-          disabled={isSending}
-          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60 shrink-0"
+          disabled={isSending || nEnviar === 0}
+          title={nEnviar === 0 ? "Nenhum selecionado tem a pré-aprovação do DP ainda" : undefined}
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60 shrink-0"
           data-testid="planejado-enviar-selecionados"
         >
           {isSending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Send className="w-4 h-4" aria-hidden="true" />}
-          {isSending ? "Enviando…" : <>Enviar<span className="max-[420px]:hidden"> ao Realizado</span> ({n})</>}
+          {isSending ? "Enviando…" : <>Enviar<span className="max-[420px]:hidden"> ao Realizado</span> ({nEnviar})</>}
         </button>
       </div>
     </div>

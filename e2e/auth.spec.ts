@@ -8,26 +8,31 @@ import { DEMO_SENHA, USUARIO, api, entrarComo } from "./helpers/demo";
 const menu = (page: import("@playwright/test").Page) => page.getByRole("complementary", { name: "Menu principal" });
 
 test.describe("Login por papel", () => {
-  test("admin vê 'Cadastro de usuários' e o grupo Financeiro no menu", async ({ page }) => {
+  test("admin vê 'Cadastro de usuários' e o grupo Honorários no menu", async ({ page }) => {
     await entrarComo(page, "admin");
     await expect(menu(page).getByRole("link", { name: "Cadastro de usuários" })).toBeVisible();
-    await expect(menu(page).getByRole("button", { name: "Financeiro" })).toBeVisible();
+    // 26/10 (slide 11): o grupo "Financeiro" virou "Honorários".
+    await expect(menu(page).getByRole("button", { name: "Honorários", exact: true })).toBeVisible();
+    await expect(menu(page).getByRole("button", { name: "Financeiro" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: `Conta de ${USUARIO.admin.nome}` })).toBeVisible();
   });
 
-  test("function_area não vê Financeiro nem Cadastro de usuários, mas vê a Validação de escala", async ({ page }) => {
+  test("function_area não vê Honorários nem Cadastro de usuários, mas vê a Validação de escala", async ({ page }) => {
     await entrarComo(page, "function_area");
     await expect(menu(page).getByRole("link", { name: /Validação de escala/ })).toBeVisible();
-    await expect(menu(page).getByRole("button", { name: "Financeiro" })).toHaveCount(0);
+    await expect(menu(page).getByRole("button", { name: "Honorários", exact: true })).toHaveCount(0);
     await expect(menu(page).getByRole("link", { name: "Notas fiscais" })).toHaveCount(0);
     await expect(menu(page).getByRole("link", { name: "Cadastro de usuários" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: `Conta de ${USUARIO.function_area.nome}` })).toBeVisible();
   });
 
-  test("financial (RH) vê o Financeiro e o Controle RH, e não vê o Log de auditoria", async ({ page }) => {
+  test("financial (Financeiro / DP) vê Honorários na ordem do fluxo e não vê o Log de auditoria", async ({ page }) => {
     await entrarComo(page, "financial");
-    await expect(menu(page).getByRole("link", { name: "Controle RH" })).toBeVisible();
+    await expect(menu(page).getByRole("link", { name: "Painel de honorários" })).toBeVisible();
+    await expect(menu(page).getByRole("link", { name: "Pré-aprovação de valores" })).toBeVisible();
+    await expect(menu(page).getByRole("link", { name: "Conferência DP" })).toBeVisible();
     await expect(menu(page).getByRole("link", { name: "Notas fiscais" })).toBeVisible();
+    await expect(menu(page).getByText("Configuração e apoio")).toBeVisible();
     await expect(menu(page).getByRole("link", { name: "Log de auditoria" })).toHaveCount(0);
   });
 });

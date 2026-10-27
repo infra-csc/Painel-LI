@@ -14,6 +14,7 @@ import {
   AlertDialogFooter, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatCurrency, type CalculatedBudget, type ConfirmSend } from "./types";
+import { podeLiberarParaProducao, type SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
 
 export interface ConfirmSendDialogProps {
   confirmSend: ConfirmSend | null;
@@ -26,6 +27,8 @@ export interface ConfirmSendDialogProps {
   isSending: boolean;
   onSendSingle: (b: CalculatedBudget) => void;
   onSendSelected: () => void;
+  /** 26/10: só o que o DP pré-aprovou vai; o resto fica de fora (e o diálogo diz). */
+  situacaoDaVaga: (b: CalculatedBudget) => SituacaoDaPreAprovacao;
 }
 
 const LINHA = "flex items-center justify-between gap-3 px-4 py-2";
@@ -44,9 +47,14 @@ export function ConfirmSendDialog(p: ConfirmSendDialogProps) {
         {confirmSend && (() => {
           // Mesmo filtro da mutation: ausente ("não participou") nem entra no
           // resumo/total do envio.
-          const targets = calculatedBudgets.filter(b =>
+          const pedidos = calculatedBudgets.filter(b =>
             confirmSend.ids.includes(b.inclusion.id) && !sentToActual.has(b.inclusion.id) && !isCardNotAttended(b)
           );
+          // Pré-aprovação do DP (26/10): sem ela (ou com o valor mudado), fica de fora —
+          // exceto em evento legado (27/10), que vai pelo fluxo antigo.
+          const targets = pedidos.filter(b => podeLiberarParaProducao(p.situacaoDaVaga(b)));
+          const fluxoAntigo = targets.some(b => p.situacaoDaVaga(b) === "legado");
+          const semPre = pedidos.length - targets.length;
           const single = confirmSend.source === "single" && targets.length === 1 ? targets[0] : null;
           const totalEnvio = targets.reduce((s, b) => s + b.totalFinal, 0);
           const anyEdited = targets.some(b => b.hasOverride);
@@ -61,11 +69,13 @@ export function ConfirmSendDialog(p: ConfirmSendDialogProps) {
                   <Send className="w-[18px] h-[18px]" />
                 </span>
                 <div className="min-w-0 pt-0.5">
-                  <AlertDialogTitle className="m-0 text-base font-semibold leading-6 text-foreground">Enviar para a prestação de contas?</AlertDialogTitle>
+                  <AlertDialogTitle className="m-0 text-base font-semibold leading-6 text-foreground">Enviar ao Realizado?</AlertDialogTitle>
                   <AlertDialogDescription className="m-0 mt-0.5 text-xs leading-5 text-muted-foreground">
                     {single
                       ? `${getCollaboratorName(single.inclusion.collaboratorId)} · ${getFunctionName(single.inclusion.functionId)}`
-                      : `${targets.length} ${targets.length === 1 ? "colaborador selecionado" : "colaboradores selecionados"}`}
+                      : semPre > 0
+                        ? `${targets.length} de ${pedidos.length} selecionados (só os ${fluxoAntigo ? "liberados" : "pré-aprovados"})`
+                        : `${targets.length} ${targets.length === 1 ? "colaborador selecionado" : "colaboradores selecionados"}`}
                   </AlertDialogDescription>
                 </div>
               </div>
@@ -110,10 +120,18 @@ export function ConfirmSendDialog(p: ConfirmSendDialogProps) {
                 </div>
               </div>
 
+              {semPre > 0 && (
+                <p role="note" className="m-0 mx-5 mt-3 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-xs leading-5 text-warning" data-testid="envio-sem-pre-aprovacao">
+                  {semPre === 1 ? "1 selecionado fica de fora" : `${semPre} selecionados ficam de fora`}: falta a pré-aprovação do DP (ou o valor mudou depois dela).
+                </p>
+              )}
               {/* Copy consistente entre os três fluxos */}
               <p className="m-0 px-5 pt-3 pb-4 text-xs leading-5 text-muted-foreground">
-                {targets.length === 1 ? "O planejamento será enviado" : "Os planejamentos serão enviados"} para a prestação de contas (Realizado)
-                {anyEdited ? " — os valores editados manualmente vão junto" : ""}. <span className="font-medium text-foreground">Esta ação não pode ser desfeita.</span>
+                {fluxoAntigo
+                  ? (targets.length === 1 ? "O valor será liberado" : "Os valores serão liberados")
+                  : (targets.length === 1 ? "O valor pré-aprovado será liberado" : "Os valores pré-aprovados serão liberados")} para a Produção, na prestação de contas (Realizado)
+                {anyEdited ? " — os valores editados manualmente vão junto" : ""}
+                {fluxoAntigo ? " (evento legado: fluxo antigo, sem a pré-aprovação do DP)" : ""}. <span className="font-medium text-foreground">Esta ação não pode ser desfeita.</span>
               </p>
 
               <AlertDialogFooter className="px-5 py-3 border-t border-border bg-surface-muted gap-2 sm:space-x-0">

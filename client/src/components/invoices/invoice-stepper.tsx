@@ -18,23 +18,26 @@ export type StepperCounts = { lancamento: number; aprovacao: number; checkin: nu
 
 const ETAPAS: { id: keyof StepperCounts; label: string; sub: string; oQue: string }[] = [
   { id: "lancamento", label: "Lançamento",   sub: "a enviar",   oQue: "sem nota enviada ou com nota devolvida" },
-  { id: "aprovacao",  label: "Aprovação RH", sub: "em análise", oQue: "com nota enviada, aguardando a análise do RH" },
-  { id: "checkin",    label: "Check-in",     sub: "a fazer",    oQue: "com nota aprovada, aguardando o check-in financeiro" },
+  { id: "aprovacao",  label: "Aprovação DP", sub: "em análise", oQue: "com nota enviada, aguardando a análise do DP" },
+  { id: "checkin",    label: "Lançada no M4", sub: "a fazer",    oQue: "com nota aprovada, aguardando o lançamento no M4" },
 ];
 
-export function InvoiceStepper({ counts, valores, pagadora }: {
+export function InvoiceStepper({ counts, valores, pagadora, rodape }: {
   counts: StepperCounts;
   /** Soma do Realizado dos mesmos itens de cada contagem (opcional). */
   valores?: StepperCounts;
   /** Bloco da empresa pagadora, à direita do fluxo (opcional). */
   pagadora?: ReactNode;
+  /** Faixa de baixo do painel (26/10: a trilha única do honorário). */
+  rodape?: ReactNode;
 }) {
   return (
     <section
       aria-label="Resumo das notas fiscais do evento"
-      className="flex flex-col md:flex-row rounded-xl border border-border bg-card overflow-hidden"
+      className="rounded-xl border border-border bg-card overflow-hidden"
       data-testid="nf-resumo"
     >
+      <div className="flex flex-col md:flex-row">
       <ol className="grid grid-cols-3 flex-1 min-w-0" aria-label="Etapas das notas fiscais">
         {ETAPAS.map((etapa, i) => {
           const n = counts[etapa.id];
@@ -82,6 +85,8 @@ export function InvoiceStepper({ counts, valores, pagadora }: {
           {pagadora}
         </div>
       )}
+      </div>
+      {rodape}
     </section>
   );
 }

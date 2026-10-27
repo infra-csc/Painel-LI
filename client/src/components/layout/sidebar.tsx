@@ -34,7 +34,7 @@ import { getRoleLabel, type UserRole } from "@/lib/role-utils";
 import { useShellMode } from "./use-shell-mode";
 import { useShellData } from "./use-shell-data";
 import { useAcessoHonorarios } from "@/components/honorarios-ceno/api";
-import { visibleGroups, tabById, subgroupEdges, classeDeCorDaTela, type NavTab } from "./nav-items";
+import { visibleGroups, tabById, subgroupEdges, classeDeCorDaTela, rotuloComEtapa, textoDeBusca, type NavTab } from "./nav-items";
 import { getFavorites, setFavorites, getClosedGroups, setClosedGroups, SHELL_PREFS_EVENT } from "./shell-prefs";
 import { combo } from "./shortcuts";
 import { FOCO } from "./shell-styles";
@@ -164,7 +164,8 @@ export default function Sidebar() {
   const q = normalize(query.trim());
   const filtered = useMemo(
     () => groups
-      .map((g) => ({ ...g, items: g.items.filter((tab) => !q || normalize(tab.label).includes(q)) }))
+      // Nome, etapa e os nomes antigos (26/10: "Planejado" ainda acha a Pré-aprovação).
+      .map((g) => ({ ...g, items: g.items.filter((tab) => !q || normalize(textoDeBusca(tab)).includes(q)) }))
       .filter((g) => g.items.length > 0),
     [groups, q],
   );
@@ -251,12 +252,18 @@ export default function Sidebar() {
           </span>
           {/* Uma linha só (28/09); `truncate` + `title` é só rede. */}
           <span
-            title={tab.label}
+            title={rotuloComEtapa(tab)}
             className={cn(
               "flex-1 min-w-0 text-[13.5px] leading-snug truncate",
               isActive ? "font-semibold text-primary" : "font-medium text-slate-700 group-hover:text-foreground",
             )}
           >
+            {/* Etapa do fluxo dos honorários (26/10): o número antes do nome, mais leve. */}
+            {tab.etapa && (
+              <span className={cn("mr-1.5 text-xs font-semibold tabular-nums", isActive ? "text-primary/70" : "text-muted-foreground")} data-testid={`etapa-${tab.id}`}>
+                {tab.etapa}<span aria-hidden="true"> ·</span>
+              </span>
+            )}
             {tab.label}
           </span>
           <Badge count={count} />
@@ -536,7 +543,7 @@ export default function Sidebar() {
                         <Link
                           href={tab.path}
                           aria-current={isActive ? "page" : undefined}
-                          aria-label={tab.label}
+                          aria-label={rotuloComEtapa(tab)}
                           className={cn(
                             "relative flex items-center justify-center h-9 rounded-lg no-underline transition-colors duration-150",
                             FOCO,
@@ -550,7 +557,7 @@ export default function Sidebar() {
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent side="right" sideOffset={10}>
-                        {tab.label}{count > 0 ? ` · ${fmt(count)} pendente(s)` : ""}
+                        {rotuloComEtapa(tab)}{count > 0 ? ` · ${fmt(count)} pendente(s)` : ""}
                       </TooltipContent>
                     </Tooltip>
                     {end && <div aria-hidden="true" className="h-px bg-border/70 mx-3 my-0.5" />}

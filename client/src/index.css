@@ -4137,3 +4137,30 @@ button.esp-apto:disabled { cursor: not-allowed; opacity: .6; }
 /* Consulta em andamento na rota aberta: o que já está na tela esmaece, sem sumir. */
 .bpr-lista[data-consultando] > :not([role="status"]) { opacity: .55; transition: opacity 160ms ease; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .bpr-lista[data-consultando] > :not([role="status"]) { transition: none; } }
+
+/* ===== Contratos (CNPJ) e pagamento do colaborador (ctr-, 26/10) ===== */
+/* Rótulo de grupo dos formulários (Empresa, Vigência, Conta bancária…). */
+.ctr-legenda { margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+@keyframes ctr-entra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.ctr-entra { animation: ctr-entra 160ms ease-out both; }
+.ctr-chip { animation: ctr-entra 140ms ease-out both; }
+/* Linha da lista: a seta anda um passo no hover — a linha inteira abre a ficha. */
+.ctr-linha td { transition: background-color 120ms ease; }
+.ctr-cartao:active, .ctr-total:active { transform: translateY(1px); }
+/* Passo 1 da importação: a área de soltar respira quando o arquivo passa por cima. */
+.ctr-soltar { transition: background-color 140ms ease, border-color 140ms ease; }
+/* Prévia: cabeçalho da tabela fica visível ao rolar. */
+.ctr-previa thead th { background: var(--surface-muted); }
+/* Diálogos com rodapé fixo: o corpo rola, o rodapé (Confirmar) fica à mão. */
+.ctr-importacao, .ctr-dialogo { display: flex; flex-direction: column; overflow: hidden; }
+.ctr-importacao > .ctr-importacao-corpo, .ctr-dialogo > form { min-height: 0; flex: 1 1 auto; overflow-y: auto; }
+.ctr-importacao > .ctr-rodape, .ctr-dialogo > .ctr-rodape { flex-shrink: 0; }
+@media (pointer: coarse) {
+  .ctr-segmento button, .ctr-filtros button, .ctr-filtros select { min-height: 44px; }
+  .ctr-chip { height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctr-entra, .ctr-chip { animation: none; }
+  .ctr-linha td, .ctr-soltar { transition: none; }
+  .ctr-cartao:active, .ctr-total:active { transform: none; }
+}

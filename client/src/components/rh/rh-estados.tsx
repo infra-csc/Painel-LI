@@ -12,8 +12,8 @@ import { apiErrorMessage } from "@/lib/api-error";
 
 export function EsqueletoDoRh() {
   return (
-    <div role="status" aria-live="polite" aria-busy="true" aria-label="Carregando a fila do RH" className="flex flex-col gap-4" data-testid="rh-carregando">
-      <span className="sr-only">Carregando a fila do RH…</span>
+    <div role="status" aria-live="polite" aria-busy="true" aria-label="Carregando a fila do DP" className="flex flex-col gap-4" data-testid="rh-carregando">
+      <span className="sr-only">Carregando a fila do DP…</span>
       <div aria-hidden="true" className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="grid grid-cols-2 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -76,7 +76,7 @@ export function ErroDoRh({ error, onRetry }: { error: unknown; onRetry: () => vo
   return (
     <Moldura tom="erro" role="alert" icone={<AlertCircle className="w-5 h-5" />} titulo="Não foi possível carregar as prestações" testid="rh-erro"
       acoes={<Button variant="outline" className="rounded-lg" onClick={onRetry} data-testid="rh-tentar-novamente"><RotateCw className="w-4 h-4 mr-1.5" aria-hidden="true" />Tentar novamente</Button>}>
-      A fila não chegou — sem ela não dá para dizer o que espera o RH. Verifique sua conexão e tente de novo.
+      A fila não chegou — sem ela não dá para dizer o que espera o DP. Verifique sua conexão e tente de novo.
       <span className="block mt-2 text-xs text-muted-foreground/90">Detalhe: {apiErrorMessage(error, "sem resposta do servidor")}</span>
     </Moldura>
   );

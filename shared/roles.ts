@@ -38,6 +38,12 @@ const ROLE_MAP: Record<string, CanonicalRole> = {
   travel: "purchasing",
   financeiro: "financial",
   finance: "financial",
+  // 26/10 (Honorários, Fase 0): o app diz "DP" onde dizia "RH" — o rótulo do
+  // papel é "Financeiro / DP"; o Portal ainda manda "Financeiro / RH". Os dois
+  // nomes viram o mesmo papel. Siglas soltas ("rh", "dp") NÃO entram: um
+  // papel gravado assim ganharia o financeiro sem ninguém ter dado.
+  "financeiro / dp": "financial",
+  "financeiro / rh": "financial",
   // Honorários da cenotécnica: só liberação e relatórios (23/10). As chaves
   // ficam sem acento (ver `chaveDoPapel`): "Honorários (liberação)", o texto
   // exato que o Portal manda, vira "honorarios (liberacao)".
@@ -67,13 +73,13 @@ export function ehPerfilHonorarios(role: string | null | undefined): boolean {
   return normalizeRole(role) === "honorarios";
 }
 
-/** Quem registra a liberação da verba dos honorários: admin, RH e o perfil Honorários. */
+/** Quem registra a liberação da verba dos honorários: admin, DP e o perfil Honorários. */
 export function podeLiberarHonorarios(role: string | null | undefined): boolean {
   const r = normalizeRole(role);
   return r === "admin" || r === "financial" || r === "honorarios";
 }
 
-/** RH (financial) ou administrador — quem decide no fluxo financeiro. */
+/** DP (financial, "Financeiro / DP") ou administrador — quem decide no fluxo financeiro. */
 export function isFinanceRole(role: string | null | undefined): boolean {
   const r = normalizeRole(role);
   return r === "admin" || r === "financial";

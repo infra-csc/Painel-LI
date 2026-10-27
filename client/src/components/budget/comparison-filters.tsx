@@ -43,13 +43,13 @@ export function FilaDoComparativo({ dados: d }: { dados: DadosDoComparativo }) {
   const v = d.valorPorStatus;
   const blocos: BlocoDaFilaDeTrabalho<StatusFilterKey>[] = [
     { key: "para_analise", rotulo: "Para análise", n: c.para_analise, sub: c.para_analise ? formatCurrency(v.para_analise) : "nada pendente", icone: Clock, cor: "text-info",
-      titulo: "Enviadas pelo responsável — aguardando a decisão do RH" },
+      titulo: "Enviadas pelo responsável — aguardando a decisão do DP" },
     { key: "aprovado", rotulo: "Aprovadas", n: c.aprovado, sub: c.aprovado ? formatCurrency(v.aprovado) : "nenhuma ainda", icone: CheckCheck, cor: "text-success",
-      titulo: "Aprovadas pelo RH (análise formal)" },
+      titulo: "Aprovadas pelo DP (análise formal)" },
     { key: "devolvido", rotulo: "Devolvidas", n: c.devolvido, sub: c.devolvido ? "com o responsável" : "nenhuma", icone: Undo2, cor: "text-warning",
       titulo: "Devolvidas para correção — o responsável edita e reenvia" },
     { key: "rejeitado", rotulo: "Recusadas", n: c.rejeitado, sub: c.rejeitado ? "corrigir e reenviar" : "nenhuma", icone: XCircle, cor: "text-danger",
-      titulo: "Recusadas pelo RH — o responsável pode corrigir e reenviar" },
+      titulo: "Recusadas pelo DP — o responsável pode corrigir e reenviar" },
   ];
   return (
     <FilaDeTrabalho

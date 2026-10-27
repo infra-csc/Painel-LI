@@ -85,10 +85,10 @@ const prestacao = (over: Partial<FlashComparisonActual> = {}): FlashComparisonAc
 });
 
 describe("isFlashCreditableActual (quem entra no crédito do comparativo)", () => {
-  it("enviada ao RH e pendente entra", () => {
+  it("enviada ao DP e pendente entra", () => {
     expect(isFlashCreditableActual(prestacao())).toBe(true);
   });
-  it("aprovada pelo RH entra mesmo sem sentForReview", () => {
+  it("aprovada pelo DP entra mesmo sem sentForReview", () => {
     expect(isFlashCreditableActual(prestacao({ sentForReview: false, rhStatus: "aprovado" }))).toBe(true);
   });
   it("não participou nunca entra", () => {
@@ -245,7 +245,7 @@ describe("idempotência e estorno por chave lógica (sourceRef, category)", () =
     expect(r.kept).toHaveLength(3);
   });
 
-  it("RH ajustou o valor → atualiza o mesmo lançamento", () => {
+  it("DP ajustou o valor → atualiza o mesmo lançamento", () => {
     const before = flashMovementsForComparison(evento);
     const existing = before.map((w, i) => ({ id: `m${i}`, sourceRef: w.actualId, category: w.category, amountCents: w.amountCents }));
     const after = flashMovementsForComparison([prestacao({ id: "a1", weekdayLunch: 4000 }), evento[1]]);

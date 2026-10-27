@@ -79,7 +79,7 @@ export function SettingsFooter() {
   return (
     <p className="m-0 flex items-center gap-2 px-1 text-xs text-muted-foreground">
       <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-      Administradores e Financeiro/RH podem alterar estes valores. Cada salvamento fica registrado na auditoria do sistema.
+      Administradores e Financeiro/DP podem alterar estes valores. Cada salvamento fica registrado na auditoria do sistema.
     </p>
   );
 }

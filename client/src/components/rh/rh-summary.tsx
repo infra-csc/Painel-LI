@@ -22,11 +22,11 @@ import { FilaDeTrabalho, type BlocoDaFilaDeTrabalho } from "@/components/common/
 import type { PrestacaoStatus } from "./prestacao-types";
 import type { InvoiceCounts } from "./use-rh-control-data";
 import type { RhFiltros } from "./use-rh-filtros";
+import type { ContagemDaTrilha } from "@shared/trilha-honorarios";
+import { TrilhaDoEvento } from "@/components/honorarios/trilha-do-honorario";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
-/** As seis etapas do processo — a legenda que antes era o subtítulo colorido. */
-const ETAPAS_DO_PROCESSO = ["Escalação", "Planejado", "Realizado", "Aprovação", "Nota fiscal", "Check-in"];
 
 /** Leva a lista para a vista depois de recortar (só se ela estiver fora da tela). */
 export function irParaLista() {
@@ -74,15 +74,16 @@ export interface ResumoDoRhProps {
   totalForProgress: number;
   progressPct: number;
   filtros: RhFiltros;
+  /** Onde estão os registros do recorte na trilha única do honorário (26/10). */
+  trilha?: ContagemDaTrilha;
 }
 
-/** Painel de resumo: progresso geral e o trabalho do RH por tipo (cada número recorta a lista). */
-export function ResumoDoRh({ statusCounts, invoiceCounts, concludedCount, totalForProgress, progressPct, filtros: f }: ResumoDoRhProps) {
+/** Painel de resumo: progresso geral e o trabalho do DP por tipo (cada número recorta a lista). */
+export function ResumoDoRh({ statusCounts, invoiceCounts, concludedCount, totalForProgress, progressPct, filtros: f, trilha }: ResumoDoRhProps) {
   const rhPlan = statusCounts.planejamento_pendente || 0;
   const rhComp = statusCounts.prestacao_recebida || 0;
   const rhNf = invoiceCounts.enviada;
   const chk = invoiceCounts.checkinPending || 0;
-  const recusada = statusCounts.recusada || 0;
   const completo = totalForProgress > 0 && concludedCount >= totalForProgress;
 
   // Os atalhos da antiga faixa "pendências do RH", agora com volta (reclicar tira o recorte).
@@ -100,7 +101,7 @@ export function ResumoDoRh({ statusCounts, invoiceCounts, concludedCount, totalF
   };
 
   return (
-    <section aria-label="Resumo do Controle RH" className="pla-resumo pla-resumo-medido rounded-xl border border-border bg-card overflow-hidden" data-testid="rh-resumo">
+    <section aria-label="Resumo do Painel de honorários" className="pla-resumo pla-resumo-medido rounded-xl border border-border bg-card overflow-hidden" data-testid="rh-resumo">
       <div className="pla-resumo-grade">
         {/* O número da tela: quanto da fila já chegou ao fim. */}
         <div className="pla-resumo-total min-w-0 px-4 pt-3.5 pb-3">
@@ -112,7 +113,7 @@ export function ResumoDoRh({ statusCounts, invoiceCounts, concludedCount, totalF
           <div className="mt-1.5 flex items-center gap-2.5">
             <span
               role="progressbar"
-              aria-label="Prestações concluídas (nota aprovada e check-in feito)"
+              aria-label="Prestações concluídas (nota aprovada e lançada no M4)"
               aria-valuemin={0}
               aria-valuemax={totalForProgress}
               aria-valuenow={concludedCount}
@@ -121,38 +122,30 @@ export function ResumoDoRh({ statusCounts, invoiceCounts, concludedCount, totalF
               <span className="pla-progresso absolute inset-y-0 left-0 rounded-full bg-success-strong" style={{ width: `${progressPct}%` }} />
             </span>
             <span className={cn("text-xs tabular-nums whitespace-nowrap", completo ? "text-success font-semibold" : "text-muted-foreground")}
-              title="Concluída = nota fiscal aprovada e check-in financeiro feito. Fora da conta: recusadas, quem não participou, quem não emite NF e NF recusada.">
+              title="Concluída = nota fiscal aprovada e lançada no M4. Fora da conta: recusadas, quem não participou, quem não emite NF e NF recusada.">
               {progressPct}% concluídas
             </span>
           </div>
         </div>
-        <Atalho icone={ClipboardList} rotulo="Planejar" n={rhPlan} sub={rhPlan ? (rhPlan === 1 ? "planejamento pendente" : "planejamentos pendentes") : "nada a planejar"}
+        <Atalho icone={ClipboardList} rotulo="Pré-aprovar" n={rhPlan} sub={rhPlan ? "pré-aprovar e liberar" : "nada a pré-aprovar"}
           ativo={f.filterStatus === "planejamento_pendente"} onClick={porStatus("planejamento_pendente")}
-          dica="Escalação confirmada — o RH cria o planejamento de valores. Clique para ver só esses itens." testid="rh-atalho-planejar" />
+          dica="Escalação confirmada — o DP pré-aprova o valor e libera para a Produção. Clique para ver só esses itens." testid="rh-atalho-planejar" />
         <Atalho icone={Scale} rotulo="Analisar" n={rhComp} sub={rhComp ? (rhComp === 1 ? "comparativo recebido" : "comparativos recebidos") : "nada a analisar"}
           ativo={f.filterStatus === "prestacao_recebida"} onClick={porStatus("prestacao_recebida")}
-          dica="Realizado recebido — o RH analisa o comparativo. Clique para ver só esses itens." testid="rh-atalho-analisar" />
+          dica="Realizado recebido — o DP analisa o comparativo. Clique para ver só esses itens." testid="rh-atalho-analisar" />
         <Atalho icone={FileText} rotulo="Aprovar NF" n={rhNf} sub={rhNf ? (rhNf === 1 ? "nota enviada" : "notas enviadas") : "nenhuma nota enviada"}
           ativo={f.filterInvoiceStatus === "enviada"} onClick={porNf}
-          dica="Notas fiscais enviadas pelo colaborador, à espera da aprovação do RH. Clique para ver só essas." testid="rh-atalho-nf" />
-        <Atalho icone={CircleDot} rotulo="Check-in" n={chk} sub={chk ? (chk === 1 ? "nota aprovada sem check-in" : "notas aprovadas sem check-in") : "nenhum pendente"}
+          dica="Notas fiscais enviadas pelo colaborador, à espera da aprovação do DP. Clique para ver só essas." testid="rh-atalho-nf" />
+        <Atalho icone={CircleDot} rotulo="Lançar no M4" n={chk} sub={chk ? (chk === 1 ? "nota aprovada a lançar" : "notas aprovadas a lançar") : "nenhum pendente"}
           ativo={f.filterCheckinOnly} onClick={porCheckin}
-          dica="Nota aprovada — falta o Check-in Financeiro (define a data de pagamento). Clique para ver só esses." testid="rh-atalho-checkin" />
+          dica="Nota aprovada — falta lançar no M4 (define a data de pagamento). Clique para ver só esses." testid="rh-atalho-checkin" />
       </div>
 
-      {/* O processo, da escalação ao check-in (a legenda que era o subtítulo). */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 px-4 py-2.5 border-t border-border bg-surface-muted/60">
-        <ol className="m-0 p-0 list-none max-sm:hidden flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0" aria-label="Etapas da prestação de contas">
-          {ETAPAS_DO_PROCESSO.map((e, i) => (
-            <li key={e} className="flex items-center gap-1.5 text-xs text-slate-600">
-              {i > 0 && <span aria-hidden="true" className="text-muted-foreground">›</span>}
-              {e}
-            </li>
-          ))}
-        </ol>
-        <p className="m-0 md:ml-auto text-xs text-muted-foreground">
-          {recusada > 0 && <span className="text-danger">{plural(recusada, "recusada", "recusadas")} · </span>}
-          Um item pode estar em mais de um número — as etapas se sobrepõem.
+      {/* A trilha ÚNICA do honorário (26/10, slide 8): onde está cada registro do recorte. */}
+      <div className="border-t border-border">
+        <TrilhaDoEvento contagem={trilha} escopo="do recorte" />
+        <p className="m-0 px-4 pb-2.5 -mt-1 text-xs text-muted-foreground">
+          Os atalhos acima contam o trabalho do DP — um item pode estar em mais de um número.
         </p>
       </div>
     </section>
@@ -210,7 +203,7 @@ export function FilaDoRh({ statusCounts, invoiceCounts, rhActionCount, concluded
   };
 
   const blocos: BlocoDaFilaDeTrabalho<CardFiltro>[] = [
-    { key: "rh_action", rotulo: "Aguardando RH", n: rhTotal, sub: rhTotal ? "com o RH" : "nada com o RH", icone: ShieldAlert, cor: rhTotal ? "text-danger" : "text-muted-foreground",
+    { key: "rh_action", rotulo: "Aguardando DP", n: rhTotal, sub: rhTotal ? "com o DP" : "nada com o DP", icone: ShieldAlert, cor: rhTotal ? "text-danger" : "text-muted-foreground",
       titulo: `Planejamento ${rhPlan} · Comparativo ${rhComp} · Nota fiscal ${rhNf}${chk ? ` · Check-in ${chk}` : ""} — itens únicos (as etapas se sobrepõem)` },
     { key: "col_action", rotulo: "Aguardando colaborador", n: colTotal, sub: colTotal ? `${colReal} realizado${colReal === 1 ? "" : "s"} · ${colNfDev + colNfPend} nota${colNfDev + colNfPend === 1 ? "" : "s"}` : "ninguém pendente", icone: Users, cor: "text-primary",
       titulo: `Realizado ${colReal} · NF devolvida ${colNfDev} · Aguardando lançamento ${colNfPend}` },
@@ -226,7 +219,7 @@ export function FilaDoRh({ statusCounts, invoiceCounts, rhActionCount, concluded
       blocos={blocos}
       ativa={ativa}
       onEscolher={escolher}
-      rotulo="Fila do Controle RH"
+      rotulo="Fila do Painel de honorários"
       testid={(k) => `rh-fila-${k}`}
     />
   );

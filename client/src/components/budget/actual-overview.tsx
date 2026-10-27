@@ -16,7 +16,9 @@
 import { AlertCircle, Calculator, Check, Equal, Home, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BudgetActual, Event } from "@shared/schema";
-import { Metrica, TrilhoDeEtapas } from "./budget-overview-cards";
+import { Metrica } from "./budget-overview-cards";
+import { TrilhaDoEvento } from "@/components/honorarios/trilha-do-honorario";
+import { useTrilhaDoEvento } from "@/components/honorarios/use-honorarios";
 import { formatCurrency, formatEventDate } from "./types";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -37,7 +39,7 @@ export function DevolvedBanner({ devolvedItems, getCollaboratorName, onVer }: {
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-warning-strong" aria-hidden="true" />
       <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-1.75rem)]">
         <p className="m-0 text-sm font-semibold text-warning">
-          {devolvedItems.length === 1 ? "1 prestação devolvida pelo RH" : `${devolvedItems.length} prestações devolvidas pelo RH`}
+          {devolvedItems.length === 1 ? "1 prestação devolvida pelo DP" : `${devolvedItems.length} prestações devolvidas pelo DP`}
           <span className="font-normal"> — corrija e reenvie para revisão.</span>
         </p>
         {shown.length > 0 && (
@@ -96,9 +98,8 @@ export function ResumoDoRealizado({ selectedEvent, eventItems, totais }: ResumoD
   const igual = Math.abs(diferenca) <= 1;
   const pct = totalPlanejado > 0 && !igual ? Math.round((diferenca / totalPlanejado) * 1000) / 10 : null;
 
-  // Etapa: tudo enviado ou aprovado → a bola está com o RH (Aprovação).
-  const allSentOrApproved = eventItems.length > 0 && eventItems.every(i => i.sentForReview || i.rhStatus === "aprovado");
-  const etapaAtual = allSentOrApproved ? 3 : 2;
+  // 26/10: a trilha é a única do honorário (slide 8), contada no servidor.
+  const trilha = useTrilhaDoEvento(selectedEvent?.id);
 
   // Andamento da aprovação, contado por escalação (os filhos de uma divisão seguem o titular).
   const titulares = eventItems.filter(i => !i.splitParentId);
@@ -148,10 +149,10 @@ export function ResumoDoRealizado({ selectedEvent, eventItems, totais }: ResumoD
       {/* Andamento: quanto o RH já aprovou e em que etapa o evento está. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 border-t border-border bg-surface-muted/60">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0 max-sm:w-full" data-testid="progresso-aprovacao">
-          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Aprovação do RH</span>
+          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Aprovação do DP</span>
           <span
             role="progressbar"
-            aria-label="Prestações aprovadas pelo RH"
+            aria-label="Prestações aprovadas pelo DP"
             aria-valuemin={0}
             aria-valuemax={prestacaoCount}
             aria-valuenow={nAprovadas}
@@ -165,10 +166,9 @@ export function ResumoDoRealizado({ selectedEvent, eventItems, totais }: ResumoD
               : `${nAprovadas} de ${prestacaoCount} aprovadas`}
           </span>
         </div>
-        <div className="md:ml-auto min-w-0">
-          <TrilhoDeEtapas atual={etapaAtual} />
-        </div>
       </div>
+      {/* A trilha única do honorário (slide 8): onde está cada registro do evento. */}
+      <TrilhaDoEvento {...trilha} foco={["em_evento", "confirmado"]} className="border-t border-border" />
     </section>
   );
 }

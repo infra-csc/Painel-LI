@@ -3,7 +3,8 @@
  *
  * Extraído de budget-planned.tsx: enviar para o Realizado (individual e lote,
  * com sucesso parcial), marcar/restaurar "não participou" e aplicar valores
- * padrão. Também guarda o estado dos diálogos que essas ações fecham
+ * padrão. 26/10 (Honorários, Fase 0): pré-aprovar (linha, seleção ou evento)
+ * e desfazer — o envio ao Realizado só leva o que o DP pré-aprovou. Também guarda o estado dos diálogos que essas ações fecham
  * (confirmação de envio, ausência, restauração), porque os `onSuccess` os
  * resetam — mantê-los na página exigiria repassar setters em cadeia.
  */
@@ -15,6 +16,8 @@ import { apiRequest } from "@/lib/queryClient";
 import type { BudgetActual, BudgetPlanned as BudgetPlannedRow } from "@shared/schema";
 import type { CalculatedBudget, ConfirmSend, NotAttendedModalState, RestoreModalState } from "@/components/budget/types";
 import { CHAVE_CONTROLE_RH } from "@/components/rh/prestacao-utils";
+import { valoresParaGravar, type PedidoDePreAprovacao, type PlanejadoDaTela } from "@/components/budget/pre-aprovacao";
+import { podeLiberarParaProducao, type SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
 
 export interface EntradaDasAcoesDoPlanejado {
   selectedEventId: string;
@@ -26,12 +29,16 @@ export interface EntradaDasAcoesDoPlanejado {
   sentToActual: Set<string>;
   isCardNotAttended: (b: CalculatedBudget) => boolean;
   clearDraftEntries: (ids: string[]) => void;
+  /** Pré-aprovação do DP da vaga (motor). Só "pre_aprovado" (ou "legado", 27/10) vai ao Realizado. */
+  situacaoDaVaga: (b: CalculatedBudget) => SituacaoDaPreAprovacao;
+  /** Linha do Planejado de cada vaga (motor, 27/10) — o mesmo casamento da tela. */
+  plannedByVaga: Map<string, BudgetPlannedRow>;
 }
 
 type Enviado = { id: string; result: BudgetActual };
 
 export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
-  const { selectedEventId, userId, allBudgetPlanned, calculatedBudgets, selectedIds, setSelectedIds, sentToActual, isCardNotAttended, clearDraftEntries } = e;
+  const { selectedEventId, userId, calculatedBudgets, selectedIds, setSelectedIds, sentToActual, isCardNotAttended, clearDraftEntries, situacaoDaVaga, plannedByVaga } = e;
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -41,6 +48,58 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
   const [notAttendedReason, setNotAttendedReason] = useState("");
   const [restoreModal, setRestoreModal] = useState<RestoreModalState | null>(null);
   const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
+  // Pré-aprovação (26/10): o pedido aberto no diálogo e a linha a desfazer.
+  const [pedidoDePreAprovacao, setPedidoDePreAprovacao] = useState<PedidoDePreAprovacao | null>(null);
+  const [desfazer, setDesfazer] = useState<{ planejado: PlanejadoDaTela; nome: string; funcao: string; valor: number } | null>(null);
+
+  const invalidarPlanejado = () => {
+    qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
+    qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
+  };
+
+  /** POST /api/budget-planned/pre-aprovar — grava os valores de agora e assina (DP, quando). */
+  const preAprovarMutation = useMutation({
+    mutationFn: async (alvos: CalculatedBudget[]) => {
+      const res = await apiRequest("POST", "/api/budget-planned/pre-aprovar", {
+        eventId: selectedEventId,
+        // 27/10: a vaga e a linha que a tela mostra para ela — o servidor casa as
+        // vagas sem colaborador da mesma função por aqui (não pela ordem do banco).
+        linhas: alvos.map(b => ({
+          collaboratorId: b.inclusion.collaboratorId, functionId: b.inclusion.functionId, ...valoresParaGravar(b),
+          teamInclusionId: b.inclusion.id, plannedId: plannedByVaga.get(b.inclusion.id)?.id ?? null,
+        })),
+      });
+      return res.json() as Promise<{ preAprovadas: number; total: number; ignoradas: { motivo: string }[] }>;
+    },
+    onSuccess: (r) => {
+      invalidarPlanejado();
+      setPedidoDePreAprovacao(null);
+      const n = r.preAprovadas;
+      toast({
+        variant: "success",
+        title: n === 1 ? "Pré-aprovado pelo DP" : `${n} pré-aprovados pelo DP`,
+        description: r.ignoradas.length > 0
+          ? `${r.ignoradas.length} ficaram de fora (já no Realizado ou não participou). Agora é só enviar ao Realizado.`
+          : n === 1 ? "Agora pode ir ao Realizado (liberado para a Produção)." : "Agora podem ir ao Realizado (liberados para a Produção).",
+      });
+    },
+    onError: (err: unknown) => toast({ title: "Não foi possível pré-aprovar", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+  });
+
+  /** POST /api/budget-planned/desfazer-pre-aprovacao — só antes do envio ao Realizado. */
+  const desfazerPreAprovacaoMutation = useMutation({
+    mutationFn: async (plannedId: string) => {
+      const res = await apiRequest("POST", "/api/budget-planned/desfazer-pre-aprovacao", { ids: [plannedId] });
+      return res.json() as Promise<{ desfeitas: number; ignoradas: { motivo: string }[] }>;
+    },
+    onSuccess: (r) => {
+      invalidarPlanejado();
+      setDesfazer(null);
+      if (r.desfeitas > 0) toast({ title: "Pré-aprovação desfeita", description: "A linha voltou a pedir a pré-aprovação do DP." });
+      else toast({ title: "Nada foi desfeito", description: r.ignoradas[0]?.motivo ? `A linha ${r.ignoradas[0].motivo}.` : undefined, variant: "warning" });
+    },
+    onError: (err: unknown) => toast({ title: "Não foi possível desfazer", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+  });
 
   const toggleNotAttendedMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
@@ -55,8 +114,7 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
       setNotAttendedReason("");
       if (data.didNotAttend) {
         // Remove de seleção se estava selecionado
-        const plan = allBudgetPlanned?.find(p => p.id === id);
-        const budget = plan && calculatedBudgets.find(b => b.inclusion.collaboratorId === plan.collaboratorId && b.inclusion.functionId === plan.functionId);
+        const budget = calculatedBudgets.find(b => plannedByVaga.get(b.inclusion.id)?.id === id);
         if (budget) setSelectedIds(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
         toast({ title: "Colaborador marcado como não participou" });
       } else {
@@ -90,6 +148,7 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
         mobilityVolta: budget.mobilidadeVolta,
         transport: 0,
         totalValue: budget.totalFinal,
+        teamInclusionId: budget.inclusion.id, // 27/10: a vaga da linha
         createdBy: userId,
       };
       const res = await apiRequest("POST", "/api/budget-planned", plannedData);
@@ -109,47 +168,32 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
   });
 
   const savePlannedAndSendToActual = async (budget: CalculatedBudget, obsLabel: string): Promise<Enviado> => {
-    // Dias persistidos = dias que efetivamente recebem diária (casa: só fds);
-    // Realizado/Comparativo leem dailyQuantity.
-    const totalDias = budget.diasComDiaria;
-    const weightedDailyValue = totalDias > 0
-      ? Math.round(budget.subtotalDiarias / totalDias)
-      : budget.valorDiaria;
+    // Os MESMOS valores da pré-aprovação (valoresParaGravar): se nada mudou, o
+    // PATCH abaixo não mexe na pré-aprovação; se mudou, o servidor devolve a
+    // linha a pendente e recusa o envio (409) — nunca vai valor não aprovado.
     const plannedData = {
       eventId: budget.inclusion.eventId,
       collaboratorId: budget.inclusion.collaboratorId,
       functionId: budget.inclusion.functionId,
-      collaboratorType: budget.collaborator?.type || "freela",
-      dailyQuantity: totalDias,
-      dailyValue: weightedDailyValue,
-      costAssistance: 0,
-      weekdayLunch: budget.almocoSemana,
-      weekdayDinner: budget.jantarSemana,
-      weekendLunch: budget.almocoFds,
-      weekendDinner: budget.jantarFds,
-      mobility: budget.mobilidade,
-      mobilityIda: budget.mobilidadeIda,
-      mobilityVolta: budget.mobilidadeVolta,
-      transport: 0,
-      totalValue: budget.totalFinal,
+      ...valoresParaGravar(budget),
       createdBy: userId,
     };
 
-    // Reutiliza registro planejado já existente (ex: marcado como "não participou" antes de enviar)
-    const existingPlan = allBudgetPlanned?.find(
-      p => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
-    );
+    // Reutiliza registro planejado já existente (ex: marcado como "não participou" antes de enviar).
+    // 27/10: a linha DA vaga (mesmo casamento da tela) — e a vaga vai gravada nela.
+    const existingPlan = plannedByVaga.get(budget.inclusion.id);
+    const comVaga = { ...plannedData, teamInclusionId: budget.inclusion.id };
 
     let savedPlanned: BudgetPlannedRow;
     if (existingPlan) {
       const patchRes = await apiRequest("PATCH", `/api/budget-planned/${existingPlan.id}`, {
-        ...plannedData,
+        ...comVaga,
         didNotAttend: existingPlan.didNotAttend,
         didNotAttendReason: existingPlan.didNotAttendReason,
       });
       savedPlanned = await patchRes.json();
     } else {
-      const plannedRes = await apiRequest("POST", "/api/budget-planned", plannedData);
+      const plannedRes = await apiRequest("POST", "/api/budget-planned", comVaga);
       savedPlanned = await plannedRes.json();
     }
 
@@ -173,6 +217,7 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
 
   const sendToActualMutation = useMutation({
     mutationFn: async (budget: CalculatedBudget) => {
+      if (!podeLiberarParaProducao(situacaoDaVaga(budget))) throw new Error("Esta linha ainda não tem a pré-aprovação do DP (ou o valor mudou depois dela). Pré-aprove antes de enviar.");
       return savePlannedAndSendToActual(budget, "Enviado do planejado");
     },
     onSuccess: (data, variables) => {
@@ -191,8 +236,9 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
       qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
     },
-    onError: () => {
-      toast({ title: "Erro ao enviar", description: "Não foi possível enviar para o Realizado.", variant: "destructive" });
+    onError: (err: unknown) => {
+      invalidarPlanejado();
+      toast({ title: "Não foi enviado", description: apiErrorMessage(err, "Não foi possível enviar para o Realizado."), variant: "destructive" });
     },
   });
 
@@ -200,8 +246,10 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
     mutationFn: async () => {
       // "Não participou" NUNCA vai para o Realizado, mesmo se um id ausente
       // sobrou na seleção por algum caminho antigo.
+      // 26/10: só o que o DP pré-aprovou (com o valor de agora) vai ao Realizado —
+      // e, em evento legado (27/10), o que segue o fluxo antigo.
       const toSend = calculatedBudgets.filter(b =>
-        selectedIds.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id) && !isCardNotAttended(b)
+        selectedIds.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id) && !isCardNotAttended(b) && podeLiberarParaProducao(situacaoDaVaga(b))
       );
       const results: Enviado[] = [];
       let failedCount = 0;
@@ -269,7 +317,9 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
       toast({
         title: count > 0 ? `${count} planejamento${count !== 1 ? "s" : ""} atualizado${count !== 1 ? "s" : ""}` : "Nenhum planejamento pendente",
         description: count > 0
-          ? "Valores padrão aplicados aos orçamentos ainda não enviados."
+          ? (data.preAprovacoesDesfeitas > 0
+            ? `Valores padrão aplicados. ${data.preAprovacoesDesfeitas} ${data.preAprovacoesDesfeitas === 1 ? "pré-aprovação voltou" : "pré-aprovações voltaram"} a pendente porque o valor mudou.`
+            : "Valores padrão aplicados aos orçamentos ainda não enviados.")
           : "Todos os orçamentos já foram enviados ou não há registros pendentes.",
       });
     } catch (err) {
@@ -286,6 +336,8 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
     isApplyingDefaults, handleApplyDefaults,
     toggleNotAttendedMutation, createAndMarkNotAttendedMutation,
     sendToActualMutation, sendSelectedToActualMutation,
+    pedidoDePreAprovacao, setPedidoDePreAprovacao, preAprovarMutation,
+    desfazer, setDesfazer, desfazerPreAprovacaoMutation,
   };
 }
 

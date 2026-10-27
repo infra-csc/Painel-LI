@@ -2,6 +2,7 @@
 // Controle RH (tempo parado, avatar, datas da timeline, destino de navegação,
 // borda do cartão). Nada aqui lê estado da página — recebe o item e devolve
 // valor; por isso pode viver fora do componente e ser testado isolado.
+import type { RecorteDoLegado } from "@shared/legado-honorarios";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, Eye, ExternalLink } from "lucide-react";
 import { formatDias } from "@/lib/utils";
@@ -17,11 +18,12 @@ export function statusParaServidor(filterStatus: PrestacaoStatus): FiltroDeStatu
   return filterStatus === "all" ? undefined : filterStatus;
 }
 
-/** URL de GET /api/rh/controle para o recorte (evento opcional + status opcional). */
-export function urlDoControleRh(eventId: string | null, status: FiltroDeStatus | undefined): string {
+/** URL de GET /api/rh/controle para o recorte (evento opcional + status opcional + legado, 26/10). */
+export function urlDoControleRh(eventId: string | null, status: FiltroDeStatus | undefined, recorte?: RecorteDoLegado): string {
   const params = new URLSearchParams();
   if (eventId) params.set("eventId", eventId);
   if (status) params.set("status", status);
+  if (recorte) params.set("recorte", recorte);
   const qs = params.toString();
   return qs ? `${CHAVE_CONTROLE_RH}?${qs}` : CHAVE_CONTROLE_RH;
 }
@@ -80,40 +82,8 @@ export const formatDateTime = (d: Date | string | null | undefined) => {
     date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 };
 
-export const getTimelineStep = (item: PrestacaoItem): number => {
-  // step = index of the CURRENT active step (steps before it are completed ✓)
-  // 0=Escalação, 1=Planejado, 2=Realizado, 3=Aprovação
-  if (item.status === "planejamento_pendente") return 1;   // Escalação ✓ → Planejado is current
-  if (item.status === "aguardando_prestacao") return 2;    // Escalação+Planejado ✓ → Realizado is current
-  if (item.status === "prestacao_recebida") return 3;      // Escalação+Planejado+Realizado ✓ → Aprovação is current
-  if (item.status === "devolvida_para_ajuste") return 2;   // Returned to Realizado (correction needed)
-  return 3; // concluded statuses use isConcluded=true → all steps marked ✓
-};
-
-export const getStepDate = (item: PrestacaoItem, stepIndex: number): string | null => {
-  if (stepIndex === 0 && item.teamInclusion?.createdAt) {
-    return new Date(item.teamInclusion.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  }
-  if (stepIndex === 1 && item.planned?.createdAt) {
-    return new Date(item.planned.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  }
-  if (stepIndex === 2 && item.actual?.updatedAt) {
-    return new Date(item.actual.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  }
-  if (stepIndex === 3 && item.actual?.rhActionAt) {
-    return new Date(item.actual.rhActionAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  }
-  return null;
-};
-
-export const STEP_TOOLTIPS = [
-  "Equipe definida e confirmada para o evento",
-  "Valores planejados pelo RH",
-  "Valores realizados preenchidos pelo responsável da função",
-  "Análise do comparativo pelo RH",
-  "Nota fiscal liberada com o envio do Realizado — enviada pelo colaborador e aprovada pelo RH",
-  "Check-in financeiro realizado pelo RH — encerra o processo",
-];
+// 26/10: a timeline de seis etapas (getTimelineStep/getStepDate/STEP_TOOLTIPS)
+// saiu com a trilha única do honorário — shared/trilha-honorarios.ts.
 
 export const buildNavPath = (base: string, item: PrestacaoItem) => {
   const params = new URLSearchParams();

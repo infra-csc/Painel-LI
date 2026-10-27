@@ -25,7 +25,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SUGESTAO_STATUS } from "@shared/scaling-validation-rules";
-import { ehPerfilHonorarios } from "@shared/roles";
+import { ehPerfilHonorarios, isFinanceRole } from "@shared/roles";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useSwapRequests } from "@/hooks/use-swap-requests";
@@ -38,7 +38,8 @@ import { getSeenNotifications, markNotificationsSeen, SHELL_PREFS_EVENT } from "
 import { buscarAvisos, podeVerAvisos, CHAVE_AVISOS_CASCA, type AvisoDeAlteracao } from "@/components/avisos-de-alteracao/use-avisos-de-alteracao";
 
 import { buscarPendencias, CHAVE_DO_SINO, type PendenciasHonorarios } from "@/components/honorarios-ceno/api";
-import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2, BellRing, CircleDollarSign, HandCoins } from "lucide-react";
+import { buscarContasAlteradas, CHAVE_DO_SINO_DE_CONTAS } from "@/components/contratos/api";
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2, BellRing, CircleDollarSign, HandCoins, ShieldAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
@@ -325,6 +326,21 @@ export function useShellData() {
   const honDevolvidos = honorarios?.devolvidosParaMim ?? 0;
   const honLiberar = honorarios?.aLiberar ?? 0;
 
+  /**
+   * Mudança de conta/PIX de colaborador (26/10) — o dado mais usado em fraude:
+   * aparece para o DP (admin + financial) até OUTRA pessoa conferir. A
+   * contagem é do servidor e não inclui as mudanças feitas por quem está vendo.
+   */
+  const ehDp = isFinanceRole(user?.role);
+  const { data: contasData } = useQuery<{ count: number; ultima: string | null }>({
+    queryKey: [...CHAVE_DO_SINO_DE_CONTAS],
+    queryFn: ({ signal }) => buscarContasAlteradas(signal),
+    enabled: ehDp,
+    staleTime: 60_000,
+  });
+  const contasAlteradas = ehDp ? (contasData?.count ?? 0) : 0;
+  const contasUltima = contasData?.ultima ?? "";
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -391,6 +407,8 @@ export function useShellData() {
     entrada(honAprovar, "hon-aprovar", `${honorario(honAprovar)} aguardando sua aprovação`, "Valor negociado pela cenotécnica", "Aprovação de honorários", "/aprovacao-de-honorarios", CircleDollarSign, "bg-brand-soft text-primary");
     entrada(honDevolvidos, "hon-devolvidos", `${honorario(honDevolvidos)} ${honDevolvidos === 1 ? "devolvido" : "devolvidos"} para negociar`, "O aprovador pediu para rever o valor", "Escalação", "/scaling?honorarios=devolvidos", Undo2, "bg-brand-soft text-primary");
     entrada(honLiberar, "hon-liberar", `${honorario(honLiberar)} ${honLiberar === 1 ? "aprovado" : "aprovados"} a liberar`, "Registre a data, a OC/DP e o valor liberado", "Honorários da cenotécnica", "/honorarios-ceno", HandCoins, AMBAR);
+    // Conta/PIX alterados (26/10): o id leva a data da última — mudança nova volta a ser "novo".
+    entrada(contasAlteradas, `contas-alteradas:${contasUltima}`, `${contasAlteradas} ${contasAlteradas === 1 ? "conta bancária alterada" : "contas bancárias alteradas"} para conferir`, "Confira com o colaborador antes do próximo pagamento", "Contratos (CNPJ)", "/contratos?aba=contas", ShieldAlert, AMBAR);
     entrada(datasImpossiveis, "datas-impossiveis", `${datasImpossiveis} ${datasImpossiveis === 1 ? "passagem com data impossível" : "passagens com data impossível"}`, "Volta antes da ida ou ano fora do esperado", "Passagens", "/tickets?conflito=data", CalendarX2, VERMELHO);
 
     if (isPurchasing) {
@@ -405,7 +423,7 @@ export function useShellData() {
     entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis, precosQueMudaram, honAprovar, honDevolvidos, honLiberar]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis, precosQueMudaram, honAprovar, honDevolvidos, honLiberar, contasAlteradas, contasUltima]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
@@ -414,7 +432,7 @@ export function useShellData() {
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
   const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount
     + avisosPassagem + avisosSoHospedagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis + precosQueMudaram
-    + honAprovar + honDevolvidos + honLiberar;
+    + honAprovar + honDevolvidos + honLiberar + contasAlteradas;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {
@@ -433,6 +451,8 @@ export function useShellData() {
     "busca-de-passagens": precosQueMudaram,
     // Honorários da cenotécnica (16/10).
     "honorarios-ceno": honLiberar,
+    // Mudanças de conta/PIX a conferir (26/10).
+    contratos: contasAlteradas,
   };
 
   return { tabBadgeCount, notifications, pendingTotal, hasUnseen: notifications.some((n) => n.isNew), markAllSeen };

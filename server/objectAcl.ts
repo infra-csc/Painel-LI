@@ -17,12 +17,20 @@ import { ROLE_GROUPS, type CanonicalRole } from "@shared/roles";
 // ── Metadados gravados no objeto ─────────────────────────────────────────────
 export const META_DONO = "custom:ownerId";
 export const META_NOME_ORIGINAL = "custom:originalFileName";
+/**
+ * Classe do anexo (27/10): "contrato" marca o arquivo para sempre — mesmo
+ * depois de trocado ou removido do contrato, ele continua só do DP (antes a
+ * regra dependia de `contratos.anexo_id`, e o arquivo antigo caía na regra comum).
+ */
+export const META_CLASSE = "custom:classe";
+export type ClasseDoAnexo = "contrato";
 
 export interface MetadadosDoAnexo {
   ownerId: string | null;
   nomeOriginal: string | null;
   contentType: string | null;
   tamanho: number | null;
+  classe: ClasseDoAnexo | null;
 }
 
 export function lerMetadadosDoAnexo(metadata: FileMetadata | null | undefined): MetadadosDoAnexo {
@@ -33,16 +41,18 @@ export function lerMetadadosDoAnexo(metadata: FileMetadata | null | undefined): 
     nomeOriginal: typeof custom[META_NOME_ORIGINAL] === "string" && custom[META_NOME_ORIGINAL] ? custom[META_NOME_ORIGINAL] : null,
     contentType: typeof metadata?.contentType === "string" ? metadata.contentType : null,
     tamanho: Number.isFinite(tamanho) ? tamanho : null,
+    classe: custom[META_CLASSE] === "contrato" ? "contrato" : null,
   };
 }
 
 export async function gravarMetadadosDoAnexo(
   file: File,
-  dados: { ownerId?: string; nomeOriginal?: string; contentType?: string },
+  dados: { ownerId?: string; nomeOriginal?: string; contentType?: string; classe?: ClasseDoAnexo },
 ): Promise<void> {
   const metadata: Record<string, string> = {};
   if (dados.ownerId) metadata[META_DONO] = dados.ownerId;
   if (dados.nomeOriginal) metadata[META_NOME_ORIGINAL] = dados.nomeOriginal;
+  if (dados.classe) metadata[META_CLASSE] = dados.classe;
   await file.setMetadata({
     ...(dados.contentType ? { contentType: dados.contentType } : {}),
     metadata,
@@ -66,8 +76,14 @@ export function podeAcessarAnexo(args: {
    * regra "só o que enviou" deixava a Área de Função sem abrir nenhum (30/09).
    */
   anexoDeLogistica?: boolean;
+  /**
+   * true quando o anexo é o arquivo de um CONTRATO (CNPJ) — 26/10: só o DP
+   * (admin + financial) abre, nem Compras/Produção (que veem o resto).
+   */
+  anexoDeContrato?: boolean;
 }): boolean {
-  const { role, userId, ownerId, documentoDeColaborador, anexoDeLogistica } = args;
+  const { role, userId, ownerId, documentoDeColaborador, anexoDeLogistica, anexoDeContrato } = args;
+  if (anexoDeContrato) return !!role && (ROLE_GROUPS.financeiro as readonly CanonicalRole[]).includes(role);
   if (role && PAPEIS_QUE_VEEM_TUDO.includes(role)) return true;
   if (anexoDeLogistica && role) return true;
   // Documento (CPF/RG) de colaborador: mesma regra dos dados pessoais da

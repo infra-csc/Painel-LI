@@ -14,6 +14,11 @@
  * tipo — cada número recorta), a fila de trabalho (os quatro recortes de
  * antes), a barra de filtros comum e a fila numa tabela agrupada por evento
  * que vira cartão no estreito. Carregando, erro e vazio são estados da página.
+ *
+ * 26/10 (Módulo de Honorários, Fase 0): a tela virou o "Painel de honorários"
+ * (slide 11). Recorte Fluxo novo × Legado (eventos que terminam antes da data
+ * de corte): o legado é só leitura, com "Concluir em lote" fora do fluxo; a
+ * trilha de cada registro e a do resumo são a ÚNICA do slide 8.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
@@ -32,9 +37,11 @@ import { RhFilters } from "@/components/rh/rh-filters";
 import { RhLista } from "@/components/rh/rh-lista";
 import { EsqueletoDoRh, ErroDoRh, VazioDoRh } from "@/components/rh/rh-estados";
 import { periodoDoEvento } from "@/components/rh/prestacao-utils";
+import { estaConcluida } from "@/components/rh/use-rh-fila-filtrada";
+import { AvisoDoLegado, ConcluirLegadoDialog, RecorteDoPainel } from "@/components/rh/legado";
 
 export default function RhControlPage() {
-  usePageTitle("Controle RH");
+  usePageTitle("Painel de honorários");
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -52,11 +59,15 @@ export default function RhControlPage() {
   }), []);
 
   const eventoSelecionado = filterEvent !== "all" ? filterEvent : null;
-  const dados = useRhControlData(eventoSelecionado, filtros.filterStatus);
+  const dados = useRhControlData(eventoSelecionado, filtros.filterStatus, filtros.recorte);
+  const noLegado = filtros.recorte === "legado";
+  const [concluindoLegado, setConcluindoLegado] = useState(false);
   const { estado, isLoading, atualizando, statusCounts, invoiceCounts, rhActionCount, concludedCount, totalForProgress, progressPct } = dados;
   const canRh = isRhOrAdmin(user);
 
   const { filteredItems, eventGroups } = useRhFilaFiltrada(dados, filtros);
+  // "Concluir em lote" (legado): o que a lista mostra agora e ainda está aberto.
+  const legadoAbertoVisivel = useMemo(() => (noLegado ? filteredItems.filter(i => !i.conclusaoForaDoFluxo && !estaConcluida(i)) : []), [noLegado, filteredItems]);
   // Quantas sobram em cada função com os OUTROS filtros de agora — a mesma
   // regra da lista (o hook roda de novo com a função em "todas").
   const { filteredItems: semFuncao } = useRhFilaFiltrada(dados, { ...filtros, filterFunction: "all" });
@@ -136,23 +147,23 @@ export default function RhControlPage() {
         type="button"
         onClick={emRhAction ? () => filtros.setFilterStatus("all") : verPendencias}
         aria-pressed={emRhAction}
-        title={emRhAction ? "Voltar à fila inteira" : "Mostrar só as pendências do RH"}
+        title={emRhAction ? "Voltar à fila inteira" : "Mostrar só as pendências do DP"}
         className={`pas-alvo inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg text-sm font-medium whitespace-nowrap transition-[filter,background-color] hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${emRhAction ? "bg-primary text-primary-foreground" : "bg-danger-soft text-danger"}`}
         data-testid="rh-situacao"
       >
         <ShieldAlert className="w-4 h-4" aria-hidden="true" />
-        {rhActionCount} com o RH
+        {rhActionCount} com o DP
       </button>
     ) : (
       <span className="inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg text-sm font-medium whitespace-nowrap bg-success-soft text-success" data-testid="rh-situacao">
-        <CheckCheck className="w-4 h-4" aria-hidden="true" />Nada com o RH
+        <CheckCheck className="w-4 h-4" aria-hidden="true" />Nada com o DP
       </span>
     );
 
   const barra = (
     <PageHeader
       variant="bar"
-      title="Controle RH"
+      title="Painel de honorários"
       // No celular a barra tem dois andares: grudada, comia a tela (como no Comparativo).
       className="mx-0 mt-0 gap-x-3 max-sm:static"
       context={<>
@@ -190,6 +201,7 @@ export default function RhControlPage() {
         approvingInvoiceId={approvingInvoiceId}
         nfApproving={nfApproving}
         canRh={canRh}
+        somenteLeitura={noLegado}
         toggleExpand={toggleExpand}
         toggleDetails={toggleDetails}
         navigate={navigate}
@@ -208,7 +220,26 @@ export default function RhControlPage() {
   } else {
     conteudo = (
       <>
+        {/* Fluxo novo × Legado (26/10): o legado é só leitura. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <RecorteDoPainel recorte={filtros.recorte} onRecorte={filtros.setRecorte} recortes={dados.recortes} dataDeCorte={dados.dataDeCorte} />
+          {!noLegado && dados.recortes.legado - dados.recortes.legadoConcluido > 0 && (
+            <p className="m-0 text-xs text-muted-foreground">
+              O legado fica no recorte ao lado — {(dados.recortes.legado - dados.recortes.legadoConcluido).toLocaleString("pt-BR")} {dados.recortes.legado - dados.recortes.legadoConcluido === 1 ? "registro aberto" : "registros abertos"}.
+            </p>
+          )}
+        </div>
+        {noLegado && (
+          <AvisoDoLegado
+            dataDeCorte={dados.dataDeCorte}
+            recortes={dados.recortes}
+            pendentesVisiveis={legadoAbertoVisivel.length}
+            podeConcluir={canRh}
+            onConcluir={() => setConcluindoLegado(true)}
+          />
+        )}
         <ResumoDoRh
+          trilha={dados.trilha}
           statusCounts={statusCounts}
           invoiceCounts={invoiceCounts}
           concludedCount={concludedCount}
@@ -244,6 +275,12 @@ export default function RhControlPage() {
       <div className="px-[var(--page-gutter)] pt-5 pb-6">
         <div className="flex flex-col gap-4 max-w-[1560px] mx-auto">{conteudo}</div>
       </div>
+      <ConcluirLegadoDialog
+        itens={legadoAbertoVisivel}
+        aberto={concluindoLegado}
+        onClose={() => setConcluindoLegado(false)}
+        recorteDescrito={eventoDaBarra ? eventoDaBarra.name : "Todos os eventos do legado"}
+      />
     </div>
   );
 }

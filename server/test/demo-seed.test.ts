@@ -227,7 +227,7 @@ describe("PostgresRateLimitStore (tabela rate_limits)", () => {
 
 // ── Endpoint agregado do Controle RH ────────────────────────────────────────
 describe("GET /api/rh/controle", () => {
-  it("papel de produção → 403; RH → 200 com itens, contadores e funções", async () => {
+  it("papel de produção → 403; DP → 200 com itens, contadores e funções", async () => {
     const producao = await entrarComo("production");
     expect((await producao.get("/api/rh/controle")).status).toBe(403);
 
@@ -296,7 +296,7 @@ describe("GET /api/rh/controle", () => {
     expect((await rh.get("/api/rh/controle?status=all")).status).toBe(200);
   });
 
-  it("no app padrão (modo seguro), o RH logado pelo SSO também acessa", async () => {
+  it("no app padrão (modo seguro), o DP logado pelo SSO também acessa", async () => {
     const { agent } = await agenteLogado("financial");
     const res = await agent.get("/api/rh/controle?status=rh_action");
     expect(res.status).toBe(200);

@@ -21,7 +21,7 @@ export const NOME_DO_PERFIL: Record<CanonicalRole, string> = {
   production: "Logística Interna",
   function_area: "Área de Função",
   purchasing: "Compras / Viagem",
-  financial: "RH",
+  financial: "Financeiro / DP",
   honorarios: "Honorários (liberação)",
 };
 
@@ -31,7 +31,7 @@ export const RESUMO_DO_PERFIL: Record<CanonicalRole, string> = {
   production: "Cadastros e operação: inclusão, escalação, passagens e hospedagem.",
   function_area: "Escalação, módulo de Escala e colaboradores.",
   purchasing: "Cadastros, passagens, hospedagem e controle de bagagem.",
-  financial: "Financeiro, controle RH e cadastros; consulta a operação.",
+  financial: "Financeiro, controle DP e cadastros; consulta a operação.",
   honorarios: "Só os Honorários da cenotécnica: libera a verba e extrai os relatórios. Não lança nem aprova.",
 };
 

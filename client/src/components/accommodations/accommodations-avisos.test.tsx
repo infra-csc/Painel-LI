@@ -164,8 +164,8 @@ describe("Hospedagem — avisos de alteração para Compras", () => {
     expect(screen.getByTestId("avisos-resolvidas-barra")).toBeInTheDocument();
   });
 
-  it("fora da logística (RH): a tela abre, mas nem bloco nem consulta de avisos", async () => {
-    const { fetchMock } = montar([avisoFake()], usuarioFake({ id: "rh-1", role: "financial", name: "Rita RH" }));
+  it("fora da logística (DP): a tela abre, mas nem bloco nem consulta de avisos", async () => {
+    const { fetchMock } = montar([avisoFake()], usuarioFake({ id: "rh-1", role: "financial", name: "Rita DP" }));
     expect(await screen.findByTestId("accommodation-row-50")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("region", { name: /Alterações aprovadas/ })).not.toBeInTheDocument());
     expect(screen.queryByTestId("accommodation-alteracao-vaga-reg")).not.toBeInTheDocument();

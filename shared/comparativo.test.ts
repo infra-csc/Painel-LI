@@ -71,11 +71,11 @@ describe("etapaDoComparativo", () => {
     expect(etapaDoComparativo([], "aprovado")).toBe(2);
   });
 
-  it("tudo enviado/decidido → Aprovação RH", () => {
+  it("tudo enviado/decidido → Aprovação DP", () => {
     expect(etapaDoComparativo([aprovada, pendente], "pendente")).toBe(3);
   });
 
-  it("todas aprovadas mas o comparativo AINDA aberto → continua em Aprovação RH", () => {
+  it("todas aprovadas mas o comparativo AINDA aberto → continua em Aprovação DP", () => {
     expect(etapaDoComparativo([aprovada, aprovada], "pendente")).toBe(3);
     expect(etapaDoComparativo([aprovada, aprovada], null)).toBe(3);
   });

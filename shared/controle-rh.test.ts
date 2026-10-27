@@ -46,25 +46,42 @@ function entrada(p: Partial<EntradaDoControleRh>): EntradaDoControleRh {
 }
 
 describe("montarControleRh — status de cada linha", () => {
-  it("vaga sem Planejado → planejamento_pendente, responsável RH, data = criação da vaga", () => {
+  it("vaga sem Planejado → planejamento_pendente, responsável DP, data = criação da vaga", () => {
     const r = montarControleRh(entrada({ vagas: [vaga({ id: "v1", collaboratorId: "c1", functionId: "f1" })] }));
     expect(r.itens).toHaveLength(1);
-    expect(r.itens[0]).toMatchObject({ id: "ti-v1", status: "planejamento_pendente", responsavelAtual: "RH", collaboratorName: "Ana Lima", functionName: "Montagem", planned: null, actual: null, emiteNf: true, nfElegivel: false, rhPrecisaAgir: true });
+    expect(r.itens[0]).toMatchObject({ id: "ti-v1", status: "planejamento_pendente", responsavelAtual: "DP", collaboratorName: "Ana Lima", functionName: "Montagem", planned: null, actual: null, emiteNf: true, nfElegivel: false, rhPrecisaAgir: true });
     expect(r.itens[0].lastActivityDate).toBe("2026-09-01T10:00:00.000Z");
     expect(r.contadores.status.planejamento_pendente).toBe(1);
   });
 
-  it("Planejado sem Realizado → aguardando_prestacao com o nome de quem criou o Planejado", () => {
+  it("Planejado (pré-aprovado ou não) sem Realizado → ainda é a vez do DP: pré-aprovar e liberar (26/10)", () => {
     const r = montarControleRh(entrada({
       vagas: [vaga({ id: "v1", collaboratorId: "c1", functionId: "f1" })],
-      planejados: [planejado({ id: "p1", collaboratorId: "c1", functionId: "f1" })],
+      planejados: [planejado({ id: "p1", collaboratorId: "c1", functionId: "f1", status: "pre_aprovado" })],
     }));
-    expect(r.itens[0]).toMatchObject({ id: "pl-p1", status: "aguardando_prestacao", responsavelAtual: "Bruno Cardoso", teamInclusion: { id: "v1" } });
+    expect(r.itens[0]).toMatchObject({ id: "pl-p1", status: "planejamento_pendente", responsavelAtual: "DP", teamInclusion: { id: "v1" }, rhPrecisaAgir: true });
+    expect(r.itens[0].trilha).toMatchObject({ etapa: "pre_aprovado", proxima: "em_evento" });
   });
 
-  it("Realizado decide: enviado → recebida (RH); aprovado/rejeitado → Concluído; devolvido → quem editou", () => {
+  it("recorte do legado: conta as abas antes de recortar e marca cada linha", () => {
+    const e = entrada({
+      eventos: [{ ...EV, id: "ev-velho", endDate: "2026-10-20" }, { ...EV, id: "ev-novo", startDate: "2026-11-18", endDate: "2026-11-20" }],
+      vagas: [vaga({ id: "v1", eventId: "ev-velho", collaboratorId: "c1", functionId: "f1" }), vaga({ id: "v2", eventId: "ev-novo", collaboratorId: "c1", functionId: "f1" })],
+    });
+    const novo = montarControleRh({ ...e, recorte: "fluxo_novo" });
+    expect(novo.itens.map((i) => i.id)).toEqual(["ti-v2"]);
+    expect(novo.contadores.recortes).toEqual({ fluxoNovo: 1, legado: 1, legadoConcluido: 0 });
+    const legado = montarControleRh({ ...e, recorte: "legado", conclusoes: new Map([["ti-v1", { motivo: "pago fora", porNome: "Ana", em: null }]]) });
+    expect(legado.itens).toHaveLength(1);
+    expect(legado.itens[0]).toMatchObject({ legado: true, conclusaoForaDoFluxo: { motivo: "pago fora" }, rhPrecisaAgir: false });
+    expect(legado.contadores.recortes.legadoConcluido).toBe(1);
+    expect(legado.contadores.rhAction).toBe(0);
+    expect(montarControleRh(e).itens).toHaveLength(2); // sem recorte: todos (o contrato de antes)
+  });
+
+  it("Realizado decide: enviado → recebida (DP); aprovado/rejeitado → Concluído; devolvido → quem editou", () => {
     const casos: Array<[Partial<RealizadoParaControle>, string, string]> = [
-      [{ sentForReview: true, rhStatus: "pendente" }, "prestacao_recebida", "RH"],
+      [{ sentForReview: true, rhStatus: "pendente" }, "prestacao_recebida", "DP"],
       [{ sentForReview: true, rhStatus: "aprovado", rhActionBy: "u-rh", rhActionAt: "2026-09-09T10:00:00Z" }, "aprovada_faturamento", "Concluído"],
       [{ sentForReview: true, rhStatus: "rejeitado", rhActionBy: "u-rh" }, "recusada", "Concluído"],
       [{ sentForReview: true, rhStatus: "devolvido", updatedBy: "u-prod" }, "devolvida_para_ajuste", "Rafael Nogueira"],
@@ -181,7 +198,7 @@ describe("montarControleRh — NF, isenção e contadores", () => {
     expect(filtrado.contadores).toEqual(r.contadores); // contadores não dependem do filtro
   });
 
-  it("NF enviada em Realizado aprovado → RH precisa agir (aprovar a nota); aprovada sem check-in também", () => {
+  it("NF enviada em Realizado aprovado → DP precisa agir (aprovar a nota); aprovada sem check-in também", () => {
     const e = base();
     const r = montarControleRh({ ...e, notas: [nota({ id: "n1", budgetActualId: "a1", status: "enviada" }), nota({ id: "n3", budgetActualId: "a3", status: "aprovada" })] });
     const porId = new Map(r.itens.map((i) => [i.id, i]));

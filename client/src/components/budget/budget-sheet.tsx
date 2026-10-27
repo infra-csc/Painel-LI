@@ -22,7 +22,7 @@
  * mesmas funções (sheet-edits) e os mesmos callbacks de antes.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Info, Layers, Lock, PencilLine, RotateCcw, Send, Undo2 } from "lucide-react";
+import { BadgeCheck, Info, Layers, Lock, PencilLine, RotateCcw, Send, Undo2 } from "lucide-react";
 import { cn, parseBrNumber } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,6 +33,7 @@ import { useLarguraUtil } from "@/components/common/use-largura-util";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import type { BudgetActual } from "@shared/schema";
 import type { DraftStatus } from "@/hooks/use-budget-draft";
+import { pedePreAprovacao, podeLiberarParaProducao, type SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
 import { AdvancedBatchDialog } from "./advanced-batch-dialog";
 import { BatchPopover } from "./batch-popover";
 import { SeloDoRascunho } from "./selo-do-rascunho";
@@ -59,9 +60,12 @@ export interface BudgetSheetProps {
   totalGeral: number;
   nomeDaVaga: (b: CalculatedBudget) => string;
   getFunctionName: (id?: string | null) => string;
-  /** RH/admin: vê o "Enviar pendentes". */
+  /** DP/admin: vê o "Pré-aprovar" e o "Enviar pré-aprovados". */
   isAdmin: boolean;
   onSend: (ids: string[]) => void;
+  /** Pré-aprovação do DP (26/10). */
+  situacaoDaVaga: (b: CalculatedBudget) => SituacaoDaPreAprovacao;
+  onPreAprovar: (alvos: CalculatedBudget[]) => void;
   /** Há busca/filtro ligado: o vazio oferece "Limpar filtros". */
   algumFiltro?: boolean;
   onLimparFiltros?: () => void;
@@ -79,6 +83,7 @@ export function BudgetSheet(p: BudgetSheetProps) {
   const {
     filteredBudgets, selectableFiltered, selectedIds, setSelectedIds, onToggleSelect, sentToActual, isCardNotAttended,
     actualsByCollabFunc, budgetOverrides, setBudgetOverrides, setDraftRestored, totalGeral, nomeDaVaga, getFunctionName, isAdmin, onSend,
+    situacaoDaVaga, onPreAprovar,
   } = p;
   const { toast } = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
@@ -277,6 +282,11 @@ export function BudgetSheet(p: BudgetSheetProps) {
   );
 
   const pendingSheet = filteredBudgets.filter(b => !sentToActual.has(b.inclusion.id) && !isCardNotAttended(b));
+  // 26/10: o "Enviar" leva só o pré-aprovado; o resto pede a pré-aprovação antes.
+  // 27/10: evento legado vai sem a pré-aprovação (fluxo antigo) — também é enviável.
+  const prontosSheet = pendingSheet.filter(b => podeLiberarParaProducao(situacaoDaVaga(b)));
+  const aPreAprovarSheet = pendingSheet.filter(b => pedePreAprovacao(situacaoDaVaga(b)));
+  const fluxoAntigoSheet = pendingSheet.some(b => situacaoDaVaga(b) === "legado");
   const editadosVisiveis = pendingSheet.filter(b => b.hasOverride).length;
   const temAjusteVisivel = filteredBudgets.some(b => b.hasOverride);
   const hasPending = pendingSheet.length > 0;
@@ -352,14 +362,25 @@ export function BudgetSheet(p: BudgetSheetProps) {
                 Restaurar padrão
               </button>
             </MotivoDesabilitado>
+            {isAdmin && aPreAprovarSheet.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onPreAprovar(aPreAprovarSheet)}
+                className="pas-alvo inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-colors border border-success/30 bg-success-soft text-success hover:bg-success-strong hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-testid="planilha-pre-aprovar"
+              >
+                <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                Pré-aprovar ({aPreAprovarSheet.length})
+              </button>
+            )}
             {isAdmin && (
-              <MotivoDesabilitado motivo="Nenhum colaborador pendente neste recorte" desabilitado={!hasPending}>
+              <MotivoDesabilitado motivo={hasPending ? "Nenhum pré-aprovado neste recorte — pré-aprove antes de enviar" : "Nenhum colaborador pendente neste recorte"} desabilitado={prontosSheet.length === 0}>
                 <button
                   type="button"
-                  disabled={!hasPending}
+                  disabled={prontosSheet.length === 0}
                   onClick={() => {
-                    if (!hasPending) return;
-                    const ids = pendingSheet.map(b => b.inclusion.id);
+                    if (prontosSheet.length === 0) return;
+                    const ids = prontosSheet.map(b => b.inclusion.id);
                     setSelectedIds(new Set(ids));
                     onSend(ids);
                   }}
@@ -371,7 +392,7 @@ export function BudgetSheet(p: BudgetSheetProps) {
                   data-testid="planilha-enviar-pendentes"
                 >
                   <Send className="w-3.5 h-3.5" aria-hidden="true" />
-                  Enviar pendentes{hasPending ? ` (${pendingSheet.length})` : ""}
+                  {fluxoAntigoSheet ? "Enviar pendentes" : "Enviar pré-aprovados"}{prontosSheet.length > 0 ? ` (${prontosSheet.length})` : ""}
                 </button>
               </MotivoDesabilitado>
             )}
@@ -529,6 +550,7 @@ export function BudgetSheet(p: BudgetSheetProps) {
                         funcName={getFunctionName(budget.inclusion.functionId)}
                         isSent={sentToActual.has(sid)}
                         isNotAttended={isCardNotAttended(budget)}
+                        situacao={situacaoDaVaga(budget)}
                         isNewCollab={isNewCollab || modoCartao}
                         showTopBorder={isNewCollab && rowIdx > 0}
                         selected={selectedIds.has(sid)}

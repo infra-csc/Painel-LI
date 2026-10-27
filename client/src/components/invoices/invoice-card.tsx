@@ -147,13 +147,13 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
             </button>
           )}
           {effStatus === "recusada" && <p className="nf-sub text-danger">decisão definitiva</p>}
-          {effStatus === "checkin-pendente" && <p className="nf-sub">aprovada, falta o check-in</p>}
+          {effStatus === "checkin-pendente" && <p className="nf-sub">aprovada, falta lançar no M4</p>}
           {effStatus === "checkin-realizado" && (
             <>
               {invoice?.paymentDate && (
                 <p className="nf-sub font-medium text-success tabular-nums">Pgto: {fmtDate(invoice.paymentDate)}</p>
               )}
-              {invoice?.checkinAt && <p className="nf-sub tabular-nums">check-in em {fmtDate(invoice.checkinAt)}</p>}
+              {invoice?.checkinAt && <p className="nf-sub tabular-nums">lançada no M4 em {fmtDate(invoice.checkinAt)}</p>}
             </>
           )}
         </div>

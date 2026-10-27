@@ -218,7 +218,7 @@ describe("Perfil Honorários — como o papel chega", () => {
     expect((await agent.get("/api/honorarios-ceno/acesso")).body).toMatchObject({ podeLiberar: true, podePedir: false });
   });
 
-  it("Cadastro de usuários: o admin cria e muda para o perfil; RH e Compras não criam", async () => {
+  it("Cadastro de usuários: o admin cria e muda para o perfil; DP e Compras não criam", async () => {
     const admin = await agenteLogado("admin");
     const email = `cadastro.${unico()}@teste.local`;
     const criar = await mutacao(admin.agent.post("/api/users")).send({ email, name: "Pessoa da Controladoria", role: "honorarios" });

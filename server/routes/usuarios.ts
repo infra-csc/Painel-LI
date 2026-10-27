@@ -60,7 +60,7 @@ export function registrarUsuarios(app: Express): void {
     const userData = parsed.data;
 
     if (!isAdmin && userData.role !== "production" && userData.role !== "function_area") {
-      return res.status(403).json({ message: "RH e Compras só criam usuários de Produção ou Área de Função." });
+      return res.status(403).json({ message: "DP e Compras só criam usuários de Produção ou Área de Função." });
     }
 
     const existingByEmail = await storage.getUserByEmail(userData.email);

@@ -15,9 +15,9 @@ export interface StatusConfigEntry {
 
 export const statusConfig: Record<PrestacaoStatus, StatusConfigEntry> = {
   planejamento_pendente: {
-    label: "Aguardando planejamento",
-    shortLabel: "Planejamento",
-    description: "Escalação confirmada — RH precisa criar o planejamento de valores",
+    label: "Aguardando pré-aprovação",
+    shortLabel: "Pré-aprovação",
+    description: "Escalação confirmada — o DP pré-aprova o valor e libera para a Produção (envio ao Realizado)",
     icon: ClipboardList,
     color: "text-warning",
     bg: "bg-warning-soft",
@@ -41,7 +41,7 @@ export const statusConfig: Record<PrestacaoStatus, StatusConfigEntry> = {
   prestacao_recebida: {
     label: "Análise pendente",
     shortLabel: "Comparativo",
-    description: "Realizado recebido — RH precisa analisar o comparativo para aprovar ou recusar",
+    description: "Realizado recebido — DP precisa analisar o comparativo para aprovar ou recusar",
     icon: Send,
     color: "text-primary",
     bg: "bg-brand-soft",
@@ -53,7 +53,7 @@ export const statusConfig: Record<PrestacaoStatus, StatusConfigEntry> = {
   devolvida_para_ajuste: {
     label: "Devolvida para ajuste",
     shortLabel: "Devolvida",
-    description: "O RH devolveu o realizado — aguardando o responsável da função corrigir e reenviar",
+    description: "O DP devolveu o realizado — aguardando o responsável da função corrigir e reenviar",
     icon: RotateCcw,
     color: "text-warning",
     bg: "bg-warning-soft",
@@ -65,7 +65,7 @@ export const statusConfig: Record<PrestacaoStatus, StatusConfigEntry> = {
   aprovada_faturamento: {
     label: "Aprovada para faturamento",
     shortLabel: "Aprovada",
-    description: "O RH aprovou — pronta para faturamento",
+    description: "O DP aprovou — pronta para faturamento",
     icon: CheckCircle,
     color: "text-success",
     bg: "bg-success-soft",
@@ -77,7 +77,7 @@ export const statusConfig: Record<PrestacaoStatus, StatusConfigEntry> = {
   recusada: {
     label: "Recusada",
     shortLabel: "Recusada",
-    description: "O RH recusou — não será faturada",
+    description: "O DP recusou — não será faturada",
     icon: Ban,
     color: "text-danger",
     bg: "bg-danger-soft",
@@ -94,7 +94,7 @@ export const statusConfig: Record<PrestacaoStatus, StatusConfigEntry> = {
     cardBorder: "border-border",
   },
   rh_action: {
-    label: "Pendências do RH", shortLabel: "Pendências RH", description: "",
+    label: "Pendências do DP", shortLabel: "Pendências DP", description: "",
     icon: Shield, color: "text-primary", bg: "bg-brand-soft",
     border: "border-primary/25", iconColor: "text-primary",
     badgeCls: "bg-brand-soft text-primary border-primary/25",

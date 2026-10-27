@@ -28,27 +28,27 @@ function montar(g: EventGroup) {
 }
 
 describe("RhEventGroup", () => {
-  it("mostra quantas estão com o RH e, à parte, quantas pendem no total", () => {
+  it("mostra quantas estão com o DP e, à parte, quantas pendem no total", () => {
     montar(grupo([
       linhaRhFake({ status: "prestacao_recebida", rhPrecisaAgir: true }),
       linhaRhFake({ status: "aguardando_prestacao", rhPrecisaAgir: false }),
       linhaRhFake({ status: "devolvida_para_ajuste", rhPrecisaAgir: false }),
     ]));
-    expect(screen.getByTestId("crh-grupo-com-rh")).toHaveTextContent("1 com o RH");
+    expect(screen.getByTestId("crh-grupo-com-rh")).toHaveTextContent("1 com o DP");
     expect(screen.getByTestId("crh-grupo-pendentes")).toHaveTextContent("3 pendentes no total");
     expect(screen.queryByText(/· 3 pendentes$/)).toBeNull();
   });
 
-  it("check-in e nota a aprovar contam para o RH; sem nada com o responsável, não repete o total", () => {
+  it("check-in e nota a aprovar contam para o DP; sem nada com o responsável, não repete o total", () => {
     montar(grupo([
       linhaRhFake({ status: "aprovada_faturamento", rhPrecisaAgir: true }),
       linhaRhFake({ status: "planejamento_pendente", rhPrecisaAgir: true }),
     ]));
-    expect(screen.getByTestId("crh-grupo-com-rh")).toHaveTextContent("2 com o RH");
+    expect(screen.getByTestId("crh-grupo-com-rh")).toHaveTextContent("2 com o DP");
     expect(screen.queryByTestId("crh-grupo-pendentes")).toBeNull();
   });
 
-  it("nada com o RH: sem destaque âmbar, só o total de pendentes", () => {
+  it("nada com o DP: sem destaque âmbar, só o total de pendentes", () => {
     montar(grupo([
       linhaRhFake({ status: "aguardando_prestacao", rhPrecisaAgir: false }),
       linhaRhFake({ status: "aguardando_prestacao", rhPrecisaAgir: false }),

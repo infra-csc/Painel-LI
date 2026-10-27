@@ -74,7 +74,7 @@ function EsqueletoDoFlash() {
 }
 
 export default function FlashAccountPage() {
-  usePageTitle("Conta corrente Flash");
+  usePageTitle("Cartão Flash");
   const { user } = useAuth();
   const canManage = isRhOrAdmin(user);
 
@@ -166,7 +166,7 @@ export default function FlashAccountPage() {
   const barra = (
     <PageHeader
       variant="bar"
-      title={<span className="inline-flex items-center gap-1">Conta corrente Flash{regra}</span>}
+      title={<span className="inline-flex items-center gap-1">Cartão Flash{regra}</span>}
       className="mx-0 mt-0 gap-x-3 max-sm:static"
       subtitle={
         carregado && totals.accounts > 0

@@ -60,7 +60,7 @@ describe("SheetRow", () => {
     expect(linha).toHaveTextContent("Freela");
     expect(linha).toHaveTextContent("Produção");
     expect(linha).toHaveTextContent("10/04 → 12/04");
-    expect(linha).toHaveTextContent("Pendente");
+    expect(linha).toHaveTextContent("A pré-aprovar");
     expect(diaria()).toHaveValue(reais(budget.valorDiaria));
     expect(alimUtil()).toHaveValue(reais((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays)));
     expect(alimFds()).toHaveValue(reais((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends)));
@@ -121,7 +121,7 @@ describe("SheetRow", () => {
 
   it("enviado ou 'não participou': tudo desabilitado e sem edição", () => {
     const { linha, unmount } = montar({ isSent: true });
-    expect(linha).toHaveTextContent("Enviado");
+    expect(linha).toHaveTextContent("No Realizado");
     expect(diaria()).toBeDisabled();
     expect(mobilidade()).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Selecionar Ana Souza" })).toBeDisabled();

@@ -173,14 +173,14 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
 
 /** Rótulo "definido pelo RH" dos blocos que não se editam aqui. */
 const DefinidoPeloRh = (
-  <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" />definido pelo RH</span>
+  <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" />definido pelo DP</span>
 );
 
 /** ── Mobilidade e Translado — somente leitura (definidos pelo RH) ── */
 function MobilidadeBlock({ editingItem, editFormData, modalMobility }: Pick<CustosTabRealizadoProps, "editingItem" | "editFormData" | "modalMobility">) {
   return (
     <>
-      <div className={BLOCO} title="Este valor é definido pelo RH e não pode ser alterado nesta etapa">
+      <div className={BLOCO} title="Este valor é definido pelo DP e não pode ser alterado nesta etapa">
         <CabecalhoDoBloco icone={Car} cor="text-slate-500" titulo="Mobilidade" sub={DefinidoPeloRh} total={modalMobility} />
         <dl className="m-0 grid grid-cols-2 divide-x divide-border">
           <div className="px-4 py-2.5">
@@ -197,7 +197,7 @@ function MobilidadeBlock({ editingItem, editFormData, modalMobility }: Pick<Cust
       {/* ── Translado — somente leitura (entra no total gravado; sem esta
            linha o total do rodapé não fechava aos olhos do responsável) ── */}
       {editingItem.transport > 0 && (
-        <div className={BLOCO} title="Este valor é definido pelo RH e não pode ser alterado nesta etapa">
+        <div className={BLOCO} title="Este valor é definido pelo DP e não pode ser alterado nesta etapa">
           <div className="[&>div]:border-b-0">
             <CabecalhoDoBloco icone={Car} cor="text-slate-500" titulo="Translado" sub={DefinidoPeloRh} total={editingItem.transport} />
           </div>

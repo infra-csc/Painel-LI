@@ -20,12 +20,14 @@ const honorario = (o: Partial<HonorarioNaVaga> = {}): HonorarioNaVaga => ({
 const ceno = (o: Parameters<typeof orcamentoFake>[0] = {}) => orcamentoFake({ vaga: vagaCeno, functionName: "Cenotécnica", ...o });
 
 function montar(extras: Partial<BudgetCardProps> = {}) {
-  const acoes = { onToggleSelect: vi.fn(), onToggleCollapse: vi.fn(), onEdit: vi.fn(), onSend: vi.fn(), onNotAttended: vi.fn(), onRestore: vi.fn(), onUsarHonorario: vi.fn() };
+  const acoes = { onToggleSelect: vi.fn(), onToggleCollapse: vi.fn(), onEdit: vi.fn(), onSend: vi.fn(), onNotAttended: vi.fn(), onRestore: vi.fn(), onUsarHonorario: vi.fn(), onPreAprovar: vi.fn(), onDesfazerPreAprovacao: vi.fn() };
   const props: BudgetCardProps = {
     budget: ceno(), name: "Ana Souza", functionName: "Cenotécnica",
     isSent: false, isSelected: false, isCollapsed: false, isHighlighted: false,
     planRecord: undefined, cardActual: undefined, eventNotes: [],
     canEdit: true, canMarkNotAttended: true, restorePending: false,
+    // 26/10: pré-aprovado pelo DP — o envio fica disponível (os testes de pré-aprovação mudam isto).
+    situacao: "pre_aprovado",
     ...acoes, ...extras,
   };
   const utils = renderComTudo(<BudgetCard {...props} />);

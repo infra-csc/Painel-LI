@@ -26,8 +26,8 @@ describe("quem criou a vaga e por onde (14/09)", () => {
   });
 
   it("escalação de emergência: auditoria com o id exato e sem lote", () => {
-    const r = origemDaCriacao({ ...base, auditorias: [{ entityId: "v1", action: "create", userName: "RH", newData: '{"id":"v1"}', createdAt: CRIADA }] });
-    expect(r).toEqual({ por: "RH", onde: ONDE_A_VAGA_NASCEU.emergencia });
+    const r = origemDaCriacao({ ...base, auditorias: [{ entityId: "v1", action: "create", userName: "DP", newData: '{"id":"v1"}', createdAt: CRIADA }] });
+    expect(r).toEqual({ por: "DP", onde: ONDE_A_VAGA_NASCEU.emergencia });
   });
 
   it("grade antiga: a auditoria do lote mais perto da hora da criação", () => {

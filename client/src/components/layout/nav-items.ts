@@ -8,8 +8,16 @@
  * `hasPermission` de `@/lib/role-utils`.
  *
  * Nomenclatura (23/09): rótulos em CAIXA DE FRASE ("Validação de escala"),
- * mantendo só nomes próprios em maiúscula (Flash, RH). A MESMA string deve
+ * mantendo só nomes próprios em maiúscula (Flash, DP). A MESMA string deve
  * aparecer no menu, na trilha do topo e no título da aba (`usePageTitle`).
+ *
+ * 26/10 (Módulo de Honorários, Fase 0 — slide 11 da reunião de 21/10): o grupo
+ * "Financeiro" virou "Honorários", com as telas do fluxo na ordem (sem número:
+ * a numeração do fluxo fica só na trilha de etapas dentro das telas) e, em
+ * "Configuração e apoio", a tabela, as regras, os honorários da cenotécnica, o
+ * Flash e os contratos. "Aprovação de honorários" segue no Operacional (quem
+ * aprova é o aprovador da escala). Os nomes antigos seguem achando a tela na
+ * busca (`sinonimos`). TODA a decisão de nomes, ordem e grupos mora AQUI.
  *
  * Ícones (23/09): lucide, como o resto do app — Material Symbols saiu do menu.
  * Cor do ícone por GRUPO (voltou em 28/09, ver `CLASSE_DO_TONE`); item ativo
@@ -20,7 +28,8 @@ import type { LucideIcon } from "lucide-react";
 import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
-  ChartColumn, Users, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins, CircleDollarSign,
+  ChartColumn, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins, CircleDollarSign,
+  LayoutDashboard, FileSignature,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -37,6 +46,19 @@ export interface NavTab {
    * dado (`AcessoExtra`), o item fica escondido.
    */
   soCom?: keyof AcessoExtra;
+  /**
+   * Número opcional desenhado antes do nome no menu e na busca (o título e a
+   * trilha usam só o nome). Decisão de 26/10: os itens dos honorários NÃO têm
+   * número — a numeração do fluxo aparece só na trilha de etapas das telas.
+   */
+  etapa?: string;
+  /** Outros nomes que acham a tela na busca do menu e no ⌘K (ex.: o nome antigo). */
+  sinonimos?: string[];
+  /**
+   * A rota é de outra frente e pode ainda não existir neste build (26/10:
+   * Contratos). O item só aparece se a página existir (`TELAS_PRESENTES`).
+   */
+  dependeDaPagina?: string;
 }
 
 /** O que o menu sabe além do papel — vem de GET /api/honorarios-ceno/acesso. */
@@ -77,16 +99,22 @@ export const ALL_TABS: NavTab[] = [
   { id: "accommodations",     path: "/accommodations",     label: "Hospedagem",           icon: BedDouble,         permission: "canAccessScreen3" },
   { id: "operational-mirror", path: "/operational-mirror", label: "Espelho operacional",  icon: Table2,            permission: "canAccessScreen3" },
   { id: "baggage-control",    path: "/baggage-control",    label: "Controle de bagagem",  icon: Luggage,           permission: "canAccessBaggage" },
-  { id: "budget-planned",     path: "/budget-planned",     label: "Planejado",            icon: CalendarClock,     permission: "canAccessFinanceiro" },
-  { id: "budget-actual",      path: "/budget-actual",      label: "Realizado",            icon: Wallet,            permission: "canAccessFinanceiro" },
-  { id: "budget-comparison",  path: "/budget-comparison",  label: "Comparativo",          icon: ChartColumn,       permission: "canAccessScreen5" },
-  { id: "rh-control",         path: "/rh-control",         label: "Controle RH",          icon: Users,             permission: "canAccessScreen5" },
-  { id: "invoices",           path: "/invoices",           label: "Notas fiscais",        icon: Receipt,           permission: "canAccessFinanceiro" },
-  { id: "flash-account",      path: "/flash-account",      label: "Conta corrente Flash", icon: PiggyBank,         permission: "canAccessFinanceiro" },
-  // 23/10: permissão própria — o perfil Honorários abre só esta tela.
-  { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessHonorariosCeno" },
+  // ── Honorários (26/10, slide 11): o fluxo, na ordem ──
+  { id: "rh-control",         path: "/rh-control",         label: "Painel de honorários", icon: LayoutDashboard,   permission: "canAccessScreen5", sinonimos: ["Controle RH", "Controle DP", "fila"] },
+  { id: "budget-planned",     path: "/budget-planned",     label: "Pré-aprovação de valores", icon: CalendarClock, permission: "canAccessFinanceiro", sinonimos: ["Planejado", "orçamento previsto"] },
+  // "Presença no evento" no slide: o nome muda na Fase 1, quando houver presença de verdade.
+  { id: "budget-actual",      path: "/budget-actual",      label: "Realizado",            icon: Wallet,            permission: "canAccessFinanceiro", sinonimos: ["Presença no evento", "prestação de contas"] },
+  { id: "budget-comparison",  path: "/budget-comparison",  label: "Conferência DP",       icon: ChartColumn,       permission: "canAccessScreen5", sinonimos: ["Comparativo", "planejado x realizado"] },
+  // Envio e validação de NF são as abas Lançamento e Aprovação DP da MESMA tela: um item só.
+  { id: "invoices",           path: "/invoices",           label: "Notas fiscais",        icon: Receipt,           permission: "canAccessFinanceiro", sinonimos: ["Envio de NF", "Validação de NF", "lançamento", "aprovação", "NF"] },
+  // ── Honorários › Configuração e apoio ──
+  { id: "system-settings",    path: "/system-settings",    label: "Tabela de valores",    icon: SlidersHorizontal, permission: "canAccessFinanceiro", sinonimos: ["Valores padrão", "data de corte"] },
   { id: "calculation-rules",  path: "/calculation-rules",  label: "Regras de cálculo",    icon: Calculator,        permission: "canAccessFinanceiro" },
-  { id: "system-settings",    path: "/system-settings",    label: "Valores padrão",       icon: SlidersHorizontal, permission: "canAccessFinanceiro" },
+  // 23/10: permissão própria — o perfil Honorários abre só esta tela.
+  { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessHonorariosCeno", sinonimos: ["liberação de verba", "empreita"] },
+  { id: "flash-account",      path: "/flash-account",      label: "Cartão Flash",         icon: PiggyBank,         permission: "canAccessFinanceiro", sinonimos: ["Conta corrente Flash"] },
+  // Cadastro de contratos por CNPJ (outra frente, 26/10): só aparece com a página no build.
+  { id: "contratos",          path: "/contratos",          label: "Contratos (CNPJ)",     icon: FileSignature,     permission: "canAccessFinanceiro", sinonimos: ["contrato", "CNPJ", "razão social"], dependeDaPagina: "contratos" },
   { id: "consultation",       path: "/consultation",       label: "Log de auditoria",     icon: FileSearch,        permission: "canAccessScreen6" },
   { id: "admin-users",        path: "/admin-users",        label: "Usuários",             icon: UserCog,           permission: "canAccessAdminUsers" },
   { id: "simulation",         path: "/simulation",         label: "Ver como usuário",     icon: Eye,               permission: "canAccessSimulation" },
@@ -119,7 +147,21 @@ export const MENU_GROUPS: NavGroup[] = [
       ids: ["scaling-suggestion", "scaling-validation", "scaling-approval", "aprovacao-de-honorarios", "scaling-event-view"],
     },
   },
-  { title: "Financeiro", tone: "success", ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "flash-account", "honorarios-ceno", "calculation-rules", "system-settings"] },
+  {
+    // 26/10 (slide 11): "Financeiro" virou "Honorários". O fluxo na ordem
+    // (Ordens de compra e Pagamentos chegam na Fase 1 — sem item vazio) e,
+    // embaixo, a configuração e o apoio.
+    title: "Honorários",
+    tone: "success",
+    ids: [
+      "rh-control", "budget-planned", "budget-actual", "budget-comparison", "invoices",
+      "system-settings", "calculation-rules", "honorarios-ceno", "flash-account", "contratos",
+    ],
+    subgroup: {
+      label: "Configuração e apoio",
+      ids: ["system-settings", "calculation-rules", "honorarios-ceno", "flash-account", "contratos"],
+    },
+  },
   { title: "Gestão", tone: "warning", ids: ["consultation", "admin-users", "simulation"] },
 ];
 
@@ -141,9 +183,30 @@ export function tabByPath(path: string): NavTab | undefined {
   return TAB_BY_PATH.get(path.split("?")[0]);
 }
 
+/**
+ * Páginas que existem neste build (`client/src/pages/*.tsx`), pelo nome do
+ * arquivo. Serve só para `dependeDaPagina`: o item de uma tela que outra
+ * frente ainda está criando não aparece apontando para um 404.
+ */
+export const TELAS_PRESENTES: ReadonlySet<string> = new Set(
+  Object.keys(import.meta.glob("../../pages/*.tsx")).map((caminho) => caminho.replace(/^.*\/|\.tsx$/g, "")),
+);
+
+const telaPresente = (t: NavTab) => !t.dependeDaPagina || TELAS_PRESENTES.has(t.dependeDaPagina);
+
 /** Todas as telas que ESTE usuário pode abrir, na ordem do menu. */
 export function visibleTabs(user: User | null, extra: AcessoExtra = {}): NavTab[] {
-  return ALL_TABS.filter((t) => hasPermission(user, t.permission) && (!t.soCom || !!extra[t.soCom]));
+  return ALL_TABS.filter((t) => telaPresente(t) && hasPermission(user, t.permission) && (!t.soCom || !!extra[t.soCom]));
+}
+
+/** O nome com a etapa, se a tela tiver uma (menu e ⌘K) — hoje nenhuma tem (decisão de 26/10). */
+export function rotuloComEtapa(t: Pick<NavTab, "label" | "etapa">): string {
+  return t.etapa ? `${t.etapa} · ${t.label}` : t.label;
+}
+
+/** O que a busca do menu e o ⌘K procuram: nome, etapa e os sinônimos (nomes antigos). */
+export function textoDeBusca(t: Pick<NavTab, "label" | "etapa" | "sinonimos">): string {
+  return [rotuloComEtapa(t), ...(t.sinonimos ?? [])].join(" ");
 }
 
 export interface ResolvedGroup {
@@ -210,6 +273,9 @@ export function subgroupEdges(group: NavGroup, items: NavTab[], index: number): 
   const sub = group.subgroup;
   const id = items[index]?.id;
   if (!sub || !id || !sub.ids.includes(id)) return { start: false, end: false };
+  // Só itens do subgrupo à vista (perfil Honorários: só "Honorários da cenotécnica"):
+  // o sub-rótulo não separa nada — fica de fora (26/10).
+  if (items.every((t) => sub.ids.includes(t.id))) return { start: false, end: false };
   const prev = items[index - 1];
   const next = items[index + 1];
   return {

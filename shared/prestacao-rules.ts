@@ -133,14 +133,14 @@ export function podeDevolverNota(nota: NotaLike | null | undefined): Permissao {
   return ok;
 }
 
-/** Check-in financeiro: só depois de aprovada, uma única vez e com data. */
+/** Lançamento no M4 (o antigo "check-in financeiro"): só depois de aprovada, uma única vez e com data. */
 export function podeFazerCheckin(
   nota: NotaLike | null | undefined,
   paymentDate?: string | null,
 ): Permissao {
   if (!nota) return nao("Nota fiscal não encontrada.");
-  if (nota.status !== "aprovada") return nao("Check-in só é possível em nota já aprovada.");
-  if (nota.checkinAt) return nao("Esta nota já teve check-in.");
-  if (!paymentDate) return nao("Informe a data de pagamento para o check-in.");
+  if (nota.status !== "aprovada") return nao("Só dá para lançar no M4 uma nota já aprovada.");
+  if (nota.checkinAt) return nao("Esta nota já foi lançada no M4.");
+  if (!paymentDate) return nao("Informe a data de pagamento para lançar no M4.");
   return ok;
 }

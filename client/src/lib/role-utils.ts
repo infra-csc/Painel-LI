@@ -348,7 +348,7 @@ export function getRoleLabel(role: UserRole): string {
     case "production": return "Logística Interna";
     case "function_area": return "Área responsável por funções";
     case "purchasing": return "Área de Compras/Viagem";
-    case "financial": return "RH";
+    case "financial": return "Financeiro / DP";
     case "honorarios": return "Honorários (liberação)";
     default: return "Usuário";
   }

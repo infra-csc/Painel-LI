@@ -96,7 +96,7 @@ describe("Funções — catálogo", () => {
     await waitFor(() => expect(chamadas).toContainEqual({ metodo: "DELETE", url: "/api/functions/f-atend", corpo: undefined }));
   });
 
-  it("quem não cadastra (RH) vê a lista e os papéis, sem criar, editar nem adicionar", async () => {
+  it("quem não cadastra (DP) vê a lista e os papéis, sem criar, editar nem adicionar", async () => {
     montar(rh);
     expect(await screen.findByText("Atendimento")).toBeInTheDocument();
     expect(screen.getByTestId("faixa-responsaveis")).toBeInTheDocument();

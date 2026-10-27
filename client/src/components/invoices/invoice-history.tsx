@@ -27,7 +27,7 @@ const HIST_CFG: Record<HistEvent["type"], { label: string; color: string; by: "c
   devolvido: { label: "Devolvido", color: "var(--warning)", by: "rh" },
   recusado:  { label: "Recusado",  color: "var(--danger)", by: "rh" },
   aprovado:  { label: "Aprovado",  color: "var(--success)", by: "rh" },
-  checkin:   { label: "Check-in",  color: "var(--primary)", by: "rh" },
+  checkin:   { label: "Lançada no M4",  color: "var(--primary)", by: "rh" },
 };
 
 /** Entrada do JSON gravado em `invoices.history` (texto livre do servidor). */
@@ -59,7 +59,7 @@ export function buildHistory(inv: Invoice, collabName: string): HistEvent[] {
             label: cfg.label,
             color: cfg.color,
             at: e.at ? fmtDateTime(e.at) : null,
-            by: cfg.by === "colaborador" ? toTitleCase(collabName) : "RH",
+            by: cfg.by === "colaborador" ? toTitleCase(collabName) : "DP",
             oc: e.oc || null,
             attachmentName: e.attachmentName || null,
             comment: e.comment || null,
@@ -73,13 +73,13 @@ export function buildHistory(inv: Invoice, collabName: string): HistEvent[] {
   const events: HistEvent[] = [];
   events.push({ type: "enviado", label: "Enviado", color: "var(--primary)", at: fmtDateTime(inv.createdAt), by: toTitleCase(collabName) });
   if (inv.returnComment) {
-    events.push({ type: "devolvido", label: "Devolvido", color: "var(--warning)", at: null, by: "RH", comment: inv.returnComment });
+    events.push({ type: "devolvido", label: "Devolvido", color: "var(--warning)", at: null, by: "DP", comment: inv.returnComment });
   }
   if (inv.approvedAt) {
-    events.push({ type: "aprovado", label: "Aprovado", color: "var(--success)", at: fmtDateTime(inv.approvedAt), by: "RH" });
+    events.push({ type: "aprovado", label: "Aprovado", color: "var(--success)", at: fmtDateTime(inv.approvedAt), by: "DP" });
   }
   if (inv.paymentDate) {
-    events.push({ type: "checkin", label: "Check-in", color: "var(--primary)", at: null, by: "RH", paymentDate: inv.paymentDate });
+    events.push({ type: "checkin", label: "Lançada no M4", color: "var(--primary)", at: null, by: "DP", paymentDate: inv.paymentDate });
   }
   return events;
 }

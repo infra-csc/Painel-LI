@@ -139,7 +139,7 @@ export function EditActualModal(p: EditActualModalProps) {
                     )}
                     {planejadoAlterado && (
                       <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-2xs font-medium bg-warning-soft text-warning border border-warning/25">
-                        <TriangleAlert className="w-3 h-3" aria-hidden="true" />Planejado alterado pelo RH
+                        <TriangleAlert className="w-3 h-3" aria-hidden="true" />Planejado alterado pelo DP
                       </span>
                     )}
                   </div>
@@ -169,7 +169,7 @@ export function EditActualModal(p: EditActualModalProps) {
                 <div className="flex items-start gap-2.5 px-5 sm:px-6 py-2.5 bg-warning-soft border-b border-warning/25 shrink-0" role="note">
                   <MessageSquareWarning className="w-4 h-4 mt-0.5 shrink-0 text-warning-strong" aria-hidden="true" />
                   <p className="m-0 text-xs leading-5 text-warning">
-                    <span className="font-semibold">Devolvida pelo RH:</span> {comentarioRh}
+                    <span className="font-semibold">Devolvida pelo DP:</span> {comentarioRh}
                   </p>
                 </div>
               )}

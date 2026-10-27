@@ -31,6 +31,8 @@ import { BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 import type { ActivityLog } from "@/components/activity-timeline";
 import type { BudgetActual, BudgetNote, BudgetPlanned } from "@shared/schema";
 import { Chip, Conta, Lancamento } from "./budget-card";
+import { SeloContratoAtivo } from "@/components/contratos/pecas";
+import type { SituacaoDoColaboradorApi } from "@/components/contratos/api";
 import { formatCurrency, ddmm } from "./types";
 import { formatWorkedDays, isUnfilledItem, reconstructDailyValues, subtotalDiariasDe, type DayCounts, type ModalActualTab } from "./actual-utils";
 
@@ -56,6 +58,8 @@ export interface ActualCardProps {
   onEdit: (item: BudgetActual, tab?: ModalActualTab) => void;
   onSplit: (item: BudgetActual) => void;
   onDelete: (id: string) => void;
+  /** Contrato ativo do CNPJ da pessoa (Fase 0, 27/10) — só o DP recebe; selo só quando falta. */
+  contrato?: SituacaoDoColaboradorApi;
 }
 
 const fmtDT = (d: string | Date) => {
@@ -71,7 +75,7 @@ function SeloDaSituacao({ cardItem }: { cardItem: BudgetActual }) {
   if (cardItem.rhStatus === "aprovado") return <Chip tom="ok">Aprovado</Chip>;
   if (cardItem.rhStatus === "devolvido") return <Chip tom="alerta">Devolvido</Chip>;
   if (cardItem.rhStatus === "rejeitado") return <Chip tom="perigo">Recusado</Chip>;
-  if (cardItem.sentForReview) return <Chip tom="info" title="Enviada — aguardando a análise do RH">Em revisão</Chip>;
+  if (cardItem.sentForReview) return <Chip tom="info" title="Enviada — aguardando a análise do DP">Em revisão</Chip>;
   if (isDuplicated) return <Chip tom="marca">Duplicado</Chip>;
   if (!isUnfilledItem(cardItem) && cardItem.updatedAt) return <Chip tom="neutro" title="Última gravação desta prestação">Salvo {fmtDT(cardItem.updatedAt)}</Chip>;
   return <Chip tom="neutro" className="border-dashed border-border bg-card" title="Ainda não foi salva — vale o planejado como ponto de partida">Não preenchido</Chip>;
@@ -84,7 +88,7 @@ function SeloPlanejadoAlterado({ logs, entityId }: { logs: ActivityLog[]; entity
   const ultima = [...edicoes].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
   const quando = ultima?.created_at ? new Date(ultima.created_at).toLocaleDateString("pt-BR") : "";
   return (
-    <Chip tom="alerta" title={ultima ? `Alterado por ${ultima.user_name || "?"}${quando ? ` em ${quando}` : ""}` : "Planejamento alterado pelo RH"}>
+    <Chip tom="alerta" title={ultima ? `Alterado por ${ultima.user_name || "?"}${quando ? ` em ${quando}` : ""}` : "Planejamento alterado pelo DP"}>
       <TriangleAlert className="w-3 h-3" aria-hidden="true" />Planejamento alterado
     </Chip>
   );
@@ -140,7 +144,7 @@ function ActualCardBody({ cardItem, cardDays, cardPlanned: planned, notAttended 
       {/* Translado entra no total gravado: sem a linha, as parcelas não fechavam com o total. */}
       {cardItem.transport > 0 && (
         <Lancamento rotulo="Translado" cor="bg-slate-300" valor={cardItem.transport} riscado={notAttended}>
-          <span>definido pelo RH</span>
+          <span>definido pelo DP</span>
         </Lancamento>
       )}
     </dl>
@@ -213,11 +217,11 @@ export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span tabIndex={0} aria-label="Realizado ajustado pelo RH" className="inline-flex shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <span tabIndex={0} aria-label="Realizado ajustado pelo DP" className="inline-flex shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       <PencilLine className="w-3.5 h-3.5 text-warning" aria-hidden="true" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className="text-xs">Realizado ajustado pelo RH</TooltipContent>
+                  <TooltipContent side="right" className="text-xs">Realizado ajustado pelo DP</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
@@ -232,6 +236,7 @@ export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
             {/* Tipo não é alerta: Freela em neutro, o âmbar fica para o que pede atenção. */}
             <Chip tom={isCasa ? "marca" : "neutro"}>{isCasa ? "Casa" : "Freela"}</Chip>
             <SeloDaSituacao cardItem={cardItem} />
+            <SeloContratoAtivo situacao={p.contrato?.situacao} contratos={p.contrato?.contratos} />
             {notAttended && <Chip tom="alerta"><UserX className="w-3 h-3" aria-hidden="true" />Não participou</Chip>}
             {/* No titular de uma divisão, `diverges` compara a fatia dele com o planejado
                 da escalação inteira (sempre "diverge"): vale a régua do proporcional. */}
@@ -274,7 +279,7 @@ export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
           {/* Aviso para quem não é do RH quando o RH mexeu nos valores */}
           {!isRhOrAdmin && cardItem.rhAdjusted && (
             <div className="mx-4 mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-lg bg-warning-soft border border-warning/25">
-              <p className="m-0 flex-1 min-w-0 text-xs text-warning">O RH ajustou alguns valores do seu realizado.</p>
+              <p className="m-0 flex-1 min-w-0 text-xs text-warning">O DP ajustou alguns valores do seu realizado.</p>
               <button
                 type="button"
                 onClick={() => p.onEdit(cardItem, "historico")}
@@ -295,7 +300,7 @@ export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
           {/* Campos ajustados pelo RH — de → para */}
           {temAjustesRh && (
             <div className="mx-4 mb-2.5 px-3 py-2 rounded-lg bg-warning-soft/60 border border-warning/20">
-              <p className="m-0 text-2xs font-semibold text-warning">Ajustes do RH</p>
+              <p className="m-0 text-2xs font-semibold text-warning">Ajustes do DP</p>
               <ul className="m-0 mt-0.5 p-0 list-none">
                 {Object.values(rhFields).map((f, i) => (
                   <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-2xs leading-5 text-slate-600">

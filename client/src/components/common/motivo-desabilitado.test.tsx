@@ -85,7 +85,7 @@ describe("MotivoDesabilitado", () => {
 
   it("motivo que não é texto vira a descrição padrão 'Ação indisponível' (o tooltip mostra o JSX)", async () => {
     const { user } = renderComTudo(
-      <MotivoDesabilitado motivo={<strong>Só o RH</strong>} desabilitado>
+      <MotivoDesabilitado motivo={<strong>Só o DP</strong>} desabilitado>
         <Button disabled>Aprovar</Button>
       </MotivoDesabilitado>,
     );
@@ -94,6 +94,6 @@ describe("MotivoDesabilitado", () => {
     expect(span.tagName).toBe("SPAN");
     expect(span).not.toHaveAttribute("aria-label");
     await user.tab();
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("Só o RH");
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Só o DP");
   });
 });

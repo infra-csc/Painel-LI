@@ -8,31 +8,30 @@
  *
  * Agora é UM painel, lido da esquerda para a direita como um extrato:
  * o total planejado (o número da tela), a divisão Casa × Freela e as duas
- * médias; embaixo, numa faixa fina, o andamento do envio ao Realizado e em
- * qual etapa do fluxo o evento está. Nenhuma informação saiu: total, data,
- * colaboradores, casa, freela, período (agora na barra, junto do evento),
- * etapa atual com as quatro etapas, Casa/Freela em R$, médio por pessoa e
- * por dia — com os mesmos textos de ajuda.
+ * médias; embaixo, numa faixa fina, o andamento dos dois passos da tela e,
+ * por último, a trilha do honorário do evento.
+ *
+ * 26/10 (Módulo de Honorários, Fase 0): a tela virou "Pré-aprovação de
+ * valores" — a faixa mostra a pré-aprovação do DP e o envio ao Realizado, e
+ * o trilho de quatro etapas deu lugar à trilha ÚNICA do slide 8
+ * (components/honorarios/trilha-do-honorario), contada no servidor.
  */
 import { BarChart3, Check, Home, UserCheck, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import type { EstatisticasDoPlanejado } from "@/hooks/use-budget-engine";
+import { TrilhaDoEvento } from "@/components/honorarios/trilha-do-honorario";
+import { useTrilhaDoEvento } from "@/components/honorarios/use-honorarios";
 import { formatCurrency, formatEventDate } from "./types";
 
 export interface BudgetOverviewCardsProps {
   selectedEvent: Event | undefined;
   totalGeral: number;
   stats: EstatisticasDoPlanejado;
+  /** Vagas que a tela lista (as confirmadas) — a trilha conta toda escalação com colaborador. */
+  vagasNaTela?: number;
 }
-
-const STEPS = [
-  { label: "Escalação", desc: "Inclusões confirmadas" },
-  { label: "Planejamento RH", desc: "Valores previstos" },
-  { label: "Prestação", desc: "Resp. preenche realizado" },
-  { label: "Aprovação RH", desc: "Análise e aprovação" },
-];
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
@@ -53,50 +52,39 @@ export function Metrica({ icon: Icon, label, value, sub, tooltip, cor, corValor 
   );
 }
 
-/** As quatro etapas do fluxo numa linha: feitas com ✓, a atual em destaque. */
-export function TrilhoDeEtapas({ atual }: { atual: number }) {
+/** Barra de andamento da faixa do resumo (pré-aprovação e envio). */
+function Andamento({ rotulo, dica, feito, total, cor, testid, completo }: {
+  rotulo: string; dica: string; feito: number; total: number; cor: string; testid: string; completo: string;
+}) {
+  const pct = total > 0 ? Math.max(0, Math.min(100, (feito / total) * 100)) : 0;
+  const tudo = total > 0 && feito >= total;
   return (
-    <ol className="m-0 p-0 list-none flex items-center gap-1.5 min-w-0" aria-label={`Etapa atual: ${STEPS[atual].label}`}>
-      {STEPS.map((s, i) => {
-        const feita = i < atual;
-        const ativa = i === atual;
-        return (
-          <li
-            key={s.label}
-            title={`${s.label} — ${s.desc}`}
-            aria-current={ativa ? "step" : undefined}
-            className={cn("flex items-center gap-1.5 min-w-0", !ativa && "max-md:hidden")}
-          >
-            {i > 0 && <span aria-hidden="true" className={cn("hidden md:block w-5 h-px shrink-0", feita || ativa ? "bg-success-strong/60" : "bg-border")} />}
-            <span
-              aria-hidden="true"
-              className={cn(
-                "inline-flex items-center justify-center w-[18px] h-[18px] rounded-full shrink-0 text-2xs font-semibold",
-                feita ? "bg-success-strong text-white" : ativa ? "pla-etapa-atual bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-              )}
-            >
-              {feita ? <Check className="w-2.5 h-2.5" strokeWidth={3.5} /> : i + 1}
-            </span>
-            <span className={cn("text-xs whitespace-nowrap", ativa ? "font-semibold text-foreground" : feita ? "text-success" : "text-muted-foreground")}>
-              {ativa && <span className="md:hidden text-muted-foreground font-normal">Etapa {i + 1} de 4 · </span>}
-              {s.label}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+    <div className="flex items-center gap-2.5 min-w-0 max-sm:w-full" data-testid={testid}>
+      <span className="text-xs font-medium text-slate-600 whitespace-nowrap">{rotulo}</span>
+      <span
+        role="progressbar"
+        aria-label={dica}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={feito}
+        className="relative w-24 sm:w-32 h-1.5 rounded-full bg-border overflow-hidden shrink-0 max-sm:flex-1"
+      >
+        <span className={cn("pla-progresso absolute inset-y-0 left-0 rounded-full", tudo ? "bg-success-strong" : cor)} style={{ width: `${pct}%` }} />
+      </span>
+      <span className={cn("text-xs tabular-nums whitespace-nowrap", tudo ? "text-success font-semibold" : "text-muted-foreground")}>
+        {tudo ? <><Check className="inline w-3.5 h-3.5 -mt-0.5 mr-0.5" aria-hidden="true" />{completo}</> : `${feito} de ${total}`}
+      </span>
+    </div>
   );
 }
 
-export function BudgetOverviewCards({ selectedEvent, totalGeral, stats }: BudgetOverviewCardsProps) {
-  // Etapa derivada do progresso real: com tudo enviado, o RH concluiu
-  // o planejamento e a bola passa para a Prestação.
-  const etapaAtual = stats.total > 0 && stats.progressoEnvio >= 100 ? 2 : 1;
-  const tudoEnviado = stats.total > 0 && stats.progressoEnvio >= 100;
-  const pct = Math.max(0, Math.min(100, stats.progressoEnvio));
+export function BudgetOverviewCards({ selectedEvent, totalGeral, stats, vagasNaTela }: BudgetOverviewCardsProps) {
+  const trilha = useTrilhaDoEvento(selectedEvent?.id);
+  // Quem já passou pela pré-aprovação: os pré-aprovados de agora e os já enviados.
+  const preFeita = stats.preAprovados + stats.enviados;
 
   return (
-    <section aria-label="Resumo do orçamento planejado" className="pla-resumo pla-resumo-medido rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-planejado">
+    <section aria-label="Resumo da pré-aprovação de valores" className="pla-resumo pla-resumo-medido rounded-xl border border-border bg-card overflow-hidden" data-testid="resumo-planejado">
       {/* A grade segue a largura DO PAINEL (container query no index.css,
           pla-resumo-grade): pela janela, entre 768 e 1023px — e em 1024 com o
           menu aberto — os valores saíam com reticências (08/10). */}
@@ -122,33 +110,32 @@ export function BudgetOverviewCards({ selectedEvent, totalGeral, stats }: Budget
         <Metrica icon={BarChart3} label="Médio por dia" value={formatCurrency(stats.mediaPorDia)} sub="por dia trabalhado" cor="text-info" tooltip="Média de custo por dia trabalhado neste evento" />
       </div>
 
-      {/* Andamento: quanto já foi para o Realizado e em que etapa o evento está. */}
+      {/* Os dois passos desta tela: pré-aprovar (DP) e liberar ao Realizado. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 border-t border-border bg-surface-muted/60">
-        <div className="flex items-center gap-2.5 min-w-0 max-sm:w-full" data-testid="progresso-envio">
-          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Envio ao Realizado</span>
-          <span
-            role="progressbar"
-            aria-label="Colaboradores enviados ao Realizado"
-            aria-valuemin={0}
-            aria-valuemax={stats.total}
-            aria-valuenow={stats.enviados}
-            className="relative w-28 sm:w-36 h-1.5 rounded-full bg-border overflow-hidden shrink-0 max-sm:flex-1"
-          >
-            <span
-              className={cn("pla-progresso absolute inset-y-0 left-0 rounded-full", tudoEnviado ? "bg-success-strong" : "bg-primary")}
-              style={{ width: `${pct}%` }}
-            />
-          </span>
-          <span className={cn("text-xs tabular-nums whitespace-nowrap", tudoEnviado ? "text-success font-semibold" : "text-muted-foreground")}>
-            {tudoEnviado
-              ? <><Check className="inline w-3.5 h-3.5 -mt-0.5 mr-0.5" aria-hidden="true" />Todos enviados</>
-              : `${stats.enviados} de ${stats.total}`}
-          </span>
-        </div>
-        <div className="md:ml-auto min-w-0">
-          <TrilhoDeEtapas atual={etapaAtual} />
-        </div>
+        {/* Evento legado (27/10): fluxo antigo — a pré-aprovação não é exigida. */}
+        {stats.legado > 0 ? (
+          <p className="m-0 text-xs text-muted-foreground" data-testid="resumo-fluxo-antigo">
+            <span className="font-medium text-slate-700">Fluxo antigo</span> · evento legado: vai ao Realizado sem a pré-aprovação do DP
+          </p>
+        ) : (
+          <Andamento
+            rotulo="Pré-aprovação do DP" dica="Colaboradores com a pré-aprovação do DP (inclui os já enviados)"
+            feito={preFeita} total={stats.total} cor="bg-success-strong" testid="progresso-pre-aprovacao" completo="Todos pré-aprovados"
+          />
+        )}
+        <Andamento
+          rotulo="Envio ao Realizado" dica="Colaboradores enviados ao Realizado"
+          feito={stats.enviados} total={stats.total} cor="bg-primary" testid="progresso-envio" completo="Todos enviados"
+        />
       </div>
+      <TrilhaDoEvento
+        {...trilha}
+        foco={["previsto", "pre_aprovado"]}
+        className="border-t border-border"
+        nota={vagasNaTela !== undefined && trilha.contagem && trilha.contagem.total > vagasNaTela
+          ? `A trilha conta toda escalação com colaborador: ${trilha.contagem.total - vagasNaTela} ainda não ${trilha.contagem.total - vagasNaTela === 1 ? "está confirmada" : "estão confirmadas"} e só ${trilha.contagem.total - vagasNaTela === 1 ? "entra" : "entram"} aqui depois da confirmação.`
+          : undefined}
+      />
     </section>
   );
 }

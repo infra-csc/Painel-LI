@@ -6,16 +6,21 @@
  */
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { isCasaType, type CalculatedBudget } from "@/components/budget/types";
+import type { SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
 
 /**
  * Recorte por situação da vaga (redesenho 08/10) — só exibição: as mesmas
  * regras que os cards e a planilha já usam para travar a linha.
  *  - `ausentes`: marcada "não participou" (vale mesmo se já tinha ido);
  *  - `enviadas`: já está no Realizado;
- *  - `pendentes`: o resto — o que ainda precisa ser enviado;
- *  - `ajustadas`: pendentes com valor editado à mão (subconjunto).
+ *  - `preaprovadas` (26/10): pré-aprovadas pelo DP com o valor de agora —
+ *    prontas para ir ao Realizado; 27/10: também as de evento legado, que
+ *    vão sem a pré-aprovação (o bloco da fila muda o rótulo: `fluxoAntigo`);
+ *  - `pendentes`: o resto — o que ainda pede a pré-aprovação do DP
+ *    (inclusive a pré-aprovada cujo valor mudou depois);
+ *  - `ajustadas`: ainda não enviadas, com valor editado à mão (subconjunto).
  */
-export type SituacaoDoPlanejado = "todas" | "pendentes" | "ajustadas" | "enviadas" | "ausentes";
+export type SituacaoDoPlanejado = "todas" | "pendentes" | "preaprovadas" | "ajustadas" | "enviadas" | "ausentes";
 
 export interface FiltrosDoPlanejado {
   searchTerm: string;
@@ -32,6 +37,8 @@ export interface FiltrosDoPlanejado {
   contagemPorSituacao: Record<Exclude<SituacaoDoPlanejado, "todas">, number>;
   /** Soma do total planejado (centavos) de cada situação, no mesmo recorte. */
   valorPorSituacao: Record<Exclude<SituacaoDoPlanejado, "todas">, number>;
+  /** Evento legado (27/10): há vagas que vão ao Realizado sem a pré-aprovação (fluxo antigo). */
+  fluxoAntigo: boolean;
   /** Funções com quantas vagas sobram ao escolher cada uma (os outros filtros mantidos). */
   opcoesDeFuncao: { id: string; nome: string; n: number }[];
   /** Algum filtro fora do padrão (busca, função, tipo ou situação). A ordem não conta. */
@@ -56,9 +63,12 @@ export function useBudgetFilters(args: {
   getCollaboratorName: (id?: string | null) => string;
   getFunctionName: (id?: string | null) => string;
   sentToActual: Set<string>;
-  notAttendedKeys: Set<string>;
+  /** Ids de vaga marcados como "não participou" (27/10: pela linha da vaga). */
+  notAttendedIds: Set<string>;
+  /** Pré-aprovação do DP da vaga (26/10). Sem ela, tudo que não foi enviado conta como pendente. */
+  situacaoDaVaga?: (b: CalculatedBudget) => SituacaoDaPreAprovacao;
 }): FiltrosDoPlanejado {
-  const { calculatedBudgets, getCollaboratorName, getFunctionName, sentToActual, notAttendedKeys } = args;
+  const { calculatedBudgets, getCollaboratorName, getFunctionName, sentToActual, notAttendedIds, situacaoDaVaga } = args;
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
@@ -84,11 +94,14 @@ export function useBudgetFilters(args: {
   }, [calculatedBudgets, getFunctionName]);
 
   // Situação da vaga — a mesma régua que trava a linha nos cards e na planilha.
-  const situacaoDe = useCallback((b: CalculatedBudget): "pendentes" | "enviadas" | "ausentes" => {
-    if (notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)) return "ausentes";
+  const situacaoDe = useCallback((b: CalculatedBudget): "pendentes" | "preaprovadas" | "enviadas" | "ausentes" => {
+    if (notAttendedIds.has(b.inclusion.id)) return "ausentes";
     if (sentToActual.has(b.inclusion.id)) return "enviadas";
+    // Legado (27/10) não pede a pré-aprovação: fica com os prontos para enviar.
+    const s = situacaoDaVaga?.(b);
+    if (s === "pre_aprovado" || s === "legado") return "preaprovadas";
     return "pendentes";
-  }, [sentToActual, notAttendedKeys]);
+  }, [sentToActual, notAttendedIds, situacaoDaVaga]);
 
   // Cada dimensão do filtro como predicado — para contar "quantas sobram se eu
   // escolher isto" sem a própria dimensão (função e situação).
@@ -108,21 +121,26 @@ export function useBudgetFilters(args: {
   const passaSituacao = useCallback((b: CalculatedBudget) => {
     if (situacao === "todas") return true;
     const s = situacaoDe(b);
-    if (situacao === "ajustadas") return s === "pendentes" && b.hasOverride;
+    if (situacao === "ajustadas") return (s === "pendentes" || s === "preaprovadas") && b.hasOverride;
     return s === situacao;
   }, [situacao, situacaoDe]);
 
   const { contagemPorSituacao, valorPorSituacao } = useMemo(() => {
-    const c = { pendentes: 0, ajustadas: 0, enviadas: 0, ausentes: 0 };
-    const v = { pendentes: 0, ajustadas: 0, enviadas: 0, ausentes: 0 };
+    const c = { pendentes: 0, preaprovadas: 0, ajustadas: 0, enviadas: 0, ausentes: 0 };
+    const v = { pendentes: 0, preaprovadas: 0, ajustadas: 0, enviadas: 0, ausentes: 0 };
     calculatedBudgets.forEach(b => {
       if (!passaBusca(b) || !passaFuncao(b) || !passaTipo(b)) return;
       const s = situacaoDe(b);
       c[s]++; v[s] += b.totalFinal;
-      if (s === "pendentes" && b.hasOverride) { c.ajustadas++; v.ajustadas += b.totalFinal; }
+      if ((s === "pendentes" || s === "preaprovadas") && b.hasOverride) { c.ajustadas++; v.ajustadas += b.totalFinal; }
     });
     return { contagemPorSituacao: c, valorPorSituacao: v };
   }, [calculatedBudgets, passaBusca, passaFuncao, passaTipo, situacaoDe]);
+
+  const fluxoAntigo = useMemo(
+    () => !!situacaoDaVaga && calculatedBudgets.some(b => situacaoDaVaga(b) === "legado"),
+    [calculatedBudgets, situacaoDaVaga],
+  );
 
   const opcoesDeFuncao = useMemo(() => {
     const n = new Map<string, number>();
@@ -180,9 +198,9 @@ export function useBudgetFilters(args: {
   const selectableFiltered = useMemo(
     () => filteredBudgets.filter(b =>
       !sentToActual.has(b.inclusion.id) &&
-      !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)
+      !notAttendedIds.has(b.inclusion.id)
     ),
-    [filteredBudgets, sentToActual, notAttendedKeys]
+    [filteredBudgets, sentToActual, notAttendedIds]
   );
 
   const toggleCardSelection = useCallback((id: string) => {
@@ -217,7 +235,7 @@ export function useBudgetFilters(args: {
 
   return {
     searchTerm, setSearchTerm, filterFunction, setFilterFunction, filterType, setFilterType, sortBy, setSortBy,
-    situacao, setSituacao, contagemPorSituacao, valorPorSituacao, opcoesDeFuncao, algumFiltro, limparFiltros,
+    situacao, setSituacao, contagemPorSituacao, valorPorSituacao, fluxoAntigo, opcoesDeFuncao, algumFiltro, limparFiltros,
     uniqueFunctions, filteredBudgets, selectableFiltered,
     selectedIds, setSelectedIds, toggleCardSelection, toggleRowSelection, selectAllCards, clearSelection,
   };

@@ -11,7 +11,8 @@ import InvoicesPage from "@/pages/invoices";
 
 describe("InvoicesPage — limpar o evento", () => {
   it("o '×' da barra limpa o evento e a tela pede um evento (não volta sozinho para o primeiro)", async () => {
-    const evento = eventoFake({ id: "ev-nf", name: "Meia de Brasília", paymentCompanyName: "CSC Esporte", paymentCompanyCnpj: "11.222.333/0001-81" });
+    // Evento do fluxo novo (termina depois da data de corte, 01/11/2026): o legado não é escolhido sozinho.
+    const evento = eventoFake({ id: "ev-nf", name: "Meia de Brasília", startDate: "2026-12-04", endDate: "2026-12-06", paymentCompanyName: "CSC Esporte", paymentCompanyCnpj: "11.222.333/0001-81" });
     mockarFetch((url) => {
       if (url.includes("/api/events")) return respostaJson([evento]);
       return respostaJson([]);

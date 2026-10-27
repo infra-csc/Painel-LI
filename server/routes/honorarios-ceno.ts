@@ -934,7 +934,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
-    if (!a.financeiro) return negar(res, "Só o Financeiro (RH, perfil Honorários) e o administrador veem os honorários a liberar.");
+    if (!a.financeiro) return negar(res, "Só o Financeiro (DP, perfil Honorários) e o administrador veem os honorários a liberar.");
     const eventId = typeof req.query.eventId === "string" && req.query.eventId ? req.query.eventId : undefined;
     const f = [dados.filtros.semRascunho()];
     if (eventId) f.push(dados.filtros.doEvento(eventId));
@@ -951,7 +951,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
-    if (!a.financeiro) return negar(res, "Só o Financeiro (RH, perfil Honorários) e o administrador liberam verba.");
+    if (!a.financeiro) return negar(res, "Só o Financeiro (DP, perfil Honorários) e o administrador liberam verba.");
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     const b = corpo(liberarSchema, req, res);
@@ -976,7 +976,7 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
-    if (!a.financeiro) return negar(res, "Só o Financeiro (RH, perfil Honorários) e o administrador mexem nas liberações.");
+    if (!a.financeiro) return negar(res, "Só o Financeiro (DP, perfil Honorários) e o administrador mexem nas liberações.");
     const atual = await dados.getHonorario(req.params.id);
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     const b = corpo(estornarSchema, req, res);

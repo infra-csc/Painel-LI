@@ -41,12 +41,12 @@ export type StatusCfg = { label: string; pill: string; borderCls: string; avatar
 
 const STATUS_CFG: Record<EffStatus, StatusCfg> = {
   pendente:           { label: "Pendente",           pill: "bg-muted text-slate-600",         borderCls: "border-l-border",         avatarCls: "bg-muted text-muted-foreground",  dot: "bg-slate-400" },
-  enviada:            { label: "Aguardando RH",      pill: "bg-warning-soft text-warning",    borderCls: "border-l-warning-strong", avatarCls: "bg-warning-soft text-warning",    dot: "bg-warning-strong" },
+  enviada:            { label: "Aguardando DP",      pill: "bg-warning-soft text-warning",    borderCls: "border-l-warning-strong", avatarCls: "bg-warning-soft text-warning",    dot: "bg-warning-strong" },
   devolvida:          { label: "Devolvida",          pill: "bg-warning-soft text-warning",    borderCls: "border-l-warning-strong", avatarCls: "bg-warning-soft text-warning",    dot: "bg-warning-strong" },
   recusada:           { label: "NF recusada",        pill: "bg-danger-soft text-danger",      borderCls: "border-l-danger",         avatarCls: "bg-danger-soft text-danger",      dot: "bg-danger" },
   aprovada:           { label: "Aprovada",           pill: "bg-success-soft text-success",    borderCls: "border-l-success-strong", avatarCls: "bg-success-soft text-success",    dot: "bg-success-strong" },
-  "checkin-pendente": { label: "Aguard. check-in",   pill: "bg-brand-soft text-primary",      borderCls: "border-l-primary",        avatarCls: "bg-brand-soft text-primary",      dot: "bg-primary" },
-  "checkin-realizado":{ label: "Check-in realizado", pill: "bg-success-soft text-success",    borderCls: "border-l-success",        avatarCls: "bg-success-soft text-success",    dot: "bg-success" },
+  "checkin-pendente": { label: "Aguard. M4",   pill: "bg-brand-soft text-primary",      borderCls: "border-l-primary",        avatarCls: "bg-brand-soft text-primary",      dot: "bg-primary" },
+  "checkin-realizado":{ label: "Lançada no M4", pill: "bg-success-soft text-success",    borderCls: "border-l-success",        avatarCls: "bg-success-soft text-success",    dot: "bg-success" },
 };
 
 // Fallback defensivo: um status desconhecido vindo do servidor não pode

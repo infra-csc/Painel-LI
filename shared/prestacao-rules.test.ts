@@ -93,7 +93,7 @@ describe("contaNosTotais", () => {
   });
 });
 
-describe("podeDecidirPrestacao (máquina de estados do RH)", () => {
+describe("podeDecidirPrestacao (máquina de estados do DP)", () => {
   it("decide o que está enviado e pendente", () => {
     expect(podeDecidirPrestacao({ sentForReview: true, rhStatus: "pendente" }).ok).toBe(true);
   });

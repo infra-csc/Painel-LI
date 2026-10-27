@@ -60,7 +60,7 @@ export function SemAcessoAosValores() {
       </span>
       <h2 className="m-0 text-base font-semibold text-foreground">Acesso restrito</h2>
       <p className="m-0 mt-1.5 max-w-[420px] text-sm leading-relaxed text-muted-foreground">
-        Os valores padrão mexem no dinheiro de todos os eventos — só administradores e o Financeiro/RH abrem esta tela. Se precisar de um ajuste, fale com o Financeiro.
+        Os valores padrão mexem no dinheiro de todos os eventos — só administradores e o Financeiro/DP abrem esta tela. Se precisar de um ajuste, fale com o Financeiro.
       </p>
       <Button asChild variant="outline" className="mt-5 rounded-lg">
         <Link href="/">Voltar ao início</Link>

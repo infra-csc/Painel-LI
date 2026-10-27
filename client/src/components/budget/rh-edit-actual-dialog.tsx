@@ -73,7 +73,7 @@ export function RhEditActualDialog({ acoes, getCollaboratorName, getFunctionName
                     {getCollaboratorName && <span className="font-normal text-muted-foreground"> · {getCollaboratorName(editingActual.collaboratorId)}</span>}
                   </DialogTitle>
                   <DialogDescription className="mt-0.5 text-sm text-slate-600">
-                    {getFunctionName ? `${getFunctionName(editingActual.functionId)} · ` : ""}Ajuste do RH — fica registrado no histórico da prestação.
+                    {getFunctionName ? `${getFunctionName(editingActual.functionId)} · ` : ""}Ajuste do DP — fica registrado no histórico da prestação.
                   </DialogDescription>
                 </div>
               </div>

@@ -12,7 +12,7 @@
  * cartão na largura estreita (CSS `pla-cartao`), sem outra árvore.
  */
 import { forwardRef, memo, useEffect, useRef, useState } from "react";
-import { Check, PencilLine, Undo2 } from "lucide-react";
+import { BadgeCheck, Check, History, PencilLine, RotateCcw, Undo2 } from "lucide-react";
 import { cn, parseBrNumber } from "@/lib/utils";
 import { toTitleCase } from "@/lib/format";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +23,9 @@ import { MemoriaCalculoPopover } from "./memoria-calculo-popover";
 import { SheetRowDiasCell } from "./sheet-row-dias-cell";
 import { SeloDoHonorario, fonteDoHonorario, textoDaDiferenca } from "./honorario-no-planejado";
 import { ddmm, formatCurrency, isCasaType, type BudgetOverride, type CalculatedBudget, type SheetField } from "./types";
+import type { SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
+import { useDataDeCorte } from "@/components/honorarios/use-honorarios";
+import { dicaDoFluxoAntigo } from "./pre-aprovacao";
 
 export interface SheetRowProps {
   /** Posição na lista filtrada — lido pela medição da virtualização (`data-index`). */
@@ -32,6 +35,8 @@ export interface SheetRowProps {
   funcName: string;
   isSent: boolean;
   isNotAttended: boolean;
+  /** Pré-aprovação do DP (26/10) — a situação da linha mostra o passo que falta. */
+  situacao?: SituacaoDaPreAprovacao;
   isNewCollab: boolean;
   showTopBorder: boolean;
   selected: boolean;
@@ -56,7 +61,7 @@ const editedMark = (
 );
 
 /** Colaborador + Função + Período + situação. */
-function SheetRowCollaboratorCell({ budget, name, funcName, isSent, isNotAttended, isNewCollab, matchingActual }: Pick<SheetRowProps, "budget" | "name" | "funcName" | "isSent" | "isNotAttended" | "isNewCollab" | "matchingActual">) {
+function SheetRowCollaboratorCell({ budget, name, funcName, isSent, isNotAttended, isNewCollab, matchingActual, situacao }: Pick<SheetRowProps, "budget" | "name" | "funcName" | "isSent" | "isNotAttended" | "isNewCollab" | "matchingActual" | "situacao">) {
   const hasOvr = budget.hasOverride;
   const isCasa = isCasaType(budget.collaborator?.type);
   return (
@@ -71,7 +76,7 @@ function SheetRowCollaboratorCell({ budget, name, funcName, isSent, isNotAttende
                   <TooltipTrigger asChild>
                     <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0 bg-warning-strong" />
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">Valores editados manualmente pelo RH</TooltipContent>
+                  <TooltipContent side="top" className="text-xs">Valores editados manualmente pelo DP</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
@@ -116,25 +121,35 @@ function SheetRowCollaboratorCell({ budget, name, funcName, isSent, isNotAttende
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span tabIndex={0} aria-label="RH ajustou o realizado" className="inline-flex shrink-0 text-warning rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span tabIndex={0} aria-label="DP ajustou o realizado" className="inline-flex shrink-0 text-warning rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <PencilLine className="w-3 h-3" aria-hidden="true" />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                <TooltipContent side="right" className="text-xs">DP ajustou o realizado deste colaborador</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
           {isSent ? (
-            <span className="pla-situacao inline-flex items-center gap-0.5 h-[18px] px-1.5 rounded text-2xs font-medium bg-success-soft text-success">
-              <Check className="w-2.5 h-2.5" strokeWidth={3} aria-hidden="true" />Enviado
+            <span className="pla-situacao inline-flex items-center gap-0.5 h-[18px] px-1.5 rounded text-2xs font-medium bg-info-soft text-info">
+              <Check className="w-2.5 h-2.5" strokeWidth={3} aria-hidden="true" />No Realizado
             </span>
           ) : isNotAttended ? (
             <span className="pla-situacao inline-flex items-center h-[18px] px-1.5 rounded text-2xs font-medium bg-muted text-slate-600">
               Não participou
             </span>
+          ) : situacao === "pre_aprovado" ? (
+            <span className="pla-situacao inline-flex items-center gap-0.5 h-[18px] px-1.5 rounded text-2xs font-medium bg-success-soft text-success" title="Pré-aprovado pelo DP — pronto para ir ao Realizado">
+              <BadgeCheck className="w-2.5 h-2.5" aria-hidden="true" />Pré-aprovado
+            </span>
+          ) : situacao === "desatualizado" ? (
+            <span className="pla-situacao inline-flex items-center gap-0.5 h-[18px] px-1.5 rounded text-2xs font-medium bg-warning-soft text-warning" title="O valor mudou depois da pré-aprovação — pré-aprove de novo">
+              <RotateCcw className="w-2.5 h-2.5" aria-hidden="true" />Valor mudou
+            </span>
+          ) : situacao === "legado" ? (
+            <SituacaoDoFluxoAntigo />
           ) : (
-            <span className="pla-situacao inline-flex items-center h-[18px] px-1.5 rounded text-2xs font-medium bg-warning-soft text-warning">
-              Pendente
+            <span className="pla-situacao inline-flex items-center h-[18px] px-1.5 rounded text-2xs font-medium bg-warning-soft text-warning" title="Falta a pré-aprovação do DP">
+              A pré-aprovar
             </span>
           )}
         </div>
@@ -143,8 +158,18 @@ function SheetRowCollaboratorCell({ budget, name, funcName, isSent, isNotAttende
   );
 }
 
+/** Evento legado (27/10): selo neutro — a linha vai ao Realizado sem a pré-aprovação. */
+function SituacaoDoFluxoAntigo() {
+  const { dataDeCorte } = useDataDeCorte();
+  return (
+    <span className="pla-situacao inline-flex items-center gap-0.5 h-[18px] px-1.5 rounded text-2xs font-medium bg-muted text-slate-600" title={dicaDoFluxoAntigo(dataDeCorte)}>
+      <History className="w-2.5 h-2.5" aria-hidden="true" />Fluxo antigo
+    </span>
+  );
+}
+
 export const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(function SheetRow({
-  index, budget, name, funcName, isSent, isNotAttended, isNewCollab, showTopBorder,
+  index, budget, name, funcName, isSent, isNotAttended, situacao, isNewCollab, showTopBorder,
   selected, ovr, matchingActual, subtotalOpen, memoriaParaCima,
   onToggleSelect, onSheetEdit, onRestoreField, onToggleSubtotal,
 }, ref) {
@@ -270,7 +295,7 @@ export const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(func
         />
       </td>
 
-      <SheetRowCollaboratorCell budget={budget} name={name} funcName={funcName} isSent={isSent} isNotAttended={isNotAttended} isNewCollab={isNewCollab} matchingActual={matchingActual} />
+      <SheetRowCollaboratorCell budget={budget} name={name} funcName={funcName} isSent={isSent} isNotAttended={isNotAttended} situacao={situacao} isNewCollab={isNewCollab} matchingActual={matchingActual} />
 
       {/* Diárias qty — somente leitura */}
       <SheetRowDiasCell budget={budget} />
@@ -439,7 +464,7 @@ export const SheetRow = memo(forwardRef<HTMLTableRowElement, SheetRowProps>(func
           {formatCurrency(budget.totalFinal)}
         </button>
         {matchingActual?.rhAdjusted && isSent && (
-          <div className="flex items-center justify-end gap-1 text-2xs font-medium tabular-nums mt-0.5 text-warning" title="Valor ajustado pelo RH no Realizado">
+          <div className="flex items-center justify-end gap-1 text-2xs font-medium tabular-nums mt-0.5 text-warning" title="Valor ajustado pelo DP no Realizado">
             {formatCurrency(matchingActual.totalValue)}
             <PencilLine className="w-3 h-3" aria-hidden="true" />
           </div>

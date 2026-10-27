@@ -20,6 +20,7 @@ import { Link, useSearch } from "wouter";
 import { AlertCircle, ArrowRight, BarChart3, CheckCheck, Clock, RotateCw, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EventSearchSelect } from "@/components/event-select";
+import { useFiltroDoLegado } from "@/components/honorarios/use-honorarios";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { useAuth } from "@/hooks/use-auth";
@@ -71,7 +72,9 @@ function irParaFechamento() {
 }
 
 export default function BudgetComparisonPage() {
-  usePageTitle("Comparativo");
+  usePageTitle("Conferência DP");
+  // Abre sem os eventos legados (antes da data de corte), com filtro para ver (26/10).
+  const legado = useFiltroDoLegado();
   const searchString = useSearch();
   const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
     const p = new URLSearchParams(searchString);
@@ -154,13 +157,13 @@ export default function BudgetComparisonPage() {
   const barra = (
     <PageHeader
       variant="bar"
-      title="Comparativo"
+      title="Conferência DP"
       // No celular a barra tem três andares: grudada, comia um quarto da tela (como no Planejado).
       className="mx-0 mt-0 gap-x-3 max-sm:static"
-      subtitle={selectedEventId ? undefined : "planejado × realizado — a análise formal do RH"}
+      subtitle={selectedEventId ? undefined : "planejado × realizado — a análise formal do DP"}
       context={selectedEventId ? <>
         <span aria-hidden="true" className="hidden sm:block w-px h-5 bg-border shrink-0" />
-        <EventSearchSelect variante="barra" value={selectedEventId} onValueChange={trocarEvento} events={events} detalhe={detalheDoEvento} />
+        <EventSearchSelect variante="barra" value={selectedEventId} onValueChange={trocarEvento} events={events} detalhe={detalheDoEvento} legado={legado} />
       </> : undefined}
       actions={situacaoDaBarra}
     />
@@ -176,10 +179,10 @@ export default function BudgetComparisonPage() {
         </span>
         <h2 className="m-0 text-base font-semibold text-foreground">Selecione um evento</h2>
         <p className="m-0 mt-1.5 max-w-[460px] text-sm leading-relaxed text-muted-foreground">
-          Compare o planejado com o realizado de cada prestação. O RH revisa, aprova os valores e, no fechamento, credita alimentação e mobilidade no Flash.
+          Compare o planejado com o realizado de cada prestação. O DP revisa, aprova os valores e, no fechamento, credita alimentação e mobilidade no Flash.
         </p>
         <div className="mt-5 w-full max-w-sm text-left">
-          <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={events} className="sm:w-full" />
+          <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={events} className="sm:w-full" legado={legado} />
         </div>
       </div>
     );
@@ -260,11 +263,9 @@ export default function BudgetComparisonPage() {
         {!(isRhOrAdmin && comparison?.status === "aprovado") && <ComentarioDoComparativo rhComment={dados.rhComment} comparison={comparison} />}
         <ResumoDoComparativo
           selectedEvent={selectedEvent}
-          budgetActual={budgetActual || []}
           comparisonData={comparisonData}
           totals={dados.totals}
           naoEnviadas={dados.naoEnviadas}
-          statusDoComparativo={comparison?.status}
         />
         {/* ── Fechamento do comparativo (crédito no Flash — regra 19/08) ── */}
         {isRhOrAdmin && comparison && (

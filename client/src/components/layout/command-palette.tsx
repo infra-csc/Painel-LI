@@ -29,7 +29,7 @@ import { scalingHref } from "@/lib/use-scaling-event";
 import { cn } from "@/lib/utils";
 import type { Event } from "@shared/schema";
 import { Search, CalendarDays, SearchX, Loader2 } from "lucide-react";
-import { visibleTabs, groupOf, classeDeCorDaTela, SCALING_MODULE_PATHS } from "./nav-items";
+import { visibleTabs, groupOf, classeDeCorDaTela, textoDeBusca, SCALING_MODULE_PATHS } from "./nav-items";
 import { useAcessoHonorarios } from "@/components/honorarios-ceno/api";
 import { Kbd } from "./kbd";
 import { FOCO } from "./shell-styles";
@@ -126,14 +126,18 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
                 return (
                   <CommandItem
                     key={tab.id}
-                    value={`${tab.label} ${hint}`}
+                    // Busca pelo nome, pela etapa e pelos nomes antigos (26/10).
+                    value={`${textoDeBusca(tab)} ${hint}`}
                     onSelect={() => go(tab.path)}
                     className={ITEM}
                   >
                     <span className={cn("flex items-center justify-center w-5", classeDeCorDaTela(tab.id))}>
                       <tab.icon aria-hidden="true" />
                     </span>
-                    <span className="flex-1 min-w-0 truncate">{tab.label}</span>
+                    <span className="flex-1 min-w-0 truncate">
+                      {tab.etapa && <span className="mr-1.5 text-xs font-semibold tabular-nums text-muted-foreground">{tab.etapa}<span aria-hidden="true"> ·</span></span>}
+                      {tab.label}
+                    </span>
                     {atual ? (
                       <span className="shrink-0 text-2xs font-medium text-primary sm:group-data-[selected=true]:hidden">Tela atual</span>
                     ) : hint ? (

@@ -19,6 +19,8 @@ import { useLarguraUtil } from "@/components/common/use-largura-util";
 import type { BudgetActual, BudgetNote, BudgetPlanned as BudgetPlannedRow } from "@shared/schema";
 import { BudgetCard } from "./budget-card";
 import { collabFuncKey, type CalculatedBudget, type NotAttendedModalState, type RestoreModalState } from "./types";
+import type { SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
+import type { SituacaoDoColaboradorApi } from "@/components/contratos/api";
 
 export interface BudgetCardsProps {
   filteredBudgets: CalculatedBudget[];
@@ -31,7 +33,8 @@ export interface BudgetCardsProps {
   sentToActual: Set<string>;
   selectedIds: Set<string>;
   collapsedCards: Set<string>;
-  plannedByCollabFunc: Map<string, BudgetPlannedRow>;
+  /** Linha do Planejado por id da vaga (27/10: casa as vagas sem colaborador — shared/casamento-do-planejado). */
+  plannedByVaga: Map<string, BudgetPlannedRow>;
   actualsByCollabFunc: Map<string, BudgetActual>;
   eventNotes: BudgetNote[];
   nomeDaVaga: (b: CalculatedBudget) => string;
@@ -47,6 +50,12 @@ export interface BudgetCardsProps {
   onRestore: (s: RestoreModalState) => void;
   /** "Usar o honorário aprovado" (21/10): limpa o ajuste manual da mão de obra da vaga. */
   onUsarHonorario?: (id: string) => void;
+  /** Pré-aprovação do DP da vaga (26/10). */
+  situacaoDaVaga: (b: CalculatedBudget) => SituacaoDaPreAprovacao;
+  onPreAprovar: (b: CalculatedBudget) => void;
+  onDesfazerPreAprovacao: (b: CalculatedBudget) => void;
+  /** Situação contratual por colaborador (só o DP recebe; vazio para os outros). */
+  situacaoContratual?: Map<string, SituacaoDoColaboradorApi>;
   /** Selecionáveis visíveis (pendentes) — base do "selecionar todos". */
   selectableCount?: number;
   allSelected?: boolean;
@@ -212,7 +221,7 @@ export function BudgetCards(p: BudgetCardsProps) {
                     isSelected={p.selectedIds.has(budget.inclusion.id)}
                     isCollapsed={p.collapsedCards.has(budget.inclusion.id)}
                     isHighlighted={highlightCardId === budget.inclusion.id}
-                    planRecord={p.plannedByCollabFunc.get(key)}
+                    planRecord={p.plannedByVaga.get(budget.inclusion.id)}
                     cardActual={p.actualsByCollabFunc.get(key)}
                     eventNotes={p.eventNotes}
                     canEdit={p.canEdit}
@@ -225,6 +234,10 @@ export function BudgetCards(p: BudgetCardsProps) {
                     onNotAttended={p.onNotAttended}
                     onRestore={p.onRestore}
                     onUsarHonorario={p.onUsarHonorario}
+                    situacao={p.situacaoDaVaga(budget)}
+                    onPreAprovar={p.onPreAprovar}
+                    onDesfazerPreAprovacao={p.onDesfazerPreAprovacao}
+                    contrato={budget.inclusion.collaboratorId ? p.situacaoContratual?.get(budget.inclusion.collaboratorId) : undefined}
                   />
                 );
               })}

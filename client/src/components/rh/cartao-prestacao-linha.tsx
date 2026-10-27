@@ -31,9 +31,11 @@ const dataCurta = (d: Date | string | null | undefined) =>
 
 /** Selo da etapa: para os aprovados, a etapa É a da nota fiscal / check-in. */
 export function seloDaEtapa(item: PrestacaoItem, config: StatusConfigEntry, nfStatus: string, hasCheckin: boolean, itemEmitsNf: boolean): { texto: string; cls: string } {
+  // Legado concluído fora do fluxo (26/10): a etapa de antes não importa mais.
+  if (item.conclusaoForaDoFluxo) return { texto: "Concluído fora do fluxo", cls: "bg-muted text-slate-600 border-border" };
   if (item.status !== "aprovada_faturamento") return { texto: config.shortLabel, cls: config.badgeCls };
   if (nfStatus === "aprovada" && hasCheckin) return { texto: "Concluído", cls: "bg-success-soft text-success border-success/25" };
-  if (nfStatus === "aprovada") return { texto: "Ag. Check-in", cls: "bg-brand-soft text-primary border-primary/25" };
+  if (nfStatus === "aprovada") return { texto: "Ag. M4", cls: "bg-brand-soft text-primary border-primary/25" };
   if (nfStatus === "enviada") return { texto: "NF em análise", cls: "bg-brand-soft text-primary border-primary/25" };
   if (nfStatus === "devolvida") return { texto: "NF devolvida", cls: "bg-warning-soft text-warning border-warning/25" };
   if (nfStatus === "recusada") return { texto: "NF recusada", cls: "bg-danger-soft text-danger border-danger/25" };
@@ -66,7 +68,7 @@ function AprovarNf({ nf, colName, valor, forte, approvingInvoiceId, nfApproving,
         queryClient.invalidateQueries({ queryKey: ["/api/invoices"] }),
       ]);
       setApprovingInvoiceId(null);
-      toast({ title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
+      toast({ title: "Nota aprovada!", description: "Lance no M4 para definir a data de pagamento." });
     } catch (err) {
       toast({ title: "Erro ao aprovar nota", description: apiErrorMessage(err, "Tente novamente"), variant: "destructive" });
     } finally {
@@ -103,7 +105,7 @@ function AprovarNf({ nf, colName, valor, forte, approvingInvoiceId, nfApproving,
           <p className="m-0 mt-1 text-xs leading-relaxed text-muted-foreground">
             Nota de <span className="font-medium text-foreground">{colName}</span>
             {valor !== null && <> · <span className="tabular-nums">{formatarMoeda(valor)}</span></>}
-            {nf?.oc && <> · {/^oc/i.test(nf.oc) ? nf.oc : `OC ${nf.oc}`}</>}. A data de pagamento entra depois, no Check-in Financeiro.
+            {nf?.oc && <> · {/^oc/i.test(nf.oc) ? nf.oc : `OC ${nf.oc}`}</>}. A data de pagamento entra depois, no lançamento no M4.
           </p>
         </div>
         <div className="flex items-center justify-end gap-2 px-4 py-2.5 border-t border-border bg-surface-muted/60">
@@ -180,14 +182,14 @@ export function CartaoPrestacaoLinha({
     : null;
 
   // Com quem está a bola quando não é com o RH (o que antes era o rótulo "Ag. colaborador"/"Devolvida").
-  const responsavel = item.responsavelAtual && !["RH", "Concluído"].includes(item.responsavelAtual) ? toTitleCase(item.responsavelAtual) : null;
+  const responsavel = item.responsavelAtual && !["DP", "Concluído"].includes(item.responsavelAtual) ? toTitleCase(item.responsavelAtual) : null;
   const comQuem: { texto: string; sub?: string; tom: string } | null =
     acao ? null
     : item.status === "aguardando_prestacao" ? { texto: "Com o responsável", sub: responsavel ?? "preencher o realizado", tom: "text-slate-600" }
     : item.status === "devolvida_para_ajuste" ? { texto: "Devolvida ao responsável", sub: responsavel ?? "corrigir e reenviar", tom: "text-warning" }
     : comNota && nfStatus === "pendente" && itemEmitsNf ? { texto: "Com o colaborador", sub: "enviar a nota fiscal", tom: "text-slate-600" }
     : comNota && nfStatus === "devolvida" ? { texto: "Com o colaborador", sub: "corrigir a nota", tom: "text-warning" }
-    : comNota && nfStatus === "enviada" ? { texto: "Com o RH", sub: "nota em análise", tom: "text-slate-600" }
+    : comNota && nfStatus === "enviada" ? { texto: "Com o DP", sub: "nota em análise", tom: "text-slate-600" }
     : null;
 
   const nfAprovadaEm = nfInvCard?.paymentDate ? dataCurta(nfInvCard.paymentDate) : nfInvCard?.approvedAt ? dataCurta(nfInvCard.approvedAt) : "";
@@ -216,7 +218,12 @@ export function CartaoPrestacaoLinha({
 
       {/* Etapa */}
       <div className="crh-c-etapa min-w-0">
-        <span className={cn("inline-flex items-center h-[22px] px-2 rounded-md border text-2xs font-semibold whitespace-nowrap", selo.cls)}>{selo.texto}</span>
+        <span
+          className={cn("inline-flex items-center h-[22px] px-2 rounded-md border text-2xs font-semibold whitespace-nowrap", selo.cls)}
+          title={item.conclusaoForaDoFluxo ? `Concluído fora do fluxo${item.conclusaoForaDoFluxo.porNome ? ` por ${item.conclusaoForaDoFluxo.porNome}` : ""}: ${item.conclusaoForaDoFluxo.motivo}` : undefined}
+        >
+          {selo.texto}
+        </span>
       </div>
 
       {/* Prazo */}
@@ -293,7 +300,7 @@ export function CartaoPrestacaoLinha({
             onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
             title={navTarget.label}
           >
-            {acao === "analisar" ? "Analisar" : "Planejar"}
+            {acao === "analisar" ? "Analisar" : "Pré-aprovar"}
           </button>
         )}
         {acao === "aprovar_nf" && (
@@ -306,9 +313,9 @@ export function CartaoPrestacaoLinha({
             type="button"
             className="pas-alvo crh-acao crh-acao-forte inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             onClick={(e) => { e.stopPropagation(); navigate(`/invoices?event=${item.event.id}&tab=aprovacao&filter=checkin-pendente&actual=${item.actual?.id || ""}`); }}
-            title="Fazer o Check-in Financeiro na tela de Notas fiscais"
+            title="Lançar no M4 na tela de Notas fiscais"
           >
-            <CircleDot className="w-3.5 h-3.5" aria-hidden="true" />Check-in
+            <CircleDot className="w-3.5 h-3.5" aria-hidden="true" />Lançar no M4
           </button>
         )}
         {comQuem && (

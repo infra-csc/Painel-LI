@@ -39,6 +39,8 @@ const RhControl              = lazy(() => import("@/pages/rh-control"));
 const InvoicesPage           = lazy(() => import("@/pages/invoices"));
 const FlashAccountPage       = lazy(() => import("@/pages/flash-account"));
 const HonorariosCenoPage     = lazy(() => import("@/pages/honorarios-ceno"));
+// 26/10: contratos (CNPJ) e mudanças de conta — só o DP (admin + financial).
+const ContratosPage          = lazy(() => import("@/pages/contratos"));
 const CalculationRulesPage   = lazy(() => import("@/pages/calculation-rules"));
 const SystemSettings         = lazy(() => import("@/pages/system-settings"));
 const CalendarPage           = lazy(() => import("@/pages/calendar"));
@@ -278,6 +280,11 @@ function Router() {
             <Route path="/honorarios-ceno">
               <ProtectedRoute permission="canAccessHonorariosCeno">
                 <HonorariosCenoPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/contratos">
+              <ProtectedRoute permission="canAccessFinanceiro">
+                <ContratosPage />
               </ProtectedRoute>
             </Route>
             <Route path="/calculation-rules">

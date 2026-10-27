@@ -34,7 +34,7 @@ describe("edição de usuário — regra compartilhada", () => {
     expect(recusaDaEdicaoDeUsuario("admin", true, ["name", "role"])).toBe(MSG_PROPRIO_PERFIL);
   });
 
-  it("RH/Compras: só o nome de terceiros; nome e e-mail de si", () => {
+  it("DP/Compras: só o nome de terceiros; nome e e-mail de si", () => {
     expect(camposEditaveisDoUsuario("financial", false)).toEqual(["name"]);
     expect(camposEditaveisDoUsuario("compras", true)).toEqual(["name", "email"]);
     expect(recusaDaEdicaoDeUsuario("purchasing", false, ["name", "email"])).toBe(MSG_SO_ADMIN_EMAIL);

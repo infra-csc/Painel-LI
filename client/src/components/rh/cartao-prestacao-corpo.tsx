@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { ArrowRight, Ban, Check, CheckCircle, ChevronDown, CircleDot, FileCheck, FileText, MessageSquare } from "lucide-react";
 import type { NotaParaControle, PrestacaoItem } from "./prestacao-types";
 import { formatDateTime, type NavigationTarget } from "./prestacao-utils";
-import { TimelinePrestacao } from "./timeline-prestacao";
+import { TrilhaDoRegistro } from "@/components/honorarios/trilha-do-honorario";
 
 const fmt = formatarMoeda;
 const dataLonga = (d: Date | string) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -186,7 +186,7 @@ export function CartaoPrestacaoCorpo({
       atalhoNf = <Atalho tom="atencao" onClick={() => navigate(`/invoices?event=${item.event.id}`)}>Ver notas fiscais</Atalho>;
     } else if (nfStatusRodape === "aprovada" && !hasCheckin && canRh) {
       // nfStatus "aprovada" + sem check-in → tela de check-in (card específico)
-      atalhoNf = <Atalho tom="marca" icone={CircleDot} onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao&filter=checkin-pendente&actual=${item.actual?.id || ""}`)}>Ir para Check-in</Atalho>;
+      atalhoNf = <Atalho tom="marca" icone={CircleDot} onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao&filter=checkin-pendente&actual=${item.actual?.id || ""}`)}>Ir para o M4</Atalho>;
     } else if (nfStatusRodape === "aprovada" && hasCheckin) {
       atalhoNf = <Atalho tom="sucesso" icone={FileCheck} onClick={() => navigate(`/invoices?event=${item.event.id}`)}>Ver nota fiscal</Atalho>;
     }
@@ -194,9 +194,15 @@ export function CartaoPrestacaoCorpo({
 
   return (
     <div className="crh-corpo pas-entra" onClick={(e) => e.stopPropagation()}>
-      {/* Trilho — rola de lado em telas estreitas */}
-      <div className="crh-trilho pas-rolagem-x">
-        <TimelinePrestacao item={item} invoice={invoice} itemEmitsNf={itemEmitsNf} />
+      {/* Trilha ÚNICA do honorário (26/10, slide 8): onde este registro está. */}
+      <div className="crh-trilho">
+        <TrilhaDoRegistro posicao={item.trilha} />
+        {item.conclusaoForaDoFluxo && (
+          <p className="m-0 mt-1.5 text-xs text-muted-foreground" data-testid="crh-conclusao-legado">
+            Concluído fora do fluxo{item.conclusaoForaDoFluxo.porNome ? ` por ${item.conclusaoForaDoFluxo.porNome}` : ""}
+            {item.conclusaoForaDoFluxo.em ? ` em ${new Date(item.conclusaoForaDoFluxo.em).toLocaleDateString("pt-BR")}` : ""}: “{item.conclusaoForaDoFluxo.motivo}”
+          </p>
+        )}
       </div>
 
       <div className={cn("crh-corpo-grade", !temLado && "crh-corpo-grade-um")}>
@@ -211,7 +217,7 @@ export function CartaoPrestacaoCorpo({
                   {nfInfo}
                   {planned && nfInvFin?.checkinAt && (
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-success"><CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />Check-in Financeiro Realizado</span>
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-success"><CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />Lançada no M4</span>
                       {checkinPayStr && <span className="text-slate-600 tabular-nums">Pagamento: {checkinPayStr}</span>}
                     </span>
                   )}
@@ -220,8 +226,8 @@ export function CartaoPrestacaoCorpo({
             )}
 
             {actual?.rhComment && (
-              <section className="crh-bloco crh-bloco-comentario" aria-label="Comentário do RH">
-                <h5 className="crh-bloco-titulo flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />Comentário do RH</h5>
+              <section className="crh-bloco crh-bloco-comentario" aria-label="Comentário do DP">
+                <h5 className="crh-bloco-titulo flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />Comentário do DP</h5>
                 <p className="m-0 mt-1.5 text-sm leading-relaxed text-foreground">{actual.rhComment}</p>
                 {actual.rhActionAt && (
                   <p className="m-0 mt-1 text-2xs text-muted-foreground tabular-nums">

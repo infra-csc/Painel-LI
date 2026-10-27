@@ -58,27 +58,21 @@ describe("Comparativo — 'não participou' marcado só no Realizado", () => {
       [realizadoFake({ id: "a1", plannedId: "p1", totalValue: 0, didNotAttend: true })],
     );
     renderComTudo(
-      <ResumoDoComparativo selectedEvent={undefined} budgetActual={[]} comparisonData={dados.comparisonData} totals={dados.totals} naoEnviadas={0} />,
+      <ResumoDoComparativo selectedEvent={undefined} comparisonData={dados.comparisonData} totals={dados.totals} naoEnviadas={0} />,
     );
     expect(screen.getByText(/1 não participou/)).toBeInTheDocument();
   });
 });
 
-describe("Comparativo — trilho de etapas", () => {
-  const aprovadas = [realizadoFake({ rhStatus: "aprovado" }), realizadoFake({ rhStatus: "aprovado" })];
+describe("Conferência DP — trilha do evento", () => {
   const vazio = { totalPlanned: 0, totalActual: 0, difference: 0, totalCasa: 0, totalFreela: 0, nCasa: 0, nFreela: 0 };
-  const resumo = (status: string | null) => (
-    <ResumoDoComparativo selectedEvent={undefined} budgetActual={aprovadas} comparisonData={[] as ComparisonRow[]} totals={vazio} naoEnviadas={0} statusDoComparativo={status} />
-  );
-
-  it("tudo aprovado mas o comparativo aberto: a etapa atual é 'Aprovação RH'", () => {
-    renderComTudo(resumo("pendente"));
-    expect(screen.getByTestId("trilho-comparativo")).toHaveAttribute("aria-label", "Etapa atual: Aprovação RH");
-  });
-
-  it("comparativo aprovado (fechado): a etapa atual é 'Nota fiscal'", () => {
-    renderComTudo(resumo("aprovado"));
-    expect(screen.getByTestId("trilho-comparativo")).toHaveAttribute("aria-label", "Etapa atual: Nota fiscal");
+  it("o resumo mostra a trilha ÚNICA do honorário (9 etapas), com a conferência marcada como desta tela", () => {
+    renderComTudo(<ResumoDoComparativo selectedEvent={undefined} comparisonData={[] as ComparisonRow[]} totals={vazio} naoEnviadas={0} />);
+    const trilha = screen.getByTestId("trilha-do-evento");
+    expect(within(trilha).getAllByRole("listitem")).toHaveLength(9);
+    expect(within(trilha).getByTestId("trilha-evento-validado")).toHaveTextContent("Validado");
+    expect(within(trilha).getByTestId("trilha-evento-oc_emitida")).toHaveTextContent(/em breve/i);
+    expect(screen.queryByTestId("trilho-comparativo")).not.toBeInTheDocument();
   });
 });
 
@@ -104,7 +98,7 @@ describe("Comparativo — modal da divisão", () => {
   });
 });
 
-describe("Comparativo — ajuste do RH", () => {
+describe("Comparativo — ajuste do DP", () => {
   it("centavos viram texto de campo em pt-BR", () => {
     expect(centavosParaCampo(10000)).toBe("100,00");
     expect(centavosParaCampo(150050)).toBe("1.500,50");
@@ -138,7 +132,7 @@ describe("Comparativo — devolvidas e recusadas fora dos totais (o critério do
     expect(dados.comparisonData.map(r => r.actual.id).sort()).toEqual(["a1", "a2", "a3"]);
     expect(dados.totals).toMatchObject({ totalActual: 80000, totalPlanned: 90000, difference: -10000, totalFreela: 80000, nFreela: 1 });
     renderComTudo(
-      <ResumoDoComparativo selectedEvent={undefined} budgetActual={[]} comparisonData={dados.comparisonData} totals={dados.totals} naoEnviadas={0} />,
+      <ResumoDoComparativo selectedEvent={undefined} comparisonData={dados.comparisonData} totals={dados.totals} naoEnviadas={0} />,
     );
     expect(screen.getByTestId("comparativo-fora-dos-totais")).toHaveTextContent("2 fora dos totais");
   });

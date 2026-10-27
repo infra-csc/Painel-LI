@@ -60,6 +60,9 @@ export const MODULOS: Record<string, Modulo> = {
   busca_passagens_acompanhamento: { rotulo: "Acompanhamento de preço", substantivo: "acompanhamento de preço", artigo: "o" },
   // 16/10: honorários da cenotécnica.
   honorario_ceno: { rotulo: "Honorários da cenotécnica", substantivo: "pedido de honorário", artigo: "o" },
+  // 26/10: contratos (CNPJ) e dados de pagamento (só o DP).
+  contrato: { rotulo: "Contratos (CNPJ)", substantivo: "contrato", artigo: "o" },
+  colaborador_pagamento: { rotulo: "Dados de pagamento", substantivo: "dados de pagamento", artigo: "os" },
 };
 
 /** Tipo que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -94,7 +97,7 @@ export const ACOES: Record<string, Acao> = {
   change_request_negar: { rotulo: "Pedido de escala negado", verbo: "negou o pedido d", tom: "recusar" },
   reajustar: { rotulo: "Devolvido para reajuste", verbo: "devolveu para reajuste", tom: "recusar" },
   negar: { rotulo: "Negado", verbo: "negou", tom: "recusar" },
-  send_review: { rotulo: "Envio para o RH", verbo: "enviou para o RH", tom: "enviar" },
+  send_review: { rotulo: "Envio para o DP", verbo: "enviou para o DP", tom: "enviar" },
   reset_password: { rotulo: "Senha redefinida", verbo: "redefiniu a senha d", tom: "alterar" },
   activate: { rotulo: "Ativação", verbo: "ativou", tom: "aprovar" },
   deactivate: { rotulo: "Desativação", verbo: "desativou", tom: "excluir" },
@@ -133,6 +136,14 @@ export const ACOES: Record<string, Acao> = {
   aprovar_com_ajuste: { rotulo: "Aprovação com ajuste", verbo: "aprovou com ajuste", tom: "aprovar" },
   liberar_verba: { rotulo: "Verba liberada", verbo: "liberou a verba d", tom: "aprovar" },
   estornar_liberacao: { rotulo: "Liberação estornada", verbo: "estornou a liberação d", tom: "recusar" },
+  // 26/10: contratos (CNPJ) e dados de pagamento do colaborador.
+  import: { rotulo: "Importação de planilha", verbo: "importou a planilha d", tom: "criar" },
+  close: { rotulo: "Encerramento", verbo: "encerrou", tom: "excluir" },
+  link: { rotulo: "Colaborador vinculado", verbo: "vinculou um colaborador a", tom: "alterar" },
+  unlink: { rotulo: "Colaborador desvinculado", verbo: "desvinculou um colaborador d", tom: "alterar" },
+  attach: { rotulo: "Anexo incluído", verbo: "anexou o arquivo d", tom: "alterar" },
+  detach: { rotulo: "Anexo removido", verbo: "removeu o anexo d", tom: "excluir" },
+  review: { rotulo: "Conferência", verbo: "conferiu a mudança d", tom: "aprovar" },
 };
 
 /** Ação que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -204,9 +215,9 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   mobilityVolta: "Mobilidade da volta", transport: "Transporte", weekdayLunch: "Almoço (dia útil)",
   weekdayDinner: "Jantar (dia útil)", weekendLunch: "Almoço (fim de semana)", weekendDinner: "Jantar (fim de semana)",
   dailyQuantity: "Qtd. de diárias", collaboratorType: "Tipo de colaborador", didNotAttend: "Não compareceu",
-  didNotAttendReason: "Motivo da ausência", workedDays: "Dias trabalhados", rhStatus: "Situação no RH",
-  rhComment: "Comentário do RH", rhAdjusted: "Ajustado pelo RH", rhAdjustNote: "Nota do ajuste do RH",
-  rhActionAt: "Ação do RH em", rhActionBy: "Ação do RH por", sentForReview: "Enviado ao RH",
+  didNotAttendReason: "Motivo da ausência", workedDays: "Dias trabalhados", rhStatus: "Situação no DP",
+  rhComment: "Comentário do DP", rhAdjusted: "Ajustado pelo DP", rhAdjustNote: "Nota do ajuste do DP",
+  rhActionAt: "Ação do DP em", rhActionBy: "Ação do DP por", sentForReview: "Enviado ao DP",
   paymentStatus: "Situação do pagamento", approvedBy: "Aprovado por", approvedAt: "Aprovado em",
   changeReason: "Motivo da mudança", resubmitted: "Reenviado", requestsCanceled: "Pedidos cancelados",
   // configurações (Valores Padrão)
@@ -241,6 +252,14 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   busca_passagens_acompanhar_hora: "Hora da checagem diária",
   busca_passagens_valor_mala: "Valor estimado da mala",
   busca_passagens_funcoes_com_mala: "Funções que despacham mala",
+  // contratos (CNPJ) e dados de pagamento (26/10) — o antes/depois do pagamento já vem mascarado
+  cnpj: "CNPJ", razaoSocial: "Razão social", nomeFantasia: "Nome fantasia", tipo: "Tipo",
+  vigenciaInicio: "Início da vigência", vigenciaFim: "Fim da vigência", encerrado: "Encerrado",
+  colaborador: "Colaborador", colaboradores: "Colaboradores", anexo: "Anexo", arquivo: "Arquivo",
+  criados: "Contratos criados", atualizados: "Contratos atualizados", vinculos: "Vínculos criados",
+  linhasComErro: "Linhas com erro", linhas: "Linhas da planilha", conferida: "Conferida", campos: "Campos",
+  banco: "Banco", agencia: "Agência", conta: "Conta", tipoConta: "Tipo de conta",
+  pixTipo: "Tipo da chave PIX", pixChave: "Chave PIX", titular: "Titular da conta",
 };
 
 /** Campo que ainda não tem nome: "Outro campo", nunca o código em inglês (18/09). */
@@ -305,7 +324,7 @@ const VALORES_DO_CAMPO: Record<string, Record<string, string>> = {
   },
   role: {
     admin: "Administrador", administrator: "Administrador", administrador: "Administrador", purchasing: "Compras",
-    function_area: "Área", production: "Produção", financial: "Financeiro / RH", honorarios: "Honorários (liberação)", viewer: "Consulta",
+    function_area: "Área", production: "Produção", financial: "Financeiro / DP", honorarios: "Honorários (liberação)", viewer: "Consulta",
     validador: "Validador", aprovador: "Aprovador",
   },
   // Mesmos nomes das telas (cadastro da vaga).

@@ -66,7 +66,7 @@ describe("Cadastro de usuários", () => {
     expect(chamadas[0].corpo).toMatchObject({ role: "honorarios", email: "romilson@empresa.com.br" });
   });
 
-  it("RH não oferece o perfil Honorários (só Produção e Área de Função)", () => {
+  it("DP não oferece o perfil Honorários (só Produção e Área de Função)", () => {
     montar(rh);
     expect(screen.queryByRole("radio", { name: /Honorários \(liberação\)/ })).not.toBeInTheDocument();
   });
@@ -120,7 +120,7 @@ describe("Cadastro de usuários", () => {
     expect(await screen.findByTestId("cad-erro-servidor")).toHaveTextContent("Erro interno ao criar");
   });
 
-  it("RH só vê os perfis que o servidor aceita dele", () => {
+  it("DP só vê os perfis que o servidor aceita dele", () => {
     montar(rh);
     const nomes = screen.getAllByRole("radio").map((r) => (r as HTMLInputElement).value);
     expect(nomes).toEqual(["production", "function_area"]);

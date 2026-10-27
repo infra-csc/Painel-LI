@@ -21,6 +21,7 @@ import { Link, useSearch } from "wouter";
 import { AlertCircle, ArrowRight, CheckCheck, ClipboardCheck, RotateCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EventSearchSelect } from "@/components/event-select";
+import { useFiltroDoLegado } from "@/components/honorarios/use-honorarios";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { QueryError } from "@/components/common/query-state";
@@ -41,6 +42,7 @@ import { SendForReviewBar, SendForReviewDialog } from "@/components/budget/send-
 import { DeleteActualDialog, SplitDialog } from "@/components/budget/actual-dialogs";
 import { EsqueletoDosCards } from "@/components/budget/budget-cards";
 import { ddmm, formatCurrency } from "@/components/budget/types";
+import { useSituacaoContratualNoEvento } from "@/components/contratos/pecas";
 
 /** "11/09 – 12/09/2026" (ou só o dia de início) — o mesmo do Planejado. */
 function periodoDoEvento(e: Event | undefined): string {
@@ -52,6 +54,8 @@ function periodoDoEvento(e: Event | undefined): string {
 
 export default function BudgetActualPage() {
   usePageTitle("Realizado");
+  // Abre sem os eventos legados (antes da data de corte), com filtro para ver (26/10).
+  const legado = useFiltroDoLegado();
   const searchString = useSearch();
   const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
     const p = new URLSearchParams(searchString);
@@ -106,6 +110,8 @@ export default function BudgetActualPage() {
     }
   }, [budgetActual, urlCollaboratorId, urlFunctionId]);
 
+  // Contrato ativo do CNPJ (Fase 0): só o DP pergunta; para os outros o mapa vem vazio.
+  const situacaoContratual = useSituacaoContratualNoEvento(selectedEventId);
   const dados = useBudgetActualData({ selectedEventId, budgetActual, budgetPlanned, teamInclusions, selectedEvent, getCollaboratorName, getFunctionName });
   const { filteredItems, selectedCards, setSelectedCards, pendingFiltered, sentForReview } = dados;
 
@@ -193,6 +199,7 @@ export default function BudgetActualPage() {
           onValueChange={trocarEvento}
           events={eventsWithPlanned}
           detalhe={detalheDoEvento}
+          legado={legado}
         />
       </> : undefined}
       actions={acoesDaBarra}
@@ -209,13 +216,13 @@ export default function BudgetActualPage() {
         </span>
         <h2 className="m-0 text-base font-semibold text-foreground">Selecione um evento</h2>
         <p className="m-0 mt-1.5 max-w-[460px] text-sm leading-relaxed text-muted-foreground">
-          Registre a prestação de contas com os valores efetivamente gastos em cada escala — diárias, alimentação e mobilidade — e envie para a análise do RH.
+          Registre a prestação de contas com os valores efetivamente gastos em cada escala — diárias, alimentação e mobilidade — e envie para a análise do DP.
         </p>
         <div className="mt-5 w-full max-w-sm text-left">
           {qEventsWithPlanned.isError ? (
             <QueryError error={qEventsWithPlanned.error} onRetry={() => qEventsWithPlanned.refetch()} title="Não foi possível carregar os eventos" />
           ) : (
-            <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={eventsWithPlanned} className="sm:w-full" />
+            <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={eventsWithPlanned} className="sm:w-full" legado={legado} />
           )}
         </div>
       </div>
@@ -306,6 +313,7 @@ export default function BudgetActualPage() {
           onSplit={acoes.setSplittingItem}
           onDelete={acoes.setConfirmDeleteId}
           onClearFilters={dados.limparFiltros}
+          situacaoContratual={situacaoContratual}
         />
 
         {/* Barra de seleção: acompanha a rolagem no rodapé da lista. */}

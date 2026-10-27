@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   Avatar, DetailRow, SituacaoDoColaborador, TYPE_CFG, TipoBadge, formatDate, formatDocument, rotuloDoSecundario, toTitleCase,
 } from "./collaborator-shared";
+import { SecaoPagamento } from "@/components/contratos/secao-pagamento";
 
 /** Data de um timestamp (ISO) em dd/mm/aaaa, no fuso de quem olha. */
 function dataDoRegistro(v: unknown): string {
@@ -180,6 +181,9 @@ export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosP
                 </div>
               </Grupo>
             )}
+
+            {/* Pagamento (26/10): só o DP — a seção se esconde sozinha para os outros papéis. */}
+            <SecaoPagamento collaboratorId={c.id} nome={toTitleCase(c.fullName)} />
 
             {c.approvalNotes && (
               <Grupo titulo="Observações da aprovação">

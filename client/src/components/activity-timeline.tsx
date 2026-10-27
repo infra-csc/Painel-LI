@@ -56,7 +56,7 @@ const FIELD_LABELS: Record<string, string> = {
   costAssistance:       'Ajuda de custo',
   sentForReview:        'Enviado para análise',
   rhStatus:             'Status de aprovação',
-  rhComment:            'Comentário do RH',
+  rhComment:            'Comentário do DP',
   changeReason:         'Justificativa',
   didNotAttend:         'Não participou',
   didNotAttendReason:   'Motivo da ausência',
@@ -115,13 +115,13 @@ function buildNarrativeBullets(action: string, prev: Snapshot | null, next: Snap
 
   // ── Aprovação ──
   if (action === 'approve' || action === 'aprovado') {
-    return ['Prestação aprovada pelo RH.'];
+    return ['Prestação aprovada pelo DP.'];
   }
 
   // ── Recusa ──
   if (action === 'reject' || action === 'rejeitado') {
     const comment = next?.comment || next?.rhComment;
-    const res = ['Recusada pelo RH.'];
+    const res = ['Recusada pelo DP.'];
     if (comment) res.push(`Motivo: ${comment}`);
     return res;
   }
@@ -136,7 +136,7 @@ function buildNarrativeBullets(action: string, prev: Snapshot | null, next: Snap
 
   // ── Enviado para revisão ──
   if (action === 'send_review') {
-    return ['Enviado para análise do RH.'];
+    return ['Enviado para análise do DP.'];
   }
 
   // ── Criação ──
@@ -176,7 +176,7 @@ function buildNarrativeBullets(action: string, prev: Snapshot | null, next: Snap
     }
     // Envio para análise
     if (next.sentForReview === true && prev.sentForReview !== true) {
-      return ['Enviado para análise do RH.'];
+      return ['Enviado para análise do DP.'];
     }
     // Campo a campo — apenas campos com label humano
     const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
@@ -339,7 +339,7 @@ export function PlannedEditedBadge({
 
   const title = latest
     ? `Alterado por ${latest.user_name || '?'} em ${formatDate(latest.created_at)}`
-    : 'Planejamento alterado pelo RH';
+    : 'Planejamento alterado pelo DP';
 
   return (
     <span

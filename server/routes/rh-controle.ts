@@ -13,12 +13,20 @@
  * progresso) valem para o recorte inteiro. `actual` sai com a linha completa
  * de budget_actual — alimentação e mobilidade fazem parte do contrato
  * (`RealizadoParaControle`) porque o card mostra Planejado × Realizado.
- * Papéis: financeiro (admin/RH), como as quatro rotas que ele substitui.
+ * Papéis: financeiro (admin/DP), como as quatro rotas que ele substitui.
+ *
+ * 26/10 (Honorários, Fase 0): `recorte` = fluxo_novo | legado | todos (sem o
+ * parâmetro: todos — o contrato de antes; a tela pede fluxo_novo por padrão) —
+ * evento que termina antes da data de corte (system_settings.honorarios_data_corte)
+ * é legado; as conclusões do legado fora do fluxo vêm de honorarios_legado_concluidos;
+ * cada linha leva a posição na trilha única (shared/trilha-honorarios).
  */
 import type { Express } from "express";
 import { storage } from "../storage";
 import { ehFiltroDeStatus, montarControleRh } from "@shared/controle-rh";
 import { requireFinanceUser } from "./_compartilhado";
+import { conclusoesDoLegado, lerDataDeCorteDoBanco } from "./honorarios-fluxo";
+import { ehRecorteDoLegado } from "@shared/legado-honorarios";
 
 export function registrarControleRh(app: Express): void {
   app.get("/api/rh/controle", async (req, res) => {
@@ -29,8 +37,13 @@ export function registrarControleRh(app: Express): void {
       return res.status(400).json({ message: "Filtro de status inválido" });
     }
     const filtro = ehFiltroDeStatus(statusBruto) ? statusBruto : null;
+    const recorteBruto = req.query.recorte;
+    if (recorteBruto !== undefined && recorteBruto !== "" && !ehRecorteDoLegado(recorteBruto)) {
+      return res.status(400).json({ message: "Recorte inválido (fluxo_novo, legado ou todos)" });
+    }
+    const recorte = ehRecorteDoLegado(recorteBruto) ? recorteBruto : "todos";
 
-    const [eventos, vagas, planejados, realizados, notas, colaboradores, funcoes, usuarios] = await Promise.all([
+    const [eventos, vagas, planejados, realizados, notas, colaboradores, funcoes, usuarios, dataDeCorte, conclusoes] = await Promise.all([
       eventId ? storage.getEvent(eventId).then((e) => (e ? [e] : [])) : storage.getEvents(false),
       // Mesmo recorte que a tela pedia em /api/team-inclusions: sem sugestões (phase padrão), sem excluídas.
       storage.getTeamInclusions(false, undefined, eventId ? { eventId } : {}),
@@ -40,6 +53,8 @@ export function registrarControleRh(app: Express): void {
       storage.getCollaborators(),
       storage.getFunctions(),
       storage.getUsers(),
+      lerDataDeCorteDoBanco(),
+      conclusoesDoLegado(eventId),
     ]);
     if (eventId && eventos.length === 0) {
       return res.status(404).json({ message: "Evento não encontrado" });
@@ -55,6 +70,9 @@ export function registrarControleRh(app: Express): void {
       nomesDeColaboradores: new Map(colaboradores.map((c) => [c.id, c.fullName])),
       nomesDeFuncoes: new Map(funcoes.map((f) => [f.id, f.name])),
       nomesDeUsuarios: new Map(usuarios.map((u) => [u.id, u.name])),
+      dataDeCorte,
+      recorte,
+      conclusoes,
     }, filtro));
   });
 }

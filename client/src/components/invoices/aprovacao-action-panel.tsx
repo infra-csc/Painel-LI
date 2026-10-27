@@ -88,7 +88,7 @@ export function AprovacaoActionPanel({
           aria-label={
             type === "approve" ? "Confirmar aprovação da nota" :
             type === "return" ? "Devolver a nota para ajuste" :
-            type === "reject" ? "Recusar a nota fiscal" : "Check-in financeiro"
+            type === "reject" ? "Recusar a nota fiscal" : "Lançar no M4"
           }
         >
 
@@ -97,7 +97,7 @@ export function AprovacaoActionPanel({
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               <div className="flex-1 min-w-[240px]">
                 <Cabecalho icone={<CheckCircle2 className="w-4 h-4" />} tom="bg-success-soft text-success" titulo="Confirmar aprovação">
-                  Aprovar {quem}? Em seguida o RH faz o check-in financeiro e define a data de pagamento.
+                  Aprovar {quem}? Em seguida o DP lança no M4 e define a data de pagamento.
                 </Cabecalho>
               </div>
               <div className="flex items-center gap-2 ml-auto">
@@ -204,7 +204,7 @@ export function AprovacaoActionPanel({
           {type === "checkin" && (
             <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
               <div className="flex-1 min-w-[240px] self-center">
-                <Cabecalho icone={<CircleDot className="w-4 h-4" />} tom="bg-brand-soft text-primary" titulo="Check-in financeiro">
+                <Cabecalho icone={<CircleDot className="w-4 h-4" />} tom="bg-brand-soft text-primary" titulo="Lançar no M4">
                   Informe a data de pagamento d{nome ? <>a nota de <strong className="font-semibold text-slate-700">{nome}</strong></> : "esta nota"}.
                 </Cabecalho>
               </div>
@@ -233,7 +233,7 @@ export function AprovacaoActionPanel({
                   title={!checkinDate ? "Informe a data de pagamento" : undefined}
                   className={`${CONFIRMAR} bg-primary text-primary-foreground hover:bg-primary-hover`}
                 >
-                  {checkinMutation.isPending ? "Salvando…" : "Confirmar check-in"}
+                  {checkinMutation.isPending ? "Salvando…" : "Confirmar lançamento"}
                 </button>
               </div>
             </div>

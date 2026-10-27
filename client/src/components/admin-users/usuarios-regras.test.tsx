@@ -59,7 +59,7 @@ async function trocarNome(user: ReturnType<typeof montar>["user"], novo: string)
 }
 
 describe("Usuários — editar", () => {
-  it("RH edita o nome de outra pessoa: PATCH só com o nome; e-mail travado com o motivo", async () => {
+  it("DP edita o nome de outra pessoa: PATCH só com o nome; e-mail travado com o motivo", async () => {
     const { user, chamadas } = montar(rh);
     await user.click(await achar("button-edit-op-1"));
     const modal = await screen.findByTestId("modal-user-edit");
@@ -91,7 +91,7 @@ describe("Usuários — editar", () => {
     montar(logistica);
     expect(await achar("button-edit-op-1")).toBeDisabled();
     expect(screen.getByTestId("button-edit-log-1")).toBeEnabled();
-    expect(screen.getAllByText("Só administradores, RH e Compras editam outras pessoas.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Só administradores, DP e Compras editam outras pessoas.").length).toBeGreaterThan(0);
   });
 
   it("promover a Administrador confirma ANTES do PATCH", async () => {

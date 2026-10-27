@@ -52,7 +52,7 @@ export function RhDecisionBar({ sortedData, selectedItems, selectedTotals, acoes
   const hasAdjusted = nAjustes > 0;
   const BOTAO = "inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/60 disabled:opacity-60";
   return (
-    <div className="sticky bottom-3 z-20 pas-sobe" role="region" aria-label="Decisão do RH sobre a seleção" data-testid="barra-decisao-rh">
+    <div className="sticky bottom-3 z-20 pas-sobe" role="region" aria-label="Decisão do DP sobre a seleção" data-testid="barra-decisao-rh">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-foreground text-background shadow-3 pl-4 pr-2 py-2">
         <div className="min-w-0 flex-1 basis-[260px]">
           <div className="flex flex-wrap items-center gap-x-2">
@@ -97,7 +97,7 @@ export function RhDecisionBar({ sortedData, selectedItems, selectedTotals, acoes
             type="button"
             className={cn(BOTAO, "max-sm:flex-[2] justify-center px-3.5 bg-success-strong text-white hover:bg-success")}
             onClick={() => (hasAdjusted ? acoes.setConfirmAdjustOpen(true) : acoes.setActionModal({ type: "approve" }))}
-            title="Aprova a prestação — análise formal do RH"
+            title="Aprova a prestação — análise formal do DP"
             data-testid="comparativo-aprovar"
           >
             <CheckCircle className="w-4 h-4" aria-hidden="true" />
@@ -138,7 +138,7 @@ export interface RhActionDialogProps {
 const TEXTO = {
   approve: {
     titulo: (n: number) => (n === 1 ? "Aprovar a prestação?" : `Aprovar as ${n} prestações?`),
-    efeito: "Análise formal do RH: a prestação fica aprovada e sai da fila de análise.",
+    efeito: "Análise formal do DP: a prestação fica aprovada e sai da fila de análise.",
     icone: CheckCircle, cor: "bg-success-soft text-success",
     botao: "Confirmar aprovação", classe: "bg-success-strong hover:bg-success text-white",
     placeholder: "Adicionar um comentário…",
@@ -273,9 +273,9 @@ export function ConfirmAdjustDialog({ open, onOpenChange, onConfirm, sortedData,
               <PencilLine className="w-[18px] h-[18px]" />
             </span>
             <div className="min-w-0">
-              <DialogTitle className="text-base font-semibold leading-6">Aprovar com os ajustes do RH?</DialogTitle>
+              <DialogTitle className="text-base font-semibold leading-6">Aprovar com os ajustes do DP?</DialogTitle>
               <DialogDescription className="mt-0.5 text-sm leading-relaxed text-slate-600">
-                Você está aprovando itens com valores ajustados pelo RH em relação ao realizado do colaborador. Revise antes de confirmar.
+                Você está aprovando itens com valores ajustados pelo DP em relação ao realizado do colaborador. Revise antes de confirmar.
               </DialogDescription>
             </div>
           </div>

@@ -113,7 +113,7 @@ export function useSubmitInvoice({ actual, invoice, selectedEventId, qc, toast, 
       // Decisão 19/08 (substitui a regra de 17/08): a NF não credita mais o
       // Flash — alimentação e mobilidade entram na aprovação do comparativo.
       // A nota só documenta o pagamento, então nada de aviso de Flash aqui.
-      toast({ variant: "success", title: "Nota enviada!", description: "Aguardando análise do RH." });
+      toast({ variant: "success", title: "Nota enviada!", description: "Aguardando análise do DP." });
     },
     onError: (e: unknown) => {
       setUploading(false);
@@ -146,7 +146,7 @@ export function useAprovacaoMutations({ selectedEventId, qc, toast, comment, che
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
       closeAction();
-      toast({ variant: "success", title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
+      toast({ variant: "success", title: "Nota aprovada!", description: "Lance no M4 para definir a data de pagamento." });
     },
     onError: (err: unknown) => toast({ title: "Não foi possível aprovar a nota", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
@@ -190,9 +190,9 @@ export function useAprovacaoMutations({ selectedEventId, qc, toast, comment, che
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
       closeAction();
-      toast({ variant: "success", title: "Check-in realizado!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
+      toast({ variant: "success", title: "Lançada no M4!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
     },
-    onError: (err: unknown) => toast({ title: "Não foi possível fazer o check-in", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Não foi possível lançar no M4", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });
 
   return { approveMutation, returnMutation, rejectMutation, checkinMutation };

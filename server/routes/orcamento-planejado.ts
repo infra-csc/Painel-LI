@@ -2,7 +2,13 @@
  * Orçamento Planejado (budget_planned): reaplicar valores padrão, eventos com
  * planejamento, CRUD do planejado, "não participou" e o rascunho dos ajustes
  * da tela (por evento + usuário, 08/10).
- * Papéis: financeiro (admin/RH) — guardas em _compartilhado.ts.
+ * Papéis: financeiro (admin/DP) — guardas em _compartilhado.ts.
+ *
+ * 26/10 (Honorários, Fase 0): a pré-aprovação do DP (shared/pre-aprovacao.ts)
+ * mora em `status`/`approved_by`/`approved_at` e só muda pelas rotas de
+ * server/routes/honorarios-fluxo.ts. Aqui: qualquer mudança de VALOR numa
+ * linha pré-aprovada (PATCH, "Atualizar padrões") a devolve a pendente — o DP
+ * pré-aprovou outro número —, e marcar "não participou" também.
  */
 import type { Express, Request } from "express";
 import { storage } from "../storage";
@@ -22,6 +28,7 @@ import { calcularPlanejadoDaVaga, linhaDoPlanejado } from "@shared/budget-engine
 import { honorariosNasVagas } from "@shared/honorarios-ceno";
 import { honorariosParaPlanejado } from "../storage/honorarios-ceno";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
+import { STATUS_PENDENTE, camposDeValorQueMudaram, estaPreAprovado } from "@shared/pre-aprovacao";
 import { z } from "zod";
 
 /** Teto do rascunho do Planejado: ~200 KB cobrem milhares de vagas ajustadas. */
@@ -52,7 +59,7 @@ export function registrarOrcamentoPlanejado(app: Express): void {
    * Tudo numa transação, em lotes de 10 UPDATEs.
    */
   /** Reaplica os valores de sistema aos planejados NÃO enviados de um evento. */
-  async function reaplicarPadroesNoEvento(event: Evento, user: User, req: Request): Promise<number> {
+  async function reaplicarPadroesNoEvento(event: Evento, user: User, req: Request): Promise<{ updated: number; preAprovacoesDesfeitas: number }> {
     const eventId = event.id;
     const [allPlanned, allActual, inclusions, allFunctionValues, rawSettings, functionsList, tickets, honorarios] = await Promise.all([
       storage.getBudgetPlanned(eventId),
@@ -80,10 +87,13 @@ export function registrarOrcamentoPlanejado(app: Express): void {
     // Já enviado ao Realizado: não mexe (mesma regra de antes)
     const sentKeys = new Set(allActual.map((a) => `${a.eventId}|${a.collaboratorId}|${a.functionId}`));
 
-    const updates: { id: string; patch: ReturnType<typeof linhaDoPlanejado> }[] = [];
+    const updates: { id: string; patch: ReturnType<typeof linhaDoPlanejado> & { status?: string; approvedBy?: null; approvedAt?: null } }[] = [];
+    let preAprovacoesDesfeitas = 0;
     for (const planned of allPlanned) {
       if (sentKeys.has(`${planned.eventId}|${planned.collaboratorId}|${planned.functionId}`)) continue;
-      const inc = inclusions.find((i) => i.collaboratorId === planned.collaboratorId && i.functionId === planned.functionId);
+      // 27/10: a linha com a vaga gravada usa ESSA vaga (vagas sem colaborador na mesma função).
+      const inc = (planned.teamInclusionId ? inclusions.find((i) => i.id === planned.teamInclusionId) : undefined)
+        ?? inclusions.find((i) => i.collaboratorId === planned.collaboratorId && i.functionId === planned.functionId);
       if (!inc) continue; // sem vaga não há período nem regra — fica como está
       const collaborator = planned.collaboratorId ? collaboratorsById.get(planned.collaboratorId) : undefined;
       const resultado = calcularPlanejadoDaVaga({
@@ -96,7 +106,14 @@ export function registrarOrcamentoPlanejado(app: Express): void {
         ticket: ticketByInclusion.get(inc.id) ?? null,
         honorario: honorarioPorVaga.get(inc.id) ?? null,
       });
-      updates.push({ id: planned.id, patch: linhaDoPlanejado(resultado) });
+      const patch = linhaDoPlanejado(resultado);
+      // Pré-aprovada e o valor mudou: volta a pendente (26/10).
+      if (estaPreAprovado(planned.status) && camposDeValorQueMudaram(planned, patch).length > 0) {
+        preAprovacoesDesfeitas++;
+        updates.push({ id: planned.id, patch: { ...patch, status: STATUS_PENDENTE, approvedBy: null, approvedAt: null } });
+      } else {
+        updates.push({ id: planned.id, patch });
+      }
     }
 
     await db.transaction(async (tx) => {
@@ -107,8 +124,8 @@ export function registrarOrcamentoPlanejado(app: Express): void {
         ));
       }
     });
-    await createAuditLog("update", "budget_planned", eventId, { eventId, acao: "aplicar valores padrão", updated: updates.length }, user.id, user.name, undefined, req);
-    return updates.length;
+    await createAuditLog("update", "budget_planned", eventId, { eventId, acao: "aplicar valores padrão", updated: updates.length, preAprovacoesDesfeitas }, user.id, user.name, undefined, req);
+    return { updated: updates.length, preAprovacoesDesfeitas };
   }
 
   app.post("/api/budget-planned/apply-defaults", async (req, res) => {
@@ -124,7 +141,7 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       if (isEventBlockedForActor(event, user)) {
         return res.status(403).json({ message: "Evento encerrado — só o administrador reaplica os valores padrão." });
       }
-      res.json({ updated: await reaplicarPadroesNoEvento(event, user, req) });
+      res.json(await reaplicarPadroesNoEvento(event, user, req));
     } catch (error) {
       console.error("Error applying defaults to planned:", error);
       res.status(500).json({ message: "Erro ao atualizar planejamentos" });
@@ -148,13 +165,15 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       const eventos = ids.length > 0 ? await db.select().from(eventsTable).where(inArray(eventsTable.id, ids)) : [];
       let updated = 0;
       let eventosAtualizados = 0;
+      let preAprovacoesDesfeitas = 0;
       for (const event of eventos) {
         if (isEventPast(event.endDate ?? null)) continue;
-        const n = await reaplicarPadroesNoEvento(event, user, req);
-        updated += n;
-        if (n > 0) eventosAtualizados++;
+        const r = await reaplicarPadroesNoEvento(event, user, req);
+        updated += r.updated;
+        preAprovacoesDesfeitas += r.preAprovacoesDesfeitas;
+        if (r.updated > 0) eventosAtualizados++;
       }
-      res.json({ updated, eventos: eventosAtualizados });
+      res.json({ updated, eventos: eventosAtualizados, preAprovacoesDesfeitas });
     } catch (error) {
       console.error("Error applying defaults to pending planned:", error);
       res.status(500).json({ message: "Erro ao atualizar planejamentos" });
@@ -260,7 +279,10 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       const { eventId } = req.query;
       if (eventId) {
         const planned = await storage.getBudgetPlanned(eventId as string);
-        res.json(planned);
+        // Quem pré-aprovou (26/10): o nome vai junto para a tela não baixar /api/users.
+        const ids = new Set(planned.map((p) => p.approvedBy).filter((v): v is string => !!v));
+        const nomes = ids.size > 0 ? new Map((await storage.getUsers()).filter((u) => ids.has(u.id)).map((u) => [u.id, u.name])) : new Map<string, string>();
+        res.json(planned.map((p) => ({ ...p, approvedByName: p.approvedBy ? nomes.get(p.approvedBy) ?? null : null })));
       } else {
         const all = await storage.getAllBudgetPlanned();
         res.json(all);
@@ -290,7 +312,7 @@ export function registrarOrcamentoPlanejado(app: Express): void {
     if (!actorId) return;
     try {
       // Campos de workflow não nascem pela API — têm rotas dedicadas
-      const { status: _st, didNotAttend: _dna, ...data } = insertBudgetPlannedSchema.parse(req.body);
+      const { status: _st, didNotAttend: _dna, approvedBy: _ab, approvedAt: _aa, ...data } = insertBudgetPlannedSchema.parse(req.body);
       const planned = await storage.createBudgetPlanned(data);
       const actor = usuarioDaSessao(req);
       await createAuditLog('create', 'budget_planned', planned.id, planned, actorId, actor?.name || 'Sistema', undefined, req);
@@ -313,11 +335,28 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       const prev = await storage.getBudgetPlannedById(req.params.id);
       if (!prev) return res.status(404).json({ message: "Planejamento não encontrado" });
       // Validação + allowlist: campos de workflow só mudam pelas rotas dedicadas
-      const { status: _st, didNotAttend: _dna, didNotAttendReason: _dnr, ...data } = insertBudgetPlannedSchema.partial().parse(req.body);
+      const { status: _st, didNotAttend: _dna, didNotAttendReason: _dnr, approvedBy: _ab, approvedAt: _aa, ...data } = insertBudgetPlannedSchema.partial().parse(req.body);
       const actor = usuarioDaSessao(req);
-      const planned = await storage.updateBudgetPlanned(req.params.id, { ...data, updatedBy: actorId });
-      await createAuditLog('update', 'budget_planned', req.params.id, planned, actorId, actor?.name || 'Sistema', prev, req);
-      res.json(planned);
+      // Pré-aprovada e algum valor mudou: volta a pendente (26/10) — o envio
+      // ao Realizado, logo depois, é recusado até o DP pré-aprovar de novo.
+      const mudou: string[] = estaPreAprovado(prev.status) ? camposDeValorQueMudaram(prev, data) : [];
+      // 27/10: trocar a pessoa, a função ou o evento também desfaz — o DP
+      // pré-aprovou o valor DAQUELA vaga.
+      const trocou = estaPreAprovado(prev.status)
+        ? (["collaboratorId", "functionId", "eventId"] as const).filter((c) => data[c] !== undefined && (data[c] ?? null) !== (prev[c] ?? null))
+        : [];
+      const desfazer = mudou.length > 0 || trocou.length > 0;
+      const desfaz = desfazer ? { status: STATUS_PENDENTE, approvedBy: null, approvedAt: null } : {};
+      const planned = await storage.updateBudgetPlanned(req.params.id, { ...data, ...desfaz, updatedBy: actorId });
+      const auditoria = desfazer
+        ? {
+            ...planned,
+            acao: mudou.length > 0 ? "pré-aprovação desfeita: o valor mudou" : "pré-aprovação desfeita: a vaga mudou",
+            camposQueMudaram: [...trocou, ...mudou],
+          }
+        : planned;
+      await createAuditLog('update', 'budget_planned', req.params.id, auditoria, actorId, actor?.name || 'Sistema', prev, req);
+      res.json({ ...planned, preAprovacaoDesfeita: desfazer });
     } catch (error) {
       console.error("Error updating budget planned:", error);
       res.status(400).json({ message: "Erro ao atualizar planejamento" });
@@ -351,6 +390,9 @@ export function registrarOrcamentoPlanejado(app: Express): void {
       const updated = await storage.updateBudgetPlanned(req.params.id, {
         didNotAttend: toggled,
         didNotAttendReason: toggled ? (reason || null) : null,
+        // Não participou zera: a pré-aprovação do DP cai junto (26/10). Ao
+        // restaurar, a linha volta pendente e pede a pré-aprovação de novo.
+        ...(estaPreAprovado(item.status) ? { status: STATUS_PENDENTE, approvedBy: null, approvedAt: null } : {}),
       });
       const actorId = finUser.id;
       const actor = finUser;

@@ -55,7 +55,7 @@ export function SendForReviewBar({ selectedCount: n, totalSelecionado, isPending
             </button>
           </div>
           <p className="m-0 hidden lg:block text-2xs leading-4 text-background/65 truncate">
-            Vão para a análise do RH com os valores de agora — e ficam travadas para edição.
+            Vão para a análise do DP com os valores de agora — e ficam travadas para edição.
           </p>
         </div>
         <button
@@ -108,9 +108,9 @@ export function SendForReviewDialog({ confirmSend, onClose, pendingFiltered, sel
             <div className="space-y-3 text-sm text-slate-600">
               <p className="m-0">
                 {confirmSend === "selected"
-                  ? <>Vão para a análise do RH <strong className="text-foreground">{n} {n === 1 ? "prestação" : "prestações"}</strong>, somando <strong className="text-foreground tabular-nums">{formatCurrency(soma)}</strong>.
+                  ? <>Vão para a análise do DP <strong className="text-foreground">{n} {n === 1 ? "prestação" : "prestações"}</strong>, somando <strong className="text-foreground tabular-nums">{formatCurrency(soma)}</strong>.
                       {acompanham > 0 && <> {acompanham === 1 ? "Inclui 1 divisão que acompanha o titular marcado." : `Inclui ${acompanham} divisões que acompanham os titulares marcados.`}</>}</>
-                  : <>Vão para a análise do RH as <strong className="text-foreground">{n} {n === 1 ? "prestação pendente visível" : "prestações pendentes visíveis"} no filtro atual</strong>, somando <strong className="text-foreground tabular-nums">{formatCurrency(soma)}</strong>.</>}
+                  : <>Vão para a análise do DP as <strong className="text-foreground">{n} {n === 1 ? "prestação pendente visível" : "prestações pendentes visíveis"} no filtro atual</strong>, somando <strong className="text-foreground tabular-nums">{formatCurrency(soma)}</strong>.</>}
               </p>
               {targetUnfilled > 0 && (
                 <p className="m-0 flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-xs leading-5 text-warning">

@@ -58,7 +58,7 @@ test.describe("API direta (com o cookie da sessão)", () => {
     expect((await api(page).get("/api/system-logs")).status()).toBe(403);
   });
 
-  test("financial (RH) não registra passagem (POST /api/tickets) → 403", async ({ page }) => {
+  test("financial (DP) não registra passagem (POST /api/tickets) → 403", async ({ page }) => {
     await entrarComo(page, "financial");
     const vagas = (await (await api(page).get("/api/team-inclusions")).json()) as { id: string; status: string }[];
     const escalada = vagas.find((v) => v.status === "escalado")!;

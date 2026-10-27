@@ -92,7 +92,7 @@ describe("AprovacaoTab — 'Aguardando' com o critério da aba e do resumo (08/1
     expect(totais.getByText("Aguardando").parentElement).toHaveTextContent(`Aguardando (1)${moeda(100000)}`);
   });
 
-  it("filtrada em 'Aguardando', a lista mostra só a que espera o RH", () => {
+  it("filtrada em 'Aguardando', a lista mostra só a que espera o DP", () => {
     montar({ budgetActuals: pausada, filterStatus: "enviada" });
     expect(screen.getByText("Mostrando 1 de 4 notas")).toBeInTheDocument();
   });

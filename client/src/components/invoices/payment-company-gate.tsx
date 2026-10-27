@@ -164,7 +164,7 @@ export function PaymentCompanyGate({ paymentCompanies, form, mutation: setEventC
             </div>
             {erroCnpjCadastrado && (
               <p role="alert" className="m-0 text-xs leading-relaxed text-danger" data-testid="nf-pagadora-cnpj-cadastrado-invalido">
-                O CNPJ cadastrado desta empresa ({selectedPc?.cnpj}) não é válido. Corrija o cadastro em Valores padrão (Empresas pagadoras) ou use “Outra empresa”.
+                O CNPJ cadastrado desta empresa ({selectedPc?.cnpj}) não é válido. Corrija o cadastro em Tabela de valores (Empresas pagadoras) ou use “Outra empresa”.
               </p>
             )}
           </fieldset>

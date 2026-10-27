@@ -142,7 +142,9 @@ export function papelDoPortal(raw?: string | null): CanonicalRole {
   const lower = (raw ?? "").toLowerCase().trim();
   if (!lower) return "production";
   if (lower.includes("administr")) return "admin";
-  if (lower.includes("financeiro") || lower === "rh" || lower.includes("recursos humanos")) return "financial";
+  // 26/10: o app passou a dizer "DP" (Financeiro / DP); o Portal ainda manda
+  // "Financeiro / RH" — os dois (e "Departamento Pessoal") viram financial.
+  if (lower.includes("financeiro") || lower === "rh" || lower === "dp" || lower.includes("recursos humanos") || lower.includes("departamento pessoal")) return "financial";
   if (lower.includes("compras") || lower.includes("viagem")) return "purchasing";
   if (lower.includes("função") || lower.includes("funcao") || lower.includes("function")) return "function_area";
   return "production";

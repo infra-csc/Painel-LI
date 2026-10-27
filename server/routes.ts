@@ -44,7 +44,10 @@ import { registrarBagagem } from "./routes/bagagem";
 import { registrarNotasEHistorico } from "./routes/notas-e-historico";
 import { registrarTrocas } from "./routes/trocas";
 import { registrarControleRh } from "./routes/rh-controle";
+import { registrarHonorariosFluxo } from "./routes/honorarios-fluxo";
 import { registrarHonorariosCeno } from "./routes/honorarios-ceno";
+import { registrarContratos } from "./routes/contratos";
+import { registrarPagamentoColaborador } from "./routes/pagamento-colaborador";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Toda rota registrada daqui em diante (inclusive as de scaling-validation e
@@ -98,8 +101,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registrarNotasEHistorico(app);
   // Controle RH agregado (25/09): as linhas já cruzadas para a tela do RH.
   registrarControleRh(app);
+  // Módulo de Honorários, Fase 0 (26/10): pré-aprovação do DP, "não exibir
+  // valores" por evento, data de corte e legado concluído fora do fluxo.
+  registrarHonorariosFluxo(app);
   // Honorários da cenotécnica (16/10): pedido → aprovação → liberação da verba.
   registrarHonorariosCeno(app);
+  // Contratos (CNPJ) e dados de pagamento do colaborador (26/10) — só o DP.
+  registrarContratos(app);
+  registrarPagamentoColaborador(app);
 
   // ── Trocas de colaborador ─────────────────────────────────────────────────
   registrarTrocas(app);

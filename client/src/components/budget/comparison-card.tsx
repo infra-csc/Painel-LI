@@ -66,8 +66,8 @@ const fmtPeriodDate = (d: string) => {
 function SeloDaLinha({ status }: { status: string }) {
   if (status === "aprovado") return <Chip tom="ok">Aprovada</Chip>;
   if (status === "devolvido") return <Chip tom="alerta" title="Devolvida para correção — está com o responsável">Devolvida</Chip>;
-  if (status === "rejeitado") return <Chip tom="perigo" title="Recusada pelo RH — o responsável pode corrigir e reenviar">Recusada</Chip>;
-  return <Chip tom="info" title="Enviada pelo responsável — aguardando a decisão do RH">Para análise</Chip>;
+  if (status === "rejeitado") return <Chip tom="perigo" title="Recusada pelo DP — o responsável pode corrigir e reenviar">Recusada</Chip>;
+  return <Chip tom="info" title="Enviada pelo responsável — aguardando a decisão do DP">Para análise</Chip>;
 }
 
 /** Botão discreto da linha, sempre visível, com texto (o mesmo dos cards do Planejado). */
@@ -235,13 +235,13 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
             <Nota icone={MessageSquare} titulo="Justificativa do responsável"><p className="m-0">{a.changeReason}</p></Nota>
           )}
           {a.rhComment && (
-            <Nota icone={MessageSquare} titulo="Comentário do RH" tom={tomDoItem}><p className="m-0">{a.rhComment}</p></Nota>
+            <Nota icone={MessageSquare} titulo="Comentário do DP" tom={tomDoItem}><p className="m-0">{a.rhComment}</p></Nota>
           )}
           {rhComment && !a.rhComment && (
-            <Nota icone={MessageSquare} titulo="Comentário do RH (geral)" tom="alerta"><p className="m-0">{rhComment}</p></Nota>
+            <Nota icone={MessageSquare} titulo="Comentário do DP (geral)" tom="alerta"><p className="m-0">{rhComment}</p></Nota>
           )}
           {(a.rhAdjustNote || ajustes.length > 0) && (
-            <Nota icone={PencilLine} titulo={a.rhAdjustNote ? "Observação do ajuste (RH)" : "Ajustes do RH"} tom="alerta">
+            <Nota icone={PencilLine} titulo={a.rhAdjustNote ? "Observação do ajuste (DP)" : "Ajustes do DP"} tom="alerta">
               {a.rhAdjustNote && <p className="m-0">{a.rhAdjustNote}</p>}
               {ajustes.length > 0 && (
                 <ul className="m-0 mt-0.5 p-0 list-none">
@@ -259,7 +259,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
             </Nota>
           )}
           {planId && plannedEdits.length > 0 && (
-            <Nota icone={TriangleAlert} titulo="O orçamento planejado foi alterado pelo RH" tom="alerta">
+            <Nota icone={TriangleAlert} titulo="O orçamento planejado foi alterado pelo DP" tom="alerta">
               {lastEdit && <p className="m-0">Última edição por {lastEdit.user_name || "?"} — os valores de referência podem ter mudado após o envio.</p>}
             </Nota>
           )}
@@ -377,7 +377,7 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
           )}
           {isDecided && a.rhComment && (itemRhStatus === "rejeitado" || itemRhStatus === "devolvido") && (
             <p className={cn("m-0 mt-1 text-2xs italic truncate", itemRhStatus === "rejeitado" ? "text-danger" : "text-warning")}>
-              <span className="not-italic font-medium">RH: </span>“{a.rhComment}”
+              <span className="not-italic font-medium">DP: </span>“{a.rhComment}”
             </p>
           )}
           {temNotas && <div className="min-w-0 [&>div]:mt-1"><BudgetNotesSnippet notes={eventNotes} entityId={a.id} /></div>}
@@ -409,8 +409,8 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
           {podeEditar && (
             <button
               type="button"
-              aria-label={`Editar realizado de ${colName} (RH)`}
-              title="Ajustar o realizado (fica registrado como ajuste do RH)"
+              aria-label={`Editar realizado de ${colName} (DP)`}
+              title="Ajustar o realizado (fica registrado como ajuste do DP)"
               className={cn(ACAO, "text-muted-foreground hover:bg-warning-soft hover:text-warning")}
               onClick={() => onEdit(a)}
             >

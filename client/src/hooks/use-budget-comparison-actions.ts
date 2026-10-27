@@ -70,7 +70,7 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
     },
     onSuccess: (data: { skipped?: unknown[] }, variables) => {
       const labels: Record<string, { title: string; cls: string }> = {
-        aprovado: { title: "Prestação aprovada — análise formal do RH", cls: "bg-success-soft border-success/25 text-success" },
+        aprovado: { title: "Prestação aprovada — análise formal do DP", cls: "bg-success-soft border-success/25 text-success" },
         rejeitado: { title: "Prestação recusada", cls: "bg-danger-soft border-danger/25 text-danger" },
         devolvido: { title: "Devolvido para ajustes", cls: "bg-warning-soft border-warning/25 text-warning" },
       };
@@ -98,7 +98,7 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
     onError: (err: unknown) => {
       toast({
         title: "Erro ao processar a ação",
-        description: apiErrorMessage(err, "Não foi possível concluir a ação do RH. Tente novamente."),
+        description: apiErrorMessage(err, "Não foi possível concluir a ação do DP. Tente novamente."),
         variant: "destructive",
       });
     },
@@ -122,7 +122,7 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
       if (fc && fc.ok === false) {
         toast({
           title: "Comparativo aprovado — Flash NÃO creditado",
-          description: "A aprovação foi salva, mas os créditos de alimentação e mobilidade não entraram na Conta Corrente Flash. Avise o RH e aprove novamente para refazer o crédito.",
+          description: "A aprovação foi salva, mas os créditos de alimentação e mobilidade não entraram na Conta Corrente Flash. Avise o DP e aprove novamente para refazer o crédito.",
           variant: "warning",
         });
         return;
@@ -244,7 +244,7 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
       setEditingActual(null);
-      toast({ title: "Realizado atualizado pelo RH", variant: "warning" });
+      toast({ title: "Realizado atualizado pelo DP", variant: "warning" });
     },
     onError: (err: unknown) => toast({ title: "Não foi possível salvar o Realizado", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
   });

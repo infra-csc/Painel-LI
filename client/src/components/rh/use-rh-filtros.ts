@@ -5,6 +5,7 @@ import { useDeferredValue } from "react";
 import { campo, useUrlState } from "@/lib/use-url-state";
 import { guardarEventoEmFoco } from "@/lib/evento-em-foco";
 import type { PrestacaoStatus } from "./prestacao-types";
+import { RECORTE_PADRAO, ehRecorteDoLegado, type RecorteDoLegado } from "@shared/legado-honorarios";
 
 export interface RhFiltros {
   filterEvent: string;
@@ -26,6 +27,9 @@ export interface RhFiltros {
   showConcluded: boolean;
   setShowConcluded: (v: boolean) => void;
   hasActiveFilters: boolean;
+  /** Fluxo novo × Legado (26/10) — padrão: o fluxo novo. */
+  recorte: RecorteDoLegado;
+  setRecorte: (v: RecorteDoLegado) => void;
 }
 
 export function useRhFiltros(userId: string | undefined): RhFiltros {
@@ -43,6 +47,7 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
     nf: campo.texto("all"),
     q: campo.texto(""),
     concluidos: campo.booleano(false),
+    recorte: campo.opcao<RecorteDoLegado>(RECORTE_PADRAO),
   });
   const filterEvent = f.event || "all";
   const setFilterEvent = (v: string) => {
@@ -68,6 +73,10 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
   const buscaAplicada = useDeferredValue(searchTerm);
   const showConcluded = f.concluidos;
   const setShowConcluded = (v: boolean) => setF({ concluidos: v });
+  // Valor de fora da lista na URL (link antigo, digitação) cai no padrão.
+  const recorte = ehRecorteDoLegado(f.recorte) ? f.recorte : RECORTE_PADRAO;
+  // Trocar de recorte zera o filtro de status (os números de um não valem no outro).
+  const setRecorte = (v: RecorteDoLegado) => setF({ recorte: v, status: "all" });
 
   // Os 4 card-filtros (rh_action, col_action, nf_andamento, concluidos) contam
   // como filtro ativo — consistente com o badge "Filtros (N)".
@@ -83,5 +92,6 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
     searchTerm, setSearchTerm, buscaAplicada,
     showConcluded, setShowConcluded,
     hasActiveFilters,
+    recorte, setRecorte,
   };
 }

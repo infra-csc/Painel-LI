@@ -27,16 +27,16 @@ beforeAll(async () => {
 
 // ── Usuários ────────────────────────────────────────────────────────────────
 describe("POST /api/users", () => {
-  it("por RH com role 'admin' → 403 e o usuário não é criado", async () => {
+  it("por DP com role 'admin' → 403 e o usuário não é criado", async () => {
     const { agent } = await agenteLogado("financial");
     const email = `novo.${unico()}@teste.local`;
     const res = await mutacao(agent.post("/api/users")).send({ email, name: "Novo Admin", role: "admin" });
     expect(res.status).toBe(403);
-    expect(res.body.message).toContain("RH e Compras");
+    expect(res.body.message).toContain("DP e Compras");
     expect(await ctx.storage.getUserByEmail(email)).toBeUndefined();
   });
 
-  it("por RH com canApproveCenotecnica:true → 400 (schema estrito) e nada é criado", async () => {
+  it("por DP com canApproveCenotecnica:true → 400 (schema estrito) e nada é criado", async () => {
     const { agent } = await agenteLogado("financial");
     const email = `novo.${unico()}@teste.local`;
     const res = await mutacao(agent.post("/api/users")).send({ email, name: "Operador", role: "production", canApproveCenotecnica: true });
@@ -44,7 +44,7 @@ describe("POST /api/users", () => {
     expect(await ctx.storage.getUserByEmail(email)).toBeUndefined();
   });
 
-  it("por RH com role 'production' → 200, já aprovado, sem segredos na resposta", async () => {
+  it("por DP com role 'production' → 200, já aprovado, sem segredos na resposta", async () => {
     const { agent } = await agenteLogado("financial");
     const email = `Novo.${unico()}@Teste.local`;
     const res = await mutacao(agent.post("/api/users")).send({ email, name: "Operador", role: "production" });
@@ -57,7 +57,7 @@ describe("POST /api/users", () => {
 });
 
 describe("PATCH /api/users/:id", () => {
-  it("por RH mudando o e-mail de terceiro → 403 e o e-mail não muda", async () => {
+  it("por DP mudando o e-mail de terceiro → 403 e o e-mail não muda", async () => {
     const { agent } = await agenteLogado("financial");
     const alvo = await criarUsuario("production");
     const res = await mutacao(agent.patch(`/api/users/${alvo.id}`)).send({ email: `sequestro.${unico()}@teste.local` });

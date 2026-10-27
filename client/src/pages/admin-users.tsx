@@ -137,7 +137,7 @@ export default function AdminUsers() {
   // com o motivo (a pessoa está a um clique da ação — não some sem explicar).
   const canManageAccounts = hasPermission(user, "canManageUserAccounts");
   const SO_ADMIN = "Só administradores podem fazer isso.";
-  const SO_QUEM_EDITA = "Só administradores, RH e Compras editam outras pessoas.";
+  const SO_QUEM_EDITA = "Só administradores, DP e Compras editam outras pessoas.";
 
   // Mensagem de erro padronizada (api-error): erro de rede/sessão nunca pode virar "lista vazia".
   const errorText = (e: unknown, fallback: string) => apiErrorMessage(e, fallback);

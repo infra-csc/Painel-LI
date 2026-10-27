@@ -27,6 +27,8 @@ export interface RhEventGroupProps {
   approvingInvoiceId: string | null;
   nfApproving: boolean;
   canRh: boolean;
+  /** Legado (26/10): só leitura — sem ações de decisão nas linhas. */
+  somenteLeitura?: boolean;
   toggleExpand: (id: string) => void;
   toggleDetails: (id: string) => void;
   navigate: (path: string) => void;
@@ -38,7 +40,7 @@ export interface RhEventGroupProps {
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 export const RhEventGroup = memo(function RhEventGroup({
-  group, isOpen, onToggle, expandedCards, expandedDetails, approvingInvoiceId, nfApproving, canRh,
+  group, isOpen, onToggle, expandedCards, expandedDetails, approvingInvoiceId, nfApproving, canRh, somenteLeitura,
   toggleExpand, toggleDetails, navigate, setApprovingInvoiceId, setNfApproving, toast,
 }: RhEventGroupProps) {
   const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
@@ -75,13 +77,13 @@ export const RhEventGroup = memo(function RhEventGroup({
 
   // Composição: só as etapas presentes, na ordem do trabalho. Tom = de quem é a vez.
   const composicao: { n: number; texto: string; tom: string; dica: string }[] = [
-    { n: statuses.prestacao_recebida || 0, texto: statuses.prestacao_recebida === 1 ? "comparativo" : "comparativos", tom: "crh-comp-rh", dica: "Comparativo — o RH analisa" },
-    { n: statuses.planejamento_pendente || 0, texto: statuses.planejamento_pendente === 1 ? "planejamento" : "planejamentos", tom: "crh-comp-rh", dica: "Planejamento pendente — o RH planeja os valores" },
-    { n: checkinPendingGroupCount, texto: "check-in", tom: "crh-comp-rh", dica: "Nota aprovada — falta o Check-in Financeiro" },
+    { n: statuses.prestacao_recebida || 0, texto: statuses.prestacao_recebida === 1 ? "comparativo" : "comparativos", tom: "crh-comp-rh", dica: "Comparativo — o DP analisa" },
+    { n: statuses.planejamento_pendente || 0, texto: "a pré-aprovar", tom: "crh-comp-rh", dica: "Pré-aprovação pendente — o DP pré-aprova os valores e libera para a Produção" },
+    { n: checkinPendingGroupCount, texto: "M4", tom: "crh-comp-rh", dica: "Nota aprovada — falta lançar no M4" },
     { n: statuses.devolvida_para_ajuste || 0, texto: statuses.devolvida_para_ajuste === 1 ? "devolvido" : "devolvidos", tom: "crh-comp-atencao", dica: "Devolvida — o responsável corrige e reenvia" },
     { n: statuses.aguardando_prestacao || 0, texto: "aguardando", tom: "crh-comp-neutro", dica: "Aguardando prestação — o responsável preenche o realizado" },
     { n: agNfCount, texto: "ag. NF", tom: "crh-comp-atencao", dica: "Aguardando Nota Fiscal" },
-    { n: nfApprovedCount, texto: nfApprovedCount === 1 ? "concluído" : "concluídos", tom: "crh-comp-ok", dica: "Concluído — NF aprovada e check-in feito" },
+    { n: nfApprovedCount, texto: nfApprovedCount === 1 ? "concluído" : "concluídos", tom: "crh-comp-ok", dica: "Concluído — NF aprovada e lançada no M4" },
     { n: statuses.recusada || 0, texto: statuses.recusada === 1 ? "recusado" : "recusados", tom: "crh-comp-erro", dica: "Recusada" },
   ].filter(c => c.n > 0);
 
@@ -106,12 +108,12 @@ export const RhEventGroup = memo(function RhEventGroup({
           <span className="block truncate text-xs text-muted-foreground tabular-nums">
             {periodo}{periodo ? " · " : ""}{plural(group.items.length, "item", "itens")}
             {group.rhNeeded > 0 && (
-              <span className="text-warning font-medium" title="Esperam o RH: comparativo, planejamento, nota a aprovar ou check-in" data-testid="crh-grupo-com-rh">
-                {" "}· {group.rhNeeded} com o RH
+              <span className="text-warning font-medium" title="Esperam o DP: comparativo, planejamento, nota a aprovar ou lançar no M4" data-testid="crh-grupo-com-rh">
+                {" "}· {group.rhNeeded} com o DP
               </span>
             )}
             {pendentesNoTotal > group.rhNeeded && (
-              <span title="Pendentes no total: com o RH, com o responsável (aguardando prestação) e devolvidas" data-testid="crh-grupo-pendentes">
+              <span title="Pendentes no total: com o DP, com o responsável (aguardando prestação) e devolvidas" data-testid="crh-grupo-pendentes">
                 {" "}· {plural(pendentesNoTotal, "pendente", "pendentes")}{group.rhNeeded > 0 ? " no total" : ""}
               </span>
             )}
@@ -142,6 +144,7 @@ export const RhEventGroup = memo(function RhEventGroup({
                 approvingInvoiceId={approvingInvoiceId}
                 nfApproving={nfApproving}
                 canRh={canRh}
+                somenteLeitura={somenteLeitura}
                 toggleExpand={toggleExpand}
                 toggleDetails={toggleDetails}
                 navigate={navigate}

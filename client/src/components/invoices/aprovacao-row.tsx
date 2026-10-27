@@ -207,11 +207,11 @@ export const AprovacaoRow = memo(function AprovacaoRow({
                   : "text-primary bg-card border-primary/35 hover:bg-brand-soft",
               )}
             >
-              <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Fazer check-in
+              <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Lançar no M4
             </button>
           )}
           {effSt === "checkin-realizado" && (
-            <span className="inline-flex items-center gap-1.5 h-8 px-1 text-xs text-success" title="Data de pagamento definida no check-in">
+            <span className="inline-flex items-center gap-1.5 h-8 px-1 text-xs text-success" title="Data de pagamento definida no lançamento no M4">
               <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
               Pgto <span className="font-semibold tabular-nums">{fmtDate(inv.paymentDate)}</span>
             </span>

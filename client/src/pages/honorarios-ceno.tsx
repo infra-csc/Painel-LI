@@ -345,7 +345,7 @@ export default function HonorariosCenoPage() {
       </div>
     );
   } else if (!podeVer) {
-    conteudo = <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do Financeiro" texto="Só o Financeiro (RH), o perfil Honorários e o administrador veem os honorários a liberar." testId="hon-fin-sem-acesso" />;
+    conteudo = <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do Financeiro" texto="Só o Financeiro (DP), o perfil Honorários e o administrador veem os honorários a liberar." testId="hon-fin-sem-acesso" />;
   } else if (q.error) {
     conteudo = <EstadoDaValidacao tom="erro" icone={<CloudOff aria-hidden="true" />} titulo="Não foi possível carregar os honorários" texto={apiErrorMessage(q.error, "Verifique sua conexão e tente novamente.")} acao={<BotaoTentarDeNovo onClick={() => q.refetch()} tentando={q.isFetching} />} />;
   } else if (todas.length === 0) {

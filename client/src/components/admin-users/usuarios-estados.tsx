@@ -63,7 +63,7 @@ export function SemPermissao() {
       </span>
       <h2 className="m-0 text-base font-semibold text-foreground">Acesso negado</h2>
       <p className="m-0 mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
-        Você não tem permissão para acessar esta página. A lista de usuários é para administradores, RH, Compras e Logística Interna.
+        Você não tem permissão para acessar esta página. A lista de usuários é para administradores, DP, Compras e Logística Interna.
       </p>
     </div>
   );

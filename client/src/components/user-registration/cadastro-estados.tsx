@@ -47,8 +47,8 @@ export function SemAcessoAoCadastro({ logistica }: { logistica: boolean }) {
       </h2>
       <p className="m-0 mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
         {logistica
-          ? "Solicite ao RH ou à área de Compras a criação de novos usuários. Você continua podendo aprovar, resetar senha e ativar/desativar contas em Usuários."
-          : "Apenas administradores, RH e Compras podem cadastrar usuários."}
+          ? "Solicite ao DP ou à área de Compras a criação de novos usuários. Você continua podendo aprovar, resetar senha e ativar/desativar contas em Usuários."
+          : "Apenas administradores, DP e Compras podem cadastrar usuários."}
       </p>
       <Button asChild variant="outline" className="mt-5 rounded-lg">
         {logistica ? <Link href="/admin-users">Ir para Usuários</Link> : <Link href="/">Voltar ao início</Link>}

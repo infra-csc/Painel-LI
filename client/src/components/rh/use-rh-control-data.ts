@@ -19,6 +19,8 @@ import type { Event } from "@shared/schema";
 import type { ControleRh, StatusDaPrestacao } from "@shared/controle-rh";
 import type { PrestacaoItem, PrestacaoStatus } from "./prestacao-types";
 import { CHAVE_CONTROLE_RH, statusParaServidor, urlDoControleRh } from "./prestacao-utils";
+import { contagemVazia, type ContagemDaTrilha } from "@shared/trilha-honorarios";
+import { DATA_DE_CORTE_PADRAO, type RecorteDoLegado } from "@shared/legado-honorarios";
 
 export type InvoiceCounts = ControleRh["contadores"]["nf"];
 
@@ -40,6 +42,11 @@ export interface RhControlData {
   funcoes: { id: string; name: string }[];
   /** Eventos com escalação (inteiros) — o seletor da barra de contexto mostra datas e local. */
   eventos: Event[];
+  /** Onde estão os registros do recorte na trilha única (26/10). */
+  trilha: ContagemDaTrilha;
+  /** Linhas de cada recorte do legado (as contagens das abas). */
+  recortes: ControleRh["contadores"]["recortes"];
+  dataDeCorte: string;
 }
 
 const CONTADORES_VAZIOS: ControleRh["contadores"] = {
@@ -50,6 +57,8 @@ const CONTADORES_VAZIOS: ControleRh["contadores"] = {
   nf: { pending: 0, enviada: 0, devolvida: 0, aprovada: 0, checkinPending: 0, checkinDone: 0 },
   rhAction: 0,
   totalParaProgresso: 0,
+  trilha: contagemVazia(),
+  recortes: { fluxoNovo: 0, legado: 0, legadoConcluido: 0 },
 };
 
 const SEM_ITENS: PrestacaoItem[] = [];
@@ -60,14 +69,14 @@ const SEM_EVENTOS: Event[] = [];
  * @param eventoSelecionado id do evento filtrado, ou `null` em "Todos os eventos".
  * @param filterStatus filtro de status da tela ("all" = tudo).
  */
-export function useRhControlData(eventoSelecionado: string | null, filterStatus: PrestacaoStatus): RhControlData {
+export function useRhControlData(eventoSelecionado: string | null, filterStatus: PrestacaoStatus, recorte: RecorteDoLegado = "fluxo_novo"): RhControlData {
   const statusServidor = statusParaServidor(filterStatus);
   // Chave com objeto (como tickets/hospedagens): `["/api/rh/controle"]` invalida
   // todos os recortes de uma vez. O queryFn padrão faz `join("/")`, por isso a
   // URL é montada à mão com `fetchJson` (mesmo caminho de credenciais/erros).
   const q = useQuery<ControleRh>({
-    queryKey: [CHAVE_CONTROLE_RH, { eventId: eventoSelecionado ?? undefined, status: statusServidor }],
-    queryFn: ({ signal }) => fetchJson<ControleRh>(urlDoControleRh(eventoSelecionado, statusServidor), signal),
+    queryKey: [CHAVE_CONTROLE_RH, { eventId: eventoSelecionado ?? undefined, status: statusServidor, recorte }],
+    queryFn: ({ signal }) => fetchJson<ControleRh>(urlDoControleRh(eventoSelecionado, statusServidor, recorte), signal),
     // Clicar num card ou trocar o evento não zera a tela para um skeleton: a
     // lista anterior fica (esmaecida pela página) até o novo recorte chegar.
     placeholderData: keepPreviousData,
@@ -105,5 +114,8 @@ export function useRhControlData(eventoSelecionado: string | null, filterStatus:
     concludedCount, totalForProgress, progressPct,
     funcoes,
     eventos: qEventsWithInclusions.data ?? SEM_EVENTOS,
+    trilha: contadores.trilha ?? CONTADORES_VAZIOS.trilha,
+    recortes: contadores.recortes ?? CONTADORES_VAZIOS.recortes,
+    dataDeCorte: dados?.dataDeCorte ?? DATA_DE_CORTE_PADRAO,
   };
 }

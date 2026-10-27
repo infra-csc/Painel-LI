@@ -13,7 +13,7 @@
  *
  * Só apresentação: o estado vem de `useBudgetFilters`.
  */
-import { CircleSlash, Clock, LayoutGrid, PencilLine, Send, Table2 } from "lucide-react";
+import { BadgeCheck, CircleSlash, Clock, LayoutGrid, PencilLine, Send, Table2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros, type ListaCurta } from "@/components/common/barra-de-filtros";
 import { FiltroUnico } from "@/components/common/filter-popover";
@@ -156,11 +156,18 @@ export function FilaDoPlanejado({ filtros: f }: { filtros: FiltrosDoPlanejado })
   const c = f.contagemPorSituacao;
   const v = f.valorPorSituacao;
   const blocos: BlocoDaFilaDeTrabalho<Exclude<SituacaoDoPlanejado, "todas">>[] = [
-    { key: "pendentes", rotulo: "A enviar", n: c.pendentes, sub: c.pendentes ? formatCurrency(v.pendentes) : "nada pendente", icone: Clock, cor: "text-warning",
-      titulo: "Colaboradores que ainda não foram enviados ao Realizado" },
+    // 26/10 (Honorários, Fase 0): pré-aprovar é o passo do DP antes de liberar ao Realizado.
+    { key: "pendentes", rotulo: "A pré-aprovar", n: c.pendentes, sub: c.pendentes ? formatCurrency(v.pendentes) : "nada pendente", icone: Clock, cor: "text-warning",
+      titulo: "Falta a pré-aprovação do DP (ou o valor mudou depois dela) — sem ela não vão ao Realizado" },
+    // 27/10: evento legado vai ao Realizado sem a pré-aprovação — o bloco diz "A enviar".
+    f.fluxoAntigo
+      ? { key: "preaprovadas", rotulo: "A enviar", n: c.preaprovadas, sub: c.preaprovadas ? formatCurrency(v.preaprovadas) : "nenhum a liberar", icone: Send, cor: "text-success",
+          titulo: "Evento legado (fluxo antigo): vão ao Realizado sem a pré-aprovação do DP" }
+      : { key: "preaprovadas", rotulo: "Pré-aprovados", n: c.preaprovadas, sub: c.preaprovadas ? formatCurrency(v.preaprovadas) : "nenhum a liberar", icone: BadgeCheck, cor: "text-success",
+          titulo: "Pré-aprovados pelo DP com o valor de agora — prontos para enviar ao Realizado (liberar para a Produção)" },
     { key: "ajustadas", rotulo: "Com ajuste manual", n: c.ajustadas, sub: c.ajustadas === 1 ? "valor editado" : "valores editados", icone: PencilLine, cor: "text-primary",
-      titulo: "Pendentes com algum valor editado à mão (diária, alimentação ou mobilidade)" },
-    { key: "enviadas", rotulo: "Enviados", n: c.enviadas, sub: c.enviadas ? formatCurrency(v.enviadas) : "nenhum ainda", icone: Send, cor: "text-success",
+      titulo: "Ainda não enviados, com algum valor editado à mão (diária, alimentação ou mobilidade)" },
+    { key: "enviadas", rotulo: "No Realizado", n: c.enviadas, sub: c.enviadas ? formatCurrency(v.enviadas) : "nenhum ainda", icone: Send, cor: "text-info",
       titulo: "Já estão na prestação de contas (Realizado)" },
     { key: "ausentes", rotulo: "Não participou", n: c.ausentes, sub: "fora dos totais", icone: CircleSlash, cor: "text-muted-foreground",
       titulo: "Marcados como não participou: não entram no total nem no envio" },

@@ -61,7 +61,7 @@ describe("POST /api/budget-planned/apply-defaults", () => {
     expect(res.body.message).toContain("eventId");
   });
 
-  it("evento encerrado por RH → 403 (só o administrador reaplica)", async () => {
+  it("evento encerrado por DP → 403 (só o administrador reaplica)", async () => {
     const { agent } = await agenteLogado("financial");
     const encerrado = await criarEvento({ startDate: "2020-01-01", endDate: "2020-01-05" });
     const res = await mutacao(agent.post("/api/budget-planned/apply-defaults")).send({ eventId: encerrado.id });
@@ -87,7 +87,7 @@ describe("POST /api/budget-planned/apply-defaults", () => {
 
     const res = await mutacao(agent.post("/api/budget-planned/apply-defaults")).send({ eventId: evento.id });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ updated: 2 });
+    expect(res.body).toEqual({ updated: 2, preAprovacoesDesfeitas: 0 });
 
     // Expectativa montada com os MESMOS helpers de shared/ que a rota usa
     const cfg: Record<string, number> = {};
@@ -148,12 +148,15 @@ describe("POST /api/budget-planned/apply-defaults/pendentes (Valores padrão)", 
 
 // ── Realizado ───────────────────────────────────────────────────────────────
 describe("POST /api/budget-actual/duplicate-from-planned/:eventId", () => {
-  it("duas vezes → 1ª 201 com as prestações, 2ª 409 e nada duplicado", async () => {
+  it("duas vezes → 1ª 201 com as prestações pré-aprovadas, 2ª 409 e nada duplicado", async () => {
     const { agent } = await agenteLogado("admin");
     const evento = await criarEvento();
     const funcao = await criarFuncao();
     const colab = await criarColaborador();
-    await ctx.storage.createBudgetPlanned({ eventId: evento.id, collaboratorId: colab.id, functionId: funcao.id, collaboratorType: "freela", dailyQuantity: 2, dailyValue: 5000, totalValue: 10_000 } as any);
+    const semPre = await criarColaborador();
+    // 26/10: só o que o DP pré-aprovou é liberado para a Produção.
+    await ctx.storage.createBudgetPlanned({ eventId: evento.id, collaboratorId: colab.id, functionId: funcao.id, collaboratorType: "freela", dailyQuantity: 2, dailyValue: 5000, totalValue: 10_000, status: "pre_aprovado" } as any);
+    await ctx.storage.createBudgetPlanned({ eventId: evento.id, collaboratorId: semPre.id, functionId: funcao.id, collaboratorType: "freela", dailyQuantity: 1, dailyValue: 5000, totalValue: 5_000 } as any);
 
     const primeira = await mutacao(agent.post(`/api/budget-actual/duplicate-from-planned/${evento.id}`)).send({});
     expect(primeira.status).toBe(201);

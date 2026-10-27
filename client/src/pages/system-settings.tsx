@@ -29,6 +29,7 @@ import { usePaymentCompanies } from "@/components/settings/use-payment-companies
 import { SaveBar, type MudancaPendente } from "@/components/settings/save-bar";
 import { AppliedValuesSection } from "@/components/settings/applied-values-section";
 import { PaymentCompaniesCard } from "@/components/settings/payment-companies-card";
+import { DataDeCorteCard } from "@/components/settings/data-de-corte-card";
 import { LegacyValuesSection } from "@/components/settings/legacy-values-section";
 import { FunctionValuesTable } from "@/components/settings/function-values-table";
 import { AtualizarPlanejado, SettingsFooter } from "@/components/settings/settings-footer";
@@ -44,7 +45,7 @@ import { formatDateTime } from "@/components/settings/settings-utils";
 const reduzMovimento = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 export default function SystemSettingsPage() {
-  usePageTitle("Valores padrão");
+  usePageTitle("Tabela de valores");
   const s = useSettingsForm();
   const empresas = usePaymentCompanies();
   const { user, estado, form, fnValues } = s;
@@ -134,7 +135,7 @@ export default function SystemSettingsPage() {
   const barra = (
     <PageHeader
       variant="bar"
-      title={<span className="inline-flex items-center gap-1">Valores padrão{regra}</span>}
+      title={<span className="inline-flex items-center gap-1">Tabela de valores{regra}</span>}
       className="mx-0 mt-0 gap-x-3 max-sm:static"
       subtitle={subtitulo}
       actions={carregado ? (
@@ -174,6 +175,8 @@ export default function SystemSettingsPage() {
               <p className="cfg-zona">Cadastros e reserva</p>
               {/* Empresas pagadoras (aplicadas nas Notas Fiscais) */}
               <PaymentCompaniesCard user={user} paymentCompanies={s.paymentCompanies} state={empresas} />
+              {/* Data de corte do legado dos honorários (26/10) — só o administrador muda. */}
+              <DataDeCorteCard />
 
               {/* ZONA 2 — VALORES LEGADOS E OVERRIDES (colapsada por padrão) */}
               <LegacyValuesSection

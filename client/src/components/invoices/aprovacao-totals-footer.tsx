@@ -15,7 +15,7 @@ import type { Invoice } from "@shared/schema";
 import { formatCurrency } from "./invoice-format";
 
 export interface TotaisDasNotas {
-  /** NFs aprovadas (com ou sem check-in) e a soma do Realizado delas. */
+  /** NFs aprovadas (lançadas ou não no M4) e a soma do Realizado delas. */
   aprovadas: { n: number; valor: number };
   /** NFs enviadas, aguardando a análise do RH. */
   aguardando: { n: number; valor: number };
@@ -84,11 +84,11 @@ export function AprovacaoTotalsFooter({ approvedTotal, waitingTotal, grandTotal,
           <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{titulo}</span>
           {approvedTotal > 0 && (
             <Total rotulo="Aprovadas" n={nAprovadas} valor={approvedTotal} tom="text-success"
-              dica={nAprovadas !== undefined ? `Realizado de ${plural(nAprovadas, "nota aprovada", "notas aprovadas")} (com ou sem check-in)` : undefined} />
+              dica={nAprovadas !== undefined ? `Realizado de ${plural(nAprovadas, "nota aprovada", "notas aprovadas")} (lançadas ou não no M4)` : undefined} />
           )}
           {waitingTotal > 0 && (
             <Total rotulo="Aguardando" n={nAguardando} valor={waitingTotal} tom="text-warning"
-              dica={nAguardando !== undefined ? `Realizado de ${plural(nAguardando, "nota enviada", "notas enviadas")}, aguardando a análise do RH` : undefined} />
+              dica={nAguardando !== undefined ? `Realizado de ${plural(nAguardando, "nota enviada", "notas enviadas")}, aguardando a análise do DP` : undefined} />
           )}
           <span aria-hidden="true" className="hidden sm:block w-px h-4 bg-border" />
           <Total rotulo="Aprovadas + aguardando" valor={grandTotal} tom="text-foreground"

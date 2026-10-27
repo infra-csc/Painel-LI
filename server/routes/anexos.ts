@@ -206,6 +206,16 @@ export function registrarAnexos(app: Express): void {
     }
 
     const role = normalizeRole(quem.role);
+    // Anexo de contrato (26/10): só o DP — vale antes de qualquer outra regra.
+    const { ehAnexoDeContrato } = await import("../storage/contratos");
+    if (meta.classe === "contrato" || await ehAnexoDeContrato(id)) {
+      if (!podeAcessarAnexo({ role, userId: quem.id, ownerId: meta.ownerId, documentoDeColaborador: false, anexoDeContrato: true })) {
+        console.warn(`[Anexos] acesso negado ao anexo de contrato ${id} para o usuário ${quem.id.slice(0, 8)}`);
+        res.status(403).json({ message: "Sem permissão para acessar este anexo" });
+        return null;
+      }
+      return { id, file, meta, objectStorageService };
+    }
     const documentoDeColaborador = await ehDocumentoDeColaborador(id);
     // Só consulta passagens/hospedagens quando a regra ainda não decidiu:
     // admin, Compras, Produção e RH já veem tudo.

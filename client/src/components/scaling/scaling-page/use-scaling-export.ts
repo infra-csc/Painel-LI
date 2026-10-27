@@ -38,7 +38,7 @@ export function useScalingExport({ aba, canExport, visibleRows, data, details, t
     // planilha de colunas da fila. Um botão só, o que muda é a aba.
     if (aba === "analises") { setCoberturaOpen(true); return; }
     if (!canExport) {
-      toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar.", variant: "destructive" });
+      toast({ title: "Sem permissão", description: "Somente administradores, Compras e DP/Financeiro podem exportar.", variant: "destructive" });
       return;
     }
     if (quantasLinhas === 0) {
@@ -51,7 +51,7 @@ export function useScalingExport({ aba, canExport, visibleRows, data, details, t
   const handleExportToExcel = async (colunas?: string[], formato: "xlsx" | "pdf" = "xlsx", scope: ExportScope = "todas") => {
     // A planilha inclui CPF/telefone/nascimento — a trava fica aqui também
     if (!canExport) {
-      toast({ title: "Sem permissão", description: "Somente administradores, Compras e RH/Financeiro podem exportar a planilha.", variant: "destructive" });
+      toast({ title: "Sem permissão", description: "Somente administradores, Compras e DP/Financeiro podem exportar a planilha.", variant: "destructive" });
       return;
     }
     if (visibleRows.length === 0) {

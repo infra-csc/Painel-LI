@@ -1,7 +1,10 @@
 /**
- * Financeiro (financial/RH): evento em foco compartilhado entre Planejado e
- * Realizado; Controle RH lista e filtra pelos cards; Notas fiscais só devolve
- * com motivo.
+ * Honorários (financial — "Financeiro / DP"): evento em foco compartilhado
+ * entre a Pré-aprovação (Planejado) e o Realizado; o Painel de honorários
+ * (antigo Controle RH) lista e filtra pelos cards; Notas fiscais só devolve
+ * com motivo. 26/10: o evento de SP do seed já terminou — é LEGADO (antes de
+ * 01/11/2026): as telas abrem sem ele e o filtro "Mostrar eventos legados" o
+ * traz; no Painel ele fica no recorte Legado.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { entrarComo, esperarToast } from "./helpers/demo";
@@ -14,6 +17,9 @@ async function escolherEvento(page: Page) {
   if (await botaoDoEvento(page).count()) return;
   await page.getByRole("button", { name: /Selecionar evento|Trocar evento/ }).click();
   const paleta = page.getByRole("dialog", { name: "Buscar evento" });
+  // Legado (26/10): fica de fora por padrão; o filtro da paleta o mostra.
+  const mostrarLegado = paleta.getByRole("checkbox", { name: /Mostrar eventos legados/ });
+  if (await mostrarLegado.count() && !(await mostrarLegado.isChecked())) await mostrarLegado.check();
   await paleta.getByRole("combobox", { name: "Buscar evento" }).fill("São Paulo");
   await paleta.getByRole("option", { name: new RegExp(EVENTO_SP) }).click();
   await expect(botaoDoEvento(page)).toBeVisible();
@@ -25,7 +31,7 @@ test.beforeEach(async ({ page }) => {
 
 test("Planejado com evento em foco → Realizado mantém o mesmo evento (e a URL carrega o contexto)", async ({ page }) => {
   await page.goto("/budget-planned");
-  await expect(page.getByRole("heading", { level: 1, name: "Planejado" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Pré-aprovação de valores" })).toBeVisible();
   await escolherEvento(page);
   await expect(page).toHaveURL(/[?&]event=[0-9a-f-]{36}/);
   const idNaUrl = new URL(page.url()).searchParams.get("event");
@@ -40,13 +46,15 @@ test("Planejado com evento em foco → Realizado mantém o mesmo evento (e a URL
   await expect(page.locator("main")).toContainText(/\d+\s*prestações/i);
 });
 
-test("Controle RH lista as prestações e filtra pelo card 'Aguardando RH'", async ({ page }) => {
-  await page.goto("/rh-control");
-  await expect(page.getByRole("heading", { level: 1, name: "Controle RH" })).toBeVisible();
-  const card = page.getByRole("button", { name: /^Aguardando RH \d+/ });
+test("Painel de honorários (legado) lista as prestações e filtra pelo card 'Aguardando DP'", async ({ page }) => {
+  // Os eventos do seed com prestações já terminaram: recorte Legado.
+  await page.goto("/rh-control?recorte=legado");
+  await expect(page.getByRole("heading", { level: 1, name: "Painel de honorários" })).toBeVisible();
+  await expect(page.getByTestId("painel-recorte-legado")).toHaveAttribute("aria-selected", "true");
+  const card = page.getByRole("button", { name: /^Aguardando DP \d+/ });
   await expect(card).toHaveAttribute("aria-pressed", "false");
   // O número chega com os dados (antes disso o card mostra 0/esqueleto).
-  const lerCard = async () => Number((await card.innerText()).match(/Aguardando RH\s+(\d+)/)?.[1] ?? 0);
+  const lerCard = async () => Number((await card.innerText()).match(/Aguardando DP\s+(\d+)/)?.[1] ?? 0);
   await expect.poll(lerCard).toBeGreaterThan(0);
   const pendentesDoRh = await lerCard();
   // Lista agrupada por evento, com itens.
@@ -60,7 +68,7 @@ test("Controle RH lista as prestações e filtra pelo card 'Aguardando RH'", asy
   // A faixa diz o recorte e conta os mesmos itens do card; a lista encolhe.
   // (Enquanto o novo recorte não chega, a lista anterior fica esmaecida — por
   // isso as contagens são esperadas, não lidas de imediato.)
-  const faixa = page.getByText(/Mostrando apenas pendências do RH \(\d+ itens?\)/);
+  const faixa = page.getByText(/Mostrando apenas pendências do DP \(\d+ itens?\)/);
   await expect(faixa).toBeVisible();
   await expect(faixa).toContainText(new RegExp(`\\(${pendentesDoRh} itens?\\)`));
   await expect(resumo).toContainText(new RegExp(`· ${pendentesDoRh} itens`));
@@ -78,14 +86,14 @@ test("Notas fiscais: devolver sem motivo fica bloqueado; com motivo a nota vira 
   await expect(page.getByRole("heading", { level: 1, name: /Notas fiscais/ })).toBeVisible();
   await escolherEvento(page);
   // 08/10: as abas da tela viraram abas de verdade (role="tab").
-  await page.getByRole("tab", { name: /^Aprovação RH/ }).click();
+  await page.getByRole("tab", { name: /^Aprovação DP/ }).click();
 
   const tabela = page.getByRole("table", { name: /Notas fiscais: colaborador/ });
-  const aguardando = tabela.getByRole("row").filter({ hasText: "Aguardando RH" }).filter({ has: page.getByRole("button", { name: "Devolver" }) });
+  const aguardando = tabela.getByRole("row").filter({ hasText: "Aguardando DP" }).filter({ has: page.getByRole("button", { name: "Devolver" }) });
   const antes = await aguardando.count();
   expect(antes).toBeGreaterThan(0);
   const linha = aguardando.first();
-  // Primeira célula: "S" (inicial do avatar), nome, "Aguardando RH há N dias".
+  // Primeira célula: "S" (inicial do avatar), nome, "Aguardando DP há N dias".
   const colaborador = (await linha.getByRole("cell").first().innerText()).split("\n").map((s) => s.trim()).find((s) => s.length > 2 && !/^Aguardando/.test(s))!;
   expect(colaborador).toBeTruthy();
   await linha.getByRole("button", { name: "Devolver" }).click();

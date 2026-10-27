@@ -17,6 +17,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { isRhOrAdmin } from "@/lib/role-utils";
 import { EventSearchSelect } from "@/components/event-select";
+import { useFiltroDoLegado, useTrilhaDoEvento } from "@/components/honorarios/use-honorarios";
+import { TrilhaDoEvento } from "@/components/honorarios/trilha-do-honorario";
 import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { QueryError } from "@/components/common/query-state";
@@ -101,6 +103,8 @@ function AbasDasNotas({ abas, ativa, onTrocar, aDireita }: {
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function InvoicesPage() {
   usePageTitle("Notas fiscais");
+  // Abre sem os eventos legados (antes da data de corte), com filtro para ver (26/10).
+  const legado = useFiltroDoLegado();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -167,19 +171,23 @@ export default function InvoicesPage() {
   }, [setSelectedEventId]);
   useEffect(() => {
     if (!selectedEventId && activeEvents.length > 0 && !limpouOEventoRef.current) {
-      setSelectedEventId(activeEvents[0].id);
+      // O primeiro evento do fluxo novo — o legado só com o filtro ligado (26/10).
+      const primeiro = activeEvents.find(e => legado.mostrar || !legado.ehLegado(e));
+      if (primeiro) setSelectedEventId(primeiro.id);
     }
-  }, [activeEvents, selectedEventId, setSelectedEventId]);
+  }, [activeEvents, selectedEventId, setSelectedEventId, legado]);
 
   const selectedEvent = activeEvents.find(e => e.id === selectedEventId);
+  // Trilha única do honorário (26/10): onde estão os registros deste evento.
+  const trilhaDoEvento = useTrilhaDoEvento(selectedEvent?.id);
 
   const setEventCompanyMutation = useSetEventCompanyMutation({ selectedEventId, qc, toast });
 
   const tabs = [
     { id: "lancamento" as const, label: "Lançamento", count: pendingCount, icone: ClipboardList,
       dica: "Envio da nota (OC e arquivo) de cada item do Realizado" },
-    ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH", count: rhPendingCount, icone: ShieldCheck,
-      dica: "Análise do RH: aprovar, devolver, recusar e check-in financeiro" }] : []),
+    ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação DP", count: rhPendingCount, icone: ShieldCheck,
+      dica: "Análise do DP: aprovar, devolver, recusar e lançar no M4" }] : []),
   ];
 
   const temPagadora = !!selectedEvent?.paymentCompanyCnpj?.trim();
@@ -224,6 +232,7 @@ export default function InvoicesPage() {
               onValueChange={trocarEvento}
               events={activeEvents}
               detalhe={detalheDoEvento}
+              legado={legado}
             />
           </>
         ) : undefined}
@@ -249,7 +258,7 @@ export default function InvoicesPage() {
         <Building2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> Empresa pagadora não definida
       </p>
       <p className="m-0 mt-1 text-xs leading-relaxed text-warning">
-        A empresa pagadora deste evento ainda não foi definida pelo RH. As notas fiscais continuam disponíveis para consulta.
+        A empresa pagadora deste evento ainda não foi definida pelo DP. As notas fiscais continuam disponíveis para consulta.
       </p>
     </div>
   );
@@ -280,10 +289,10 @@ export default function InvoicesPage() {
         </span>
         <h2 className="m-0 text-base font-semibold text-foreground">Selecione um evento</h2>
         <p className="m-0 mt-1.5 max-w-[440px] text-sm leading-relaxed text-muted-foreground">
-          Selecione um evento para gerenciar as notas fiscais: o envio de cada colaborador, a análise do RH e o check-in financeiro.
+          Selecione um evento para gerenciar as notas fiscais: o envio de cada colaborador, a análise do DP e o lançamento no M4.
         </p>
         <div className="mt-5 w-full max-w-sm text-left">
-          <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={activeEvents} className="sm:w-full" />
+          <EventSearchSelect value={selectedEventId} onValueChange={trocarEvento} events={activeEvents} className="sm:w-full" legado={legado} />
         </div>
       </div>
     );
@@ -302,6 +311,7 @@ export default function InvoicesPage() {
           counts={{ lancamento: pendingCount, aprovacao: rhPendingCount, checkin: checkinPendingCount }}
           valores={{ lancamento: pendingValue, aprovacao: rhPendingValue, checkin: checkinPendingValue }}
           pagadora={pagadora}
+          rodape={<TrilhaDoEvento {...trilhaDoEvento} foco={["nf_enviada", "nf_lancada"]} className="border-t border-border" />}
         />
 
         <AbasDasNotas

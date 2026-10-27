@@ -59,7 +59,7 @@ function ResumoValores({ s }: { s: SplitState }) {
             não do planejado do RH — o rótulo antigo "Planejado prop." mentia */}
         <div
           className="px-3 py-3 text-center"
-          title={`Proporcional calculado sobre o realizado do titular, não sobre o planejado do RH${proportionalPlannedBreakdown ? ` — ${proportionalPlannedBreakdown}` : ''}`}
+          title={`Proporcional calculado sobre o realizado do titular, não sobre o planejado do DP${proportionalPlannedBreakdown ? ` — ${proportionalPlannedBreakdown}` : ''}`}
         >
           <div className="text-2xs uppercase text-muted-foreground font-semibold tracking-widest mb-1">Base do titular (realizado)</div>
           <div className="text-sm font-bold text-slate-600 tabular-nums">{fmtR$(proportionalPlanned)}</div>

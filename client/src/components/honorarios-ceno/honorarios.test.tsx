@@ -12,7 +12,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { Tabs } from "@/components/ui/tabs";
 import { renderComTudo } from "@/test/render";
 import { mockarFetch, respostaJson, usuarioFake, type RoteadorDeFetch } from "@/test/fixtures";
-import { visibleTabs } from "@/components/layout/nav-items";
+import { groupOf, tabById, visibleTabs } from "@/components/layout/nav-items";
 import { PedidoPainel } from "./pedido-painel";
 import { AprovacaoPainel } from "./aprovacao-painel";
 import { AbaHonorarioDaVaga, useHonorarioDaVaga } from "./aba-da-vaga";
@@ -508,6 +508,9 @@ describe("Honorários — tela Aprovação de honorários", () => {
     const comAcesso = ids({ aprovaHonorarios: true });
     expect(comAcesso).toContain("aprovacao-de-honorarios");
     expect(comAcesso.indexOf("aprovacao-de-honorarios")).toBe(comAcesso.indexOf("scaling-approval") + 1);
+    // 26/10 (dono): continua no Operacional › Escala, com o mesmo nome.
+    expect(groupOf("aprovacao-de-honorarios")).toMatchObject({ group: { title: "Operacional" }, subLabel: "Escala" });
+    expect(tabById("aprovacao-de-honorarios")?.label).toBe("Aprovação de honorários");
   });
 });
 

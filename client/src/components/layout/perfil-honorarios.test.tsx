@@ -23,12 +23,13 @@ const roteador = (url: string) => {
 };
 
 describe("Perfil Honorários — permissões do client", () => {
-  it("só a tela Honorários da cenotécnica; RH e admin continuam abrindo", () => {
+  it("só a tela Honorários da cenotécnica; DP e admin continuam abrindo", () => {
     const p = getRolePermissions("honorarios");
     const ligadas = Object.entries(p).filter(([, v]) => v).map(([k]) => k);
     expect(ligadas).toEqual(["canAccessHonorariosCeno"]);
     expect(visibleTabs(honorarios).map((t) => t.path)).toEqual(["/honorarios-ceno"]);
-    expect(visibleGroups(honorarios).map((g) => [g.group.title, g.items.map((i) => i.label)])).toEqual([["Financeiro", ["Honorários da cenotécnica"]]]);
+    // 26/10: o grupo "Financeiro" virou "Honorários" (slide 11); a tela mantém o nome.
+    expect(visibleGroups(honorarios).map((g) => [g.group.title, g.items.map((i) => i.label)])).toEqual([["Honorários", ["Honorários da cenotécnica"]]]);
     expect(hasPermission(usuarioFake({ role: "financial" }), "canAccessHonorariosCeno")).toBe(true);
     expect(hasPermission(usuarioFake({ role: "admin" }), "canAccessHonorariosCeno")).toBe(true);
     expect(hasPermission(usuarioFake({ role: "production" }), "canAccessHonorariosCeno")).toBe(false);

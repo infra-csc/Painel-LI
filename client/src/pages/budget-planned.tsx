@@ -14,10 +14,18 @@
  * e recorta, a barra de filtros (que agora vale e aparece nas duas vistas),
  * a lista (cards ou planilha) e a barra de seleção que sobe do rodapé com a
  * ação forte: "Enviar ao Realizado (N)".
+ *
+ * 26/10 (Módulo de Honorários, Fase 0): a tela é "Pré-aprovação de
+ * valores". Ata de 22/10: "nenhum registro é liberado para a Produção sem a
+ * pré-aprovação do DP" — o DP pré-aprova (linha, seleção ou o evento
+ * inteiro, com a prévia do total) e só o pré-aprovado vai ao Realizado; o
+ * valor que muda depois volta a pedir a pré-aprovação. O evento ganhou o
+ * interruptor "não exibir valores ao colaborador" (ligado até a OC) e a
+ * lista de eventos abre sem o legado (antes da data de corte).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
-import { AlertCircle, Calculator, CloudOff, ListChecks, RefreshCw, RotateCw, Send, X } from "lucide-react";
+import { AlertCircle, BadgeCheck, Calculator, CloudOff, ListChecks, RefreshCw, RotateCw, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EventSearchSelect } from "@/components/event-select";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
@@ -47,6 +55,13 @@ import { TEXTO_RASCUNHO_LOCAL } from "@/components/budget/selo-do-rascunho";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ddmm, nomeDaVaga as nomeDaVagaDe, type CalculatedBudget } from "@/components/budget/types";
 import { usarHonorarioAprovado } from "@/components/budget/honorario-no-planejado";
+import {
+  DesfazerPreAprovacaoDialog, OcultarValoresDoEvento, PreAprovarDialog,
+  type PedidoDePreAprovacao, type PlanejadoDaTela,
+} from "@/components/budget/pre-aprovacao";
+import { useFiltroDoLegado } from "@/components/honorarios/use-honorarios";
+import { pedePreAprovacao, podeLiberarParaProducao } from "@shared/pre-aprovacao";
+import { useSituacaoContratualNoEvento } from "@/components/contratos/pecas";
 
 /** "09/10 – 11/10/2026" (ou só o dia de início). */
 function periodoDoEvento(e: Event | undefined): string {
@@ -57,7 +72,9 @@ function periodoDoEvento(e: Event | undefined): string {
 }
 
 export default function BudgetPlannedPage() {
-  usePageTitle("Planejado");
+  usePageTitle("Pré-aprovação de valores");
+  // Abre sem os eventos legados (antes da data de corte), com filtro para ver (26/10).
+  const legado = useFiltroDoLegado();
   const searchString = useSearch();
   const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
     const p = new URLSearchParams(searchString);
@@ -125,17 +142,22 @@ export default function BudgetPlannedPage() {
   }, [q.teamInclusions, urlCollaboratorId, urlFunctionId]);
 
   const draft = useBudgetDraft(selectedEventId, usuarioId);
+  // Contrato ativo do CNPJ (Fase 0): só o DP pergunta; para os outros o mapa vem vazio.
+  const situacaoContratual = useSituacaoContratualNoEvento(selectedEventId);
   const { budgetOverrides, setBudgetOverrides, draftRestored, setDraftRestored } = draft;
   const nAjustes = Object.keys(budgetOverrides).length;
+  const eventoLegado = legado.ehLegado(selectedEvent);
 
   const motor = useBudgetEngine({
     teamInclusions: q.teamInclusions, functionValues, collaborators, functionNamesById: functionNameById, systemSettings,
     ticketByInclusion, eventLocation: selectedEvent?.location ?? null, budgetOverrides,
     allBudgetPlanned: q.budgetPlanned, existingActuals: q.budgetActual, honorarios: q.honorarios,
+    // 27/10: evento legado (antes da data de corte) vai ao Realizado sem a pré-aprovação.
+    eventoLegado,
   });
-  const { calculatedBudgets, sentToActual, notAttendedKeys, isCardNotAttended, plannedByCollabFunc, actualsByCollabFunc, totalGeral, stats } = motor;
+  const { calculatedBudgets, sentToActual, notAttendedIds, isCardNotAttended, situacaoDaVaga, plannedByVaga, actualsByCollabFunc, totalGeral, stats } = motor;
 
-  const filtros = useBudgetFilters({ calculatedBudgets, getCollaboratorName, getFunctionName, sentToActual, notAttendedKeys });
+  const filtros = useBudgetFilters({ calculatedBudgets, getCollaboratorName, getFunctionName, sentToActual, notAttendedIds, situacaoDaVaga });
   const { filteredBudgets, selectableFiltered, selectedIds, setSelectedIds } = filtros;
 
   const nomeDaVaga = useCallback((b: CalculatedBudget) => nomeDaVagaDe(b.inclusion, getCollaboratorName), [getCollaboratorName]);
@@ -146,9 +168,48 @@ export default function BudgetPlannedPage() {
 
   const acoes = useBudgetPlannedActions({
     selectedEventId, userId: user?.id, allBudgetPlanned: q.budgetPlanned, calculatedBudgets, selectedIds, setSelectedIds,
-    sentToActual, isCardNotAttended, clearDraftEntries: draft.clearDraftEntries,
+    sentToActual, isCardNotAttended, clearDraftEntries: draft.clearDraftEntries, situacaoDaVaga, plannedByVaga,
   });
   const { toggleNotAttendedMutation, createAndMarkNotAttendedMutation, sendToActualMutation, sendSelectedToActualMutation } = acoes;
+
+  // ── Pré-aprovação do DP (26/10) ──
+  const { setPedidoDePreAprovacao, setDesfazer } = acoes;
+  /** Separa o que pede a pré-aprovação do que fica de fora (e por quê) para a prévia. */
+  const montarPedido = useCallback((base: CalculatedBudget[], origem: PedidoDePreAprovacao["origem"], recorte?: string): PedidoDePreAprovacao => {
+    const alvos: CalculatedBudget[] = [];
+    const deFora = { enviados: 0, ausentes: 0, jaPreAprovados: 0 };
+    for (const b of base) {
+      const s = situacaoDaVaga(b);
+      if (s === "enviado") deFora.enviados++;
+      else if (s === "nao_participou") deFora.ausentes++;
+      else if (s === "pre_aprovado") deFora.jaPreAprovados++;
+      else if (pedePreAprovacao(s)) alvos.push(b);
+      // "legado" (27/10): fluxo antigo, não pede a pré-aprovação — fica de fora do lote.
+    }
+    return { alvos, origem, deFora, recorte };
+  }, [situacaoDaVaga]);
+  const preAprovarUm = useCallback((b: CalculatedBudget) => setPedidoDePreAprovacao(montarPedido([b], "linha")), [montarPedido, setPedidoDePreAprovacao]);
+  const preAprovarVarios = useCallback((lista: CalculatedBudget[]) => setPedidoDePreAprovacao(montarPedido(lista, "selecao")), [montarPedido, setPedidoDePreAprovacao]);
+  const desfazerUm = useCallback((b: CalculatedBudget) => {
+    const planejado = plannedByVaga.get(b.inclusion.id) as PlanejadoDaTela | undefined;
+    if (!planejado) return;
+    setDesfazer({ planejado, nome: nomeDaVagaDe(b.inclusion, getCollaboratorName), funcao: getFunctionName(b.inclusion.functionId), valor: b.totalFinal });
+  }, [plannedByVaga, setDesfazer, getCollaboratorName, getFunctionName]);
+  // O que o lote do evento pré-aprova: o recorte visível (sem filtro = o evento inteiro).
+  const aPreAprovarVisiveis = useMemo(
+    () => filtros.filteredBudgets.filter(b => pedePreAprovacao(situacaoDaVaga(b))),
+    [filtros.filteredBudgets, situacaoDaVaga],
+  );
+  // O que já pode ir ao Realizado: pré-aprovado — ou legado, pelo fluxo antigo (27/10).
+  const preAprovadosVisiveis = useMemo(
+    () => filtros.filteredBudgets.filter(b => podeLiberarParaProducao(situacaoDaVaga(b))),
+    [filtros.filteredBudgets, situacaoDaVaga],
+  );
+  const preAprovarEvento = () => setPedidoDePreAprovacao(montarPedido(
+    filtros.algumFiltro ? filtros.filteredBudgets : calculatedBudgets,
+    "evento",
+    filtros.algumFiltro ? "filtros ligados" : undefined,
+  ));
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedCards(prev => {
@@ -183,6 +244,18 @@ export default function BudgetPlannedPage() {
     () => calculatedBudgets.reduce((s, b) => (selectedIds.has(b.inclusion.id) ? s + b.totalFinal : s), 0),
     [calculatedBudgets, selectedIds],
   );
+  // Da seleção: quem já pode ir ao Realizado e quem ainda pede a pré-aprovação.
+  const { selPreAprovados, selAPreAprovar } = useMemo(() => {
+    const pre: CalculatedBudget[] = [];
+    const pedem: CalculatedBudget[] = [];
+    for (const b of calculatedBudgets) {
+      if (!selectedIds.has(b.inclusion.id)) continue;
+      const s = situacaoDaVaga(b);
+      if (podeLiberarParaProducao(s)) pre.push(b);
+      else if (pedePreAprovacao(s)) pedem.push(b);
+    }
+    return { selPreAprovados: pre, selAPreAprovar: pedem };
+  }, [calculatedBudgets, selectedIds, situacaoDaVaga]);
   const todosEnviados = stats.total > 0 && stats.progressoEnvio >= 100;
   const temLista = !!selectedEventId && !carregando && !comErro && calculatedBudgets.length > 0;
   const allSelected = selectableFiltered.length > 0 && selectableFiltered.every(b => selectedIds.has(b.inclusion.id));
@@ -196,7 +269,7 @@ export default function BudgetPlannedPage() {
   const acoesDaBarra = (
     <>
       {podeGravar && (
-        <MotivoDesabilitado motivo="Aplica os valores padrão configurados em Sistema a todos os orçamentos ainda não enviados" desabilitado={acoes.isApplyingDefaults}>
+        <MotivoDesabilitado motivo="Aplica os valores da Tabela de valores a todos os orçamentos ainda não enviados" desabilitado={acoes.isApplyingDefaults}>
           <Button
             variant="outline"
             onClick={() => setConfirmarPadroes(true)}
@@ -209,20 +282,31 @@ export default function BudgetPlannedPage() {
           </Button>
         </MotivoDesabilitado>
       )}
-      {podeGravar && temLista && !todosEnviados && (
-        /* Sem nada marcado o botão não fica inerte: marca os pendentes visíveis.
-           Com marcados, vira a ação principal (cheio) e abre a confirmação. */
+      {/* 1º passo (26/10): o DP pré-aprova — o recorte visível ou o evento inteiro, com prévia. */}
+      {podeGravar && temLista && aPreAprovarVisiveis.length > 0 && nSel === 0 && (
         <Button
           type="button"
-          variant={nSel > 0 ? "default" : "outline"}
-          onClick={() => (nSel > 0 ? enviarLote(Array.from(selectedIds)) : filtros.selectAllCards())}
-          disabled={nSel === 0 && selectableFiltered.length === 0}
-          title={nSel === 0 && selectableFiltered.length === 0 ? "Nenhum colaborador pendente neste recorte" : undefined}
-          className={`pas-alvo shrink-0 h-[34px] rounded-lg px-3 text-sm font-medium gap-1.5 ${nSel > 0 ? "bg-primary hover:bg-primary-hover text-primary-foreground" : ""}`}
+          onClick={preAprovarEvento}
+          className="pas-alvo shrink-0 h-[34px] rounded-lg px-3 text-sm font-semibold gap-1.5 bg-success-strong hover:bg-success-strong/90 text-white"
+          data-testid="planejado-pre-aprovar-evento"
+        >
+          <BadgeCheck className="w-4 h-4" aria-hidden="true" />
+          Pré-aprovar<span className="max-[1480px]:hidden">{filtros.algumFiltro ? " o recorte" : " o evento"}</span> ({aPreAprovarVisiveis.length})
+        </Button>
+      )}
+      {/* 2º passo: só o pré-aprovado vai ao Realizado (liberado para a Produção). */}
+      {podeGravar && temLista && !todosEnviados && (nSel > 0 || preAprovadosVisiveis.length > 0) && (
+        <Button
+          type="button"
+          variant={nSel > 0 || aPreAprovarVisiveis.length === 0 ? "default" : "outline"}
+          onClick={() => (nSel > 0 ? enviarLote(Array.from(selectedIds)) : filtros.setSelectedIds(new Set(preAprovadosVisiveis.map(b => b.inclusion.id))))}
+          disabled={nSel > 0 && selPreAprovados.length === 0}
+          title={nSel > 0 && selPreAprovados.length === 0 ? "Nenhum selecionado tem a pré-aprovação do DP" : undefined}
+          className={`pas-alvo shrink-0 h-[34px] rounded-lg px-3 text-sm font-medium gap-1.5 ${nSel > 0 || aPreAprovarVisiveis.length === 0 ? "bg-primary hover:bg-primary-hover text-primary-foreground" : ""}`}
           data-testid="planejado-acao-principal"
         >
           {nSel > 0 ? <Send className="w-4 h-4" aria-hidden="true" /> : <ListChecks className="w-4 h-4" aria-hidden="true" />}
-          {nSel > 0 ? `Enviar ao Realizado (${nSel})` : `Selecionar pendentes${selectableFiltered.length > 0 ? ` (${selectableFiltered.length})` : ""}`}
+          {nSel > 0 ? `Enviar ao Realizado (${selPreAprovados.length})` : <>{eventoLegado ? "Selecionar a enviar" : "Selecionar pré-aprovados"}<span className="max-sm:hidden"> ({preAprovadosVisiveis.length})</span></>}
         </Button>
       )}
     </>
@@ -231,7 +315,7 @@ export default function BudgetPlannedPage() {
   const barra = (
     <PageHeader
       variant="bar"
-      title="Planejado"
+      title="Pré-aprovação de valores"
       // No celular a barra tem três andares: grudada, comia um quarto da tela (como no Espelho).
       className="mx-0 mt-0 gap-x-3 max-sm:static"
       subtitle={selectedEventId ? undefined : "orçamento previsto por colaborador, calculado das escalações confirmadas"}
@@ -244,6 +328,7 @@ export default function BudgetPlannedPage() {
           onValueChange={setSelectedEventId}
           events={eventsWithInclusions}
           detalhe={detalheDoEvento}
+          legado={legado}
         />
       </> : undefined}
       actions={acoesDaBarra}
@@ -260,10 +345,10 @@ export default function BudgetPlannedPage() {
         </span>
         <h2 className="m-0 text-base font-semibold text-foreground">Selecione um evento</h2>
         <p className="m-0 mt-1.5 max-w-[460px] text-sm leading-relaxed text-muted-foreground">
-          Visualize o orçamento previsto com base nas escalações confirmadas. Diárias, alimentação e mobilidade são calculadas automaticamente — você ajusta o que precisar e envia para a prestação de contas.
+          Valores previstos a partir das escalações confirmadas. Diárias, alimentação e mobilidade são calculadas automaticamente — o DP confere, ajusta o que precisar e pré-aprova; só o pré-aprovado vai ao Realizado.
         </p>
         <div className="mt-5 w-full max-w-sm text-left">
-          <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} className="sm:w-full" />
+          <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} className="sm:w-full" legado={legado} />
         </div>
       </div>
     );
@@ -316,7 +401,13 @@ export default function BudgetPlannedPage() {
   } else {
     conteudo = (
       <>
-        {calculatedBudgets.length > 0 && <BudgetOverviewCards selectedEvent={selectedEvent} totalGeral={totalGeral} stats={stats} />}
+        {/* "Não exibir valores" ao colaborador (26/10): do evento, padrão ligado, até a OC. */}
+        {selectedEvent && (
+          <div className="rounded-xl border border-border bg-card px-4 py-3">
+            <OcultarValoresDoEvento evento={selectedEvent} podeMudar={podeGravar} />
+          </div>
+        )}
+        {calculatedBudgets.length > 0 && <BudgetOverviewCards selectedEvent={selectedEvent} totalGeral={totalGeral} stats={stats} vagasNaTela={calculatedBudgets.length} />}
 
         {/* ── Rascunho restaurado: ajustes salvos que ainda não foram enviados.
              Desde 08/10 o rascunho mora no servidor e volta em qualquer
@@ -328,7 +419,7 @@ export default function BudgetPlannedPage() {
               <span className="font-semibold">Rascunho de edições restaurado.</span>{" "}
               {draft.draftStatus === "local"
                 ? (nAjustes === 1 ? "1 ajuste guardado neste navegador voltou" : `${nAjustes} ajustes guardados neste navegador voltaram`)
-                : (nAjustes === 1 ? "1 ajuste do seu rascunho voltou" : `${nAjustes} ajustes do seu rascunho voltaram`)} — eles só valem quando forem enviados ao Realizado.
+                : (nAjustes === 1 ? "1 ajuste do seu rascunho voltou" : `${nAjustes} ajustes do seu rascunho voltaram`)} — eles só valem quando forem pré-aprovados e enviados ao Realizado.
             </p>
             <button
               type="button"
@@ -365,7 +456,7 @@ export default function BudgetPlannedPage() {
             sentToActual={sentToActual}
             selectedIds={selectedIds}
             collapsedCards={collapsedCards}
-            plannedByCollabFunc={plannedByCollabFunc}
+            plannedByVaga={plannedByVaga}
             actualsByCollabFunc={actualsByCollabFunc}
             eventNotes={q.eventNotes}
             nomeDaVaga={nomeDaVaga}
@@ -380,6 +471,10 @@ export default function BudgetPlannedPage() {
             onNotAttended={acoes.setNotAttendedModal}
             onRestore={acoes.setRestoreModal}
             onUsarHonorario={usarHonorario}
+            situacaoDaVaga={situacaoDaVaga}
+            onPreAprovar={preAprovarUm}
+            onDesfazerPreAprovacao={desfazerUm}
+            situacaoContratual={situacaoContratual}
             selectableCount={selectableFiltered.length}
             allSelected={allSelected}
             onSelectAll={(v) => (v ? filtros.selectAllCards() : filtros.clearSelection())}
@@ -406,6 +501,8 @@ export default function BudgetPlannedPage() {
             getFunctionName={getFunctionName}
             isAdmin={isRhOrAdmin(user)}
             onSend={enviarLote}
+            situacaoDaVaga={situacaoDaVaga}
+            onPreAprovar={preAprovarVarios}
             algumFiltro={filtros.algumFiltro}
             onLimparFiltros={filtros.limparFiltros}
           />
@@ -418,6 +515,9 @@ export default function BudgetPlannedPage() {
           onSend={enviarLote}
           onLimpar={filtros.clearSelection}
           isSending={isSending}
+          nPreAprovados={selPreAprovados.length}
+          nAPreAprovar={selAPreAprovar.length}
+          onPreAprovar={() => preAprovarVarios(selAPreAprovar)}
         />}
       </>
     );
@@ -440,7 +540,7 @@ export default function BudgetPlannedPage() {
         onOpenChange={setConfirmarPadroes}
         icon={RefreshCw}
         title="Atualizar com os valores padrão?"
-        description="Os valores padrão configurados em Sistema serão aplicados a todos os orçamentos deste evento que ainda não foram enviados ao Realizado. Os já enviados não mudam."
+        description="Os valores padrão da Tabela de valores serão aplicados a todos os orçamentos deste evento que ainda não foram enviados ao Realizado. Os já enviados não mudam; pré-aprovado cujo valor mudar volta a pedir a pré-aprovação do DP."
         confirmLabel="Atualizar padrões"
         pending={acoes.isApplyingDefaults}
         testId="planejado-confirmar-padroes"
@@ -463,6 +563,24 @@ export default function BudgetPlannedPage() {
         isSending={isSending}
         onSendSingle={b => sendToActualMutation.mutate(b)}
         onSendSelected={() => sendSelectedToActualMutation.mutate()}
+        situacaoDaVaga={situacaoDaVaga}
+      />
+
+      {/* ── Pré-aprovação do DP (26/10): linha, seleção ou evento, com prévia ── */}
+      <PreAprovarDialog
+        pedido={acoes.pedidoDePreAprovacao}
+        onClose={() => acoes.setPedidoDePreAprovacao(null)}
+        onConfirm={(alvos) => acoes.preAprovarMutation.mutate(alvos)}
+        pending={acoes.preAprovarMutation.isPending}
+        nomeDaVaga={nomeDaVaga}
+        getFunctionName={getFunctionName}
+        situacaoDe={situacaoDaVaga}
+      />
+      <DesfazerPreAprovacaoDialog
+        alvo={acoes.desfazer}
+        onClose={() => acoes.setDesfazer(null)}
+        onConfirm={(id) => acoes.desfazerPreAprovacaoMutation.mutate(id)}
+        pending={acoes.desfazerPreAprovacaoMutation.isPending}
       />
 
       {/* ── Modal de confirmação de restauração ── */}

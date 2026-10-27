@@ -6,13 +6,15 @@ import { moeda, orcamentoFake, vagaDoPlanejado } from "@/test/orcamento-fixture"
 import { BudgetCard, type BudgetCardProps } from "./budget-card";
 
 function montar(extras: Partial<BudgetCardProps> = {}) {
-  const acoes = { onToggleSelect: vi.fn(), onToggleCollapse: vi.fn(), onEdit: vi.fn(), onSend: vi.fn(), onNotAttended: vi.fn(), onRestore: vi.fn() };
+  const acoes = { onToggleSelect: vi.fn(), onToggleCollapse: vi.fn(), onEdit: vi.fn(), onSend: vi.fn(), onNotAttended: vi.fn(), onRestore: vi.fn(), onPreAprovar: vi.fn(), onDesfazerPreAprovacao: vi.fn() };
   const budget = extras.budget ?? orcamentoFake();
   const props: BudgetCardProps = {
     budget, name: "Ana Souza", functionName: "Produção",
     isSent: false, isSelected: false, isCollapsed: false, isHighlighted: false,
     planRecord: undefined, cardActual: undefined, eventNotes: [],
     canEdit: true, canMarkNotAttended: true, restorePending: false,
+    // 26/10: pré-aprovado pelo DP — o envio fica disponível (os testes de pré-aprovação mudam isto).
+    situacao: "pre_aprovado",
     ...acoes, ...extras,
   };
   const utils = renderComTudo(<BudgetCard {...props} />);
@@ -72,15 +74,44 @@ describe("BudgetCard", () => {
     expect(onToggleCollapse).toHaveBeenCalledWith(budget.inclusion.id);
   });
 
-  it("enviado (isSent): 'Enviado', cadeado no lugar do checkbox, só visualizar — abre o modal em modo leitura", async () => {
-    const { user, budget, onEdit } = montar({ isSent: true });
-    expect(screen.getByText("Enviado")).toBeInTheDocument();
+  it("enviado (isSent): 'No Realizado', cadeado no lugar do checkbox, só visualizar — abre o modal em modo leitura", async () => {
+    const { user, budget, onEdit } = montar({ isSent: true, situacao: "enviado" });
+    expect(screen.getByText("No Realizado")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /Editar valores/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /para o Realizado/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /não participou/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Visualizar detalhes de Ana Souza" }));
     expect(onEdit).toHaveBeenCalledWith(budget, true);
+  });
+
+  // ── Pré-aprovação do DP (26/10) ──
+  it("sem a pré-aprovação: selo 'A pré-aprovar' e o botão Pré-aprovar no lugar do Enviar", async () => {
+    const { user, budget, onPreAprovar, onSend } = montar({ situacao: "pendente" });
+    expect(screen.getByText("A pré-aprovar")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enviar Ana Souza para o Realizado" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Pré-aprovar o valor de Ana Souza" }));
+    expect(onPreAprovar).toHaveBeenCalledWith(budget);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("pré-aprovado: selo, quem e quando, Enviar e Desfazer", async () => {
+    const plano = { id: "plan-1", status: "pre_aprovado", approvedAt: new Date("2026-10-26T17:32:00Z"), approvedByName: "Maria Souza", totalValue: 0 } as unknown as BudgetPlanned;
+    const { user, budget, onDesfazerPreAprovacao } = montar({ situacao: "pre_aprovado", planRecord: plano });
+    expect(screen.getByText("Pré-aprovado")).toBeInTheDocument();
+    expect(screen.getByTestId("planejado-quem-pre-aprovou")).toHaveTextContent("Pré-aprovado por Maria Souza · 26/10/2026");
+    expect(screen.getByRole("button", { name: "Enviar Ana Souza para o Realizado" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Desfazer a pré-aprovação de Ana Souza" }));
+    expect(onDesfazerPreAprovacao).toHaveBeenCalledWith(budget);
+  });
+
+  it("o valor mudou depois da pré-aprovação: aviso com o antes → depois e volta a pedir a pré-aprovação", () => {
+    const plano = { id: "plan-1", status: "pre_aprovado", approvedAt: new Date(), totalValue: 1_000 } as unknown as BudgetPlanned;
+    const { budget } = montar({ situacao: "desatualizado", planRecord: plano });
+    expect(screen.getByText("Valor mudou")).toBeInTheDocument();
+    expect(screen.getByTestId("planejado-valor-mudou")).toHaveTextContent(`${moeda(1_000)} → ${moeda(budget.totalFinal)}`);
+    expect(screen.getByRole("button", { name: "Pré-aprovar o valor de Ana Souza" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enviar Ana Souza para o Realizado" })).toBeNull();
   });
 
   it("recolhido esconde o corpo (os três blocos) e o botão vira 'Expandir'", () => {

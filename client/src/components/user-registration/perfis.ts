@@ -25,7 +25,7 @@ export const PERFIS: Perfil[] = [
   { value: "production",    label: "Logística Interna", icon: Truck,        resumo: "Opera os eventos: cadastros, escala, passagens e hospedagem." },
   { value: "function_area", label: "Área de Função",    icon: Network,      resumo: "Escala a equipe das próprias funções e valida a escala onde tiver esse papel." },
   { value: "purchasing",    label: "Compras / Viagem",  icon: ShoppingCart, resumo: "Passagens, hospedagem e bagagem; cadastra operadores." },
-  { value: "financial",     label: "RH",                icon: Users,        resumo: "Financeiro completo (planejado, realizado, notas, Flash); cadastra operadores." },
+  { value: "financial",     label: "Financeiro / DP",   icon: Users,        resumo: "Financeiro completo (planejado, realizado, notas, Flash); cadastra operadores." },
   // 23/10: uma tela só. O pedido segue da cenotécnica e a aprovação, do aprovador da escala.
   { value: "honorarios",    label: "Honorários (liberação)", icon: HandCoins, resumo: "Só os Honorários da cenotécnica: libera a verba e extrai os relatórios. Não lança nem aprova." },
 ];

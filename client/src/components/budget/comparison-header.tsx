@@ -18,69 +18,16 @@
 import { AlertTriangle, Calculator, Check, CheckCircle, Equal, Home, Loader2, MessageSquare, RefreshCw, RotateCcw, TrendingDown, TrendingUp, UserCheck, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
-import type { BudgetActual, BudgetComparison, Event } from "@shared/schema";
+import type { BudgetComparison, Event } from "@shared/schema";
 import { Metrica } from "./budget-overview-cards";
 import { diferencaComSinal } from "./actual-overview";
 import { formatCurrency, formatEventDate } from "./types";
 import type { ComparisonRow } from "./comparison-utils";
-import { entraNosTotaisDoComparativo, etapaDoComparativo as etapaDoComparativoRegra } from "@shared/comparativo";
+import { entraNosTotaisDoComparativo } from "@shared/comparativo";
+import { TrilhaDoEvento } from "@/components/honorarios/trilha-do-honorario";
+import { useTrilhaDoEvento } from "@/components/honorarios/use-honorarios";
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
-
-const ETAPAS = [
-  { label: "Escalação", desc: "Inclusões confirmadas" },
-  { label: "Planejamento RH", desc: "Valores previstos" },
-  { label: "Prestação", desc: "Resp. preenche realizado" },
-  { label: "Aprovação RH", desc: "Análise e aprovação" },
-  { label: "Nota fiscal", desc: "Liberada no envio do Realizado" },
-];
-
-/** Etapa atual: enquanto houver item sem envio/decisão, ainda é a Prestação;
- *  tudo enviado/decidido → Aprovação RH, que só passa para a Nota fiscal
- *  quando o comparativo é APROVADO (fechado) — regra em @shared/comparativo. */
-export function etapaDoComparativo(eventItems: BudgetActual[], statusDoComparativo?: string | null): number {
-  return etapaDoComparativoRegra(eventItems, statusDoComparativo);
-}
-
-/**
- * As cinco etapas numa linha — o desenho do `TrilhoDeEtapas` do Planejado
- * (mesmas classes), com a quinta etapa do Comparativo (Nota fiscal). O do
- * Planejado tem quatro etapas fixas e mora num arquivo de outra frente; por
- * isso a cópia curta aqui em vez de uma prop nova lá.
- */
-export function TrilhoDoComparativo({ atual }: { atual: number }) {
-  return (
-    <ol className="m-0 p-0 list-none flex items-center gap-1.5 min-w-0" aria-label={`Etapa atual: ${ETAPAS[atual].label}`} data-testid="trilho-comparativo">
-      {ETAPAS.map((s, i) => {
-        const feita = i < atual;
-        const ativa = i === atual;
-        return (
-          <li
-            key={s.label}
-            title={`${s.label} — ${s.desc}`}
-            aria-current={ativa ? "step" : undefined}
-            className={cn("flex items-center gap-1.5 min-w-0", !ativa && "max-md:hidden")}
-          >
-            {i > 0 && <span aria-hidden="true" className={cn("hidden md:block w-4 h-px shrink-0", feita || ativa ? "bg-success-strong/60" : "bg-border")} />}
-            <span
-              aria-hidden="true"
-              className={cn(
-                "inline-flex items-center justify-center w-[18px] h-[18px] rounded-full shrink-0 text-2xs font-semibold",
-                feita ? "bg-success-strong text-white" : ativa ? "pla-etapa-atual bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-              )}
-            >
-              {feita ? <Check className="w-2.5 h-2.5" strokeWidth={3.5} /> : i + 1}
-            </span>
-            <span className={cn("text-xs whitespace-nowrap", ativa ? "font-semibold text-foreground" : feita ? "text-success" : "text-muted-foreground")}>
-              {ativa && <span className="md:hidden text-muted-foreground font-normal">Etapa {i + 1} de {ETAPAS.length} · </span>}
-              {s.label}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
 
 export interface TotaisDoComparativo {
   totalPlanned: number;
@@ -94,19 +41,16 @@ export interface TotaisDoComparativo {
 
 export interface ResumoDoComparativoProps {
   selectedEvent: Event | undefined;
-  /** Todas as prestações do evento (etapa atual). */
-  budgetActual: BudgetActual[];
   /** Base do comparativo (enviadas ou decididas, divisões agrupadas). */
   comparisonData: ComparisonRow[];
   totals: TotaisDoComparativo;
   naoEnviadas: number;
-  /** Status do comparativo do evento: só o aprovado (fechado) leva o trilho à Nota fiscal. */
-  statusDoComparativo?: string | null;
 }
 
 /** Painel de resumo: o número da tela, a comparação e o andamento da análise. */
-export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonData, totals, naoEnviadas, statusDoComparativo }: ResumoDoComparativoProps) {
+export function ResumoDoComparativo({ selectedEvent, comparisonData, totals, naoEnviadas }: ResumoDoComparativoProps) {
   const { totalPlanned, totalActual, difference } = totals;
+  const trilha = useTrilhaDoEvento(selectedEvent?.id);
   const igual = Math.abs(difference) <= 1;
   const pct = totalPlanned > 0 && !igual ? Math.round((difference / totalPlanned) * 1000) / 10 : null;
   const n = comparisonData.length;
@@ -130,7 +74,7 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
           <p className="m-0 mt-0.5 text-[1.625rem] leading-8 font-semibold tracking-[-0.02em] tabular-nums text-primary" data-testid="total-comparativo">
             {formatCurrency(totalActual)}
           </p>
-          <p className="m-0 mt-0.5 text-xs text-muted-foreground tabular-nums truncate" title="Só entram as prestações enviadas para revisão pelo responsável de função e as aprovadas pelo RH; devolvidas e recusadas ficam fora dos totais até o reenvio">
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground tabular-nums truncate" title="Só entram as prestações enviadas para revisão pelo responsável de função e as aprovadas pelo DP; devolvidas e recusadas ficam fora dos totais até o reenvio">
             {plural(n, "prestação enviada", "prestações enviadas")}
             {naoEnviadas > 0 && (
               <span className="text-warning font-medium" title="Ainda não enviadas pelo responsável — ficam fora do comparativo até o envio no Realizado">
@@ -138,7 +82,7 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
               </span>
             )}
             {nForaDosTotais > 0 && (
-              <span title="Devolvidas ou recusadas pelo RH — seguem na lista, mas ficam fora dos totais até o reenvio" data-testid="comparativo-fora-dos-totais">
+              <span title="Devolvidas ou recusadas pelo DP — seguem na lista, mas ficam fora dos totais até o reenvio" data-testid="comparativo-fora-dos-totais">
                 {" "}· {nForaDosTotais} fora dos totais
               </span>
             )}
@@ -160,13 +104,13 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
         <Metrica icon={UserCheck} label="Freela" value={formatCurrency(totals.totalFreela)} sub={plural(totals.nFreela, "prestação", "prestações")} cor="text-warning" tooltip="Realizado dos colaboradores contratados por evento" />
       </div>
 
-      {/* Andamento: quanto o RH já aprovou e em que etapa o evento está. */}
+      {/* Andamento: quanto o DP já aprovou. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 border-t border-border bg-surface-muted/60">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0 max-sm:w-full" data-testid="progresso-analise">
-          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Análise do RH</span>
+          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Análise do DP</span>
           <span
             role="progressbar"
-            aria-label="Prestações aprovadas pelo RH"
+            aria-label="Prestações aprovadas pelo DP"
             aria-valuemin={0}
             aria-valuemax={n}
             aria-valuenow={nAprovadas}
@@ -180,10 +124,9 @@ export function ResumoDoComparativo({ selectedEvent, budgetActual, comparisonDat
               : `${nAprovadas} de ${n} aprovadas`}
           </span>
         </div>
-        <div className="md:ml-auto min-w-0">
-          <TrilhoDoComparativo atual={etapaDoComparativo(budgetActual, statusDoComparativo)} />
-        </div>
       </div>
+      {/* A trilha única do honorário (slide 8): onde está cada registro do evento. */}
+      <TrilhaDoEvento {...trilha} foco={["confirmado", "validado"]} className="border-t border-border" />
     </section>
   );
 }
@@ -204,7 +147,7 @@ export function ComentarioDoComparativo({ rhComment, comparison }: { rhComment: 
       <MessageSquare className={cn("w-4 h-4 mt-0.5 shrink-0", emAjuste ? "text-warning-strong" : "text-muted-foreground")} aria-hidden="true" />
       <div className="min-w-0">
         <p className={cn("m-0 text-sm font-semibold", emAjuste ? "text-warning" : "text-foreground")}>
-          Comentário do RH
+          Comentário do DP
           {comparison?.status === "devolvido" && <span className="font-normal"> — comparativo devolvido para ajuste</span>}
           {comparison?.status === "rejeitado" && <span className="font-normal"> — comparativo recusado</span>}
         </p>
@@ -257,7 +200,7 @@ export function FechamentoCard(p: FechamentoCardProps) {
             {observacao && (
               <p className="m-0 mt-1.5 flex items-start gap-1.5 text-xs leading-relaxed text-slate-600" data-testid="comentario-comparativo">
                 <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span><span className="font-medium text-slate-700">Comentário do RH:</span> {observacao}</span>
+                <span><span className="font-medium text-slate-700">Comentário do DP:</span> {observacao}</span>
               </p>
             )}
           </div>

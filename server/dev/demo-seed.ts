@@ -150,7 +150,7 @@ const PLANOS: PlanoDeEvento[] = [
   {
     nome: "Meia Maratona do Rio", local: "Aterro do Flamengo", cidade: "Rio de Janeiro - RJ",
     inicioEmDias: -29, duracaoDias: 2, status: "planejado",
-    observacoes: "Evento passado: Realizado em análise pelo RH.",
+    observacoes: "Evento passado: Realizado em análise pelo DP.",
     vagas: [...rep("aprovado", 18), ...rep("cancelado", 2)],
   },
   {
@@ -747,7 +747,7 @@ export async function semearDemo(db: Db): Promise<ResumoDoSeed> {
     logsDoSistema.push(logDoSistema("update", "team_inclusion", v.id, `Vaga #${v.inclusionNumber}`, `Escalação confirmada — ${nomeDoColab(v.collaboratorId)}`, u.production, v.updatedAt ?? new Date()));
   }
   logsDoSistema.push(logDoSistema("delete", "event", eventos[7].id, eventos[7].name, `Evento "${eventos[7].name}" excluído`, u.admin, em(addDias(hoje, -8))));
-  logsDoSistema.push(logDoSistema("approve", "budget_comparison", evSP.id, evSP.name, "Comparativo aprovado pelo RH", u.financial, em(addDias(evSP.endDate, 7))));
+  logsDoSistema.push(logDoSistema("approve", "budget_comparison", evSP.id, evSP.name, "Comparativo aprovado pelo DP", u.financial, em(addDias(evSP.endDate, 7))));
   logsDoSistema.push(logDoSistema("update", "user", u.aprovador.id, u.aprovador.name, "Permissão de aprovar cenotécnica concedida", u.admin, em(addDias(hoje, -60))));
   await db.insert(schema.systemLogs).values(logsDoSistema);
 

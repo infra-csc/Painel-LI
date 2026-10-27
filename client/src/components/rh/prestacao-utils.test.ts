@@ -73,12 +73,12 @@ describe("prazoDaLinha", () => {
   it("aprovada para faturamento não tem prazo", () => {
     expect(prazoDaLinha(base({ status: "aprovada_faturamento" }), agora)).toBeNull();
   });
-  it("do RH: evento encerrado vira alerta de perigo; começando em até 14 dias, atenção", () => {
+  it("do DP: evento encerrado vira alerta de perigo; começando em até 14 dias, atenção", () => {
     expect(prazoDaLinha(base({ event: evento("2026-09-11", "2026-09-12") }), agora)).toEqual({ texto: "Evento encerrado há 26 dias", tom: "perigo", alerta: true });
     expect(prazoDaLinha(base({ event: evento("2026-10-09", "2026-10-11") }), agora)).toEqual({ texto: "Evento em 1 dia", tom: "atencao", alerta: true });
     expect(prazoDaLinha(base({ event: evento("2026-10-07", "2026-10-09") }), agora)?.texto).toBe("Evento em andamento");
   });
-  it("fora do RH: parado há mais de 30 dias é alerta", () => {
+  it("fora do DP: parado há mais de 30 dias é alerta", () => {
     const antigo = new Date(agora.getTime() - 40 * 864e5).toISOString();
     expect(prazoDaLinha(base({ status: "aguardando_prestacao", lastActivityDate: antigo }))).toMatchObject({ tom: "perigo", alerta: true });
   });

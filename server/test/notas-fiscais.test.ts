@@ -185,7 +185,7 @@ describe("POST /api/invoices/:id/checkin", () => {
 
     const denovo = await mutacao(agent.post(`/api/invoices/${nota.id}/checkin`)).send({ paymentDate: "2099-10-21" });
     expect(denovo.status).toBe(400);
-    expect(denovo.body.message).toContain("check-in");
+    expect(denovo.body.message).toContain("lançada no M4");
 
     const noBanco = await ctx.storage.getInvoice(nota.id);
     expect(noBanco?.checkinAt?.toISOString()).toBe(ok.body.checkinAt);

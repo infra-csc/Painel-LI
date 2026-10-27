@@ -12,6 +12,9 @@ import { eq, and, ne, inArray } from "drizzle-orm";
 import { isFinanceRole } from "@shared/roles";
 import { HttpError } from "../http";
 import { podeDecidirPrestacao, podeEnviarParaRevisao, prestacaoEstaTravada } from "@shared/prestacao-rules";
+import { CAMPOS_DE_VALOR_DO_PLANEJADO, ROTULO_DO_CAMPO_DE_VALOR, camposDeValorQueMudaram, estaPreAprovado } from "@shared/pre-aprovacao";
+import { ehEventoLegado } from "@shared/legado-honorarios";
+import { lerDataDeCorteDoBanco } from "./honorarios-fluxo";
 import {
   montarLogDeAuditoria,
   createAuditLog,
@@ -66,6 +69,47 @@ export function registrarOrcamentoRealizado(app: Express): void {
         rhStatus: _rs, sentForReview: _sfr, rhActionBy: _rab, rhActionAt: _raa, rhAdjusted: _ra,
         rhAdjustedFields: _raf, resubmitted: _re, didNotAttend: _dna, didNotAttendReason: _dnr, ...data
       } = insertBudgetActualSchema.parse(req.body);
+      // Ata de 22/10 (Honorários, Fase 0): "nenhum registro é liberado para a
+      // Produção sem a pré-aprovação do DP". Vindo do Planejado, a linha tem
+      // que estar pré-aprovada — e um valor mudado depois da pré-aprovação a
+      // devolve a pendente no PATCH que o envio faz logo antes deste POST. O
+      // que já está no Realizado não muda; lançamento direto no Realizado (sem
+      // plannedId) é o próprio DP e segue como antes.
+      if (data.plannedId) {
+        const planejado = await storage.getBudgetPlannedById(data.plannedId);
+        if (!planejado) return res.status(404).json({ message: "Linha do Planejado não encontrada." });
+        // 27/10 (decisão do dono): evento LEGADO (termina antes da data de
+        // corte) segue o fluxo antigo — vai sem a pré-aprovação, como antes.
+        const evento = await storage.getEvent(planejado.eventId);
+        const legado = ehEventoLegado(evento?.endDate ?? null, await lerDataDeCorteDoBanco());
+        if (!legado) {
+          if (!estaPreAprovado(planejado.status)) {
+            return res.status(409).json({
+              message: "Esta linha ainda não tem a pré-aprovação do DP (ou o valor mudou depois dela). Pré-aprove no Planejado antes de enviar ao Realizado.",
+              codigo: "sem_pre_aprovacao",
+            });
+          }
+          // 27/10: vai ao Realizado o MESMO valor, a MESMA pessoa e função que
+          // o DP pré-aprovou. Campo ausente no corpo vale 0 (é o que a coluna
+          // do Realizado grava).
+          const valoresDoCorpo = Object.fromEntries(CAMPOS_DE_VALOR_DO_PLANEJADO.map((c) => [c, data[c] ?? 0]));
+          const mudaram = camposDeValorQueMudaram(planejado, valoresDoCorpo);
+          const outraVaga = (data.collaboratorId ?? null) !== (planejado.collaboratorId ?? null)
+            || (data.functionId ?? null) !== (planejado.functionId ?? null)
+            || data.eventId !== planejado.eventId;
+          if (mudaram.length > 0 || outraVaga) {
+            const oQue = [
+              ...(outraVaga ? ["colaborador/função"] : []),
+              ...mudaram.map((c) => ROTULO_DO_CAMPO_DE_VALOR[c]),
+            ].join(", ");
+            return res.status(409).json({
+              message: `O envio não confere com o que o DP pré-aprovou (${oQue}). Atualize a tela e pré-aprove de novo antes de enviar ao Realizado.`,
+              codigo: "valor_diferente_do_pre_aprovado",
+              campos: mudaram,
+            });
+          }
+        }
+      }
       const actual = await storage.createBudgetActual({ ...data, createdBy: actorId });
       const actor = usuarioDaSessao(req);
       await createAuditLog('create', 'budget_actual', actual.id, actual, actorId, actor?.name || 'Sistema', undefined, req);
@@ -82,12 +126,18 @@ export function registrarOrcamentoRealizado(app: Express): void {
     try {
       const { eventId } = req.params;
       const actor = usuarioDaSessao(req);
+      // Evento legado (27/10): fluxo antigo, sem exigir a pré-aprovação.
+      const evento = await storage.getEvent(eventId);
+      const legado = ehEventoLegado(evento?.endDate ?? null, await lerDataDeCorteDoBanco());
       // Idempotência DENTRO da transação (23/09): dois cliques simultâneos
       // passavam pela checagem e duplicavam todas as prestações do evento.
       const duplicated = await db.transaction(async (tx) => {
         const existing = await tx.select({ id: budgetActualTable.id }).from(budgetActualTable).where(eq(budgetActualTable.eventId, eventId)).limit(1);
         if (existing.length > 0) throw new HttpError(409, "Este evento já tem prestações no Realizado — duplicação ignorada.");
-        const planned = await tx.select().from(budgetPlannedTable).where(eq(budgetPlannedTable.eventId, eventId));
+        // Só o que o DP pré-aprovou é liberado para a Produção (26/10) — exceto
+        // em evento legado (27/10); quem não participou também fica de fora.
+        const planned = (await tx.select().from(budgetPlannedTable).where(eq(budgetPlannedTable.eventId, eventId)))
+          .filter((p) => (legado || estaPreAprovado(p.status)) && !p.didNotAttend);
         if (planned.length === 0) return [];
         return await tx.insert(budgetActualTable).values(planned.map((p) => ({
           plannedId: p.id,
@@ -274,7 +324,7 @@ export function registrarOrcamentoRealizado(app: Express): void {
       const isRhAdmin = isFinanceRole(actor?.role);
       // Item em análise ou aprovado é imutável para quem não é RH/admin
       if (!isRhAdmin && prestacaoEstaTravada(prev)) {
-        return res.status(400).json({ message: "Este item está em análise ou aprovado — apenas o RH pode ajustá-lo." });
+        return res.status(400).json({ message: "Este item está em análise ou aprovado — apenas o DP pode ajustá-lo." });
       }
 
       // Track which monetary fields the RH changed
@@ -442,8 +492,8 @@ export function registrarOrcamentoRealizado(app: Express): void {
         montarLogDeAuditoria(logAction, 'budget_actual', r.id, { ...r, comment: comment || null }, finUser.id, finUser.name || 'Sistema', anteriorPorId.get(r.id), req)));
       res.json({ updated: results.length, items: results, skipped });
     } catch (error) {
-      console.error("Error performing RH action:", error);
-      res.status(400).json({ message: "Erro ao processar ação do RH" });
+      console.error("Error performing DP action:", error);
+      res.status(400).json({ message: "Erro ao processar ação do DP" });
     }
   });
 }

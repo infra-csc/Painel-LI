@@ -26,11 +26,11 @@ import type { AbaBaseProps } from "./types";
 const LANC_FILTERS = [
   { id: "all",               label: "Todos" },
   { id: "pendente",          label: "Pendente",           dot: getStatusCfg("pendente").dot },
-  { id: "enviada",           label: "Aguardando RH",      dot: getStatusCfg("enviada").dot },
+  { id: "enviada",           label: "Aguardando DP",      dot: getStatusCfg("enviada").dot },
   { id: "devolvida",         label: "Devolvida",          dot: getStatusCfg("devolvida").dot },
   { id: "recusada",          label: "NF recusada",        dot: getStatusCfg("recusada").dot },
-  { id: "checkin-pendente",  label: "Aguard. check-in",   dot: getStatusCfg("checkin-pendente").dot },
-  { id: "checkin-realizado", label: "Check-in realizado", dot: getStatusCfg("checkin-realizado").dot },
+  { id: "checkin-pendente",  label: "Aguard. M4",   dot: getStatusCfg("checkin-pendente").dot },
+  { id: "checkin-realizado", label: "Lançada no M4", dot: getStatusCfg("checkin-realizado").dot },
   { id: "sem-nf",            label: "Não emite NF",       dot: "bg-slate-300" },
 ];
 

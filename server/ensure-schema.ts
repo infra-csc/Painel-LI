@@ -426,6 +426,112 @@ const PASSOS: Passo[] = [
     descricao: "índice hospedagens_do_espelho_evento_idx",
     sql: `CREATE INDEX IF NOT EXISTS hospedagens_do_espelho_evento_idx ON hospedagens_do_espelho (event_id)`,
   },
+  // 26/10 — Módulo de Honorários, Fase 0 (parte B): contratos (CNPJ) e dados
+  // de pagamento do colaborador. Tabelas novas e aditivas; o app não tem
+  // db:push, então nascem aqui no boot. Espelho:
+  // scripts/migrations/2026-10-26-contratos-e-pagamento.sql.
+  {
+    descricao: "tabela contratos (CNPJ do titular do contrato)",
+    sql: `CREATE TABLE IF NOT EXISTS contratos (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      cnpj text NOT NULL,
+      razao_social text NOT NULL,
+      nome_fantasia text,
+      tipo text NOT NULL DEFAULT 'empresa',
+      vigencia_inicio date,
+      vigencia_fim date,
+      observacao text,
+      anexo_id text,
+      anexo_nome text,
+      encerrado_em timestamptz,
+      encerrado_por varchar,
+      encerrado_por_nome text,
+      motivo_encerramento text,
+      versao integer NOT NULL DEFAULT 1,
+      criado_por varchar,
+      criado_por_nome text,
+      atualizado_por_nome text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    descricao: "índice contratos_cnpj_uq (um contrato por CNPJ)",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS contratos_cnpj_uq ON contratos (cnpj)`,
+  },
+  {
+    descricao: "tabela contratos_colaboradores (colaboradores atendidos por cada contrato)",
+    sql: `CREATE TABLE IF NOT EXISTS contratos_colaboradores (
+      contrato_id varchar NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+      collaborator_id varchar NOT NULL REFERENCES collaborators(id) ON DELETE CASCADE,
+      criado_por_nome text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (contrato_id, collaborator_id)
+    )`,
+  },
+  {
+    descricao: "índice contratos_colaboradores_colaborador_idx",
+    sql: `CREATE INDEX IF NOT EXISTS contratos_colaboradores_colaborador_idx ON contratos_colaboradores (collaborator_id)`,
+  },
+  {
+    descricao: "tabela contratos_historico (histórico de cada contrato)",
+    sql: `CREATE TABLE IF NOT EXISTS contratos_historico (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      contrato_id varchar NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+      acao text NOT NULL,
+      detalhes jsonb NOT NULL,
+      por varchar,
+      por_nome text NOT NULL,
+      em timestamptz NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    descricao: "índice contratos_historico_contrato_idx",
+    sql: `CREATE INDEX IF NOT EXISTS contratos_historico_contrato_idx ON contratos_historico (contrato_id, em)`,
+  },
+  {
+    descricao: "tabela colaboradores_pagamento (banco/agência/conta/PIX cifrados — só o DP)",
+    sql: `CREATE TABLE IF NOT EXISTS colaboradores_pagamento (
+      collaborator_id varchar PRIMARY KEY REFERENCES collaborators(id) ON DELETE CASCADE,
+      banco_cifrado text,
+      agencia_cifrada text,
+      conta_cifrada text,
+      pix_chave_cifrada text,
+      tipo_conta text,
+      pix_tipo text,
+      titular text,
+      email text,
+      versao integer NOT NULL DEFAULT 1,
+      atualizado_por varchar,
+      atualizado_por_nome text,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    descricao: "tabela colaboradores_pagamento_alteracoes (mudanças mascaradas + conferência)",
+    sql: `CREATE TABLE IF NOT EXISTS colaboradores_pagamento_alteracoes (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      collaborator_id varchar NOT NULL REFERENCES collaborators(id) ON DELETE CASCADE,
+      campos jsonb NOT NULL,
+      antes jsonb NOT NULL,
+      depois jsonb NOT NULL,
+      muda_conta boolean NOT NULL DEFAULT false,
+      por varchar,
+      por_nome text NOT NULL,
+      em timestamptz NOT NULL DEFAULT now(),
+      conferido_em timestamptz,
+      conferido_por varchar,
+      conferido_por_nome text
+    )`,
+  },
+  {
+    descricao: "índice colaboradores_pagamento_alteracoes_colaborador_idx",
+    sql: `CREATE INDEX IF NOT EXISTS colaboradores_pagamento_alteracoes_colaborador_idx ON colaboradores_pagamento_alteracoes (collaborator_id, em)`,
+  },
+  {
+    descricao: "índice colaboradores_pagamento_alteracoes_pendentes_idx (sino do DP)",
+    sql: `CREATE INDEX IF NOT EXISTS colaboradores_pagamento_alteracoes_pendentes_idx ON colaboradores_pagamento_alteracoes (em) WHERE muda_conta AND conferido_em IS NULL`,
+  },
   {
     descricao: "scaling_change_requests.grupo_id (pedido de ajuste em par)",
     sql: `ALTER TABLE scaling_change_requests ADD COLUMN IF NOT EXISTS grupo_id varchar`,
@@ -622,6 +728,40 @@ const PASSOS: Passo[] = [
       instancia text,
       resumo jsonb
     )`,
+  },
+  // 26/10 — Módulo de Honorários, Fase 0 (scripts/migrations/2026-10-26-honorarios-fase-0.sql).
+  {
+    descricao: "events.ocultar_valores_colaborador (não exibir valores ao colaborador até a OC)",
+    sql: `ALTER TABLE events ADD COLUMN IF NOT EXISTS ocultar_valores_colaborador boolean NOT NULL DEFAULT true`,
+  },
+  {
+    descricao: "tabela honorarios_legado_concluidos (legado concluído fora do fluxo)",
+    sql: `CREATE TABLE IF NOT EXISTS honorarios_legado_concluidos (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      linha_id text NOT NULL,
+      event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      motivo text NOT NULL,
+      por_id varchar NOT NULL,
+      por_nome text NOT NULL,
+      em timestamptz NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    descricao: "índice único do legado concluído por linha",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS honorarios_legado_concluidos_linha_uq ON honorarios_legado_concluidos (linha_id)`,
+  },
+  {
+    descricao: "índice do legado concluído por evento",
+    sql: `CREATE INDEX IF NOT EXISTS honorarios_legado_concluidos_evento_idx ON honorarios_legado_concluidos (event_id)`,
+  },
+  // 27/10 — a vaga da linha do Planejado (vagas sem colaborador na mesma função).
+  {
+    descricao: "budget_planned.team_inclusion_id (vaga da linha do Planejado)",
+    sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS team_inclusion_id varchar REFERENCES team_inclusions(id) ON DELETE SET NULL`,
+  },
+  {
+    descricao: "índice do Planejado por vaga",
+    sql: `CREATE INDEX IF NOT EXISTS budget_planned_team_inclusion_idx ON budget_planned (team_inclusion_id)`,
   },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK

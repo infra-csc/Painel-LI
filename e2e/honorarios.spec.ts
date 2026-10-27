@@ -152,7 +152,7 @@ test("Planejado (21/10): o honorário aprovado vira a mão de obra da vaga — a
   expect(emp!.vagas.filter((v) => v.ativa)).toHaveLength(2);
 
   await page.goto(`/budget-planned?event=${eventId}`);
-  await expect(page.getByRole("heading", { level: 1, name: "Planejado" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Pré-aprovação de valores" })).toBeVisible();
   await page.getByPlaceholder("Buscar colaborador").fill(escaladaDaEmpreita.collaboratorName!);
   const card = page.locator(`article[data-card-id="${escaladaDaEmpreita.id}"]`);
   await expect(card).toBeVisible();
@@ -197,7 +197,7 @@ test("perfil Honorários (23/10): entra direto na tela, libera a vaga aberta, fi
   await expect(page).toHaveURL(/\/honorarios-ceno/);
   const menu = page.getByRole("complementary", { name: "Menu principal" });
   await expect(menu.getByRole("link", { name: /Honorários da cenotécnica/ })).toBeVisible();
-  await expect(menu.getByRole("link", { name: /Escalação|Planejado|Passagens|Colaboradores|Eventos/ })).toHaveCount(0);
+  await expect(menu.getByRole("link", { name: /Escalação|Pré-aprovação|Passagens|Colaboradores|Eventos/ })).toHaveCount(0);
 
   await page.goto(`/honorarios-ceno?evento=${eventId}`);
   await page.getByRole("button", { name: `Registrar liberação de ${nomeDaAberta}` }).click();

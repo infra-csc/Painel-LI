@@ -13,6 +13,12 @@ describe("normalizeRole", () => {
     expect(normalizeRole("administrator")).toBe("admin");
     expect(normalizeRole("financeiro")).toBe("financial");
     expect(normalizeRole("finance")).toBe("financial");
+    // 26/10: o rótulo novo e o que o Portal manda
+    expect(normalizeRole("Financeiro / DP")).toBe("financial");
+    expect(normalizeRole("Financeiro / RH")).toBe("financial");
+    // Sigla solta não vira papel (27/10): "rh"/"dp" gravado à mão não ganha o financeiro.
+    expect(normalizeRole("DP")).toBeNull();
+    expect(normalizeRole("rh")).toBeNull();
     expect(normalizeRole("logistica")).toBe("production");
     expect(normalizeRole("compras")).toBe("purchasing");
   });
@@ -31,7 +37,7 @@ describe("normalizeRole", () => {
 });
 
 describe("isFinanceRole", () => {
-  it("admin e RH (com aliases) decidem no financeiro", () => {
+  it("admin e DP (com aliases) decidem no financeiro", () => {
     expect(isFinanceRole("admin")).toBe(true);
     expect(isFinanceRole("administrador")).toBe(true);
     expect(isFinanceRole("financial")).toBe(true);
@@ -46,7 +52,7 @@ describe("isFinanceRole", () => {
 });
 
 describe("hasRoleIn (grupos de autorização do servidor)", () => {
-  it("cadastro: admin, compras e logística — não RH nem área de função", () => {
+  it("cadastro: admin, compras e logística — não DP nem área de função", () => {
     expect(hasRoleIn("admin", ROLE_GROUPS.cadastro)).toBe(true);
     expect(hasRoleIn("purchasing", ROLE_GROUPS.cadastro)).toBe(true);
     expect(hasRoleIn("production", ROLE_GROUPS.cadastro)).toBe(true);
@@ -54,7 +60,7 @@ describe("hasRoleIn (grupos de autorização do servidor)", () => {
     expect(hasRoleIn("function_area", ROLE_GROUPS.cadastro)).toBe(false);
   });
 
-  it("financeiro: só admin e RH", () => {
+  it("financeiro: só admin e DP", () => {
     expect(hasRoleIn("admin", ROLE_GROUPS.financeiro)).toBe(true);
     expect(hasRoleIn("financial", ROLE_GROUPS.financeiro)).toBe(true);
     expect(hasRoleIn("production", ROLE_GROUPS.financeiro)).toBe(false);

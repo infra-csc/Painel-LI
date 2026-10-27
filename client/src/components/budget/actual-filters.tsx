@@ -126,12 +126,12 @@ export function FilaDoRealizado({ dados: d }: { dados: DadosDoRealizado }) {
     { key: "salvas", rotulo: "Salvas", n: c.salvas, sub: c.salvas ? "prontas para enviar" : "nenhuma", icone: PencilLine, cor: "text-primary",
       titulo: "Prestações preenchidas e salvas, ainda não enviadas para revisão" },
     { key: "revisao", rotulo: "Em revisão", n: c.revisao, sub: c.revisao ? formatCurrency(v.revisao) : "nenhuma", icone: Clock, cor: "text-info",
-      titulo: "Enviadas — aguardando a análise do RH (travadas para edição)" },
+      titulo: "Enviadas — aguardando a análise do DP (travadas para edição)" },
     { key: "devolvidas", rotulo: "Devolvidas", n: c.devolvidas,
       sub: !c.devolvidas ? "nenhuma" : d.recusadasNaFila > 0 ? `${d.recusadasNaFila === c.devolvidas ? "" : "inclui "}${d.recusadasNaFila} ${d.recusadasNaFila === 1 ? "recusada" : "recusadas"}` : "corrigir e reenviar", icone: Undo2, cor: "text-warning",
-      titulo: "Devolvidas ou recusadas pelo RH — corrija e reenvie para revisão" },
+      titulo: "Devolvidas ou recusadas pelo DP — corrija e reenvie para revisão" },
     { key: "aprovadas", rotulo: "Aprovadas", n: c.aprovadas, sub: c.aprovadas ? formatCurrency(v.aprovadas) : "nenhuma ainda", icone: CheckCheck, cor: "text-success",
-      titulo: "Aprovadas pelo RH" },
+      titulo: "Aprovadas pelo DP" },
   ];
   return (
     <FilaDeTrabalho

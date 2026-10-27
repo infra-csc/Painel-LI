@@ -20,7 +20,7 @@ async function logsDe(entityId: string, action: string) {
 }
 
 describe("PATCH /api/users/:id — só o que mudou", () => {
-  it("RH salva o NOME de terceiro (sem e-mail no corpo) → 200", async () => {
+  it("DP salva o NOME de terceiro (sem e-mail no corpo) → 200", async () => {
     const { agent } = await agenteLogado("financial");
     const alvo = await criarUsuario("production");
     const res = await mutacao(agent.patch(`/api/users/${alvo.id}`)).send({ name: "Nome Novo" });

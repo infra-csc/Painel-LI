@@ -14,6 +14,7 @@ import {
   gravarMetadadosDoAnexo,
   lerMetadadosDoAnexo,
   tipoPeloContentType,
+  type ClasseDoAnexo,
   type MetadadosDoAnexo,
 } from "./objectAcl";
 
@@ -96,7 +97,7 @@ export class ObjectStorageService {
     id: string,
     conteudo: Buffer,
     contentType: string,
-    meta: { ownerId: string; nomeOriginal: string },
+    meta: { ownerId: string; nomeOriginal: string; classe?: ClasseDoAnexo },
   ): Promise<void> {
     const uploadURL = await this.getObjectEntityUploadURL(id);
     const response = await fetch(uploadURL, {

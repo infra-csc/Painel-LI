@@ -21,6 +21,7 @@ import { ActualCard } from "./actual-card";
 import { diferencaComSinal } from "./actual-overview";
 import { fmtDiaMes, type ModalActualTab } from "./actual-utils";
 import { formatCurrency } from "./types";
+import type { SituacaoDoColaboradorApi } from "@/components/contratos/api";
 
 export interface ActualGroupListProps {
   dados: DadosDoRealizado;
@@ -37,6 +38,8 @@ export interface ActualGroupListProps {
   onSplit: (item: BudgetActual) => void;
   onDelete: (id: string) => void;
   onClearFilters: () => void;
+  /** Situação contratual por colaborador (só o DP recebe). */
+  situacaoContratual?: Map<string, SituacaoDoColaboradorApi>;
 }
 
 /** Colunas pela largura útil da lista: 1 (< 640), 2, 3 (≥ 1380) — as do Planejado. */
@@ -76,6 +79,7 @@ export function ActualGroupList(p: ActualGroupListProps) {
       onEdit={onEdit}
       onSplit={onSplit}
       onDelete={onDelete}
+      contrato={cardItem.collaboratorId ? p.situacaoContratual?.get(cardItem.collaboratorId) : undefined}
     />
   );
 

@@ -17,7 +17,7 @@
  * Memoizado (é item de lista virtualizada).
  */
 import { memo } from "react";
-import { ChevronDown, ChevronUp, Eye, Lock, PencilLine, Send, Undo2, UserX } from "lucide-react";
+import { BadgeCheck, ChevronDown, ChevronUp, Eye, Lock, PencilLine, Send, Undo2, UserX } from "lucide-react";
 import { cn, formatDiasUteis, formatFds } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -26,6 +26,10 @@ import { isAtendimentoFunction } from "@shared/atendimento";
 import { FUNCAO_LOCAL_RAZAO, PERCURSEIRO_TIPOS } from "@shared/calculation-rules";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
 import { AvisosDoHonorario, SeloDoHonorario, fonteDoHonorario } from "./honorario-no-planejado";
+import { SeloDaPreAprovacao, quandoLegivel, type PlanejadoDaTela } from "./pre-aprovacao";
+import { pedePreAprovacao, podeLiberarParaProducao, type SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
+import { SeloContratoAtivo } from "@/components/contratos/pecas";
+import type { SituacaoDoColaboradorApi } from "@/components/contratos/api";
 import type { BudgetActual, BudgetNote, BudgetPlanned as BudgetPlannedRow } from "@shared/schema";
 import {
   ddmmLocal, formatCurrency, formatSegmentsMemo, isCasaType,
@@ -54,6 +58,12 @@ export interface BudgetCardProps {
   onRestore: (s: RestoreModalState) => void;
   /** "Usar o honorário aprovado" (21/10): limpa o ajuste manual da mão de obra. */
   onUsarHonorario?: (id: string) => void;
+  /** Pré-aprovação do DP (26/10): pendente, pré-aprovada, valor mudou, enviada, ausente. */
+  situacao: SituacaoDaPreAprovacao;
+  onPreAprovar: (b: CalculatedBudget) => void;
+  onDesfazerPreAprovacao: (b: CalculatedBudget) => void;
+  /** Contrato ativo do CNPJ da pessoa (Fase 0, 27/10) — só o DP recebe; selo só quando falta. */
+  contrato?: SituacaoDoColaboradorApi;
 }
 
 // `info` e `perigo` (08/10) são do Realizado (em revisão, recusado), que reaproveita o Chip.
@@ -220,8 +230,13 @@ const ACAO = "pas-alvo inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg te
 export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
   const {
     budget, name, functionName, isSent, isSelected, isCollapsed, isHighlighted, planRecord, cardActual, eventNotes,
-    canEdit, canMarkNotAttended, restorePending,
+    canEdit, canMarkNotAttended, restorePending, situacao,
   } = p;
+  const preAprovado = situacao === "pre_aprovado";
+  const pedePre = pedePreAprovacao(situacao);
+  // 27/10: evento legado vai ao Realizado sem a pré-aprovação (fluxo antigo).
+  const podeEnviar = podeLiberarParaProducao(situacao);
+  const plano = planRecord as PlanejadoDaTela | undefined;
   const isCasa = isCasaType(budget.collaborator?.type);
   const isNotAttended = !!planRecord?.didNotAttend;
   const id = budget.inclusion.id;
@@ -275,11 +290,11 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span tabIndex={0} aria-label="RH ajustou o realizado" className="inline-flex shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <span tabIndex={0} aria-label="DP ajustou o realizado" className="inline-flex shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       <PencilLine className="w-3.5 h-3.5 text-warning" aria-hidden="true" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                  <TooltipContent side="right" className="text-xs">DP ajustou o realizado deste colaborador</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
@@ -320,7 +335,9 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
                 {budget.hasOverride && !isSent && (
                   <Chip tom="alerta" title="Valores personalizados"><PencilLine className="w-3 h-3" aria-hidden="true" />Ajuste manual</Chip>
                 )}
-                {isSent && <Chip tom="ok"><Send className="w-3 h-3" aria-hidden="true" />Enviado</Chip>}
+                <SeloDaPreAprovacao situacao={situacao} planejado={plano} />
+                <SeloContratoAtivo situacao={p.contrato?.situacao} contratos={p.contrato?.contratos} />
+                {isSent && <Chip tom="info" title="Liberado para a Produção: a prestação está no Realizado"><Send className="w-3 h-3" aria-hidden="true" />No Realizado</Chip>}
               </>
             )}
           </div>
@@ -352,6 +369,19 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
           <div className="min-w-0 flex-1 [&>div]:mt-0"><BudgetNotesSnippet notes={eventNotes} entityId={planRecord.id} /></div>
           <BudgetNotesBadge notes={eventNotes} entityId={planRecord.id} />
         </div>
+      )}
+
+      {/* Quem pré-aprovou e quando (26/10) — a assinatura do DP, à vista. */}
+      {preAprovado && plano?.approvedAt && (
+        <p className="m-0 px-4 pb-2 text-2xs leading-4 text-success" data-testid="planejado-quem-pre-aprovou">
+          <BadgeCheck className="inline w-3 h-3 -mt-px mr-1" aria-hidden="true" />
+          Pré-aprovado por {plano.approvedByName || "DP"} · {quandoLegivel(plano.approvedAt)}
+        </p>
+      )}
+      {situacao === "desatualizado" && (
+        <p role="note" className="m-0 mx-4 mb-2 rounded-md border border-warning/25 bg-warning-soft px-2.5 py-1.5 text-2xs leading-4 text-warning" data-testid="planejado-valor-mudou">
+          O valor mudou depois da pré-aprovação ({formatCurrency(plano?.totalValue ?? 0)} → {formatCurrency(budget.totalFinal)}). Pré-aprove de novo para liberar.
+        </p>
       )}
 
       {/* ── Ações: sempre à vista, discretas; a forte é a da barra de seleção ── */}
@@ -427,12 +457,38 @@ export const BudgetCard = memo(function BudgetCard(p: BudgetCardProps) {
                   Editar
                 </button>
               )}
-              {canEdit && !isSent && (
+              {/* 26/10: primeiro o DP pré-aprova; só então a vaga vai ao Realizado. */}
+              {canEdit && !isSent && preAprovado && (
+                <button
+                  type="button"
+                  className={cn(ACAO, "text-muted-foreground hover:bg-warning-soft hover:text-warning")}
+                  aria-label={`Desfazer a pré-aprovação de ${name}`}
+                  title="Desfazer a pré-aprovação"
+                  onClick={() => p.onDesfazerPreAprovacao(budget)}
+                >
+                  <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span className="max-[480px]:hidden">Desfazer</span>
+                </button>
+              )}
+              {canEdit && !isSent && pedePre && (
+                <button
+                  type="button"
+                  className={cn(ACAO, "text-success bg-success-soft hover:bg-success-strong hover:text-white")}
+                  aria-label={`Pré-aprovar o valor de ${name}`}
+                  title="Pré-aprovar o valor (DP)"
+                  onClick={() => p.onPreAprovar(budget)}
+                  data-testid="planejado-pre-aprovar-linha"
+                >
+                  <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                  Pré-aprovar
+                </button>
+              )}
+              {canEdit && !isSent && podeEnviar && (
                 <button
                   type="button"
                   className={cn(ACAO, "text-primary bg-brand-soft hover:bg-primary hover:text-primary-foreground")}
                   aria-label={`Enviar ${name} para o Realizado`}
-                  title="Enviar para o Realizado"
+                  title="Enviar ao Realizado (liberar para a Produção)"
                   onClick={() => p.onSend(id)}
                 >
                   <Send className="w-3.5 h-3.5" aria-hidden="true" />

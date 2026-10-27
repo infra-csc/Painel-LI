@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Calendar, Search, X, ChevronDown, Check } from "lucide-react";
+import { Calendar, Search, X, ChevronDown, Check, Archive } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Event } from "@shared/schema";
+import type { FiltroDoLegado } from "@/components/honorarios/use-honorarios";
+import { dataDeCorteLegivel } from "@shared/legado-honorarios";
 
 interface EventSelectProps {
   value: string;
@@ -80,6 +82,15 @@ export function EventSelect({ value, onValueChange, events, className }: EventSe
   );
 }
 
+/** Marca de evento legado (terminou antes da data de corte dos honorários). */
+function SeloLegado() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 h-[18px] px-1.5 rounded-md bg-muted text-2xs font-medium text-slate-600" title="Evento legado: terminou antes da data de corte do fluxo novo dos honorários">
+      <Archive className="h-3 w-3" aria-hidden="true" />Legado
+    </span>
+  );
+}
+
 function fmtEventDate(start?: string, end?: string) {
   const target = end && end !== start ? end : start;
   if (!target) return "";
@@ -98,7 +109,7 @@ function fmtEventDate(start?: string, end?: string) {
  * item ativo é anunciado por `aria-activedescendant`, o foco volta ao botão
  * que abriu e as cores são tokens do tema.
  */
-export function EventSearchSelect({ value, onValueChange, events, className, variante = "campo", detalhe, rotuloVazio }: EventSelectProps & {
+export function EventSearchSelect({ value, onValueChange, events, className, variante = "campo", detalhe, rotuloVazio, legado }: EventSelectProps & {
   /**
    * `campo` (padrão): a caixa de 44px de sempre. `barra` (08/10, Planejado):
    * o nome do evento É o gatilho, sem moldura, com uma linha miúda embaixo
@@ -114,8 +125,20 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
    * Sem ele, fica o convite "Selecionar evento" em cinza, como sempre.
    */
   rotuloVazio?: string;
+  /**
+   * 26/10 (Honorários, Fase 0): telas do grupo Honorários abrem SEM os eventos
+   * legados (terminam antes da data de corte); a paleta mostra quantos ficaram
+   * de fora e o interruptor para ver. O evento já escolhido continua no
+   * gatilho, com a marca "Legado".
+   */
+  legado?: FiltroDoLegado;
 }) {
-  const sorted = useSortedEvents(events);
+  const todos = useSortedEvents(events);
+  const nLegados = useMemo(() => (legado ? todos.filter(e => legado.ocultavel(e)).length : 0), [todos, legado]);
+  const sorted = useMemo(
+    () => (legado && !legado.mostrar ? todos.filter(e => !legado.ocultavel(e)) : todos),
+    [todos, legado],
+  );
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -124,6 +147,7 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
   const listId = useId();
 
   const selectedEvent = useMemo(() => events?.find(e => e.id === value), [events, value]);
+  const selecionadoLegado = !!legado && !!selectedEvent && legado.ehLegado(selectedEvent);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return sorted;
@@ -252,6 +276,22 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
           )}
         </div>
 
+        {/* Legado (26/10): quantos ficaram de fora e o interruptor para ver. */}
+        {legado && nLegados > 0 && (
+          <label className="mx-3 mt-2.5 flex cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-surface-muted/70 px-3 py-2 text-xs text-slate-700" data-testid="evento-mostrar-legado">
+            <input
+              type="checkbox"
+              checked={legado.mostrar}
+              onChange={e => legado.setMostrar(e.target.checked)}
+              className="h-4 w-4 shrink-0 accent-[var(--primary)]"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="font-medium text-foreground">Mostrar eventos legados</span>
+              <span className="text-muted-foreground"> · {nLegados} {nLegados === 1 ? "terminou" : "terminaram"} antes de {dataDeCorteLegivel(legado.dataDeCorte)} e há mais de 60 dias</span>
+            </span>
+          </label>
+        )}
+
         {!search && (
           <div className="px-5 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {sorted.length} evento{sorted.length !== 1 ? "s" : ""}
@@ -301,8 +341,9 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
                     <Calendar className="h-[15px] w-[15px]" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className={cn("truncate text-sm font-semibold tracking-tight", isSelected ? "text-primary" : "text-foreground")}>
-                      {event.name}
+                    <div className={cn("flex items-center gap-1.5 text-sm font-semibold tracking-tight", isSelected ? "text-primary" : "text-foreground")}>
+                      <span className="truncate">{event.name}</span>
+                      {legado?.ehLegado(event) && <SeloLegado />}
                     </div>
                     {(event.startDate || event.endDate) && (
                       <div className={cn("mt-0.5 text-xs", isSelected ? "text-primary/80" : "text-muted-foreground")}>
@@ -343,8 +384,9 @@ export function EventSearchSelect({ value, onValueChange, events, className, var
           )}
         >
           <span className="min-w-0 flex-1">
-            <span className={cn("block truncate text-sm font-semibold leading-5", selectedEvent || rotuloVazio ? "text-foreground" : "text-muted-foreground")}>
-              {selectedEvent ? selectedEvent.name : rotuloVazio ?? "Selecionar evento"}
+            <span className={cn("flex items-center gap-1.5 min-w-0 text-sm font-semibold leading-5", selectedEvent || rotuloVazio ? "text-foreground" : "text-muted-foreground")}>
+              <span className="truncate">{selectedEvent ? selectedEvent.name : rotuloVazio ?? "Selecionar evento"}</span>
+              {selecionadoLegado && <SeloLegado />}
             </span>
             {detalhe && (selectedEvent || rotuloVazio) && (
               <span className="block truncate text-2xs leading-4 tabular-nums text-muted-foreground">{detalhe}</span>

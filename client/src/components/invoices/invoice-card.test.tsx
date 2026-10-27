@@ -80,7 +80,7 @@ describe("InvoiceCard", () => {
     await waitFor(() => expect(botaoAnexo()).toHaveAccessibleDescription("Anexe o arquivo da nota fiscal."));
   });
 
-  it("OC + arquivo: sobe o arquivo, cria a NF como 'enviada' e invalida a lista do evento e o Controle RH", async () => {
+  it("OC + arquivo: sobe o arquivo, cria a NF como 'enviada' e invalida a lista do evento e o Controle DP", async () => {
     const fetchMock = mockarFetch((url) =>
       url === "/api/upload" ? respostaJson([{ url: "https://arquivos/nf.pdf" }], 200, url) : respostaJson({ id: "nf-novo" }, 200, url),
     );
@@ -105,9 +105,9 @@ describe("InvoiceCard", () => {
     expect(invalidar).toHaveBeenCalledWith({ queryKey: [CHAVE_CONTROLE_RH] });
   });
 
-  it("nota enviada: somente leitura com 'Aguardando RH', OC e link 'Ver nota'; sem formulário", () => {
+  it("nota enviada: somente leitura com 'Aguardando DP', OC e link 'Ver nota'; sem formulário", () => {
     montarCard({ invoice: notaFiscalFake({ status: "enviada", oc: "OC-77" }) });
-    expect(screen.getByText("Aguardando RH")).toBeInTheDocument();
+    expect(screen.getByText("Aguardando DP")).toBeInTheDocument();
     expect(screen.getByText("OC-77")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ver nota/ })).toHaveAttribute("href", "https://arquivos.exemplo/nf.pdf");
     expect(screen.queryByLabelText(/Número OC/)).toBeNull();
@@ -130,18 +130,18 @@ describe("InvoiceCard", () => {
     expect(screen.queryByRole("button", { name: /Enviar nota|Reenviar/ })).toBeNull();
   });
 
-  it("aprovada: aguardando check-in até o RH fazer; depois 'Check-in realizado' com a data de pagamento", () => {
+  it("aprovada: aguardando o lançamento no M4 até o DP fazer; depois 'Lançada no M4' com a data de pagamento", () => {
     const { unmount } = montarCard({ invoice: notaFiscalFake({ status: "aprovada" }) });
     expect(getEffectiveStatus(notaFiscalFake({ status: "aprovada" }))).toBe("checkin-pendente");
-    expect(screen.getByText("Aguard. check-in")).toBeInTheDocument();
+    expect(screen.getByText("Aguard. M4")).toBeInTheDocument();
     // 08/10 (redesenho): a linha diz o que falta embaixo da pílula.
-    expect(screen.getByText("aprovada, falta o check-in")).toBeInTheDocument();
+    expect(screen.getByText("aprovada, falta lançar no M4")).toBeInTheDocument();
     unmount();
     montarCard({ invoice: notaFiscalFake({ status: "aprovada", checkinAt: new Date("2026-03-10T12:00:00Z"), paymentDate: "2026-03-15" }) });
-    // A pílula "Check-in realizado" e, embaixo dela, a data de pagamento e a do check-in.
-    expect(screen.getByText("Check-in realizado")).toBeInTheDocument();
+    // A pílula "Lançada no M4" e, embaixo dela, a data de pagamento e a do check-in.
+    expect(screen.getByText("Lançada no M4")).toBeInTheDocument();
     expect(screen.getByText("Pgto: 15/03/2026")).toBeInTheDocument();
-    expect(screen.getByText("check-in em 10/03/2026")).toBeInTheDocument();
+    expect(screen.getByText("lançada no M4 em 10/03/2026")).toBeInTheDocument();
   });
 });
 
@@ -251,14 +251,14 @@ describe("InvoiceStepper", () => {
     expect(lancamento).toHaveAttribute("title", "2 itens sem nota enviada ou com nota devolvida");
     expect(within(lancamento).getByText("R$ 2.032,00")).toBeInTheDocument();
     expect(within(lancamento).getByText("Lançamento")).toHaveClass("text-primary");
-    expect(within(aprovacao).getByText("Aprovação RH")).toHaveClass("text-success");
+    expect(within(aprovacao).getByText("Aprovação DP")).toHaveClass("text-success");
     expect(within(aprovacao).getByText("em dia")).toBeInTheDocument();
-    expect(checkin).toHaveAttribute("title", "1 item com nota aprovada, aguardando o check-in financeiro");
+    expect(checkin).toHaveAttribute("title", "1 item com nota aprovada, aguardando o lançamento no M4");
   });
 
   it("tudo zerado: as três etapas concluídas", () => {
     renderComTudo(<InvoiceStepper counts={{ lancamento: 0, aprovacao: 0, checkin: 0 }} />);
     expect(screen.getAllByText("em dia")).toHaveLength(3);
-    ["Lançamento", "Aprovação RH", "Check-in"].forEach((etapa) => expect(screen.getByText(etapa)).toHaveClass("text-success"));
+    ["Lançamento", "Aprovação DP", "Lançada no M4"].forEach((etapa) => expect(screen.getByText(etapa)).toHaveClass("text-success"));
   });
 });

@@ -285,7 +285,7 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                     <p className="m-0 text-xs text-warning-strong leading-relaxed">
                       {/* Fiel ao PATCH /api/users/:id (shared/edicao-de-usuario). */}
                       {soLeitura
-                        ? "Seu perfil só consulta os usuários. Quem edita outras pessoas: administradores, RH e Compras."
+                        ? "Seu perfil só consulta os usuários. Quem edita outras pessoas: administradores, DP e Compras."
                         : canEditArea
                         ? "Ninguém altera o próprio perfil — peça a outro administrador. Você pode editar nome, e-mail e área."
                         : canEditEmail

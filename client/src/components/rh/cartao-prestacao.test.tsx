@@ -33,10 +33,10 @@ describe("CartaoPrestacao", () => {
     expect(navigate).toHaveBeenCalledWith("/budget-comparison?event=evento-1&collaborator=colab-1&function=funcao-1");
   });
 
-  it("planejamento pendente: badge 'Planejamento' e botão 'Planejar' para o Planejado", async () => {
+  it("pré-aprovação pendente: badge 'Pré-aprovação' e botão 'Pré-aprovar' para a Pré-aprovação de valores", async () => {
     const { user, navigate } = montar({ item: linhaRhFake({ status: "planejamento_pendente", planned: null, actual: null }) });
-    expect(screen.getByText("Planejamento")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Planejar" }));
+    expect(screen.getByText("Pré-aprovação")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pré-aprovar" }));
     expect(navigate).toHaveBeenCalledWith("/budget-planned?event=evento-1&collaborator=colab-1&function=funcao-1");
   });
 
@@ -58,14 +58,14 @@ describe("CartaoPrestacao", () => {
     expect(screen.getByText("Aguardando envio da nota fiscal")).toBeInTheDocument();
   });
 
-  it("NF enviada: RH vê 'Aprovar NF' e o clique abre a confirmação inline pelo id da nota", async () => {
+  it("NF enviada: DP vê 'Aprovar NF' e o clique abre a confirmação inline pelo id da nota", async () => {
     const { user, setApprovingInvoiceId } = montar({ item: aprovadaParaFaturamento({ invoice: notaRhFake({ id: "nf-7", status: "enviada" }) }) });
     expect(screen.getByText("NF em análise")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Aprovar NF" }));
     expect(setApprovingInvoiceId).toHaveBeenCalledWith("nf-7");
   });
 
-  it("quem não é RH vê só o chip 'NF em análise', sem ação", () => {
+  it("quem não é DP vê só o chip 'NF em análise', sem ação", () => {
     montar({ item: aprovadaParaFaturamento({ invoice: notaRhFake({ status: "enviada" }) }), canRh: false });
     expect(screen.queryByRole("button", { name: "Aprovar NF" })).toBeNull();
     expect(screen.getAllByText("NF em análise").length).toBeGreaterThan(0);
@@ -101,13 +101,13 @@ describe("CartaoPrestacao", () => {
     expect(setApprovingInvoiceId).toHaveBeenCalledWith(null);
   });
 
-  it("NF aprovada com check-in feito: badge 'Concluído'; sem check-in: 'Ag. Check-in' e o CTA 'Ir para Check-in' (só RH)", () => {
+  it("NF aprovada com check-in feito: badge 'Concluído'; sem lançamento: 'Ag. M4' e o CTA 'Ir para o M4' (só DP)", () => {
     const { unmount } = montar({ item: aprovadaParaFaturamento({ invoice: notaRhFake({ status: "aprovada", checkinAt: "2026-03-10T12:00:00.000Z", paymentDate: "2026-03-15" }) }) });
     expect(screen.getByText("Concluído")).toBeInTheDocument();
     unmount();
     montar({ item: aprovadaParaFaturamento({ invoice: notaRhFake({ status: "aprovada" }) }), expandido: true });
-    expect(screen.getByText("Ag. Check-in")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Ir para Check-in/ })).toBeInTheDocument();
+    expect(screen.getByText("Ag. M4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ir para o M4/ })).toBeInTheDocument();
   });
 
   it("expandido mostra Planejado × Realizado (idênticos) e 'Ver detalhes' alterna o detalhamento", async () => {
