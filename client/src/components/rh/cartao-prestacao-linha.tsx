@@ -29,11 +29,22 @@ export type ToastFn = ReturnType<typeof useToast>["toast"];
 const dataCurta = (d: Date | string | null | undefined) =>
   d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
 
-/** Selo da etapa: para os aprovados, a etapa É a da nota fiscal / check-in. */
+/**
+ * 28/10 (Fase 2): no fluxo novo a nota só vem DEPOIS da OC — aprovada, emite
+ * NF, sem nota e sem OC registrada = aguardando a OC do DP (não o colaborador).
+ */
+export function aguardaOc(item: PrestacaoItem, nfStatus: string, itemEmitsNf: boolean): boolean {
+  return !item.legado && item.status === "aprovada_faturamento" && itemEmitsNf && nfStatus === "pendente" && !item.actual?.ocNumero;
+}
+
+/** Selo da etapa: para os aprovados, a etapa É a da nota fiscal / check-in (e, no fluxo novo, a OC e o pago). */
 export function seloDaEtapa(item: PrestacaoItem, config: StatusConfigEntry, nfStatus: string, hasCheckin: boolean, itemEmitsNf: boolean): { texto: string; cls: string } {
   // Legado concluído fora do fluxo (26/10): a etapa de antes não importa mais.
   if (item.conclusaoForaDoFluxo) return { texto: "Concluído fora do fluxo", cls: "bg-muted text-slate-600 border-border" };
   if (item.status !== "aprovada_faturamento") return { texto: config.shortLabel, cls: config.badgeCls };
+  if (!item.legado && item.actual?.pagoEm) return { texto: "Pago", cls: "bg-success-soft text-success border-success/25" };
+  if (!item.legado && itemEmitsNf && nfStatus === "aprovada" && hasCheckin) return { texto: "Programado", cls: "bg-info-soft text-info border-info/25" };
+  if (aguardaOc(item, nfStatus, itemEmitsNf)) return { texto: "Ag. OC", cls: "bg-muted text-slate-700 border-border" };
   if (nfStatus === "aprovada" && hasCheckin) return { texto: "Concluído", cls: "bg-success-soft text-success border-success/25" };
   if (nfStatus === "aprovada") return { texto: "Ag. M4", cls: "bg-brand-soft text-primary border-primary/25" };
   if (nfStatus === "enviada") return { texto: "NF em análise", cls: "bg-brand-soft text-primary border-primary/25" };
@@ -187,6 +198,7 @@ export function CartaoPrestacaoLinha({
     acao ? null
     : item.status === "aguardando_prestacao" ? { texto: "Com o responsável", sub: responsavel ?? "preencher o realizado", tom: "text-slate-600" }
     : item.status === "devolvida_para_ajuste" ? { texto: "Devolvida ao responsável", sub: responsavel ?? "corrigir e reenviar", tom: "text-warning" }
+    : comNota && aguardaOc(item, nfStatus, itemEmitsNf) ? { texto: "Com o DP", sub: "registrar a OC", tom: "text-slate-600" }
     : comNota && nfStatus === "pendente" && itemEmitsNf ? { texto: "Com o colaborador", sub: "enviar a nota fiscal", tom: "text-slate-600" }
     : comNota && nfStatus === "devolvida" ? { texto: "Com o colaborador", sub: "corrigir a nota", tom: "text-warning" }
     : comNota && nfStatus === "enviada" ? { texto: "Com o DP", sub: "nota em análise", tom: "text-slate-600" }
@@ -282,6 +294,7 @@ export function CartaoPrestacaoLinha({
                 : nfStatus === "devolvida" ? "Devolvida"
                 : nfStatus === "recusada" ? "Recusada"
                 : !itemEmitsNf ? "Não emite"
+                : aguardaOc(item, nfStatus, itemEmitsNf) ? "Aguardando a OC"
                 : "Aguardando envio"}
             </span>
             {nfStatus === "aprovada" && nfAprovadaEm && (

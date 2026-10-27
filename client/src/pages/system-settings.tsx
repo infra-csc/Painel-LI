@@ -31,6 +31,7 @@ import { AppliedValuesSection } from "@/components/settings/applied-values-secti
 import { PaymentCompaniesCard } from "@/components/settings/payment-companies-card";
 import { DataDeCorteCard } from "@/components/settings/data-de-corte-card";
 import { PresencaConfigCard } from "@/components/settings/presenca-config-card";
+import { ExpurgoSelfiesCard } from "@/components/settings/expurgo-selfies-card";
 import { LegacyValuesSection } from "@/components/settings/legacy-values-section";
 import { FunctionValuesTable } from "@/components/settings/function-values-table";
 import { AtualizarPlanejado, SettingsFooter } from "@/components/settings/settings-footer";
@@ -180,6 +181,8 @@ export default function SystemSettingsPage() {
               <DataDeCorteCard />
               {/* Presença e acesso do colaborador (27/10, Fase 1) — padrão provisório, só o administrador muda. */}
               <PresencaConfigCard />
+              {/* Expurgo das selfies (28/10, Fase 2) — prévia e "Apagar agora"; a rotina diária, só o administrador. */}
+              <ExpurgoSelfiesCard />
 
               {/* ZONA 2 — VALORES LEGADOS E OVERRIDES (colapsada por padrão) */}
               <LegacyValuesSection

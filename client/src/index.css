@@ -4320,3 +4320,114 @@ button.prs-dia[data-state="open"] { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px
   .prs-pessoa, .prs-dia, .prs-arena-pessoa, .prs-tipo, .prs-opcao, .prs-botao-foto { transition: none; }
   button.prs-dia:active { transform: none; }
 }
+
+/* ══ Ordens de compra (oc-, 28/10 — Honorários, Fase 2 manual) ═════════════
+ * A lista das prestações aprovadas: uma linha de planilha no largo, cartão
+ * pela largura DA LISTA (container `oc-lista`) — menu aberto, tablet e
+ * celular reorganizam igual. Também a prévia do lote de OC. */
+.oc-lista { container: oc-lista / inline-size; border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: clip; }
+.oc-cabecalho, .oc-linha {
+  display: grid; align-items: start; column-gap: 14px;
+  grid-template-columns: 24px minmax(190px, 1.45fr) 104px minmax(170px, 1fr) minmax(130px, .8fr) minmax(190px, 1.2fr) 118px 152px;
+  grid-template-areas: "sel pessoa valor cnpj oc nota pag acoes";
+  padding: 0 14px 0 11px;
+}
+.oc-cabecalho { position: sticky; top: calc(var(--sticky-top, 3.5rem) + 3.5rem); z-index: 2; align-items: center; min-height: 38px; background: var(--surface-muted); border-bottom: 1px solid var(--border); border-left: 3px solid transparent; }
+.oc-th-cartao { display: none; font-size: 12px; color: var(--muted-foreground); }
+.oc-c-acoes-vazio { width: 32px; flex-shrink: 0; }
+.oc-th { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oc-linha { padding-top: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; transition: background-color 120ms ease; }
+.oc-linha:last-child { border-bottom: 0; }
+.oc-linha:hover { background: color-mix(in srgb, var(--surface-muted) 70%, transparent); }
+.oc-linha[data-estado="sem_oc"] { border-left-color: var(--border); }
+.oc-linha[data-estado="com_oc"] { border-left-color: var(--primary); }
+.oc-linha[data-estado="nf_enviada"], .oc-linha[data-estado="nf_devolvida"] { border-left-color: var(--warning-strong); }
+.oc-linha[data-estado="nf_recusada"] { border-left-color: var(--danger); }
+.oc-linha[data-estado="nf_aprovada"], .oc-linha[data-estado="programado"] { border-left-color: var(--info-strong); }
+.oc-linha[data-estado="pago"] { border-left-color: var(--success-strong); }
+.oc-linha-divergente { border-left-color: var(--danger) !important; background: color-mix(in srgb, var(--danger-soft) 45%, var(--card)); }
+.oc-linha-selecionada { background: var(--brand-soft); }
+.oc-linha-isenta { border-left-color: transparent !important; }
+.oc-linha-isenta .oc-c-pessoa > p:first-child { color: hsl(215, 19%, 35%); }
+.oc-cel { min-width: 0; }
+.oc-c-sel { grid-area: sel; padding-top: 2px; }
+.oc-c-pessoa { grid-area: pessoa; }
+.oc-c-valor { grid-area: valor; text-align: right; }
+.oc-c-cnpj { grid-area: cnpj; }
+.oc-c-oc { grid-area: oc; }
+.oc-c-nota { grid-area: nota; }
+.oc-c-pag { grid-area: pag; }
+.oc-c-acoes { grid-area: acoes; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.oc-c-acoes:empty { display: none; }
+
+/* Cartão: a lista mais estreita que a planilha (menu aberto em 1366, tablet). */
+@container oc-lista (max-width: 1139.98px) {
+  .oc-cabecalho { grid-template-columns: 24px minmax(0, 1fr); grid-template-areas: "sel pessoa"; min-height: 34px; position: static; }
+  .oc-cabecalho .oc-th { display: none; }
+  .oc-cabecalho .oc-th-cartao { display: block; }
+  .oc-cabecalho-sem-selecao { display: none; }
+  .oc-linha {
+    grid-template-columns: 24px minmax(170px, 1.1fr) minmax(0, .9fr) minmax(0, 1.35fr) 156px;
+    grid-template-areas:
+      "sel pessoa cnpj cnpj valor"
+      "sel pessoa oc   nota pag"
+      "sel pessoa oc   nota acoes";
+    grid-template-rows: auto auto 1fr;
+    row-gap: 8px; padding-top: 12px; padding-bottom: 12px;
+  }
+  .oc-c-valor, .oc-c-pag { text-align: right; }
+  .oc-c-pag[data-rotulo]::before { text-align: right; }
+  .oc-c-acoes { align-self: end; }
+  .oc-cel[data-rotulo]::before {
+    content: attr(data-rotulo); display: block; margin-bottom: 2px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted-foreground);
+  }
+  .oc-c-valor[data-rotulo]::before { text-align: right; }
+}
+/* Celular. */
+@container oc-lista (max-width: 619.98px) {
+  .oc-linha {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "sel pessoa pessoa"
+      "sel valor  pag"
+      "sel cnpj   cnpj"
+      "sel oc     oc"
+      "sel nota   nota"
+      "sel acoes  acoes";
+    grid-template-rows: none;
+    padding-left: 9px; padding-right: 12px;
+  }
+  .oc-c-valor, .oc-c-valor[data-rotulo]::before { text-align: left; }
+  .oc-c-acoes { justify-content: flex-start; align-self: start; }
+}
+.oc-barra-selecao {
+  position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 10px 12px 10px 16px; border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: 12px;
+  background: var(--card); box-shadow: var(--elevation-2, 0 8px 24px hsl(222 47% 11% / 0.14));
+  animation: prs-entra 160ms ease-out both;
+}
+
+/* ── Prévia do lote ───────────────────────────────────────────────────────── */
+.oc-lote-lista { border: 1px solid var(--border); border-radius: 10px; overflow: clip; container-type: inline-size; }
+.oc-lote-linha {
+  display: grid; grid-template-columns: 36px minmax(0, 1.3fr) minmax(0, 1fr) 84px; grid-template-areas: "n quem oc sit" ". mot mot mot";
+  column-gap: 12px; row-gap: 4px; align-items: start; padding: 9px 12px; border-bottom: 1px solid var(--border); background: var(--card);
+}
+.oc-lote-linha:last-child { border-bottom: 0; }
+.oc-lote-linha > :nth-child(2) { grid-area: quem; }
+.oc-lote-linha > :nth-child(3) { grid-area: oc; }
+.oc-lote-linha > :nth-child(4) { grid-area: sit; justify-self: end; }
+.oc-lote-linha-erro { background: color-mix(in srgb, var(--danger-soft) 40%, var(--card)); }
+.oc-lote-n { grid-area: n; font-size: 11px; font-weight: 600; color: var(--muted-foreground); padding-top: 2px; }
+.oc-lote-motivos { grid-area: mot; }
+@container (max-width: 520px) {
+  .oc-lote-linha { grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "n quem sit" ". oc oc" ". mot mot"; }
+}
+@media (pointer: coarse) {
+  .oc-c-acoes .pas-alvo { min-height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .oc-linha { transition: none; }
+  .oc-barra-selecao { animation: none; }
+}

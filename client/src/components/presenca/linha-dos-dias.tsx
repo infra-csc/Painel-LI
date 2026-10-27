@@ -9,7 +9,7 @@
  * representante, corrigir horário, lançar falta) — só o que a permissão e o
  * estado deixam. Muitos dias quebram em mais de uma fileira.
  */
-import { Camera, Clock3, LogIn, LogOut, MapPin, PencilLine, UserRoundCheck, UserX } from "lucide-react";
+import { Camera, CameraOff, Clock3, LogIn, LogOut, MapPin, PencilLine, UserRoundCheck, UserX } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -44,12 +44,14 @@ function Sinais({ d }: { d: DiaDaPresenca }) {
   const marcas = [d.entrada, d.saida].filter((m): m is MarcacaoDaPresenca => !!m);
   if (marcas.length === 0) return null;
   const selfies = marcas.filter((m) => m.comSelfie).length;
+  const expurgadas = marcas.some((m) => m.fotoExpurgada);
   const local = marcas.some((m) => m.lat != null && m.lng != null);
   const rep = marcas.some((m) => m.por === "representante");
   const corr = marcas.some((m) => m.por === "produtor_correcao");
   return (
     <span className="prs-dia-sinais" aria-hidden="true">
       {selfies > 0 && <span className="inline-flex items-center gap-0.5"><Camera className="w-3 h-3" />{selfies > 1 ? selfies : null}</span>}
+      {expurgadas && <CameraOff className="w-3 h-3" />}
       {local && <MapPin className="w-3 h-3" />}
       {rep && <UserRoundCheck className="w-3 h-3" />}
       {corr && <PencilLine className="w-3 h-3" />}
@@ -61,7 +63,7 @@ function Sinais({ d }: { d: DiaDaPresenca }) {
 function descricaoDoDia(d: DiaDaPresenca, hoje: string): string {
   const partes = [`${diaDaSemana(d.dia)} ${diaCurto(d.dia)}${d.dia === hoje ? " (hoje)" : ""}`, d.rotulo];
   const m = (rot: string, x: MarcacaoDaPresenca | null) => x
-    ? `${rot} ${x.hora} ${quemRegistrou(x)}${x.comSelfie ? ", com selfie" : ", sem selfie"}${x.lat != null ? ", com localização" : ""}`
+    ? `${rot} ${x.hora} ${quemRegistrou(x)}${x.fotoExpurgada ? ", foto apagada pela política de guarda" : x.comSelfie ? ", com selfie" : ", sem selfie"}${x.lat != null ? ", com localização" : ""}`
     : null;
   return [...partes, m("entrada", d.entrada), m("saída", d.saida)].filter(Boolean).join(" · ");
 }
@@ -129,6 +131,9 @@ export function LinhaDosDias({ dias, hoje, permissoes, travada, acoes, nome }: {
                     <div className="px-2 pb-1.5 text-2xs leading-4 text-muted-foreground">
                       {d.entrada && <p className="m-0">Entrada {d.entrada.hora} · {quemRegistrou(d.entrada)}</p>}
                       {d.saida && <p className="m-0">Saída {d.saida.hora} · {quemRegistrou(d.saida)}</p>}
+                      {(d.entrada?.fotoExpurgada || d.saida?.fotoExpurgada) && (
+                        <p className="m-0 mt-1 inline-flex items-center gap-1"><CameraOff className="w-3 h-3" aria-hidden="true" />Foto apagada pela política de guarda</p>
+                      )}
                     </div>
                   )}
                   {(fotos.length > 0 || locais.length > 0) && <DropdownMenuSeparator />}

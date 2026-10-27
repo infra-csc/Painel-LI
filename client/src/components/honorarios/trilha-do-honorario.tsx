@@ -18,6 +18,10 @@
  *
  * No estreito, o registro vira uma barra de 9 segmentos com a frase do que
  * falta; o evento vira uma grade 3 × 3.
+ *
+ * 28/10 (Fase 2): OC emitida e Pago são reais (nada mais "em breve"); no
+ * legado as duas aparecem riscadas com "não se aplica" (quem não emite NF,
+ * as etapas da nota também).
  */
 import { Check, Clock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -119,6 +123,7 @@ export function TrilhaDoRegistro({ posicao, className }: TrilhaDoRegistroProps) 
                 {def.rotulo}
               </span>
               {estado === "em_breve" && <span className="text-2xs leading-3 uppercase tracking-[0.04em] text-muted-foreground">em breve</span>}
+              {estado === "nao_se_aplica" && <span className="text-2xs leading-3 text-muted-foreground" data-testid={`trilha-nao-se-aplica-${def.id}`}>não se aplica</span>}
             </li>
           );
         })}

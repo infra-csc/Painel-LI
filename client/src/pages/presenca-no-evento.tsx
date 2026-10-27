@@ -17,6 +17,10 @@
  * selo de contrato e o acesso ao portal; check-out final e código de acesso
  * em diálogos próprios. Link direto: /presenca?event=…&pessoa=… (id da
  * prestação ou do colaborador).
+ *
+ * 28/10 (Fase 2 manual): a situação da nota/pagamento na pessoa e, para a
+ * produção e o DP, "Enviar nota fiscal" como representante (o mesmo envio do
+ * portal: POST /api/ordens-de-compra/:actualId/nota-fiscal).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
@@ -58,6 +62,8 @@ import {
   ROTULO_DO_FILTRO, codigoDoErro, contarPorFiltro, filtrarPrestacoes, selfiesDaPrestacao, type FiltroDaPresenca,
 } from "@/components/presenca/presenca-utils";
 import type { PrestacaoDaPresenca } from "@/components/presenca/tipos";
+import { DialogoEnviarNota, type AlvoDaNota } from "@/components/ordens-de-compra/dialogo-enviar-nota";
+import { useAcoesDaOc } from "@/components/ordens-de-compra/use-ordens-de-compra";
 
 /** "25/10 – 01/11/2026" — o mesmo do Realizado. */
 function periodoDoEvento(e: Pick<Event, "startDate" | "endDate"> | undefined): string {
@@ -105,6 +111,7 @@ export default function PresencaNoEventoPage() {
   const legadoNoServidor = q.isError && codigoDoErro(q.error).codigo === "evento_legado";
   const dados = q.data?.evento?.id === eventId && Array.isArray(q.data?.prestacoes) ? q.data : undefined;
   const acoes = useAcoesDaPresenca(eventId);
+  const acoesDaNota = useAcoesDaOc(eventId);
   const trilha = useTrilhaDoEvento(dp && dados ? eventId : null);
 
   // ── Lista: fila, busca, abertas ──
@@ -146,6 +153,7 @@ export default function PresencaNoEventoPage() {
   const [alvoCodigo, setAlvoCodigo] = useState<AlvoDoCodigo | null>(null);
   const [remover, setRemover] = useState<{ id: string; rotulo: string; nome: string } | null>(null);
   const [galeria, setGaleria] = useState<{ actualId: string; indice: number } | null>(null);
+  const [alvoNota, setAlvoNota] = useState<AlvoDaNota | null>(null);
 
   const pessoaDaGaleria = galeria ? prestacoes.find((p) => p.actualId === galeria.actualId) : undefined;
   const selfiesDaGaleria = useMemo(() => (pessoaDaGaleria ? selfiesDaPrestacao(pessoaDaGaleria) : []), [pessoaDaGaleria]);
@@ -168,6 +176,14 @@ export default function PresencaNoEventoPage() {
       },
       confirmar: () => setAlvoConfirmar({ prestacao: p, nome }),
       checkoutFinal: () => setAlvoCheckout({ prestacao: p, nome }),
+      enviarNota: () => {
+        const nf = p.notaFiscal;
+        if (!nf?.oc) return;
+        setAlvoNota({
+          actualId: p.actualId, nome, oc: { numero: nf.oc.numero, valor: nf.oc.valor }, cnpjEmissor: p.cnpj.informado,
+          devolvida: nf.estado === "nf_devolvida" ? { comentario: nf.nota?.comentarioDoDp ?? null } : null,
+        });
+      },
       gerarCodigo: () => p.colaborador && setAlvoCodigo({ collaboratorId: p.colaborador.id, nome, temSenha: p.acesso.temSenha, codigoValidoAte: p.acesso.codigoValidoAte }),
     };
   };
@@ -355,6 +371,7 @@ export default function PresencaNoEventoPage() {
         </>
       )}
       <DialogoCodigoDeAcesso alvo={alvoCodigo} onClose={() => setAlvoCodigo(null)} />
+      <DialogoEnviarNota alvo={alvoNota} enviar={acoesDaNota.enviarNota} onClose={() => setAlvoNota(null)} />
       <ConfirmDialog
         open={!!remover}
         onOpenChange={(o) => { if (!o && !acoes.removerOcorrencia.isPending) setRemover(null); }}

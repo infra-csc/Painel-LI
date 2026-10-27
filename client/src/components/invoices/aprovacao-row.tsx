@@ -11,11 +11,19 @@
 // contorno verde; "Devolver" e "Recusar" são discretos e só ganham cor ao
 // apontar ou quando o painel deles está aberto. Abaixo de 960px úteis a MESMA
 // árvore vira cartão por CSS (`.nf-tab-cartao` no index.css).
+//
+// 28/10 (Fase 2 manual): o selo da conferência (OC registrada × nota × CNPJ)
+// na coluna da nota, a primeira divergência embaixo do nome, a OC registrada
+// ao lado da OC da nota, e — depois de lançada no M4 — "Marcar como pago" e o
+// selo "Pago em dd/mm" (com desfazer).
 import { memo } from "react";
 import {
   FileText, CheckCircle2, RotateCcw, Clock,
-  AlertTriangle, CircleDot, Ban,
+  AlertTriangle, CircleDot, Ban, BadgeCheck, Undo2,
 } from "lucide-react";
+import { SeloDaConferencia, resultadoDaConferencia } from "@/components/ordens-de-compra/conferencia-da-nota";
+import { mesmaOc } from "@shared/honorarios-pagamento";
+import type { ConferenciaDaNotaApi } from "@/components/ordens-de-compra/tipos";
 import type { BudgetActual, Invoice } from "@shared/schema";
 import { toTitleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -42,6 +50,10 @@ export interface AprovacaoRowProps {
   actualBlocked: boolean;
   onOpenAction: (invId: string, type: AprovAction) => void;
   onToggleHistory: (invId: string) => void;
+  /** Conferência OC × NF × CNPJ e o pago (28/10) — ausente no legado ou sem resposta. */
+  conferencia?: ConferenciaDaNotaApi;
+  onMarcarPago?: (inv: Invoice, c: ConferenciaDaNotaApi) => void;
+  onDesfazerPago?: (inv: Invoice, c: ConferenciaDaNotaApi) => void;
 }
 
 /** Botão de ação da linha: 32px, ícone + verbo. */
@@ -49,7 +61,12 @@ const ACAO = "pas-alvo inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg te
 
 export const AprovacaoRow = memo(function AprovacaoRow({
   inv, actual, name, funcName, effSt, cfg, activeType, isHistOpen, historyCount, isTarget, actualBlocked, onOpenAction, onToggleHistory,
+  conferencia, onMarcarPago, onDesfazerPago,
 }: AprovacaoRowProps) {
+  const conf = conferencia && !conferencia.legado ? conferencia : undefined;
+  const resultado = conf?.conferencia ? resultadoDaConferencia(conf.conferencia) : null;
+  const ocRegistrada = conf?.ocRegistrada?.numero ?? null;
+  const pago = conf?.pagamento ?? null;
   const isActive     = activeType !== null;
   const displayName  = toTitleCase(name);
   const initial      = displayName && displayName !== "—" ? displayName.charAt(0).toUpperCase() : "?";
@@ -95,6 +112,11 @@ export const AprovacaoRow = memo(function AprovacaoRow({
                   {dias > 5 && <AlertTriangle className="w-3 h-3" aria-hidden="true" />}
                 </span>
               )}
+              {pago && (
+                <span className={`${PILULA} gap-1 bg-success-soft text-success`} title={pago.observacao ? `Pago — ${pago.observacao}` : "Pago"} data-testid={`nf-pago-${inv.id}`}>
+                  <BadgeCheck className="w-3 h-3" aria-hidden="true" />Pago em {fmtDate(pago.pagoEm)}
+                </span>
+              )}
               {effSt === "enviada" && actualBlocked && (
                 <span
                   className={`${PILULA} gap-1 bg-warning-soft text-warning`}
@@ -104,6 +126,12 @@ export const AprovacaoRow = memo(function AprovacaoRow({
                 </span>
               )}
             </div>
+            {resultado === "divergente" && conf?.conferencia?.divergencias[0] && (
+              <p className="m-0 mt-1 flex gap-1 text-2xs leading-4 font-medium text-danger" data-testid={`nf-divergencia-${inv.id}`}>
+                <AlertTriangle className="w-3 h-3 mt-px shrink-0" aria-hidden="true" />
+                <span className="min-w-0">{conf.conferencia.divergencias[0]}{conf.conferencia.divergencias.length > 1 ? ` (+${conf.conferencia.divergencias.length - 1})` : ""}</span>
+              </p>
+            )}
           </div>
         </div>
       </td>
@@ -116,6 +144,11 @@ export const AprovacaoRow = memo(function AprovacaoRow({
       {/* OC */}
       <td data-col="oc" data-rotulo="OC" className="nf-td">
         <span className="block font-mono text-xs font-semibold text-slate-700 break-all">{inv.oc || "—"}</span>
+        {ocRegistrada && (
+          mesmaOc(ocRegistrada, inv.oc)
+            ? <span className="block text-2xs text-success">= OC registrada</span>
+            : <span className="block text-2xs font-medium text-danger break-all" title="A OC registrada pelo DP em Ordens de compra">registrada: {ocRegistrada}</span>
+        )}
       </td>
       {/* Nota */}
       <td data-col="nota" data-rotulo="Nota" className="nf-td">
@@ -125,6 +158,7 @@ export const AprovacaoRow = memo(function AprovacaoRow({
             <FileText className="w-3.5 h-3.5" aria-hidden="true" /> Ver nota
           </a>
         ) : <span className="text-muted-foreground text-xs">—</span>}
+        {conf?.conferencia && <div className="mt-1"><SeloDaConferencia conferencia={conf.conferencia} testid={`nf-conferencia-${inv.id}`} /></div>}
       </td>
       {/* Histórico */}
       <td data-col="hist" className="nf-td px-1 text-center">
@@ -210,11 +244,22 @@ export const AprovacaoRow = memo(function AprovacaoRow({
               <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Lançar no M4
             </button>
           )}
-          {effSt === "checkin-realizado" && (
-            <span className="inline-flex items-center gap-1.5 h-8 px-1 text-xs text-success" title="Data de pagamento definida no lançamento no M4">
+          {effSt === "checkin-realizado" && !pago && (
+            <span className="inline-flex items-center gap-1.5 h-8 px-1 text-xs text-info" title="Data de pagamento prevista no lançamento no M4 (programado)">
               <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-              Pgto <span className="font-semibold tabular-nums">{fmtDate(inv.paymentDate)}</span>
+              Prog. <span className="font-semibold tabular-nums">{fmtDate(inv.paymentDate)}</span>
             </span>
+          )}
+          {effSt === "checkin-realizado" && !pago && conf?.podeMarcarPago && onMarcarPago && (
+            <button type="button" onClick={() => onMarcarPago(inv, conf)} className={cn(ACAO, "text-success bg-card border-success/35 hover:bg-success-soft")} data-testid={`nf-marcar-pago-${inv.id}`}>
+              <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" /> Marcar como pago
+            </button>
+          )}
+          {pago && conf?.podeDesfazerPago && onDesfazerPago && (
+            <button type="button" onClick={() => onDesfazerPago(inv, conf)} title="Desfazer o pago (com motivo)"
+              className={cn(ACAO, "border-transparent text-muted-foreground hover:bg-danger-soft hover:text-danger")} data-testid={`nf-desfazer-pago-${inv.id}`}>
+              <Undo2 className="w-3.5 h-3.5" aria-hidden="true" /> Desfazer pago
+            </button>
           )}
           {effSt === "devolvida" && (
             <span className="nf-motivo text-xs text-slate-600 text-right" title={inv.returnComment || undefined}>

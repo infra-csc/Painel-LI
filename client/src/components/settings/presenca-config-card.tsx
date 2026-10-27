@@ -189,7 +189,7 @@ export function PresencaConfigCard() {
             salvo={salvo.produtorAjusteMaxPct} padrao={pad.produtorAjusteMaxPct} disabled={desab} />
         </LinhaDeAjuste>
 
-        <LinhaDeAjuste titulo="Guarda das selfies" descricao="Por quanto tempo as fotos e a localização ficam guardadas depois do pagamento. Hoje só registra a política — a limpeza automática vem depois." colunas={2}>
+        <LinhaDeAjuste titulo="Guarda das selfies" descricao="Por quanto tempo as selfies ficam guardadas depois do pagamento. Passado o prazo, o expurgo (card abaixo) apaga as fotos; os horários ficam." colunas={2}>
           <CampoNumero id="cfg-prs-retencao" rotulo="Guardar por" unidade="dias" valor={r.retencaoDias} onChange={(v) => setR({ ...r, retencaoDias: v })}
             salvo={salvo.retencaoDias} padrao={pad.retencaoDias} disabled={desab} />
         </LinhaDeAjuste>

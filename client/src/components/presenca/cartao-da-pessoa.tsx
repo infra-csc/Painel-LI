@@ -10,10 +10,14 @@
  * Aberto: ocorrências (com remover), a confirmação do colaborador por
  * extenso, o CNPJ informado, o acesso ao portal (senha, código, bloqueio,
  * termo) e o valor com a memória de cálculo.
+ *
+ * 28/10 (Fase 2 manual): a situação da nota/pagamento (OC emitida, NF
+ * enviada, devolvida, programado, pago) num selo e no bloco "Nota fiscal e
+ * pagamento"; produção e DP enviam a NF como representante.
  */
 import { memo, type ReactNode } from "react";
 import {
-  Camera, CheckCheck, ChevronDown, CircleDashed, KeyRound, Loader2, LockKeyhole, MoreHorizontal, Send, ShieldAlert, Trash2, TriangleAlert, UserRoundCheck,
+  BadgeCheck, Camera, CameraOff, CheckCheck, ChevronDown, CircleDashed, FileUp, KeyRound, Loader2, LockKeyhole, MoreHorizontal, Send, ShieldAlert, Trash2, TriangleAlert, UserRoundCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +31,9 @@ import { LinhaDosDias, type AcoesDoDia } from "./linha-dos-dias";
 import {
   contarSelfies, dataHoraBr, diaComSemana, foiParaODp, prontoParaFechar, reais, seloDoCnpj, seloPrincipal, textoDoAjuste,
 } from "./presenca-utils";
-import type { PermissoesDaPresenca, PrestacaoDaPresenca } from "./tipos";
+import type { NotaFiscalDaPresenca, PermissoesDaPresenca, PrestacaoDaPresenca } from "./tipos";
+import type { EstadoDoPagamento } from "@shared/honorarios-pagamento";
+import type { Tom } from "@/components/budget/budget-card";
 
 export interface AcoesDaPessoa extends AcoesDoDia {
   lancarOcorrencia: () => void;
@@ -36,6 +42,33 @@ export interface AcoesDaPessoa extends AcoesDoDia {
   checkoutFinal: () => void;
   gerarCodigo: () => void;
   verSelfies: () => void;
+  /** NF como representante (28/10) — só quando `notaFiscal.podeEnviar`. */
+  enviarNota: () => void;
+}
+
+const TOM_DA_NOTA: Record<EstadoDoPagamento, Tom> = {
+  sem_oc: "neutro", com_oc: "marca", nf_enviada: "alerta", nf_devolvida: "alerta", nf_recusada: "perigo", nf_aprovada: "info", programado: "info", pago: "ok",
+};
+
+const ddmmIso = (iso: string | null | undefined) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "");
+
+/** O selo da nota/pagamento: "Pago em 25/10", "NF devolvida", "OC emitida"… */
+function rotuloDaNota(n: NotaFiscalDaPresenca): string {
+  return n.estado === "pago" && n.pagoEm ? `Pago em ${ddmmIso(n.pagoEm)}` : n.rotulo;
+}
+
+/** O que a nota espera agora, por extenso (o bloco aberto). */
+function fraseDaNota(n: NotaFiscalDaPresenca): string {
+  switch (n.estado) {
+    case "sem_oc": return "Aguardando a OC do DP (depois da Conferência DP).";
+    case "com_oc": return "OC emitida — aguardando a nota fiscal do colaborador (ou envie como representante).";
+    case "nf_enviada": return "Nota enviada — em conferência no DP.";
+    case "nf_devolvida": return "Nota devolvida pelo DP — o colaborador corrige e reenvia (ou você, como representante).";
+    case "nf_recusada": return "Nota recusada em definitivo pelo DP.";
+    case "nf_aprovada": return "Nota aprovada — aguardando o lançamento no M4.";
+    case "programado": return "Lançada no M4 — pagamento programado.";
+    case "pago": return n.pagoEm ? `Pago em ${ddmmIso(n.pagoEm)}.` : "Pago.";
+  }
 }
 
 function Bloco({ titulo, children, acao }: { titulo: string; children: ReactNode; acao?: ReactNode }) {
@@ -70,6 +103,7 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
   const travada = foiParaODp(p);
   const pronto = prontoParaFechar(p);
   const nSelfies = contarSelfies(p);
+  const nExpurgadas = p.dias.reduce((n, d) => n + (d.entrada?.fotoExpurgada ? 1 : 0) + (d.saida?.fotoExpurgada ? 1 : 0), 0);
   const podeCheckout = permissoes.checkoutFinal && p.checkoutFinal.podeFazer;
   const podeConfirmar = p.podeConfirmar && !travada;
   const ultimoDia = p.dias[p.dias.length - 1]?.dia;
@@ -102,6 +136,11 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
             {p.confirmacao?.contestacao && <Chip tom="alerta" title={p.confirmacao.contestacao}><TriangleAlert className="w-3 h-3" aria-hidden="true" />Contestou</Chip>}
             {p.cnpj.informado && <span className="text-2xs tabular-nums text-muted-foreground" title={`CNPJ ${p.cnpj.origem === "checkout_final" ? "do check-out final" : "confirmado"}: ${p.cnpj.rotulo}`}>{p.cnpj.informado}</span>}
             <SeloContratoAtivo situacao={p.cnpj.informado ? seloDoCnpj(p.cnpj.situacao) : p.situacaoContratual} mostrarQuandoAtivo={!!p.cnpj.informado} />
+            {p.notaFiscal && p.notaFiscal.estado !== "sem_oc" && (
+              <Chip tom={TOM_DA_NOTA[p.notaFiscal.estado]} title={fraseDaNota(p.notaFiscal)}>
+                {p.notaFiscal.estado === "pago" && <BadgeCheck className="w-3 h-3" aria-hidden="true" />}{rotuloDaNota(p.notaFiscal)}
+              </Chip>
+            )}
             {p.acesso.bloqueadoAte && <Chip tom="perigo" title={`Errou a senha várias vezes — bloqueado até ${dataHoraBr(p.acesso.bloqueadoAte)}. Um código novo destrava.`}><LockKeyhole className="w-3 h-3" aria-hidden="true" />Portal bloqueado</Chip>}
           </div>
         </div>
@@ -139,6 +178,11 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
                 {!travada && (
                   <DropdownMenuItem onSelect={acoes.lancarOcorrencia} data-testid={`prs-menu-ocorrencia-${p.actualId}`}>
                     <TriangleAlert className="w-4 h-4 mr-2 text-warning-strong" aria-hidden="true" />Lançar ocorrência…
+                  </DropdownMenuItem>
+                )}
+                {p.notaFiscal?.podeEnviar && (
+                  <DropdownMenuItem onSelect={acoes.enviarNota} data-testid={`prs-menu-nota-${p.actualId}`}>
+                    <FileUp className="w-4 h-4 mr-2 text-primary" aria-hidden="true" />{p.notaFiscal.estado === "nf_devolvida" ? "Reenviar a nota fiscal…" : "Enviar a nota fiscal…"}
                   </DropdownMenuItem>
                 )}
                 {podeConfirmar && (
@@ -258,8 +302,34 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
                 <span className="min-w-0">{p.acesso.termoAceito ? "Aceitou o termo de uso das selfies" : "Ainda não aceitou o termo de uso das selfies"}</span>
               </li>
               <li className="flex items-start gap-1.5 text-muted-foreground"><Camera className="w-3.5 h-3.5 mt-[3px] shrink-0" aria-hidden="true" /><span className="min-w-0">{nSelfies} {nSelfies === 1 ? "selfie" : "selfies"} nesta prestação</span></li>
+              {nExpurgadas > 0 && (
+                <li className="flex items-start gap-1.5 text-muted-foreground" data-testid={`prs-expurgadas-${p.actualId}`}><CameraOff className="w-3.5 h-3.5 mt-[3px] shrink-0" aria-hidden="true" /><span className="min-w-0">{nExpurgadas} {nExpurgadas === 1 ? "foto apagada" : "fotos apagadas"} pela política de guarda (os horários ficam)</span></li>
+              )}
             </ul>
           </Bloco>
+
+          {p.notaFiscal && p.notaFiscal.estado !== "sem_oc" && (
+            <Bloco titulo="Nota fiscal e pagamento"
+              acao={p.notaFiscal.podeEnviar ? <button type="button" className={ACAO_PEQUENA} onClick={acoes.enviarNota} data-testid={`prs-enviar-nota-${p.actualId}`}><FileUp className="w-3.5 h-3.5" aria-hidden="true" />{p.notaFiscal.estado === "nf_devolvida" ? "Reenviar" : "Enviar nota fiscal"}</button> : undefined}>
+              <div className="space-y-1" data-testid={`prs-nota-${p.actualId}`}>
+                <p className="m-0"><Chip tom={TOM_DA_NOTA[p.notaFiscal.estado]}>{rotuloDaNota(p.notaFiscal)}</Chip></p>
+                {p.notaFiscal.estado !== "pago" && <p className="m-0 text-slate-600">{fraseDaNota(p.notaFiscal)}</p>}
+                {p.notaFiscal.oc && (
+                  <p className="m-0"><span className="text-slate-600">OC</span> <span className="font-mono font-semibold text-foreground">{p.notaFiscal.oc.numero}</span>
+                    {verValores && p.notaFiscal.oc.valor != null && <span className="tabular-nums text-slate-600"> · {reais(p.notaFiscal.oc.valor)}</span>}
+                  </p>
+                )}
+                {p.notaFiscal.nota && (
+                  <p className="m-0"><span className="text-slate-600">NF</span> <span className="font-medium text-foreground tabular-nums">{p.notaFiscal.nota.numero ?? "sem nº"}</span>
+                    {verValores && p.notaFiscal.nota.valor != null && <span className="tabular-nums text-slate-600"> · {reais(p.notaFiscal.nota.valor)}</span>}
+                  </p>
+                )}
+                {p.notaFiscal.nota?.status === "devolvida" && p.notaFiscal.nota.comentarioDoDp && (
+                  <blockquote className="m-0 mt-1 rounded-md border-l-[3px] border-warning-strong bg-warning-soft/50 px-2.5 py-1.5 italic">“{p.notaFiscal.nota.comentarioDoDp}”</blockquote>
+                )}
+              </div>
+            </Bloco>
+          )}
 
           {verValores && (
             <Bloco titulo="Valor">

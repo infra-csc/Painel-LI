@@ -9,6 +9,9 @@
 // campo com rótulo e erro no lugar, e as ações à direita com o verbo da
 // decisão ("Confirmar aprovação", não "✓ Confirmar"). Esc cancela; Ctrl+Enter
 // confirma o motivo. A recusa ganhou a mesma validação do motivo da devolução.
+//
+// 28/10 (Fase 2 manual): ao aprovar (e ao devolver), o quadro da conferência
+// OC registrada × nota × CNPJ, com a diferença do valor em R$.
 import type { KeyboardEvent, ReactNode } from "react";
 import { CheckCircle2, RotateCcw, CircleDot, Ban, Loader2 } from "lucide-react";
 import type { Invoice } from "@shared/schema";
@@ -18,6 +21,8 @@ import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
 import { campoComErro } from "@/lib/campo-com-erro";
 import type { StatusCfg } from "./invoice-status";
 import type { AcaoNfMutation, AprovAction } from "./types";
+import { QuadroDaConferencia, resultadoDaConferencia } from "@/components/ordens-de-compra/conferencia-da-nota";
+import type { ConferenciaDaNotaApi } from "@/components/ordens-de-compra/tipos";
 
 export interface AprovacaoActionPanelProps {
   inv: Invoice;
@@ -39,6 +44,8 @@ export interface AprovacaoActionPanelProps {
   valor?: string;
   /** Quantas colunas a linha ocupa (6 desde 08/10). */
   colunas?: number;
+  /** Conferência OC × NF × CNPJ (28/10) — fora do legado. */
+  conferencia?: ConferenciaDaNotaApi;
 }
 
 const ROTULO = "block mb-1 text-xs font-medium text-slate-700";
@@ -60,8 +67,18 @@ function Cabecalho({ icone, tom, titulo, children }: { icone: ReactNode; tom: st
 
 export function AprovacaoActionPanel({
   inv, cfg, type, comment, setComment, tocouMotivo, setTocouMotivo, checkinDate, setCheckinDate, closeAction,
-  approveMutation, returnMutation, rejectMutation, checkinMutation, nome, valor, colunas = 6,
+  approveMutation, returnMutation, rejectMutation, checkinMutation, nome, valor, colunas = 6, conferencia,
 }: AprovacaoActionPanelProps) {
+  const quadro = conferencia && !conferencia.legado && conferencia.conferencia ? conferencia.conferencia : null;
+  const divergente = quadro ? resultadoDaConferencia(quadro) === "divergente" : false;
+  const blocoDaConferencia = quadro && (type === "approve" || type === "return") ? (
+    <div className="basis-full sm:pl-[38px]" data-testid="nf-quadro-conferencia">
+      <p className={`m-0 mb-1.5 text-xs font-medium ${divergente ? "text-danger" : "text-slate-700"}`}>
+        Conferência com a OC registrada{divergente ? " — há divergência" : ""}
+      </p>
+      <QuadroDaConferencia conferencia={quadro} />
+    </div>
+  ) : null;
   const quem = nome ? <>a nota de <strong className="font-semibold text-slate-700">{nome}</strong>{valor ? <> ({valor})</> : null}</> : "a nota";
   const faltaMotivo = tocouMotivo && !comment.trim();
 
@@ -100,6 +117,7 @@ export function AprovacaoActionPanel({
                   Aprovar {quem}? Em seguida o DP lança no M4 e define a data de pagamento.
                 </Cabecalho>
               </div>
+              {blocoDaConferencia}
               <div className="flex items-center gap-2 ml-auto">
                 <button type="button" onClick={closeAction} className={CANCELAR}>Cancelar</button>
                 <button
@@ -122,8 +140,9 @@ export function AprovacaoActionPanel({
           {type === "return" && (
             <div className="space-y-3">
               <Cabecalho icone={<RotateCcw className="w-4 h-4" />} tom="bg-warning-soft text-warning" titulo="Devolver para ajuste">
-                O motivo aparece no lançamento; depois de corrigida e reenviada, {quem} volta para esta fila.
+                O motivo aparece no lançamento e no app do colaborador; depois de corrigida e reenviada, {quem} volta para esta fila.
               </Cabecalho>
+              {blocoDaConferencia}
               <div className="max-w-[760px] sm:pl-[38px]">
                 <label htmlFor={`nf-return-${inv.id}`} className={ROTULO}>
                   Motivo da devolução<RequiredMark />

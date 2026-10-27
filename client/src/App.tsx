@@ -56,6 +56,8 @@ const PendenciasPage         = lazy(() => import("@/pages/pendencias"));
 const PortalDoColaborador    = lazy(() => import("@/pages/colaborador"));
 // 27/10 (Honorários, Fase 1): presença no evento — check-in/out, ocorrências e check-out final.
 const PresencaNoEventoPage   = lazy(() => import("@/pages/presenca-no-evento"));
+// 28/10 (Honorários, Fase 2 manual): OC, nota fiscal e pagamento — só o DP (admin + financial).
+const OrdensDeCompraPage     = lazy(() => import("@/pages/ordens-de-compra"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -100,6 +102,7 @@ const ORDERED_ROUTES: { path: string; permission: keyof RolePermissions }[] = [
   { path: "/budget-actual",     permission: "canAccessFinanceiro"    },
   { path: "/budget-comparison", permission: "canAccessScreen5"       },
   { path: "/rh-control",        permission: "canAccessScreen5"       },
+  { path: "/ordens-de-compra",  permission: "canAccessFinanceiro"    }, // 28/10: admin e DP — espelha requireFinanceUser
   { path: "/invoices",          permission: "canAccessFinanceiro"    },
   { path: "/flash-account",     permission: "canAccessFinanceiro"    },
   { path: "/honorarios-ceno",   permission: "canAccessHonorariosCeno" }, // 23/10: o perfil Honorários entra direto aqui
@@ -277,6 +280,11 @@ function Router() {
             <Route path="/system-settings">
               <ProtectedRoute permission="canAccessFinanceiro">
                 <SystemSettings />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/ordens-de-compra">
+              <ProtectedRoute permission="canAccessFinanceiro">
+                <OrdensDeCompraPage />
               </ProtectedRoute>
             </Route>
             <Route path="/invoices">

@@ -242,3 +242,43 @@ describe("menu e permissão", () => {
     expect(daProducao?.items.map((i) => i.label)).toEqual(["Presença no evento"]);
   });
 });
+
+describe("28/10 (Fase 2): a nota fiscal na presença", () => {
+  it("o selo da nota, a foto apagada pela guarda e 'Enviar nota fiscal' como representante (multipart, presa à OC)", async () => {
+    const expurgada = { comSelfie: false, fotoExpurgada: true, fotoId: null, fotoUrl: null };
+    const comOc = prestacao({
+      confirmacao, checkoutFinal: { ...prestacao().checkoutFinal, feito: true, podeFazer: false, valorFinal: 100000, valorCalculado: 100000 },
+      cnpj: { informado: "11.222.333/0001-81", razaoSocial: "ANA MEI", origem: "confirmacao", situacao: "contrato_ativo", rotulo: "Contrato ativo", contratoId: "k1" },
+      dias: [{ ...dia("2026-11-01", "concluido"), entrada: marca("07:30", expurgada), saida: marca("18:00", expurgada) }],
+      notaFiscal: { estado: "com_oc", rotulo: "OC emitida", oc: { numero: "4500123456", valor: 100000, data: "2026-11-02" }, nota: null, pagoEm: null, podeEnviar: true },
+    });
+    const fetchMock = mockarFetch((url, init) => {
+      if (url.startsWith("/api/events")) return respostaJson([eventoFake({ id: "e1", name: "Meia de Floripa", startDate: "2026-11-01", endDate: "2026-11-05" })], 200, url);
+      if (url.startsWith("/api/presenca/eventos/e1")) return respostaJson({
+        evento: { id: "e1", nome: "Meia de Floripa", cidade: null, inicio: "2026-11-01", fim: "2026-11-05", ocultarValoresColaborador: false }, hoje: HOJE,
+        configuracao: { selfieObrigatoria: true, localizacao: "registrar", horaExtraDivisor: 8, produtorAjusteMaxPct: 10, provisorio: true },
+        permissoes: { verFotos: true, representante: true, corrigir: true, checkoutFinal: true, gerarCodigo: true, ajusteSemLimite: false },
+        naArenaAgora: [], prestacoes: [comOc],
+      }, 200, url);
+      if (url === "/api/ordens-de-compra/a1/nota-fiscal" && init?.method === "POST") return respostaJson({ linha: {} }, 201, url);
+      return respostaJson({}, 200, url);
+    });
+    const { user } = renderComTudo(<PresencaNoEventoPage />, { user: usuarioFake({ role: "production" }), rota: "/presenca?event=e1", queryClient: criarQueryClientComApi() });
+    const cartao = await screen.findByTestId("prs-pessoa-a1");
+    expect(within(cartao).getByText("OC emitida")).toBeInTheDocument();
+    await user.click(within(cartao).getByTestId("prs-detalhar-a1"));
+    expect(within(cartao).getByTestId("prs-expurgadas-a1")).toHaveTextContent("2 fotos apagadas pela política de guarda");
+    await user.click(within(cartao).getByTestId("prs-enviar-nota-a1"));
+    const dialogo = await screen.findByTestId("oc-dialogo-nota");
+    expect(within(dialogo).getByTestId("oc-nota-o-que-consta")).toHaveTextContent("4500123456");
+    await user.click(within(dialogo).getByTestId("oc-nota-enviar"));
+    expect(within(dialogo).getByText("Anexe a nota fiscal.")).toBeInTheDocument();
+    await user.upload(within(dialogo).getByTestId("oc-nota-arquivo"), new File(["%PDF-1.4"], "nf.pdf", { type: "application/pdf" }));
+    await user.click(within(dialogo).getByTestId("oc-nota-enviar"));
+    await waitFor(() => expect(urlsChamadas(fetchMock)).toContain("/api/ordens-de-compra/a1/nota-fiscal"));
+    const corpo = fetchMock.mock.calls.find(([u]) => u === "/api/ordens-de-compra/a1/nota-fiscal")![1]!.body as FormData;
+    expect(corpo.get("valorNota")).toBe("100000");
+    expect(corpo.get("cnpjNota")).toBe("11222333000181");
+    expect((corpo.get("arquivo") as File).name).toBe("nf.pdf");
+  });
+});

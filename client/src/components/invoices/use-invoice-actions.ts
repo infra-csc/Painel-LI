@@ -54,7 +54,8 @@ export interface UseSubmitInvoiceArgs extends InfraMutation {
  * aqui porque a mutation lê e escreve nele (upload → limpa anexo → erros).
  */
 export function useSubmitInvoice({ actual, invoice, selectedEventId, qc, toast, paymentText }: UseSubmitInvoiceArgs) {
-  const [oc, setOc] = useState(invoice?.oc || "");
+  // 28/10 (Fase 2): com OC registrada pelo DP, a nota fica presa nela (o campo vem preenchido e travado).
+  const [oc, setOc] = useState(actual.ocNumero || invoice?.oc || "");
   const [erros, setErros] = useState<{ oc?: string; anexo?: string }>({});
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -119,6 +120,16 @@ export function useSubmitInvoice({ actual, invoice, selectedEventId, qc, toast, 
       setUploading(false);
       // e.body vem do apiRequest enriquecido — mostra a mensagem real do
       // servidor (ex.: validação de OC repetida) em vez do texto genérico
+      const codigo = (e as { body?: { codigo?: unknown } | null } | null)?.body?.codigo;
+      if (codigo === "oc_travada") {
+        if (actual.ocNumero) setOc(actual.ocNumero);
+        toast({
+          title: "A nota tem que usar a OC registrada",
+          description: `${apiErrorMessage(e, "Esta prestação já tem OC registrada.")} A OC é registrada (ou desfeita) pelo DP em Ordens de compra.`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ title: "Não foi possível enviar a nota", description: apiErrorMessage(e, "Tente novamente."), variant: "destructive" });
     },
   });

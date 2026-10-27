@@ -165,6 +165,9 @@ export function CartaoPrestacaoCorpo({
   if (aprovadaComRealizado) {
     if (nfStatusRodape === "pendente" && !itemEmitsNf) {
       nfInfo = <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="w-3.5 h-3.5" aria-hidden="true" />Não emite NF — definido na escalação</span>;
+    } else if (nfStatusRodape === "pendente" && !item.legado && !item.actual?.ocNumero) {
+      // 28/10 (Fase 2): no fluxo novo a nota vem depois da OC registrada pelo DP.
+      nfInfo = <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="w-3.5 h-3.5" aria-hidden="true" />Aguardando a OC do DP (Ordens de compra)</span>;
     } else if (nfStatusRodape === "pendente") {
       nfInfo = <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="w-3.5 h-3.5" aria-hidden="true" />Aguardando envio da nota fiscal</span>;
     } else if (nfStatusRodape === "recusada") {

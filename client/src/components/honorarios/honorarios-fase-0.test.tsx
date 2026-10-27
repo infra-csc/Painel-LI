@@ -26,18 +26,19 @@ const dp = usuarioFake({ id: "u-dp", role: "financial", name: "Diana DP" });
 const semFetch = () => mockarFetch(() => respostaJson([]));
 
 describe("Menu: o grupo Financeiro virou Honorários (slide 11)", () => {
-  it("o fluxo na ordem (sem números) e a configuração embaixo; Ordens de compra e Pagamentos não existem ainda", () => {
+  it("o fluxo na ordem (sem números) e a configuração embaixo; Ordens de compra entre a Conferência DP e as Notas fiscais (28/10)", () => {
     const grupo = MENU_GROUPS.find((g) => g.title === "Honorários");
     expect(grupo).toBeDefined();
     expect(MENU_GROUPS.some((g) => g.title === "Financeiro")).toBe(false);
     const nomes = grupo!.ids.map((id) => tabById(id)).filter(Boolean).map((t) => rotuloComEtapa(t!));
     // 27/10 (Fase 1): "Presença no evento" entra entre a Pré-aprovação e o Realizado.
-    expect(nomes.slice(0, 6)).toEqual(["Painel de honorários", "Pré-aprovação de valores", "Presença no evento", "Realizado", "Conferência DP", "Notas fiscais"]);
+    expect(nomes.slice(0, 7)).toEqual(["Painel de honorários", "Pré-aprovação de valores", "Presença no evento", "Realizado", "Conferência DP", "Ordens de compra", "Notas fiscais"]);
     expect(grupo!.subgroup).toMatchObject({ label: "Configuração e apoio" });
     expect(grupo!.subgroup!.ids.map((id) => tabById(id)?.label)).toEqual([
       "Tabela de valores", "Regras de cálculo", "Honorários da cenotécnica", "Cartão Flash", "Contratos (CNPJ)",
     ]);
-    expect(nomes.join(" ")).not.toMatch(/Ordens de compra|Pagamentos/);
+    // O pago mora nas Ordens de compra e em Notas fiscais — sem tela "Pagamentos" própria.
+    expect(nomes.join(" ")).not.toMatch(/Pagamentos/);
     // Decisão do dono (26/10): "Aprovação de honorários" segue no Operacional › Escala.
     const operacional = MENU_GROUPS.find((g) => g.title === "Operacional")!;
     expect(operacional.ids.indexOf("aprovacao-de-honorarios")).toBe(operacional.ids.indexOf("scaling-approval") + 1);

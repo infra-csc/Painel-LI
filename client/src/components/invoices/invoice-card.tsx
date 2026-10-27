@@ -17,10 +17,14 @@
 // (campo ou texto), anexo (anexar, substituir, remover, ver atual, ver nota),
 // enviar/reenviar, histórico, motivo da devolução, recusa definitiva e as
 // datas de check-in e de pagamento.
+//
+// 28/10 (Fase 2 manual): com a OC registrada pelo DP (Ordens de compra), o
+// campo vem preenchido e TRAVADO nela — o servidor recusa outra (409
+// `oc_travada`). O cadeado diz por quê.
 import { memo, useState } from "react";
 import {
   FileText, Upload, RotateCcw, Clock, ChevronDown,
-  Paperclip, FileCheck, Send, Eye, X, Ban, Loader2,
+  Paperclip, FileCheck, Send, Eye, X, Ban, Loader2, Lock,
 } from "lucide-react";
 import type { BudgetActual, Event, Invoice } from "@shared/schema";
 import { toTitleCase } from "@/lib/format";
@@ -160,7 +164,20 @@ export const InvoiceCard = memo(function InvoiceCard({ actual, invoice, getName,
 
         {/* OC: campo enquanto dá para enviar; depois, o número enviado */}
         <div data-col="oc" className="nf-cel min-w-0" data-rotulo={canEdit ? undefined : "Número OC"}>
-          {canEdit ? (
+          {canEdit && actual.ocNumero ? (
+            <>
+              <span className="nf-rotulo">Número OC</span>
+              <span
+                className="pas-alvo flex h-8 w-full items-center gap-1.5 rounded-lg border border-border bg-surface-muted px-2.5 font-mono text-sm tracking-tight text-foreground"
+                title="OC registrada pelo DP em Ordens de compra — a nota fica presa nela"
+                data-testid={`nf-oc-travada-${actual.id}`}
+              >
+                <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="truncate">{actual.ocNumero}</span>
+                <span className="sr-only"> (OC registrada pelo DP; não muda aqui)</span>
+              </span>
+            </>
+          ) : canEdit ? (
             <>
               <label htmlFor={`nf-oc-${actual.id}`} className="nf-rotulo">
                 Número OC<RequiredMark />

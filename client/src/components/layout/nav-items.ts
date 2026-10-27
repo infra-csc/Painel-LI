@@ -29,7 +29,7 @@ import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
   ChartColumn, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins, CircleDollarSign,
-  LayoutDashboard, FileSignature, Fingerprint,
+  LayoutDashboard, FileSignature, Fingerprint, FileCheck2,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -107,6 +107,8 @@ export const ALL_TABS: NavTab[] = [
   { id: "presenca",           path: "/presenca",           label: "Presença no evento",   icon: Fingerprint,       permission: "canAccessPresenca", sinonimos: ["check-in", "check-out", "selfie", "na arena", "check-out final"] },
   { id: "budget-actual",      path: "/budget-actual",      label: "Realizado",            icon: Wallet,            permission: "canAccessFinanceiro", sinonimos: ["prestação de contas"] },
   { id: "budget-comparison",  path: "/budget-comparison",  label: "Conferência DP",       icon: ChartColumn,       permission: "canAccessScreen5", sinonimos: ["Comparativo", "planejado x realizado"] },
+  // 28/10 (Fase 2 manual): a OC registrada pelo DP, o acompanhamento da nota e o pago — admin e DP.
+  { id: "ordens-de-compra",   path: "/ordens-de-compra",   label: "Ordens de compra",     icon: FileCheck2,        permission: "canAccessFinanceiro", sinonimos: ["OC", "ordem de compra", "pagamento", "pago", "marcar como pago", "M4"] },
   // Envio e validação de NF são as abas Lançamento e Aprovação DP da MESMA tela: um item só.
   { id: "invoices",           path: "/invoices",           label: "Notas fiscais",        icon: Receipt,           permission: "canAccessFinanceiro", sinonimos: ["Envio de NF", "Validação de NF", "lançamento", "aprovação", "NF"] },
   // ── Honorários › Configuração e apoio ──
@@ -151,12 +153,13 @@ export const MENU_GROUPS: NavGroup[] = [
   },
   {
     // 26/10 (slide 11): "Financeiro" virou "Honorários". O fluxo na ordem
-    // (Ordens de compra e Pagamentos chegam na Fase 1 — sem item vazio) e,
-    // embaixo, a configuração e o apoio.
+    // (28/10: Ordens de compra entre a Conferência DP e as Notas fiscais; o
+    // pago mora nela e em Notas fiscais — sem tela própria) e, embaixo, a
+    // configuração e o apoio.
     title: "Honorários",
     tone: "success",
     ids: [
-      "rh-control", "budget-planned", "presenca", "budget-actual", "budget-comparison", "invoices",
+      "rh-control", "budget-planned", "presenca", "budget-actual", "budget-comparison", "ordens-de-compra", "invoices",
       "system-settings", "calculation-rules", "honorarios-ceno", "flash-account", "contratos",
     ],
     subgroup: {

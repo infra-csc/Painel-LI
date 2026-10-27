@@ -50,12 +50,35 @@ describe("CartaoPrestacao", () => {
     expect(linha).not.toHaveClass("crh-tom-nf-pendente");
   });
 
-  it("aprovada sem NF enviada: 'Ag. nota fiscal'; expandido, o rodapé diz 'Aguardando envio da nota fiscal'", () => {
-    const { unmount } = montar({ item: aprovadaParaFaturamento({ invoice: null }) });
+  it("aprovada com OC e sem NF enviada: 'Ag. nota fiscal'; expandido, o rodapé diz 'Aguardando envio da nota fiscal'", () => {
+    const comOc = () => aprovadaParaFaturamento({ invoice: null, actual: realizadoRhFake({ rhStatus: "aprovado", ocNumero: "4500123456" }) });
+    const { unmount } = montar({ item: comOc() });
     expect(screen.getAllByText("Ag. nota fiscal").length).toBeGreaterThan(0);
     unmount();
-    montar({ item: aprovadaParaFaturamento({ invoice: null }), expandido: true });
+    montar({ item: comOc(), expandido: true });
     expect(screen.getByText("Aguardando envio da nota fiscal")).toBeInTheDocument();
+  });
+
+  it("28/10 — fluxo novo, aprovada SEM OC: 'Ag. OC' e 'Com o DP · registrar a OC' (a nota só vem depois da OC)", () => {
+    const { unmount } = montar({ item: aprovadaParaFaturamento({ invoice: null }) });
+    expect(screen.getAllByText("Ag. OC").length).toBeGreaterThan(0);
+    expect(screen.getByText("registrar a OC")).toBeInTheDocument();
+    expect(screen.queryByText("Ag. nota fiscal")).toBeNull();
+    unmount();
+    montar({ item: aprovadaParaFaturamento({ invoice: null }), expandido: true });
+    expect(screen.getByText("Aguardando a OC do DP (Ordens de compra)")).toBeInTheDocument();
+  });
+
+  it("28/10 — fluxo novo: lançada no M4 é 'Programado'; com a baixa do DP, 'Pago'; no legado segue 'Concluído'", () => {
+    const lancada = notaRhFake({ status: "aprovada", checkinAt: "2026-11-01T12:00:00.000Z", paymentDate: "2026-11-05" });
+    const { unmount } = montar({ item: aprovadaParaFaturamento({ invoice: lancada, actual: realizadoRhFake({ rhStatus: "aprovado", ocNumero: "45" }) }) });
+    expect(screen.getAllByText("Programado").length).toBeGreaterThan(0);
+    unmount();
+    const r = montar({ item: aprovadaParaFaturamento({ invoice: lancada, actual: realizadoRhFake({ rhStatus: "aprovado", ocNumero: "45", pagoEm: "2026-11-06" }) }) });
+    expect(screen.getAllByText("Pago").length).toBeGreaterThan(0);
+    r.unmount();
+    montar({ item: aprovadaParaFaturamento({ invoice: lancada, legado: true }) });
+    expect(screen.getAllByText("Concluído").length).toBeGreaterThan(0);
   });
 
   it("NF enviada: DP vê 'Aprovar NF' e o clique abre a confirmação inline pelo id da nota", async () => {
@@ -101,8 +124,9 @@ describe("CartaoPrestacao", () => {
     expect(setApprovingInvoiceId).toHaveBeenCalledWith(null);
   });
 
-  it("NF aprovada com check-in feito: badge 'Concluído'; sem lançamento: 'Ag. M4' e o CTA 'Ir para o M4' (só DP)", () => {
-    const { unmount } = montar({ item: aprovadaParaFaturamento({ invoice: notaRhFake({ status: "aprovada", checkinAt: "2026-03-10T12:00:00.000Z", paymentDate: "2026-03-15" }) }) });
+  it("NF aprovada com check-in feito (legado): badge 'Concluído'; sem lançamento: 'Ag. M4' e o CTA 'Ir para o M4' (só DP)", () => {
+    // 28/10: no fluxo novo, lançada no M4 é 'Programado' (ver o teste da Fase 2 acima).
+    const { unmount } = montar({ item: aprovadaParaFaturamento({ legado: true, invoice: notaRhFake({ status: "aprovada", checkinAt: "2026-03-10T12:00:00.000Z", paymentDate: "2026-03-15" }) }) });
     expect(screen.getByText("Concluído")).toBeInTheDocument();
     unmount();
     montar({ item: aprovadaParaFaturamento({ invoice: notaRhFake({ status: "aprovada" }) }), expandido: true });

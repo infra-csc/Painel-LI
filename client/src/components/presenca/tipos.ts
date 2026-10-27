@@ -6,6 +6,7 @@
  */
 import type { EstadoDoDia, FonteDosDias, ModoDeLocalizacao, SituacaoDoCnpjInformado, TipoDeOcorrencia } from "@shared/presenca";
 import type { SituacaoContratualDoColaborador } from "@shared/contratos";
+import type { EstadoDoPagamento } from "@shared/honorarios-pagamento";
 
 export type QuemRegistrou = "colaborador" | "representante" | "produtor_correcao";
 
@@ -16,6 +17,8 @@ export interface MarcacaoDaPresenca {
   por: QuemRegistrou | null;
   porUsuario: { id: string; nome: string | null } | null;
   comSelfie: boolean;
+  /** 28/10: a selfie saiu do storage pela política de guarda (LGPD); o horário fica. */
+  fotoExpurgada?: boolean;
   /** Só para quem vê as selfies (admin, DP, produção); a Área de Função recebe null. */
   fotoId: string | null;
   fotoUrl: string | null;
@@ -111,6 +114,18 @@ export interface PrestacaoDaPresenca {
     ultimoAcessoEm: string | null;
   };
   realizado: { rhStatus: string | null; sentForReview: boolean | null; totalValue: number; dailyValue: number };
+  /** Etapas 4–7 (28/10): a OC, a nota e se dá para enviar a NF como representante. */
+  notaFiscal?: NotaFiscalDaPresenca;
+}
+
+export interface NotaFiscalDaPresenca {
+  estado: EstadoDoPagamento;
+  rotulo: string;
+  oc: { numero: string; valor: number | null; data: string | null } | null;
+  nota: { id: string; status: string; numero: string | null; valor: number | null; arquivoNome: string | null; comentarioDoDp: string | null } | null;
+  pagoEm: string | null;
+  /** Admin, DP e produção, com OC e a nota ainda aceitando envio (sem nota ou devolvida). */
+  podeEnviar: boolean;
 }
 
 export interface PermissoesDaPresenca {

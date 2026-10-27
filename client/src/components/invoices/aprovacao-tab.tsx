@@ -9,6 +9,11 @@
 // por colaborador, função ou OC, e o pé com quantas estão na tela e quanto
 // ELAS somam (que antes se sobrepunham dentro de uma célula e, até 08/10,
 // somavam o evento inteiro mesmo com filtro).
+//
+// 28/10 (Fase 2 manual): a conferência OC registrada × nota (nº da OC,
+// valor, CNPJ) de GET /api/invoices/conferencia — selo na linha e o quadro
+// no painel de aprovação — e o "Marcar como pago" depois de lançada no M4
+// (programado), com o selo "Pago em dd/mm" e o desfazer.
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { FileText, SearchX, ArrowRight } from "lucide-react";
 import type { Invoice } from "@shared/schema";
@@ -23,8 +28,16 @@ import { AprovacaoActionPanel } from "./aprovacao-action-panel";
 import { AprovacaoTotalsFooter, somarNotas } from "./aprovacao-totals-footer";
 import { EstadoDaLista, BOTAO_SAIDA } from "./estado-da-lista";
 import { useAprovacaoMutations } from "./use-invoice-actions";
+import { useAcoesDaOc, useConferenciaDasNotas } from "@/components/ordens-de-compra/use-ordens-de-compra";
+import { DialogoMarcarPago, type ItemDoPago } from "@/components/ordens-de-compra/dialogo-marcar-pago";
+import { DialogoDesfazer, type AlvoDoDesfazer } from "@/components/ordens-de-compra/dialogo-desfazer";
+import type { ConferenciaDaNotaApi } from "@/components/ordens-de-compra/tipos";
 import type { AbaBaseProps, ActiveAprovAction, AprovAction } from "./types";
 import type { BudgetActual } from "@shared/schema";
+import { hojeISO } from "@shared/hoje-sp";
+
+/** Hoje em Brasília (AAAA-MM-DD): o pago não aceita data futura. */
+const hojeLocal = () => hojeISO();
 
 // ── Aprovação Tab ─────────────────────────────────────────────────────────────
 const APROV_FILTERS = [
@@ -109,13 +122,33 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
   const { approveMutation, returnMutation, rejectMutation, checkinMutation } =
     useAprovacaoMutations({ selectedEventId, qc, toast, comment, checkinDate, closeAction });
 
+  // Conferência OC × NF × CNPJ e o pago (28/10) — por nota; falhou, a aba segue sem ela.
+  const qConferencia = useConferenciaDasNotas(selectedEventId);
+  const conferenciaPorNota = useMemo(() => new Map((qConferencia.data ?? []).map((c) => [c.invoiceId, c])), [qConferencia.data]);
+  const acoesDoPago = useAcoesDaOc(selectedEventId);
+  const [itensDoPago, setItensDoPago] = useState<ItemDoPago[] | null>(null);
+  const [alvoDesfazer, setAlvoDesfazer] = useState<AlvoDoDesfazer | null>(null);
+  const marcarPago = useCallback((inv: Invoice, c: ConferenciaDaNotaApi) => {
+    const nome = toTitleCase(getName(inv.collaboratorId));
+    setItensDoPago([{ actualId: c.actualId ?? inv.budgetActualId ?? "", nome, valor: c.ocRegistrada?.valor ?? c.valorAprovado ?? 0, programadoPara: c.programadoPara }]);
+  }, [getName]);
+  const desfazerPago = useCallback((inv: Invoice, c: ConferenciaDaNotaApi) => {
+    setAlvoDesfazer({ tipo: "pago", actualId: c.actualId ?? inv.budgetActualId ?? "", nome: toTitleCase(getName(inv.collaboratorId)), referencia: c.pagamento?.pagoEm ?? "" });
+  }, [getName]);
+
   // Ordem de nome (pt-BR): estável — decidir uma nota não embaralha a tabela.
   const ordenadas = useMemo(() => [...invoices].sort((a, b) =>
     toTitleCase(getName(a.collaboratorId)).localeCompare(toTitleCase(getName(b.collaboratorId)), "pt-BR")),
   [invoices, getName]);
 
   // Um invólucro só, montado sempre: a medida da largura nasce com a aba.
-  return <div ref={ref}>{conteudo()}</div>;
+  return (
+    <div ref={ref}>
+      {conteudo()}
+      <DialogoMarcarPago itens={itensDoPago} hoje={hojeLocal()} marcarPago={acoesDoPago.marcarPago} onClose={() => setItensDoPago(null)} />
+      <DialogoDesfazer alvo={alvoDesfazer} desfazerOc={acoesDoPago.desfazerOc} desfazerPago={acoesDoPago.desfazerPago} onClose={() => setAlvoDesfazer(null)} />
+    </div>
+  );
 
   function conteudo() {
     if (invoices.length === 0) {
@@ -242,6 +275,9 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
                           actualBlocked={actualBlocked}
                           onOpenAction={openAction}
                           onToggleHistory={toggleHistory}
+                          conferencia={conferenciaPorNota.get(inv.id)}
+                          onMarcarPago={marcarPago}
+                          onDesfazerPago={desfazerPago}
                         />
 
                         {/* Inline action panel */}
@@ -265,6 +301,7 @@ export function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, se
                             nome={toTitleCase(name)}
                             valor={actual ? formatCurrency(actual.totalValue) : undefined}
                             colunas={COLUNAS}
+                            conferencia={conferenciaPorNota.get(inv.id)}
                           />
                         )}
 
