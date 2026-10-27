@@ -111,7 +111,8 @@ export default function BudgetActualPage() {
   }, [budgetActual, urlCollaboratorId, urlFunctionId]);
 
   // Contrato ativo do CNPJ (Fase 0): só o DP pergunta; para os outros o mapa vem vazio.
-  const situacaoContratual = useSituacaoContratualNoEvento(selectedEventId);
+  // No legado o contrato não entra (fluxo antigo): sem selo.
+  const situacaoContratual = useSituacaoContratualNoEvento(selectedEvent && legado.ehLegado(selectedEvent) ? null : selectedEventId);
   const dados = useBudgetActualData({ selectedEventId, budgetActual, budgetPlanned, teamInclusions, selectedEvent, getCollaboratorName, getFunctionName });
   const { filteredItems, selectedCards, setSelectedCards, pendingFiltered, sentForReview } = dados;
 

@@ -143,7 +143,8 @@ export default function BudgetPlannedPage() {
 
   const draft = useBudgetDraft(selectedEventId, usuarioId);
   // Contrato ativo do CNPJ (Fase 0): só o DP pergunta; para os outros o mapa vem vazio.
-  const situacaoContratual = useSituacaoContratualNoEvento(selectedEventId);
+  // No legado o contrato não entra (fluxo antigo): sem selo.
+  const situacaoContratual = useSituacaoContratualNoEvento(selectedEvent && legado.ehLegado(selectedEvent) ? null : selectedEventId);
   const { budgetOverrides, setBudgetOverrides, draftRestored, setDraftRestored } = draft;
   const nAjustes = Object.keys(budgetOverrides).length;
   const eventoLegado = legado.ehLegado(selectedEvent);
@@ -402,7 +403,8 @@ export default function BudgetPlannedPage() {
     conteudo = (
       <>
         {/* "Não exibir valores" ao colaborador (26/10): do evento, padrão ligado, até a OC. */}
-        {selectedEvent && (
+        {/* No legado o colaborador não usa o app (fluxo antigo): o interruptor não se aplica. */}
+        {selectedEvent && !legado.ehLegado(selectedEvent) && (
           <div className="rounded-xl border border-border bg-card px-4 py-3">
             <OcultarValoresDoEvento evento={selectedEvent} podeMudar={podeGravar} />
           </div>
