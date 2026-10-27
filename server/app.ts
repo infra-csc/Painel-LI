@@ -25,6 +25,7 @@ import type { User } from "@shared/schema";
 import { registerRoutes } from "./routes";
 import { simulationReadOnlyGuard } from "./simulation";
 import { bloqueioDoPerfilHonorarios } from "./perfil-honorarios";
+import { ehRotaDoColaborador, gateDoColaborador } from "./colaborador-sessao";
 import { log } from "./vite";
 import { tratadorGlobalDeErros, serializarJsonNaBorda } from "./http";
 import {
@@ -161,11 +162,16 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
   //   qualquer recurso externo carregado pela página.
   // - HSTS só em produção (em dev o app roda em http://localhost).
   const FRAME_ANCESTORS = ["'self'", ...PORTAL_ORIGINS].join(" ");
-  app.use((_req, res, next) => {
+  // Permissions-Policy (27/10): o portal do colaborador (/colaborador) usa a
+  // câmera (selfie do check-in) e a localização; o resto do app continua sem.
+  app.use((req, res, next) => {
+    const portalDoColaborador = /^\/colaborador(\/|$)/i.test(req.path);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Content-Security-Policy', `frame-ancestors ${FRAME_ANCESTORS}`);
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Permissions-Policy', portalDoColaborador
+      ? 'camera=(self), microphone=(), geolocation=(self)'
+      : 'camera=(), microphone=(), geolocation=()');
     if (IS_PROD) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
   });
@@ -251,6 +257,19 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
   app.use('/api/auth/forgot-password', passwordResetLimiter);
   app.use('/api/auth/reset-password', passwordResetLimiter);
 
+  // Portal do colaborador (27/10): entrar e primeiro acesso por IP, no mesmo
+  // store do Postgres. O bloqueio por CPF (5 erros → 15 min) é da rota.
+  const limitadorDoColaborador = (prefixo: string) => rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+    store: criarStoreDeRateLimit(prefixo),
+  });
+  app.use('/api/colaborador/entrar', limitadorDoColaborador('colab-entrar'));
+  app.use('/api/colaborador/primeiro-acesso', limitadorDoColaborador('colab-acesso'));
+
   // ── Login automático do MODO DEMONSTRAÇÃO (25/09) ─────────────────────────
   // `GET /__demo/entrar?papel=admin|production|purchasing|function_area|
   // financial|aprovador` cria a sessão do usuário semeado (server/dev/
@@ -324,6 +343,10 @@ export async function createApp(opts: OpcoesDoApp = {}): Promise<AppCriado> {
     const path = req.path.toLowerCase();
     if (!path.startsWith('/api')) return next();
     if (AUTH_EXEMPT.some((prefix) => path.startsWith(prefix))) return next();
+    // Portal do colaborador (27/10): mundo à parte — sessão própria
+    // (`colaboradorId`), nunca a do usuário interno, e vice-versa
+    // (server/colaborador-sessao.ts). Sem SSO: o colaborador entra com CPF e senha.
+    if (ehRotaDoColaborador(path)) return gateDoColaborador(req, res, next);
 
     const negar = (status: number, body: Record<string, unknown>, motivo: string) => {
       console.warn(`[AuthAudit] BLOQUEADO ${req.method} ${req.path} — ${motivo}`);

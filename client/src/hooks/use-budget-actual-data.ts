@@ -10,6 +10,7 @@ import type { BudgetActual, BudgetPlanned, Event, TeamInclusion } from "@shared/
 import { agruparPor, chaveComposta, indexarPorId } from "@/lib/indices";
 import { contarDiasUteisEFds } from "@/lib/format";
 import { getProportionalPlanned, isUnfilledItem, isWeekendDate, type DayCounts } from "@/components/budget/actual-utils";
+import { periodoDaPrestacao } from "@shared/presenca";
 
 /**
  * Situação da prestação (redesenho 08/10) — só exibição, na MESMA ordem de
@@ -107,23 +108,19 @@ export function useBudgetActualData(e: EntradaDosDadosDoRealizado) {
     return inclusaoPorColabEvento.get(chaveComposta(item.collaboratorId, item.eventId))?.[0];
   }, [inclusaoPorColabEvento]);
 
+  // De onde vêm os dias (27/10): a regra mora em @shared/presenca
+  // (`periodoDaPrestacao`) — a presença no evento usa a MESMA no servidor.
+  // dias trabalhados gravados → período da escala → datas do evento.
   const getItemDayCounts = useCallback((item: BudgetActual): DayCounts => {
-    // When workedDays is set (after a split), derive counts from it for accuracy
-    const wd = item.workedDays;
-    if (wd && wd.length > 0) {
-      const weekdays = wd.filter(d => !isWeekendDate(d)).length;
-      const weekends = wd.filter(d => isWeekendDate(d)).length;
-      const sorted = [...wd].sort();
-      return { weekdays, weekends, startDate: sorted[0] || null, endDate: sorted[sorted.length - 1] || null };
+    const periodo = periodoDaPrestacao(item, getItemInclusion(item), { startDate: selectedEvent?.startDate, endDate: selectedEvent?.endDate });
+    if (periodo.fonte === "dias_trabalhados") {
+      // When workedDays is set (after a split), derive counts from it for accuracy
+      const weekdays = periodo.dias.filter(d => !isWeekendDate(d)).length;
+      return { weekdays, weekends: periodo.dias.length - weekdays, startDate: periodo.inicio, endDate: periodo.fim };
     }
-    const inclusion = getItemInclusion(item);
-    if (inclusion?.scheduleStartDate && inclusion?.scheduleEndDate) {
-      const counts = contarDiasUteisEFds(inclusion.scheduleStartDate, inclusion.scheduleEndDate);
-      return { ...counts, startDate: inclusion.scheduleStartDate, endDate: inclusion.scheduleEndDate };
-    }
-    if (selectedEvent?.startDate && selectedEvent?.endDate) {
-      const counts = contarDiasUteisEFds(selectedEvent.startDate, selectedEvent.endDate);
-      return { ...counts, startDate: selectedEvent.startDate, endDate: selectedEvent.endDate };
+    if (periodo.fonte === "escala" || periodo.fonte === "evento") {
+      const counts = contarDiasUteisEFds(periodo.inicio, periodo.fim);
+      return { ...counts, startDate: periodo.inicio, endDate: periodo.fim };
     }
     return { weekdays: 0, weekends: 0, startDate: null, endDate: null };
   }, [getItemInclusion, selectedEvent?.startDate, selectedEvent?.endDate]);

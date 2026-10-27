@@ -7,7 +7,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, insertBudgetActualSchema, type InsertBudgetActual, type RhAdjustedFields } from "@shared/schema";
+import { budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, insertBudgetActualSchema, type BudgetActual, type InsertBudgetActual, type RhAdjustedFields } from "@shared/schema";
 import { eq, and, ne, inArray } from "drizzle-orm";
 import { isFinanceRole } from "@shared/roles";
 import { HttpError } from "../http";
@@ -26,6 +26,35 @@ import {
   requireFinSession,
   requireFinWrite,
 } from "./_compartilhado";
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * O "Enviar para revisão" do Realizado (o envio ao DP): UM UPDATE por grupo
+ * (reenvio × primeiro envio) com guarda de estado — item que já foi
+ * aprovado/enviado no meio não entra. Só os itens que `podeEnviarParaRevisao`
+ * aceita. Roda dentro da transação de quem chama; devolve as linhas gravadas.
+ * 27/10: também é o envio do check-out final da presença (server/routes/presenca.ts).
+ */
+export async function marcarEnviadosParaRevisao(tx: Tx, itens: readonly BudgetActual[], actorId: string): Promise<BudgetActual[]> {
+  const toUpdate = itens.filter(podeEnviarParaRevisao);
+  const reenvio = toUpdate.filter((i) => i.rhStatus === 'rejeitado' || i.rhStatus === 'devolvido').map((i) => i.id);
+  const primeiro = toUpdate.filter((i) => !(i.rhStatus === 'rejeitado' || i.rhStatus === 'devolvido')).map((i) => i.id);
+  const agora = new Date();
+  const a = reenvio.length > 0
+    ? await tx.update(budgetActualTable)
+        .set({ sentForReview: true, rhStatus: 'pendente', resubmitted: true, updatedAt: agora, updatedBy: actorId })
+        .where(and(inArray(budgetActualTable.id, reenvio), inArray(budgetActualTable.rhStatus, ['rejeitado', 'devolvido'])))
+        .returning()
+    : [];
+  const b = primeiro.length > 0
+    ? await tx.update(budgetActualTable)
+        .set({ sentForReview: true, rhStatus: 'pendente', updatedAt: agora, updatedBy: actorId })
+        .where(and(inArray(budgetActualTable.id, primeiro), eq(budgetActualTable.sentForReview, false), ne(budgetActualTable.rhStatus, 'aprovado')))
+        .returning()
+    : [];
+  return [...a, ...b];
+}
 
 export function registrarOrcamentoRealizado(app: Express): void {
   // Budget Actual (Realizado)
@@ -67,7 +96,10 @@ export function registrarOrcamentoRealizado(app: Express): void {
       // Campos de workflow não nascem pela API — impedem "nascer aprovado"
       const {
         rhStatus: _rs, sentForReview: _sfr, rhActionBy: _rab, rhActionAt: _raa, rhAdjusted: _ra,
-        rhAdjustedFields: _raf, resubmitted: _re, didNotAttend: _dna, didNotAttendReason: _dnr, ...data
+        rhAdjustedFields: _raf, resubmitted: _re, didNotAttend: _dna, didNotAttendReason: _dnr,
+        // Check-out final da presença (27/10): só POST /api/presenca/:id/checkout-final grava.
+        cnpjEmissor: _ce, razaoSocialEmissor: _rse, valorCalculado: _vc, ajusteProdutorPct: _ap, horasExtras: _he,
+        valorHorasExtras: _vhe, checkoutFinalEm: _cfe, checkoutFinalPor: _cfp, ...data
       } = insertBudgetActualSchema.parse(req.body);
       // Ata de 22/10 (Honorários, Fase 0): "nenhum registro é liberado para a
       // Produção sem a pré-aprovação do DP". Vindo do Planejado, a linha tem
@@ -342,7 +374,10 @@ export function registrarOrcamentoRealizado(app: Express): void {
       // (send-for-review, rh-action, toggle-not-attended)
       const {
         rhStatus: _rs, sentForReview: _sfr, rhActionBy: _rab, rhActionAt: _raa, rhAdjusted: _ra,
-        rhAdjustedFields: _raf, resubmitted: _re, didNotAttend: _dna, didNotAttendReason: _dnr, ...parsed
+        rhAdjustedFields: _raf, resubmitted: _re, didNotAttend: _dna, didNotAttendReason: _dnr,
+        // Check-out final da presença (27/10): só POST /api/presenca/:id/checkout-final grava.
+        cnpjEmissor: _ce, razaoSocialEmissor: _rse, valorCalculado: _vc, ajusteProdutorPct: _ap, horasExtras: _he,
+        valorHorasExtras: _vhe, checkoutFinalEm: _cfe, checkoutFinalPor: _cfp, ...parsed
       } = insertBudgetActualSchema.partial().parse(req.body);
       const updatePayload: Partial<InsertBudgetActual> = { ...parsed, updatedBy: actorId };
 
@@ -415,27 +450,7 @@ export function registrarOrcamentoRealizado(app: Express): void {
         ? items.filter((i) => itemIds.includes(i.id) && podeEnviarParaRevisao(i))
         : items.filter(podeEnviarParaRevisao);
       const actor = usuarioDaSessao(req);
-
-      // UM UPDATE por grupo (reenvio × primeiro envio) na mesma transação, com
-      // guarda de estado: item que já foi aprovado/enviado no meio não entra.
-      const reenvio = toUpdate.filter((i) => i.rhStatus === 'rejeitado' || i.rhStatus === 'devolvido').map((i) => i.id);
-      const primeiro = toUpdate.filter((i) => !(i.rhStatus === 'rejeitado' || i.rhStatus === 'devolvido')).map((i) => i.id);
-      const agora = new Date();
-      const updated = await db.transaction(async (tx) => {
-        const a = reenvio.length > 0
-          ? await tx.update(budgetActualTable)
-              .set({ sentForReview: true, rhStatus: 'pendente', resubmitted: true, updatedAt: agora, updatedBy: actorId })
-              .where(and(inArray(budgetActualTable.id, reenvio), inArray(budgetActualTable.rhStatus, ['rejeitado', 'devolvido'])))
-              .returning()
-          : [];
-        const b = primeiro.length > 0
-          ? await tx.update(budgetActualTable)
-              .set({ sentForReview: true, rhStatus: 'pendente', updatedAt: agora, updatedBy: actorId })
-              .where(and(inArray(budgetActualTable.id, primeiro), eq(budgetActualTable.sentForReview, false), ne(budgetActualTable.rhStatus, 'aprovado')))
-              .returning()
-          : [];
-        return [...a, ...b];
-      });
+      const updated = await db.transaction((tx) => marcarEnviadosParaRevisao(tx, toUpdate, actorId));
       const anteriorPorId = new Map(toUpdate.map((i) => [i.id, i]));
       // Auditoria por ITEM (antes só um registro com o evento como entidade).
       await createAuditLogsBatch(updated.map((u) =>

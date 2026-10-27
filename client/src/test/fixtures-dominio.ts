@@ -316,6 +316,15 @@ export function realizadoFake(parcial: Partial<BudgetActual> = {}): BudgetActual
     rhAdjusted: false,
     rhAdjustedFields: null,
     rhAdjustNote: null,
+    // Check-out final da presença (27/10)
+    cnpjEmissor: null,
+    razaoSocialEmissor: null,
+    valorCalculado: null,
+    ajusteProdutorPct: null,
+    horasExtras: "0",
+    valorHorasExtras: 0,
+    checkoutFinalEm: null,
+    checkoutFinalPor: null,
     ...parcial,
   };
 }

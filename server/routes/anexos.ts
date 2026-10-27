@@ -216,6 +216,18 @@ export function registrarAnexos(app: Express): void {
       }
       return { id, file, meta, objectStorageService };
     }
+    // Selfie da presença (27/10): só DP/admin e produção — nunca Compras, Área
+    // de Função ou o perfil Honorários. Marcada no objeto (classe "presenca");
+    // a consulta às presenças cobre um objeto sem a marca.
+    const { ehFotoDePresenca } = await import("../storage/presenca");
+    if (meta.classe === "presenca" || await ehFotoDePresenca(id)) {
+      if (!podeAcessarAnexo({ role, userId: quem.id, ownerId: meta.ownerId, documentoDeColaborador: false, anexoDePresenca: true })) {
+        console.warn(`[Anexos] acesso negado à selfie de presença ${id} para o usuário ${quem.id.slice(0, 8)}`);
+        res.status(403).json({ message: "Sem permissão para acessar esta foto" });
+        return null;
+      }
+      return { id, file, meta, objectStorageService };
+    }
     const documentoDeColaborador = await ehDocumentoDeColaborador(id);
     // Só consulta passagens/hospedagens quando a regra ainda não decidiu:
     // admin, Compras, Produção e RH já veem tudo.

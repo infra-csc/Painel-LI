@@ -29,7 +29,7 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
 (async () => {
   // Imports dinâmicos: server/db.ts lê PAINEL_DB no carregamento, então o
   // ambiente acima precisa estar definido antes de qualquer módulo do servidor.
-  const [{ db, inicializarBancoDeTeste }, { criarSchemaPglite }, { semearDemo, DEMO_PAPEIS, DEMO_SENHA, DEMO_USUARIOS }, { createApp }, { setupVite, log }, { iniciarAgendadorDaBusca }, { semearBuscaDemo }, { semearHonorariosDemo }, { semearContratosDemo }] = await Promise.all([
+  const [{ db, inicializarBancoDeTeste }, { criarSchemaPglite }, { semearDemo, DEMO_PAPEIS, DEMO_SENHA, DEMO_USUARIOS }, { createApp }, { setupVite, log }, { iniciarAgendadorDaBusca }, { semearBuscaDemo }, { semearHonorariosDemo }, { semearContratosDemo }, { semearPresencaDemo, DEMO_SENHA_DO_COLABORADOR }] = await Promise.all([
     import("../db"),
     import("./pglite-schema"),
     import("./demo-seed"),
@@ -39,6 +39,7 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
     import("./demo-seed-busca"),
     import("./demo-seed-honorarios"),
     import("./demo-seed-contratos"),
+    import("./demo-seed-presenca"),
   ]);
 
   const t0 = Date.now();
@@ -51,7 +52,9 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
   const honorarios = await semearHonorariosDemo(db);
   // Contratos (CNPJ) e pagamento (26/10): todas as situações; dados bancários só com PAGAMENTO_CHAVE.
   const contratos = await semearContratosDemo(db);
-  log(`banco embutido pronto em ${Date.now() - t0} ms — ${resumo.vagas} vagas, ${resumo.colaboradores} colaboradores, ${resumo.eventos} eventos, ${busca.consultas} consultas de preço, ${honorarios.pedidos} pedidos de honorário, ${contratos.contratos} contratos, ${contratos.pagamentos} pagamentos`, "demo");
+  // Presença no evento + portal do colaborador (27/10): evento do fluxo novo em andamento — SÓ no demo.
+  const presenca = await semearPresencaDemo(db);
+  log(`banco embutido pronto em ${Date.now() - t0} ms — ${resumo.vagas} vagas, ${resumo.colaboradores} colaboradores, ${resumo.eventos} eventos, ${busca.consultas} consultas de preço, ${honorarios.pedidos} pedidos de honorário, ${contratos.contratos} contratos, ${contratos.pagamentos} pagamentos, ${presenca.pessoas} pessoas na presença`, "demo");
 
   const { app, server } = await createApp({ modoSeguro: false, cookieSecure: false });
   await setupVite(app, server);
@@ -72,7 +75,11 @@ process.env.PORTAL_API_TOKEN ||= "token-do-portal-na-demo";
     for (const papel of DEMO_PAPEIS) {
       console.warn(`  http://localhost:${port}/__demo/entrar?papel=${papel.padEnd(13)} → ${DEMO_USUARIOS[papel].name} (${DEMO_USUARIOS[papel].role}${DEMO_USUARIOS[papel].canApproveCenotecnica ? ", aprova cenotécnica" : ""})`);
     }
-    console.warn(`  Login por senha (tela /auth): qualquer e-mail acima com a senha "${DEMO_SENHA}".\n`);
+    console.warn(`  Login por senha (tela /auth): qualquer e-mail acima com a senha "${DEMO_SENHA}".`);
+    for (const p of presenca.portal) {
+      console.warn(`  Portal do colaborador: http://localhost:${port}/colaborador → CPF ${p.cpf} (${p.nome}), senha "${DEMO_SENHA_DO_COLABORADOR}"`);
+    }
+    console.warn("");
   });
 })().catch((err) => {
   console.error("[Demo] Falha ao subir o modo demonstração:", err);

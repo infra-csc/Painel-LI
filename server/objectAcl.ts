@@ -23,7 +23,11 @@ export const META_NOME_ORIGINAL = "custom:originalFileName";
  * regra dependia de `contratos.anexo_id`, e o arquivo antigo caía na regra comum).
  */
 export const META_CLASSE = "custom:classe";
-export type ClasseDoAnexo = "contrato";
+/**
+ * 27/10: "presenca" — selfie do check-in/check-out (Fase 1 dos Honorários): só
+ * DP/admin e produção abrem pelos anexos; o próprio colaborador, pelo portal.
+ */
+export type ClasseDoAnexo = "contrato" | "presenca";
 
 export interface MetadadosDoAnexo {
   ownerId: string | null;
@@ -41,7 +45,7 @@ export function lerMetadadosDoAnexo(metadata: FileMetadata | null | undefined): 
     nomeOriginal: typeof custom[META_NOME_ORIGINAL] === "string" && custom[META_NOME_ORIGINAL] ? custom[META_NOME_ORIGINAL] : null,
     contentType: typeof metadata?.contentType === "string" ? metadata.contentType : null,
     tamanho: Number.isFinite(tamanho) ? tamanho : null,
-    classe: custom[META_CLASSE] === "contrato" ? "contrato" : null,
+    classe: custom[META_CLASSE] === "contrato" ? "contrato" : custom[META_CLASSE] === "presenca" ? "presenca" : null,
   };
 }
 
@@ -62,6 +66,8 @@ export async function gravarMetadadosDoAnexo(
 // ── Quem pode ver ────────────────────────────────────────────────────────────
 /** Cadastro (admin, Compras, Logística) + RH veem qualquer anexo. */
 const PAPEIS_QUE_VEEM_TUDO: readonly CanonicalRole[] = [...ROLE_GROUPS.cadastro, "financial"];
+/** Selfies da presença (27/10): DP/admin e produção. */
+export const PAPEIS_QUE_VEEM_SELFIES: readonly CanonicalRole[] = ["admin", "financial", "production"];
 
 export function podeAcessarAnexo(args: {
   role: CanonicalRole | null;
@@ -81,9 +87,16 @@ export function podeAcessarAnexo(args: {
    * (admin + financial) abre, nem Compras/Produção (que veem o resto).
    */
   anexoDeContrato?: boolean;
+  /**
+   * true quando o anexo é a SELFIE de uma presença (check-in/out) — 27/10: só
+   * DP/admin e produção abrem; nunca Compras, Área de Função nem o perfil
+   * Honorários (o colaborador vê as próprias pelo portal, rota à parte).
+   */
+  anexoDePresenca?: boolean;
 }): boolean {
-  const { role, userId, ownerId, documentoDeColaborador, anexoDeLogistica, anexoDeContrato } = args;
+  const { role, userId, ownerId, documentoDeColaborador, anexoDeLogistica, anexoDeContrato, anexoDePresenca } = args;
   if (anexoDeContrato) return !!role && (ROLE_GROUPS.financeiro as readonly CanonicalRole[]).includes(role);
+  if (anexoDePresenca) return !!role && (PAPEIS_QUE_VEEM_SELFIES as readonly CanonicalRole[]).includes(role);
   if (role && PAPEIS_QUE_VEEM_TUDO.includes(role)) return true;
   if (anexoDeLogistica && role) return true;
   // Documento (CPF/RG) de colaborador: mesma regra dos dados pessoais da

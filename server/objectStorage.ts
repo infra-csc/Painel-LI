@@ -8,7 +8,8 @@
  * cabeçalhos seguros. A política de quem pode ver e de quais tipos são aceitos
  * mora em server/objectAcl.ts.
  */
-import { Storage, File } from "@google-cloud/storage";
+import { Storage, File, type FileMetadata } from "@google-cloud/storage";
+import { Readable } from "node:stream";
 import type { Response } from "express";
 import {
   gravarMetadadosDoAnexo,
@@ -54,6 +55,29 @@ export function novoIdDeAnexo(): string {
   return `ATT-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`.toUpperCase();
 }
 
+// ── Modo demonstração (27/10) ────────────────────────────────────────────────
+// `npm run dev:demo` não tem o sidecar do Replit: sem isto, nenhum anexo
+// (nem a selfie da presença) funcionava na demo. Com PAINEL_DEMO=1 fora de
+// produção os objetos ficam num Map em memória — somem quando o processo para,
+// como o resto do banco da demo. Em produção a condição é sempre falsa.
+const emMemoria = () => process.env.PAINEL_DEMO === "1" && process.env.NODE_ENV !== "production";
+const objetosDaDemo = new Map<string, { conteudo: Buffer; metadata: FileMetadata }>();
+
+class ArquivoDaDemo {
+  constructor(readonly id: string) {}
+  private objeto() {
+    const o = objetosDaDemo.get(this.id);
+    if (!o) throw Object.assign(new Error("No such object"), { code: 404 });
+    return o;
+  }
+  async getMetadata(): Promise<[FileMetadata]> { return [this.objeto().metadata]; }
+  async setMetadata(patch: FileMetadata): Promise<void> {
+    const o = this.objeto();
+    o.metadata = { ...o.metadata, ...patch, metadata: { ...(o.metadata.metadata ?? {}), ...(patch.metadata ?? {}) } };
+  }
+  createReadStream() { return Readable.from([this.objeto().conteudo]); }
+}
+
 export class ObjectStorageService {
   constructor() {}
 
@@ -72,6 +96,7 @@ export class ObjectStorageService {
   /** Objeto do anexo `id` em <PRIVATE_OBJECT_DIR>/uploads/<id>. */
   arquivoDoAnexo(id: string): File {
     if (!ATTACHMENT_ID_RE.test(id)) throw new ObjectNotFoundError();
+    if (emMemoria()) return new ArquivoDaDemo(id) as unknown as File;
     const { bucketName, objectName } = parseObjectPath(`${this.getPrivateObjectDir()}/uploads/${id}`);
     return objectStorageClient.bucket(bucketName).file(objectName);
   }
@@ -99,6 +124,11 @@ export class ObjectStorageService {
     contentType: string,
     meta: { ownerId: string; nomeOriginal: string; classe?: ClasseDoAnexo },
   ): Promise<void> {
+    if (emMemoria()) {
+      objetosDaDemo.set(id, { conteudo, metadata: { size: conteudo.length } });
+      await gravarMetadadosDoAnexo(this.arquivoDoAnexo(id), { ...meta, contentType });
+      return;
+    }
     const uploadURL = await this.getObjectEntityUploadURL(id);
     const response = await fetch(uploadURL, {
       method: "PUT",

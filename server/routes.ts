@@ -48,6 +48,8 @@ import { registrarHonorariosFluxo } from "./routes/honorarios-fluxo";
 import { registrarHonorariosCeno } from "./routes/honorarios-ceno";
 import { registrarContratos } from "./routes/contratos";
 import { registrarPagamentoColaborador } from "./routes/pagamento-colaborador";
+import { registrarColaboradorPortal } from "./routes/colaborador-portal";
+import { registrarPresenca } from "./routes/presenca";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Toda rota registrada daqui em diante (inclusive as de scaling-validation e
@@ -64,6 +66,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registrarIntegracaoMaratona(app);
   registrarPortal(app);
   registrarAuth(app);
+  // Portal do colaborador (27/10): sessão própria (CPF + senha), fora do gate
+  // do usuário interno — o gate global manda /api/colaborador/* para
+  // server/colaborador-sessao.ts.
+  registrarColaboradorPortal(app);
 
   // ── Cadastros ─────────────────────────────────────────────────────────────
   registrarUsuarios(app);
@@ -109,6 +115,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Contratos (CNPJ) e dados de pagamento do colaborador (26/10) — só o DP.
   registrarContratos(app);
   registrarPagamentoColaborador(app);
+  // Presença no evento (27/10, Fase 1): check-in/out, ocorrências, check-out
+  // final do produtor e o código de acesso do colaborador.
+  registrarPresenca(app);
 
   // ── Trocas de colaborador ─────────────────────────────────────────────────
   registrarTrocas(app);

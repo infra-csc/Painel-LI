@@ -63,6 +63,11 @@ export const MODULOS: Record<string, Modulo> = {
   // 26/10: contratos (CNPJ) e dados de pagamento (só o DP).
   contrato: { rotulo: "Contratos (CNPJ)", substantivo: "contrato", artigo: "o" },
   colaborador_pagamento: { rotulo: "Dados de pagamento", substantivo: "dados de pagamento", artigo: "os" },
+  // 27/10: presença no evento e portal do colaborador (Fase 1 dos Honorários).
+  presenca: { rotulo: "Presença no evento", substantivo: "presença", artigo: "a" },
+  presenca_ocorrencia: { rotulo: "Ocorrências da presença", substantivo: "ocorrência", artigo: "a" },
+  presenca_confirmacao: { rotulo: "Confirmação do colaborador", substantivo: "confirmação da prestação", artigo: "a" },
+  colaborador_acesso: { rotulo: "Acesso do colaborador", substantivo: "acesso ao portal do colaborador", artigo: "o" },
 };
 
 /** Tipo que ainda não tem nome: nunca mostrar o código (dono, 18/09: "nada em inglês"). */
@@ -110,6 +115,8 @@ export const ACOES: Record<string, Acao> = {
   resolver: { rotulo: "Aviso resolvido", verbo: "resolveu", tom: "aprovar" },
   inactivate: { rotulo: "Inativação", verbo: "inativou", tom: "excluir" },
   checkin: { rotulo: "Check-in", verbo: "fez o check-in d", tom: "aprovar" },
+  // 27/10: saída do dia na presença do evento.
+  checkout: { rotulo: "Check-out", verbo: "fez o check-out d", tom: "aprovar" },
   suggestion_bypass_approve: { rotulo: "Aprovada sem validação da área", verbo: "aprovou direto (sem validação da área)", tom: "aprovar" },
   // Ações do histórico da vaga (team_inclusion_logs) — mesmos nomes, se aparecerem aqui.
   created: { rotulo: "Criação", verbo: "criou", tom: "criar" },

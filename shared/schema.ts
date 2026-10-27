@@ -653,6 +653,18 @@ export const budgetActual = pgTable("budget_actual", {
   rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
   rhAdjustedFields: jsonb("rh_adjusted_fields").$type<RhAdjustedFields>(), // {campo: {from, to, label}} dos campos alterados pelo RH
   rhAdjustNote: text("rh_adjust_note"), // observação do RH ao fazer ajuste nos valores
+  // Módulo de Honorários, Fase 1 (27/10) — check-out final do produtor
+  // (shared/presenca.ts). Só a rota POST /api/presenca/:actualId/checkout-final
+  // grava; POST/PATCH /api/budget-actual descartam estes campos do corpo.
+  // Migração: scripts/migrations/2026-10-27-honorarios-fase-1.sql (+ ensure-schema).
+  cnpjEmissor: text("cnpj_emissor"), // CNPJ que emite a NF (só dígitos)
+  razaoSocialEmissor: text("razao_social_emissor"),
+  valorCalculado: integer("valor_calculado"), // centavos: Realizado + presença + ocorrências
+  ajusteProdutorPct: numeric("ajuste_produtor_pct", { precision: 7, scale: 2 }), // valor final × calculado, em %
+  horasExtras: numeric("horas_extras", { precision: 6, scale: 2 }).notNull().default("0"),
+  valorHorasExtras: integer("valor_horas_extras").notNull().default(0), // centavos
+  checkoutFinalEm: timestamp("checkout_final_em", { withTimezone: true }),
+  checkoutFinalPor: varchar("checkout_final_por"),
 }, (t) => [
   // Já existem (13/08)
   index("budget_actual_event_idx").on(t.eventId),
@@ -2018,3 +2030,116 @@ export const colaboradoresPagamentoAlteracoes = pgTable("colaboradores_pagamento
   index("colaboradores_pagamento_alteracoes_pendentes_idx").on(t.em).where(sql`${t.mudaConta} AND ${t.conferidoEm} IS NULL`),
 ]);
 export type ColaboradorPagamentoAlteracao = typeof colaboradoresPagamentoAlteracoes.$inferSelect;
+
+// ===== PRESENÇA NO EVENTO E PORTAL DO COLABORADOR (27/10 — Fase 1 do Módulo de Honorários) =====
+// Ata de 22/10: "cada colaborador acessa o app com CPF e senha"; "check-in e
+// check-out diários com selfie que registra horário e localização"; "o
+// produtor responsável faz o check-out final, marca as divergências e
+// submete ao DP". Regras em shared/presenca.ts; rotas em
+// server/routes/colaborador-portal.ts (o colaborador) e server/routes/presenca.ts
+// (produção/DP). Migração: scripts/migrations/2026-10-27-honorarios-fase-1.sql;
+// o boot também cria (server/ensure-schema.ts) — este app NÃO tem db:push.
+
+/**
+ * Acesso do colaborador ao portal (/colaborador): uma linha por colaborador.
+ * Senha e código de primeiro acesso só como hash bcrypt. O código (6 dígitos,
+ * 72 h, uso único) é gerado pelo DP ou pela produção. 5 erros seguidos →
+ * bloqueado 15 min. Aceite do termo LGPD com versão, data e IP.
+ */
+export const colaboradoresAcesso = pgTable("colaboradores_acesso", {
+  collaboratorId: varchar("collaborator_id").primaryKey().references(() => collaborators.id, { onDelete: "cascade" }),
+  senhaHash: text("senha_hash"),
+  codigoHash: text("codigo_hash"),
+  codigoExpiraEm: timestamp("codigo_expira_em", { withTimezone: true }),
+  codigoGeradoPor: varchar("codigo_gerado_por"),
+  tentativasFalhas: integer("tentativas_falhas").notNull().default(0),
+  bloqueadoAte: timestamp("bloqueado_ate", { withTimezone: true }),
+  termoVersaoAceita: text("termo_versao_aceita"),
+  termoAceitoEm: timestamp("termo_aceito_em", { withTimezone: true }),
+  termoAceitoIp: text("termo_aceito_ip"),
+  ultimoAcessoEm: timestamp("ultimo_acesso_em", { withTimezone: true }),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ColaboradorAcesso = typeof colaboradoresAcesso.$inferSelect;
+
+/**
+ * Presença: uma linha por prestação (budget_actual raiz) × dia de diária.
+ * A hora é sempre a do SERVIDOR; a selfie fica no Object Storage (classe
+ * "presenca" — só DP/admin/produção e o próprio colaborador abrem).
+ * `*_por`: 'colaborador' | 'representante' | 'produtor_correcao'.
+ */
+export const presencas = pgTable("presencas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  actualId: varchar("actual_id").notNull().references(() => budgetActual.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id, { onDelete: "cascade" }),
+  dia: date("dia").notNull(),
+  checkinEm: timestamp("checkin_em", { withTimezone: true }),
+  checkinFotoId: text("checkin_foto_id"),
+  checkinLat: numeric("checkin_lat", { precision: 9, scale: 6 }),
+  checkinLng: numeric("checkin_lng", { precision: 9, scale: 6 }),
+  checkinPrecisaoM: integer("checkin_precisao_m"),
+  checkinPor: text("checkin_por"),
+  checkinUserId: varchar("checkin_user_id"),
+  checkoutEm: timestamp("checkout_em", { withTimezone: true }),
+  checkoutFotoId: text("checkout_foto_id"),
+  checkoutLat: numeric("checkout_lat", { precision: 9, scale: 6 }),
+  checkoutLng: numeric("checkout_lng", { precision: 9, scale: 6 }),
+  checkoutPrecisaoM: integer("checkout_precisao_m"),
+  checkoutPor: text("checkout_por"),
+  checkoutUserId: varchar("checkout_user_id"),
+  observacao: text("observacao"),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("presencas_actual_dia_uq").on(t.actualId, t.dia),
+  index("presencas_evento_dia_idx").on(t.eventId, t.dia),
+  index("presencas_colaborador_idx").on(t.collaboratorId),
+]);
+export type Presenca = typeof presencas.$inferSelect;
+
+/** Ocorrências lançadas pelo produtor: falta, diária extra, horas extras, substituição. Remoção lógica. */
+export const presencaOcorrencias = pgTable("presenca_ocorrencias", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  actualId: varchar("actual_id").notNull().references(() => budgetActual.id, { onDelete: "cascade" }),
+  /** 'falta' | 'diaria_extra' | 'horas_extras' | 'substituicao' */
+  tipo: text("tipo").notNull(),
+  dia: date("dia"),
+  horas: numeric("horas", { precision: 5, scale: 2 }),
+  substitutoCollaboratorId: varchar("substituto_collaborator_id").references(() => collaborators.id, { onDelete: "set null" }),
+  observacao: text("observacao"),
+  criadoPor: varchar("criado_por").notNull(),
+  criadoPorNome: text("criado_por_nome"),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  removidoEm: timestamp("removido_em", { withTimezone: true }),
+  removidoPor: varchar("removido_por"),
+}, (t) => [
+  index("presenca_ocorrencias_actual_idx").on(t.actualId),
+]);
+export type PresencaOcorrencia = typeof presencaOcorrencias.$inferSelect;
+
+/**
+ * Confirmação final da prestação (uma por prestação; pode ser refeita até o
+ * check-out final do produtor): dias, valor visto (null quando ocultos), CNPJ
+ * que emite a NF (contrato_id quando é de um contrato ligado ao colaborador;
+ * sem contrato = pendência para o DP) e contestação.
+ */
+export const presencaConfirmacoes = pgTable("presenca_confirmacoes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  actualId: varchar("actual_id").notNull().references(() => budgetActual.id, { onDelete: "cascade" }),
+  /** 'colaborador' | 'representante' */
+  confirmadoPor: text("confirmado_por").notNull(),
+  userId: varchar("user_id"),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id, { onDelete: "cascade" }),
+  diasConfirmados: text("dias_confirmados").array().notNull(),
+  valorVisto: integer("valor_visto"),
+  cnpj: text("cnpj"),
+  razaoSocial: text("razao_social"),
+  contratoId: varchar("contrato_id").references(() => contratos.id, { onDelete: "set null" }),
+  contestacao: text("contestacao"),
+  confirmadoEm: timestamp("confirmado_em", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("presenca_confirmacoes_actual_uq").on(t.actualId),
+]);
+export type PresencaConfirmacao = typeof presencaConfirmacoes.$inferSelect;

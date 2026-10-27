@@ -50,6 +50,14 @@ dá para entrar pela tela `/auth` com qualquer e-mail acima (`*@demo.local`:
 `?papel=` fora da lista responde 400 com os valores aceitos; usuário ausente
 (seed não rodou) responde 404.
 
+**Portal do colaborador** (27/10, Fase 1 dos Honorários): `/colaborador`, com
+CPF + senha. O seed da presença (`server/dev/demo-seed-presenca.ts`) cria a
+"Meia Maratona de Florianópolis" (fluxo novo, em andamento) com 4 pessoas e
+dá acesso a duas delas — o log da demo imprime o CPF de cada uma; a senha é
+`Portal@2026` (`DEMO_SENHA_DO_COLABORADOR`). Uma tem o dia de hoje livre para
+o check-in ao vivo; a outra já confirmou a prestação. Na demo os anexos (e as
+selfies) ficam em memória (`server/objectStorage.ts`, só com `PAINEL_DEMO=1`).
+
 O rate limit de login (30 tentativas / 15 min) e o anti-reuso do JWT também
 funcionam na demo: as tabelas `rate_limits` e `sso_tokens_usados` fazem parte
 do schema gerado.
