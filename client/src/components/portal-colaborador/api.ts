@@ -12,7 +12,7 @@
  */
 import { ApiError, NETWORK_ERROR_MESSAGE, isApiError } from "@/lib/queryClient";
 import type {
-  EuDoPortal, PrestacoesDoPortal, RespostaDaConfirmacao, RespostaDaMarcacao, TipoDeMarcacao,
+  EuDoPortal, PrestacoesDoPortal, RespostaDaConfirmacao, RespostaDaMarcacao, RespostaDaNotaFiscal, TipoDeMarcacao,
 } from "./tipos";
 
 /** Chaves do TanStack Query do portal (separadas das telas internas). */
@@ -115,6 +115,45 @@ export interface CorpoDaConfirmacao { dias: string[]; cnpj: string; razaoSocial?
 
 export const confirmarPrestacao = (actualId: string, corpo: CorpoDaConfirmacao) =>
   chamarPortal<RespostaDaConfirmacao>(`/api/colaborador/prestacoes/${encodeURIComponent(actualId)}/confirmar`, { json: corpo });
+
+/** A conta do CNPJ que vai junto do envio da NF (só quando ainda não há conta gravada). */
+export interface ContaInformada {
+  banco: string;
+  agencia: string;
+  conta: string;
+  tipoConta: string;
+  titular: string;
+  pixTipo?: string | null;
+  pixChave?: string | null;
+}
+
+export interface EnvioDaNotaFiscal {
+  actualId: string;
+  arquivo: Blob;
+  nomeDoArquivo: string;
+  /** Centavos. */
+  valorNota: number;
+  numeroNota?: string | null;
+  /** Só dígitos. */
+  cnpjNota?: string | null;
+  conta?: ContaInformada | null;
+}
+
+/** POST /api/colaborador/prestacoes/:id/nota-fiscal (multipart). */
+export function enviarNotaFiscal(e: EnvioDaNotaFiscal) {
+  const form = new FormData();
+  form.append("arquivo", e.arquivo, e.nomeDoArquivo);
+  form.append("valorNota", String(e.valorNota));
+  if (e.numeroNota) form.append("numeroNota", e.numeroNota);
+  if (e.cnpjNota) form.append("cnpjNota", e.cnpjNota);
+  if (e.conta) {
+    for (const [k, v] of Object.entries(e.conta)) if (v) form.append(k, v);
+  }
+  return chamarPortal<RespostaDaNotaFiscal>(`/api/colaborador/prestacoes/${encodeURIComponent(e.actualId)}/nota-fiscal`, { method: "POST", form });
+}
+
+/** O arquivo da PRÓPRIA nota (abre no navegador, com a sessão do colaborador). */
+export const urlDoArquivoDaNota = (actualId: string) => `/api/colaborador/prestacoes/${encodeURIComponent(actualId)}/nota-fiscal/arquivo`;
 
 /** Texto do erro para a tela: a mensagem do servidor como veio; 429 e rede com texto próprio. */
 export function mensagemDoErro(erro: unknown, padrao = "Não deu certo. Tente de novo."): string {

@@ -103,11 +103,19 @@ export function fraseDaOcorrencia(o: { tipo: string; rotulo: string; horas: numb
 
 export type AcaoDeHoje =
   | { tipo: TipoDeMarcacao; prestacao: PrestacaoDoPortal; dia: DiaDoPortal }
-  | { tipo: "confirmar"; prestacao: PrestacaoDoPortal };
+  | { tipo: "confirmar" | "enviar_nf" | "reenviar_nf"; prestacao: PrestacaoDoPortal };
+
+/** A prestação espera a NF do colaborador (OC emitida) ou o reenvio (devolvida)? */
+export function acaoDaNota(p: PrestacaoDoPortal): "enviar_nf" | "reenviar_nf" | null {
+  const n = p.notaEPagamento;
+  if (!n?.podeEnviarNf) return null;
+  return n.estado === "nf_devolvida" ? "reenviar_nf" : "enviar_nf";
+}
 
 /**
  * O destaque do topo de "Meus eventos": primeiro um check-in de hoje, depois
- * um check-out de hoje, depois uma confirmação ainda não feita.
+ * um check-out de hoje, depois uma nota devolvida pelo DP, uma nota a enviar
+ * (OC emitida) e, por fim, uma confirmação ainda não feita.
  */
 export function acaoDeHoje(prestacoes: readonly PrestacaoDoPortal[], hoje: string): AcaoDeHoje | null {
   for (const p of prestacoes) {
@@ -118,12 +126,78 @@ export function acaoDeHoje(prestacoes: readonly PrestacaoDoPortal[], hoje: strin
     const d = p.dias.find((x) => x.dia === hoje && x.podeSair);
     if (d) return { tipo: "saida", prestacao: p, dia: d };
   }
+  const devolvida = prestacoes.find((p) => acaoDaNota(p) === "reenviar_nf");
+  if (devolvida) return { tipo: "reenviar_nf", prestacao: devolvida };
+  const aEnviar = prestacoes.find((p) => acaoDaNota(p) === "enviar_nf");
+  if (aEnviar) return { tipo: "enviar_nf", prestacao: aEnviar };
   const aConfirmar = prestacoes.find((p) => p.podeConfirmar && !p.confirmacao);
   return aConfirmar ? { tipo: "confirmar", prestacao: aConfirmar } : null;
 }
 
+// ── Nota fiscal e pagamento ─────────────────────────────────────────────────
+
+/** Quantos dias o "Pago em dd/mm" fica como novidade no topo de Meus eventos. */
+export const DIAS_DA_NOVIDADE_DO_PAGO = 15;
+
+const diasEntre = (de: string, ate: string) =>
+  Math.round((Date.parse(`${ate.slice(0, 10)}T12:00:00Z`) - Date.parse(`${de.slice(0, 10)}T12:00:00Z`)) / 86_400_000);
+
+export interface NovidadeDoPagamento { prestacao: PrestacaoDoPortal; tipo: "programado" | "pago"; data: string | null }
+
+/** Pagamentos programados (até sair) e pagos nos últimos 15 dias — a "novidade" de Meus eventos. */
+export function novidadesDoPagamento(prestacoes: readonly PrestacaoDoPortal[], hoje: string): NovidadeDoPagamento[] {
+  const lista: NovidadeDoPagamento[] = [];
+  for (const p of prestacoes) {
+    const n = p.notaEPagamento;
+    if (n?.estado === "programado") lista.push({ prestacao: p, tipo: "programado", data: n.programadoPara });
+    else if (n?.estado === "pago" && n.pagoEm && diasEntre(n.pagoEm, hoje) <= DIAS_DA_NOVIDADE_DO_PAGO) lista.push({ prestacao: p, tipo: "pago", data: n.pagoEm });
+  }
+  // Pago mais recente primeiro; depois o programado mais próximo.
+  return lista.sort((a, b) => (a.tipo === b.tipo ? (a.tipo === "pago" ? (b.data ?? "").localeCompare(a.data ?? "") : (a.data ?? "").localeCompare(b.data ?? "")) : a.tipo === "pago" ? -1 : 1));
+}
+
+/** A situação da nota/pagamento em pílula (null = ainda sem OC: vale a situação dos dias). */
+export function situacaoDoPagamento(p: PrestacaoDoPortal): { texto: string; tom: TomDoEstado } | null {
+  const n = p.notaEPagamento;
+  if (!n || n.estado === "sem_oc") return null;
+  switch (n.estado) {
+    case "com_oc": return n.podeEnviarNf ? { texto: "OC emitida · envie a nota fiscal", tom: "acao" } : { texto: "OC emitida", tom: "neutro" };
+    case "nf_enviada": return { texto: "Nota fiscal em conferência no DP", tom: "andamento" };
+    case "nf_devolvida": return { texto: "Nota devolvida · envie de novo", tom: "atencao" };
+    case "nf_recusada": return { texto: "Nota recusada · fale com o DP", tom: "falta" };
+    case "nf_aprovada": return { texto: "Nota aprovada", tom: "ok" };
+    case "programado": return { texto: n.programadoPara ? `Pagamento programado para ${dataCurta(n.programadoPara)}` : "Pagamento programado", tom: "ok" };
+    case "pago": return { texto: n.pagoEm ? `Pago em ${dataCurta(n.pagoEm)}` : "Pago", tom: "ok" };
+    default: return null;
+  }
+}
+
+/** Máscara de dinheiro digitado no celular: os números entram pelos centavos ("123456" → "1.234,56"). */
+export function mascararReais(valor: string): string {
+  const d = soDigitos(valor).replace(/^0+/, "").slice(0, 10);
+  if (!d) return "";
+  const c = d.padStart(3, "0");
+  const inteiro = c.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${inteiro},${c.slice(-2)}`;
+}
+
+/** "1.234,56" → 123456 (centavos); vazio ou zero → null. */
+export function centavosDoTexto(valor: string): number | null {
+  const d = soDigitos(valor);
+  const n = d ? Number(d) : 0;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/** "320 KB", "1,4 MB" */
+export function tamanhoDoArquivo(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+}
+
 /** Linha de situação do cartão do evento na lista. */
 export function situacaoDaPrestacao(p: PrestacaoDoPortal, hoje: string): { texto: string; tom: TomDoEstado } {
+  const pagamento = situacaoDoPagamento(p);
+  if (pagamento) return pagamento;
   if (p.checkoutFinalFeito) return { texto: "Fechado pelo produtor", tom: "ok" };
   const deHoje = p.dias.find((d) => d.dia === hoje);
   if (deHoje?.podeEntrar) return { texto: "Hoje · falta o check-in", tom: "acao" };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  acaoDeHoje, codigoDeSeisDigitos, dataEHora, diasSugeridos, linhaDaMemoria, mascararCpf, periodo, regrasDaSenha, situacaoDaPrestacao,
+  acaoDeHoje, centavosDoTexto, codigoDeSeisDigitos, dataEHora, diasSugeridos, linhaDaMemoria, mascararCpf, mascararReais, novidadesDoPagamento, periodo,
+  regrasDaSenha, situacaoDaPrestacao, tamanhoDoArquivo,
 } from "./formatos";
 import { medidasReduzidas } from "./captura";
 import type { DiaDoPortal, PrestacaoDoPortal } from "./tipos";
@@ -105,5 +106,54 @@ describe("redução da foto", () => {
     expect(medidasReduzidas(3024, 4032)).toEqual({ largura: 960, altura: 1280 });
     expect(medidasReduzidas(4000, 3000)).toEqual({ largura: 1280, altura: 960 });
     expect(medidasReduzidas(800, 600)).toEqual({ largura: 800, altura: 600 });
+  });
+});
+
+describe("nota fiscal e pagamento (28/10)", () => {
+  const n = (estado: string, extra: Record<string, unknown> = {}) => ({
+    estado, rotulo: estado, frase: "", oc: { numero: "45001", valor: 97_500, data: "2026-10-22" }, nota: null,
+    programadoPara: null, pagoEm: null, podeEnviarNf: estado === "com_oc" || estado === "nf_devolvida", motivoNaoPodeEnviar: null,
+    instrucoes: null, contaBancaria: { cadastrada: false, mascarada: null, podeInformar: true }, ...extra,
+  }) as unknown as NonNullable<PrestacaoDoPortal["notaEPagamento"]>;
+
+  it("destaque: check-in de hoje > nota devolvida > nota a enviar > confirmar", () => {
+    const hoje = "2026-10-27";
+    const enviar = prestacao("a", [dia("2026-10-20", { estado: "concluido" })], { notaEPagamento: n("com_oc") });
+    const devolvida = prestacao("b", [dia("2026-10-20", { estado: "concluido" })], { notaEPagamento: n("nf_devolvida") });
+    const checkin = prestacao("c", [dia(hoje, { estado: "hoje_sem_checkin", podeEntrar: true })]);
+    const confirmar = prestacao("d", [dia("2026-10-25", { estado: "concluido" })], { podeConfirmar: true });
+    expect(acaoDeHoje([confirmar, enviar, devolvida, checkin], hoje)?.tipo).toBe("entrada");
+    expect(acaoDeHoje([confirmar, enviar, devolvida], hoje)?.tipo).toBe("reenviar_nf");
+    expect(acaoDeHoje([confirmar, enviar], hoje)?.tipo).toBe("enviar_nf");
+    expect(acaoDeHoje([confirmar], hoje)?.tipo).toBe("confirmar");
+  });
+
+  it("pílula do cartão: com OC, vale a situação da nota", () => {
+    const p = (estado: string, extra = {}) => prestacao("x", [], { checkoutFinalFeito: true, notaEPagamento: n(estado, extra) });
+    expect(situacaoDaPrestacao(p("sem_oc"), "2026-10-27").texto).toBe("Fechado pelo produtor");
+    expect(situacaoDaPrestacao(p("com_oc"), "2026-10-27")).toEqual({ texto: "OC emitida · envie a nota fiscal", tom: "acao" });
+    expect(situacaoDaPrestacao(p("nf_devolvida"), "2026-10-27").tom).toBe("atencao");
+    expect(situacaoDaPrestacao(p("programado", { programadoPara: "2026-11-01" }), "2026-10-27").texto).toBe("Pagamento programado para 01/11");
+    expect(situacaoDaPrestacao(p("pago", { pagoEm: "2026-10-25" }), "2026-10-27").texto).toBe("Pago em 25/10");
+  });
+
+  it("novidades: programado sempre; pago só nos últimos 15 dias", () => {
+    const hoje = "2026-10-27";
+    const prog = prestacao("p", [], { notaEPagamento: n("programado", { programadoPara: "2026-11-01" }) });
+    const pagoRecente = prestacao("r", [], { notaEPagamento: n("pago", { pagoEm: "2026-10-20" }) });
+    const pagoAntigo = prestacao("v", [], { notaEPagamento: n("pago", { pagoEm: "2026-09-01" }) });
+    expect(novidadesDoPagamento([prog, pagoAntigo, pagoRecente], hoje).map((x) => `${x.tipo}:${x.prestacao.id}`)).toEqual(["pago:r", "programado:p"]);
+  });
+
+  it("dinheiro digitado entra pelos centavos", () => {
+    expect(mascararReais("9")).toBe("0,09");
+    expect(mascararReais("97500")).toBe("975,00");
+    expect(mascararReais("123456789")).toBe("1.234.567,89");
+    expect(mascararReais("R$ 1.234,5")).toBe("123,45");
+    expect(mascararReais("000")).toBe("");
+    expect(centavosDoTexto("975,00")).toBe(97_500);
+    expect(centavosDoTexto("")).toBeNull();
+    expect(tamanhoDoArquivo(300)).toBe("1 KB");
+    expect(tamanhoDoArquivo(1_572_864)).toBe("1,5 MB");
   });
 });

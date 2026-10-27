@@ -1,16 +1,19 @@
 /**
  * Um evento do colaborador: os dias (com o check-in/check-out de HOJE), o que
- * o produtor registrou, os valores (ou "ocultos pelo DP") e a confirmação final.
+ * o produtor registrou, os valores (ou "ocultos pelo DP"), a confirmação final
+ * e — da OC em diante (28/10) — a nota fiscal e o pagamento, que sobem para o
+ * topo porque passam a ser o que importa.
  */
 import { useId, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Briefcase, CalendarDays, CheckCircle2, ChevronDown, ClipboardCheck, EyeOff, Info, LogIn, LogOut, MapPin, UserCheck } from "lucide-react";
+import { ArrowLeft, Briefcase, CalendarDays, CheckCircle2, ChevronDown, ClipboardCheck, EyeOff, ImageOff, Info, LogIn, LogOut, MapPin, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { reaisDaPresenca } from "@shared/presenca";
 import {
   dataCurta, dataEHora, diaDaSemanaCurto, ESTADO_PARA_O_COLABORADOR, fraseDaOcorrencia, linhaDaMemoria, mesCurto, numeroDoDia, periodo,
 } from "./formatos";
 import { BotaoDeMarcacao } from "./marcacao";
+import { BlocoDaNotaEPagamento } from "./nota-fiscal";
 import { Aviso, BotaoPrincipal, BotaoSecundario, BotaoTexto, Pilula, TituloDaSecao } from "./pecas";
 import type { DiaDoPortal, MarcacaoDoPortal, OcorrenciaDoPortal, PrestacaoDoPortal } from "./tipos";
 
@@ -73,6 +76,11 @@ function LinhaDoDia({ p, d, hoje, ocorrencias }: { p: PrestacaoDoPortal; d: DiaD
             <p className="m-0 mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <Horario tipo="Entrada" m={d.entrada} />
               <Horario tipo="Saída" m={d.saida} />
+            </p>
+          )}
+          {(d.entrada?.fotoExpurgada || d.saida?.fotoExpurgada) && (
+            <p className="m-0 mt-1.5 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+              <ImageOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Selfie apagada pela política de guarda · os horários ficam
             </p>
           )}
           {porProdutor && (
@@ -195,10 +203,19 @@ export function TelaDoEvento({ p, hoje }: { p: PrestacaoDoPortal; hoje: string }
   const ocorrenciasDoDia = (dia: string) => p.ocorrencias.filter((o) => o.dia === dia);
   const extras = p.diasExtras.filter((d) => !p.dias.some((x) => x.dia === d));
   const semDia = p.ocorrencias.filter((o) => !o.dia || (!p.dias.some((d) => d.dia === o.dia) && !extras.includes(o.dia)));
+  // Da OC em diante, a nota e o pagamento são o assunto: o bloco vai para o topo.
+  const pagamentoNoTopo = !!p.notaEPagamento && p.notaEPagamento.estado !== "sem_oc";
+  const pagamento = p.notaEPagamento ? (
+    <section aria-labelledby="pagamento-titulo" className="mt-7">
+      <TituloDaSecao id="pagamento-titulo">Nota fiscal e pagamento</TituloDaSecao>
+      <BlocoDaNotaEPagamento p={p} />
+    </section>
+  ) : null;
   return (
     <div>
       <VoltarPara texto="Meus eventos" para="/" />
       <CabecalhoDoEvento p={p} />
+      {pagamentoNoTopo && pagamento}
 
       <section aria-labelledby="dias-titulo" className="mt-7">
         <TituloDaSecao id="dias-titulo">Seus dias</TituloDaSecao>
@@ -233,6 +250,7 @@ export function TelaDoEvento({ p, hoje }: { p: PrestacaoDoPortal; hoje: string }
         <TituloDaSecao id="confirmacao-titulo">Confirmação</TituloDaSecao>
         <Confirmacao p={p} />
       </section>
+      {!pagamentoNoTopo && pagamento}
     </div>
   );
 }

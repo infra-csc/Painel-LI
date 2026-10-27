@@ -11,6 +11,7 @@
  *   /primeiro-acesso        CPF + código de 6 dígitos + senha nova
  *   /evento/:id             os dias, check-in/check-out, valores, confirmação
  *   /evento/:id/confirmar   a confirmação final (dias, CNPJ, contestação)
+ *   /evento/:id/nota-fiscal o envio da nota fiscal com a OC (28/10, Fase 2)
  *
  * Peças em client/src/components/portal-colaborador/.
  */
@@ -28,6 +29,7 @@ import { TelaDoTermo } from "@/components/portal-colaborador/termo";
 import { TelaMeusEventos } from "@/components/portal-colaborador/meus-eventos";
 import { TelaDoEvento, VoltarPara } from "@/components/portal-colaborador/evento";
 import { TelaDeConfirmacao } from "@/components/portal-colaborador/confirmar";
+import { TelaDaNotaFiscal } from "@/components/portal-colaborador/nota-fiscal";
 import { ProvedorDeMarcacao } from "@/components/portal-colaborador/marcacao";
 import { Aviso, BotaoSecundario, CascaDoPortal, Carregando } from "@/components/portal-colaborador/pecas";
 import type { EuDoPortal, PrestacoesDoPortal } from "@/components/portal-colaborador/tipos";
@@ -88,15 +90,13 @@ function NaoEncontrado() {
   );
 }
 
-function RotaDoEvento({ dados, confirmar }: { dados: PrestacoesDoPortal; confirmar?: boolean }) {
+function RotaDoEvento({ dados, tela = "evento" }: { dados: PrestacoesDoPortal; tela?: "evento" | "confirmar" | "nota-fiscal" }) {
   const { id } = useParams<{ id: string }>();
   const p = dados.prestacoes.find((x) => x.id === id);
   if (!p) return <NaoEncontrado />;
-  return confirmar ? (
-    <><Titulo texto={`Confirmar · ${p.evento.nome}`} /><TelaDeConfirmacao key={p.id} p={p} cnpjs={dados.cnpjs} /></>
-  ) : (
-    <><Titulo texto={p.evento.nome} /><TelaDoEvento p={p} hoje={dados.hoje} /></>
-  );
+  if (tela === "confirmar") return <><Titulo texto={`Confirmar · ${p.evento.nome}`} /><TelaDeConfirmacao key={p.id} p={p} cnpjs={dados.cnpjs} /></>;
+  if (tela === "nota-fiscal") return <><Titulo texto={`Nota fiscal · ${p.evento.nome}`} /><TelaDaNotaFiscal key={p.id} p={p} /></>;
+  return <><Titulo texto={p.evento.nome} /><TelaDoEvento p={p} hoje={dados.hoje} /></>;
 }
 
 function AreaLogada({ eu }: { eu: EuDoPortal }) {
@@ -121,7 +121,8 @@ function AreaLogada({ eu }: { eu: EuDoPortal }) {
           <Titulo texto="Meus eventos" />
           <TelaMeusEventos eu={eu} dados={dados} />
         </Route>
-        <Route path="/evento/:id/confirmar"><RotaDoEvento dados={dados} confirmar /></Route>
+        <Route path="/evento/:id/confirmar"><RotaDoEvento dados={dados} tela="confirmar" /></Route>
+        <Route path="/evento/:id/nota-fiscal"><RotaDoEvento dados={dados} tela="nota-fiscal" /></Route>
         <Route path="/evento/:id"><RotaDoEvento dados={dados} /></Route>
         <Route><Redirect to="/" replace /></Route>
       </Switch>

@@ -41,30 +41,51 @@ async function decodificar(arquivo: Blob): Promise<{ origem: CanvasImageSource; 
   return { origem: img, largura: img.naturalWidth, altura: img.naturalHeight, liberar: () => URL.revokeObjectURL(url) };
 }
 
+/** Como reduzir: lado maior, qualidade do JPG, o limite do servidor (para mandar o original) e o erro. */
+export interface OpcoesDaReducao { lado: number; qualidade: number; limite: number; erro: string }
+
+const DA_SELFIE: OpcoesDaReducao = { lado: LADO_MAXIMO, qualidade: QUALIDADE_JPG, limite: LIMITE_DO_SERVIDOR, erro: "Não consegui ler essa foto. Tire outra." };
+
+/**
+ * Foto da nota fiscal em papel: precisa ficar LEGÍVEL para o DP conferir
+ * número, CNPJ e valor — lado maior de 2000 px, qualidade 0,85 (~400–800 KB).
+ * O servidor aceita até 10 MB.
+ */
+export const DA_NOTA: OpcoesDaReducao = {
+  lado: 2000, qualidade: 0.85, limite: 10 * 1024 * 1024,
+  erro: "Não consegui ler essa foto. Tire outra ou envie o PDF da nota.",
+};
+
 /**
  * A selfie pronta para enviar: JPG reduzido. Se o navegador não conseguir
  * reduzir mas o arquivo original já servir (JPG/PNG até 8 MB), vai o original.
  */
-export async function prepararFoto(arquivo: File | Blob): Promise<Blob> {
+export const prepararFoto = (arquivo: File | Blob): Promise<Blob> => prepararImagem(arquivo, DA_SELFIE);
+
+/** Foto da nota fiscal (papel) reduzida para subir no sinal da arena, ainda legível. */
+export const prepararFotoDaNota = (arquivo: File | Blob): Promise<Blob> => prepararImagem(arquivo, DA_NOTA);
+
+/** A imagem pronta para enviar: JPG reduzido; sem conseguir reduzir, vai o original se servir. */
+export async function prepararImagem(arquivo: File | Blob, o: OpcoesDaReducao): Promise<Blob> {
   try {
     const img = await decodificar(arquivo);
     try {
-      const { largura, altura } = medidasReduzidas(img.largura, img.altura);
+      const { largura, altura } = medidasReduzidas(img.largura, img.altura, o.lado);
       const canvas = document.createElement("canvas");
       canvas.width = largura;
       canvas.height = altura;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("sem_canvas");
       ctx.drawImage(img.origem, 0, 0, largura, altura);
-      const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", QUALIDADE_JPG));
+      const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", o.qualidade));
       if (!blob) throw new Error("sem_blob");
       return blob;
     } finally {
       img.liberar();
     }
   } catch {
-    if ((arquivo.type === "image/jpeg" || arquivo.type === "image/png") && arquivo.size <= LIMITE_DO_SERVIDOR) return arquivo;
-    throw new Error("Não consegui ler essa foto. Tire outra.");
+    if ((arquivo.type === "image/jpeg" || arquivo.type === "image/png") && arquivo.size <= o.limite) return arquivo;
+    throw new Error(o.erro);
   }
 }
 

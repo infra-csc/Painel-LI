@@ -3,6 +3,7 @@
  * (server/routes/colaborador-portal.ts, Fase 1 do Módulo de Honorários).
  */
 import type { EstadoDoDia, ModoDeLocalizacao } from "@shared/presenca";
+import type { EstadoDoPagamento } from "@shared/honorarios-pagamento";
 
 /** GET /api/colaborador/eu (e a resposta de entrar, primeiro acesso e termo). */
 export interface EuDoPortal {
@@ -16,6 +17,8 @@ export interface MarcacaoDoPortal {
   em: string;
   hora: string;
   comSelfie: boolean;
+  /** 28/10: a selfie saiu do storage pela política de guarda (o horário fica). */
+  fotoExpurgada?: boolean;
   fotoId: string | null;
   porRepresentante: boolean;
   comLocalizacao: boolean;
@@ -67,6 +70,57 @@ export interface PrestacaoDoPortal {
   checkoutFinalFeito: boolean;
   valoresOcultos: boolean;
   valores: ValoresDoPortal | null;
+  /** Etapas 4–7 (28/10): OC, nota fiscal, programado e pago. Ausente num servidor antigo. */
+  notaEPagamento?: NotaEPagamentoDoPortal | null;
+}
+
+/** A nota fiscal da prestação, como o colaborador vê. */
+export interface NotaDoPortal {
+  status: "pendente" | "enviada" | "devolvida" | "aprovada" | "recusada" | string;
+  enviadaEm: string | null;
+  atualizadaEm?: string | null;
+  arquivoNome: string | null;
+  temArquivo: boolean;
+  numero: string | null;
+  /** Centavos. */
+  valor: number | null;
+  /** Só quando o DP devolve ou recusa. */
+  comentarioDoDp: string | null;
+}
+
+/** A conta do CNPJ — nunca em claro. */
+export interface ContaDoPortal {
+  cadastrada: boolean;
+  mascarada: Partial<Record<"banco" | "agencia" | "conta" | "tipoConta" | "pixTipo" | "pixChave" | "titular", string | null>> | null;
+  /** Sem conta nem PIX gravados: o colaborador informa no envio da NF. */
+  podeInformar: boolean;
+}
+
+/** GET /api/colaborador/prestacoes → `notaEPagamento` de cada prestação. */
+export interface NotaEPagamentoDoPortal {
+  estado: EstadoDoPagamento;
+  rotulo: string;
+  /** "Pagamento programado para dd/mm.", "Pago em dd/mm." … */
+  frase: string;
+  oc: { numero: string; valor: number | null; data: string | null } | null;
+  nota: NotaDoPortal | null;
+  programadoPara: string | null;
+  pagoEm: string | null;
+  podeEnviarNf: boolean;
+  motivoNaoPodeEnviar: string | null;
+  /** O que deve constar na nota (só com OC). */
+  instrucoes: {
+    tomador: { nome: string | null; cnpj: string | null };
+    valor: number;
+    oc: string;
+    descricaoSugerida: string;
+  } | null;
+  contaBancaria: ContaDoPortal;
+}
+
+/** POST /api/colaborador/prestacoes/:id/nota-fiscal */
+export interface RespostaDaNotaFiscal {
+  prestacao: PrestacaoDoPortal;
 }
 
 export interface CnpjDoPortal {
