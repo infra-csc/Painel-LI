@@ -102,7 +102,7 @@ export function VoltarAoPlanejadoDialog({ item, divisoes = [], nome, funcao, onC
               <DialogDescription asChild>
                 <ul className="m-0 pl-4 list-disc space-y-1 text-sm leading-relaxed text-slate-600">
                   <li>A prestação sai do Realizado{divisoes.length > 0 ? ` com ${divisoes.length === 1 ? "a divisão" : `as ${divisoes.length} divisões`}` : ""} — o que estava preenchido fica no histórico (auditoria).</li>
-                  <li>A linha volta ao Planejado e pede a pré-aprovação do DP de novo; depois é só reenviar.</li>
+                  <li>A linha volta ao Planejado para ajustar; no fluxo novo ela pede a pré-aprovação do DP de novo (evento legado não pede). Depois é só reenviar.</li>
                   <li>Se o comparativo do evento estava aprovado, o crédito automático do Flash desta prestação é desfeito.</li>
                 </ul>
               </DialogDescription>

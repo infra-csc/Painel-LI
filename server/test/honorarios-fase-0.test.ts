@@ -103,13 +103,14 @@ describe("POST /api/budget-planned/pre-aprovar", () => {
     expect(gravadas[0]).toMatchObject({ collaboratorId: null, status: "pre_aprovado" });
   });
 
-  it("evento encerrado: o DP recebe 403 (só o administrador)", async () => {
+  // 28/10: a trava de evento encerrado é da escala — o DP faz os honorários depois do evento.
+  it("evento encerrado: o DP pré-aprova assim mesmo (200)", async () => {
     const { agent } = await agenteLogado("financial");
     const encerrado = await criarEvento({ startDate: "2020-01-01", endDate: "2020-01-05" });
     const funcao = await criarFuncao();
     const colab = await criarColaborador();
     const res = await mutacao(agent.post("/api/budget-planned/pre-aprovar")).send({ eventId: encerrado.id, linhas: [linha(colab.id, funcao.id)] });
-    expect(res.status).toBe(403);
+    expect(res.status, res.text).toBe(200);
   });
 
   it("corpo inválido → 400; linha repetida → 400", async () => {
