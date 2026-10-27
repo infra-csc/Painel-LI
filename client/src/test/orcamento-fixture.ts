@@ -47,6 +47,8 @@ export interface OpcoesDoOrcamento {
   /** Função da vaga (padrão "Produção"); "Cenotécnica" para os honorários (21/10). */
   functionName?: string;
   honorario?: HonorarioNaVaga | null;
+  /** VR diário do colaborador (28/10). */
+  vrDiarioCents?: number | null;
 }
 
 export function orcamentoFake(opcoes: OpcoesDoOrcamento = {}): CalculatedBudget {
@@ -60,11 +62,12 @@ export function orcamentoFake(opcoes: OpcoesDoOrcamento = {}): CalculatedBudget 
     settings: {},
     override: opcoes.override ?? null,
     honorario: opcoes.honorario ?? null,
+    vrDiarioCents: opcoes.vrDiarioCents ?? null,
   });
   return {
     ...resultado,
     inclusion: vaga,
-    collaborator: colaboradorFake({ id: vaga.collaboratorId ?? "colab-1", fullName: opcoes.nome ?? "Ana Souza", type: tipo }),
+    collaborator: colaboradorFake({ id: vaga.collaboratorId ?? "colab-1", fullName: opcoes.nome ?? "Ana Souza", type: tipo, vrDiarioCents: opcoes.vrDiarioCents ?? null }),
     functionValue: null,
   };
 }

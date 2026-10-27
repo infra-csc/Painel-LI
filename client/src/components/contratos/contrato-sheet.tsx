@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { toTitleCase } from "@/lib/format";
 import { apiErrorMessage } from "@/lib/utils";
 import { useContrato, useMutacoesDeContrato, type Contrato, type HistoricoDoContrato } from "./api";
-import { SituacaoDoContratoBadge, TipoDoContrato, dataBr, vigenciaTexto } from "./pecas";
+import { SeloAprovadoAutomaticamente, SituacaoDoContratoBadge, TipoDoContrato, dataBr, vigenciaTexto } from "./pecas";
 
 function Grupo({ titulo, icone, children, acessorio }: { titulo: string; icone?: ReactNode; children: ReactNode; acessorio?: ReactNode }) {
   return (
@@ -33,6 +33,7 @@ function Grupo({ titulo, icone, children, acessorio }: { titulo: string; icone?:
 const ROTULO_DA_ACAO: Record<string, string> = {
   criado: "Cadastrado", editado: "Editado", encerrado: "Encerrado", reativado: "Reativado",
   vinculado: "Colaborador vinculado", desvinculado: "Colaborador desvinculado", anexo: "Anexo", importado: "Importado da planilha",
+  aprovado_automaticamente: "Aprovado automaticamente",
 };
 
 const quando = (iso: string) => {
@@ -95,6 +96,7 @@ export function ContratoSheet({ id, onOpenChange, onEditar }: { id: string | nul
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                 <SituacaoDoContratoBadge situacao={c.situacao} dias={c.diasParaVencer} />
                 <TipoDoContrato tipo={c.tipo} />
+                {c.origem === "automatico" && <SeloAprovadoAutomaticamente detalhe={c.origemDetalhe} />}
               </div>
             </>
           ) : (
@@ -117,6 +119,15 @@ export function ContratoSheet({ id, onOpenChange, onEditar }: { id: string | nul
                 </p>
                 <p className="mt-0.5 text-xs leading-relaxed text-slate-700">{c.motivoEncerramento}</p>
                 <p className="mt-1 text-2xs text-muted-foreground">Não conta como contrato ativo, mesmo dentro da vigência.</p>
+              </div>
+            )}
+
+            {c.origem === "automatico" && !c.encerradoEm && (
+              <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-card py-2.5 pl-4 pr-3.5" data-testid="ctr-ficha-automatico">
+                <span className="absolute inset-y-0 left-0 w-[3px] bg-primary" aria-hidden="true" />
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-primary"><History className="h-3.5 w-3.5" aria-hidden="true" /> Aprovado automaticamente</p>
+                {c.origemDetalhe && <p className="mt-0.5 break-words text-xs leading-relaxed text-slate-700">{c.origemDetalhe.replace(/^Aprovado automaticamente: /, "")}</p>}
+                <p className="mt-1 text-2xs leading-relaxed text-muted-foreground">Confira tipo e razão social em Editar. Se não deve valer, encerre — contrato encerrado não volta a ser aprovado sozinho.</p>
               </div>
             )}
 

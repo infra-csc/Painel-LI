@@ -33,6 +33,7 @@ export interface ComparisonListProps {
   getCollaboratorName: (id?: string | null) => string;
   getFunctionName: (id?: string | null) => string;
   onEdit: (a: BudgetActual) => void;
+  onVoltarAoPlanejado?: (a: BudgetActual, divisoes: BudgetActual[]) => void;
   onSplitDetail: (s: SplitDetailState) => void;
   /** Presença no evento por prestação (27/10 — fluxo novo, só o DP). */
   presencaPorActual?: ReadonlyMap<string, PrestacaoDaPresenca>;
@@ -148,6 +149,7 @@ export function ComparisonList(p: ComparisonListProps) {
               onToggleExpand={d.toggleExpand}
               onToggleSelect={toggleSelect}
               onEdit={onEdit}
+              onVoltarAoPlanejado={p.onVoltarAoPlanejado}
               onSplitDetail={onSplitDetail}
               presenca={presencaPorActual?.get(row.actual.id)}
             />

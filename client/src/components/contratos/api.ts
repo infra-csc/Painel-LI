@@ -9,6 +9,7 @@ import { apiRequest, fetchJson, throwIfResNotOk } from "@/lib/queryClient";
 import type { SituacaoContratualDoColaborador, SituacaoDoContrato, TipoDeContrato } from "@shared/contratos";
 import type { DadosDePagamento, TipoDeConta, TipoDePix } from "@shared/pagamento";
 import type { AcaoDaLinha, CampoDaImportacao } from "@shared/importacao-contratos";
+import type { OrigemDoContrato } from "@shared/fornecedor-automatico";
 
 export const CHAVE = "contratos";
 export const CHAVE_DO_SINO_DE_CONTAS = ["shell", "contas-alteradas"] as const;
@@ -30,6 +31,9 @@ export interface Contrato {
   encerradoEm: string | null;
   encerradoPorNome: string | null;
   motivoEncerramento: string | null;
+  /** 28/10: "cadastro" (DP) ou "automatico" (aprovado pelo histórico de pagamentos). */
+  origem: OrigemDoContrato;
+  origemDetalhe: string | null;
   versao: number;
   criadoPorNome: string | null;
   atualizadoPorNome: string | null;
@@ -169,6 +173,46 @@ export function useImportacao() {
     onSuccess: invalidar,
   });
   return { previa, confirmar };
+}
+
+// ── Aprovar fornecedores pelo histórico (28/10) ─────────────────────────────
+
+export type DecisaoDaAprovacao = "criar" | "atualizar" | "ja_aprovado" | "ignorado";
+
+export interface ItemDaAprovacaoApi {
+  cnpj: string;
+  razaoSocial: string;
+  contratoId: string | null;
+  decisao: DecisaoDaAprovacao;
+  descricao: string;
+  frase: string;
+  evento: string;
+  data: string;
+  gatilho: string;
+  colaboradores: { id: string; nome: string }[];
+}
+
+export interface ResumoDaAprovacao { criar: number; atualizar: number; jaAprovados: number; ignorados: number; total: number }
+
+export interface RespostaDaAprovacao {
+  simulado: boolean;
+  resumo: ResumoDaAprovacao;
+  itens: ItemDaAprovacaoApi[];
+  aprovados: number;
+  restantes?: ResumoDaAprovacao;
+}
+
+/** Prévia (`?simular=1`, não grava) e execução da varredura do histórico. Só o DP. */
+export function useAprovacaoPeloHistorico() {
+  const invalidar = useInvalidar();
+  const previa = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/contratos/aprovacao-automatica?simular=1")).json() as Promise<RespostaDaAprovacao>,
+  });
+  const executar = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/contratos/aprovacao-automatica")).json() as Promise<RespostaDaAprovacao>,
+    onSuccess: invalidar,
+  });
+  return { previa, executar };
 }
 
 // ── Sinal "contrato ativo" ──────────────────────────────────────────────────

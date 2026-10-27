@@ -29,7 +29,8 @@ import { useBudgetComparisonData } from "@/hooks/use-budget-comparison-data";
 import { useComparisonActions } from "@/hooks/use-budget-comparison-actions";
 import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { normalizeRole } from "@shared/roles";
-import type { Event } from "@shared/schema";
+import type { BudgetActual, Event } from "@shared/schema";
+import { VoltarAoPlanejadoDialog } from "@/components/budget/voltar-ao-planejado-dialog";
 import { ComentarioDoComparativo, FechamentoCard, ResumoDoComparativo } from "@/components/budget/comparison-header";
 import { ComparisonFilters, FilaDoComparativo } from "@/components/budget/comparison-filters";
 import { ComparisonList } from "@/components/budget/comparison-list";
@@ -85,6 +86,8 @@ export default function BudgetComparisonPage() {
     };
   }, [searchString]);
   const [highlightCardId, setHighlightCardId] = useState<string>("");
+  // "Voltar ao Planejado" (28/10, DP/admin): a prestação em decisão e as divisões dela.
+  const [voltando, setVoltando] = useState<{ item: BudgetActual; divisoes: BudgetActual[] } | null>(null);
 
   // Evento em foco (23/09): compartilhado com Planejado, Realizado, Controle RH e Notas.
   const { eventId: selectedEventId, setEventId: setSelectedEventId, sanitize: sanearEventoEmFoco } = useEventoEmFoco();
@@ -303,6 +306,7 @@ export default function BudgetComparisonPage() {
           getCollaboratorName={getCollaboratorName}
           getFunctionName={getFunctionName}
           onEdit={acoes.openEditModal}
+          onVoltarAoPlanejado={isRhOrAdmin ? (item, divisoes) => setVoltando({ item, divisoes }) : undefined}
           onSplitDetail={acoes.setSplitDetail}
           presencaPorActual={presencaPorActual}
         />
@@ -349,6 +353,14 @@ export default function BudgetComparisonPage() {
 
       {/* ── Confirmação da decisão (aprovar/recusar/devolver) ── */}
       <RhActionDialog acoes={acoes} sortedData={sortedData} selectedItems={selectedItems} selectedTotals={selectedTotals} getCollaboratorName={getCollaboratorName} />
+
+      <VoltarAoPlanejadoDialog
+        item={voltando?.item ?? null}
+        divisoes={voltando?.divisoes}
+        nome={voltando ? getCollaboratorName(voltando.item.collaboratorId) : ""}
+        funcao={voltando ? getFunctionName(voltando.item.functionId) : ""}
+        onClose={() => setVoltando(null)}
+      />
 
       {/* ── Reabrir o comparativo aprovado (apaga os créditos do Flash) ── */}
       <ReopenComparisonDialog acoes={acoes} comparison={comparison} />

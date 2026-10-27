@@ -290,6 +290,11 @@ export const ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS = 500; // R$ 5,00 — co
 export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_KEY = "alimentacao_almoco_casa_util_ceno";
 export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS = 300;
 
+/** VR cadastrado (centavos ≥ 0) ou null — "sem VR" (null, vazio, negativo, NaN). */
+export function vrValido(v: number | null | undefined): number | null {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : null;
+}
+
 /**
  * Valores de refeição (centavos) para UM dia específico, considerando o tipo
  * do colaborador (regra de negócio 17/08):
@@ -301,12 +306,17 @@ export const ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS = 300;
  *   `refeicaoCents` (a regra do voo continua decidindo QUAIS refeições existem).
  * - perfil "gestao" (Key Account / Gerente, 18/08): casa em dia útil usa o
  *   MESMO almoço reduzido de "demais" (R$ 5,00); o jantar é o de gestão (R$ 44).
+ * - VR do colaborador (28/10, pedido do DP): `casa` em dia ÚTIL com VR
+ *   cadastrado (`ctx.vrDiarioCents`, collaborators.vr_diario_cents) paga
+ *   almoço = max(0, almoço da regra da função − VR) — R$ 40 demais, R$ 44
+ *   gestão, R$ 35 ceno. Ex.: VR R$ 40,50 → almoço R$ 0,00 (o VR já cobre).
+ *   Sem VR (null), o valor fixo acima ("só a diferença do VR" de R$ 35).
  * O 1º argumento aceita o perfil ou o boolean legado `cenotecnica`.
  */
 export function refeicaoCentsDia(
   perfil: boolean | RefeicaoPerfil,
   settings: Record<string, number | string | undefined> | null | undefined,
-  ctx: { tipoColaborador?: string | null; isWeekend: boolean },
+  ctx: { tipoColaborador?: string | null; isWeekend: boolean; vrDiarioCents?: number | null },
 ): { almocoCents: number; jantarCents: number } {
   const p = toPerfil(perfil);
   const cenotecnica = p === "ceno";
@@ -316,6 +326,10 @@ export function refeicaoCentsDia(
   // fora dobrava o custo no Planejado. Vale em qualquer evento, útil ou fim de
   // semana. Antes o freela recebia o mesmo que "casa" em fim de semana.
   if (ctx.tipoColaborador === "freela") return { almocoCents: 0, jantarCents: 0 };
+  const vr = vrValido(ctx.vrDiarioCents);
+  if (ctx.tipoColaborador === "casa" && !ctx.isWeekend && vr !== null) {
+    return { almocoCents: Math.max(0, base.almocoCents - vr), jantarCents: base.jantarCents };
+  }
   if (ctx.tipoColaborador === "casa" && !ctx.isWeekend) {
     const key = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_KEY : ALIMENTACAO_ALMOCO_CASA_UTIL_KEY;
     const def = cenotecnica ? ALIMENTACAO_ALMOCO_CASA_UTIL_CENO_DEFAULT_CENTS : ALIMENTACAO_ALMOCO_CASA_UTIL_DEFAULT_CENTS;

@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { AcoesDoComparativo } from "@/hooks/use-budget-comparison-actions";
 import { fmt } from "./comparison-utils";
+import { parseBrNumber } from "@/lib/utils";
 
 const ALIM_FIELDS = [
   { key: "weekdayLunch", label: "Almoço (dias úteis)" },
@@ -108,13 +109,26 @@ export function RhEditActualDialog({ acoes, getCollaboratorName, getFunctionName
                 </div>
               </Secao>
 
+              {/* 28/10 (caso Lucas): ida e volta; o total é a soma — zerar a
+                  mobilidade é zerar os dois trechos, nunca sobra trecho escondido. */}
               <Secao titulo="Mobilidade" cor="bg-slate-400">
                 <div className="grid grid-cols-2 gap-3">
-                  <Campo id="aj-mob" rotulo="Total (R$)">
-                    <Input id="aj-mob" type="text" inputMode="decimal" value={editForm.mobility}
-                      onChange={e => setEditForm(f => ({ ...f, mobility: e.target.value }))} onFocus={e => e.target.select()} className={CAMPO} />
+                  <Campo id="aj-mob-ida" rotulo="Ida (R$)">
+                    <Input id="aj-mob-ida" type="text" inputMode="decimal" value={editForm.mobilityIda}
+                      onChange={e => setEditForm(f => ({ ...f, mobilityIda: e.target.value }))} onFocus={e => e.target.select()} className={CAMPO} />
+                  </Campo>
+                  <Campo id="aj-mob-volta" rotulo="Volta (R$)">
+                    <Input id="aj-mob-volta" type="text" inputMode="decimal" value={editForm.mobilityVolta}
+                      onChange={e => setEditForm(f => ({ ...f, mobilityVolta: e.target.value }))} onFocus={e => e.target.select()} className={CAMPO} />
                   </Campo>
                 </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>Total da mobilidade (ida + volta)</span>
+                  <span className="tabular-nums font-medium text-slate-700" data-testid="aj-mob-total">{fmt(Math.round((parseBrNumber(editForm.mobilityIda || "0") + parseBrNumber(editForm.mobilityVolta || "0")) * 100))}</span>
+                </div>
+                <button type="button" className="mt-1 text-2xs font-medium text-primary hover:underline underline-offset-2" onClick={() => setEditForm(f => ({ ...f, mobilityIda: "0,00", mobilityVolta: "0,00" }))} data-testid="aj-mob-zerar">
+                  Zerar mobilidade (ida e volta)
+                </button>
               </Secao>
 
               <div>

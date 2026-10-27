@@ -51,6 +51,7 @@ import { registrarPagamentoColaborador } from "./routes/pagamento-colaborador";
 import { registrarColaboradorPortal } from "./routes/colaborador-portal";
 import { registrarPresenca } from "./routes/presenca";
 import { registrarHonorariosPagamento } from "./routes/honorarios-pagamento";
+import { registrarVoltarAoPlanejado } from "./routes/voltar-ao-planejado";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Toda rota registrada daqui em diante (inclusive as de scaling-validation e
@@ -100,6 +101,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registrarOrcamentoPlanejado(app);
   registrarOrcamentoRealizado(app);
   registrarOrcamentoComparativo(app);
+  // "Voltar ao Planejado" (28/10, DP): tira a prestação do Realizado antes da OC/NF.
+  registrarVoltarAoPlanejado(app);
   registrarConfiguracoes(app);
   registrarNotasFiscais(app);
   registrarEmpresasPagadoras(app);

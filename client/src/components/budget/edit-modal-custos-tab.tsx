@@ -17,7 +17,10 @@ import { ATENDIMENTO_TIPOS, atendimentoDailyCents } from "@shared/atendimento";
 import { FUNCAO_LOCAL_RAZAO, PERCURSEIRO_TIPOS, percurseiroDiariaCents, type DeflationSegment } from "@shared/calculation-rules";
 import { CENO_FREELA_TIPO_LABELS, type CenoEmpreitaValor } from "@shared/cenotecnica-empreita";
 import type { ControladorDoModalDeEdicao } from "@/hooks/use-budget-edit-modal";
-import { formatCurrency, formatSegmentsMemo, type BudgetEdit, type EditingBudgetInfo } from "./types";
+import { formatCurrency, formatSegmentsMemo, meiaDiasDoTexto, meiaDiasParaTexto, type BudgetEdit, type EditingBudgetInfo } from "./types";
+import { FileiraDeMeiaDiaria } from "@/components/common/meia-diaria";
+import { MEIA_DIARIA_SEM_EFEITO_RAZAO, resumoDasMeiasDiarias } from "@shared/meia-diaria";
+import { EMPREITA_SEM_MOBILIDADE_RAZAO } from "@shared/budget-engine";
 import { fonteDoHonorario, textoDaDiferenca } from "./honorario-no-planejado";
 
 // 08/10: o campo da família — borda visível, anel de foco, número tabular; travado fica cinza.
@@ -29,6 +32,9 @@ export interface CustosTabProps {
   info: EditingBudgetInfo;
   /** Derivados calculados pela casca do modal (mesma conta do card). */
   totalDiarias: number;
+  /** 1,5 diária (28/10): o ½ dos dias marcados (já dentro de `totalDiarias`) e a escala da diária editada. */
+  totalMeias?: number;
+  escalaDaDiaria?: number;
   deflatedSegments: DeflationSegment[];
   empreitaModal: CenoEmpreitaValor | null;
   empreitaEditadaModal: boolean;
@@ -246,15 +252,65 @@ function DiariasBlock(p: CustosTabProps) {
             />
             <span className="text-2xs text-muted-foreground">/dia</span>
           </div>
-          <span className="text-sm font-semibold tabular-nums text-foreground w-24 text-right shrink-0 ml-auto">{formatCurrency(totalDiarias)}</span>
+          <span className="text-sm font-semibold tabular-nums text-foreground w-24 text-right shrink-0 ml-auto">{formatCurrency(totalDiarias - (p.totalMeias ?? 0))}</span>
         </div>
         {/* Memória da deflação por período */}
         {deflatedSegments.length > 1 && (
           <div className="px-4 py-2 text-2xs tabular-nums bg-brand-soft/50 text-primary">
-            Deflação por período: {formatSegmentsMemo(deflatedSegments)} = <b>{formatCurrency(totalDiarias)}</b>
+            Deflação por período: {formatSegmentsMemo(deflatedSegments)} = <b>{formatCurrency(totalDiarias - (p.totalMeias ?? 0))}</b>
           </div>
         )}
+        <MeiaDiariaNoAjuste {...p} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * 1,5 diária (28/10, pedido do DP): o DP marca/desmarca os dias de carga e
+ * descarga da linha. Recolhido quando não há dia marcado — um link discreto
+ * abre a fileira; com dia marcado, já vem aberto com o resumo.
+ */
+function MeiaDiariaNoAjuste(p: CustosTabProps) {
+  const { ctrl, editingBudget, info } = p;
+  const { modalViewMode, setEditingBudget, meiaAberta, setMeiaAberta } = ctrl;
+  const possiveis = info.meiaDiariaPossivel ?? [];
+  if (possiveis.length === 0) return null;
+  const marcados = new Set(meiaDiasDoTexto(editingBudget.meiaDias));
+  const aberto = meiaAberta || marcados.size > 0;
+  const alternar = (dia: string) => setEditingBudget(prev => {
+    if (!prev) return prev;
+    const atual = new Set(meiaDiasDoTexto(prev.meiaDias));
+    if (atual.has(dia)) atual.delete(dia); else atual.add(dia);
+    return { ...prev, meiaDias: meiaDiasParaTexto(Array.from(atual)) };
+  });
+  const escala = p.escalaDaDiaria ?? 1;
+  if (!aberto) {
+    if (modalViewMode) return null;
+    return (
+      <div className="px-4 py-2">
+        <button type="button" onClick={() => setMeiaAberta(true)} className="text-2xs font-medium text-info hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded" data-testid="modal-abrir-meia-diaria">
+          + Dia com 1,5 diária (carga/descarga)
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="px-4 py-2.5 space-y-2" data-testid="modal-meia-diaria">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span id="modal-meia-rotulo" className="text-xs font-medium text-slate-700">Dias com 1,5 diária <span className="font-normal text-muted-foreground">(carga/descarga)</span></span>
+        <span className="text-2xs tabular-nums text-muted-foreground">
+          {marcados.size > 0 ? <>{resumoDasMeiasDiarias(Array.from(marcados))} · <b className="text-info">+{formatCurrency(p.totalMeias ?? 0)}</b></> : "nenhum dia marcado"}
+        </span>
+      </div>
+      <FileiraDeMeiaDiaria
+        dias={possiveis.map((m) => ({ dia: m.dia, valorCents: Math.round(m.valorCents * escala), bloqueio: m.valorCents === 0 && !info.meiaDiariaSemEfeito ? "Sem diária neste dia pela regra (casa/CLT só recebe no fim de semana)" : undefined }))}
+        marcados={marcados}
+        onAlternar={alternar}
+        desabilitado={modalViewMode}
+        rotuloId="modal-meia-rotulo"
+      />
+      {info.meiaDiariaSemEfeito && marcados.size > 0 && <p className="m-0 text-2xs text-warning">{MEIA_DIARIA_SEM_EFEITO_RAZAO}</p>}
     </div>
   );
 }
@@ -265,9 +321,9 @@ function MobilidadeBlock({ ctrl, editingBudget, info }: Pick<CustosTabProps, "ct
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <CabecalhoDoBloco icone={Car} cor="text-slate-500" titulo="Mobilidade" sub="ida e volta" total={editingBudget.mobilidadeIda + editingBudget.mobilidadeVolta} />
-      {info.funcaoLocal && (
-        <div className="px-4 py-2 bg-surface-muted border-b border-border text-2xs text-muted-foreground">
-          {FUNCAO_LOCAL_RAZAO}
+      {(info.funcaoLocal || info.empreitaSemMobilidade) && (
+        <div className="px-4 py-2 bg-surface-muted border-b border-border text-2xs text-muted-foreground" data-testid="modal-razao-sem-mobilidade">
+          {info.funcaoLocal ? FUNCAO_LOCAL_RAZAO : EMPREITA_SEM_MOBILIDADE_RAZAO}
         </div>
       )}
       <div className="grid grid-cols-2 gap-4 px-4 py-3">

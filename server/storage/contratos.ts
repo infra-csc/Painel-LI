@@ -19,6 +19,10 @@ import {
   type Contrato, type ContratoHistorico, type ColaboradorPagamento, type ColaboradorPagamentoAlteracao,
 } from "@shared/schema";
 import type { ColaboradorParaImportacao, ContratoExistente, OperacaoDaImportacao } from "@shared/importacao-contratos";
+import {
+  AUTOR_DA_APROVACAO_AUTOMATICA, RAZAO_SOCIAL_NAO_INFORMADA, detalhesDoHistorico, observacaoDoContratoAutomatico, planejarAprovacao, planoGrava,
+  type ContratoParaAprovacao, type PassagemDoCnpj, type PlanoDoCnpj,
+} from "@shared/fornecedor-automatico";
 import { digitosDoCpf, cpfValido } from "@shared/pagamento";
 import { idsUnicos } from "./_comum";
 
@@ -251,6 +255,84 @@ export async function definirAnexo(contratoId: string, anexo: { id: string; nome
 export async function ehAnexoDeContrato(anexoId: string): Promise<boolean> {
   const [l] = await db.select({ id: contratos.id }).from(contratos).where(eq(contratos.anexoId, anexoId)).limit(1);
   return !!l;
+}
+
+// ── Aprovação automática pelo histórico (28/10) ─────────────────────────────
+
+/** Contratos dos CNPJs com os vínculos — o que shared/fornecedor-automatico.ts precisa. */
+export async function contratosParaAprovacao(cnpjs: readonly string[], cx: Tx | typeof db = db): Promise<ContratoParaAprovacao[]> {
+  const unicos = idsUnicos([...cnpjs]);
+  if (unicos.length === 0) return [];
+  const lista = await cx.select().from(contratos).where(inArray(contratos.cnpj, unicos));
+  if (lista.length === 0) return [];
+  const links = await cx.select().from(contratosColaboradores).where(inArray(contratosColaboradores.contratoId, lista.map((c) => c.id)));
+  return lista.map((c) => ({
+    id: c.id, cnpj: c.cnpj, vigenciaInicio: c.vigenciaInicio, vigenciaFim: c.vigenciaFim, encerradoEm: c.encerradoEm,
+    colaboradorIds: links.filter((l) => l.contratoId === c.id).map((l) => l.collaboratorId),
+  }));
+}
+
+export interface ResultadoDaAprovacaoAutomatica {
+  plano: PlanoDoCnpj;
+  /** "nada" = já estava aprovado, ou ignorado (encerrado / vigência do DP). */
+  feito: "criado" | "atualizado" | "nada";
+  contratoId: string | null;
+  vinculados: string[];
+  abriuVigencia: boolean;
+  nomes: Map<string, string>;
+}
+
+/**
+ * Aprova UM CNPJ pelo histórico (todas as passagens dele), numa transação com
+ * o contrato travado (FOR UPDATE): o plano é refeito com o banco de agora, então
+ * duas aprovações ao mesmo tempo não duplicam contrato nem vínculo (o CNPJ é
+ * único; o INSERT perdido vira o caminho "atualizar" na segunda tentativa).
+ */
+export async function aplicarAprovacaoAutomatica(passagens: readonly PassagemDoCnpj[], hoje: string, autor: Autor): Promise<ResultadoDaAprovacaoAutomatica | null> {
+  const cnpj = passagens[0]?.cnpj;
+  if (!cnpj) return null;
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    const r = await db.transaction(async (tx): Promise<ResultadoDaAprovacaoAutomatica | "conflito" | null> => {
+      const [atual] = await tx.select().from(contratos).where(eq(contratos.cnpj, cnpj)).limit(1).for("update");
+      const existentes = atual ? await contratosParaAprovacao([cnpj], tx) : [];
+      const [plano] = planejarAprovacao(passagens, existentes, hoje);
+      if (!plano) return null;
+      const nada = { plano, feito: "nada" as const, contratoId: atual?.id ?? null, vinculados: [], abriuVigencia: false, nomes: new Map<string, string>() };
+      if (!planoGrava(plano)) return nada;
+      const quem: Autor = { id: autor.id, name: AUTOR_DA_APROVACAO_AUTOMATICA };
+      if (plano.decisao.tipo === "criar") {
+        const [c] = await tx.insert(contratos).values({
+          cnpj, razaoSocial: plano.razaoSocial ?? RAZAO_SOCIAL_NAO_INFORMADA, tipo: "empresa",
+          vigenciaInicio: plano.vigenciaInicio, vigenciaFim: null, observacao: observacaoDoContratoAutomatico(plano),
+          origem: "automatico", origemDetalhe: plano.frase,
+          criadoPor: autor.id, criadoPorNome: AUTOR_DA_APROVACAO_AUTOMATICA, atualizadoPorNome: AUTOR_DA_APROVACAO_AUTOMATICA,
+        }).onConflictDoNothing().returning({ id: contratos.id });
+        if (!c) return "conflito";
+        const vinculados = await vincularNaTx(tx, c.id, plano.colaboradorIds, quem);
+        const nomes = await nomesDosColaboradores(vinculados, tx);
+        await registrar(tx, c.id, "aprovado_automaticamente", detalhesDoHistorico(plano, nomes, vinculados, false), quem);
+        return { plano, feito: "criado", contratoId: c.id, vinculados, abriuVigencia: false, nomes };
+      }
+      if (plano.decisao.tipo !== "atualizar") return nada;
+      const { contratoId, vincular, abrirVigencia } = plano.decisao;
+      let abriu = false;
+      if (abrirVigencia) {
+        const feito = await tx.update(contratos).set({ vigenciaInicio: plano.vigenciaInicio })
+          .where(and(eq(contratos.id, contratoId), isNull(contratos.vigenciaInicio), isNull(contratos.vigenciaFim), isNull(contratos.encerradoEm)))
+          .returning({ id: contratos.id });
+        abriu = feito.length > 0;
+      }
+      const vinculados = await vincularNaTx(tx, contratoId, vincular, quem);
+      if (!abriu && vinculados.length === 0) return nada;
+      await tx.update(contratos).set({ versao: sql`${contratos.versao} + 1`, updatedAt: new Date(), atualizadoPorNome: AUTOR_DA_APROVACAO_AUTOMATICA })
+        .where(eq(contratos.id, contratoId));
+      const nomes = await nomesDosColaboradores(vinculados, tx);
+      await registrar(tx, contratoId, "aprovado_automaticamente", detalhesDoHistorico(plano, nomes, vinculados, abriu), quem);
+      return { plano, feito: "atualizado", contratoId, vinculados, abriuVigencia: abriu, nomes };
+    });
+    if (r !== "conflito") return r;
+  }
+  return null;
 }
 
 // ── Importação ──────────────────────────────────────────────────────────────

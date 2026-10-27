@@ -25,6 +25,8 @@ import { BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 import { isAtendimentoFunction } from "@shared/atendimento";
 import { FUNCAO_LOCAL_RAZAO, PERCURSEIRO_TIPOS } from "@shared/calculation-rules";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
+import { EMPREITA_SEM_MOBILIDADE_RAZAO } from "@shared/budget-engine";
+import { MEIA_DIARIA_SEM_EFEITO_RAZAO, resumoDasMeiasDiarias } from "@shared/meia-diaria";
 import { AvisosDoHonorario, SeloDoHonorario, fonteDoHonorario } from "./honorario-no-planejado";
 import { SeloDaPreAprovacao, quandoLegivel, type PlanejadoDaTela } from "./pre-aprovacao";
 import { pedePreAprovacao, podeLiberarParaProducao, type SituacaoDaPreAprovacao } from "@shared/pre-aprovacao";
@@ -180,6 +182,14 @@ function BudgetCardBody({ budget, isNotAttended }: { budget: CalculatedBudget; i
           <Conta rotulo={formatFds(budget.weekends)} valor={formatCurrency(budget.valorDiariaFds)} />
         )}
         {porDiaria && budget.weekdays === 0 && budget.weekends === 0 && <span>—</span>}
+        {/* 1,5 diária num dia (28/10): quais dias e quanto o ½ somou */}
+        {budget.diasMeiaExtra.length > 0 && (
+          <Conta
+            title={budget.meiaDiariaSemEfeito ? MEIA_DIARIA_SEM_EFEITO_RAZAO : "½ da diária do dia, com o fator de deflação do próprio dia"}
+            rotulo={<span className="text-info" data-testid="planejado-meia-diaria">{resumoDasMeiasDiarias(budget.diasMeiaExtra)}</span>}
+            valor={budget.meiaDiariaSemEfeito ? "valor fechado: não soma" : `+${formatCurrency(budget.subtotalMeiasDiarias)}`}
+          />
+        )}
         {/* Memória da deflação por período (>4 dias) */}
         {budget.deflationSegments.length > 1 && (
           <span className="tabular-nums text-primary" title="Deflação por período: 100% até o 4º dia; fatores reduzidos nas faixas seguintes">
@@ -196,6 +206,14 @@ function BudgetCardBody({ budget, isNotAttended }: { budget: CalculatedBudget; i
         )}
         {(budget.almocoSemana > 0 || budget.jantarSemana > 0) && (
           <Conta rotulo="Semana" valor={formatCurrency(budget.almocoSemana + budget.jantarSemana)} />
+        )}
+        {/* VR do colaborador da casa (28/10): quanto do almoço de dia útil ele cobre */}
+        {budget.vrDiarioCents != null && budget.weekdays > 0 && (
+          <span className="tabular-nums" data-testid="planejado-vr" title="VR cadastrado na ficha do colaborador: o almoço de dia útil paga só o que falta para o valor da regra">
+            {budget.unitAlmocoSemana === 0
+              ? `VR ${formatCurrency(budget.vrDiarioCents)} cobre o almoço`
+              : `VR ${formatCurrency(budget.vrDiarioCents)} → almoço ${formatCurrency(budget.unitAlmocoSemana)}/dia útil`}
+          </span>
         )}
         {(budget.almocoFds > 0 || budget.jantarFds > 0) && (
           <Conta rotulo="Fim de semana" valor={formatCurrency(budget.almocoFds + budget.jantarFds)} />
@@ -217,7 +235,9 @@ function BudgetCardBody({ budget, isNotAttended }: { budget: CalculatedBudget; i
             ? <span title="Ajuda de custo transporte já está dentro do pacote do percurseiro">incluída no pacote</span>
             : budget.funcaoLocal
               ? <span title={FUNCAO_LOCAL_RAZAO}>sem mobilidade (função local)</span>
-              : <span>—</span>
+              : budget.empreitaSemMobilidade
+                ? <span title={EMPREITA_SEM_MOBILIDADE_RAZAO} data-testid="planejado-empreita-sem-mobilidade">sem mobilidade (empreita)</span>
+                : <span>—</span>
         )}
       </Lancamento>
     </dl>

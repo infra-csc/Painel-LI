@@ -37,6 +37,8 @@ export interface ActualGroupListProps {
   onEdit: (item: BudgetActual, tab?: ModalActualTab) => void;
   onSplit: (item: BudgetActual) => void;
   onDelete: (id: string) => void;
+  /** "Voltar ao Planejado" (28/10, DP/admin). */
+  onVoltarAoPlanejado?: (item: BudgetActual) => void;
   onClearFilters: () => void;
   /** Situação contratual por colaborador (só o DP recebe). */
   situacaoContratual?: Map<string, SituacaoDoColaboradorApi>;
@@ -79,6 +81,7 @@ export function ActualGroupList(p: ActualGroupListProps) {
       onEdit={onEdit}
       onSplit={onSplit}
       onDelete={onDelete}
+      onVoltarAoPlanejado={p.onVoltarAoPlanejado}
       contrato={cardItem.collaboratorId ? p.situacaoContratual?.get(cardItem.collaboratorId) : undefined}
     />
   );

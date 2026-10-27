@@ -23,6 +23,9 @@
  * Honorários não vê nada (server/perfil-honorarios.ts nega por padrão).
  * Evento LEGADO → 409 `evento_legado` (o legado segue como hoje). Toda
  * gravação vai para a auditoria — sem CPF e sem dado bancário.
+ *
+ * 28/10: OC registrada e pagamento marcado aprovam o fornecedor (o CNPJ da
+ * prestação vira contrato ativo) — server/fornecedor-automatico.ts.
  */
 import type { Express, Response } from "express";
 import { z } from "zod";
@@ -47,6 +50,7 @@ import {
   type PrestacaoDoPagamentoMontada,
 } from "../honorarios-pagamento-servico";
 import { expurgarSelfies, expurgoAutomaticoEstaLigado, temStorageReal } from "../expurgo-selfies";
+import { reconhecerFornecedores } from "../fornecedor-automatico";
 import {
   createAuditLog, createAuditLogsBatch, montarLogDeAuditoria, requireFinanceUser, requireRoles, responderErroComStatus,
 } from "./_compartilhado";
@@ -190,6 +194,8 @@ export function registrarHonorariosPagamento(app: Express): void {
       await createAuditLog("update", "budget_actual", depois.id, resumoDaOc(depois, {
         acao: "OC registrada", situacaoDoCnpj: m.cnpj.situacao, valorAprovado: m.actual.totalValue,
       }), user.id, nomeDe(user), { ocNumero: null }, req);
+      // 28/10: o CNPJ que passou pela OC vira fornecedor aprovado (contrato ativo).
+      await reconhecerFornecedores({ actualIds: [depois.id] }, { id: user.id, name: nomeDe(user) }, "OC registrada", req);
       const [linha] = await linhasDaOc(await montar([depois]));
       res.status(201).json({ linha });
     } catch (error) {
@@ -249,6 +255,8 @@ export function registrarHonorariosPagamento(app: Express): void {
       await createAuditLogsBatch(gravadas.map((d) => montarLogDeAuditoria("update", "budget_actual", d.id,
         resumoDaOc(d, { acao: "OC registrada (lote)", valorAprovado: antes.get(d.id)?.totalValue ?? null }),
         user.id, nomeDe(user), { ocNumero: null }, req)));
+      // 28/10: os CNPJs que passaram pelas OCs viram fornecedores aprovados.
+      if (gravadas.length) await reconhecerFornecedores({ actualIds: gravadas.map((d) => d.id) }, { id: user.id, name: nomeDe(user) }, "OC registrada (lote)", req);
       recusadas.sort((a, b) => a.linha - b.linha);
       res.json({
         registradas: gravadas.length,
@@ -445,6 +453,8 @@ export function registrarHonorariosPagamento(app: Express): void {
         acao: aptas.length > 1 ? "marcada como paga (lote)" : "marcada como paga",
         pagoEm: p.pagoEm, observacao: p.pagamentoObs, comprovante: !!p.pagamentoComprovanteId, ocNumero: p.ocNumero,
       }, user.id, nomeDe(user), { pagoEm: null }, req)));
+      // 28/10: pagamento marcado também aprova o fornecedor (idempotente).
+      if (pagas.length) await reconhecerFornecedores({ actualIds: pagas.map((p) => p.id) }, { id: user.id, name: nomeDe(user) }, "pagamento marcado", req);
       if (ids.length === 1 && pagas.length === 0) return res.status(409).json({ message: recusadas[0]?.motivo ?? "Não foi possível marcar como pago.", codigo: recusadas[0]?.codigo ?? "mudou" });
       res.json({ pagas: pagas.length, recusadas, linhas: await linhasDaOc(await montar(pagas)) });
     } catch (error) {

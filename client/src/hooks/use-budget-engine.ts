@@ -166,7 +166,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
       const ticket = ticketByInclusion.get(inclusion.id) ?? null;
       const override = budgetOverrides[id];
       const honorario: HonorarioNaVaga | null = honorarioPorVaga.get(id) ?? null;
-      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, fv, systemSettings, eventLocation, ticket, override, honorario];
+      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, collab?.vrDiarioCents ?? null, fv, systemSettings, eventLocation, ticket, override, honorario];
       const hit = anterior.get(id);
       const reaproveita = !!hit && hit.chave.length === chave.length && hit.chave.every((v, i) => v === chave[i]);
       const result: CalculatedBudget = reaproveita
@@ -182,6 +182,8 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
               ticket,
               override,
               honorario,
+              // 28/10: VR do colaborador da casa no almoço de dia útil.
+              vrDiarioCents: collab?.vrDiarioCents ?? null,
             }),
             inclusion,
             collaborator: collab,

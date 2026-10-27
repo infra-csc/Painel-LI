@@ -32,6 +32,7 @@ import { isCenoFreelaTipo } from "@shared/cenotecnica-empreita";
 import { nextStatusOnConfirm, isCenotecnicaFunctionName } from "@shared/scaling-rules";
 import { podeConfirmar, podeTransitar, faseParaStatus } from "@shared/vaga-status";
 import { recalcularDiasDaVaga } from "@shared/dias-de-trabalho";
+import { dataIsoValida, diasDeTrabalhoDaVaga, normalizarDiasMeiaExtra } from "@shared/meia-diaria";
 import {
   podeMudarValorDaDiaria,
   motivoParaNaoTrocarColaborador,
@@ -453,6 +454,17 @@ export function registrarEscalacao(app: Express): void {
           bodyData.dailyRates = recalculado.dailyRates;
         }
       }
+      // 1,5 diária (28/10): os dias marcados ficam DENTRO dos dias de trabalho —
+      // tirar um dia da escala tira a marca dele (shared/meia-diaria.ts).
+      if (bodyData.diasMeiaExtra !== undefined || bodyData.workDays !== undefined) {
+        const diasDeTrabalho = diasDeTrabalhoDaVaga({
+          workDays: Array.isArray(bodyData.workDays) ? bodyData.workDays as string[] : currentInclusion.workDays,
+          scheduleStartDate: newStartDate, scheduleEndDate: newEndDate,
+        });
+        const pedido = bodyData.diasMeiaExtra !== undefined ? bodyData.diasMeiaExtra : currentInclusion.diasMeiaExtra;
+        const limpo = normalizarDiasMeiaExtra(pedido, diasDeTrabalho);
+        if (bodyData.diasMeiaExtra !== undefined || limpo.length !== (currentInclusion.diasMeiaExtra ?? []).length) bodyData.diasMeiaExtra = limpo;
+      }
 
       // Colaborador (23/09): troca direta só em vaga NÃO confirmada e sem
       // passagem/hospedagem viva — fora disso, Solicitação de Troca. O novo
@@ -497,6 +509,8 @@ export function registrarEscalacao(app: Express): void {
         'cenoFreelaTipo', 'empreitaEmpresa', 'empreitaPessoas', 'empreitaValor',
         // Trecho direto / uma perna (09/10) — indicação de quem planeja.
         'trechosSugeridos', 'idaVemDoEventoId', 'voltaSegueParaEventoId',
+        // Dias com 1,5 diária (28/10) — já normalizados acima.
+        'diasMeiaExtra',
       ]);
       const updates: Partial<InsertTeamInclusion> = { updatedBy: userId };
       for (const [k, v] of Object.entries(bodyData)) {
@@ -880,6 +894,48 @@ export function registrarEscalacao(app: Express): void {
       res.json(inclusion);
     } catch (error) {
       responderErroComStatus(res, error, "Erro ao atualizar inclusão");
+    }
+  });
+
+  // 1,5 diária num dia (28/10, pedido do DP — shared/meia-diaria.ts): quem
+  // escala marca os dias de carga/descarga da vaga. Mesmos papéis e a mesma
+  // trava do tipo de freela acima (o responsável da função só na sua vaga;
+  // evento encerrado, só o administrador). Só dias de TRABALHO da vaga.
+  app.patch("/api/team-inclusions/:id/dias-meia-extra", async (req, res) => {
+    const actor = await requireRoles(req, res, ['admin', 'financial', 'production', 'purchasing', 'function_area']);
+    if (!actor) return;
+    try {
+      const pedido = (req.body ?? {}).diasMeiaExtra;
+      if (!Array.isArray(pedido) || pedido.length > 400 || pedido.some((d) => !dataIsoValida(d))) {
+        return res.status(400).json({ message: "Envie os dias com 1,5 diária como lista de datas (AAAA-MM-DD)." });
+      }
+      const current = await storage.getTeamInclusion(req.params.id);
+      if (!current) return res.status(404).json({ message: "Escalação não encontrada" });
+      if (current.deletedAt) return res.status(404).json({ message: "Vaga excluída" });
+      const func = await storage.getFunction(current.functionId);
+      if (!func) return res.status(404).json({ message: "Função não encontrada" });
+      if (!await assertEventEditable(current.eventId, actor, res)) return;
+      const actorRole = normalizeRole(actor.role);
+      if (actorRole !== "admin" && actorRole !== "production" && actorRole !== "purchasing" && actorRole !== "financial") {
+        if (!await podeEditarVagaAsync(actor, current, func)) {
+          return res.status(403).json({ message: "Sem permissão para marcar os dias desta vaga." });
+        }
+      }
+      const diasDeTrabalho = diasDeTrabalhoDaVaga(current);
+      const fora = (pedido as string[]).filter((d) => !diasDeTrabalho.includes(d));
+      if (fora.length > 0) {
+        return res.status(400).json({ message: `${fora.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`).join(", ")} não ${fora.length === 1 ? "é dia" : "são dias"} de trabalho desta vaga.` });
+      }
+      const inclusion = await storage.updateTeamInclusion(req.params.id, {
+        diasMeiaExtra: normalizarDiasMeiaExtra(pedido, diasDeTrabalho),
+        updatedBy: actor.id,
+      }, {
+        rejectDeleted: true,
+        auditFor: (updated) => montarLogDeAuditoria('update', 'team_inclusion', req.params.id, { ...updated, acao: "dias com 1,5 diária" }, actor.id, actor.name, current, req),
+      });
+      res.json(inclusion);
+    } catch (error) {
+      responderErroComStatus(res, error, "Erro ao marcar os dias com 1,5 diária");
     }
   });
 

@@ -223,6 +223,11 @@ export const collaborators = pgTable("collaborators", {
   createdBy: varchar("created_by").references(() => users.id), // quem criou o cadastro
   createdByName: text("created_by_name"), // nome de quem criou (snapshot p/ exibição sem join)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // VR diário do colaborador da CASA (28/10, pedido do DP), em centavos. Com
+  // VR cadastrado, o almoço de dia útil é max(0, almoço da regra − VR); sem
+  // ele (null), vale o valor fixo de sempre (shared/alimentacao.ts).
+  // Migração: scripts/migrations/2026-10-28-ajustes-dp.sql (+ ensure-schema).
+  vrDiarioCents: integer("vr_diario_cents"),
 });
 
 // Team inclusions table
@@ -286,6 +291,10 @@ export const teamInclusions = pgTable("team_inclusions", {
   validationNote: text("validation_note"),
   dailyRates: integer("daily_rates").notNull(), // quantidade de diárias planejadas
   workDays: date("work_days").array(), // dias específicos de trabalho (quando não consecutivos)
+  // Dias com 1,5 diária (28/10, pedido do DP — carga/descarga + o dia, ex.:
+  // Night Run): datas YYYY-MM-DD, subconjunto dos dias de trabalho. O motor do
+  // Planejado soma +½ diária por dia marcado (shared/meia-diaria.ts).
+  diasMeiaExtra: text("dias_meia_extra").array(),
   dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
   actualDailyRates: integer("actual_daily_rates"), // quantidade real de diárias
   observations: text("observations"),
@@ -603,6 +612,10 @@ export const budgetPlanned = pgTable("budget_planned", {
   // função não têm chave colaborador|função única — casam por aqui
   // (shared/casamento-do-planejado.ts). Nulo em linha antiga (adotada depois).
   teamInclusionId: varchar("team_inclusion_id").references(() => teamInclusions.id, { onDelete: "set null" }),
+  // 28/10 (DP): dias com 1,5 diária desta linha — o valor já está na diária
+  // média (subtotal ÷ dias); a lista diz QUAIS dias, para o Realizado nascer
+  // com eles marcados (shared/meia-diaria.ts).
+  diasMeiaExtra: text("dias_meia_extra").array(),
 }, (t) => [
   // Já existem (13/08)
   index("budget_planned_event_idx").on(t.eventId),
@@ -648,6 +661,9 @@ export const budgetActual = pgTable("budget_actual", {
   // FK real criada no banco em 13/08 (budget_actual_split_parent_fk, ON DELETE CASCADE)
   splitParentId: varchar("split_parent_id").references((): AnyPgColumn => budgetActual.id),
   workedDays: text("worked_days").array(), // dias específicos trabalhados [YYYY-MM-DD]
+  // 28/10 (DP): dias trabalhados com 1,5 diária (subconjunto de worked_days).
+  // O valor do dia já vem com o ½ na grade e no total — a lista só diz quais.
+  diasMeiaExtra: text("dias_meia_extra").array(),
   didNotAttend: boolean("did_not_attend").notNull().default(false), // marcado como não participou
   didNotAttendReason: text("did_not_attend_reason"), // motivo de não participação
   rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
@@ -1969,6 +1985,13 @@ export const contratos = pgTable("contratos", {
   encerradoPor: varchar("encerrado_por"),
   encerradoPorNome: text("encerrado_por_nome"),
   motivoEncerramento: text("motivo_encerramento"),
+  // 28/10 — fornecedor aprovado automaticamente pelo histórico (regra em
+  // shared/fornecedor-automatico.ts): 'cadastro' (DP, à mão ou planilha) |
+  // 'automatico'; o detalhe é a frase "Aprovado automaticamente: CNPJ já pago
+  // em <evento> em dd/mm/aaaa (…)". Migração:
+  // scripts/migrations/2026-10-28-fornecedor-automatico.sql (+ ensure-schema).
+  origem: text("origem").notNull().default("cadastro"),
+  origemDetalhe: text("origem_detalhe"),
   versao: integer("versao").notNull().default(1),
   criadoPor: varchar("criado_por"),
   criadoPorNome: text("criado_por_nome"),

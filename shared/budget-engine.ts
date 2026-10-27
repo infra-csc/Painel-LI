@@ -17,6 +17,7 @@
 import {
   calcDeflatedDailies,
   deflationFactorsFromSettings,
+  fatorDeDeflacaoDoDia,
   freelaDailyCents,
   casaDailyCents,
   diasComDiaria as calcDiasComDiaria,
@@ -38,10 +39,21 @@ import {
   isTransporteTerrestre,
   type AtendimentoTipo,
 } from "./atendimento";
-import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction } from "./alimentacao";
-import { cenoEmpreitaTotalCents, usaEmpreitaCenotecnica, vagaComEmpreita, type CenoFreelaTipo, type CenoEmpreitaValor } from "./cenotecnica-empreita";
+import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction, vrValido } from "./alimentacao";
+import { cenoEmpreitaTotalCents, isCenoFreelaTipo, usaEmpreitaCenotecnica, vagaComEmpreita, type CenoFreelaTipo, type CenoEmpreitaValor } from "./cenotecnica-empreita";
 import { listarDiasDeTrabalho } from "./dias-de-trabalho";
 import { valorDoHonorarioNaVaga, type HonorarioNaVaga } from "./honorarios-ceno";
+import { diasDeTrabalhoDaVaga, meiasDiariasDoPlanejado, normalizarDiasMeiaExtra, type MeiaDiariaDoDia } from "./meia-diaria";
+import { mobilidadeCoerente } from "./comparativo";
+
+/**
+ * Empreita da TABELA sem mobilidade (28/10 — pedido do DP, caso Lucas: NR São
+ * Luís, Freela Viagem): a vaga com modalidade de empreita (`cenoFreelaTipo`)
+ * aplicada não tem ida/volta no Planejado — o valor fechado já cobre o
+ * deslocamento. Decisão do dono: SÓ a empreita; freela de diária comum e casa
+ * seguem como estão. O ajuste manual continua mandando.
+ */
+export const EMPREITA_SEM_MOBILIDADE_RAZAO = "Empreita (tabela) — sem mobilidade: o valor fechado já cobre o deslocamento";
 
 /** Só o que o cálculo lê da vaga (estrutural: vale para a linha do banco e para o tipo do client). */
 export interface VagaParaPlanejado {
@@ -65,6 +77,8 @@ export interface VagaParaPlanejado {
   /** Datas sugeridas de ida/volta (YYYY-MM-DD) — situam os horários na escala (alimentação). */
   flightDepartureDate?: string | null;
   flightReturnDate?: string | null;
+  /** Dias com 1,5 diária marcados na Escalação (28/10, shared/meia-diaria.ts). */
+  diasMeiaExtra?: (string | null | undefined)[] | null;
 }
 
 /** Passagem registrada da vaga — os horários REAIS mandam sobre os sugeridos. */
@@ -98,6 +112,8 @@ export interface OverrideDoPlanejado {
   jantarSemana?: number;
   almocoFds?: number;
   jantarFds?: number;
+  /** Dias com 1,5 diária marcados/desmarcados pelo DP no Planejado (28/10) — substitui os da vaga. */
+  diasMeiaExtra?: string[];
 }
 
 export type ConfiguracoesDoPlanejado = Record<string, number | string | undefined> | null | undefined;
@@ -119,6 +135,8 @@ export interface EntradaDoPlanejado {
    * aprovado (já rateado na empreita); pendente: nada muda (só o selo).
    */
   honorario?: HonorarioNaVaga | null;
+  /** VR diário do colaborador (28/10, collaborators.vr_diario_cents) — só a casa usa (almoço de dia útil). */
+  vrDiarioCents?: number | null;
 }
 
 export interface ResultadoDoPlanejado {
@@ -178,6 +196,19 @@ export interface ResultadoDoPlanejado {
   honorarioDifere: boolean;
   /** Mão de obra que a regra de hoje daria (tabela/diária, sem ajuste) — só com honorário aprovado. */
   maoDeObraPelaRegra: number | null;
+  /** Dias com 1,5 diária em vigor (os do ajuste do DP, senão os da vaga), dentro dos dias de trabalho (28/10). */
+  diasMeiaExtra: string[];
+  /** O ½ de cada dia marcado (já somado em `subtotalDiarias`). */
+  meiasDiarias: MeiaDiariaDoDia[];
+  subtotalMeiasDiarias: number;
+  /** O ½ que cada dia de TRABALHO ganharia se marcado (com a diária de agora) — prévia no ajuste. */
+  meiaDiariaPossivel: MeiaDiariaDoDia[];
+  /** Há dia marcado, mas o valor da vaga é fechado (honorário aprovado / empreita por empresa): o ½ não entra. */
+  meiaDiariaSemEfeito: boolean;
+  /** Empreita da tabela: mobilidade 0 pela regra (28/10) — `EMPREITA_SEM_MOBILIDADE_RAZAO`. */
+  empreitaSemMobilidade: boolean;
+  /** VR que entrou no almoço de dia útil (casa com VR cadastrado), senão null. */
+  vrDiarioCents: number | null;
 }
 
 /** Dia da semana de "YYYY-MM-DD" em UTC (0 = domingo) — não depende do fuso do processo. */
@@ -328,10 +359,35 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
         return { totalCents: total, segments: [{ days: cenoEmpreita.dias, factor: 1, dailyCents: valorDiaria, totalCents: total, label: "valor fechado" }] as DeflationSegment[] };
       })()
     : calcDeflatedDailies(valorDiaria, diasComDiaria, deflationFactorsFromSettings(ss as Record<string, number | string | undefined> | undefined));
-  const subtotalDiarias = deflated.totalCents;
-  const subtotalDiariasUtil = (regraDiaria === "fds" || regraDiaria === "nenhuma")
+
+  // 1,5 diária num dia (28/10, pedido do DP — shared/meia-diaria.ts): o ½ da
+  // diária DAQUELE dia, com o fator de deflação do dia; dia sem diária pela
+  // regra (casa em dia útil) fica sem. Valor fechado da vaga inteira
+  // (honorário aprovado, empreita por empresa): o ½ não se soma.
+  const diasMeiaExtra = normalizarDiasMeiaExtra(override?.diasMeiaExtra ?? inclusion.diasMeiaExtra, diasDeTrabalhoDaVaga(inclusion));
+  const meiaDiariaSemEfeito = diasMeiaExtra.length > 0 && (!!maoDeObra || empreita);
+  const valorFlatPorDia = isPercurso || !!cenoEmpreita;
+  const diasQueRecebemDiaria = regraDiaria === "nenhuma" ? []
+    : valorFlatPorDia ? diasDeTrabalhoDaVaga(inclusion)
+    : diasPeriodo.filter((d) => regraDiaria === "todos" || ehFds(d));
+  const fatores = deflationFactorsFromSettings(ss as Record<string, number | string | undefined> | undefined);
+  const diariaDoDia = (p: number) => valorFlatPorDia ? valorDiaria : Math.round(valorDiaria * fatorDeDeflacaoDoDia(p + 1, fatores));
+  // O ½ que CADA dia de trabalho ganharia se marcado — a tela de ajuste mostra
+  // o efeito antes de salvar (valor fechado: zero em todos).
+  const meiaDiariaPossivel = !!maoDeObra || empreita
+    ? diasDeTrabalhoDaVaga(inclusion).map((dia) => ({ dia, valorCents: 0 }))
+    : meiasDiariasDoPlanejado(diasDeTrabalhoDaVaga(inclusion), diasQueRecebemDiaria, diariaDoDia).dias;
+  const meias = meiaDiariaSemEfeito || diasMeiaExtra.length === 0
+    ? { dias: diasMeiaExtra.map((dia) => ({ dia, valorCents: 0 })), totalCents: 0 }
+    : meiasDiariasDoPlanejado(diasMeiaExtra, diasQueRecebemDiaria, diariaDoDia);
+  const meiasUtil = meias.dias.filter((m) => !ehFds(m.dia)).reduce((s, m) => s + m.valorCents, 0);
+
+  const subtotalDiariasBase = deflated.totalCents;
+  const subtotalDiarias = subtotalDiariasBase + meias.totalCents;
+  const subtotalDiariasUtilBase = (regraDiaria === "fds" || regraDiaria === "nenhuma")
     ? 0
-    : (diasComDiaria > 0 && !isPercurso ? Math.round(subtotalDiarias * weekdays / diasComDiaria) : (isPercurso ? subtotalDiarias : 0));
+    : (diasComDiaria > 0 && !isPercurso ? Math.round(subtotalDiariasBase * weekdays / diasComDiaria) : (isPercurso ? subtotalDiariasBase : 0));
+  const subtotalDiariasUtil = subtotalDiariasUtilBase + (isPercurso ? meias.totalCents : meiasUtil);
   const subtotalDiariasFds = subtotalDiarias - subtotalDiariasUtil;
 
   // Horários de voo: a passagem manda; os sugeridos são fallback
@@ -349,17 +405,29 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     ticket?.transportType === "rodoviario" || ticket?.transportType === "van" ||
     (!ticket && (isTransporteTerrestre(vooPartidaIda) || isTransporteTerrestre(vooChegadaIda) || isTransporteTerrestre(vooPartidaVolta)));
   const semMobilidade = isPercurso || funcaoLocal || empreita;
-  const sysMobIda = semMobilidade ? 0 : mobilidadeTrechoComLocalCents(e.eventLocation, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: "ida", terrestre });
-  const sysMobVolta = semMobilidade ? 0 : mobilidadeTrechoComLocalCents(e.eventLocation, { voa, partida: vooPartidaVolta, chegada: vooChegadaVolta, trecho: "volta", terrestre });
+  // Empreita da tabela (28/10): só a MOBILIDADE zera — a alimentação segue a
+  // regra de sempre (o freela já não recebe; casa não usa a tabela).
+  const empreitaSemMobilidade = !semMobilidade && usaEmpreitaCenotecnica(isCenotecnicaFunction(fnName), collabType) && isCenoFreelaTipo(cenoFreelaTipo);
+  const sysMobIda = semMobilidade || empreitaSemMobilidade ? 0 : mobilidadeTrechoComLocalCents(e.eventLocation, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: "ida", terrestre });
+  const sysMobVolta = semMobilidade || empreitaSemMobilidade ? 0 : mobilidadeTrechoComLocalCents(e.eventLocation, { voa, partida: vooPartidaVolta, chegada: vooChegadaVolta, trecho: "volta", terrestre });
   const sysMob = sysMobIda + sysMobVolta;
-  const mobilidade = override?.mobilidade ?? sysMob;
-  const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
-  const mobilidadeVolta = override?.mobilidadeVolta ?? sysMobVolta;
+  // Ajuste manual coerente (28/10 — caso Lucas): total = ida + volta, sempre;
+  // zerar o total zera as duas (shared/comparativo.ts → mobilidadeCoerente).
+  const mob = mobilidadeCoerente(
+    { total: override?.mobilidade, ida: override?.mobilidadeIda, volta: override?.mobilidadeVolta },
+    { total: sysMob, ida: sysMobIda, volta: sysMobVolta },
+  );
+  const mobilidade = mob.total;
+  const mobilidadeIda = mob.ida;
+  const mobilidadeVolta = mob.volta;
 
   // Alimentação por refeição, dirigida pelos horários
   const perfil = refeicaoPerfil(fnName, inclusion.atendimentoTipo);
   const { almocoCents, jantarCents } = refeicaoCents(perfil, ss);
-  const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: collabType, isWeekend: false });
+  // VR do colaborador (28/10): a casa com VR cadastrado paga no almoço de dia
+  // útil só o que falta para o valor da regra (shared/alimentacao.ts).
+  const vrDiarioCents = collabType === "casa" ? vrValido(e.vrDiarioCents) : null;
+  const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: collabType, isWeekend: false, vrDiarioCents });
   const refFds = refeicaoCentsDia(perfil, ss, { tipoColaborador: collabType, isWeekend: true });
   // Datas da viagem (15/10): mesma precedência dos horários — passagem, senão
   // a sugerida na escalação. Volta no dia SEGUINTE ao último dia da escala
@@ -416,6 +484,13 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     honorarioAprovado: !!maoDeObra,
     honorarioDifere: !!maoDeObra?.difereDoAprovado,
     maoDeObraPelaRegra,
+    diasMeiaExtra,
+    meiasDiarias: meias.dias,
+    subtotalMeiasDiarias: meias.totalCents,
+    meiaDiariaPossivel,
+    meiaDiariaSemEfeito,
+    empreitaSemMobilidade,
+    vrDiarioCents,
   };
 }
 
@@ -433,12 +508,15 @@ export interface LinhaDoPlanejado {
   mobilityVolta: number;
   transport: number;
   totalValue: number;
+  /** Dias com 1,5 diária (28/10) — o ½ já está na média `dailyValue`. */
+  diasMeiaExtra: string[];
 }
 
 /**
  * O que a tela persiste ao "Enviar para o Planejado" (savePlannedAndSendToActual):
  * dias = os que recebem diária; diária = média ponderada (total deflacionado ÷
  * dias), para Realizado/Comparativo lerem dailyQuantity × dailyValue.
+ * 28/10: com 1,5 diária num dia o ½ entra na média do mesmo jeito.
  */
 export function linhaDoPlanejado(r: ResultadoDoPlanejado): LinhaDoPlanejado {
   const totalDias = r.diasComDiaria;
@@ -456,5 +534,6 @@ export function linhaDoPlanejado(r: ResultadoDoPlanejado): LinhaDoPlanejado {
     mobilityVolta: r.mobilidadeVolta,
     transport: 0,
     totalValue: r.totalFinal,
+    diasMeiaExtra: r.diasMeiaExtra,
   };
 }

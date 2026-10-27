@@ -56,6 +56,8 @@ export function valoresParaGravar(b: CalculatedBudget) {
     mobilityVolta: b.mobilidadeVolta,
     transport: 0,
     totalValue: b.totalFinal,
+    // 28/10: os dias com 1,5 diária (o ½ já está na diária média) — o Realizado nasce com eles.
+    diasMeiaExtra: b.diasMeiaExtra,
   };
 }
 

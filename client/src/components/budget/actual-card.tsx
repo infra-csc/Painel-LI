@@ -22,7 +22,8 @@
  * da lista. Memoizado (item de lista).
  */
 import { memo } from "react";
-import { Calendar, ChevronDown, ChevronUp, Eye, GitFork, Lock, MessageSquare, PencilLine, Trash2, TriangleAlert, UserX } from "lucide-react";
+import { Calendar, ChevronDown, ChevronUp, Eye, GitFork, Lock, MessageSquare, PencilLine, Trash2, TriangleAlert, Undo2, UserX } from "lucide-react";
+import { resumoDasMeiasDiarias } from "@shared/meia-diaria";
 import { cn, formatDiasUteis, formatFds } from "@/lib/utils";
 import { lerAdjustedFields } from "./comparison-utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -58,6 +59,8 @@ export interface ActualCardProps {
   onEdit: (item: BudgetActual, tab?: ModalActualTab) => void;
   onSplit: (item: BudgetActual) => void;
   onDelete: (id: string) => void;
+  /** "Voltar ao Planejado" (28/10, DP/admin): tira a prestação do Realizado antes da OC/NF. */
+  onVoltarAoPlanejado?: (item: BudgetActual) => void;
   /** Contrato ativo do CNPJ da pessoa (Fase 0, 27/10) — só o DP recebe; selo só quando falta. */
   contrato?: SituacaoDoColaboradorApi;
 }
@@ -127,6 +130,9 @@ function ActualCardBody({ cardItem, cardDays, cardPlanned: planned, notAttended 
         {cardDays.weekdays > 0 && <Conta rotulo={formatDiasUteis(cardDays.weekdays)} valor={formatCurrency(cardValorUtil)} />}
         {cardDays.weekends > 0 && <Conta rotulo={formatFds(cardDays.weekends)} valor={formatCurrency(cardValorFds)} />}
         {cardDays.weekdays === 0 && cardDays.weekends === 0 && <span>—</span>}
+        {(cardItem.diasMeiaExtra?.length ?? 0) > 0 && (
+          <span className="text-info" data-testid="realizado-meia-diaria" title="O ½ da diária já está no valor do dia">{resumoDasMeiasDiarias(cardItem.diasMeiaExtra)}</span>
+        )}
         {planned && <DiferencaDaLinha real={cardSubtotalDiarias} plano={plannedDiarias} />}
       </Lancamento>
       <Lancamento rotulo="Alimentação" cor="bg-warning-strong" valor={totalAlimentacao} riscado={notAttended}>
@@ -336,6 +342,19 @@ export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
         </button>
 
         <div className="ml-auto flex items-center gap-0.5">
+          {isRhOrAdmin && p.onVoltarAoPlanejado && cardItem.plannedId && !cardItem.splitParentId && (
+            <button
+              type="button"
+              className={cn(ACAO, "text-muted-foreground hover:bg-warning-soft hover:text-warning")}
+              aria-label={`Voltar a prestação de ${collabName} ao Planejado`}
+              title="Voltar ao Planejado (DP) — tira a prestação do Realizado para ajustar"
+              onClick={() => p.onVoltarAoPlanejado?.(cardItem)}
+              data-testid="realizado-voltar-ao-planejado"
+            >
+              <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="rea-acao-texto">Voltar</span>
+            </button>
+          )}
           <button
             type="button"
             className={cn(ACAO, "text-muted-foreground hover:bg-muted hover:text-foreground")}

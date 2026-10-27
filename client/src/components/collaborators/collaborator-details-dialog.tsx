@@ -22,6 +22,7 @@ import {
 } from "./collaborator-shared";
 import { SecaoPagamento } from "@/components/contratos/secao-pagamento";
 import { BotaoGerarCodigo } from "@/components/presenca/codigo-de-acesso";
+import { SecaoVr } from "./secao-vr";
 import { useAuth } from "@/hooks/use-auth";
 import { hasRole } from "@/lib/role-utils";
 
@@ -187,6 +188,9 @@ export function CollaboratorDetailsDialog({ open, onOpenChange, c, podeVerDadosP
                 </div>
               </Grupo>
             )}
+
+            {/* VR (28/10): quem edita o cadastro e o DP — entra no almoço de dia útil. */}
+            <SecaoVr c={c} podeEditar={canEdit || hasRole(user, "financial")} />
 
             {/* Pagamento (26/10): só o DP — a seção se esconde sozinha para os outros papéis. */}
             <SecaoPagamento collaboratorId={c.id} nome={toTitleCase(c.fullName)} />

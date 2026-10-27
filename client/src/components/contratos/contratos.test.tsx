@@ -15,7 +15,8 @@ import { mockarFetch, respostaJson, usuarioFake, type RoteadorDeFetch } from "@/
 import ContratosPage from "@/pages/contratos";
 import { ImportacaoDialog } from "./importacao-dialog";
 import { SecaoPagamento } from "./secao-pagamento";
-import type { Contrato, PreviaApi, RespostaDoPagamento } from "./api";
+import { AprovacaoPeloHistoricoDialog } from "./aprovacao-pelo-historico-dialog";
+import type { Contrato, PreviaApi, RespostaDaAprovacao, RespostaDoPagamento } from "./api";
 
 const rh = usuarioFake({ id: "u-rh", role: "financial", name: "Pessoa do DP" });
 const producao = usuarioFake({ id: "u-prod", role: "production" });
@@ -24,7 +25,7 @@ function contrato(p: Partial<Contrato> = {}): Contrato {
   return {
     id: "k1", cnpj: "12345678000195", cnpjFormatado: "12.345.678/0001-95", razaoSocial: "Montagens Exemplo Ltda", nomeFantasia: null, tipo: "empresa",
     vigenciaInicio: "2026-01-01", vigenciaFim: "2027-12-31", observacao: null, anexoId: null, anexoNome: null, encerradoEm: null, encerradoPorNome: null,
-    motivoEncerramento: null, versao: 1, criadoPorNome: "Pessoa do DP", atualizadoPorNome: "Pessoa do DP", createdAt: "2026-10-01T10:00:00Z", updatedAt: "2026-10-01T10:00:00Z",
+    motivoEncerramento: null, origem: "cadastro", origemDetalhe: null, versao: 1, criadoPorNome: "Pessoa do DP", atualizadoPorNome: "Pessoa do DP", createdAt: "2026-10-01T10:00:00Z", updatedAt: "2026-10-01T10:00:00Z",
     situacao: "ativo", diasParaVencer: 400, colaboradores: [{ id: "c1", fullName: "ANA TESTE", collaboratorNumber: 7, type: "freela", active: true }],
     ...p,
   };
@@ -82,6 +83,44 @@ describe("Contratos — lista", () => {
     renderComTudo(<ContratosPage />, { user: producao, queryClient: criarQueryClientComApi(), rota: "/contratos" });
     expect(await screen.findByTestId("ctr-sem-acesso")).toBeInTheDocument();
     expect(f.mock.calls.map(([u]) => String(u)).filter((u) => u.includes("/api/contratos") || u.includes("/api/pagamento"))).toEqual([]);
+  });
+});
+
+describe("Fornecedor aprovado automaticamente (28/10)", () => {
+  it("selo na lista e filtro por origem", async () => {
+    const auto = contrato({ id: "k9", cnpj: "42345678000100", cnpjFormatado: "42.345.678/0001-00", razaoSocial: "Lucas Eventos ME", origem: "automatico",
+      origemDetalhe: "Aprovado automaticamente: CNPJ já pago em NR São Luís em 12/10/2026 (OC registrada).", vigenciaFim: null, colaboradores: [] });
+    mockarFetch(roteador({
+      "GET /api/contratos": () => respostaJson({ hoje: "2026-10-28", contratos: [contrato(), auto] }),
+      "GET /api/pagamento/alteracoes": () => respostaJson([]),
+    }));
+    const { user } = renderComTudo(<ContratosPage />, { user: rh, queryClient: criarQueryClientComApi(), rota: "/contratos" });
+    expect(await screen.findByText("Lucas Eventos ME")).toBeInTheDocument();
+    expect(screen.getAllByTestId("selo-aprovado-automaticamente")).toHaveLength(1);
+    await user.selectOptions(screen.getByTestId("ctr-filtro-origem"), "automatico");
+    expect(screen.getByText("Lucas Eventos ME")).toBeInTheDocument();
+    expect(screen.queryByText("Montagens Exemplo Ltda")).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByTestId("ctr-filtro-origem"), "cadastro");
+    expect(screen.queryByText("Lucas Eventos ME")).not.toBeInTheDocument();
+  });
+
+  it("varredura: abre com a prévia (simular=1), aprova e mostra o resultado", async () => {
+    const item = { cnpj: "42.345.678/0001-00", razaoSocial: "Lucas Eventos ME", contratoId: null, decisao: "criar" as const, descricao: "Cria o contrato (vigência aberta) e vincula Lucas.",
+      frase: "Aprovado automaticamente: CNPJ já pago em NR São Luís em 12/10/2026 (OC registrada).", evento: "NR São Luís", data: "2026-10-12", gatilho: "OC registrada", colaboradores: [{ id: "c1", nome: "LUCAS" }] };
+    const ignorado = { ...item, cnpj: "52.345.678/0001-00", razaoSocial: "Encerrada ME", contratoId: "k5", decisao: "ignorado" as const, descricao: "Contrato encerrado pelo DP — não é reaprovado automaticamente." };
+    const previa: RespostaDaAprovacao = { simulado: true, resumo: { criar: 1, atualizar: 0, jaAprovados: 4, ignorados: 1, total: 6 }, itens: [item, ignorado], aprovados: 0 };
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({
+      "POST /api/contratos/aprovacao-automatica": (c) => respostaJson(c.url.includes("simular=1") ? previa : { ...previa, simulado: false, aprovados: 1 }),
+    }, chamadas));
+    const { user } = renderComTudo(<AprovacaoPeloHistoricoDialog aberto onClose={() => {}} />, { user: rh, queryClient: criarQueryClientComApi() });
+    expect(await screen.findByText("Lucas Eventos ME")).toBeInTheDocument();
+    expect(screen.getByText(/nada foi gravado ainda/)).toBeInTheDocument();
+    expect(screen.getByText("Encerrada ME")).toBeInTheDocument();
+    expect(chamadas.filter((c) => c.metodo === "POST").map((c) => c.url)).toEqual(["/api/contratos/aprovacao-automatica?simular=1"]);
+    await user.click(screen.getByTestId("ctr-aprovacao-confirmar"));
+    expect(await screen.findByTestId("ctr-aprovacao-feito")).toHaveTextContent("1 fornecedor aprovado");
+    expect(chamadas.filter((c) => c.metodo === "POST").map((c) => c.url)).toEqual(["/api/contratos/aprovacao-automatica?simular=1", "/api/contratos/aprovacao-automatica"]);
   });
 });
 

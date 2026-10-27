@@ -57,7 +57,12 @@ export interface EditFormBase {
 
 export type AlimField = "weekdayLunch" | "weekdayDinner" | "weekendLunch" | "weekendDinner";
 
-export interface DayEntry { date: string; valueCents: number; active: boolean; isWeekend: boolean }
+/**
+ * Um dia da grade do Realizado. `meia` (28/10): dia com 1,5 diária — o
+ * `valueCents` JÁ inclui o ½ (comMeiaDiaria), então a soma da grade é o
+ * subtotal gravado, como sempre.
+ */
+export interface DayEntry { date: string; valueCents: number; active: boolean; isWeekend: boolean; meia?: boolean }
 
 export interface DayCounts { weekdays: number; weekends: number; startDate: string | null; endDate: string | null }
 

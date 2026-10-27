@@ -33,7 +33,8 @@ import { useBudgetActualActions } from "@/hooks/use-budget-actual-actions";
 import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { useQuery } from "@tanstack/react-query";
 import { normalizeRole } from "@shared/roles";
-import type { Event } from "@shared/schema";
+import type { BudgetActual, Event } from "@shared/schema";
+import { VoltarAoPlanejadoDialog } from "@/components/budget/voltar-ao-planejado-dialog";
 import { DevolvedBanner, ResumoDoRealizado } from "@/components/budget/actual-overview";
 import { ActualFilters, FilaDoRealizado } from "@/components/budget/actual-filters";
 import { ActualGroupList } from "@/components/budget/actual-group-list";
@@ -65,6 +66,8 @@ export default function BudgetActualPage() {
     };
   }, [searchString]);
   const [highlightCardId, setHighlightCardId] = useState<string>("");
+  // "Voltar ao Planejado" (28/10, DP/admin): a prestação em decisão.
+  const [voltando, setVoltando] = useState<BudgetActual | null>(null);
 
   // Evento em foco (23/09): compartilhado com Planejado, Comparativo, Controle RH e Notas.
   const { eventId: selectedEventId, setEventId: setSelectedEventId, sanitize: sanearEventoEmFoco } = useEventoEmFoco();
@@ -116,9 +119,15 @@ export default function BudgetActualPage() {
   const dados = useBudgetActualData({ selectedEventId, budgetActual, budgetPlanned, teamInclusions, selectedEvent, getCollaboratorName, getFunctionName });
   const { filteredItems, selectedCards, setSelectedCards, pendingFiltered, sentForReview } = dados;
 
+  // VR do colaborador da casa (28/10): o recálculo da alimentação no modal segue o Planejado.
+  const vrDoColaborador = useCallback(
+    (id: string | null | undefined) => (id ? collaborators?.find((c) => c.id === id)?.vrDiarioCents ?? null : null),
+    [collaborators],
+  );
   const editor = useBudgetActualEditor({
     getItemInclusion: dados.getItemInclusion, getItemDayCounts: dados.getItemDayCounts, getPlannedRef: dados.getPlannedRef,
     getFunctionName, functionNameById, ticketByInclusion, actualsPorGrupo: dados.actualsPorGrupo, systemSettings: q.systemSettings,
+    vrDoColaborador,
   });
   const acoes = useBudgetActualActions({ userId: user?.id, onSaved: editor.aoSalvar });
   const { sendForReviewMutation, updateMutation, deleteMutation, splitMutation } = acoes;
@@ -313,6 +322,7 @@ export default function BudgetActualPage() {
           onEdit={editor.openEditModal}
           onSplit={acoes.setSplittingItem}
           onDelete={acoes.setConfirmDeleteId}
+          onVoltarAoPlanejado={isRhOrAdmin ? setVoltando : undefined}
           onClearFilters={dados.limparFiltros}
           situacaoContratual={situacaoContratual}
         />
@@ -376,6 +386,14 @@ export default function BudgetActualPage() {
         onClose={() => acoes.setConfirmDeleteId(null)}
         isPending={deleteMutation.isPending}
         onConfirm={id => deleteMutation.mutate(id)}
+      />
+
+      <VoltarAoPlanejadoDialog
+        item={voltando}
+        divisoes={voltando ? (budgetActual ?? []).filter(a => a.splitParentId === voltando.id) : []}
+        nome={voltando ? getCollaboratorName(voltando.collaboratorId) : ""}
+        funcao={voltando ? getFunctionName(voltando.functionId) : ""}
+        onClose={() => setVoltando(null)}
       />
 
       {/* ── Divisão de escalação (modal compartilhado com a Escalação) ── */}

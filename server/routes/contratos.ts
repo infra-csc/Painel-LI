@@ -10,6 +10,8 @@
  *                                              (?colaboradores=a,b&data= ou ?eventId=)
  *  POST   /api/contratos/importacao/previa     prévia da planilha (NÃO grava)
  *  POST   /api/contratos/importacao/confirmar  grava o que a prévia mostrou
+ *  POST   /api/contratos/aprovacao-automatica[?simular=1]
+ *                                              aprovar fornecedores pelo histórico (28/10)
  *  GET    /api/contratos/:id                   contrato + histórico
  *  POST   /api/contratos                       cria
  *  PATCH  /api/contratos/:id                   edita (com `versao`)
@@ -38,6 +40,7 @@ import type { Contrato } from "@shared/schema";
 import * as dados from "../storage/contratos";
 import type { ContratoComColaboradores } from "../storage/contratos";
 import { storage } from "../storage";
+import { aprovarPeloHistorico } from "../fornecedor-automatico";
 
 // ── Formato devolvido ───────────────────────────────────────────────────────
 
@@ -209,6 +212,20 @@ export function registrarContratos(app: Express): void {
       }
       throw erro;
     }
+  });
+
+  /**
+   * 28/10 — "Aprovar fornecedores pelo histórico": varredura única do passado
+   * (CNPJ que já teve OC, nota aprovada ou pagamento vira contrato ativo).
+   * `?simular=1` = prévia, NÃO grava. Regra em shared/fornecedor-automatico.ts.
+   */
+  app.post("/api/contratos/aprovacao-automatica", async (req, res) => {
+    const autor = await exigirDp(req, res);
+    if (!autor) return;
+    const simular = req.query.simular === "1" || req.query.simular === "true";
+    const r = await aprovarPeloHistorico({ simular }, autor, req);
+    res.set("Cache-Control", "no-store");
+    res.json(r);
   });
 
   app.get("/api/contratos/:id", async (req, res) => {
@@ -415,6 +432,7 @@ function resumoParaAuditoria(c: ContratoComColaboradores) {
     vigenciaInicio: c.vigenciaInicio,
     vigenciaFim: c.vigenciaFim,
     encerrado: !!c.encerradoEm,
+    origem: c.origem,
     colaboradores: c.colaboradores.map((x) => x.fullName).join(", "),
   };
 }

@@ -6,7 +6,7 @@
  * trava a OC (Fase 2), mas hoje NADA trava: só mostra. Ele aparece só para o
  * DP (admin + financial), que é quem recebe a situação do servidor.
  */
-import { AlertTriangle, BadgeCheck, CircleSlash, Clock3, FileWarning, Hourglass } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CircleSlash, Clock3, FileWarning, History, Hourglass } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { StatusBadge, type Tone } from "@/components/common/status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -66,6 +66,30 @@ export function TipoDoContrato({ tipo }: { tipo: string }) {
     <span className="inline-flex h-5 items-center rounded-md border border-border bg-surface-muted px-1.5 text-2xs font-medium text-slate-700">
       {tipoLabel(tipo)}
     </span>
+  );
+}
+
+/**
+ * 28/10 — selo do contrato criado (ou aberto) pelo sistema porque o CNPJ já
+ * passou por OC, nota aprovada ou pagamento. A dica traz a frase da aprovação.
+ */
+export function SeloAprovadoAutomaticamente({ detalhe, compacto = false, className }: { detalhe: string | null; compacto?: boolean; className?: string }) {
+  const dica = detalhe ?? "Aprovado automaticamente: o CNPJ já passou por um pagamento de honorário.";
+  const selo = (
+    <span
+      className={cn("inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-primary/25 bg-brand-soft px-1.5 text-2xs font-semibold whitespace-nowrap text-primary", className)}
+      data-testid="selo-aprovado-automaticamente"
+      aria-label={dica}
+    >
+      <History className="h-3 w-3" aria-hidden="true" />
+      {compacto ? "Automático" : "Aprovado automaticamente"}
+    </span>
+  );
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{selo}</TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[320px] text-xs leading-relaxed">{dica}</TooltipContent>
+    </Tooltip>
   );
 }
 

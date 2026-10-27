@@ -18,6 +18,7 @@ import type { ScalingMutations } from "../use-scaling-mutations";
 import type { InclusionDialogState } from "./use-inclusion-dialog-state";
 import { Propriedade, Secao } from "./details-shared";
 import { PeriodoDaVaga } from "./resumo-periodo-card";
+import { MeiaDiariaDaVaga } from "./meia-diaria-da-vaga";
 
 export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
   inclusion: TeamInclusion;
@@ -65,6 +66,8 @@ export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
         <Propriedade rotulo="Período">
           <PeriodoDaVaga inclusion={inclusion} />
         </Propriedade>
+        {/* 1,5 diária (28/10): quem cuida da vaga marca os dias de carga/descarga — mesma trava da NF. */}
+        <MeiaDiariaDaVaga inclusion={inclusion} podeMarcar={canToggleNf} mutation={mutations.setDiasMeiaExtra} />
         <Propriedade rotulo="Nota fiscal">
           {!canToggleNf ? (
             <Tooltip>

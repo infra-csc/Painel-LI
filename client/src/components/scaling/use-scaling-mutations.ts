@@ -197,6 +197,21 @@ export function useScalingMutations(opts: {
     },
   });
 
+  // 1,5 diária num dia (28/10, pedido do DP): grava na hora, pela rota dedicada.
+  const setDiasMeiaExtra = useMutation({
+    mutationFn: async ({ id, diasMeiaExtra }: { id: string; diasMeiaExtra: string[] }) => {
+      const r = await apiRequest("PATCH", `/api/team-inclusions/${id}/dias-meia-extra`, { diasMeiaExtra });
+      return r.json() as Promise<TeamInclusion>;
+    },
+    onSuccess: (updated: TeamInclusion) => {
+      setSelectedInclusion(prev => (prev && prev.id === updated.id ? updated : prev));
+      invalidateAndRefetchInclusions();
+      const n = updated.diasMeiaExtra?.length ?? 0;
+      toast({ title: n > 0 ? `${n} ${n === 1 ? "dia" : "dias"} com 1,5 diária` : "Sem dia com 1,5 diária", description: "O Planejado já calcula com isso." });
+    },
+    onError: (err: unknown) => toast({ title: "Não foi possível marcar o dia", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+  });
+
   // Reprovação de cenotécnica pelo gestor (remove colaborador, volta p/ escalacao)
   const rejectProduction = useMutation({
     mutationFn: async (id: string) => {
@@ -304,7 +319,7 @@ export function useScalingMutations(opts: {
 
   return {
     createSwapRequest, cancelSwap, approveSwap, rejectSwap,
-    toggleEmitsNf, setCenoFreelaTipo, rejectProduction, approveProduction, reactivate, cancelInclusion,
+    toggleEmitsNf, setCenoFreelaTipo, setDiasMeiaExtra, rejectProduction, approveProduction, reactivate, cancelInclusion,
     addComment, saveInclusion,
   };
 }

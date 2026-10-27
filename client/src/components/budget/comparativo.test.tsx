@@ -116,7 +116,10 @@ describe("Comparativo — ajuste do DP", () => {
     renderComTudo(<RhEditActualDialog acoes={result.current} />);
     expect(screen.getByLabelText("Valor por dia (R$)")).toHaveValue("100,00");
     expect(screen.getByLabelText("Almoço (dias úteis) (R$)")).toHaveValue("25,50");
-    expect(screen.getByLabelText("Total (R$)")).toHaveValue("1.500,00");
+    // 28/10 (caso Lucas): mobilidade por trecho; o total é a soma (0 + 0 gravado = sem divisão → metade/metade).
+    expect(screen.getByLabelText("Ida (R$)")).toHaveValue("750,00");
+    expect(screen.getByLabelText("Volta (R$)")).toHaveValue("750,00");
+    expect(screen.getByTestId("aj-mob-total")).toHaveTextContent("1.500,00");
   });
 });
 

@@ -15,8 +15,9 @@ import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { atendimentoDailyCents, isAtendimentoFunction, type AtendimentoTipo } from "@shared/atendimento";
 import { percurseiroDiariaCents, type PercurseiroTipo } from "@shared/calculation-rules";
 import type { BudgetPlanned as BudgetPlannedRow, TeamInclusion } from "@shared/schema";
+import { diasDeTrabalhoDaVaga, normalizarDiasMeiaExtra } from "@shared/meia-diaria";
 import {
-  isCasaType, nomeDaVaga,
+  isCasaType, meiaDiasDoTexto, meiaDiasParaTexto, nomeDaVaga,
   type BudgetEdit, type BudgetOverride, type BudgetOverrides, type CalculatedBudget, type EditingBudgetInfo,
 } from "@/components/budget/types";
 
@@ -59,6 +60,8 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
   // Alimentação no modal: os 4 campos legados ficam recolhidos ("exceções");
   // abrem automaticamente quando o valor atual difere do motor (override).
   const [alimExpanded, setAlimExpanded] = useState(false);
+  // 1,5 diária (28/10): a fileira de dias abre pelo link (ou já aberta, com dia marcado).
+  const [meiaAberta, setMeiaAberta] = useState(false);
 
   // Aplica a nova diária no modal (sem tocar em originalModalValues/Total: a
   // troca de tipo é uma mudança REAL, aparece no "▲ vs original"). Preserva a
@@ -171,6 +174,10 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
       honorarioAprovado: budget.honorarioAprovado,
       diasHonorario: budget.honorarioAprovado ? (budget.deflationSegments[0]?.days ?? budget.diasComDiaria) : undefined,
       inclusionId: budget.inclusion.id,
+      meiaDiariaPossivel: budget.meiaDiariaPossivel,
+      valorDiariaDoCalculo: budget.valorDiaria,
+      meiaDiariaSemEfeito: budget.honorarioAprovado || !!budget.inclusion.empreitaEmpresa,
+      empreitaSemMobilidade: budget.empreitaSemMobilidade,
     });
     setPendingAtendimentoTipo(null);
     setPendingPercurseiroTipo(null);
@@ -190,6 +197,8 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
       jantarSemana: budget.sysJantarSemana,
       almocoFds: budget.sysAlmocoFds,
       jantarFds: budget.sysJantarFds,
+      // 1,5 diária (28/10): o padrão são os dias marcados na vaga (Escalação).
+      meiaDias: meiaDiasParaTexto(normalizarDiasMeiaExtra(budget.inclusion.diasMeiaExtra, diasDeTrabalhoDaVaga(budget.inclusion))),
     };
     setDefaultBudgetValues(defaultVals);
 
@@ -206,6 +215,7 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
       jantarSemana: budget.jantarSemana,
       almocoFds: budget.almocoFds,
       jantarFds: budget.jantarFds,
+      meiaDias: meiaDiasParaTexto(budget.diasMeiaExtra),
     };
     setEditingBudget(editVals);
     setOriginalModalValues(editVals);
@@ -221,6 +231,7 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
     );
     setEditingBudgetPlannedId(planRec?.id ?? null);
     setModalViewMode(viewMode);
+    setMeiaAberta(false);
     setModalTab("custos");
     setModalBufs({});
   };
@@ -266,6 +277,10 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
         else if (cur[f] !== orig[f] || next[f] !== undefined) next[f] = cur[f];
       });
 
+      // 1,5 diária (28/10): igual aos dias da vaga sai do ajuste; diferente, vence.
+      if (cur.meiaDias === sys.meiaDias) delete next.diasMeiaExtra;
+      else if (cur.meiaDias !== orig.meiaDias || next.diasMeiaExtra !== undefined) next.diasMeiaExtra = meiaDiasDoTexto(cur.meiaDias);
+
       const hasAny = Object.keys(next).some(k => k !== "inclusionId");
       const n = { ...prev };
       if (!hasAny) delete n[id];
@@ -295,6 +310,7 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
     modalBufs, setModalBufs,
     originalModalTotal, originalModalValues, defaultBudgetValues,
     alimExpanded, setAlimExpanded,
+    meiaAberta, setMeiaAberta,
     chooseLocalPercurseiroTipo, chooseLocalAtendimentoTipo,
     fecharModalEdicao, pedirFecharEdicao, DialogoDescarteEdicao,
     openEditModal, saveEdit,

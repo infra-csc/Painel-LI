@@ -274,6 +274,30 @@ export function registrarColaboradores(app: Express): void {
     }
   });
 
+  // VR diário do colaborador da casa (28/10, pedido do DP): entra no almoço de
+  // dia útil do Planejado (shared/alimentacao.ts). Quem edita o cadastro edita
+  // o VR — e o DP também, que é quem conhece o benefício (o resto do cadastro
+  // continua fora do alcance dele). null = sem VR (vale o valor fixo).
+  app.patch("/api/collaborators/:id/vr", async (req, res) => {
+    const editor = await requireRoles(req, res, [...CADASTRO_ROLES, "function_area", "financial"]);
+    if (!editor) return;
+    const corpo = z.object({ vrDiarioCents: z.number().int().min(0).max(100_000).nullable() }).safeParse(req.body ?? {});
+    if (!corpo.success) return res.status(400).json({ message: "Informe o VR diário em centavos (de R$ 0,00 a R$ 1.000,00) ou vazio para tirar." });
+    try {
+      const anterior = await storage.getCollaborator(req.params.id);
+      if (!anterior) return res.status(404).json({ message: "Colaborador não encontrado" });
+      if (corpo.data.vrDiarioCents !== null && anterior.type !== "casa") {
+        return res.status(400).json({ message: "O VR só vale para colaborador da casa." });
+      }
+      const collaborator = await storage.updateCollaborator(req.params.id, { vrDiarioCents: corpo.data.vrDiarioCents });
+      await createAuditLog("update", "collaborator", req.params.id, { ...collaborator, acao: "VR diário" }, editor.id, editor.name, anterior, req);
+      res.json(collaborator);
+    } catch (error) {
+      console.error("Error updating VR:", error);
+      res.status(500).json({ message: "Erro ao salvar o VR do colaborador" });
+    }
+  });
+
   app.post("/api/collaborators/:id/inactivate", async (req, res) => {
     const currentUser = await requireRoles(req, res, ["admin", "purchasing"]);
     if (!currentUser) return;

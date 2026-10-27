@@ -875,6 +875,16 @@ const PASSOS: Passo[] = [
   { descricao: "invoices.nf_valor (valor da nota, centavos)", sql: `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS nf_valor integer` },
   { descricao: "invoices.nf_cnpj (CNPJ da nota)", sql: `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS nf_cnpj text` },
   { descricao: "presencas.foto_expurgada_em (selfies apagadas após a guarda)", sql: `ALTER TABLE presencas ADD COLUMN IF NOT EXISTS foto_expurgada_em timestamptz` },
+  // 28/10 — ajustes pedidos pelo DP: 1,5 diária num dia (vaga, Planejado e
+  // Realizado) e o VR do colaborador da casa (scripts/migrations/2026-10-28-ajustes-dp.sql).
+  { descricao: "team_inclusions.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
+  { descricao: "budget_planned.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
+  { descricao: "budget_actual.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
+  { descricao: "collaborators.vr_diario_cents (VR diário do colaborador da casa)", sql: `ALTER TABLE collaborators ADD COLUMN IF NOT EXISTS vr_diario_cents integer` },
+  // 28/10 — fornecedor aprovado automaticamente pelo histórico de pagamentos
+  // (scripts/migrations/2026-10-28-fornecedor-automatico.sql).
+  { descricao: "contratos.origem (cadastro | automatico)", sql: `ALTER TABLE contratos ADD COLUMN IF NOT EXISTS origem text NOT NULL DEFAULT 'cadastro'` },
+  { descricao: "contratos.origem_detalhe (frase da aprovação automática)", sql: `ALTER TABLE contratos ADD COLUMN IF NOT EXISTS origem_detalhe text` },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

@@ -12,6 +12,8 @@ import { X } from "lucide-react";
 import { toTitleCase } from "@/lib/format";
 import { PERCURSEIRO_TIPOS } from "@shared/calculation-rules";
 import { CENO_FREELA_TIPO_LABELS } from "@shared/cenotecnica-empreita";
+import { EMPREITA_SEM_MOBILIDADE_RAZAO } from "@shared/budget-engine";
+import { resumoDasMeiasDiarias } from "@shared/meia-diaria";
 import { ddmm, formatCurrency, type CalculatedBudget } from "./types";
 import { dicaDoHonorarioPendente, fonteDoHonorario, textoDaDiferenca, textoDoHonorarioPendente } from "./honorario-no-planejado";
 
@@ -77,6 +79,17 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
               <td className="pb-1 text-right text-foreground">{formatCurrency(seg.totalCents)}</td>
             </tr>
           ))}
+          {/* 1,5 diária num dia (28/10): o ½ de cada dia marcado */}
+          {budget.diasMeiaExtra.length > 0 && (
+            <tr data-testid="memoria-meia-diaria">
+              <td className="pb-1 text-info font-medium">
+                <span aria-hidden="true" className="inline-block w-1.5 h-1.5 mr-1.5 rounded-full bg-info align-middle" />
+                {resumoDasMeiasDiarias(budget.diasMeiaExtra)}
+                {budget.meiaDiariaSemEfeito && <span className="text-muted-foreground font-normal"> (valor fechado: não soma)</span>}
+              </td>
+              <td className="pb-1 text-right text-foreground">{formatCurrency(budget.subtotalMeiasDiarias)}</td>
+            </tr>
+          )}
           {budget.isPercurso && budget.percurseiro && (
             ([["Motoqueiro", budget.percurseiro.motoqueiro], ["Fee Ivan", budget.percurseiro.fee], ["Alimentação (3 refeições)", budget.percurseiro.alimentacao], ["Ajuda transporte", budget.percurseiro.transporte], ["NF", budget.percurseiro.nf]] as [string, number][]).map(([lbl, v]) => (
               <tr key={lbl}>
@@ -126,6 +139,20 @@ export const MemoriaCalculoPopover = forwardRef<HTMLDivElement, MemoriaCalculoPo
                 Alimentação{budget.alimEstimada ? <span className="text-warning font-normal text-2xs"> (estimada)</span> : null}
               </td>
               <td className="pb-1 text-right text-foreground">{formatCurrency(alimTotal)}</td>
+            </tr>
+          )}
+          {budget.vrDiarioCents != null && budget.weekdays > 0 && (
+            <tr>
+              <td colSpan={2} className="pb-1.5 text-muted-foreground text-2xs pl-3 tabular-nums" data-testid="memoria-vr">
+                {budget.unitAlmocoSemana === 0
+                  ? `VR ${formatCurrency(budget.vrDiarioCents)} cobre o almoço de dia útil`
+                  : `VR ${formatCurrency(budget.vrDiarioCents)} → almoço de dia útil ${formatCurrency(budget.unitAlmocoSemana)}`}
+              </td>
+            </tr>
+          )}
+          {budget.empreitaSemMobilidade && budget.mobilidade === 0 && (
+            <tr>
+              <td colSpan={2} className="pb-1.5 text-muted-foreground text-2xs pl-3">{EMPREITA_SEM_MOBILIDADE_RAZAO}</td>
             </tr>
           )}
           {budget.mobilidade > 0 && (

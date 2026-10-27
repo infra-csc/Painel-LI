@@ -24,7 +24,7 @@
  */
 import { memo, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ChevronDown, ClipboardList, GitFork, MessageSquare, PencilLine, TriangleAlert, UserX } from "lucide-react";
+import { ChevronDown, ClipboardList, GitFork, MessageSquare, PencilLine, TriangleAlert, Undo2, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
@@ -55,6 +55,8 @@ export interface ComparisonCardProps {
   onToggleExpand: (id: string) => void;
   onToggleSelect: (id: string, checked: boolean) => void;
   onEdit: (a: BudgetActual) => void;
+  /** "Voltar ao Planejado" (28/10, DP/admin): antes da OC/NF. */
+  onVoltarAoPlanejado?: (a: BudgetActual, divisoes: BudgetActual[]) => void;
   onSplitDetail: (s: SplitDetailState) => void;
   /**
    * Presença no evento (27/10, Fase 1): só no fluxo novo e só para o DP —
@@ -438,6 +440,19 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
             >
               <PencilLine className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Ajustar</span>
+            </button>
+          )}
+          {isRhOrAdmin && props.onVoltarAoPlanejado && a.plannedId && !a.splitParentId && (
+            <button
+              type="button"
+              aria-label={`Voltar a prestação de ${colName} ao Planejado`}
+              title="Voltar ao Planejado (DP) — tira a prestação do Realizado para ajustar"
+              className={cn(ACAO, "text-muted-foreground hover:bg-warning-soft hover:text-warning")}
+              onClick={() => props.onVoltarAoPlanejado?.(a, row.splitChildren)}
+              data-testid="conferencia-voltar-ao-planejado"
+            >
+              <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="cmp-acao-texto">Voltar</span>
             </button>
           )}
           <button

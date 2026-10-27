@@ -32,7 +32,11 @@ import {
   type BudgetPlanned,
   type User,
 } from "@shared/schema";
-import { normalizeRole } from "@shared/roles";
+import { isFinanceRole, normalizeRole } from "@shared/roles";
+// A trava de evento encerrado (20/08) é da escala/logística; o DP trabalha os
+// honorários DEPOIS do evento (28/10) — pré-aprovar e desfazer seguem abertos a ele.
+const travadoParaHonorarios = (ev: Parameters<typeof isEventBlockedForActor>[0], user: { role?: string | null }) =>
+  !isFinanceRole(user.role) && isEventBlockedForActor(ev, user);
 import { isEventBlockedForActor } from "../event-guard";
 import { HttpError } from "../http";
 import { STATUS_PENDENTE, STATUS_PRE_APROVADO, estaPreAprovado } from "@shared/pre-aprovacao";
@@ -75,6 +79,8 @@ const linhaParaPreAprovar = z.object({
   // função (shared/casamento-do-planejado.ts).
   teamInclusionId: z.string().min(1).max(100).nullish(),
   plannedId: z.string().min(1).max(100).nullish(),
+  // 28/10: dias com 1,5 diária (o ½ já está na diária média e no total).
+  diasMeiaExtra: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(400).nullish(),
 });
 const corpoDaPreAprovacao = z.object({
   eventId: z.string().min(1).max(100),
@@ -109,7 +115,7 @@ export function registrarHonorariosFluxo(app: Express): void {
     try {
       const event = await storage.getEvent(eventId);
       if (!event) return res.status(404).json({ message: "Evento não encontrado" });
-      if (isEventBlockedForActor(event, user)) {
+      if (travadoParaHonorarios(event, user)) {
         return res.status(403).json({ message: "Evento encerrado — só o administrador pré-aprova valores." });
       }
       const chaves = new Set<string>();
@@ -161,6 +167,7 @@ export function registrarHonorariosFluxo(app: Express): void {
             weekdayLunch: l.weekdayLunch, weekdayDinner: l.weekdayDinner, weekendLunch: l.weekendLunch, weekendDinner: l.weekendDinner,
             mobility: l.mobility, mobilityIda: l.mobilityIda ?? null, mobilityVolta: l.mobilityVolta ?? null,
             transport: l.transport, totalValue: l.totalValue,
+            diasMeiaExtra: l.diasMeiaExtra?.length ? Array.from(new Set(l.diasMeiaExtra)).sort() : null,
             status: STATUS_PRE_APROVADO, approvedBy: user.id, approvedAt: agora,
             // Grava a vaga na linha (inclusive na antiga adotada): o casamento deixa de depender da ordem.
             ...(l.teamInclusionId ? { teamInclusionId: l.teamInclusionId } : {}),
@@ -215,7 +222,7 @@ export function registrarHonorariosFluxo(app: Express): void {
         const eventIds = Array.from(new Set(linhas.map((l) => l.eventId)));
         const eventos = await tx.select().from(eventsTable).where(inArray(eventsTable.id, eventIds));
         for (const ev of eventos) {
-          if (isEventBlockedForActor(ev, user)) throw new HttpError(403, "Evento encerrado — só o administrador desfaz a pré-aprovação.");
+          if (travadoParaHonorarios(ev, user)) throw new HttpError(403, "Evento encerrado — só o administrador desfaz a pré-aprovação.");
         }
         const realizados = await tx.select({ plannedId: budgetActualTable.plannedId, eventId: budgetActualTable.eventId, collaboratorId: budgetActualTable.collaboratorId, functionId: budgetActualTable.functionId })
           .from(budgetActualTable).where(inArray(budgetActualTable.eventId, eventIds));

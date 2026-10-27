@@ -13,6 +13,7 @@ import { isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo } from "@shared/c
 import { isTransporteTerrestre } from "@shared/atendimento";
 import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
 import { idaEVoltaDaMobilidade } from "@shared/comparativo";
+import { comMeiaDiaria, semMeiaDiaria } from "@shared/meia-diaria";
 import {
   alimSignature, isWeekendDate, reconstructDailyValues, subtotalDiariasDe,
   type AlimField, type DayCounts, type DayEntry, type EditFormBase, type ModalActualTab, type TravelSource,
@@ -27,6 +28,8 @@ export interface EntradaDoEditorDoRealizado {
   ticketByInclusion: Map<string, Ticket>;
   actualsPorGrupo: Map<string, BudgetActual[]>;
   systemSettings: Record<string, number> | undefined;
+  /** VR diário do colaborador (28/10) — o recálculo da alimentação usa a mesma regra do Planejado. */
+  vrDoColaborador?: (collaboratorId: string | null | undefined) => number | null;
 }
 
 /** O que o salvar manda para `PATCH /api/budget-actual/:id`. */
@@ -38,7 +41,7 @@ const TRAVEL_VAZIO = {
 };
 
 export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
-  const { getItemInclusion, getItemDayCounts, getPlannedRef, getFunctionName, functionNameById, ticketByInclusion, actualsPorGrupo, systemSettings } = e;
+  const { getItemInclusion, getItemDayCounts, getPlannedRef, getFunctionName, functionNameById, ticketByInclusion, actualsPorGrupo, systemSettings, vrDoColaborador } = e;
 
   const [editingItem, setEditingItem] = useState<BudgetActual | null>(null);
   // `editFormBase` guarda o que foi digitado; `editFormData` (derivado, mais
@@ -172,7 +175,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
 
     const perfil = refeicaoPerfil(fnName, inclusion?.atendimentoTipo);
     const ss = systemSettings as Record<string, number> | undefined;
-    const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: item.collaboratorType, isWeekend: false });
+    // VR (28/10): só o que se recalcula daqui pra frente — o gravado não muda sozinho.
+    const vrDiarioCents = vrDoColaborador?.(item.collaboratorId) ?? null;
+    const refUtil = refeicaoCentsDia(perfil, ss, { tipoColaborador: item.collaboratorType, isWeekend: false, vrDiarioCents });
     const refFds  = refeicaoCentsDia(perfil, ss, { tipoColaborador: item.collaboratorType, isWeekend: true });
 
     // Bordas reais da viagem (grupo pai + filhos) — ver comentário do método
@@ -208,7 +213,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       if (d.jantar) { if (fds) out.weekendDinner += refFds.jantarCents; else out.weekdayDinner += refUtil.jantarCents; }
     }
     return out;
-  }, [functionNameById, getItemInclusion, ticketByInclusion, systemSettings, getGroupDayBounds]);
+  }, [functionNameById, getItemInclusion, ticketByInclusion, systemSettings, getGroupDayBounds, vrDoColaborador]);
 
   // ── Viagem e alimentação do modal: DERIVADAS (23/09) ───────────────────────
   // Horário: o que foi digitado à mão vence; senão, passagem > sugerido na
@@ -261,6 +266,14 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     const recRegra = regraDiariaPorTipo(item.collaboratorType, getFunctionName(item.functionId));
     const recWeekdays = (recRegra === "fds" && days.weekends > 0) || recRegra === "nenhuma" ? 0 : days.weekdays;
 
+    // 1,5 diária (28/10): os dias marcados valem 1,5 dia na reconstrução —
+    // o subtotal gravado já tem o ½ deles (shared/meia-diaria.ts).
+    const meias = new Set((item.diasMeiaExtra ?? []).map((d) => String(d).slice(0, 10)));
+    const meiasUtil = recWeekdays > 0 ? Array.from(meias).filter((d) => !isWeekendDate(d)).length : 0;
+    const meiasFds = days.weekends > 0 ? Array.from(meias).filter((d) => isWeekendDate(d)).length : 0;
+    const unUtil = recWeekdays + meiasUtil / 2;
+    const unFds = days.weekends + meiasFds / 2;
+
     let valorUtil = 0;
     let valorFds = 0;
     // Subtotal de diárias que o grid de dias TEM de reproduzir centavo a
@@ -272,14 +285,14 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     if (!isUnfilled) {
       // Restore from saved actual values
       subtotalOrigem = storedSubtotalDiarias;
-      ({ valorUtil, valorFds } = reconstructDailyValues(storedSubtotalDiarias, recWeekdays, days.weekends));
+      ({ valorUtil, valorFds } = reconstructDailyValues(storedSubtotalDiarias, unUtil, unFds));
     } else {
       // Actual not yet filled — pre-fill DIÁRIAS from planned values so user has a starting point
       const plannedRef = getPlannedRef(item);
       if (plannedRef && plannedRef.dailyValue > 0) {
         const plannedSub = subtotalDiariasDe(plannedRef);
         subtotalOrigem = plannedSub;
-        ({ valorUtil, valorFds } = reconstructDailyValues(plannedSub, recWeekdays, days.weekends));
+        ({ valorUtil, valorFds } = reconstructDailyValues(plannedSub, unUtil, unFds));
       }
     }
 
@@ -315,7 +328,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
         const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
         const isWknd = isWeekendDate(dateStr);
         const active = !workedDaysList || workedDaysList.length === 0 || workedDaysList.includes(dateStr);
-        dayEntries.push({ date: dateStr, valueCents: isWknd ? valorFds : valorUtil, active, isWeekend: isWknd });
+        const base = isWknd ? valorFds : valorUtil;
+        const meia = meias.has(dateStr) && active;
+        dayEntries.push({ date: dateStr, valueCents: meia ? comMeiaDiaria(base) : base, active, isWeekend: isWknd, meia });
         cur.setDate(cur.getDate() + 1);
       }
     }
@@ -357,6 +372,16 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       travel.dataChegadaIda,
       travel.dataPartidaVolta,
     ));
+  };
+
+  /**
+   * 1,5 diária (28/10, DP): marca/desmarca o dia — o valor do dia ganha (ou
+   * perde) o ½; desmarcar volta ao valor de antes, centavo a centavo.
+   */
+  const alternarMeiaDiaria = (date: string) => {
+    setEditDayEntries(prev => prev.map(d => d.date !== date ? d
+      : d.meia ? { ...d, meia: false, valueCents: semMeiaDiaria(d.valueCents) }
+      : { ...d, meia: true, valueCents: comMeiaDiaria(d.valueCents) }));
   };
 
   // Recalcula a alimentação pelos dias ativos + horários da viagem e reseta o
@@ -414,6 +439,8 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
         dailyValue,
         // Persiste os dias ativos — sem isso, dias desativados/extras entravam no total mas sumiam ao reabrir
         workedDays: activeDays.map(d => d.date),
+        // 1,5 diária (28/10): os dias ativos marcados (o ½ já está no valor do dia).
+        diasMeiaExtra: activeDays.filter(d => d.meia).map(d => d.date),
         // Alimentação: só o RESULTADO é persistido. Os horários de chegada/
         // partida usados no cálculo NÃO têm coluna aqui (e não criamos uma):
         // ficam como estado do modal, derivados da passagem/escalação.
@@ -446,6 +473,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     chegadaInputRef, partidaInputRef, modalActualTab, setModalActualTab,
     editTravel, travelSource, activeDates,
     openEditModal, recalcAlimentacao, setAlimField, montarPayloadParaSalvar, fechar, fecharBotao, aoSalvar,
+    alternarMeiaDiaria,
   };
 }
 

@@ -125,6 +125,11 @@ export async function semearPagamentoDemo(db: Db): Promise<ResumoDoPagamentoDemo
     const diaria = p.funcao === "Produtor" ? 24_000 : 15_000;
     const total = dias.length * (diaria + 8_500);
     const contrato = await contratoDe(p.colab.id);
+    // 28/10: quem não tem contrato emite por um CNPJ fictício SEM contrato — a
+    // OC saiu com justificativa e "Aprovar pelo histórico" (Contratos) tem o que mostrar.
+    const emissor = contrato
+      ? { cnpj: contrato.cnpj, razao: contrato.razaoSocial }
+      : { cnpj: digitosDoCnpj(completarCnpj(`9${String(i + 1).padStart(7, "0")}0001`)), razao: `${p.colab.fullName.toUpperCase()} SERVIÇOS DE EVENTOS ME` };
     const [vaga] = await db.insert(schema.teamInclusions).values({
       eventId: evento.id, functionId: f.id, collaboratorId: p.colab.id, userId: producao.id,
       status: "aprovado", phase: faseParaStatus("aprovado") ?? "aprovacao",
@@ -145,7 +150,7 @@ export async function semearPagamentoDemo(db: Db): Promise<ResumoDoPagamentoDemo
     const [actual] = await db.insert(schema.budgetActual).values({
       plannedId: planejado.id, eventId: evento.id, collaboratorId: p.colab.id, functionId: f.id, ...valores, workedDays: dias, createdBy: dp.id,
       sentForReview: true, rhStatus: "aprovado", rhActionBy: dp.id, rhActionAt: aprovadoEm,
-      cnpjEmissor: contrato?.cnpj ?? null, razaoSocialEmissor: contrato?.razaoSocial ?? null,
+      cnpjEmissor: emissor.cnpj, razaoSocialEmissor: emissor.razao,
       checkoutFinalEm: instanteEmBrasilia(dias[2], "20:00"), checkoutFinalPor: producao.id, valorCalculado: total,
       ...(comOc ? {
         ocNumero: numero, ocValor: total, ocData, ocRegistradaEm: instanteEmBrasilia(ocData, "11:00"), ocRegistradaPor: dp.id,
@@ -171,7 +176,7 @@ export async function semearPagamentoDemo(db: Db): Promise<ResumoDoPagamentoDemo
         attachmentUrl: anexo ? `/api/attachments/${anexo}/view` : null, attachmentName: `nf-${numero}.pdf`,
         status: p.estado === "nf_devolvida" ? "devolvida" : programada ? "aprovada" : "enviada",
         returnComment: p.estado === "nf_devolvida" ? "O valor da nota não bate com a OC — emita de novo com o valor da OC." : null,
-        nfNumero: String(2026_0000 + i), nfValor, nfCnpj: contrato?.cnpj ?? null,
+        nfNumero: String(2026_0000 + i), nfValor, nfCnpj: emissor.cnpj,
         approvedAt: programada ? new Date(enviadaEm.getTime() + 3_600_000) : null,
         checkinAt: programada ? new Date(enviadaEm.getTime() + 7_200_000) : null, checkinBy: programada ? dp.id : null,
         paymentDate: programada ? (p.estado === "pago" ? addDias(hoje, -2) : addDias(hoje, 5)) : null,

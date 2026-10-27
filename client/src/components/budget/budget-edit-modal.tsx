@@ -19,7 +19,7 @@ import { BudgetChat } from "@/components/budget-chat";
 import { calcDeflatedDailies, deflationFactorsFromSettings, type DeflationSegment } from "@shared/calculation-rules";
 import type { ControladorDoModalDeEdicao } from "@/hooks/use-budget-edit-modal";
 import { EditModalCustosTab } from "./edit-modal-custos-tab";
-import { formatCurrency, type BudgetEdit } from "./types";
+import { formatCurrency, meiaDiasDoTexto, type BudgetEdit } from "./types";
 
 /** Mesma moldura dos modais da família: rodapé fixo, corpo rola; tela cheia no celular. */
 const MOLDURA = "!max-w-[700px] w-[95vw] max-h-[90vh] !flex !flex-col p-0 gap-0 overflow-hidden rounded-xl max-sm:w-full max-sm:!max-w-none max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none max-sm:border-0";
@@ -80,7 +80,14 @@ export function BudgetEditModal({ ctrl }: BudgetEditModalProps) {
             // mostraria um total e a linha do card outro.
             ? { totalCents: empreitaEditadaModal ? editingBudget.valorDiaria * empreitaModal.dias : empreitaModal.totalCents, segments: [] as DeflationSegment[] }
             : calcDeflatedDailies(editingBudget.valorDiaria, diasDiariaModal, deflationFactorsFromSettings(systemSettings));
-          const totalDiarias = deflatedModal.totalCents;
+          // 1,5 diária (28/10): o ½ dos dias marcados, pela prévia do motor
+          // (acompanha a diária editada aqui; valor fechado da vaga: nada).
+          const escalaDaDiaria = editingBudgetInfo.valorDiariaDoCalculo ? editingBudget.valorDiaria / editingBudgetInfo.valorDiariaDoCalculo : 1;
+          const marcadosMeia = new Set(meiaDiasDoTexto(editingBudget.meiaDias));
+          const totalMeias = editingBudgetInfo.meiaDiariaSemEfeito ? 0 : (editingBudgetInfo.meiaDiariaPossivel ?? [])
+            .filter((m) => marcadosMeia.has(m.dia))
+            .reduce((s, m) => s + Math.round(m.valorCents * escalaDaDiaria), 0);
+          const totalDiarias = deflatedModal.totalCents + totalMeias;
           const effectiveAlmocoSemana = noWeekdays ? 0 : editingBudget.almocoSemana;
           const effectiveJantarSemana = noWeekdays ? 0 : editingBudget.jantarSemana;
           const effectiveAlmocoFds = noWeekends ? 0 : editingBudget.almocoFds;
@@ -188,6 +195,8 @@ export function BudgetEditModal({ ctrl }: BudgetEditModalProps) {
                 editingBudget={editingBudget}
                 info={editingBudgetInfo}
                 totalDiarias={totalDiarias}
+                totalMeias={totalMeias}
+                escalaDaDiaria={escalaDaDiaria}
                 deflatedSegments={deflatedModal.segments}
                 empreitaModal={empreitaModal}
                 empreitaEditadaModal={empreitaEditadaModal}

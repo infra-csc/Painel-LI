@@ -26,6 +26,11 @@ export interface BudgetEdit {
   jantarSemana: number;
   almocoFds: number;
   jantarFds: number;
+  /**
+   * Dias com 1,5 diária (28/10), em texto ("2026-10-11,2026-10-12") para o
+   * modal comparar como os demais campos (=== campo a campo).
+   */
+  meiaDias: string;
 }
 
 // Override ESPARSO: só os campos que o usuário realmente alterou entram aqui.
@@ -33,7 +38,11 @@ export interface BudgetEdit {
 // alimentação reagem à chegada da passagem mesmo depois de editar a diária).
 // qtdDiarias NÃO faz parte do override: a contagem de dias vem sempre do
 // período da escalação (weekdays + weekends).
-export type BudgetOverride = Partial<Omit<BudgetEdit, "inclusionId" | "qtdDiarias">> & { inclusionId: string };
+export type BudgetOverride = Partial<Omit<BudgetEdit, "inclusionId" | "qtdDiarias" | "meiaDias">> & {
+  inclusionId: string;
+  /** Dias com 1,5 diária marcados/desmarcados pelo DP (28/10) — vencem os da vaga. */
+  diasMeiaExtra?: string[];
+};
 
 export type BudgetOverrides = Record<string, BudgetOverride>;
 
@@ -90,6 +99,12 @@ export interface EditingBudgetInfo {
   honorarioAprovado?: boolean;
   diasHonorario?: number;
   inclusionId?: string;
+  /** 1,5 diária (28/10): o ½ que cada dia de trabalho ganharia (prévia), a diária do cálculo e se o valor é fechado. */
+  meiaDiariaPossivel?: { dia: string; valorCents: number }[];
+  valorDiariaDoCalculo?: number;
+  meiaDiariaSemEfeito?: boolean;
+  /** Empreita da tabela: mobilidade 0 pela regra (28/10). */
+  empreitaSemMobilidade?: boolean;
 }
 
 /** Envio para o Realizado: ids e origem (card individual × lote). */
@@ -121,6 +136,10 @@ export const formatCurrency = formatarMoeda;
 // "4d × R$ 540,00 + 2d × R$ 486,00" — memória compacta da deflação por faixa
 export const formatSegmentsMemo = (segments: DeflationSegment[]) =>
   segments.map(s => `${s.days}d × ${formatCurrency(s.dailyCents)}`).join(" + ");
+
+/** Lista de dias ⇄ texto do campo `meiaDias` do modal (28/10). */
+export const meiaDiasParaTexto = (dias: readonly string[] | null | undefined) => [...(dias ?? [])].sort().join(",");
+export const meiaDiasDoTexto = (texto: string) => (texto ? texto.split(",") : []);
 
 /** 'casa' inclui 'local', como no resto da tela. */
 export const isCasaType = (type?: string | null) => type === "casa" || type === "local";

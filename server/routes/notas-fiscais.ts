@@ -13,6 +13,7 @@ import { isNfEligible, podeAprovarNota, podeDevolverNota, podeFazerCheckin } fro
 import { ocDaNota } from "@shared/honorarios-pagamento";
 import { cnpjValido, digitosDoCnpj } from "@shared/cnpj";
 import { createAuditLog, ehViolacaoDeUnicidade, requireRoles, FINANCE_ROLES, requireFinanceUser } from "./_compartilhado";
+import { reconhecerFornecedores } from "../fornecedor-automatico";
 
 export function registrarNotasFiscais(app: Express): void {
   // ── Invoices (Notas Fiscais) ──────────────────────────────────────────────
@@ -248,6 +249,8 @@ export function registrarNotasFiscais(app: Express): void {
       }, { type: "aprovado" });
       if (!invoice) return res.status(409).json({ message: "Esta nota acabou de mudar de status — recarregue a lista." });
       await createAuditLog("approve", "invoice", req.params.id, invoice, user.id, user.name, inv, req);
+      // 28/10: nota aprovada com CNPJ (o da nota ou o da prestação) aprova o fornecedor.
+      await reconhecerFornecedores({ invoiceIds: [invoice.id] }, { id: user.id, name: user.name || user.email || "Usuário" }, "nota fiscal aprovada", req);
       res.json(invoice);
     } catch (error) {
       console.error("Error approving invoice:", error);

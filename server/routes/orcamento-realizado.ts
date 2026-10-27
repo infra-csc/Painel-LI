@@ -14,6 +14,8 @@ import { HttpError } from "../http";
 import { podeDecidirPrestacao, podeEnviarParaRevisao, prestacaoEstaTravada } from "@shared/prestacao-rules";
 import { CAMPOS_DE_VALOR_DO_PLANEJADO, ROTULO_DO_CAMPO_DE_VALOR, camposDeValorQueMudaram, estaPreAprovado } from "@shared/pre-aprovacao";
 import { ehEventoLegado } from "@shared/legado-honorarios";
+import { mobilidadeCoerente } from "@shared/comparativo";
+import { dataIsoValida, normalizarDiasMeiaExtra } from "@shared/meia-diaria";
 import { lerDataDeCorteDoBanco } from "./honorarios-fluxo";
 import {
   montarLogDeAuditoria,
@@ -189,6 +191,8 @@ export function registrarOrcamentoRealizado(app: Express): void {
           mobilityVolta: p.mobilityVolta ?? null,
           transport: p.transport,
           totalValue: p.totalValue,
+          // 28/10: o Realizado nasce com os dias de 1,5 diária do Planejado marcados.
+          diasMeiaExtra: p.diasMeiaExtra ?? null,
           observations: p.observations,
           createdBy: actorId,
         }))).returning();
@@ -380,6 +384,30 @@ export function registrarOrcamentoRealizado(app: Express): void {
         valorHorasExtras: _vhe, checkoutFinalEm: _cfe, checkoutFinalPor: _cfp, ...parsed
       } = insertBudgetActualSchema.partial().parse(req.body);
       const updatePayload: Partial<InsertBudgetActual> = { ...parsed, updatedBy: actorId };
+      // Mobilidade coerente (28/10 — caso Lucas, NR São Luís): o "Ajustar o
+      // realizado" mandava só o total; zerado, ficavam ida/volta = R$ 58,00
+      // gravados (e o Flash usa ida + volta quando o total é 0). Agora o total
+      // que vier manda e ida/volta fecham com ele; vindo só ida/volta, o total
+      // (e o total da prestação) acompanha a soma.
+      if (parsed.mobility !== undefined || parsed.mobilityIda != null || parsed.mobilityVolta != null) {
+        const mob = mobilidadeCoerente(
+          { total: parsed.mobility, ida: parsed.mobilityIda, volta: parsed.mobilityVolta },
+          { total: prev.mobility, ida: prev.mobilityIda, volta: prev.mobilityVolta },
+        );
+        if (parsed.mobility === undefined && mob.total !== prev.mobility) {
+          updatePayload.mobility = mob.total;
+          if (parsed.totalValue === undefined) updatePayload.totalValue = prev.totalValue - prev.mobility + mob.total;
+        }
+        updatePayload.mobilityIda = mob.ida;
+        updatePayload.mobilityVolta = mob.volta;
+      }
+      // 1,5 diária (28/10): só dias ativos da prestação, sem repetição.
+      if (parsed.diasMeiaExtra !== undefined) {
+        const ativos = (parsed.workedDays ?? prev.workedDays ?? []).map((d) => String(d).slice(0, 10));
+        updatePayload.diasMeiaExtra = ativos.length > 0
+          ? normalizarDiasMeiaExtra(parsed.diasMeiaExtra, ativos)
+          : Array.from(new Set((parsed.diasMeiaExtra ?? []).filter(dataIsoValida))).sort();
+      }
 
       if (isRhAdmin && prev) {
         // jsonb (25/09): já vem objeto; cópia para não mutar a linha lida.

@@ -20,6 +20,8 @@ export function useEditInclusion(inclusionById: Map<string, TeamInclusion>) {
   const [editStartDate, setEditStartDate] = useState("");
   const [editEndDate, setEditEndDate] = useState("");
   const [editSelectedDays, setEditSelectedDays] = useState<Set<string>>(new Set());
+  // 1,5 diária (28/10): dias de carga/descarga, sempre dentro dos dias marcados.
+  const [editMeiaDias, setEditMeiaDias] = useState<Set<string>>(new Set());
   // O formulário de edição é não controlado (FormData): a "sujeira" vem de
   // qualquer `change` no <form> ou de clique nos dias — protege o Esc/clique fora.
   const [editDirty, setEditDirty] = useState(false);
@@ -39,6 +41,7 @@ export function useEditInclusion(inclusionById: Map<string, TeamInclusion>) {
         // Nenhum workDay salvo — seleciona o range completo
         setEditSelectedDays(new Set(generateDaysInRange(start, end)));
       }
+      setEditMeiaDias(new Set((inclusion.diasMeiaExtra || []).map(normDay).filter(Boolean)));
       setEditingInclusion(inclusion);
       setEditDirty(false);
       setShowEditModal(true);
@@ -96,6 +99,14 @@ export function useEditInclusion(inclusionById: Map<string, TeamInclusion>) {
   };
   const selectAllDays = (allDays: string[]) => { setEditDirty(true); setEditSelectedDays(new Set(allDays)); };
   const selectNoDays = () => { setEditDirty(true); setEditSelectedDays(new Set()); };
+  const toggleMeiaDia = (day: string) => {
+    setEditDirty(true);
+    setEditMeiaDias(prev => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day); else next.add(day);
+      return next;
+    });
+  };
   const toggleDay = (day: string) => {
     setEditDirty(true);
     setEditSelectedDays(prev => {
@@ -122,6 +133,8 @@ export function useEditInclusion(inclusionById: Map<string, TeamInclusion>) {
       scheduleStartDate: derivedStart,
       scheduleEndDate: derivedEnd,
       workDays: selectedDaysArr,
+      // Só os dias que continuam marcados (o servidor confere de novo).
+      diasMeiaExtra: Array.from(editMeiaDias).filter(d => editSelectedDays.has(d)).sort(),
       flightDepartureDate: formData.get('ida') as string || null,
       flightArrivalSuggestedTime: formData.get('chegada') as string || null,
       flightReturnDate: formData.get('retorno') as string || null,
@@ -140,7 +153,7 @@ export function useEditInclusion(inclusionById: Map<string, TeamInclusion>) {
   const descarteEdicao = useConfirmarDescarte(editDirty, { salvando: updateTeamInclusionMutation.isPending });
 
   return {
-    showEditModal, editingInclusion, editStartDate, editEndDate, editSelectedDays, setEditDirty,
+    showEditModal, editingInclusion, editStartDate, editEndDate, editSelectedDays, setEditDirty, editMeiaDias, toggleMeiaDia,
     handleEdit, fecharEdicao, changeStartDate, changeEndDate, selectAllDays, selectNoDays, toggleDay, submit,
     isPending: updateTeamInclusionMutation.isPending, descarteEdicao,
   };

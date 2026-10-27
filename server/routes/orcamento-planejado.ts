@@ -105,6 +105,8 @@ export function registrarOrcamentoPlanejado(app: Express): void {
         eventLocation: event.location ?? null,
         ticket: ticketByInclusion.get(inc.id) ?? null,
         honorario: honorarioPorVaga.get(inc.id) ?? null,
+        // 28/10: VR do colaborador da casa no almoço de dia útil.
+        vrDiarioCents: collaborator?.vrDiarioCents ?? null,
       });
       const patch = linhaDoPlanejado(resultado);
       // Pré-aprovada e o valor mudou: volta a pendente (26/10).

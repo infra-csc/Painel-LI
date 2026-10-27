@@ -19,6 +19,9 @@ import { FUNCAO_LOCAL_RAZAO } from "@shared/calculation-rules";
 import type { BudgetActual, BudgetPlanned } from "@shared/schema";
 import type { EditorDoRealizado } from "@/hooks/use-budget-actual-editor";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { hasRole } from "@/lib/role-utils";
+import { MEIA_DIARIA_ROTULO, resumoDasMeiasDiarias } from "@shared/meia-diaria";
 import { isWeekendDate, TRAVEL_SOURCE_LABEL, type AlimField, type EditFormBase, type TravelSource } from "./actual-utils";
 import { CabecalhoDoBloco, inputCls } from "./edit-modal-custos-tab";
 import { formatCurrency } from "./types";
@@ -48,7 +51,11 @@ const BLOCO = "bg-card rounded-xl border border-border overflow-hidden";
 /** ── Diárias — editável (grade por dia + dia extra + diferença) ── */
 function DiariasBlock(p: CustosTabRealizadoProps) {
   const { editor, isReadOnly, planned, plannedValorUtil, plannedValorFds, plannedSubDiarias, subtotalDiariasRaw } = p;
-  const { editDayEntries, setEditDayEntries, showAddDay, setShowAddDay, setExtraDayEdge } = editor;
+  const { editDayEntries, setEditDayEntries, showAddDay, setShowAddDay, setExtraDayEdge, alternarMeiaDiaria } = editor;
+  // 1,5 diária (28/10): o DP (e o admin) marca/desmarca o dia trabalhado; os demais só veem.
+  const { user } = useAuth();
+  const dpMarcaMeia = hasRole(user, "admin", "financial") && !isReadOnly;
+  const diasComMeia = editDayEntries.filter(d => d.active && d.meia).map(d => d.date);
   const activeDayEntries = editDayEntries.filter(d => d.active);
   const sortedActiveDays = [...activeDayEntries].sort((a, b) => a.date.localeCompare(b.date));
   const primeiroDiaAtivo = sortedActiveDays[0]?.date ?? null;
@@ -91,6 +98,18 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
                 <span className={cn("text-sm font-medium tabular-nums text-foreground", !entry.active && "line-through decoration-muted-foreground/60")}>{dateLabel}</span>
                 <span className="text-xs text-muted-foreground capitalize">{dayLabel}</span>
                 {entry.isWeekend && <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-warning-soft text-warning text-2xs font-medium">fds</span>}
+                {entry.active && (dpMarcaMeia && (entry.valueCents > 0 || entry.meia) ? (
+                  <button
+                    type="button"
+                    aria-pressed={!!entry.meia}
+                    onClick={() => alternarMeiaDiaria(entry.date)}
+                    title={entry.meia ? `${MEIA_DIARIA_ROTULO} — clique para tirar o ½` : `Marcar ${dateLabel} com ${MEIA_DIARIA_ROTULO} (+½ do valor do dia)`}
+                    aria-label={`${MEIA_DIARIA_ROTULO} em ${dateLabel}`}
+                    data-testid={`rea-meia-${entry.date}`}
+                    className={cn("pas-alvo inline-flex items-center h-[18px] px-1.5 rounded-md border text-2xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      entry.meia ? "bg-info text-white border-info" : "bg-card text-muted-foreground border-dashed border-border hover:text-info hover:border-info/50")}
+                  >1,5×</button>
+                ) : entry.meia ? <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-info-soft text-info text-2xs font-semibold" title={MEIA_DIARIA_ROTULO}>1,5×</span> : null)}
                 {!entry.active && <span className="text-2xs text-muted-foreground">não trabalhou</span>}
               </div>
               <span className="text-right text-xs tabular-nums text-muted-foreground">
@@ -108,6 +127,9 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
           );
         })}
       </div>
+      {diasComMeia.length > 0 && (
+        <p className="m-0 px-4 py-1.5 border-t border-border text-2xs text-info" data-testid="rea-resumo-meia">{resumoDasMeiasDiarias(diasComMeia)} — o ½ já está no valor do dia</p>
+      )}
       {/* Dia extra */}
       {!isReadOnly && (
         <div className="px-4 py-2 border-t border-border">

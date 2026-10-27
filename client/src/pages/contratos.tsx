@@ -4,7 +4,7 @@
  * Ata de 22/10: "o DP verifica se o CNPJ informado tem contrato ativo". A
  * tela tem duas abas:
  *  - Contratos: busca (razão social, CNPJ, colaborador), filtros (situação,
- *    tipo, vence em) com contagens, a lista e a ficha lateral (vigência,
+ *    tipo, vence em, origem) com contagens, a lista e a ficha lateral (vigência,
  *    colaboradores, anexo, histórico; editar, encerrar, reativar). Novo
  *    contrato e "Importar planilha" (3 passos) no topo;
  *  - Mudanças de conta: as trocas de banco/conta/PIX dos colaboradores que
@@ -12,7 +12,7 @@
  * Só admin e financial (rota protegida por canAccessFinanceiro + 403 da API).
  */
 import { useMemo, useState } from "react";
-import { BadgeCheck, Building2, ChevronRight, CloudOff, FileSpreadsheet, Lock, Paperclip, Plus, SearchX, ShieldAlert, Users, X } from "lucide-react";
+import { BadgeCheck, Building2, ChevronRight, CloudOff, FileSpreadsheet, History, Lock, Paperclip, Plus, SearchX, ShieldAlert, Users, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
@@ -30,7 +30,8 @@ import { apiErrorMessage, cn } from "@/lib/utils";
 import { isFinanceRole } from "@shared/roles";
 import { SITUACAO_DO_CONTRATO_LABEL, TIPOS_DE_CONTRATO, TIPO_DE_CONTRATO_LABEL, normalizarBusca, type SituacaoDoContrato } from "@shared/contratos";
 import { useAlteracoesDeConta, useContratos, type Contrato } from "@/components/contratos/api";
-import { SituacaoDoContratoBadge, TipoDoContrato, vigenciaTexto } from "@/components/contratos/pecas";
+import { SeloAprovadoAutomaticamente, SituacaoDoContratoBadge, TipoDoContrato, vigenciaTexto } from "@/components/contratos/pecas";
+import { AprovacaoPeloHistoricoDialog } from "@/components/contratos/aprovacao-pelo-historico-dialog";
 import { ContratoDialog } from "@/components/contratos/contrato-dialog";
 import { ContratoSheet } from "@/components/contratos/contrato-sheet";
 import { ImportacaoDialog } from "@/components/contratos/importacao-dialog";
@@ -40,6 +41,8 @@ import { SecaoPagamento } from "@/components/contratos/secao-pagamento";
 type Aba = "contratos" | "contas";
 type FiltroSituacao = "todas" | SituacaoDoContrato;
 type FiltroVence = "" | "30" | "60" | "90";
+/** 28/10: origem do contrato (cadastrado pelo DP × aprovado automaticamente pelo histórico). */
+type FiltroOrigem = "" | "automatico" | "cadastro";
 
 const ORDEM_DAS_SITUACOES: SituacaoDoContrato[] = ["ativo", "vence_em_breve", "vencido", "futuro", "sem_vigencia", "encerrado"];
 const TH = "px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap";
@@ -73,7 +76,12 @@ function LinhaDoContrato({ c, onAbrir }: { c: Contrato; onAbrir: () => void }) {
           <span className="block truncate text-2xs text-muted-foreground"><span className="font-mono tabular-nums">{c.cnpjFormatado}</span>{c.nomeFantasia ? ` · ${c.nomeFantasia}` : ""}</span>
         </button>
       </td>
-      <td className="px-3 py-3"><TipoDoContrato tipo={c.tipo} /></td>
+      <td className="px-3 py-3">
+        <span className="flex flex-wrap items-center gap-1">
+          <TipoDoContrato tipo={c.tipo} />
+          {c.origem === "automatico" && <SeloAprovadoAutomaticamente detalhe={c.origemDetalhe} compacto />}
+        </span>
+      </td>
       <td className="px-3 py-3 text-xs tabular-nums text-slate-700">{vigenciaTexto(c.vigenciaInicio, c.vigenciaFim)}</td>
       <td className="px-3 py-3"><SituacaoDoContratoBadge situacao={c.situacao} dias={c.diasParaVencer} /></td>
       <td className="max-w-0 px-3 py-3"><Colaboradores c={c} /></td>
@@ -100,6 +108,7 @@ function CartaoDoContrato({ c, onAbrir }: { c: Contrato; onAbrir: () => void }) 
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-700">
           <TipoDoContrato tipo={c.tipo} />
+          {c.origem === "automatico" && <SeloAprovadoAutomaticamente detalhe={c.origemDetalhe} />}
           <span className="tabular-nums">{vigenciaTexto(c.vigenciaInicio, c.vigenciaFim)}</span>
           {c.anexoId && <Paperclip className="h-3.5 w-3.5 text-muted-foreground" aria-label="Com o contrato anexado" />}
         </div>
@@ -120,6 +129,7 @@ export default function ContratosPage() {
     situacao: campo.opcao<FiltroSituacao>("todas"),
     tipo: campo.texto(""),
     vence: campo.opcao<FiltroVence>(""),
+    origem: campo.opcao<FiltroOrigem>(""),
     contrato: campo.texto(""),
     contas: campo.opcao<"pendentes" | "todas">("pendentes"),
   });
@@ -128,6 +138,7 @@ export default function ContratosPage() {
   const [editando, setEditando] = useState<Contrato | null>(null);
   const [novo, setNovo] = useState(false);
   const [importando, setImportando] = useState(false);
+  const [aprovando, setAprovando] = useState(false);
   const [pagamentoDe, setPagamentoDe] = useState<{ id: string; nome: string } | null>(null);
 
   const todos = useMemo(() => q.data?.contratos ?? [], [q.data]);
@@ -141,16 +152,21 @@ export default function ContratosPage() {
     const lista = todos.filter((c) => casaBusca(c, url.q)
       && (url.situacao === "todas" || c.situacao === url.situacao)
       && (!url.tipo || c.tipo === url.tipo)
+      && (!url.origem || c.origem === url.origem)
       && (lim == null || (!c.encerradoEm && c.diasParaVencer != null && c.diasParaVencer >= 0 && c.diasParaVencer <= lim)));
     return lim != null ? [...lista].sort((a, b) => (a.diasParaVencer ?? 0) - (b.diasParaVencer ?? 0)) : lista;
-  }, [todos, url.q, url.situacao, url.tipo, url.vence]);
-  const comFiltro = !!url.q || url.situacao !== "todas" || !!url.tipo || !!url.vence;
-  const limpar = () => setUrl({ q: "", situacao: "todas", tipo: "", vence: "" });
+  }, [todos, url.q, url.situacao, url.tipo, url.vence, url.origem]);
+  const comFiltro = !!url.q || url.situacao !== "todas" || !!url.tipo || !!url.vence || !!url.origem;
+  const limpar = () => setUrl({ q: "", situacao: "todas", tipo: "", vence: "", origem: "" });
+  const automaticos = useMemo(() => todos.filter((c) => c.origem === "automatico").length, [todos]);
   const nPendentes = pendentes.data?.length ?? 0;
   const ativos = contagem.ativo + contagem.vence_em_breve;
 
   const acoes = dp ? (
     <>
+      <Button type="button" variant="outline" size="sm" className="h-[34px]" onClick={() => setAprovando(true)} data-testid="ctr-aprovar-historico" title="CNPJ que já teve OC, nota aprovada ou pagamento vira contrato ativo">
+        <History className="h-4 w-4" aria-hidden="true" /> Aprovar pelo histórico
+      </Button>
       <Button type="button" variant="outline" size="sm" className="h-[34px]" onClick={() => setImportando(true)} data-testid="ctr-importar">
         <FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Importar planilha
       </Button>
@@ -273,6 +289,13 @@ export default function ContratosPage() {
                   {url.vence ? " · do que vence primeiro ao último" : ""}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                  <label className="sr-only" htmlFor="ctr-filtro-origem">Origem</label>
+                  <select id="ctr-filtro-origem" value={url.origem} onChange={(e) => setUrl({ origem: e.target.value as FiltroOrigem })} data-testid="ctr-filtro-origem"
+                    className={cn("h-8 rounded-lg border bg-card px-2.5 text-xs font-medium outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12", url.origem ? "border-primary text-primary" : "border-border text-slate-700")}>
+                    <option value="">Todas as origens</option>
+                    <option value="automatico">Aprovados automaticamente ({automaticos})</option>
+                    <option value="cadastro">Cadastrados pelo DP ({todos.length - automaticos})</option>
+                  </select>
                   <label className="sr-only" htmlFor="ctr-filtro-tipo">Tipo</label>
                   <select id="ctr-filtro-tipo" value={url.tipo} onChange={(e) => setUrl({ tipo: e.target.value })}
                     className={cn("h-8 rounded-lg border bg-card px-2.5 text-xs font-medium outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12", url.tipo ? "border-primary text-primary" : "border-border text-slate-700")}>
@@ -318,7 +341,7 @@ export default function ContratosPage() {
               )}
               <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                 <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                Ativo = dentro da vigência (início e fim contam). Sem datas não conta como ativo. CNPJ sem contrato ativo vira pendência da OC.
+                Ativo = dentro da vigência (início e fim contam). Sem datas não conta como ativo. CNPJ sem contrato ativo vira pendência da OC. CNPJ que já teve OC, nota aprovada ou pagamento é aprovado automaticamente (encerrado pelo DP não volta).
               </p>
             </>
           ))}
@@ -338,6 +361,7 @@ export default function ContratosPage() {
         onSalvo={(c) => { if (novo) setUrl({ contrato: c.id }); }} />
       <ContratoSheet id={url.contrato || null} onOpenChange={(o) => { if (!o) setUrl({ contrato: "" }); }} onEditar={(c) => setEditando(c)} />
       <ImportacaoDialog aberto={importando} onClose={() => setImportando(false)} />
+      <AprovacaoPeloHistoricoDialog aberto={aprovando} onClose={() => setAprovando(false)} />
       <Sheet open={!!pagamentoDe} onOpenChange={(o) => { if (!o) setPagamentoDe(null); }}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 border-l border-border bg-surface-muted p-0 sm:max-w-[460px]">
           <div className="shrink-0 border-b border-border bg-card px-5 pb-4 pr-12 pt-5">

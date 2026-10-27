@@ -15,6 +15,7 @@ import { parseBrNumber } from "@/lib/utils";
 import type { BudgetActual, BudgetComparison } from "@shared/schema";
 import { centavosParaCampo, fmt, type ActionType, type ComparisonRow, type FlashCreditResumo, type SplitDetailState } from "@/components/budget/comparison-utils";
 import { CHAVE_CONTROLE_RH } from "@/components/rh/prestacao-utils";
+import { idaEVoltaDaMobilidade } from "@shared/comparativo";
 
 export interface EntradaDasAcoesDoComparativo {
   selectedEventId: string;
@@ -259,7 +260,12 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
       weekdayDinner: centavosParaCampo(actual.weekdayDinner),
       weekendLunch: centavosParaCampo(actual.weekendLunch),
       weekendDinner: centavosParaCampo(actual.weekendDinner),
-      mobility: centavosParaCampo(actual.mobility),
+      // Mobilidade por trecho (28/10 — caso Lucas): o total é ida + volta,
+      // nunca um campo solto (zerar o total deixava ida/volta gravados).
+      ...(() => {
+        const { ida, volta } = idaEVoltaDaMobilidade(actual.mobility, actual.mobilityIda, actual.mobilityVolta);
+        return { mobilityIda: centavosParaCampo(ida), mobilityVolta: centavosParaCampo(volta) };
+      })(),
       rhAdjustNote: actual.rhAdjustNote || "",
     });
   };
@@ -276,8 +282,10 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
       weekdayDinner: toCents(editForm.weekdayDinner),
       weekendLunch: toCents(editForm.weekendLunch),
       weekendDinner: toCents(editForm.weekendDinner),
-      mobility: toCents(editForm.mobility),
+      mobility: toCents(editForm.mobilityIda) + toCents(editForm.mobilityVolta),
     };
+    const idaVolta = { mobilityIda: toCents(editForm.mobilityIda), mobilityVolta: toCents(editForm.mobilityVolta) };
+    const origIdaVolta = idaEVoltaDaMobilidade(orig.mobility, orig.mobilityIda, orig.mobilityVolta);
     // Envia apenas o que foi realmente editado. Recalcular tudo alterava o total em centavos
     // sem o usuário mudar nada (dailyValue é uma média arredondada — qty×dailyValue não
     // reproduz o subtotal de diárias gravado dia a dia).
@@ -285,6 +293,12 @@ export function useComparisonActions(e: EntradaDasAcoesDoComparativo) {
     (Object.keys(parsed) as Array<keyof typeof parsed>).forEach(k => {
       if (parsed[k] !== orig[k]) data[k] = parsed[k];
     });
+    // Ida/volta mudaram (ou a gravação estava incoerente): vão os três juntos.
+    if (idaVolta.mobilityIda !== origIdaVolta.ida || idaVolta.mobilityVolta !== origIdaVolta.volta || (orig.mobilityIda ?? 0) + (orig.mobilityVolta ?? 0) !== orig.mobility) {
+      data.mobility = parsed.mobility;
+      data.mobilityIda = idaVolta.mobilityIda;
+      data.mobilityVolta = idaVolta.mobilityVolta;
+    }
     const anyNumericChange = Object.keys(data).some(k => k !== "rhAdjustNote");
     if (anyNumericChange) {
       const origMeals = orig.weekdayLunch + orig.weekdayDinner + orig.weekendLunch + orig.weekendDinner;

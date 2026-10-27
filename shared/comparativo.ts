@@ -100,6 +100,40 @@ export function idaEVoltaRateadas(
 }
 
 /**
+ * Mobilidade COERENTE: total = ida + volta, sempre (28/10 — caso Lucas, NR São
+ * Luís: o "Ajustar o realizado" zerava o total e deixava ida/volta = R$ 58,00
+ * gravados; o Flash usa ida + volta quando o total é 0 e creditaria errado).
+ *  - Veio o TOTAL (`ajuste.total`): ele manda. Ida e volta fecham com ele — as
+ *    do ajuste, se já somam o total; senão rateadas na proporção do que havia
+ *    (zerar o total zera as duas).
+ *  - Vieram só ida e/ou volta: o total é a soma (a que faltou sai da base).
+ *  - Nada veio: a base, coerente.
+ */
+export function mobilidadeCoerente(
+  ajuste: { total?: number | null; ida?: number | null; volta?: number | null },
+  base: { total?: number | null; ida?: number | null; volta?: number | null },
+): { total: number; ida: number; volta: number } {
+  const n = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v)) : null);
+  const total = n(ajuste.total);
+  const ida = n(ajuste.ida);
+  const volta = n(ajuste.volta);
+  const baseDividida = idaEVoltaDaMobilidade(n(base.total) ?? 0, base.ida, base.volta);
+  if (total !== null) {
+    if (ida !== null && volta !== null && ida + volta === total) return { total, ida, volta };
+    const r = ida !== null || volta !== null
+      ? idaEVoltaRateadas(total, (ida ?? 0) + (volta ?? 0), ida, volta)
+      : idaEVoltaRateadas(total, n(base.total) ?? 0, base.ida, base.volta);
+    return { total, ...r };
+  }
+  if (ida !== null || volta !== null) {
+    const i = ida ?? baseDividida.ida;
+    const v = volta ?? baseDividida.volta;
+    return { total: i + v, ida: i, volta: v };
+  }
+  return { total: baseDividida.ida + baseDividida.volta, ...baseDividida };
+}
+
+/**
  * A prestação entra nos TOTAIS do comparativo (realizado, planejado e
  * diferença — os da tela e os gravados por POST /calculate)? Aprovada pelo
  * RH, ou enviada e ainda pendente: o mesmo recorte de fluxo da NF

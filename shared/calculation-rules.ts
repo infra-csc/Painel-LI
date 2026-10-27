@@ -57,6 +57,17 @@ export function calcDeflatedDailies(
   return { totalCents: total, segments };
 }
 
+/**
+ * Fator de deflação do N-ésimo dia com diária (1 = primeiro) — as mesmas
+ * faixas de `calcDeflatedDailies`. 28/10: o ½ da "1,5 diária" usa o fator do
+ * próprio dia (shared/meia-diaria.ts).
+ */
+export function fatorDeDeflacaoDoDia(diaN: number, factors: DeflationFactors = DEFLATION_FACTORS_DEFAULT): number {
+  if (diaN <= 4) return factors.ate4;
+  if (diaN <= 8) return factors.d5a8;
+  return factors.d9mais;
+}
+
 /** Lê os fatores de deflação (percentuais inteiros) do Valores Padrão. */
 export function deflationFactorsFromSettings(
   settings?: Record<string, number | string | undefined> | null,
