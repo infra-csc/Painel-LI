@@ -16,6 +16,7 @@ import {
   ALL, IN_INCLUSION, ORIGIN_LABELS, ORIGIN_ORDER, aggregateByFunction, isDeleted, originKey, plural, toViewRow,
   type EventViewData, type EventViewRow, type Tab,
 } from "./event-view-shared";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 
 export interface UseEventHistoryArgs {
   eventId: string;
@@ -122,14 +123,16 @@ export function useEventHistory({ eventId, sanitize, effectiveTab, tab, setTab }
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
+    // Sem acento/caixa, e "#12" acha a vaga 12 (28/10) — como na Validação.
+    const q = normalizarBusca(deferredSearch);
+    const qNum = q.replace(/^#/, "");
     return rows
       .filter((r) => originFilter === ALL || originKey(r) === originFilter)
       .filter((r) => functionFilter === ALL || r.functionId === functionFilter)
       .filter((r) => {
         if (!q) return true;
-        const fn = (functionNameById.get(r.functionId) ?? "").toLowerCase();
-        return fn.includes(q) || String(r.inclusionNumber).includes(q) || (r.area ?? "").toLowerCase().includes(q) || (r.observations ?? "").toLowerCase().includes(q);
+        const fn = normalizarBusca(functionNameById.get(r.functionId) ?? "");
+        return fn.includes(q) || (qNum !== "" && String(r.inclusionNumber).includes(qNum)) || normalizarBusca(r.area ?? "").includes(q) || normalizarBusca(r.observations ?? "").includes(q);
       })
       .sort((a, b) => (functionNameById.get(a.functionId) ?? "").localeCompare(functionNameById.get(b.functionId) ?? "", "pt-BR") || (a.inclusionNumber ?? 0) - (b.inclusionNumber ?? 0));
   }, [rows, originFilter, functionFilter, deferredSearch, functionNameById]);
@@ -173,7 +176,7 @@ export function useEventHistory({ eventId, sanitize, effectiveTab, tab, setTab }
 
   // ── Pedidos: busca + tipo + status (mesma busca das outras abas) ──
   const filteredRequests = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
+    const q = normalizarBusca(deferredSearch);
     return requests
       .filter((r) => requestTypeFilter === ALL || r.requestType === requestTypeFilter)
       .filter((r) => requestStatusFilter === ALL || r.status === requestStatusFilter)
@@ -183,7 +186,7 @@ export function useEventHistory({ eventId, sanitize, effectiveTab, tab, setTab }
         return [
           functionNameById.get(r.functionId) ?? "", vaga, r.area ?? "", r.reason ?? "", r.reviewComment ?? "",
           r.requestedByName ?? "", r.reviewedByName ?? "", eventId ? "" : eventNameOf(r),
-        ].join(" ").toLowerCase().includes(q);
+        ].map((t) => normalizarBusca(t)).join(" ").includes(q);
       });
   }, [requests, requestTypeFilter, requestStatusFilter, deferredSearch, rowById, functionNameById, eventId, eventNameOf]);
   const reqHasFilters = search.trim() !== "" || requestTypeFilter !== ALL || requestStatusFilter !== ALL;

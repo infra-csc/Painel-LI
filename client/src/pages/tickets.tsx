@@ -223,7 +223,9 @@ export default function Tickets() {
 
   const opcoesDosFiltros = useMemo(() => {
     const todas = data.teamInclusions ?? [];
-    const ctx = { eventById: data.eventById, collaboratorById: data.collaboratorById, hoje: data.hoje };
+    // O MESMO contexto da lista (28/10): sem o `temPassagem`, a vaga só salva
+    // que já tem passagem (e continua na lista) ficava fora dos números.
+    const ctx = data.contextoDosFiltros;
     const completar = data.completarPipeline;
     // Base do contador do período: tudo aplicado, menos o próprio período.
     const f = filtrosAplicados;
@@ -245,7 +247,7 @@ export default function Tickets() {
         .filter(c => porColaborador.has(c.id))
         .map(c => ({ id: c.id, nome: toTitleCase(c.fullName), n: porColaborador.get(c.id) ?? 0 })),
     };
-  }, [data.teamInclusions, data.eventById, data.collaboratorById, data.completarPipeline, data.hoje, events, functions, collaborators, filtrosAplicados]);
+  }, [data.teamInclusions, data.contextoDosFiltros, data.completarPipeline, events, functions, collaborators, filtrosAplicados]);
 
   /**
    * O resumo da barra de contexto. É onde o cartão "Total geral" foi parar:
@@ -260,7 +262,9 @@ export default function Tickets() {
     const nEventos = new Set(linhas.map(i => i.eventId)).size;
     return [
       `${n} ${n === 1 ? "vaga" : "vagas"} em ${nEventos} ${nEventos === 1 ? "evento" : "eventos"}`,
-      !linhasDoRecorte && kpis.aguardando > 0 ? `${kpis.aguardando} aguardando compra` : null,
+      // Os KPIs contam o recorte SEM o bloco da fila (28/10): com um bloco
+      // aceso o "aguardando" não seria das vagas desta frase.
+      !linhasDoRecorte && !filaAtiva && kpis.aguardando > 0 ? `${kpis.aguardando} aguardando compra` : null,
     ].filter(Boolean).join(" · ");
   })();
 
@@ -871,16 +875,17 @@ export default function Tickets() {
         <TicketsFilterBar
           filters={filters}
           onChange={setFilters}
-          onClear={() => setShowOnlyPendingSwaps(false)}
+          // "Limpar" tira também o recorte da Pendências (?conflito=) — 28/10.
+          onClear={() => { setShowOnlyPendingSwaps(false); setConflito(null); }}
           opcoesDeEvento={opcoesDosFiltros.eventos}
           opcoesDeFuncao={opcoesDosFiltros.funcoes}
           opcoesDeColaborador={opcoesDosFiltros.colaboradores}
           linhasSemPeriodo={opcoesDosFiltros.semPeriodo}
           hoje={data.hoje}
           datasDoEvento={datasDoEvento}
-          count={filteredTicketInclusions.length}
-          total={ticketInclusions.length}
-          recorteDeFora={showOnlyPendingSwaps}
+          count={(linhasDoRecorte ?? filteredTicketInclusions).length}
+          total={data.totalSemRecorte}
+          recorteDeFora={showOnlyPendingSwaps || !!conflito}
         />
 
         {/* Recorte vindo da Pendências (09/10): diz o que está aplicado e dá a saída. */}
@@ -933,7 +938,7 @@ export default function Tickets() {
             vagasComAlteracao={avisos.porVaga}
             temFiltro={temFiltro}
             onLimparFiltros={limparFiltros}
-            total={ticketInclusions.length}
+            total={data.totalSemRecorte}
             sinais={sinais.porVaga}
             linhas={linhasDoRecorte}
             vazioDoRecorte={conflito ? (conflito === "viagem"

@@ -20,6 +20,7 @@ import {
   type EventViewRow, type TlCat, type TlDay, type TlDraft, type TlEntry,
 } from "./event-view-shared";
 import type { EventHistory, RequestRow } from "./use-event-history";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 
 export interface UseEventTimelineArgs {
   eventId: string;
@@ -118,11 +119,12 @@ export function useEventTimeline({ eventId, canOpenApproval, rows, requests, row
     // "1049" não acharia o cartão.
     return out
       .sort((a, b) => b.at.getTime() - a.at.getTime())
-      .map((e) => ({ ...e, haystack: `${e.title} ${e.text} ${e.tag} ${e.author ?? ""} ${e.quote ?? ""} ${(e.chips ?? []).join(" ")}`.toLowerCase() }));
+      // Sem acento/caixa (28/10) — a mesma busca da Lista e dos Pedidos.
+      .map((e) => ({ ...e, haystack: normalizarBusca(`${e.title} ${e.text} ${e.tag} ${e.author ?? ""} ${e.quote ?? ""} ${(e.chips ?? []).join(" ")}`) }));
   }, [rows, requests, rowById, functionNameById, canOpenApproval, eventId]);
 
   const filteredTimeline = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
+    const q = normalizarBusca(deferredSearch);
     return timeline
       .filter((e) => tlCats.includes(e.cat))
       .filter((e) => !q || e.haystack.includes(q));

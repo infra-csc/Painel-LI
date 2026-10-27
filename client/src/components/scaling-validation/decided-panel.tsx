@@ -35,6 +35,7 @@ import { SuggestionDetailDrawer } from "./suggestion-detail-drawer";
 import { SUGGESTIONS_QUERY_KEY, invalidateScalingQueries, type SuggestionRow } from "./types";
 import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 import { CLASSE_LINHA_QUE_ABRE, linhaQueAbre } from "@/components/scaling-approval/detalhe-da-vaga/linha-que-abre";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 
 /** Como a vaga foi decidida — o servidor lê do log mais recente que decide a vaga (11/09). */
 export interface DecisaoDaVaga {
@@ -146,16 +147,17 @@ export function DecidedPanel({ eventId, functionNameById, filtro, podeLimpar = f
     const negadas = (query.data?.suggestions ?? [])
       .filter((i) => i.status === SUGESTAO_STATUS.NEGADA && !i.deletedAt)
       .map((i) => ({ row: i, decisao: "negada" as const }));
-    const q = (filtro?.busca ?? "").trim().toLowerCase();
+    // Sem acento/caixa (28/10) — a mesma busca da Lista.
+    const q = normalizarBusca(filtro?.busca ?? "");
     const qNum = q.replace(/^#/, "");
     const passa = ({ row }: { row: EventViewRow }) => {
       if (filtro?.functionIds && !filtro.functionIds.has(row.functionId)) return false;
       if (filtro?.soMinhas && !filtro.soMinhas(row)) return false;
       if (!q) return true;
-      const nome = (functionNameById.get(row.functionId) ?? "").toLowerCase();
+      const nome = normalizarBusca(functionNameById.get(row.functionId) ?? "");
       return nome.includes(q) || (qNum !== "" && String(row.inclusionNumber).includes(qNum))
-        || (row.observations ?? "").toLowerCase().includes(q)
-        || (row.eventName ?? "").toLowerCase().includes(q) || (row.decisao?.byName ?? "").toLowerCase().includes(q);
+        || normalizarBusca(row.observations ?? "").includes(q)
+        || normalizarBusca(row.eventName ?? "").includes(q) || normalizarBusca(row.decisao?.byName ?? "").includes(q);
     };
     const quando = (r: { row: EventViewRow }) => String(r.row.decisao?.at ?? r.row.updatedAt ?? "");
     return [...aprovadas, ...negadas]

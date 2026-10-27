@@ -165,7 +165,7 @@ export default function Scaling() {
               busca={filtros.busca} onBusca={filtros.setBusca}
               eventos={filtros.eventos} onEventos={filtros.setEventos} opcoesDeEvento={r.opcoesDeEvento}
               funcoes={filtros.funcoes} onFuncoes={filtros.setFuncoes} opcoesDeFuncao={r.opcoesDeFuncao}
-              periodo={filtros.periodo} onPeriodo={filtros.setPeriodo} linhasSemPeriodo={scalingInclusions} hoje={hoje} datasDoEvento={r.datasDoEvento}
+              periodo={filtros.periodo} onPeriodo={filtros.setPeriodo} linhasSemPeriodo={r.linhasSemPeriodo} hoje={hoje} datasDoEvento={r.datasDoEvento}
               flags={filtros.flags} onFlags={filtros.setFlags} linhasSemFlags={r.linhasSemFlags} queueContext={r.queueContext}
               verExcluidos={verExcluidos} onVerExcluidos={filtros.setVerExcluidos}
               recorteEventos={filtros.recorteEventos} onRecorteEventos={filtros.setRecorteEventos} contagemPorRecorte={r.contagemPorRecorte}

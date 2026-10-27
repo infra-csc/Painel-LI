@@ -35,7 +35,7 @@ import {
   BatchConfirmDialog, BatchResultDialog, BatchSelectionBar, type BatchResult,
 } from "@/components/accommodations/accommodations-batch";
 import { useAccommodationsData } from "@/components/accommodations/use-accommodations-data";
-import { contarPorOpcao, passaNosFiltros } from "@/components/accommodations/accommodations-filtering";
+import { contarPorOpcao, passaNosFiltros, totalSemRecorte } from "@/components/accommodations/accommodations-filtering";
 import { DEFAULT_PERIOD, temRecorteDePeriodo } from "@/components/scaling/scaling-period";
 import {
   contadoresDaFila, pertenceAoBloco, type BlocoDaFila,
@@ -141,6 +141,12 @@ export default function Accommodations() {
   const linhasSemPeriodo = useMemo(
     () => refinarPeloBloco(teamInclusionsWithAccommodation.filter((i) => passaNosFiltros(i, { ...filters, periodo: DEFAULT_PERIOD }, ctxFiltro))),
     [teamInclusionsWithAccommodation, filters, ctxFiltro, refinarPeloBloco],
+  );
+
+  /** O "de M": o universo da situação escolhida, sem recorte (28/10). */
+  const totalDoUniverso = useMemo(
+    () => totalSemRecorte(teamInclusionsWithAccommodation, filters.inclusionStatus, ctxFiltro),
+    [teamInclusionsWithAccommodation, filters.inclusionStatus, ctxFiltro],
   );
 
   const opcoesDeEvento = useMemo<OpcaoDeFiltro[]>(() => {
@@ -529,7 +535,7 @@ export default function Accommodations() {
               sortConfig={sortConfig}
               onSortChange={setSortConfig}
               count={linhasVisiveis.length}
-              total={teamInclusionsWithAccommodation.length}
+              total={totalDoUniverso}
               recorteDeFora={blocoAtivo !== null}
             />
 
@@ -545,7 +551,7 @@ export default function Accommodations() {
               onToggleRow={toggleRowSelection} onToggleAll={toggleAllSelection}
               canEdit={canEditField} onOpen={openModal}
               hasActiveFilters={hasActiveFilters} onClearFilters={clearFilters}
-              total={teamInclusionsWithAccommodation.length} ordenacao={ordenacao}
+              total={totalDoUniverso} ordenacao={ordenacao}
               bloco={blocoAtivo} statusDaHospedagem={filters.accommodationStatus} filtrosDaBarra={filtrosDaBarra}
             />
 

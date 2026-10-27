@@ -6,6 +6,7 @@
 import { useRef, useState } from "react";
 import { CHANGE_REQUEST_STATUS, CHANGE_REQUEST_STATUS_VALUES, STALLED_DAYS, daysPending, type ChangeRequestType } from "@shared/scaling-validation-rules";
 import type { ChangeRequestItem } from "../types";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 
 export const ALL = "all";
 export const BASE_PATH = "/scaling-approval";
@@ -78,7 +79,8 @@ export type ApprovalFilters = ReturnType<typeof useApprovalFilters>;
 
 /** A fila visível: tipo, atrasados, "posso decidir" e busca; pendentes primeiro (mais antigos no topo), decididos por data desc. */
 export function filtrarPedidos(items: ChangeRequestItem[], f: Pick<ApprovalFilters, "typeFilter" | "search" | "lateOnly" | "mineOnly">): ChangeRequestItem[] {
-  const q = f.search.trim().toLowerCase();
+  // Sem acento/caixa (28/10): "hidratacao" acha "Hidratação".
+  const q = normalizarBusca(f.search);
   return items
     .filter((r) => f.typeFilter === ALL || r.requestType === f.typeFilter)
     .filter((r) => !f.lateOnly || (r.status === CHANGE_REQUEST_STATUS.PENDENTE && daysPending(r.createdAt) >= STALLED_DAYS))
@@ -86,7 +88,7 @@ export function filtrarPedidos(items: ChangeRequestItem[], f: Pick<ApprovalFilte
     .filter((r) => {
       if (!q) return true;
       return [r.functionName, r.eventName, r.requestedByName, r.reason, r.area, r.inclusionNumber ? `#${r.inclusionNumber}` : "", String(r.inclusionNumber ?? "")]
-        .some((v) => (v ?? "").toString().toLowerCase().includes(q));
+        .some((v) => normalizarBusca((v ?? "").toString()).includes(q));
     })
     .sort((a, b) => {
       const pa = a.status === CHANGE_REQUEST_STATUS.PENDENTE ? 0 : 1;

@@ -277,6 +277,21 @@ describe("fazTesteDeBusca", () => {
     expect(fazTesteDeBusca("estacoes", nomes)!(v)).toBe(true);
     expect(fazTesteDeBusca("curitiba - pr", nomes)!(v)).toBe(true);
   });
+
+  it("empreita acha pelo nome da empresa (a linha mostra a empresa) — 28/10", () => {
+    const v = vaga({ collaboratorId: null, empreitaEmpresa: "Montagens Andrade" } as Partial<TeamInclusion>);
+    expect(fazTesteDeBusca("andrade", nomes)!(v)).toBe(true);
+  });
+
+  it('vaga sem nome não casa com o texto "Não escalado" — 28/10', () => {
+    const aberta = vaga({ collaboratorId: null, city: "" });
+    expect(fazTesteDeBusca("escalado", nomes)!(aberta)).toBe(false);
+  });
+
+  it("cidade vazia na vaga cai na cidade do colaborador — 28/10", () => {
+    const v = vaga({ collaboratorId: "c1", city: "" });
+    expect(fazTesteDeBusca("londrina", { ...nomes, getCollaboratorCity: () => "Londrina - PR" })!(v)).toBe(true);
+  });
 });
 
 describe("grupo Honorário (23/10 — “quem lança não sabe quais lançou”)", () => {

@@ -100,6 +100,13 @@ describe("linhas da aba Buscar", () => {
     expect(ordenarLinhas(l).map((x) => x.vaga.id)).toEqual(["a", "b", "d"]);
   });
 
+  it("busca sem acento/caixa: “joao pessoa” acha “Makai João Pessoa” (28/10)", () => {
+    const l = linhas();
+    const ids = (q: string) => l.filter((x) => passaNosFiltros(x, { ...FILTROS_PADRAO, situacao: "todas", q })).map((x) => x.vaga.id);
+    expect(ids("joao pessoa")).toEqual(["a", "d"]);
+    expect(ids("MONTAGEM")).toEqual(["a", "b", "d"]);
+  });
+
   it("recorte de período (15/10): padrão = só eventos que terminam hoje ou depois; \"passados\" traz o histórico", () => {
     const comprada = { id: "t9", teamInclusionId: "p2", value: 5000 } as Ticket;
     const l = linhas({

@@ -13,7 +13,9 @@
  */
 import type { Accommodation, Collaborator, Event, TeamInclusion } from "@shared/schema";
 import { fazTesteDePeriodo, temRecorteDePeriodo } from "@/components/scaling/scaling-period";
-import type { AccommodationFilters } from "./types";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
+import { fixEncoding } from "@/lib/utils";
+import { DEFAULT_FILTERS, type AccommodationFilters } from "./types";
 
 /** Sem colaborador escalado, a inclusão só aparece nestes status. */
 export const VALID_STATUSES_WITHOUT_COLLABORATOR = [
@@ -77,9 +79,10 @@ export function passaNosFiltros(
   if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
   if (temRecorteDePeriodo(filters.periodo) && !fazTesteDePeriodo(filters.periodo, ctx.hoje ?? new Date())(inclusion)) return false;
 
-  const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
+  // Sem acento/caixa (28/10): "jose" acha "José", como a busca da Escalação.
+  const q = normalizarBusca(filters.searchId.replace(/#/g, ""));
   if (q) {
-    const colName = (inclusion.collaboratorId ? ctx.collaboratorById.get(inclusion.collaboratorId)?.fullName ?? "" : "").toLowerCase();
+    const colName = normalizarBusca(inclusion.collaboratorId ? fixEncoding(ctx.collaboratorById.get(inclusion.collaboratorId)?.fullName) : "");
     if (!String(inclusion.inclusionNumber ?? "").toLowerCase().includes(q) && !colName.includes(q)) return false;
   }
 
@@ -90,6 +93,18 @@ export function passaNosFiltros(
   if (filters.inclusionStatus === "cancelado") return inclusion.status === "cancelado";
   if (filters.inclusionStatus === "active") return inclusion.status !== "cancelado";
   return true;
+}
+
+/**
+ * O "de M" do rodapé e da barra (28/10): o universo SEM recorte, na situação
+ * de inclusão escolhida. Era a lista inteira, canceladas incluídas — sem
+ * filtro nenhum a tela dizia "Mostrando 100 de 105" (as 5 canceladas que o
+ * padrão "Inclusões ativas" esconde).
+ */
+export function totalSemRecorte(todas: TeamInclusion[], inclusionStatus: AccommodationFilters["inclusionStatus"], ctx: ContextoDaLista): number {
+  const universo: AccommodationFilters = { ...DEFAULT_FILTERS, inclusionStatus };
+  const semTroca = { ...ctx, showOnlyPendingSwaps: false };
+  return todas.filter((i) => passaNosFiltros(i, universo, semTroca)).length;
 }
 
 /**

@@ -369,10 +369,14 @@ export interface ResolvedoresDaBusca {
 export function fazTesteDeBusca(busca: string, r: ResolvedoresDaBusca): ((i: TeamInclusion) => boolean) | null {
   const q = normalizarBusca(busca.replace(/#/g, ""));
   if (!q) return null;
+  // 28/10: vaga sem colaborador busca pela empresa da empreita (é o que a
+  // linha mostra) — o "Não escalado" de getCollaboratorName fazia "escalado"
+  // achar toda vaga aberta e a empresa nunca ser achada. Cidade vazia na vaga
+  // cai na do colaborador (`||`, não `??`).
   return (i) =>
     String(i.inclusionNumber ?? "").includes(q) ||
-    normalizarBusca(r.getCollaboratorName(i.collaboratorId)).includes(q) ||
+    normalizarBusca(i.collaboratorId ? r.getCollaboratorName(i.collaboratorId) : (i.empreitaEmpresa ?? "")).includes(q) ||
     normalizarBusca(r.getFunctionName(i.functionId)).includes(q) ||
     normalizarBusca(r.getEventName(i.eventId)).includes(q) ||
-    normalizarBusca(i.city ?? r.getCollaboratorCity(i.collaboratorId) ?? "").includes(q);
+    normalizarBusca(i.city || r.getCollaboratorCity(i.collaboratorId) || "").includes(q);
 }

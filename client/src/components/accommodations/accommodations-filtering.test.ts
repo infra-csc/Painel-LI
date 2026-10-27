@@ -3,7 +3,7 @@ import type { Accommodation, Collaborator, Event, TeamInclusion } from "@shared/
 import { DEFAULT_PERIOD } from "@/components/scaling/scaling-period";
 import type { AccommodationFilters } from "./types";
 import {
-  VALID_STATUSES_WITHOUT_COLLABORATOR, contarPorOpcao, passaNosFiltros, precisaDeHospedagem,
+  VALID_STATUSES_WITHOUT_COLLABORATOR, contarPorOpcao, passaNosFiltros, precisaDeHospedagem, totalSemRecorte,
 } from "./accommodations-filtering";
 
 /**
@@ -92,6 +92,21 @@ describe("filtros da lista", () => {
     expect(passaNosFiltros(v, filtros({ searchId: "#1043" }), ctxBase)).toBe(true);
     expect(passaNosFiltros(v, filtros({ searchId: "josé" }), ctxBase)).toBe(true);
     expect(passaNosFiltros(v, filtros({ searchId: "maria" }), ctxBase)).toBe(false);
+  });
+
+  it("busca sem acento: “jose” acha “José” (28/10)", () => {
+    const v = vaga({ collaboratorId: "c1" });
+    expect(passaNosFiltros(v, filtros({ searchId: "jose" }), ctxBase)).toBe(true);
+    expect(passaNosFiltros(v, filtros({ searchId: "JOSE DA" }), ctxBase)).toBe(true);
+  });
+
+  it("o “de M” é o universo da situação escolhida — sem filtro, M = N (28/10)", () => {
+    const ativas = [vaga(), vaga({ eventId: "e2" })];
+    const todas = [...ativas, vaga({ status: "cancelado" })];
+    expect(totalSemRecorte(todas, "active", ctxBase)).toBe(2);
+    expect(totalSemRecorte(todas, "all", ctxBase)).toBe(3);
+    // Um filtro de evento não muda o universo.
+    expect(todas.filter((i) => passaNosFiltros(i, filtros({ eventId: "e2" }), ctxBase))).toHaveLength(1);
   });
 
   it("registrada x pendente sai da existência do registro", () => {

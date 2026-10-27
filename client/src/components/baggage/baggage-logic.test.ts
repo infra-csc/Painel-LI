@@ -87,6 +87,12 @@ describe("filtro da lista", () => {
     expect(passaNosFiltros(r, filtros({ search: "123.456.789-09" }), ctx)).toBe(true);
     expect(passaNosFiltros(r, filtros({ search: "carla" }), ctx)).toBe(false);
   });
+
+  it("a busca ignora acento: “estacoes” acha “Circuito das Estações” (28/10)", () => {
+    const r = pedido({ eventId: "e1" });
+    expect(passaNosFiltros(r, filtros({ search: "estacoes" }), ctx)).toBe(true);
+    expect(passaNosFiltros(r, filtros({ search: "ESTAÇÕES" }), ctx)).toBe(true);
+  });
 });
 
 describe("ordenação", () => {

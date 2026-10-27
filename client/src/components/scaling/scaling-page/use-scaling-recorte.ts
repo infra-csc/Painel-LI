@@ -72,18 +72,6 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
   const honorario = useHonorariosDaFila(comPeriodo, data.functionById);
   const honorarioDaVaga = honorario.ativo ? honorario.situacaoDe : undefined;
 
-  const queueContext = useMemo<QueueContext>(() => ({
-    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i),
-    temTroca: (i) => pendingSwapByInclusion.has(i.id),
-    temPedido: (i) => !!data.pendingChangeByInclusion?.get(i.id),
-    bloqueioParaConfirmar: getSelectBlockReason,
-    temPassagemComprada: (i) => data.purchasedTicketByInclusion.has(i.id),
-    temHospedagemReservada: (i) => data.accommodationByInclusion.has(i.id),
-    ehCenoEmpreita: (i) => data.isCenotecnicaFunction(i.functionId),
-    honorarioDaVaga,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [pendingSwapByInclusion, data.pendingChangeByInclusion, data.purchasedTicketByInclusion, data.accommodationByInclusion, getSelectBlockReason, honorarioDaVaga]);
-
   // Hotel reservado nas Análises (16/10): a MESMA regra do servidor
   // (server/vaga-guards.ts → hospedagemConta) — com nome de hotel e não
   // cancelada, em qualquer das hospedagens da vaga. O índice
@@ -95,6 +83,22 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     });
     return s;
   }, [data.accommodations]);
+
+  const queueContext = useMemo<QueueContext>(() => ({
+    temNome: (i) => !!i.collaboratorId || vagaComEmpreita(i),
+    temTroca: (i) => pendingSwapByInclusion.has(i.id),
+    temPedido: (i) => !!data.pendingChangeByInclusion?.get(i.id),
+    bloqueioParaConfirmar: getSelectBlockReason,
+    temPassagemComprada: (i) => data.purchasedTicketByInclusion.has(i.id),
+    // 28/10: "Reservada" lê a MESMA hospedagem válida do cartão "Hotel" das
+    // Análises (vagasComHotel). O primeiro registro da vaga, de qualquer
+    // situação, contava reserva cancelada e sem hotel — filtro e cartão
+    // davam números diferentes.
+    temHospedagemReservada: (i) => vagasComHotel.has(i.id),
+    ehCenoEmpreita: (i) => data.isCenotecnicaFunction(i.functionId),
+    honorarioDaVaga,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [pendingSwapByInclusion, data.pendingChangeByInclusion, data.purchasedTicketByInclusion, vagasComHotel, getSelectBlockReason, honorarioDaVaga]);
 
   const responsavelDaFuncao = useRef(data.getResponsavelDaFuncao);
   responsavelDaFuncao.current = data.getResponsavelDaFuncao;
@@ -147,6 +151,16 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     return Array.from(conta.entries()).map(([id, n]) => ({ id, nome: getFunctionName(id), n }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scalingInclusions, testePeriodo, testeRecorte, data.functionById]);
+  /**
+   * Base do contador do Período: a camada inteira MENOS o próprio período
+   * (28/10). Era `scalingInclusions`, sem "Futuros" e sem função — com "Kit"
+   * marcado, "Qualquer data" prometia as vagas de todas as funções e dos
+   * eventos já realizados.
+   */
+  const linhasSemPeriodo = useMemo(
+    () => scalingInclusions.filter((i) => testeRecorte(i) && testeFuncao(i)),
+    [scalingInclusions, testeRecorte, testeFuncao],
+  );
   // Contador de cada posição do recorte: tudo aplicado menos ele.
   const contagemPorRecorte = useMemo<Record<RecorteDeEventos, number>>(() => {
     const base = scalingInclusions.filter((i) => testePeriodo(i) && testeFuncao(i));
@@ -223,13 +237,18 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
     const base = data.vagasDasOpcoesDeEvento.length > 0 ? data.vagasDasOpcoesDeEvento : data.filteredTeamInclusions;
     const conta = new Map<string, number>();
     for (const i of base) {
-      if (!verExcluidos && (i.status === "cancelado" || i.deletedAt)) continue;
-      conta.set(i.eventId, (conta.get(i.eventId) ?? 0) + 1);
+      // O número do evento é o que a lista mostra ao marcá-lo (28/10): a MESMA
+      // camada da tabela (período, Futuros/Realizados e função). A vaga
+      // cancelada conta — a lista a mostra; só a excluída depende do
+      // interruptor. Evento fora da camada segue nas opções, com 0.
+      if (!verExcluidos && i.deletedAt) continue;
+      const passa = testePeriodo(i) && testeRecorte(i) && testeFuncao(i);
+      conta.set(i.eventId, (conta.get(i.eventId) ?? 0) + (passa ? 1 : 0));
     }
     for (const id of eventosMarcados) if (!conta.has(id)) conta.set(id, 0);
     return Array.from(conta.entries()).map(([id, n]) => ({ id, nome: getEventName(id), n }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.filteredTeamInclusions, data.vagasDasOpcoesDeEvento, verExcluidos, data.eventById, eventosMarcados]);
+  }, [data.filteredTeamInclusions, data.vagasDasOpcoesDeEvento, verExcluidos, data.eventById, eventosMarcados, testePeriodo, testeRecorte, testeFuncao]);
 
   /**
    * Quadro função × dia (04/09) — o mesmo da Validação, sobre as vagas do
@@ -311,7 +330,7 @@ export function useScalingRecorte({ data, filtros, user }: { data: ScalingData; 
 
   return {
     getSelectBlockReason, queueContext, analyticsContext, datasDoEvento,
-    comPeriodo, sugestoesDoRecorte, opcoesDeFuncao, contagemPorRecorte, comBusca, linhasSemFlags, comFlags, linhasDoRelatorio,
+    comPeriodo, linhasSemPeriodo, sugestoesDoRecorte, opcoesDeFuncao, contagemPorRecorte, comBusca, linhasSemFlags, comFlags, linhasDoRelatorio,
     contagensDaFila, visibleRows, opcoesDeEvento, linhasDoQuadro, nomesDasFuncoes,
     resumoTopo, contagem, nomesDosFiltrosAtivos, nomesDosFiltrosDoRecorte,
     honorario,

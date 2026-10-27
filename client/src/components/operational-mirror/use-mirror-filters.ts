@@ -15,6 +15,7 @@ import {
   LS_KEY, SITUACOES, VIEWS, isNarrowViewport,
   type Block, type PendenciaDe, type SituacaoFiltro, type SortKey, type SortState, type ViewKey,
 } from "./mirror-shared";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 
 export function useMirrorFilters(eventId: string, rows: MirrorRow[], pendenciaDe: PendenciaDe) {
   const [view, setView] = useState<ViewKey>(() => isNarrowViewport() ? "colaboradores" : "grade");
@@ -71,9 +72,10 @@ export function useMirrorFilters(eventId: string, rows: MirrorRow[], pendenciaDe
   }, [eventId]);
 
   const filteredRows = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
+    // Sem acento/caixa (28/10): "jose" acha "JOSÉ".
+    const q = normalizarBusca(deferredSearch);
     const out = rows.filter((r) => {
-      if (q && !r.collaborator.fullName.toLowerCase().includes(q)) return false;
+      if (q && !normalizarBusca(r.collaborator.fullName ?? "").includes(q)) return false;
       const dept = r.function.area || r.function.name || "(sem departamento)";
       if (deptFilter !== "all" && dept !== deptFilter) return false;
       if (hotelFilter !== "all" && r.accommodation?.hotelName !== hotelFilter) return false;
@@ -97,7 +99,10 @@ export function useMirrorFilters(eventId: string, rows: MirrorRow[], pendenciaDe
     }
     return out;
   }, [rows, deferredSearch, deptFilter, hotelFilter, chip, blocoFiltro, situacoes, sort, pendenciaDe]);
-  const activeFilterCount = (searchText ? 1 : 0) + (deptFilter !== "all" ? 1 : 0) + (hotelFilter !== "all" ? 1 : 0) + (chip ? 1 : 0) + (blocoFiltro ? 1 : 0) + situacoes.size;
+  // Só espaços não é busca (28/10): contava como filtro e o vazio dizia
+  // "Ninguém corresponde a esses filtros" sem nada filtrando.
+  const temBusca = searchText.trim() !== "";
+  const activeFilterCount = (temBusca ? 1 : 0) + (deptFilter !== "all" ? 1 : 0) + (hotelFilter !== "all" ? 1 : 0) + (chip ? 1 : 0) + (blocoFiltro ? 1 : 0) + situacoes.size;
   function clearFilters() { setSearchText(""); setDeptFilter("all"); setHotelFilter("all"); setChip(null); setBlocoFiltro(null); setSituacoes(new Set()); }
   function toggleSort(key: SortKey) { setSort((s) => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }); }
 
@@ -108,7 +113,7 @@ export function useMirrorFilters(eventId: string, rows: MirrorRow[], pendenciaDe
    */
   const filtrosAtivos = useMemo(() => {
     const nomes: string[] = [];
-    if (searchText) nomes.push(`busca "${searchText}"`);
+    if (searchText.trim()) nomes.push(`busca "${searchText.trim()}"`);
     if (deptFilter !== "all") nomes.push(`departamento ${deptFilter}`);
     if (hotelFilter !== "all") nomes.push(`hotel ${hotelFilter}`);
     if (chip) nomes.push(CHIPS_DE_PENDENCIA.find((c) => c.key === chip)?.label.toLowerCase() ?? "pendência");

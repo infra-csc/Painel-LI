@@ -12,6 +12,8 @@
  */
 import type { Collaborator, Event, TeamInclusion } from "@shared/schema";
 import { fazTesteDePeriodo, temRecorteDePeriodo } from "@/components/scaling/scaling-period";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
+import { fixEncoding } from "@/lib/utils";
 import type { TicketFilters } from "./types";
 import type { CoberturaTerrestre } from "@shared/transporte-terrestre";
 
@@ -42,6 +44,8 @@ export interface ContextoDosFiltros {
   hoje?: Date;
   /** A vaga já tem passagem registrada? Então continua na lista (15/09). */
   temPassagem?: (inclusionId: string) => boolean;
+  /** Nome da função — a busca promete "Nome, ID, função" (28/10). */
+  nomeDaFuncao?: (functionId: string) => string;
 }
 
 /**
@@ -78,11 +82,14 @@ export function passaNosFiltrosBase(
   if (temRecorteDePeriodo(filters.periodo)
     && !fazTesteDePeriodo(filters.periodo, ctx.hoje ?? new Date(), (id) => (id ? ctx.eventById.get(id) : undefined))(inclusion)) return false;
   if (filters.searchId) {
-    const q = filters.searchId.replace(/#/g, "").trim().toLowerCase();
-    const colName = (inclusion.collaboratorId ? ctx.collaboratorById.get(inclusion.collaboratorId)?.fullName ?? "" : "").toLowerCase();
+    // 28/10: sem acento/caixa ("jose" acha "José") e pela função, como o campo
+    // promete ("Nome, ID, função") — antes a função nunca era olhada.
+    const q = normalizarBusca(filters.searchId.replace(/#/g, ""));
+    const colName = normalizarBusca(inclusion.collaboratorId ? fixEncoding(ctx.collaboratorById.get(inclusion.collaboratorId)?.fullName) : "");
+    const funcao = normalizarBusca(ctx.nomeDaFuncao?.(inclusion.functionId) ?? "");
     if (!(String(inclusion.inclusionNumber ?? "").toLowerCase().includes(q) ||
       inclusion.id.toLowerCase().includes(q) ||
-      colName.includes(q))) return false;
+      colName.includes(q) || funcao.includes(q))) return false;
   }
   if (filters.inclusionStatus === "cancelado" && inclusion.status !== "cancelado") return false;
   return true;
@@ -115,7 +122,9 @@ export function passaNosFiltrosDePassagem(
   if (filters.ticketStatus !== "all") {
     const hasTicket = !!t;
     // Quem vai de carro/van/ônibus em todas as pernas não tem passagem a comprar.
-    if (filters.ticketStatus === "pending" && (hasTicket || !!cob?.cobreTudo)) return false;
+    // Vaga cancelada também não (28/10): é a regra do bloco "Comprar"
+    // (kpis.aguardando) — com "Todas", o bloco dizia 3 e a lista trazia 5.
+    if (filters.ticketStatus === "pending" && (hasTicket || !!cob?.cobreTudo || inclusion.status === "cancelado")) return false;
     if (filters.ticketStatus === "processed" && !hasTicket) return false;
     if (filters.ticketStatus === "terrestre" && !temTerrestre) return false;
     // Qualidade: compradas (aéreo/rodoviário) sem horário de chegada.

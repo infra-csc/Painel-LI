@@ -144,6 +144,8 @@ export const saidaDaLinha = (l: LinhaDaBusca) => chaveDaCidade(l.cidadeDeSaida);
 
 export type CampoContado = "situacao" | "evento" | "saida" | "destino" | "funcoes";
 
+const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
 /** Passa nos filtros? `ignorar` zera um filtro (para contar as opções dele). */
 export function passaNosFiltros(l: LinhaDaBusca, f: FiltrosDaBusca, ignorar?: CampoContado): boolean {
   // Recorte de período: vale para TUDO (lista, faixas e opções dos filtros).
@@ -165,9 +167,10 @@ export function passaNosFiltros(l: LinhaDaBusca, f: FiltrosDaBusca, ignorar?: Ca
   }
   if (f.de && (!l.dataIda || l.dataIda < f.de)) return false;
   if (f.ate && (!l.dataIda || l.dataIda > f.ate)) return false;
-  const q = f.q.replace(/#/g, "").trim().toLowerCase();
+  // Sem acento/caixa (28/10): "joao pessoa" acha "João Pessoa".
+  const q = semAcento(f.q.replace(/#/g, "")).trim();
   if (q) {
-    const alvo = `${l.vaga.inclusionNumber ?? ""} ${l.colaborador} ${l.funcao} ${l.evento?.name ?? ""}`.toLowerCase();
+    const alvo = semAcento(`${l.vaga.inclusionNumber ?? ""} ${l.colaborador} ${l.funcao} ${l.evento?.name ?? ""}`);
     if (!alvo.includes(q)) return false;
   }
   return true;

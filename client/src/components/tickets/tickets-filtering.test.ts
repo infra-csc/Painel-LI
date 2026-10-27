@@ -112,6 +112,14 @@ describe("busca", () => {
     expect(passaNosFiltrosBase(v, filtros({ searchId: "josé" }), ctx)).toBe(true);
     expect(passaNosFiltrosBase(v, filtros({ searchId: "maria" }), ctx)).toBe(false);
   });
+
+  it("busca sem acento e pela função, como o campo promete (“Nome, ID, função”) — 28/10", () => {
+    const v = vaga({ collaboratorId: "c1", functionId: "f-kit" });
+    const comFuncao = { ...ctx, nomeDaFuncao: (id: string) => (id === "f-kit" ? "Logística de Kit" : "") };
+    expect(passaNosFiltrosBase(v, filtros({ searchId: "jose" }), comFuncao)).toBe(true);
+    expect(passaNosFiltrosBase(v, filtros({ searchId: "logistica" }), comFuncao)).toBe(true);
+    expect(passaNosFiltrosBase(v, filtros({ searchId: "hidratacao" }), comFuncao)).toBe(false);
+  });
 });
 
 describe("filtros de passagem (segundo estágio)", () => {
@@ -123,6 +131,11 @@ describe("filtros de passagem (segundo estágio)", () => {
     expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "pending" }), semPassagem)).toBe(true);
     expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "pending" }), comTicket)).toBe(false);
     expect(passaNosFiltrosDePassagem(v, filtros({ ticketStatus: "processed" }), comTicket)).toBe(true);
+  });
+
+  it("vaga cancelada não é pendente de compra — o bloco “Comprar” não a conta (28/10)", () => {
+    const cancelada = vaga({ status: "cancelado" });
+    expect(passaNosFiltrosDePassagem(cancelada, filtros({ ticketStatus: "pending", inclusionStatus: "all" }), semPassagem)).toBe(false);
   });
 
   it('"sem chegada" é comprada, não-van e sem horário de chegada', () => {

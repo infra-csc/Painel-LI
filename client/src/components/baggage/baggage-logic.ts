@@ -10,6 +10,7 @@
  * Copiado do arquivo original, não reescrito de memória.
  */
 import { parseBrNumber, fixEncoding } from "@/lib/utils";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 import {
   ciaGroup, getCpf, toTitleCase,
   type BaggageHistoryItem, type BaggageRequestItem, type CiaGroup,
@@ -45,15 +46,16 @@ export function passaNosFiltros(r: BaggageRequestItem, f: FiltrosDaLista, ctx: C
   if (f.collaboratorIds.length > 0 && !f.collaboratorIds.includes(r.collaboratorId)) return false;
   if (f.cia && ciaGroup(r.cia) !== f.cia) return false;
 
-  const q = f.search.trim().toLowerCase();
+  // Sem acento/caixa (28/10): "estacoes" acha "Estações", "jose" acha "José".
+  const q = normalizarBusca(f.search);
   if (!q) return true;
   const qDigits = q.replace(/\D/g, "");
   const c = ctx.collabById.get(r.collaboratorId);
-  const name = fixEncoding(c?.fullName || "").toLowerCase();
+  const name = normalizarBusca(fixEncoding(c?.fullName || ""));
   if (name.includes(q)) return true;
-  if ((r.loc || "").toLowerCase().includes(q)) return true;
-  if ((r.os || "").toLowerCase().includes(q)) return true;
-  const evName = fixEncoding(ctx.eventById.get(r.eventId)?.name || "").toLowerCase();
+  if (normalizarBusca(r.loc || "").includes(q)) return true;
+  if (normalizarBusca(r.os || "").includes(q)) return true;
+  const evName = normalizarBusca(fixEncoding(ctx.eventById.get(r.eventId)?.name || ""));
   if (evName.includes(q)) return true;
   const cpf = c ? getCpf(c).replace(/\D/g, "") : "";
   return !!qDigits && cpf.includes(qDigits);

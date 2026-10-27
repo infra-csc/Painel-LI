@@ -13,7 +13,7 @@ import type { SortConfig } from "@/components/common/sortable-header";
 import type {
   TeamInclusion, Event, Function, Collaborator, Ticket, Accommodation, User, SwapRequest,
 } from "@shared/schema";
-import type { TicketFilters } from "./types";
+import { DEFAULT_TICKET_FILTERS, type TicketFilters } from "./types";
 import { useSwapRequests } from "@/hooks/use-swap-requests";
 import { vagasDaTroca } from "@/lib/swap-types";
 
@@ -269,8 +269,11 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
   // contador do popover precisa da MESMA base que a lista.
   const hoje = useMemo(() => new Date(), []);
   const contextoDosFiltros = useMemo(
-    () => ({ eventById, collaboratorById, hoje, temPassagem: (id: string) => ticketByInclusion.has(id) || coberturaByInclusion.has(id) }),
-    [eventById, collaboratorById, hoje, ticketByInclusion, coberturaByInclusion],
+    () => ({
+      eventById, collaboratorById, hoje, temPassagem: (id: string) => ticketByInclusion.has(id) || coberturaByInclusion.has(id),
+      nomeDaFuncao: (id: string) => functionById.get(id)?.name ?? "",
+    }),
+    [eventById, collaboratorById, functionById, hoje, ticketByInclusion, coberturaByInclusion],
   );
   const ticketInclusions = useMemo(
     () => teamInclusions?.filter(inclusion => passaNosFiltrosBase(inclusion, filters, contextoDosFiltros)) || [],
@@ -356,12 +359,37 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     });
   }, [deduplicatedInclusions, filters, showOnlyPendingSwaps, pendingSwapByInclusion, ticketByInclusion, getCobertura, sortConfig, getCollaboratorName, getEventName, getFunctionName]);
 
-  // Banner: trocas pendentes que aparecem de fato na tabela (mesma lista renderizada).
+  /**
+   * A lista SEM o bloco da fila (status da passagem e trocas) — base dos
+   * números da fila (28/10). Contados sobre a lista já cortada pelo bloco
+   * aceso, os outros blocos caíam para 0 ("Comprar" ligado → "Compradas 0").
+   * É a mesma regra da Hospedagem e da Escalação: a fila diz quanto trabalho
+   * existe no recorte da barra; cada bloco mostra, ao ser clicado, o número
+   * que exibia.
+   */
+  const semBlocoDaFila = useMemo(
+    () => deduplicatedInclusions.filter(inclusion => passaNosFiltrosDePassagem(inclusion, { ...filters, ticketStatus: "all" }, {
+      ticketByInclusion, pendingSwapByInclusion, showOnlyPendingSwaps: false, coberturaDe: getCobertura,
+    })),
+    [deduplicatedInclusions, filters, ticketByInclusion, pendingSwapByInclusion, getCobertura],
+  );
+
+  // Bloco "Troca": as trocas pendentes do recorte da barra — o que a lista mostra ao clicar nele.
   const pendingTicketSwapsCount = useMemo(() => {
     if (!isPurchasingRole) return 0;
-    if (showOnlyPendingSwaps) return filteredTicketInclusions.length;
-    return filteredTicketInclusions.filter(inc => pendingSwapByInclusion.has(inc.id)).length;
-  }, [isPurchasingRole, showOnlyPendingSwaps, filteredTicketInclusions, pendingSwapByInclusion]);
+    return semBlocoDaFila.filter(inc => pendingSwapByInclusion.has(inc.id)).length;
+  }, [isPurchasingRole, semBlocoDaFila, pendingSwapByInclusion]);
+
+  /**
+   * O "de M" do rodapé e da barra (28/10): o universo SEM recorte — só a
+   * situação da inclusão escolhida, e com as duplicadas já juntas, como a
+   * lista. Era a lista base antes do dedupe, já filtrada: sem filtro nenhum
+   * aparecia "Mostrando 120 de 125".
+   */
+  const totalSemRecorte = useMemo(
+    () => deduplicar((teamInclusions ?? []).filter((inclusion) => passaNosFiltrosBase(inclusion, { ...DEFAULT_TICKET_FILTERS, inclusionStatus: filters.inclusionStatus }, contextoDosFiltros))).length,
+    [deduplicar, teamInclusions, filters.inclusionStatus, contextoDosFiltros],
+  );
 
   // Linhas que podem entrar no lote: pendentes, não canceladas e visíveis agora.
   const selectableInclusionIds = useMemo(() => {
@@ -375,14 +403,14 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredTicketInclusions, ticketByInclusion, coberturaByInclusion, eventById, podeAgirEmEventoPassado]);
 
-  // ── KPIs do filtro atual ──
+  // ── KPIs da fila: o recorte da barra, sem o bloco aceso (28/10) ──
   const kpis = useMemo(() => {
     let compradas = 0, aguardando = 0, semChegada = 0;
     const values: Array<number | null | undefined> = [];
     // Terrestre (16/10): conta e soma À PARTE — "Compradas R$" é passagem;
     // carro/van/ônibus têm o próprio bloco, para o valor não se misturar.
     const terrestre = { count: 0, totalCents: 0 };
-    for (const inc of filteredTicketInclusions) {
+    for (const inc of semBlocoDaFila) {
       const t = ticketByInclusion.get(inc.id);
       const cob = coberturaByInclusion.get(inc.id);
       // Conta o que o filtro "Carro, van ou ônibus" lista (revisão 16/10: com
@@ -399,12 +427,12 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
       }
     }
     // Histórico das vagas que estão no filtro: conta e soma no "Compradas".
-    const idsNoFiltro = new Set(filteredTicketInclusions.map((i) => i.id));
+    const idsNoFiltro = new Set(semBlocoDaFila.map((i) => i.id));
     const doHistorico = (historicoDePassagens ?? []).filter((t) => idsNoFiltro.has(t.teamInclusionId));
     const historico = { count: doHistorico.length, totalCents: doHistorico.reduce((s, t) => s + (t.value || 0), 0) };
-    return { total: filteredTicketInclusions.length, compradas, aguardando, semChegada, valor: purchasedValueKpi(values), historico, terrestre };
+    return { total: semBlocoDaFila.length, compradas, aguardando, semChegada, valor: purchasedValueKpi(values), historico, terrestre };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredTicketInclusions, ticketByInclusion, coberturaByInclusion, eventById, podeAgirEmEventoPassado, historicoDePassagens]);
+  }, [semBlocoDaFila, ticketByInclusion, coberturaByInclusion, eventById, podeAgirEmEventoPassado, historicoDePassagens]);
 
   return {
     // dados crus
@@ -414,14 +442,14 @@ export function useTicketsData({ filters, showOnlyPendingSwaps, sortConfig, user
     ticketByInclusion, eventById, functionById, collaboratorById, accommodationByInclusion,
     terrestreByInclusion, coberturaByInclusion, getCobertura, getTerrestres,
     pendingSwapByInclusion, approvedSwapInclusionIds, isPurchasingRole, isEventLocked,
-    completarPipeline,
+    completarPipeline, contextoDosFiltros,
     hoje,
     // getters
     getTicket, getEventName, getFunctionName, getCollaboratorName, getCollaborator, getEventLocation, getUserName,
     // listas derivadas
     // ticketInclusions = TODAS as vagas que precisam de passagem, sem os
     // filtros da tela: o lote de vouchers procura a vaga em todas elas.
-    ticketInclusions, filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis,
+    ticketInclusions, filteredTicketInclusions, pendingTicketSwapsCount, selectableInclusionIds, kpis, totalSemRecorte,
   };
 }
 

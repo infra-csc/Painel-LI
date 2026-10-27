@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/api-error";
 import { normalizeRole } from "@shared/roles";
 import { fixEncoding } from "@/lib/utils";
+// Buscas das três abas sem acento/caixa (28/10) — a mesma regra da lista.
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 import { toTitleCase as nomeDePessoa } from "@/lib/format";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { PageHeader } from "@/components/common/page-header";
@@ -196,7 +198,7 @@ export default function BaggageControlPage() {
 
   // ── Aba 2: agregado por colaborador ──
   const collabRows = useMemo<LinhaDeColaborador[]>(() => {
-    const q = collabTabSearch.trim().toLowerCase();
+    const q = normalizarBusca(collabTabSearch);
     const qDigits = q.replace(/\D/g, "");
     return Array.from(bagsByCollaborator.entries())
       .map(([collaboratorId, agg]) => {
@@ -210,7 +212,7 @@ export default function BaggageControlPage() {
       })
       .filter(r => {
         if (!q) return true;
-        if (r.name.toLowerCase().includes(q)) return true;
+        if (normalizarBusca(r.name).includes(q)) return true;
         return !!qDigits && r.cpf.replace(/\D/g, "").includes(qDigits);
       })
       // Quem tem mais bagagens primeiro (a pergunta da aba é "quem tem bagagem?")
@@ -220,13 +222,13 @@ export default function BaggageControlPage() {
   // Colaboradores ativos que batem com a busca mas ainda não têm bagagem
   // nenhuma — candidatos a entrar no histórico manualmente
   const collabAddCandidates = useMemo(() => {
-    const q = collabTabSearch.trim().toLowerCase();
+    const q = normalizarBusca(collabTabSearch);
     if (q.length < 3) return [];
     const qDigits = q.replace(/\D/g, "");
     return colaboradoresAtivos
       .filter(c => !bagsByCollaborator.has(c.id))
       .filter(c => {
-        const name = fixEncoding(c.fullName || "").toLowerCase();
+        const name = normalizarBusca(fixEncoding(c.fullName || ""));
         if (name.includes(q)) return true;
         const cpf = getCpf(c).replace(/\D/g, "");
         return !!qDigits && cpf.includes(qDigits);
@@ -237,7 +239,7 @@ export default function BaggageControlPage() {
 
   // ── Aba 3: agregado por evento ──
   const eventRows = useMemo<LinhaDeEvento[]>(() => {
-    const q = eventTabSearch.trim().toLowerCase();
+    const q = normalizarBusca(eventTabSearch);
     const map = new Map<string, { bags: number; cents: number; records: number }>();
     for (const r of requests) {
       const agg = map.get(r.eventId) || { bags: 0, cents: 0, records: 0 };
@@ -252,7 +254,7 @@ export default function BaggageControlPage() {
         const ev = eventOptions.find(e => e.id === eventId);
         return { eventId, name: getEventName(eventId), ...agg, periodo: ev ? eventPeriod(ev) : undefined, local: ev?.location || undefined };
       })
-      .filter(r => !q || r.name.toLowerCase().includes(q))
+      .filter(r => !q || normalizarBusca(r.name).includes(q))
       .sort((a, b) => b.cents - a.cents);
   }, [requests, getEventName, eventTabSearch, eventOptions]);
 

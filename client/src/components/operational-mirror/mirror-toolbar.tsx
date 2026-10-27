@@ -248,7 +248,7 @@ export function MirrorToolbar({
           {SITUACOES.filter((s) => situacoes.has(s.key)).map((s) => (
             <EtiquetaDeFiltro key={s.key} etiqueta="Situação" valor={s.label} titulo={`de situação ${s.label}`} onTirar={() => tirarSituacao(s.key)} />
           ))}
-          {searchText && <EtiquetaDeFiltro etiqueta="Busca" valor={`“${searchText}”`} titulo="de busca" onTirar={() => setSearchText("")} />}
+          {searchText.trim() && <EtiquetaDeFiltro etiqueta="Busca" valor={`“${searchText.trim()}”`} titulo="de busca" onTirar={() => setSearchText("")} />}
           <LimparFiltros onClick={clearFilters} />
         </div>
       )}

@@ -14,6 +14,7 @@ import type { SuggestionSortField } from "@/components/scaling-validation/sugges
 import { useEscalaManagers } from "@/components/scaling-validation/use-escala-managers";
 import { SUGGESTIONS_QUERY_KEY, canActOn, canValidate, workDaysOf, type FunctionWithManagers, type SuggestionRow } from "@/components/scaling-validation/types";
 import { KPI_MATCH, NO_NAMES, type KpiFiltro } from "./validation-shared";
+import { normalizarBusca } from "@/components/scaling/scaling-queue";
 
 export interface UseValidationDataArgs {
   user: UserType | null;
@@ -195,7 +196,8 @@ export function useValidationData({ user, eventId, sanitize }: UseValidationData
   );
 
   const filteredRows = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
+    // Sem acento/caixa (28/10): "hidratacao" acha "Hidratação".
+    const q = normalizarBusca(deferredSearch);
     // "#123" acha a vaga 123 (04/09): o chip da lista mostra "#123" e era isso
     // que a pessoa copiava para a busca — e não achava nada. O "#" sai só da
     // comparação com o número; nos textos (função, área, observação) a busca
@@ -212,7 +214,7 @@ export function useValidationData({ user, eventId, sanitize }: UseValidationData
       .filter((r) => !kpiFiltro || KPI_MATCH[kpiFiltro](r))
       .filter((r) => {
         if (!q) return true;
-        return nameOf(r).toLowerCase().includes(q) || (qNum !== "" && String(r.inclusionNumber).includes(qNum)) || (r.observations ?? "").toLowerCase().includes(q);
+        return normalizarBusca(nameOf(r)).includes(q) || (qNum !== "" && String(r.inclusionNumber).includes(qNum)) || normalizarBusca(r.observations ?? "").includes(q);
       });
     const byDefault = (a: SuggestionRow, b: SuggestionRow) => nameOf(a).localeCompare(nameOf(b), "pt-BR") || (a.inclusionNumber ?? 0) - (b.inclusionNumber ?? 0);
     if (!sortConfig) return list.sort(byDefault);
@@ -259,10 +261,12 @@ export function useValidationData({ user, eventId, sanitize }: UseValidationData
     pendentes: rows.filter((r) => r.status === SUGESTAO_STATUS.PENDENTE).length,
     aguardandoAprovacao: rows.filter((r) => r.status === SUGESTAO_STATUS.VALIDADA).length,
     comPedido: rows.filter((r) => r.status === SUGESTAO_STATUS.AJUSTE).length,
-    // "Minhas pendentes" = o que dá para VALIDAR agora (validadas não entram).
-    minhas: validatableAll.size,
+    // "Minhas pendentes" = o que dá para VALIDAR agora (validadas não entram),
+    // nas MINHAS funções (28/10): o clique liga "Só as minhas funções" — o
+    // admin com cadastro numa função via o total de todas e a lista de uma.
+    minhas: Array.from(validatableAll).filter((id) => { const r = rowById.get(id); return !!r && daMinhaFuncao(r); }).length,
     atrasadas: rows.filter((r) => r.status === SUGESTAO_STATUS.PENDENTE && pendingSeverity(r.daysPending) !== "ok").length,
-  }), [rows, validatableAll]);
+  }), [rows, validatableAll, rowById, daMinhaFuncao]);
 
   return {
     isAdmin, canAccess, loadingEvents, loadingFunctions, functions, permissoesCarregando,
