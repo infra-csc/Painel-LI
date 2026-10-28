@@ -57,7 +57,7 @@ function LinhaDaPrevia({ l }: { l: LinhaPropostaDoRetorno }) {
       </div>
       <div className="min-w-0 text-xs leading-5">
         <span className="block truncate font-mono font-semibold text-slate-700">{l.numeroOc ?? "—"}</span>
-        <span className="block truncate tabular-nums text-muted-foreground">{l.valorCents != null ? reais(l.valorCents) : "—"}{datas ? ` · ${datas}` : ""}</span>
+        <span className="block break-words tabular-nums text-muted-foreground">{l.valorCents != null ? reais(l.valorCents) : "—"}{datas ? ` · ${datas}` : ""}</span>
       </div>
       <span className={cn("inline-flex h-[22px] w-fit items-center rounded-md border px-1.5 text-2xs font-semibold", TOM[l.resultado])}>{ROTULO[l.resultado]}</span>
       <ul className="oc-lote-motivos m-0 list-none space-y-0.5 p-0 text-xs leading-5">
@@ -298,7 +298,7 @@ export function DialogoRetornoM4({ aberto, onClose }: { aberto: boolean; onClose
                 ].filter(Boolean).join(" · ")}. Tudo ficou no log de auditoria com “(retorno do M4)”.
               </p>
             )}
-            {resultado.comProblema > 0 && <p className="m-0 text-xs text-muted-foreground">{resultado.comProblema} {resultado.comProblema === 1 ? "linha tinha problema na prévia" : "linhas tinham problema na prévia"} e não foram aplicadas — corrija no M4 e importe de novo.</p>}
+            {resultado.comProblema > 0 && <p className="m-0 text-xs text-muted-foreground">{resultado.comProblema} {resultado.comProblema === 1 ? "linha tinha problema na prévia e não foi aplicada" : "linhas tinham problema na prévia e não foram aplicadas"} — corrija no M4 e importe de novo.</p>}
             {resultado.recusadas.length > 0 && (
               <ul className="m-0 list-none space-y-1.5 p-0">
                 {resultado.recusadas.map((x) => (
