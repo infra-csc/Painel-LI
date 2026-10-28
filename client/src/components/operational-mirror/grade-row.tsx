@@ -69,7 +69,9 @@ export const GradeRow = memo(function GradeRow({ r, hiddenBlocks, compact, saveC
         <EditableCell rowId={r.teamInclusionId} field="ticket.returnOriginAirport" value={t.returnOriginAirport} estado={est("ticket.returnOriginAirport", t.returnOriginAirport)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
         <EditableCell rowId={r.teamInclusionId} field="ticket.locator" value={t.locator} estado={est("ticket.locator", t.locator)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="mono" />
         <EditableCell rowId={r.teamInclusionId} field="ticket.ticketCompany" value={t.ticketCompany} estado={est("ticket.ticketCompany", t.ticketCompany)} type="text" onSave={saveCell} compact={compact} editMode={editMode} />
-        <EditableCell rowId={r.teamInclusionId} field="ticket.purchaseOrderNumber" value={t.purchaseOrderNumber} estado={est("ticket.purchaseOrderNumber", t.purchaseOrderNumber)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc" />
+        <EditableCell rowId={r.teamInclusionId} field="ticket.purchaseOrderNumber" value={t.purchaseOrderNumber} estado={est("ticket.purchaseOrderNumber", t.purchaseOrderNumber)} type="text" onSave={saveCell} compact={compact} editMode={editMode} variant="oc"
+          // Volta comprada à parte (28/10): o bilhete dela ao lado ("JPLN7F8J · volta 4471"); a célula edita só o da ida.
+          complemento={t.returnPurchaseOrderNumber?.trim() ? `volta ${t.returnPurchaseOrderNumber.trim()}` : null} />
         <EditableCell rowId={r.teamInclusionId} field="ticket.checkIn3" value={t.checkIn3} estado={est("ticket.checkIn3", t.checkIn3)} type="text" onSave={saveCell} compact={compact} editMode={editMode} align="center" variant="checkin" />
       </>}
       {show("hospedagem") && <>

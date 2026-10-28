@@ -5,6 +5,7 @@ import { chaveDaColuna } from "@shared/mirror-columns";
 import { recalcularDiasDaVaga } from "@shared/dias-de-trabalho";
 import { isValidHhmm } from "@shared/scaling-validation-rules";
 import { toHoraHHMM } from "@shared/alimentacao";
+import { numeroDaCompraComVolta } from "@shared/tipo-por-trecho";
 import {
   events,
   teamInclusions,
@@ -201,7 +202,7 @@ const CAMPOS_IDA = Object.keys(IDA_PARA_VOLTA) as CampoIda[];
 /** Campos que se SOMAM quando a vaga tem mais de uma passagem. */
 const CAMPOS_SOMADOS = ["value", "baggageTotalCents"] as const;
 /** Campos que se JUNTAM ("ABC123 / DEF456"), como o client já faz. */
-const CAMPOS_JUNTADOS = ["locator", "purchaseOrderNumber"] as const;
+const CAMPOS_JUNTADOS = ["locator", "purchaseOrderNumber", "returnPurchaseOrderNumber"] as const;
 
 const vazio = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
 
@@ -1662,7 +1663,8 @@ export async function exportOperationalMirrorExcel(eventId: string): Promise<Buf
       // mantido como fallback para não alterar o comportamento da exportação.
       r.ticket?.locator || (r.ticket as { reservationNumber?: string | null } | null)?.reservationNumber || "",
       r.ticket?.ticketCompany || "",
-      r.ticket?.purchaseOrderNumber || "",
+      // Volta comprada à parte (28/10): "JPLN7F8J · volta 4471" — a importação lê só a ida.
+      numeroDaCompraComVolta(r.ticket),
       r.ticket?.checkIn3 || "",
       r.accommodation?.nightsCount ?? "",
       r.accommodation?.roomType || "",

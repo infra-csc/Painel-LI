@@ -187,3 +187,18 @@ describe("leitura da planilha", () => {
     expect(campos["carRental.oc"]).toBe("OC-LOCACAO");
   });
 });
+
+describe("bilhete da volta comprada à parte na coluna OC da passagem (28/10)", () => {
+  it("o export escreve \"JPLN7F8J · volta 4471\"; voltar a planilha não muda nada nem grava a volta na ida", () => {
+    const passagem = [pessoa("v9", "Erick Ramos", { "ticket.purchaseOrderNumber": "JPLN7F8J" })];
+    const igual = lerPlanilhaDoEspelho(planilha([(() => { const l = linha("Erick Ramos"); l[13] = "JPLN7F8J · volta 4471"; return l; })()]), passagem);
+    expect(igual.linhas[0].alteracoes).toHaveLength(0);
+
+    const novo = lerPlanilhaDoEspelho(planilha([(() => { const l = linha("Erick Ramos"); l[13] = "AX782Q · volta 4471"; return l; })()]), passagem);
+    expect(novo.linhas[0].alteracoes).toEqual([{ campo: "ticket.purchaseOrderNumber", de: "JPLN7F8J", para: "AX782Q" }]);
+
+    // Só a volta na célula: nada a gravar na ida.
+    const soVolta = lerPlanilhaDoEspelho(planilha([(() => { const l = linha("Erick Ramos"); l[13] = "volta 4471"; return l; })()]), passagem);
+    expect(soVolta.linhas[0].alteracoes).toHaveLength(0);
+  });
+});

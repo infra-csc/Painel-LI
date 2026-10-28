@@ -3,7 +3,8 @@ import { eventoFake, vagaFake } from "@/test/fixtures-dominio";
 import type { Collaborator, Ticket } from "@shared/schema";
 import { eventosAConfirmar, montarLinhas, passaNosFiltros, ordenarLinhas } from "./linhas-da-busca";
 import { FILTROS_PADRAO, escreverUrl, lerUrl } from "./filtros-da-busca";
-import { vooParaFormulario, centavosParaCampo } from "./voo-para-formulario";
+import { vooParaFormulario, centavosParaCampo, formularioDoVoo, type PassagemExistente } from "./voo-para-formulario";
+import { buildTicketPayload } from "@/lib/ticket-form";
 import type { ItinerarioDeVoo } from "@shared/busca-de-passagens";
 
 const HOJE = "2026-10-09";
@@ -212,5 +213,56 @@ describe("Usar este voo → formulário da passagem", () => {
     const ida = vooParaFormulario({ itinerario: { ...rt, pernas: [rt.pernas[0]] }, perna: "ida", chave: "k", vistoEm: "x", idaVemDeInclusionId: "anterior" }, "obs antiga");
     expect(ida).toMatchObject({ isOneWay: true, idaVemDeInclusionId: "anterior" });
     expect(ida.ticketObservations?.startsWith("obs antiga\nBusca de preços")).toBe(true);
+  });
+});
+
+describe("Usar este voo numa passagem que já existe (28/10: tipo e valor por trecho)", () => {
+  const seg = (cia: string, n: string, o: string, d: string, p: string, c: string) => ({ companhia: cia, numero: n, origem: o, destino: d, partida: p, chegada: c });
+  const idaGru: ItinerarioDeVoo["pernas"][number] = { companhia: "LA", duracaoMin: 60, segmentos: [seg("LA", "3001", "GRU", "SDU", "2026-11-12T06:10", "2026-11-12T07:10")] };
+  const voltaSdu: ItinerarioDeVoo["pernas"][number] = { companhia: "G3", duracaoMin: 60, segmentos: [seg("G3", "1500", "SDU", "GRU", "2026-11-16T19:05", "2026-11-16T20:05")] };
+  const base = { departureCityOrigin: "São Paulo - SP", returnCityDestination: "São Paulo - SP" };
+  // Vaga #4618: ida aérea GRU→SDU (R$ 388,93, LOC JPLN7F8J) + volta de ônibus (R$ 150,00, bilhete 4471).
+  const mista: PassagemExistente = {
+    transportType: "aereo", returnTransportType: "rodoviario", value: 53_893, returnValue: 15_000,
+    purchaseOrderNumber: "JPLN7F8J", returnPurchaseOrderNumber: "4471", ticketCompany: "LATAM", purchaseDate: "2026-10-20",
+    departureAirport: "GRU", destinationAirport: "SDU", actualDepartureDate: "2026-11-12", actualDepartureTime: "08:00", actualArrivalTime: "09:00",
+    returnOriginAirport: "NOVO RIO", returnDestinationAirport: "BARRA FUNDA", actualReturnDate: "2026-11-16", actualReturnTime: "22:00",
+  };
+
+  it("voo só da IDA: a volta de ônibus fica (tipo, valor e bilhete); total = ida nova + volta existente", () => {
+    const f = formularioDoVoo(base, { itinerario: { id: "i", precoCentavos: 41_000, moeda: "BRL", pernas: [idaGru] }, perna: "ida", chave: "k", vistoEm: "x" }, mista);
+    expect(f).toMatchObject({
+      transportType: "aereo", returnTransportType: "rodoviario", isOneWay: false, isReturnOnly: false,
+      value: "410,00", returnValue: "150,00", purchaseOrderNumber: "", returnPurchaseOrderNumber: "4471",
+      returnOriginAirport: "NOVO RIO", actualReturnTime: "22:00", actualDepartureTime: "06:10",
+    });
+    expect(buildTicketPayload(f)).toMatchObject({ transportType: "aereo", returnTransportType: "rodoviario", value: 56_000, returnValue: 15_000, returnPurchaseOrderNumber: "4471" });
+  });
+
+  it("voo de IDA E VOLTA: a volta vira aérea (tipo igual à ida) e o valor é o do voo", () => {
+    const f = formularioDoVoo(base, { itinerario: { id: "i", precoCentavos: 90_000, moeda: "BRL", pernas: [idaGru, voltaSdu] }, perna: "ida_e_volta", chave: "k", vistoEm: "x" }, mista);
+    expect(f).toMatchObject({ transportType: "aereo", returnTransportType: "", returnValue: "", returnPurchaseOrderNumber: "", returnOriginAirport: "SDU", value: "900,00" });
+    expect(buildTicketPayload(f)).toMatchObject({ returnTransportType: null, value: 90_000, returnValue: null, returnPurchaseOrderNumber: null });
+  });
+
+  it("voo da VOLTA: a volta vira aérea com o valor do voo; a ida fica com o que era dela", () => {
+    const f = formularioDoVoo(base, { itinerario: { id: "i", precoCentavos: 30_000, moeda: "BRL", pernas: [voltaSdu] }, perna: "volta", chave: "k", vistoEm: "x" }, mista);
+    expect(f).toMatchObject({
+      transportType: "aereo", returnTransportType: "", isOneWay: false, isReturnOnly: false,
+      value: "388,93", returnValue: "300,00", purchaseOrderNumber: "JPLN7F8J", returnPurchaseOrderNumber: "",
+      departureAirport: "GRU", returnOriginAirport: "SDU", actualReturnTime: "19:05",
+    });
+    expect(buildTicketPayload(f)).toMatchObject({ returnTransportType: null, value: 68_893, returnValue: 30_000 });
+    // Ida de ônibus + voo da volta: a volta fica "aereo" (diferente da ida).
+    const rodo = formularioDoVoo(base, { itinerario: { id: "i", precoCentavos: 30_000, moeda: "BRL", pernas: [voltaSdu] }, perna: "volta", chave: "k", vistoEm: "x" },
+      { ...mista, transportType: "rodoviario", returnTransportType: null, value: 9_000, returnValue: null });
+    expect(rodo).toMatchObject({ transportType: "rodoviario", returnTransportType: "aereo", value: "90,00", returnValue: "300,00" });
+    expect(buildTicketPayload(rodo)).toMatchObject({ transportType: "rodoviario", returnTransportType: "aereo", value: 39_000, returnValue: 30_000 });
+  });
+
+  it("sem passagem, é o voo sobre os campos sugeridos (como sempre)", () => {
+    const f = formularioDoVoo(base, { itinerario: { id: "i", precoCentavos: 41_000, moeda: "BRL", pernas: [idaGru] }, perna: "ida", chave: "k", vistoEm: "x" }, undefined);
+    expect(f).toMatchObject({ ...base, transportType: "aereo", isOneWay: true, value: "410,00" });
+    expect(f.returnTransportType).toBeUndefined();
   });
 });

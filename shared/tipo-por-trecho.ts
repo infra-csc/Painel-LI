@@ -145,3 +145,41 @@ export function rotuloDoNumeroDaCompra(t: TiposDaPassagem | null | undefined): s
   if (ida !== volta) return "LOC / Bilhete";
   return ida === "rodoviario" ? "Bilhete" : "LOC";
 }
+
+// ── Valor por TIPO de transporte (Análises, 28/10) ─────────────────────────
+
+export interface ParteDoTipo {
+  /** "ida" = a passagem inteira (ou só a ida, quando a volta é de outro tipo). */
+  lado: LadoDoTrecho;
+  tipo: TipoDoTrecho | null;
+  /** Centavos; null quando não há como separar (volta de outro tipo sem valor próprio). */
+  valorCents: number | null;
+}
+
+/**
+ * Quanto de cada passagem é de cada tipo (28/10). Ida aérea R$ 388,93 +
+ * volta de ônibus R$ 150,00 (value 53893, returnValue 15000) → aéreo 38893 e
+ * rodoviário 15000. Volta do mesmo tipo da ida (todas as antigas) → uma parte
+ * só, com o TOTAL no tipo da ida, como sempre. Volta de outro tipo sem valor
+ * próprio → o total fica na ida e a volta entra sem valor (não há como separar).
+ */
+export function partesPorTipo(t: (TiposDaPassagem & ValoresDaPassagem) | null | undefined): ParteDoTipo[] {
+  const total = typeof t?.value === "number" ? t.value : null;
+  const ida: ParteDoTipo = { lado: "ida", tipo: tipoDaIda(t), valorCents: total };
+  if (!voltaComOutroTipo(t)) return [ida];
+  const v = valoresPorTrecho(t);
+  const volta: ParteDoTipo = { lado: "volta", tipo: tipoDaVolta(t), valorCents: v.voltaCents };
+  return v.voltaCents === null ? [ida, volta] : [{ ...ida, valorCents: v.idaCents }, volta];
+}
+
+/**
+ * Espelho (28/10): o número da compra com o da volta comprada à parte —
+ * "JPLN7F8J · volta 4471". Sem bilhete próprio na volta, só o da passagem
+ * (como sempre); só a volta preenchida → "volta 4471". Vazio → "".
+ */
+export function numeroDaCompraComVolta(t: { purchaseOrderNumber?: string | null; returnPurchaseOrderNumber?: string | null } | null | undefined): string {
+  const ida = String(t?.purchaseOrderNumber ?? "").trim();
+  const volta = String(t?.returnPurchaseOrderNumber ?? "").trim();
+  if (!volta) return ida;
+  return ida ? `${ida} · volta ${volta}` : `volta ${volta}`;
+}

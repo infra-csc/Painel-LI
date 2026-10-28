@@ -162,6 +162,10 @@ function converter(campo: string, bruto: unknown): ValorImportado {
     return Number.isFinite(n) && String(bruto).trim() !== "" ? n : null;
   }
   if (tipo === "bool") return /^(sim|s|x|true|1)$/i.test(String(bruto).trim());
+  // O export escreve o bilhete da volta comprada à parte junto do da passagem
+  // ("JPLN7F8J · volta 4471", 28/10). Voltar a planilha não grava a volta
+  // dentro do número da ida: só o que vem antes do " · volta" vale.
+  if (campo === "ticket.purchaseOrderNumber") return String(bruto).replace(/(^|\s*·\s*)volta\s.*$/i, "").trim() || null;
   return String(bruto).trim();
 }
 

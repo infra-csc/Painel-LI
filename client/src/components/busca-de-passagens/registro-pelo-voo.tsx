@@ -30,7 +30,7 @@ import type { TicketsData } from "@/components/tickets/use-tickets-data";
 import type { FieldErrorsState, FormFieldHelpers, TicketFormHandlers } from "@/components/tickets/types";
 import { companhiaDaPerna, voosDaPerna } from "@shared/busca-de-passagens";
 import { registrarUsoDoVoo } from "./use-busca-de-passagens";
-import { vooParaFormulario, type VooEscolhido } from "./voo-para-formulario";
+import { formularioDaPassagem, formularioDoVoo, vooParaFormulario, type VooEscolhido } from "./voo-para-formulario";
 
 
 export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado, fila }: {
@@ -46,15 +46,18 @@ export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado,
 }) {
   const { toast } = useToast();
   const sid = vaga.id;
-  const inicial = useMemo<TicketFormValues>(() => {
+  // A passagem que a vaga já tem (28/10): o voo troca só o trecho que cobre —
+  // a volta de ônibus fica quando o voo é só da ida (regra em formularioDoVoo).
+  const passagem = data.getTicket(vaga.id);
+  const base = useMemo<TicketFormValues>(() => {
     const local = data.eventById.get(vaga.eventId)?.location ?? "";
     const origem = vaga.city || (vaga.collaboratorId ? data.collaboratorById.get(vaga.collaboratorId)?.city : "") || "";
     return {
       departureCityDestination: local, returnCityOrigin: local,
       departureCityOrigin: origem, returnCityDestination: origem,
-      ...vooParaFormulario(voo),
     };
-  }, [data.eventById, data.collaboratorById, vaga, voo]);
+  }, [data.eventById, data.collaboratorById, vaga]);
+  const inicial = useMemo<TicketFormValues>(() => formularioDoVoo(base, voo, passagem), [base, voo, passagem]);
   const [form, setForm] = useState<TicketFormValues>(inicial);
   const [erros, setErros] = useState<FieldErrorsState>({});
   const [aba, setAba] = useState("dados");
@@ -163,7 +166,7 @@ export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado,
           Compre no site da companhia, confira o valor pago e informe o LOC antes de registrar.
         </p>
       </div>
-      <button type="button" onClick={() => { setForm({ ...inicial, ...Object.fromEntries(Object.keys(vooParaFormulario(voo)).map((k) => [k, ""])), transportType: "aereo", isOneWay: false, isReturnOnly: false }); }}
+      <button type="button" onClick={() => { setForm(passagem ? formularioDaPassagem(base, passagem) : { ...inicial, ...Object.fromEntries(Object.keys(vooParaFormulario(voo)).map((k) => [k, ""])), transportType: "aereo", isOneWay: false, isReturnOnly: false }); }}
         className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-slate-600 hover:bg-card hover:text-foreground">
         <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Limpar o voo
       </button>
@@ -180,7 +183,8 @@ export function RegistroPeloVoo({ data, user, vaga, voo, onFechar, onRegistrado,
         form={form}
         helpers={helpers}
         handlers={handlers}
-        editingTicketId={null}
+        // Vaga que já tem passagem: o modal abre editando ela, com o voo aplicado (28/10).
+        editingTicketId={passagem ? sid : null}
         activeTab={aba}
         onTabChange={setAba}
         showCommentsModal={comentarios}

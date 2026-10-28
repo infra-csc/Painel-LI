@@ -11,7 +11,7 @@ type Visao = GrupoDeRotas;
 const LIMITE = 6;
 
 export function RotasECompanhias({ r, visao, onVisao }: {
-  r: Pick<AnaliseDePassagens, "porRota" | "porCompanhia" | "porTransporte" | "bagagem">;
+  r: Pick<AnaliseDePassagens, "porRota" | "porCompanhia" | "porTransporte" | "bagagem"> & Partial<Pick<AnaliseDePassagens, "voltaDeOutroTipo">>;
   visao: Visao;
   onVisao: (v: Visao) => void;
 }) {
@@ -51,6 +51,11 @@ export function RotasECompanhias({ r, visao, onVisao }: {
         <>
           Bagagem: <span className="font-medium tabular-nums text-slate-700">{moeda(r.bagagem.total)}</span> em {plural(r.bagagem.passagens, "passagem", "passagens")} — somada ao gasto, fora do preço médio.
           {visao === "rotas" && " A rota usa o aeroporto quando preenchido; sem ele, a cidade."}
+          {visao === "transporte" && (r.voltaDeOutroTipo ?? 0) > 0 && (
+            <span data-testid="transporte-por-trecho">
+              {" "}{plural(r.voltaDeOutroTipo ?? 0, "passagem tem", "passagens têm")} a volta de outro tipo: cada trecho conta no seu tipo, com o seu valor.
+            </span>
+          )}
         </>
       }
     >

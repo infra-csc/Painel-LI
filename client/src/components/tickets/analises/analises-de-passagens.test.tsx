@@ -6,6 +6,7 @@ import { mockarFetch, respostaJson, urlsChamadas, usuarioFake } from "@/test/fix
 import { analisarPassagens, type PassagemParaAnalise } from "@shared/analise-de-passagens";
 import AnalisesDePassagens from "./analises-de-passagens";
 import { AbasDePassagens, abaDaUrl, comAba } from "./abas-de-passagens";
+import { RotasECompanhias } from "./rotas-e-companhias";
 import { VISAO_PADRAO, visaoDaUrl, type VisaoDaAnalise } from "./url-da-analise";
 import { filtersFromSearch } from "../filters-url";
 
@@ -161,5 +162,17 @@ describe("AbasDePassagens", () => {
     expect(comAba("event=ev-1&status=pending", "analises")).toBe("event=ev-1&status=pending&aba=analises");
     expect(comAba("", "analises")).toBe("aba=analises");
     expect(comAba("event=ev-1", "lista")).toBe("event=ev-1");
+  });
+});
+
+describe("Transporte por trecho (28/10: ida aérea + volta de ônibus)", () => {
+  it("cada trecho no seu tipo, com o seu valor, e o rodapé explica", () => {
+    const r = analisarPassagens([p({ transporte: "aereo", transporteDaVolta: "rodoviario", valor: 53_893, valorDaVolta: 15_000 })], []);
+    renderComTudo(<RotasECompanhias r={r} visao="transporte" onVisao={vi.fn()} />);
+    const tabela = screen.getByTestId("tabela-transporte");
+    // A aba mostra reais inteiros: 388,93 → R$ 389.
+    expect(tabela).toHaveTextContent(/Aéreo.*R\$\s?389/);
+    expect(tabela).toHaveTextContent(/Rodoviário.*R\$\s?150/);
+    expect(screen.getByTestId("transporte-por-trecho")).toHaveTextContent("1 passagem tem a volta de outro tipo");
   });
 });

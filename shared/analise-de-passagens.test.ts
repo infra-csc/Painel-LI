@@ -180,6 +180,41 @@ describe("analisarPassagens", () => {
     expect(r.porTransporte.map((t) => [t.nome, t.passagens])).toEqual([["Aéreo", 3], ["Rodoviário", 1], ["Não informado", 1]]);
   });
 
+  describe("transporte por trecho (28/10: ida aérea + volta de ônibus)", () => {
+    // Vaga #4618: ida aérea R$ 388,93 + volta de ônibus R$ 150,00 → value 53893 (o total).
+    const mista = () => passagem({ transporte: "aereo", transporteDaVolta: "rodoviario", valor: 53_893, valorDaVolta: 15_000, bagagem: 5_000 });
+
+    it("cada trecho no seu tipo: aéreo 388,93 e rodoviário 150,00; os totais não mudam", () => {
+      const r = analisarPassagens([mista()], []);
+      expect(r.porTransporte.map((t) => [t.chave, t.passagens, t.totalPassagem])).toEqual([["aereo", 1, 38_893], ["rodoviario", 1, 15_000]]);
+      // A bagagem fica só no trecho da ida (não conta duas vezes).
+      expect(r.porTransporte.find((t) => t.chave === "rodoviario")?.totalBagagem).toBe(0);
+      expect(r.totais).toMatchObject({ passagens: 1, totalPassagem: 53_893, totalBagagem: 5_000 });
+      expect(r.voltaDeOutroTipo).toBe(1);
+      expect(r.opcoes.transportes.map((o) => [o.id, o.n])).toEqual([["aereo", 1], ["rodoviario", 1]]);
+    });
+
+    it("filtro de transporte vê só o trecho do tipo escolhido", () => {
+      const lista = [mista(), passagem({ transporte: "aereo", valor: 100_000 })];
+      const rodo = analisarPassagens(lista, [], { transporte: "rodoviario" });
+      expect(rodo.totais).toMatchObject({ passagens: 1, totalPassagem: 15_000, totalBagagem: 0 });
+      const aereo = analisarPassagens(lista, [], { transporte: "aereo" });
+      expect(aereo.totais).toMatchObject({ passagens: 2, totalPassagem: 138_893, totalBagagem: 5_000 });
+    });
+
+    it("sem tipo próprio na volta, como sempre: o total no tipo da ida", () => {
+      // Volta comprada à parte, mas também aérea.
+      const r = analisarPassagens([passagem({ transporte: "aereo", transporteDaVolta: null, valor: 53_893, valorDaVolta: 15_000 })], []);
+      expect(r.porTransporte.map((t) => [t.chave, t.passagens, t.totalPassagem])).toEqual([["aereo", 1, 53_893]]);
+      expect(r.voltaDeOutroTipo).toBe(0);
+    });
+
+    it("volta de outro tipo sem valor próprio: o total na ida; a volta conta sem valor", () => {
+      const r = analisarPassagens([passagem({ transporte: "aereo", transporteDaVolta: "rodoviario", valor: 53_893 })], []);
+      expect(r.porTransporte.map((t) => [t.chave, t.passagens, t.comValor, t.totalPassagem])).toEqual([["aereo", 1, 1, 53_893], ["rodoviario", 1, 0, 0]]);
+    });
+  });
+
   it("filtros: período pelo início do evento; evento, companhia e transporte; opções do período inteiro", () => {
     const lista = [
       passagem({ eventId: "ev-velho", eventName: "Velho", eventStartDate: "2026-01-10" }),

@@ -16,6 +16,8 @@ import {
   valoresPorTrecho,
   detalheDosValores,
   numerosDaCompra,
+  partesPorTipo,
+  numeroDaCompraComVolta,
 } from "./tipo-por-trecho";
 import { calcularPlanejadoDaVaga } from "./budget-engine";
 import { MOBILIDADE_TRECHO_MADRUGADA_CENTS, MOBILIDADE_TRECHO_PADRAO_CENTS } from "./atendimento";
@@ -169,5 +171,38 @@ describe("valor e bilhete por trecho (dono, 28/10: \"deveria SOMAR os valores de
     expect(numerosDaCompra({ ...mista, purchaseOrderNumber: "JPLN7F8J", returnPurchaseOrderNumber: "4471" })).toEqual(["LOC JPLN7F8J", "Bilhete 4471"]);
     expect(numerosDaCompra({ transportType: "aereo", purchaseOrderNumber: "AX782Q" })).toEqual(["LOC AX782Q"]);
     expect(numerosDaCompra({ transportType: "rodoviario", purchaseOrderNumber: "123" })).toEqual(["Bilhete 123"]);
+  });
+});
+
+describe("valor por tipo de transporte (Análises, 28/10)", () => {
+  it("ida aérea R$ 388,93 + volta ônibus R$ 150,00 → aéreo 388,93 e rodoviário 150,00", () => {
+    expect(partesPorTipo({ transportType: "aereo", returnTransportType: "rodoviario", value: 53893, returnValue: 15000 })).toEqual([
+      { lado: "ida", tipo: "aereo", valorCents: 38893 },
+      { lado: "volta", tipo: "rodoviario", valorCents: 15000 },
+    ]);
+  });
+
+  it("volta do mesmo tipo (ou sem tipo próprio): o total fica no tipo da ida, como sempre", () => {
+    expect(partesPorTipo({ transportType: "aereo", value: 80000 })).toEqual([{ lado: "ida", tipo: "aereo", valorCents: 80000 }]);
+    // Volta comprada à parte, mas do mesmo tipo: continua uma parte só.
+    expect(partesPorTipo({ transportType: "aereo", returnTransportType: null, value: 53893, returnValue: 15000 })).toEqual([{ lado: "ida", tipo: "aereo", valorCents: 53893 }]);
+    expect(partesPorTipo({ transportType: "rodoviario", returnTransportType: "rodoviario", value: 9000 })).toEqual([{ lado: "ida", tipo: "rodoviario", valorCents: 9000 }]);
+  });
+
+  it("volta de outro tipo sem valor próprio: o total na ida e a volta sem valor", () => {
+    expect(partesPorTipo({ transportType: "aereo", returnTransportType: "rodoviario", value: 53893 })).toEqual([
+      { lado: "ida", tipo: "aereo", valorCents: 53893 },
+      { lado: "volta", tipo: "rodoviario", valorCents: null },
+    ]);
+  });
+});
+
+describe("número da compra no Espelho (28/10)", () => {
+  it("mostra o da volta quando ela tem bilhete próprio; sem ele, como sempre", () => {
+    expect(numeroDaCompraComVolta({ purchaseOrderNumber: "JPLN7F8J", returnPurchaseOrderNumber: "4471" })).toBe("JPLN7F8J · volta 4471");
+    expect(numeroDaCompraComVolta({ purchaseOrderNumber: "JPLN7F8J", returnPurchaseOrderNumber: null })).toBe("JPLN7F8J");
+    expect(numeroDaCompraComVolta({ purchaseOrderNumber: "JPLN7F8J", returnPurchaseOrderNumber: "  " })).toBe("JPLN7F8J");
+    expect(numeroDaCompraComVolta({ purchaseOrderNumber: null, returnPurchaseOrderNumber: "4471" })).toBe("volta 4471");
+    expect(numeroDaCompraComVolta(null)).toBe("");
   });
 });

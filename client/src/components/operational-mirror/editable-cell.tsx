@@ -61,10 +61,16 @@ export interface EditableCellProps {
    * ser lido como lançado. Digitar algo na célula passa a valer no lugar dele.
    */
   calculado?: { valor: number; dica: string } | null;
+  /**
+   * Texto que acompanha o valor sem fazer parte dele (28/10 — o bilhete da
+   * volta comprada à parte ao lado do LOC/OC da ida: "JPLN7F8J · volta 4471").
+   * Editar a célula continua editando só o valor.
+   */
+  complemento?: string | null;
 }
 
 export function EditableCell({
-  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa, estado = "preenchido", aoConfirmar, calculado,
+  rowId, field, value, type, onSave, align = "left", compact, onEdit, editMode = true, variant, options, etapa, estado = "preenchido", aoConfirmar, calculado, complemento,
 }: EditableCellProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -92,6 +98,19 @@ export function EditableCell({
     return String(value);
   }
   function display(): React.ReactNode {
+    const base = valorNaTela();
+    if (!complemento || estado === "a_confirmar" || estado === "nao_usa") return base;
+    const vazio = value === null || value === undefined || value === "";
+    return (
+      <>
+        {!vazio && base}
+        <span className={`${variant === "mono" || variant === "oc" ? "font-mono text-2xs tracking-tight " : ""}text-muted-foreground`} data-testid="celula-complemento">
+          {vazio ? "" : " · "}{complemento}
+        </span>
+      </>
+    );
+  }
+  function valorNaTela(): React.ReactNode {
     // Sugestão que ninguém confirmou não é dado: dizer isso evita que o valor
     // calculado seja lido como decisão tomada.
     if (estado === "a_confirmar") return <span className="text-primary">a confirmar</span>;

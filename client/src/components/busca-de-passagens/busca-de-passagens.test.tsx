@@ -171,6 +171,45 @@ describe("\"Usar este voo\" preenche o modal de registro de Passagens", () => {
     expect(screen.getByTestId("trecho-so_ida-v1")).toHaveAttribute("aria-checked", "true");
     expect((screen.getByTestId("textarea-ticket-observations-v1") as HTMLTextAreaElement).value).toMatch(/Busca de preços .*GOL — ida G3 1500/);
   });
+
+  it("vaga que já tem ida aérea + volta de ônibus: o voo da ida não mexe na volta (28/10)", async () => {
+    mockarFetch((url) => {
+      if (url.includes("/api/tickets/sinais-de-viagem")) return respostaJson({ porVaga: {}, totais: { viagensQueSeCruzam: 0, passagensComDataImpossivel: 0 } });
+      return respostaJson([]);
+    });
+    const evento = eventoFake({ id: "e1", name: "Running Hour Rio", location: "Rio de Janeiro - RJ", aeroportoIata: "SDU", endDate: "2099-01-01" });
+    const vaga = vagaFake({ id: "v2", eventId: "e1", needsTicket: true, city: "São Paulo - SP", status: "escalado" });
+    const passagem = {
+      id: "t1", teamInclusionId: "v2", transportType: "aereo", returnTransportType: "rodoviario", value: 53_893, returnValue: 15_000,
+      purchaseOrderNumber: "JPLN7F8J", returnPurchaseOrderNumber: "4471", departureAirport: "GRU", destinationAirport: "SDU",
+      actualDepartureDate: "2026-11-12", actualDepartureTime: "06:00", actualArrivalTime: "07:00",
+      returnOriginAirport: "NOVO RIO", returnDestinationAirport: "BARRA FUNDA", actualReturnDate: "2026-11-16", actualReturnTime: "22:00",
+    };
+    const data = {
+      eventById: new Map([[evento.id, evento]]),
+      collaboratorById: new Map(),
+      getTicket: (id: string) => (id === "v2" ? passagem : undefined),
+      getCollaborator: () => null,
+      getCollaboratorName: () => "Erick Ramos",
+      getFunctionName: () => "Montagem",
+      getEventName: () => evento.name,
+      getEventLocation: () => evento.location,
+      getUserName: () => "Usuário",
+      isPurchasingRole: true,
+      systemSettings: undefined,
+    } as unknown as TicketsData;
+    const idaSdu: ItinerarioDeVoo = { ...voo, pernas: [{ ...voo.pernas[0], segmentos: [{ ...voo.pernas[0].segmentos[0], destino: "SDU" }] }] };
+    renderComTudo(
+      <RegistroPeloVoo data={data} user={usuarioFake({ role: "purchasing" })} vaga={vaga}
+        voo={{ itinerario: idaSdu, perna: "ida", chave: "ida|GRU>SDU", vistoEm: "2026-10-09T17:32:00Z" }} onFechar={vi.fn()} />,
+      { user: usuarioFake({ role: "purchasing" }) },
+    );
+    await waitFor(() => expect(screen.getByTestId("input-departure-time-v2")).toHaveValue("08:00"));
+    expect(screen.getByTestId("trecho-ida_volta-v2")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("input-return-ticket-value-v2")).toHaveValue("150,00");
+    expect(screen.getByTestId("input-return-purchase-order-v2")).toHaveValue("4471");
+    expect(screen.getByTestId("total-ida-volta-v2")).toHaveTextContent("R$ 1.384,56");
+  });
 });
 
 describe("\"Incluir eventos passados\" (15/10)", () => {

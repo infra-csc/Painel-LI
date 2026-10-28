@@ -20,7 +20,13 @@
  *  - Dia da semana só é marcado como "mais caro"/"mais barato" com pelo menos
  *    MIN_PASSAGENS_POR_DIA passagens com valor — um dia com uma passagem só
  *    não vira conclusão. O mesmo piso vale para a antecedência.
+ *  - Transporte POR TRECHO (28/10): a passagem com a volta de outro tipo (ida
+ *    aérea + volta de ônibus) conta em cada tipo pelo seu trecho — a parte da
+ *    volta (`valorDaVolta`) no tipo da volta, o resto no da ida. É assim no
+ *    agrupamento "Transporte", nas opções e no filtro de transporte (que vê só
+ *    o trecho do tipo escolhido). Sem tipo próprio na volta, nada muda.
  */
+import { partesPorTipo } from "./tipo-por-trecho";
 
 /** Uma passagem já ligada à vaga e ao evento — o que o servidor lê do banco. */
 export interface PassagemParaAnalise {
@@ -42,7 +48,15 @@ export interface PassagemParaAnalise {
   dataIda: string | null;
   dataVolta: string | null;
   companhia: string | null;
+  /** Tipo da IDA (e da passagem inteira, quando a volta é do mesmo tipo). */
   transporte: string | null;
+  /**
+   * Tipo da VOLTA quando diferente da ida (28/10 — `return_transport_type`;
+   * null = igual à ida). Com ele, a passagem conta em cada tipo pelo seu trecho.
+   */
+  transporteDaVolta?: string | null;
+  /** Parte da volta dentro de `valor` (centavos — `return_value`); null = uma compra só. */
+  valorDaVolta?: number | null;
   /** Aeroporto (preferido) ou cidade de origem da ida. */
   origem: string | null;
   /** Aeroporto (preferido) ou cidade de destino da ida. */
@@ -165,6 +179,11 @@ export interface AnaliseDePassagens {
   porRota: GrupoNomeado[];
   porCompanhia: GrupoNomeado[];
   porTransporte: GrupoNomeado[];
+  /**
+   * Passagens com a volta de outro tipo (ida aérea + volta de ônibus, 28/10):
+   * cada uma entra em "Transporte" duas vezes, uma por trecho.
+   */
+  voltaDeOutroTipo: number;
   bagagem: { passagens: number; total: number };
   trocas: { passagens: number; gasto: number };
   remarcacoes: { total: number; pendentes: number; resolvidos: number };
@@ -383,6 +402,24 @@ const rotaDe = (p: PassagemParaAnalise) => {
 /** "Aéreo", "aereo " e "AEREO" são o mesmo transporte; vazio = não informado. */
 const transporteDe = (p: PassagemParaAnalise) => semAcento(String(p.transporte ?? ""));
 
+/**
+ * A passagem em recortes de UM tipo de transporte cada (28/10). Ida aérea
+ * R$ 388,93 + volta de ônibus R$ 150,00 → um recorte aéreo de 38893 e um
+ * rodoviário de 15000 (a bagagem fica no da ida, para não contar duas vezes).
+ * Volta do mesmo tipo da ida → a própria passagem, com o total no tipo da ida.
+ * A regra de quanto é de cada tipo é a de shared/tipo-por-trecho.
+ */
+export function recortesPorTransporte(p: PassagemParaAnalise): PassagemParaAnalise[] {
+  const partes = partesPorTipo({ transportType: p.transporte, returnTransportType: p.transporteDaVolta, value: p.valor, returnValue: p.valorDaVolta });
+  if (partes.length < 2) return [p];
+  const [ida, volta] = partes;
+  const umTipo = { transporteDaVolta: null, valorDaVolta: null };
+  return [
+    { ...p, ...umTipo, valor: ida.valorCents },
+    { ...p, ...umTipo, transporte: volta.tipo, valor: volta.valorCents, bagagem: null },
+  ];
+}
+
 // ── Entrada principal ───────────────────────────────────────────────────────
 
 export function analisarPassagens(
@@ -406,13 +443,23 @@ export function analisarPassagens(
   });
 
   // 2) Opções dos filtros: tudo do período, com quantas passagens cada uma deixa.
-  const contar = (chave: (p: PassagemParaAnalise) => string, nome: (k: string, p: PassagemParaAnalise) => string) => {
+  const contar = (
+    chave: (p: PassagemParaAnalise) => string,
+    nome: (k: string, p: PassagemParaAnalise) => string,
+    partes: (p: PassagemParaAnalise) => PassagemParaAnalise[] = (p) => [p],
+  ) => {
     const m = new Map<string, Opcao>();
-    for (const p of noPeriodo) {
-      const k = chave(p);
-      const o = m.get(k) ?? { id: k, nome: nome(k, p), n: 0 };
-      o.n += 1;
-      m.set(k, o);
+    for (const inteira of noPeriodo) {
+      // Cada passagem conta uma vez em cada opção (as partes têm chaves distintas).
+      const chaves = new Set<string>();
+      for (const p of partes(inteira)) {
+        const k = chave(p);
+        if (chaves.has(k)) continue;
+        chaves.add(k);
+        const o = m.get(k) ?? { id: k, nome: nome(k, p), n: 0 };
+        o.n += 1;
+        m.set(k, o);
+      }
     }
     return Array.from(m.values());
   };
@@ -420,15 +467,18 @@ export function analisarPassagens(
     eventos: contar((p) => p.eventId, (_k, p) => p.eventName).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
     companhias: contar((p) => chaveDaCompanhia(p.companhia), (k, p) => nomeDaCompanhia(k, p.companhia))
       .sort((a, b) => (a.id === "" ? 1 : b.id === "" ? -1 : b.n - a.n || a.nome.localeCompare(b.nome, "pt-BR"))),
-    transportes: contar(transporteDe, (k) => ROTULO_TRANSPORTE[k] ?? k)
+    // Por trecho: a passagem de ida aérea e volta de ônibus conta nos dois.
+    transportes: contar(transporteDe, (k) => ROTULO_TRANSPORTE[k] ?? k, recortesPorTransporte)
       .sort((a, b) => (a.id === "" ? 1 : b.id === "" ? -1 : b.n - a.n)),
   };
 
-  // 3) Recorte de evento, companhia e transporte.
-  const lista = noPeriodo.filter((p) =>
+  // 3) Recorte de evento, companhia e transporte. Com transporte escolhido, a
+  // passagem de dois tipos entra só com o trecho (e o valor) desse tipo.
+  const doRecorte = noPeriodo.filter((p) =>
     (!eventId || p.eventId === eventId)
-    && (companhia === null || chaveDaCompanhia(p.companhia) === companhia)
-    && (transporte === null || transporteDe(p) === transporte));
+    && (companhia === null || chaveDaCompanhia(p.companhia) === companhia));
+  const recortes = doRecorte.flatMap(recortesPorTransporte).filter((p) => transporte === null || transporteDe(p) === transporte);
+  const lista = transporte === null ? doRecorte : recortes;
 
   // Totais e o que fica de fora das médias.
   const base = agregar(lista);
@@ -519,10 +569,14 @@ export function analisarPassagens(
       const chave = chaveDaCompanhia(p.companhia);
       return { chave, nome: nomeDaCompanhia(chave, p.companhia) };
     }),
-    porTransporte: agruparNomeado(lista, (p) => {
+    porTransporte: agruparNomeado(recortes, (p) => {
       const chave = transporteDe(p);
       return { chave, nome: ROTULO_TRANSPORTE[chave] ?? chave };
     }),
+    voltaDeOutroTipo: doRecorte.filter((p) => {
+      const partes = recortesPorTransporte(p);
+      return partes.length > 1 && (transporte === null || partes.some((r) => transporteDe(r) === transporte));
+    }).length,
     bagagem: { passagens: bagPassagens, total: bagTotal },
     trocas: { passagens: trocas.passagens, gasto: trocas.gasto },
     remarcacoes: { total: avisosNoRecorte.length, pendentes, resolvidos: avisosNoRecorte.length - pendentes },

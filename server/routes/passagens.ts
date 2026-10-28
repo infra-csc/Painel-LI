@@ -327,7 +327,7 @@ export function registrarPassagens(app: Express): void {
             to_char(t.purchase_date, 'YYYY-MM-DD') AS data_compra,
             to_char(t.actual_departure_date, 'YYYY-MM-DD') AS data_ida,
             to_char(t.actual_return_date, 'YYYY-MM-DD') AS data_volta,
-            t.ticket_company, t.transport_type,
+            t.ticket_company, t.transport_type, t.return_transport_type, t.return_value,
             (t.ida_vem_de_inclusion_id IS NOT NULL) AS trecho_direto,
             COALESCE(NULLIF(trim(t.departure_airport), ''), t.departure_city_origin) AS origem,
             COALESCE(NULLIF(trim(t.destination_airport), ''), t.departure_city_destination) AS destino
@@ -351,7 +351,8 @@ export function registrarPassagens(app: Express): void {
         ticket_id: string; team_inclusion_id: string; event_id: string; event_name: string; event_start: string | null;
         pessoa_id: string | null; arquivada: boolean; value: number | null; baggage_total_cents: number | null;
         data_compra: string | null; data_ida: string | null; data_volta: string | null;
-        ticket_company: string | null; transport_type: string | null; origem: string | null; destino: string | null;
+        ticket_company: string | null; transport_type: string | null; return_transport_type: string | null; return_value: number | null;
+        origem: string | null; destino: string | null;
         trecho_direto: boolean | string | null;
       };
       const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -370,6 +371,9 @@ export function registrarPassagens(app: Express): void {
         dataVolta: l.data_volta,
         companhia: l.ticket_company,
         transporte: l.transport_type,
+        // Por trecho (28/10): a volta de outro tipo conta no tipo dela, com o valor dela.
+        transporteDaVolta: l.return_transport_type,
+        valorDaVolta: num(l.return_value),
         origem: l.origem,
         destino: l.destino,
         trechoDireto: l.trecho_direto === true || String(l.trecho_direto) === "t",
