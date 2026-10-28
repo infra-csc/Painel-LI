@@ -10,6 +10,26 @@ const log = (id: string, action: string, at: string, extra: Partial<FontesDoHist
   ({ id, action, details: "", previousValue: null, newValue: null, userName: "Ana", createdAt: at, ...extra });
 
 describe("histórico da vaga (14/09)", () => {
+  // 28/10 (vaga #4837): a vaga ganhar nome é o marco — título próprio, destaque e primeiro no mesmo instante.
+  it("colaborador incluído (de nenhum para alguém) vira o marco destacado; troca e remoção não", () => {
+    const at = "2026-10-26T21:23:01.996Z";
+    const h = montarHistoricoDaVaga(vazio({
+      logs: [
+        log("a", "city_changed", at, { details: "Cidade alterada", previousValue: "", newValue: "São Paulo - SP" }),
+        log("b", "status_changed", at, { previousValue: "planejado", newValue: "aguardando_producao" }),
+        log("c", "collaborator_changed", at, { previousValue: "Nenhum", newValue: "Myrella Brito Del Freu" }),
+        log("d", "collaborator_changed", "2026-10-27T10:00:00.000Z", { previousValue: "Myrella Brito Del Freu", newValue: "Outra Pessoa" }),
+      ],
+    }));
+    const incluido = h.find((e) => e.titulo === "Colaborador incluído: Myrella Brito Del Freu");
+    expect(incluido?.destaque).toBe(true);
+    const doAto = h.filter((e) => e.at === at);
+    expect(doAto[0].titulo).toBe("Colaborador incluído: Myrella Brito Del Freu");
+    const troca = h.find((e) => e.titulo === "Colaborador: Outra Pessoa");
+    expect(troca?.destaque).toBeFalsy();
+    expect(troca?.detalhe).toBe("Antes: Myrella Brito Del Freu");
+  });
+
   it("vaga sem nenhum log ainda mostra a criação", () => {
     const h = montarHistoricoDaVaga(vazio());
     expect(h.map((e) => e.titulo)).toEqual(["Vaga criada"]);

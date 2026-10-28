@@ -244,14 +244,18 @@ const CATEGORIA_META: Record<CategoriaDoHistorico, { rotulo: string; ponto: stri
 const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const DIA_DA_SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
-/** "Hoje", "Ontem" ou "25/09/2026 · quinta". */
+/**
+ * "25/09/2026 · quinta", com "Hoje ·"/"Ontem ·" na frente quando for o caso —
+ * a data sempre aparece (28/10, DP: "ontem" sozinho não serve de registro).
+ */
 function rotuloDoDia(dia: string): string {
   const hoje = new Date();
   const ontem = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1);
-  if (dia === ymdLocal(hoje)) return "Hoje";
-  if (dia === ymdLocal(ontem)) return "Ontem";
   const [a, m, d] = dia.split("-").map(Number);
-  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${a} · ${DIA_DA_SEMANA[new Date(a, m - 1, d).getDay()]}`;
+  const data = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${a} · ${DIA_DA_SEMANA[new Date(a, m - 1, d).getDay()]}`;
+  if (dia === ymdLocal(hoje)) return `Hoje · ${data}`;
+  if (dia === ymdLocal(ontem)) return `Ontem · ${data}`;
+  return data;
 }
 
 /**
@@ -325,11 +329,11 @@ function HistoricoDaVaga({ historico, carregando }: { historico: EntradaDoHistor
                   const meta = CATEGORIA_META[e.categoria] ?? CATEGORIA_META.alteracao;
                   const hora = e.diaFixo ? null : new Date(e.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
                   return (
-                    <li key={e.id} className="relative rounded-lg border border-border bg-card px-3 py-2 transition-colors hover:bg-surface-muted" data-testid={`historico-${e.id}`}>
+                    <li key={e.id} className={`relative rounded-lg border px-3 py-2 transition-colors ${e.destaque ? "border-primary/35 bg-brand-soft/60" : "border-border bg-card hover:bg-surface-muted"}`} data-testid={`historico-${e.id}`} data-destaque={e.destaque ? "sim" : undefined}>
                       <span className={`absolute -left-[19px] top-3 h-2 w-2 rounded-full ring-2 ring-card ${meta.ponto}`} aria-hidden="true" />
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className={`rounded px-1.5 py-px text-2xs font-semibold uppercase tracking-wide ${meta.chip}`}>{meta.rotulo}</span>
-                        <span className="text-xs font-semibold text-foreground break-words">{e.titulo}</span>
+                        <span className={`text-xs font-semibold break-words ${e.destaque ? "text-primary" : "text-foreground"}`}>{e.titulo}</span>
                         <span className="ml-auto text-2xs tabular-nums text-muted-foreground whitespace-nowrap">{hora ?? "dia"}</span>
                       </div>
                       {/* `whitespace-pre-line`: o log de validação traz a observação da área numa linha própria ("Observação: …"). */}

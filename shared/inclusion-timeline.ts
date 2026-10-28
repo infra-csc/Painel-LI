@@ -31,6 +31,8 @@ export interface EntradaDoHistorico {
   linhas: string[];
   autor: string | null;
   comentario: string | null;
+  /** Marco da vaga que o histórico destaca (28/10: o colaborador incluído — quando a vaga ganhou nome). */
+  destaque?: boolean;
 }
 
 type Quando = string | Date | null | undefined;
@@ -211,7 +213,11 @@ function entradaDoLog(l: FontesDoHistorico["logs"][number]): EntradaDoHistorico 
     return { ...base, categoria: "escala", titulo: `Status: ${rotuloStatus(l.newValue)}`, detalhe: l.previousValue ? `Antes: ${rotuloStatus(l.previousValue)}` : null, comentario: null };
   }
   if (l.action === "collaborator_changed") {
-    return { ...base, categoria: "escala", titulo: l.newValue && l.newValue !== "Nenhum" ? `Colaborador: ${l.newValue}` : "Colaborador removido", detalhe: l.previousValue && l.previousValue !== "Nenhum" ? `Antes: ${l.previousValue}` : null, comentario: null };
+    const tinha = !!l.previousValue && l.previousValue !== "Nenhum";
+    const tem = !!l.newValue && l.newValue !== "Nenhum";
+    // 28/10 (DP, vaga #4837): a vaga ganhar NOME é o marco que se procura no histórico.
+    if (!tinha && tem) return { ...base, categoria: "escala", titulo: `Colaborador incluído: ${l.newValue}`, detalhe: null, comentario: null, destaque: true };
+    return { ...base, categoria: "escala", titulo: tem ? `Colaborador: ${l.newValue}` : "Colaborador removido", detalhe: tinha ? `Antes: ${l.previousValue}` : null, comentario: null };
   }
   if (l.action === "work_days_changed") {
     return { ...base, ...LOG.work_days_changed, detalhe: null, linhas: texto.split(" | ").map((s) => s.trim()).filter(Boolean), comentario: null };
@@ -342,5 +348,6 @@ export function montarHistoricoDaVaga(f: FontesDoHistorico): EntradaDoHistorico[
     }
   }
 
-  return [...semEco, ...extras].sort((a, b) => ms(b) - ms(a) || a.id.localeCompare(b.id));
+  // No mesmo instante, o marco (colaborador incluído) vem primeiro.
+  return [...semEco, ...extras].sort((a, b) => ms(b) - ms(a) || Number(!!b.destaque) - Number(!!a.destaque) || a.id.localeCompare(b.id));
 }
